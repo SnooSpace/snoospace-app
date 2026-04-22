@@ -49,6 +49,7 @@ export default function CustomImagePicker({
   onDone,
   selectionLimit = 10,
   allowVideos = false,
+  videoMaxDuration = null, // seconds; videos longer than this are greyed out
 }) {
   const insets = useSafeAreaInsets();
 
@@ -144,8 +145,18 @@ export default function CustomImagePicker({
     [hasNextPage, assets.length, allowVideos, selectedAlbum]
   );
 
+  const isVideoTooLong = useCallback(
+    (item) =>
+      item.mediaType === "video" &&
+      videoMaxDuration !== null &&
+      item.duration > videoMaxDuration,
+    [videoMaxDuration]
+  );
+
   const toggleAsset = useCallback(
     (asset) => {
+      // Block selection of over-limit videos
+      if (isVideoTooLong(asset)) return;
       setSelectedAssets((prev) => {
         const existingIndex = prev.findIndex((a) => a.id === asset.id);
         if (existingIndex !== -1) {
@@ -157,7 +168,7 @@ export default function CustomImagePicker({
         return [...prev, asset];
       });
     },
-    [selectionLimit]
+    [selectionLimit, isVideoTooLong]
   );
 
   const handleDone = useCallback(() => {
@@ -215,48 +226,54 @@ export default function CustomImagePicker({
   // ── Render helpers ───────────────────────────────────────────
   const renderItem = useCallback(
     ({ item }) => {
+      const tooLong      = isVideoTooLong(item);
       const selectionNumber = getSelectionIndex(item.id);
       const isSelected = selectionNumber !== null;
 
       return (
         <TouchableOpacity
-          activeOpacity={0.85}
-          onPress={() => toggleAsset(item)}
+          activeOpacity={tooLong ? 1 : 0.85}
+          onPress={() => !tooLong && toggleAsset(item)}
           style={styles.thumbWrapper}
         >
           <Image
             source={{ uri: item.uri }}
-            style={styles.thumb}
+            style={[styles.thumb, tooLong && styles.thumbDisabled]}
             resizeMode="cover"
           />
 
-          {/* Dim overlay when selected */}
-          {isSelected && <View style={styles.selectedDim} />}
+          {/* Grey-out overlay for too-long videos */}
+          {tooLong && <View style={styles.tooLongOverlay} />}
 
-          {/* Selection badge — numbered circle or empty outline */}
-          <View
-            style={[
-              styles.badge,
-              isSelected ? styles.badgeSelected : styles.badgeUnselected,
-            ]}
-          >
-            {isSelected && (
-              <Text style={styles.badgeNumber}>{selectionNumber}</Text>
-            )}
-          </View>
+          {/* Dim overlay when selected */}
+          {isSelected && !tooLong && <View style={styles.selectedDim} />}
+
+          {/* Selection badge — only shown for valid assets */}
+          {!tooLong && (
+            <View
+              style={[
+                styles.badge,
+                isSelected ? styles.badgeSelected : styles.badgeUnselected,
+              ]}
+            >
+              {isSelected && (
+                <Text style={styles.badgeNumber}>{selectionNumber}</Text>
+              )}
+            </View>
+          )}
 
           {/* Video duration badge */}
           {item.mediaType === "video" && (
-            <View style={styles.videoBadge}>
-              <Text style={styles.videoDuration}>
-                {formatDuration(item.duration)}
+            <View style={[styles.videoBadge, tooLong && styles.videoBadgeTooLong]}>
+              <Text style={[styles.videoDuration, tooLong && styles.videoDurationTooLong]}>
+                {tooLong ? "Too long" : formatDuration(item.duration)}
               </Text>
             </View>
           )}
         </TouchableOpacity>
       );
     },
-    [selectedAssets, toggleAsset]
+    [selectedAssets, toggleAsset, isVideoTooLong]
   );
 
   const keyExtractor = useCallback((item) => item.id, []);
@@ -626,10 +643,27 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
+  videoBadgeTooLong: {
+    backgroundColor: "rgba(180,0,0,0.75)",
+  },
   videoDuration: {
     fontFamily: FONTS.medium,
     fontSize: 11,
     color: "#FFFFFF",
+  },
+  videoDurationTooLong: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
+    color: "#FFFFFF",
+  },
+
+  // ── Too-long video overlay ───────────────────────────────
+  thumbDisabled: {
+    opacity: 0.45,
+  },
+  tooLongOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.38)",
   },
 
   // ── Bottom bar ───────────────────────────────────────────

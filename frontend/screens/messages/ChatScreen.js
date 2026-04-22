@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
-  StyleSheet, View, Platform, Alert, Text, TextInput, Modal,
+  StyleSheet, View, Platform, Alert, Text, TextInput, Modal, ScrollView,
   TouchableOpacity, Image, KeyboardAvoidingView, Pressable,
 } from "react-native";
 import Animated, {
@@ -13,7 +13,7 @@ import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle, Bell, BellOff, Image as ImageIcon, LockKeyhole, ImagePlus, Megaphone } from "lucide-react-native";
-import * as ImagePicker from "expo-image-picker";
+import CustomImagePicker from "../../components/CustomImagePicker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 
 import { BlurView } from "expo-blur";
@@ -681,9 +681,10 @@ export default function ChatScreen({ route, navigation }) {
   // Group restriction + media state
   const [messagingRestricted,   setMessagingRestricted]   = useState(initialMessagingRestricted);
   const [myGroupRole,           setMyGroupRole]           = useState(initialMyGroupRole);
-  const [mediaAttachment,       setMediaAttachment]       = useState(null); // { uri, type, caption }
+  const [mediaAttachments,      setMediaAttachments]      = useState([]); // [{ uri, type, duration }]
   const [uploadProgress,        setUploadProgress]        = useState(0);
   const [uploadingMedia,        setUploadingMedia]        = useState(false);
+  const [mediaPickerOpen,       setMediaPickerOpen]       = useState(false);
 
   // highlight state lives in Reanimated (see highlightedIdSV below renderItem)
 
@@ -916,17 +917,17 @@ export default function ChatScreen({ route, navigation }) {
 
   const handleSend = async () => {
     const hasText  = messageText.trim().length > 0;
-    const hasMedia = !!mediaAttachment;
+    const hasMedia = mediaAttachments.length > 0;
     if ((!hasText && !hasMedia) || sending || uploadingMedia) return;
 
-    const text          = messageText.trim();
-    const replyId       = selectedReply?.id || null;
+    const text            = messageText.trim();
+    const replyId         = selectedReply?.id || null;
     const replyPreviewObj = selectedReply ? { ...selectedReply } : null;
-    const attachmentSnap = mediaAttachment;
+    const attachmentsSnap = [...mediaAttachments];
 
     setMessageText("");
     setSelectedReply(null);
-    setMediaAttachment(null);
+    setMediaAttachments([]);
     setSending(true);
 
     try {
@@ -934,49 +935,97 @@ export default function ChatScreen({ route, navigation }) {
       const finalRecipientType = currentRecipientType || recipientType || recipient?.type || "member";
       if (!finalRecipientId && !currentConversationId) throw new Error("Recipient information is missing.");
 
-      let msgType  = "text";
-      let metadata = null;
-
-      if (attachmentSnap) {
-        // Upload media first
+      if (attachmentsSnap.length === 0) {
+        // ── Text-only message ────────────────────────────────────────────────────
+        const response = await sendMessage({
+          conversationId:      currentConversationId || undefined,
+          recipientId:         currentConversationId ? undefined : finalRecipientId,
+          recipientType:       finalRecipientType,
+          messageText:         text,
+          messageType:         "text",
+          reply_to_message_id: replyId,
+          metadata:            null,
+        });
+        const msg = { ...response.message, replyPreview: replyPreviewObj };
+        if (!currentConversationId) setCurrentConversationId(msg.conversationId);
+        setMessages(prev => [...prev, msg]);
+        EventBus.emit("conversation-updated", {
+          conversationId: msg.conversationId,
+          lastMessage: msg.messageText,
+          lastMessageAt: msg.createdAt,
+          otherParticipant: recipient ? { ...recipient, type: finalRecipientType } : { id: finalRecipientId, type: finalRecipientType },
+        });
+      } else {
+        // ── Multi-media: upload all in parallel, send sequentially ────────────
         setUploadingMedia(true);
         setUploadProgress(0);
-        const uploaded = await uploadChatMedia(
-          attachmentSnap.uri,
-          attachmentSnap.type,
-          { onProgress: (p) => setUploadProgress(p) },
+
+        const totalItems   = attachmentsSnap.length;
+        const progressArr  = new Array(totalItems).fill(0);
+
+        const uploadedItems = await Promise.all(
+          attachmentsSnap.map((attachment, idx) =>
+            uploadChatMedia(
+              attachment.uri,
+              attachment.type,
+              {
+                onProgress: (p) => {
+                  progressArr[idx] = p;
+                  const avg = progressArr.reduce((a, b) => a + b, 0) / totalItems;
+                  setUploadProgress(avg);
+                },
+              },
+            ).then(u => ({ uploaded: u, type: attachment.type }))
+          )
         );
+
         setUploadingMedia(false);
-        msgType  = attachmentSnap.type; // 'image' | 'video'
-        metadata = {
-          url:           uploaded.url,
-          public_id:     uploaded.public_id,
-          resource_type: uploaded.resource_type,
-          duration:      uploaded.duration,
-          thumbnail_url: uploaded.thumbnail_url,
-          width:         uploaded.width,
-          height:        uploaded.height,
-        };
+
+        // Send each media item as its own message.
+        // The text caption goes on the first one; subsequent ones have no text.
+        let resolvedConvId = currentConversationId;
+        for (let i = 0; i < uploadedItems.length; i++) {
+          const { uploaded, type } = uploadedItems[i];
+          const isFirst = i === 0;
+          const metadata = {
+            url:           uploaded.url,
+            public_id:     uploaded.public_id,
+            resource_type: uploaded.resource_type,
+            duration:      uploaded.duration,
+            thumbnail_url: uploaded.thumbnail_url,
+            width:         uploaded.width,
+            height:        uploaded.height,
+          };
+
+          const response = await sendMessage({
+            conversationId:      resolvedConvId || undefined,
+            recipientId:         resolvedConvId ? undefined : finalRecipientId,
+            recipientType:       finalRecipientType,
+            messageText:         isFirst ? text : "",
+            messageType:         type,
+            reply_to_message_id: isFirst ? replyId : null,
+            metadata,
+          });
+
+          const msg = { ...response.message, replyPreview: isFirst ? replyPreviewObj : null };
+          if (!resolvedConvId) resolvedConvId = msg.conversationId;
+          if (!currentConversationId && resolvedConvId) setCurrentConversationId(resolvedConvId);
+          setMessages(prev => [...prev, msg]);
+
+          if (i === uploadedItems.length - 1) {
+            const previewLabel = uploadedItems.length > 1
+              ? `${uploadedItems.length > 1 ? uploadedItems.length + " " : ""}${type === "video" ? "🎥" : "📷"} Media`
+              : (type === "image" ? "📷 Photo" : "🎥 Video");
+            EventBus.emit("conversation-updated", {
+              conversationId: resolvedConvId,
+              lastMessage:    previewLabel,
+              lastMessageAt:  msg.createdAt,
+              otherParticipant: recipient ? { ...recipient, type: finalRecipientType } : { id: finalRecipientId, type: finalRecipientType },
+            });
+          }
+        }
       }
 
-      const response = await sendMessage({
-        conversationId:      currentConversationId || undefined,
-        recipientId:         currentConversationId ? undefined : finalRecipientId,
-        recipientType:       finalRecipientType,
-        messageText:         text,
-        messageType:         msgType,
-        reply_to_message_id: replyId,
-        metadata,
-      });
-      const msg = { ...response.message, replyPreview: replyPreviewObj };
-      if (!currentConversationId) setCurrentConversationId(msg.conversationId);
-      setMessages(prev => [...prev, msg]);
-      EventBus.emit("conversation-updated", {
-        conversationId: msg.conversationId,
-        lastMessage: msgType === "image" ? "📷 Photo" : msgType === "video" ? "🎥 Video" : msg.messageText,
-        lastMessageAt: msg.createdAt,
-        otherParticipant: recipient ? { ...recipient, type: finalRecipientType } : { id: finalRecipientId, type: finalRecipientType },
-      });
       EventBus.emit("new-message");
       setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 100);
     } catch (err) {
@@ -995,42 +1044,42 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
-  // ── handlePickMedia ───────────────────────────────────────────────────────────────
-  const handlePickMedia = async (type) => {
-    try {
-      const mediaTypes = type === "video"
-        ? ImagePicker.MediaTypeOptions.Videos
-        : ImagePicker.MediaTypeOptions.Images;
+  // ── handleCustomPickerDone ───────────────────────────────────────────────────────
+  // Called by CustomImagePicker when the user taps Done.
+  // Assets already filtered by picker (too-long videos are greyed out/unselectable).
+  const handleCustomPickerDone = useCallback(async (assets) => {
+    setMediaPickerOpen(false);
+    if (!assets?.length) return;
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes,
-        allowsEditing: false,
-        quality: 0.85,
-        videoMaxDuration: 60, // 60s Instagram-style limit
+    // Filter out over-size items (safety net)
+    const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+    const MAX_IMAGE_BYTES = 50  * 1024 * 1024;
+
+    const valid = assets.filter(a => {
+      const isVideo = a.mediaType === "video";
+      const max     = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+      return !(a.fileSize && a.fileSize > max);
+    });
+
+    if (valid.length < assets.length) {
+      showAlert({
+        title: "Some files skipped",
+        message: "One or more files exceeded the size limit and were removed.",
+        primaryAction: { text: "OK", onPress: hideAlert },
+        icon: AlertTriangle,
       });
-
-      if (result.canceled || !result.assets?.length) return;
-      const asset = result.assets[0];
-
-      // Enforce size limits
-      const maxBytes = type === "video" ? 100 * 1024 * 1024 : 50 * 1024 * 1024;
-      if (asset.fileSize && asset.fileSize > maxBytes) {
-        showAlert({
-          title: type === "video" ? "Video Too Large" : "Image Too Large",
-          message: type === "video"
-            ? "Videos must be under 100 MB and 60 seconds."
-            : "Images must be under 50 MB.",
-          primaryAction: { text: "OK", onPress: hideAlert },
-          icon: AlertTriangle,
-        });
-        return;
-      }
-
-      setMediaAttachment({ uri: asset.uri, type, duration: asset.duration });
-    } catch (err) {
-      console.error("Media pick error:", err);
     }
-  };
+
+    if (!valid.length) return;
+
+    const attachments = valid.map(a => ({
+      uri:      a.uri,
+      type:     a.mediaType === "video" ? "video" : "image",
+      duration: a.duration ?? null,
+    }));
+
+    setMediaAttachments(attachments);
+  }, [showAlert, hideAlert]);
 
   // ── handleUnsend ───────────────────────────────────────────────────────────
   const handleUnsend = async (id) => {
@@ -1549,60 +1598,73 @@ export default function ChatScreen({ route, navigation }) {
             ) : (
               <>
                 {/* ── Media preview strip ── */}
-                {mediaAttachment && (
+                {mediaAttachments.length > 0 && (
                   <View style={styles.mediaPreviewStrip}>
-                    <Image
-                      source={{ uri: mediaAttachment.uri }}
-                      style={styles.mediaPreviewThumb}
-                      resizeMode="cover"
-                    />
-                    {mediaAttachment.type === "video" && (
-                      <View style={styles.mediaPreviewVideoIcon}>
-                        <Text style={{ fontSize: 10 }}>🎥</Text>
-                      </View>
-                    )}
-                    <TextInput
-                      style={styles.mediaCaption}
-                      placeholder="Add a caption…"
-                      placeholderTextColor="#B0BEC5"
-                      value={messageText}
-                      onChangeText={setMessageText}
-                      multiline
-                      maxLength={500}
-                    />
-                    <TouchableOpacity
-                      onPress={() => { setMediaAttachment(null); setMessageText(""); }}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    {/* Scrollable thumbnail row */}
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.mediaPreviewScroll}
+                      contentContainerStyle={styles.mediaPreviewScrollContent}
                     >
-                      <X size={18} color="#8FA1B8" strokeWidth={2.5} />
-                    </TouchableOpacity>
+                      {mediaAttachments.map((att, idx) => (
+                        <View key={idx} style={styles.mediaThumbContainer}>
+                          <Image
+                            source={{ uri: att.uri }}
+                            style={styles.mediaPreviewThumb}
+                            resizeMode="cover"
+                          />
+                          {att.type === "video" && (
+                            <View style={styles.mediaPreviewVideoIcon}>
+                              <Text style={{ fontSize: 9 }}>🎥</Text>
+                            </View>
+                          )}
+                          {/* Per-item remove button */}
+                          <TouchableOpacity
+                            style={styles.mediaThumbRemove}
+                            onPress={() =>
+                              setMediaAttachments(prev => prev.filter((_, i) => i !== idx))
+                            }
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                          >
+                            <X size={12} color="#FFFFFF" strokeWidth={3} />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                    </ScrollView>
+
+                    {/* Caption input + close-all */}
+                    <View style={styles.mediaCaptionRow}>
+                      <TextInput
+                        style={styles.mediaCaption}
+                        placeholder={`Add a caption…`}
+                        placeholderTextColor="#B0BEC5"
+                        value={messageText}
+                        onChangeText={setMessageText}
+                        multiline
+                        maxLength={500}
+                      />
+                      <TouchableOpacity
+                        onPress={() => { setMediaAttachments([]); setMessageText(""); }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <X size={18} color="#8FA1B8" strokeWidth={2.5} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
 
                 {/* ── Regular input row ── */}
                 <View style={styles.inputContent}>
-                  {/* Attachment button */}
+                  {/* Attachment button — opens CustomImagePicker directly */}
                   <TouchableOpacity
                     style={styles.attachBtn}
-                    onPress={() => showAlert({
-                      title: "Share Media",
-                      message: "What would you like to share?",
-                      icon: ImagePlus,
-                      iconColor: ACCENT,
-                      primaryAction: {
-                        text: "📷  Photo",
-                        onPress: () => { hideAlert(); setTimeout(() => handlePickMedia("image"), 200); },
-                      },
-                      secondaryAction: {
-                        text: "🎥  Video",
-                        onPress: () => { hideAlert(); setTimeout(() => handlePickMedia("video"), 200); },
-                      },
-                    })}
+                    onPress={() => setMediaPickerOpen(true)}
                   >
                     <ImagePlus size={22} color={ACCENT} strokeWidth={2} />
                   </TouchableOpacity>
 
-                  {!mediaAttachment && (
+                  {!mediaAttachments.length && (
                     <View style={styles.inputWrapper}>
                       <TextInput
                         ref={inputRef}
@@ -1619,16 +1681,16 @@ export default function ChatScreen({ route, navigation }) {
                       />
                     </View>
                   )}
-                  {mediaAttachment && <View style={{ flex: 1 }} />}
+                  {mediaAttachments.length > 0 && <View style={{ flex: 1 }} />}
 
                   <Pressable
                     style={({ pressed }) => [
                       styles.sendButton,
-                      (!messageText.trim() && !mediaAttachment || sending || uploadingMedia) && styles.sendButtonDisabled,
-                      pressed && (messageText.trim() || mediaAttachment) && !sending && { backgroundColor: SEND_BUTTON_PRESSED },
+                      (!messageText.trim() && !mediaAttachments.length || sending || uploadingMedia) && styles.sendButtonDisabled,
+                      pressed && (messageText.trim() || mediaAttachments.length) && !sending && { backgroundColor: SEND_BUTTON_PRESSED },
                     ]}
                     onPress={handleSend}
-                    disabled={(!messageText.trim() && !mediaAttachment) || sending || uploadingMedia}
+                    disabled={(!messageText.trim() && !mediaAttachments.length) || sending || uploadingMedia}
                   >
                     {(sending || uploadingMedia)
                       ? <SnooLoader size="small" color="#FFFFFF" />
@@ -1689,6 +1751,15 @@ export default function ChatScreen({ route, navigation }) {
             navigation={navigation}
           />
         )}
+
+        <CustomImagePicker
+          visible={mediaPickerOpen}
+          onClose={() => setMediaPickerOpen(false)}
+          onDone={handleCustomPickerDone}
+          selectionLimit={10}
+          allowVideos
+          videoMaxDuration={120}
+        />
 
         <CustomAlertModal onClose={hideAlert} {...alertConfig} />
       </View>
@@ -1772,20 +1843,40 @@ const styles = StyleSheet.create({
 
   // ── Media preview strip ──
   mediaPreviewStrip: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 16, paddingVertical: 10,
     borderTopWidth: 1, borderTopColor: INCOMING_BORDER,
     backgroundColor: CHAT_CANVAS_BG,
+    paddingTop: 10, paddingBottom: 6,
+  },
+  mediaPreviewScroll: {
+    flexGrow: 0,
+  },
+  mediaPreviewScrollContent: {
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  mediaThumbContainer: {
+    position: "relative",
+    marginRight: 2,
   },
   mediaPreviewThumb: {
-    width: 56, height: 56, borderRadius: 10,
-    backgroundColor: "#E0E0E0", marginRight: 10,
+    width: 64, height: 64, borderRadius: 10,
+    backgroundColor: "#E0E0E0",
   },
   mediaPreviewVideoIcon: {
-    position: "absolute", left: 22, top: 20,
-    width: 18, height: 18, borderRadius: 9,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    position: "absolute", left: 24, top: 24,
+    width: 16, height: 16, borderRadius: 8,
+    backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center", justifyContent: "center",
+  },
+  mediaThumbRemove: {
+    position: "absolute", top: 4, right: 4,
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    alignItems: "center", justifyContent: "center",
+  },
+  mediaCaptionRow: {
+    flexDirection: "row", alignItems: "center",
+    paddingHorizontal: 16, paddingTop: 8,
   },
   mediaCaption: {
     flex: 1, marginRight: 10,
