@@ -5,11 +5,10 @@ import {
 } from "react-native";
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, withSpring,
-  useAnimatedGestureHandler, runOnJS, interpolate, Extrapolate,
+  runOnJS, interpolate, Extrapolate,
 } from "react-native-reanimated";
 import {
-  PinchGestureHandler, PanGestureHandler, GestureHandlerRootView,
-  State,
+  Gesture, GestureDetector, GestureHandlerRootView,
 } from "react-native-gesture-handler";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { Play, X, Film, Image as ImageIcon } from "lucide-react-native";
@@ -48,14 +47,14 @@ function FullScreenImageViewer({ uri, visible, onClose }) {
   }, []);
 
   // Pinch-to-zoom handler
-  const pinchHandler = useAnimatedGestureHandler({
-    onStart: () => {
+  const pinchGesture = Gesture.Pinch()
+    .onStart(() => {
       savedScale.value = scale.value;
-    },
-    onActive: (e) => {
+    })
+    .onUpdate((e) => {
       scale.value = Math.max(0.5, Math.min(savedScale.value * e.scale, 5));
-    },
-    onEnd: () => {
+    })
+    .onEnd(() => {
       if (scale.value < 1) {
         scale.value      = withSpring(1, { damping: 20, stiffness: 300 });
         translateX.value = withSpring(0, { damping: 20, stiffness: 300 });
@@ -64,16 +63,15 @@ function FullScreenImageViewer({ uri, visible, onClose }) {
       } else {
         savedScale.value = scale.value;
       }
-    },
-  });
+    });
 
   // Pan handler: allows moving zoomed image + swipe-down-to-dismiss at 1x
-  const panHandler = useAnimatedGestureHandler({
-    onStart: () => {
+  const panGesture = Gesture.Pan()
+    .onStart(() => {
       savedX.value = translateX.value;
       savedY.value = translateY.value;
-    },
-    onActive: (e) => {
+    })
+    .onUpdate((e) => {
       if (scale.value <= 1) {
         // Swipe-down-to-dismiss
         const dy = Math.max(0, e.translationY);
@@ -83,8 +81,8 @@ function FullScreenImageViewer({ uri, visible, onClose }) {
         translateX.value = savedX.value + e.translationX;
         translateY.value = savedY.value + e.translationY;
       }
-    },
-    onEnd: (e) => {
+    })
+    .onEnd((e) => {
       if (scale.value <= 1) {
         if (translateY.value > 120 || Math.abs(e.velocityY) > 800) {
           bgOpacity.value  = withTiming(0, { duration: 200 });
@@ -109,8 +107,9 @@ function FullScreenImageViewer({ uri, visible, onClose }) {
           { damping: 20, stiffness: 300 },
         );
       }
-    },
-  });
+    });
+
+  const composedGesture = Gesture.Simultaneous(panGesture, pinchGesture);
 
   const imageAnimStyle = useAnimatedStyle(() => ({
     transform: [
@@ -146,19 +145,17 @@ function FullScreenImageViewer({ uri, visible, onClose }) {
           </TouchableOpacity>
 
           {/* Pinch + Pan composed */}
-          <PanGestureHandler onGestureEvent={panHandler}>
+          <GestureDetector gesture={composedGesture}>
             <Animated.View style={StyleSheet.absoluteFill}>
-              <PinchGestureHandler onGestureEvent={pinchHandler}>
-                <Animated.View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
-                  <Animated.Image
-                    source={{ uri }}
-                    style={[{ width: SCREEN_W, height: SCREEN_H }, imageAnimStyle]}
-                    resizeMode="contain"
-                  />
-                </Animated.View>
-              </PinchGestureHandler>
+              <Animated.View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
+                <Animated.Image
+                  source={{ uri }}
+                  style={[{ width: SCREEN_W, height: SCREEN_H }, imageAnimStyle]}
+                  resizeMode="contain"
+                />
+              </Animated.View>
             </Animated.View>
-          </PanGestureHandler>
+          </GestureDetector>
         </Animated.View>
       </GestureHandlerRootView>
     </Modal>

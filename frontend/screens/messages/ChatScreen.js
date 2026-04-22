@@ -34,6 +34,7 @@ import EmptyChatState from "../../components/EmptyChatState";
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 const PRIMARY_COLOR       = "#3565F2";
+const ACCENT              = PRIMARY_COLOR;
 const SEND_BUTTON_PRESSED = "#2E56D6";
 const CHAT_CANVAS_BG      = "#F7F9FC";
 const OUTGOING_MESSAGE_BG = "#E6F0FF";
