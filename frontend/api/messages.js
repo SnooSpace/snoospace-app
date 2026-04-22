@@ -182,7 +182,7 @@ export async function muteConversation(conversationId, mutedUntil = null) {
 export async function unmuteConversation(conversationId) {
   const token = await getAuthToken();
   if (!token) throw new Error("Authentication token not found.");
-  return apiDelete(`/messages/conversations/${conversationId}/mute`, 10000, token);
+  return apiDelete(`/messages/conversations/${conversationId}/mute`, null, 10000, token);
 }
 
 

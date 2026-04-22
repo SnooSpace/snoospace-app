@@ -1020,6 +1020,25 @@ export interface ChatReport {
   created_at: string;
   reporter_name?: string | null;
   resolved_by_email?: string | null;
+  // enriched by getChatReportById
+  group_name?: string | null;
+  is_group?: boolean;
+  group_avatar_url?: string | null;
+  reporter_username?: string | null;
+  reporter_photo?: string | null;
+}
+
+export interface ChatMessage {
+  id: number;
+  sender_id: number;
+  sender_type: string;
+  message_text: string;
+  message_type: string;
+  is_deleted: boolean;
+  created_at: string;
+  sender_name: string | null;
+  sender_username: string | null;
+  sender_photo_url: string | null;
 }
 
 export async function getChatReports(params?: {
@@ -1036,6 +1055,12 @@ export async function getChatReports(params?: {
   if (params?.limit) query.set("limit", params.limit.toString());
 
   return apiRequest(`/admin/chat-reports?${query.toString()}`);
+}
+
+export async function getChatReportById(
+  reportId: number,
+): Promise<{ report: ChatReport; messages: ChatMessage[] }> {
+  return apiRequest(`/admin/chat-reports/${reportId}`);
 }
 
 export async function resolveChatReport(

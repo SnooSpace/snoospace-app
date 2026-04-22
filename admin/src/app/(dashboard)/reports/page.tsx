@@ -52,9 +52,11 @@ import {
   getReportStats,
   resolveReport,
   getChatReports,
+  getChatReportById,
   resolveChatReport,
   type Report,
   type ChatReport,
+  type ChatMessage,
   type ReportStats,
 } from "@/lib/api";
 
@@ -85,6 +87,8 @@ export default function ReportsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("pending");
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [selectedChatReport, setSelectedChatReport] = useState<ChatReport | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [resolutionNotes, setResolutionNotes] = useState("");
 
@@ -380,7 +384,19 @@ export default function ReportsPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setSelectedChatReport(report)}
+                              onClick={async () => {
+                                setSelectedChatReport(report);
+                                setChatMessages([]);
+                                setLoadingMessages(true);
+                                try {
+                                  const data = await getChatReportById(report.id);
+                                  setChatMessages(data.messages ?? []);
+                                } catch (e) {
+                                  console.error("Failed to load messages:", e);
+                                } finally {
+                                  setLoadingMessages(false);
+                                }
+                              }}
                             >
                               Review
                             </Button>
@@ -483,7 +499,7 @@ export default function ReportsPage() {
         open={!!selectedChatReport}
         onOpenChange={() => setSelectedChatReport(null)}
       >
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-yellow-500" />
@@ -494,16 +510,20 @@ export default function ReportsPage() {
 
           {selectedChatReport && (
             <div className="space-y-4">
+              {/* Report metadata */}
               <div className="rounded-lg border p-4 space-y-2">
                 <div className="flex items-center gap-2 text-sm">
                   <span className="font-medium">Chat ID:</span>
                   <span className="text-muted-foreground">
                     #{selectedChatReport.conversation_id}
                   </span>
+                  {selectedChatReport.is_group && selectedChatReport.group_name && (
+                    <span className="text-muted-foreground">({selectedChatReport.group_name})</span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <span className="font-medium">Reason:</span>
-                  <span className="capitalize">{selectedChatReport.reason.replace("_", " ")}</span>
+                  <span className="capitalize">{selectedChatReport.reason.replace(/_/g, " ")}</span>
                 </div>
                 {selectedChatReport.details && (
                   <div className="text-sm">
@@ -522,6 +542,54 @@ export default function ReportsPage() {
                 </div>
               </div>
 
+              {/* Chat history */}
+              <div>
+                <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Chat History
+                </p>
+                <div className="rounded-lg border bg-muted/30 p-3 h-64 overflow-y-auto space-y-2">
+                  {loadingMessages ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="h-6 w-6 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                    </div>
+                  ) : chatMessages.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No messages found.</p>
+                  ) : (
+                    chatMessages.map((msg) => (
+                      <div key={msg.id} className="flex flex-col gap-0.5">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="text-xs font-semibold">
+                            {msg.sender_name || msg.sender_username || `User #${msg.sender_id}`}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {formatDate(msg.created_at)}
+                          </span>
+                          {msg.message_type === "system" && (
+                            <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">system</span>
+                          )}
+                          {msg.is_deleted && (
+                            <span className="text-[10px] bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-1.5 py-0.5 rounded-full font-medium">
+                              ● Deleted
+                            </span>
+                          )}
+                        </div>
+                        <p className={`text-sm ${
+                          msg.is_deleted
+                            ? "line-through text-muted-foreground"
+                            : msg.message_type === "system"
+                            ? "text-muted-foreground text-center text-xs"
+                            : ""
+                        }`}>
+                          {msg.message_text}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Resolution notes */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">
                   Resolution Notes (optional)

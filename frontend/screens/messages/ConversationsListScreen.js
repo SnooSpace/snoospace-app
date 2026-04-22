@@ -445,10 +445,10 @@ export default function ConversationsListScreen({ navigation }) {
     } else {
       // Show duration picker
       const durations = [
-        { label: "1 hour",    ms: 60 * 60 * 1000 },
-        { label: "8 hours",   ms: 8 * 60 * 60 * 1000 },
-        { label: "24 hours",  ms: 24 * 60 * 60 * 1000 },
-        { label: "Forever",   ms: null },
+        { label: "For 1 hour",    ms: 60 * 60 * 1000 },
+        { label: "For 8 hours",   ms: 8 * 60 * 60 * 1000 },
+        { label: "For 24 hours",  ms: 24 * 60 * 60 * 1000 },
+        { label: "Until I change it", ms: null },
       ];
       showAlert({
         title: "Mute Notifications",
@@ -456,20 +456,6 @@ export default function ConversationsListScreen({ navigation }) {
         icon: BellOff,
         iconColor: "#FF9F0A",
         secondaryAction: { text: "Cancel", onPress: hideAlert },
-        primaryAction: {
-          text: "1 hour",
-          onPress: async () => {
-            const mutedUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString();
-            setConversations((prev) => prev.map((c) =>
-              c.id === conv.id ? { ...c, isMuted: true, mutedUntil } : c
-            ));
-            try { await muteConversation(conv.id, mutedUntil); }
-            catch { setConversations((prev) => prev.map((c) =>
-              c.id === conv.id ? { ...c, isMuted: false, mutedUntil: null } : c
-            )); }
-          },
-        },
-        // Duration options rendered via extra action buttons in the alert config
         durationOptions: durations,
         onDurationSelect: async (dur) => {
           hideAlert();
@@ -745,6 +731,8 @@ export default function ConversationsListScreen({ navigation }) {
           onClose={hideAlert}
           primaryAction={alertConfig.primaryAction}
           secondaryAction={alertConfig.secondaryAction}
+          durationOptions={alertConfig.durationOptions}
+          onDurationSelect={alertConfig.onDurationSelect}
           icon={alertConfig.icon}
           iconColor={alertConfig.iconColor}
         />

@@ -55,18 +55,21 @@ const CustomAlertModal = ({
               </View>
 
               <View style={styles.buttonContainer}>
-                {/* Duration options (mute picker) */}
+                {/* Duration options (mute picker) - Instagram Style */}
                 {durationOptions && onDurationSelect && (
                   <View style={styles.durationList}>
                     {durationOptions.map((dur, idx) => (
-                      <TouchableOpacity
-                        key={idx}
-                        style={styles.durationBtn}
-                        onPress={() => onDurationSelect(dur)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.durationBtnText}>{dur.label}</Text>
-                      </TouchableOpacity>
+                      <View key={idx} style={{ width: "100%" }}>
+                        {idx === 0 && <View style={styles.listSeparator} />}
+                        <TouchableOpacity
+                          style={styles.durationBtn}
+                          onPress={() => onDurationSelect(dur)}
+                          activeOpacity={0.5}
+                        >
+                          <Text style={styles.durationBtnText}>{dur.label}</Text>
+                        </TouchableOpacity>
+                        <View style={styles.listSeparator} />
+                      </View>
                     ))}
                   </View>
                 )}
@@ -115,17 +118,17 @@ const CustomAlertModal = ({
                   </View>
                 )}
 
-                {/* Cancel button always shown for duration picker */}
+                {/* Cancel button for duration picker */}
                 {durationOptions && secondaryAction && (
                   <TouchableOpacity
-                    style={[styles.button, styles.secondaryButton, { marginTop: 4 }]}
+                    style={[styles.cancelBtn]}
                     onPress={() => {
                       secondaryAction.onPress?.();
                       onClose();
                     }}
                     activeOpacity={0.6}
                   >
-                    <Text style={styles.secondaryButtonText}>{secondaryAction.text}</Text>
+                    <Text style={styles.cancelBtnText}>{secondaryAction.text}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -156,7 +159,7 @@ const styles = StyleSheet.create({
   content: {
     paddingTop: 32,
     paddingHorizontal: 24,
-    paddingBottom: 28,
+    paddingBottom: 24,
     alignItems: "center",
   },
   iconContainer: {
@@ -171,7 +174,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.primary, // BasicCommercial-Bold
     fontSize: 20,
     color: "#111827",
-    marginBottom: 10,
+    marginBottom: 8,
     textAlign: "center",
   },
   message: {
@@ -182,27 +185,39 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   buttonContainer: {
-    padding: 16,
-    gap: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
+    paddingBottom: 12,
   },
   durationList: {
     width: "100%",
-    gap: 8,
-    marginBottom: 4,
   },
   durationBtn: {
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: "#F3F4F6",
+    width: "100%",
+    height: 56,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "transparent",
   },
   durationBtnText: {
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: "#2962FF", // Brand Blue for options
+  },
+  listSeparator: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    width: "100%",
+  },
+  cancelBtn: {
+    width: "100%",
+    height: 56,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  cancelBtnText: {
     fontFamily: FONTS.semiBold,
-    fontSize: 15,
-    color: "#111827",
+    fontSize: 16,
+    color: "#4B5563",
   },
   button: {
     flex: 1,
@@ -210,6 +225,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
+    marginHorizontal: 16,
+    marginBottom: 16,
   },
   secondaryButton: {
     backgroundColor: "#F3F4F6",

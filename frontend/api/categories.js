@@ -87,7 +87,8 @@ export const getAllCategoriesAdmin = async () => {
  * @param {Object} data - Category data
  */
 export const createCategory = async (data) => {
-  return await apiPost("/admin/categories", data);
+  const token = await getAuthToken();
+  return await apiPost("/admin/categories", data, 15000, token);
 };
 
 /**
@@ -96,7 +97,8 @@ export const createCategory = async (data) => {
  * @param {Object} data - Updated category data
  */
 export const updateCategory = async (categoryId, data) => {
-  return await apiPatch(`/admin/categories/${categoryId}`, data);
+  const token = await getAuthToken();
+  return await apiPatch(`/admin/categories/${categoryId}`, data, 15000, token);
 };
 
 /**
@@ -104,7 +106,8 @@ export const updateCategory = async (categoryId, data) => {
  * @param {number} categoryId - Category ID
  */
 export const deleteCategory = async (categoryId) => {
-  return await apiDelete(`/admin/categories/${categoryId}`);
+  const token = await getAuthToken();
+  return await apiDelete(`/admin/categories/${categoryId}`, null, 15000, token);
 };
 
 /**
@@ -157,5 +160,6 @@ export const updateInterest = async (interestId, data) => {
  * @param {number} interestId - Interest ID
  */
 export const deleteInterest = async (interestId) => {
-  return await apiDelete(`/admin/interests/${interestId}`);
+  const token = await getAuthToken();
+  return await apiDelete(`/admin/interests/${interestId}`, null, 15000, token);
 };

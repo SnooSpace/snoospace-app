@@ -1127,7 +1127,7 @@ const getChatReports = async (req, res) => {
 const getChatReportById = async (req, res) => {
   try {
     const { reportId } = req.params;
-    const result = await pool.query(
+    const reportResult = await pool.query(
       `SELECT cr.*, c.group_name, c.is_group, c.group_avatar_url,
               COALESCE(m.name, comm.name)               AS reporter_name,
               COALESCE(m.username, comm.username)        AS reporter_username,
@@ -1139,8 +1139,34 @@ const getChatReportById = async (req, res) => {
        WHERE cr.id = $1`,
       [reportId],
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: "Report not found" });
-    res.json({ report: result.rows[0] });
+    if (reportResult.rows.length === 0) return res.status(404).json({ error: "Report not found" });
+
+    const report = reportResult.rows[0];
+    const conversationId = report.conversation_id;
+
+    // Fetch the last 100 messages for this conversation so admin can review the history
+    const messagesResult = await pool.query(
+      `SELECT
+         msg.id,
+         msg.sender_id,
+         msg.sender_type,
+         msg.message_text,
+         msg.message_type,
+         msg.is_deleted,
+         msg.created_at,
+         COALESCE(m.name,  comm.name)                      AS sender_name,
+         COALESCE(m.username, comm.username)                AS sender_username,
+         COALESCE(m.profile_photo_url, comm.logo_url)      AS sender_photo_url
+       FROM messages msg
+       LEFT JOIN members m       ON (msg.sender_id = m.id    AND msg.sender_type = 'member')
+       LEFT JOIN communities comm ON (msg.sender_id = comm.id AND msg.sender_type = 'community')
+       WHERE msg.conversation_id = $1
+       ORDER BY msg.created_at ASC
+       LIMIT 100`,
+      [conversationId],
+    );
+
+    res.json({ report, messages: messagesResult.rows });
   } catch (error) {
     console.error("Error getting chat report:", error);
     res.status(500).json({ error: "Internal server error" });

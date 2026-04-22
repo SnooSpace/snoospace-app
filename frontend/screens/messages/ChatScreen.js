@@ -964,10 +964,10 @@ export default function ChatScreen({ route, navigation }) {
     } else {
       // Show duration picker
       const MUTE_DURATIONS = [
-        { label: "1 hour",   ms: 60 * 60 * 1000 },
-        { label: "8 hours",  ms: 8 * 60 * 60 * 1000 },
-        { label: "24 hours", ms: 24 * 60 * 60 * 1000 },
-        { label: "Forever",  ms: null },
+        { label: "For 1 hour",   ms: 60 * 60 * 1000 },
+        { label: "For 8 hours",  ms: 8 * 60 * 60 * 1000 },
+        { label: "For 24 hours", ms: 24 * 60 * 60 * 1000 },
+        { label: "Until I change it",  ms: null },
       ];
       setTimeout(() => {
         showAlert({
