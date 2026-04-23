@@ -361,13 +361,16 @@ const sendMessage = async (req, res) => {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    // Media messages (image/video) may have empty messageText; text messages must have content
-    const isMediaMessage = ["image", "video"].includes(messageType);
+    // Media messages (image/video/multi_media) may have empty messageText; text messages must have content
+    const isMediaMessage = ["image", "video", "multi_media"].includes(messageType);
     if (!isMediaMessage && (!messageText || messageText.trim().length === 0)) {
       return res.status(400).json({ error: "Message text is required" });
     }
-    if (isMediaMessage && !metadata?.url) {
+    if (["image", "video"].includes(messageType) && !metadata?.url) {
       return res.status(400).json({ error: "metadata.url is required for media messages" });
+    }
+    if (messageType === "multi_media" && (!Array.isArray(metadata) || metadata.length === 0)) {
+      return res.status(400).json({ error: "metadata array is required for multi_media messages" });
     }
 
     let convId;

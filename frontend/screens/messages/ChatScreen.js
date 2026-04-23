@@ -15,6 +15,7 @@ import * as Haptics from "expo-haptics";
 import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle, Bell, BellOff, Image as ImageIcon, LockKeyhole, ImagePlus, Megaphone } from "lucide-react-native";
 import CustomImagePicker from "../../components/CustomImagePicker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
+import MediaViewerTimeline from "../../components/MediaViewerTimeline";
 
 import { BlurView } from "expo-blur";
 import { getMessages, sendMessage, unsendMessage, getConversations, hideConversation, reportConversation, muteConversation, unmuteConversation, getGroupParticipants } from "../../api/messages";
@@ -685,6 +686,8 @@ export default function ChatScreen({ route, navigation }) {
   const [uploadProgress,        setUploadProgress]        = useState(0);
   const [uploadingMedia,        setUploadingMedia]        = useState(false);
   const [mediaPickerOpen,       setMediaPickerOpen]       = useState(false);
+  const [viewerVisible,         setViewerVisible]         = useState(false);
+  const [viewerIndex,           setViewerIndex]           = useState(0);
 
   // highlight state lives in Reanimated (see highlightedIdSV below renderItem)
 
@@ -716,6 +719,41 @@ export default function ChatScreen({ route, navigation }) {
   const flatListData = useMemo(() => {
     // messages from API are oldest→newest; buildMessageList works oldest→newest
     return buildMessageList([...messages]);
+  }, [messages]);
+
+  // ── mediaTimeline: flattened array of all media in the chat ────────────
+  const mediaTimeline = useMemo(() => {
+    const timeline = [];
+    messages.forEach((msg) => {
+      if (msg.isDeleted) return;
+      if (msg.messageType === "image" || msg.messageType === "video") {
+        if (!msg.metadata?.url) return;
+        timeline.push({
+          id: msg.id,
+          messageId: msg.id,
+          uri: msg.metadata.url,
+          type: msg.messageType,
+          duration: msg.metadata.duration,
+          createdAt: msg.createdAt,
+          indexInMessage: 0,
+        });
+      } else if (msg.messageType === "multi_media" && Array.isArray(msg.metadata)) {
+        msg.metadata.forEach((item, index) => {
+          if (!item.url) return;
+          timeline.push({
+            id: `${msg.id}_${index}`,
+            messageId: msg.id,
+            uri: item.url,
+            type: item.resource_type === "video" ? "video" : "image",
+            duration: item.duration,
+            createdAt: msg.createdAt,
+            indexInMessage: index,
+          });
+        });
+      }
+    });
+    // Ensure chronological order
+    return timeline.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   }, [messages]);
 
   // Map message id → index in flatListData for scroll-to-reply
@@ -981,49 +1019,56 @@ export default function ChatScreen({ route, navigation }) {
 
         setUploadingMedia(false);
 
-        // Send each media item as its own message.
-        // The text caption goes on the first one; subsequent ones have no text.
+        // Send media as a SINGLE message (if single, use its type. if multiple, use multi_media)
         let resolvedConvId = currentConversationId;
-        for (let i = 0; i < uploadedItems.length; i++) {
-          const { uploaded, type } = uploadedItems[i];
-          const isFirst = i === 0;
-          const metadata = {
-            url:           uploaded.url,
-            public_id:     uploaded.public_id,
-            resource_type: uploaded.resource_type,
-            duration:      uploaded.duration,
-            thumbnail_url: uploaded.thumbnail_url,
-            width:         uploaded.width,
-            height:        uploaded.height,
-          };
+        const isMulti = uploadedItems.length > 1;
+        const messageType = isMulti ? "multi_media" : uploadedItems[0].type;
+        
+        const metadata = isMulti
+          ? uploadedItems.map(({ uploaded }) => ({
+              url:           uploaded.url,
+              public_id:     uploaded.public_id,
+              resource_type: uploaded.resource_type,
+              duration:      uploaded.duration,
+              thumbnail_url: uploaded.thumbnail_url,
+              width:         uploaded.width,
+              height:        uploaded.height,
+            }))
+          : {
+              url:           uploadedItems[0].uploaded.url,
+              public_id:     uploadedItems[0].uploaded.public_id,
+              resource_type: uploadedItems[0].uploaded.resource_type,
+              duration:      uploadedItems[0].uploaded.duration,
+              thumbnail_url: uploadedItems[0].uploaded.thumbnail_url,
+              width:         uploadedItems[0].uploaded.width,
+              height:        uploadedItems[0].uploaded.height,
+            };
 
-          const response = await sendMessage({
-            conversationId:      resolvedConvId || undefined,
-            recipientId:         resolvedConvId ? undefined : finalRecipientId,
-            recipientType:       finalRecipientType,
-            messageText:         isFirst ? text : "",
-            messageType:         type,
-            reply_to_message_id: isFirst ? replyId : null,
-            metadata,
-          });
+        const response = await sendMessage({
+          conversationId:      resolvedConvId || undefined,
+          recipientId:         resolvedConvId ? undefined : finalRecipientId,
+          recipientType:       finalRecipientType,
+          messageText:         text,
+          messageType:         messageType,
+          reply_to_message_id: replyId,
+          metadata,
+        });
 
-          const msg = { ...response.message, replyPreview: isFirst ? replyPreviewObj : null };
-          if (!resolvedConvId) resolvedConvId = msg.conversationId;
-          if (!currentConversationId && resolvedConvId) setCurrentConversationId(resolvedConvId);
-          setMessages(prev => [...prev, msg]);
+        const msg = { ...response.message, replyPreview: replyPreviewObj };
+        if (!resolvedConvId) resolvedConvId = msg.conversationId;
+        if (!currentConversationId && resolvedConvId) setCurrentConversationId(resolvedConvId);
+        setMessages(prev => [...prev, msg]);
 
-          if (i === uploadedItems.length - 1) {
-            const previewLabel = uploadedItems.length > 1
-              ? `${uploadedItems.length > 1 ? uploadedItems.length + " " : ""}${type === "video" ? "🎥" : "📷"} Media`
-              : (type === "image" ? "📷 Photo" : "🎥 Video");
-            EventBus.emit("conversation-updated", {
-              conversationId: resolvedConvId,
-              lastMessage:    previewLabel,
-              lastMessageAt:  msg.createdAt,
-              otherParticipant: recipient ? { ...recipient, type: finalRecipientType } : { id: finalRecipientId, type: finalRecipientType },
-            });
-          }
-        }
+        const previewLabel = isMulti
+          ? `${uploadedItems.length} 📷 Media`
+          : (messageType === "image" ? "📷 Photo" : "🎥 Video");
+
+        EventBus.emit("conversation-updated", {
+          conversationId: resolvedConvId,
+          lastMessage:    previewLabel,
+          lastMessageAt:  msg.createdAt,
+          otherParticipant: recipient ? { ...recipient, type: finalRecipientType } : { id: finalRecipientId, type: finalRecipientType },
+        });
       }
 
       EventBus.emit("new-message");
@@ -1340,8 +1385,8 @@ export default function ChatScreen({ route, navigation }) {
       );
     }
 
-    // ── Image / Video messages ────────────────────────────────────────────────────────────
-    if (msg.messageType === "image" || msg.messageType === "video") {
+    // ── Image / Video / MultiMedia messages ──────────────────────────────────────────
+    if (msg.messageType === "image" || msg.messageType === "video" || msg.messageType === "multi_media") {
       return (
         <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
           {!isMyMessage && (showAvatar ? <Image source={{ uri: avatarUri }} style={styles.messageAvatar} /> : <View style={{ width: 30, marginRight: 8 }} />)}
@@ -1351,7 +1396,7 @@ export default function ChatScreen({ route, navigation }) {
             isMyMessage={isMyMessage}
             onReply={() => setSelectedReply({
               id: msg.id,
-              messageText: msg.messageType === "image" ? "📷 Photo" : "🎥 Video",
+              messageText: msg.messageType === "multi_media" ? "📸 Media" : (msg.messageType === "image" ? "📷 Photo" : "🎥 Video"),
               senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
               isDeleted: msg.isDeleted,
             })}
@@ -1372,6 +1417,13 @@ export default function ChatScreen({ route, navigation }) {
                 message={msg}
                 isMyMessage={isMyMessage}
                 uploadProgress={null}
+                onOpenViewer={(mediaId) => {
+                  const idx = mediaTimeline.findIndex((m) => m.id === mediaId);
+                  if (idx !== -1) {
+                    setViewerIndex(idx);
+                    setViewerVisible(true);
+                  }
+                }}
               />
               <Text style={[styles.messageTime, isMyMessage ? styles.myMessageTime : styles.otherMessageTime, { marginRight: isMyMessage ? 4 : 0, marginLeft: isMyMessage ? 0 : 4, marginTop: 2 }]}>
                 {formatTime(msg.createdAt)}
@@ -1759,6 +1811,13 @@ export default function ChatScreen({ route, navigation }) {
           selectionLimit={10}
           allowVideos
           videoMaxDuration={120}
+        />
+
+        <MediaViewerTimeline
+          timeline={mediaTimeline}
+          initialIndex={viewerIndex}
+          visible={viewerVisible}
+          onClose={() => setViewerVisible(false)}
         />
 
         <CustomAlertModal onClose={hideAlert} {...alertConfig} />
