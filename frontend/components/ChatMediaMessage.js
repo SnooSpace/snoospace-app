@@ -141,10 +141,12 @@ export default function ChatMediaMessage({ message, isMyMessage, uploadProgress 
              </View>
           </View>
         );
+      } else if (metadata.length === 1) {
+        return renderMediaItem(metadata[0], 0, {}, true);
       }
     }
     
-    // Single image/video
+    // Single image/video (non-multi_media)
     return renderMediaItem(metadata, 0);
   };
 

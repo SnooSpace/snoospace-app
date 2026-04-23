@@ -19,6 +19,7 @@ import MediaViewerTimeline from "../../components/MediaViewerTimeline";
 
 import { BlurView } from "expo-blur";
 import { getMessages, sendMessage, unsendMessage, getConversations, hideConversation, reportConversation, muteConversation, unmuteConversation, getGroupParticipants } from "../../api/messages";
+import { getActiveAccount } from "../../api/auth";
 import { uploadChatMedia } from "../../api/upload";
 import ChatMediaMessage from "../../components/ChatMediaMessage";
 import { getPublicMemberProfile } from "../../api/members";
@@ -659,6 +660,7 @@ export default function ChatScreen({ route, navigation }) {
   const [currentConversationId, setCurrentConversationId] = useState(conversationId);
   const [currentRecipientType,  setCurrentRecipientType] = useState(recipientType);
   const [currentRecipientId,    setCurrentRecipientId]   = useState(recipientId);
+  const [currentUser,           setCurrentUser]          = useState(null);
   const [rsvpLoading,           setRsvpLoading]          = useState({});
   const [sharedPostModalVisible,setSharedPostModalVisible] = useState(false);
   const [selectedSharedPost,    setSelectedSharedPost]   = useState(null);
@@ -715,6 +717,20 @@ export default function ChatScreen({ route, navigation }) {
     return { transform: [{ translateY: -keyboardHeight.value }] };
   });
 
+  // Fetch current user for avatar metadata
+  useEffect(() => {
+    getActiveAccount().then(acc => {
+      if (acc) {
+        setCurrentUser({
+          id: acc.id,
+          name: acc.name,
+          username: acc.username,
+          avatarUri: acc.profilePicture || acc.profile_picture || null
+        });
+      }
+    });
+  }, []);
+
   // ── flatListData: memoised mixed separator + message list ──────────────────
   const flatListData = useMemo(() => {
     // messages from API are oldest→newest; buildMessageList works oldest→newest
@@ -726,35 +742,46 @@ export default function ChatScreen({ route, navigation }) {
     const timeline = [];
     messages.forEach((msg) => {
       if (msg.isDeleted) return;
+      const isMyMessage = msg.senderId !== (recipient?.id || recipientId);
+      const senderName = isMyMessage ? "You" : (msg.senderName || recipient?.name);
+      const avatarUri = isMyMessage 
+        ? (currentUser?.avatarUri || "https://via.placeholder.com/30")
+        : (recipient?.profilePhotoUrl || "https://via.placeholder.com/30");
+      const commonData = {
+        messageId: msg.id,
+        createdAt: msg.createdAt,
+        isMyMessage,
+        senderName,
+        avatarUri,
+      };
+
       if (msg.messageType === "image" || msg.messageType === "video") {
         if (!msg.metadata?.url) return;
         timeline.push({
           id: msg.id,
-          messageId: msg.id,
           uri: msg.metadata.url,
           type: msg.messageType,
           duration: msg.metadata.duration,
-          createdAt: msg.createdAt,
           indexInMessage: 0,
+          ...commonData
         });
       } else if (msg.messageType === "multi_media" && Array.isArray(msg.metadata)) {
         msg.metadata.forEach((item, index) => {
           if (!item.url) return;
           timeline.push({
             id: `${msg.id}_${index}`,
-            messageId: msg.id,
             uri: item.url,
             type: item.resource_type === "video" ? "video" : "image",
             duration: item.duration,
-            createdAt: msg.createdAt,
             indexInMessage: index,
+            ...commonData
           });
         });
       }
     });
     // Ensure chronological order
     return timeline.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-  }, [messages]);
+  }, [messages, currentUser]);
 
   // Map message id → index in flatListData for scroll-to-reply
   const messageIndexMap = useMemo(() => {
@@ -1818,6 +1845,16 @@ export default function ChatScreen({ route, navigation }) {
           initialIndex={viewerIndex}
           visible={viewerVisible}
           onClose={() => setViewerVisible(false)}
+          onReply={(mediaItem) => {
+            setViewerVisible(false);
+            setSelectedReply({
+              id: mediaItem.messageId,
+              messageText: mediaItem.type === "video" ? "🎥 Video" : "📷 Photo",
+              senderName: mediaItem.senderName,
+              isDeleted: false,
+            });
+            setTimeout(() => inputRef.current?.focus(), 100);
+          }}
         />
 
         <CustomAlertModal onClose={hideAlert} {...alertConfig} />
