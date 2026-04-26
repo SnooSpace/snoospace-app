@@ -16,6 +16,8 @@ import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyP
 import CustomImagePicker from "../../components/CustomImagePicker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import MediaViewerTimeline from "../../components/MediaViewerTimeline";
+import VideoSendPreviewModal from "../../components/VideoSendPreviewModal";
+import { getVideoThumbnailAsync } from "expo-video-thumbnails";
 
 import { BlurView } from "expo-blur";
 import { getMessages, sendMessage, unsendMessage, getConversations, hideConversation, reportConversation, muteConversation, unmuteConversation, getGroupParticipants } from "../../api/messages";
@@ -684,10 +686,11 @@ export default function ChatScreen({ route, navigation }) {
   // Group restriction + media state
   const [messagingRestricted,   setMessagingRestricted]   = useState(initialMessagingRestricted);
   const [myGroupRole,           setMyGroupRole]           = useState(initialMyGroupRole);
-  const [mediaAttachments,      setMediaAttachments]      = useState([]); // [{ uri, type, duration }]
+  const [mediaAttachments,      setMediaAttachments]      = useState([]); // [{ uri, type, duration, thumbnailUri, muteAudio }]
   const [uploadProgress,        setUploadProgress]        = useState(0);
   const [uploadingMedia,        setUploadingMedia]        = useState(false);
   const [mediaPickerOpen,       setMediaPickerOpen]       = useState(false);
+  const [videoPreviewing,       setVideoPreviewing]       = useState(null); // { uri, duration } when preview modal is open
   const [viewerVisible,         setViewerVisible]         = useState(false);
   const [viewerIndex,           setViewerIndex]           = useState(0);
 
@@ -762,6 +765,7 @@ export default function ChatScreen({ route, navigation }) {
           uri: msg.metadata.url,
           type: msg.messageType,
           duration: msg.metadata.duration,
+          muteAudio: msg.metadata.mute_audio ?? false,
           indexInMessage: 0,
           ...commonData
         });
@@ -773,6 +777,7 @@ export default function ChatScreen({ route, navigation }) {
             uri: item.url,
             type: item.resource_type === "video" ? "video" : "image",
             duration: item.duration,
+            muteAudio: item.mute_audio ?? false,
             indexInMessage: index,
             ...commonData
           });
@@ -1052,7 +1057,7 @@ export default function ChatScreen({ route, navigation }) {
         const messageType = isMulti ? "multi_media" : uploadedItems[0].type;
         
         const metadata = isMulti
-          ? uploadedItems.map(({ uploaded }) => ({
+          ? uploadedItems.map(({ uploaded }, idx) => ({
               url:           uploaded.url,
               public_id:     uploaded.public_id,
               resource_type: uploaded.resource_type,
@@ -1060,6 +1065,7 @@ export default function ChatScreen({ route, navigation }) {
               thumbnail_url: uploaded.thumbnail_url,
               width:         uploaded.width,
               height:        uploaded.height,
+              mute_audio:    attachmentsSnap[idx]?.muteAudio ?? false,
             }))
           : {
               url:           uploadedItems[0].uploaded.url,
@@ -1069,6 +1075,7 @@ export default function ChatScreen({ route, navigation }) {
               thumbnail_url: uploadedItems[0].uploaded.thumbnail_url,
               width:         uploadedItems[0].uploaded.width,
               height:        uploadedItems[0].uploaded.height,
+              mute_audio:    attachmentsSnap[0]?.muteAudio ?? false,
             };
 
         const response = await sendMessage({
@@ -1144,14 +1151,53 @@ export default function ChatScreen({ route, navigation }) {
 
     if (!valid.length) return;
 
-    const attachments = valid.map(a => ({
-      uri:      a.uri,
-      type:     a.mediaType === "video" ? "video" : "image",
-      duration: a.duration ?? null,
-    }));
+    // If exactly one video is selected, show the send-preview modal first
+    if (valid.length === 1 && valid[0].mediaType === "video") {
+      setVideoPreviewing({ uri: valid[0].uri, duration: valid[0].duration ?? null });
+      return;
+    }
+
+    // Otherwise (images only, or mixed batch) build attachments immediately.
+    // Generate local thumbnails for any videos in the batch.
+    const attachments = await Promise.all(
+      valid.map(async (a) => {
+        let thumbnailUri = null;
+        if (a.mediaType === "video") {
+          try {
+            const thumb = await getVideoThumbnailAsync(a.uri, { time: 0 });
+            thumbnailUri = thumb.uri;
+          } catch (_) {}
+        }
+        return {
+          uri:          a.uri,
+          type:         a.mediaType === "video" ? "video" : "image",
+          duration:     a.duration ?? null,
+          thumbnailUri: thumbnailUri,
+          muteAudio:    false,
+        };
+      })
+    );
 
     setMediaAttachments(attachments);
   }, [showAlert, hideAlert]);
+
+  // Called by VideoSendPreviewModal when the user confirms send
+  const handleVideoSendConfirm = useCallback(async ({ muteAudio }) => {
+    if (!videoPreviewing) return;
+    let thumbnailUri = null;
+    try {
+      const thumb = await getVideoThumbnailAsync(videoPreviewing.uri, { time: 0 });
+      thumbnailUri = thumb.uri;
+    } catch (_) {}
+    setMediaAttachments([{
+      uri:          videoPreviewing.uri,
+      type:         "video",
+      duration:     videoPreviewing.duration,
+      thumbnailUri: thumbnailUri,
+      muteAudio:    muteAudio,
+    }]);
+    setVideoPreviewing(null);
+  }, [videoPreviewing]);
 
   // ── handleUnsend ───────────────────────────────────────────────────────────
   const handleUnsend = async (id) => {
@@ -1648,7 +1694,15 @@ export default function ChatScreen({ route, navigation }) {
                   });
                 }, 150);
               }}
-              onLayout={() => setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: false }), 100)}
+              onLayout={() => {
+                // Only auto-scroll to bottom on the very first layout (initial load).
+                // Subsequent layouts happen on every re-render/data change and
+                // must NOT force-scroll or the user gets snapped away from old messages.
+                if (!flatListRef._hasInitialScrolled) {
+                  flatListRef._hasInitialScrolled = true;
+                  setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: false }), 100);
+                }
+              }}
               ListEmptyComponent={
                 <View style={{ flex: 1, justifyContent: "center", minHeight: 500 }}>
                   <EmptyChatState onSendMessage={() => inputRef.current?.focus()} />
@@ -1689,7 +1743,7 @@ export default function ChatScreen({ route, navigation }) {
                       {mediaAttachments.map((att, idx) => (
                         <View key={idx} style={styles.mediaThumbContainer}>
                           <Image
-                            source={{ uri: att.uri }}
+                            source={{ uri: att.thumbnailUri || att.uri }}
                             style={styles.mediaPreviewThumb}
                             resizeMode="cover"
                           />
@@ -1838,6 +1892,14 @@ export default function ChatScreen({ route, navigation }) {
           selectionLimit={10}
           allowVideos
           videoMaxDuration={120}
+        />
+
+        <VideoSendPreviewModal
+          visible={!!videoPreviewing}
+          videoUri={videoPreviewing?.uri}
+          duration={videoPreviewing?.duration}
+          onClose={() => setVideoPreviewing(null)}
+          onSend={handleVideoSendConfirm}
         />
 
         <MediaViewerTimeline

@@ -13,6 +13,7 @@
       "backgroundColor": "#F9F9F9"
     },
     "ios": {
+      "icon": "./assets/ios-icon.png",
       "supportsTablet": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "SnooSpace uses your location to personalize events near you and improve recommendations while the app is open."

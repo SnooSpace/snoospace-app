@@ -133,28 +133,38 @@ export async function deleteCloudinaryImage(publicId) {
 
 /**
  * Upload chat media (image or video) to Cloudinary
- * Enforces: images ≤ 50MB, videos ≤ 100MB and ≤ 60 seconds duration.
- * @param {string} uri - Local file URI from expo-image-picker
+ * @param {string} uri - Local file URI from expo-media-library
  * @param {'image'|'video'} type
  * @param {{ onProgress?: (progress: number) => void }} opts
- * @returns {Promise<{ url: string, public_id: string, resource_type: string, duration?: number, width?: number, height?: number }>}
+ * @returns {Promise<{ url, public_id, resource_type, duration?, width?, height?, thumbnail_url? }>}
  */
 export async function uploadChatMedia(uri, type = 'image', { onProgress } = {}) {
   const resourceType = type === 'video' ? 'video' : 'image';
   const folder = 'snoospace/chat/media';
-  const fileName = type === 'video' ? `chat-video-${Date.now()}.mp4` : `chat-image-${Date.now()}.jpg`;
-  const mimeType = type === 'video' ? 'video/mp4' : 'image/jpeg';
+
+  // ── MIME type detection ──────────────────────────────────────────────────────
+  // Android MediaLibrary URIs are `content://...` with no extension, so we
+  // cannot rely on file extension alone. We detect from the URI when possible
+  // and fall back to a safe default for the given resource type.
+  const rawExt = uri.split('?')[0].split('.').pop()?.toLowerCase();
+  const videoMimeMap = { mp4: 'video/mp4', mov: 'video/quicktime', '3gp': 'video/3gpp', webm: 'video/webm', mkv: 'video/x-matroska' };
+  const imageMimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', heic: 'image/heic', heif: 'image/heif' };
+  const mimeType = type === 'video'
+    ? (videoMimeMap[rawExt] || 'video/mp4')   // safe fallback — mp4 is most common
+    : (imageMimeMap[rawExt] || 'image/jpeg');
+
+  const fileName = type === 'video'
+    ? `chat-video-${Date.now()}.mp4`
+    : `chat-image-${Date.now()}.${rawExt && imageMimeMap[rawExt] ? rawExt : 'jpg'}`;
 
   const formData = new FormData();
   formData.append('file', { uri, type: mimeType, name: fileName });
   formData.append('upload_preset', UPLOAD_PRESET);
-  formData.append('cloud_name', CLOUD_NAME);
   formData.append('folder', folder);
-  // Ask Cloudinary to auto-compress videos and generate a poster thumbnail
-  if (type === 'video') {
-    formData.append('resource_type', 'video');
-    formData.append('eager', 'so_0,w_480,h_480,c_limit,q_auto');
-  }
+  // NOTE: Do NOT append `eager` here unless your Cloudinary upload preset
+  // explicitly has "eager transformations" enabled — unsigned presets reject it with 400.
+
+  console.log('[uploadChatMedia] Starting upload:', { type, resourceType, mimeType, fileName, uri: uri.substring(0, 80) });
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -169,6 +179,7 @@ export async function uploadChatMedia(uri, type = 'image', { onProgress } = {}) 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         const result = JSON.parse(xhr.responseText);
+        console.log('[uploadChatMedia] Upload success:', { url: result.secure_url, duration: result.duration });
         resolve({
           url:           result.secure_url,
           public_id:     result.public_id,
@@ -176,10 +187,17 @@ export async function uploadChatMedia(uri, type = 'image', { onProgress } = {}) 
           duration:      result.duration || null,
           width:         result.width || null,
           height:        result.height || null,
-          thumbnail_url: result.eager?.[0]?.secure_url || null,
+          thumbnail_url: null, // eager disabled; generate thumbnail on-demand via Cloudinary URL transforms
         });
       } else {
-        reject(new Error(`Upload failed: ${xhr.status}`));
+        // Surface Cloudinary's actual error message to help debugging
+        let cloudinaryError = `Upload failed: ${xhr.status}`;
+        try {
+          const errBody = JSON.parse(xhr.responseText);
+          cloudinaryError = `Upload failed: ${xhr.status} — ${errBody?.error?.message || xhr.responseText}`;
+        } catch (_) {}
+        console.error('[uploadChatMedia] Cloudinary error:', cloudinaryError);
+        reject(new Error(cloudinaryError));
       }
     };
 

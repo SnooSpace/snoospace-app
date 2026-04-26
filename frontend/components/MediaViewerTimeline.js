@@ -29,6 +29,8 @@ function MediaItem({ item, isActive, onPress }) {
 function VideoItem({ item, isActive, onPress }) {
   const player = useVideoPlayer(item.uri, player => {
     player.loop = true;
+    // Respect the mute_audio preference stored in the message metadata
+    player.muted = item.muteAudio ?? item.mute_audio ?? false;
   });
 
   useEffect(() => {
@@ -46,7 +48,7 @@ function VideoItem({ item, isActive, onPress }) {
         style={styles.media}
         allowsFullscreen={false}
         allowsPictureInPicture={false}
-        nativeControls={false} // Disable native controls to let our overlay tap work
+        nativeControls={false}
       />
     </Pressable>
   );

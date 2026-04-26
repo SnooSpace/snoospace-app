@@ -3,7 +3,7 @@ import {
   View, Text, Image, TouchableOpacity,
   StyleSheet, Dimensions, ActivityIndicator,
 } from "react-native";
-import { Play, Film, Image as ImageIcon } from "lucide-react-native";
+import { Play, Film, Image as ImageIcon, Volume2, VolumeX } from "lucide-react-native";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const BUBBLE_MAX_W = Math.min(SCREEN_W * 0.68, 260);
@@ -11,6 +11,23 @@ const BUBBLE_H     = 200;
 const OUTGOING_BG  = "#E6F0FF";
 const INCOMING_BG  = "#FFFFFF";
 const DELETED_COLOR = "#A0A0A0";
+
+/**
+ * Derives a JPEG thumbnail URL from a Cloudinary video URL by injecting
+ * an inline transformation (first frame, auto quality, capped at 480px).
+ * Falls back to null if the URL is not a Cloudinary URL.
+ */
+function getCloudinaryVideoThumb(videoUrl) {
+  if (!videoUrl || !videoUrl.includes("cloudinary.com")) return null;
+  try {
+    // Works for URLs like: .../video/upload/<public_id>.mp4
+    return videoUrl
+      .replace("/video/upload/", "/video/upload/so_0,w_480,h_480,c_fill,q_auto,f_jpg/")
+      .replace(/\.[^./?#]+($|\?)/, ".jpg$1");
+  } catch {
+    return null;
+  }
+}
 
 function UploadProgressOverlay({ progress = 0 }) {
   const pct = Math.round(progress * 100);
@@ -55,7 +72,9 @@ export default function ChatMediaMessage({ message, isMyMessage, uploadProgress 
     // metadata is the item for single image/video, or element in array for multi_media
     const isVideo = item?.resource_type === "video" || item?.type === "video" || messageType === "video";
     const mediaUrl = item?.url || null;
-    const thumbnailUrl = item?.thumbnail_url || mediaUrl;
+    // Priority: explicit thumbnail_url → Cloudinary-derived first-frame → fall back to full URL
+    const thumbnailUrl = item?.thumbnail_url || getCloudinaryVideoThumb(mediaUrl) || mediaUrl;
+    const muteAudio = item?.mute_audio ?? false;
     const duration = item?.duration ? Math.round(item.duration) : null;
     const mediaId = isMulti ? `${message.id}_${index}` : message.id;
 
@@ -88,6 +107,12 @@ export default function ChatMediaMessage({ message, isMyMessage, uploadProgress 
             <View style={bubbleStyles.playCircle}>
               <Play size={20} color="#FFFFFF" fill="#FFFFFF" strokeWidth={0} />
             </View>
+            {/* Mute indicator */}
+            {muteAudio && (
+              <View style={bubbleStyles.muteIndicator}>
+                <VolumeX size={12} color="#FFF" strokeWidth={2.5} />
+              </View>
+            )}
           </View>
         )}
         {isVideo && duration !== null && !isUploading && (
@@ -229,6 +254,12 @@ const bubbleStyles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.4)",
     alignItems: "center", justifyContent: "center",
     paddingLeft: 4, 
+  },
+  muteIndicator: {
+    position: "absolute", top: 8, right: 8,
+    width: 22, height: 22, borderRadius: 11,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center", justifyContent: "center",
   },
   durationBadge: {
     position: "absolute", bottom: 8, left: 8,
