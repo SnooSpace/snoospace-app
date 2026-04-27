@@ -11,15 +11,22 @@ export async function getConversations() {
 }
 
 /**
- * Get messages for a conversation
+ * Get messages for a conversation (cursor-based pagination)
  * @param {number} conversationId
- * @param {{ page?: number, limit?: number }} opts
+ * @param {{ before?: string, after?: string, limit?: number }} opts
+ *   before  – ISO timestamp cursor; omit for initial load (returns most-recent messages)
+ *   after   – ISO timestamp cursor; fetch only messages NEWER than this (polling forward pass)
+ *   limit   – messages per page (default 20)
  */
-export async function getMessages(conversationId, { page = 1, limit = 50 } = {}) {
+export async function getMessages(conversationId, { before = null, after = null, limit = 20 } = {}) {
   const token = await getAuthToken();
   if (!token) throw new Error("Authentication token not found.");
-  return apiGet(`/messages/conversations/${conversationId}?page=${page}&limit=${limit}`, 15000, token);
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (before) params.append("before", before);
+  if (after)  params.append("after",  after);
+  return apiGet(`/messages/conversations/${conversationId}?${params.toString()}`, 15000, token);
 }
+
 
 /**
  * Send a message — DM or group

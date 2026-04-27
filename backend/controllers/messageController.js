@@ -213,8 +213,14 @@ const getMessages = async (req, res) => {
     const { conversationId } = req.params;
     const userId   = req.user?.id;
     const userType = req.user?.type;
-    const { page = 1, limit = 50 } = req.query;
-    const offset = (page - 1) * limit;
+
+    // ── Cursor-based pagination ──────────────────────────────────────────────
+    // ?before=<ISO>&limit=N  → fetch N messages older than cursor (scroll-up pagination)
+    // ?after=<ISO>&limit=N   → fetch messages NEWER than cursor (polling forward pass)
+    // ?limit=N (no cursor)   → fetch N most-recent messages (initial load)
+    const limitNum     = Math.min(parseInt(req.query.limit) || 20, 100);
+    const beforeCursor = req.query.before || null; // ISO string or null
+    const afterCursor  = req.query.after  || null; // ISO string or null (polling)
 
     if (!userId || (userType !== "member" && userType !== "community")) {
       return res.status(401).json({ error: "Authentication required" });
@@ -251,6 +257,17 @@ const getMessages = async (req, res) => {
     );
     const hiddenAt = hiddenCheck.rows[0]?.hidden_at || null;
 
+    // ── Effective lower-bound for created_at ────────────────────────────────
+    // When ?after= is supplied (polling forward pass), we use the later of
+    // afterCursor and hiddenAt so the deletion cutoff is always respected.
+    // When only hiddenAt exists we fall back to it.
+    let effectiveLowerBound = hiddenAt;
+    if (afterCursor) {
+      if (!hiddenAt || new Date(afterCursor) > new Date(hiddenAt)) {
+        effectiveLowerBound = afterCursor;
+      }
+    }
+
     const query = `
       SELECT
         m.id,
@@ -281,13 +298,18 @@ const getMessages = async (req, res) => {
       LEFT JOIN members  rmem  ON (rm.sender_id = rmem.id  AND rm.sender_type = 'member')
       LEFT JOIN communities rcomm ON (rm.sender_id = rcomm.id AND rm.sender_type = 'community')
       WHERE m.conversation_id = $1
+        AND ($3::timestamptz IS NULL OR m.created_at < $3::timestamptz)
         AND ($4::timestamptz IS NULL OR m.created_at > $4::timestamptz)
       ORDER BY m.created_at DESC
-      LIMIT $2 OFFSET $3
+      LIMIT $2
     `;
 
-    const result = await pool.query(query, [conversationId, limit, offset, hiddenAt]);
-    const messages = result.rows.reverse().map((msg) => {
+    // Fetch limit+1 rows so we can detect whether more pages exist without a COUNT query
+    const result = await pool.query(query, [conversationId, limitNum + 1, beforeCursor, effectiveLowerBound]);
+    const hasMore = result.rows.length > limitNum;
+    const rawRows = hasMore ? result.rows.slice(0, limitNum) : result.rows;
+
+    const messages = rawRows.reverse().map((msg) => {
       let replyPreview = null;
       if (msg.reply_to_message_id) {
         const isPostShare = msg.reply_message_type === "post_share";
@@ -324,7 +346,7 @@ const getMessages = async (req, res) => {
       };
     });
 
-    // Mark as read — also respects the hidden_at cutoff
+    // Mark as read — respects the effective lower-bound (deletion cutoff or polling cutoff)
     await pool.query(
       `UPDATE messages SET is_read = true
        WHERE conversation_id = $1
@@ -334,12 +356,16 @@ const getMessages = async (req, res) => {
       [conversationId, userId, userType, hiddenAt],
     );
 
-    res.json({ messages });
+    // Return oldest message's createdAt as next cursor for the client
+    const nextCursor = messages.length > 0 ? messages[0].createdAt : null;
+
+    res.json({ messages, hasMore, nextCursor });
   } catch (error) {
     console.error("Error getting messages:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
 
 // ─── sendMessage ──────────────────────────────────────────────────────────────
 const sendMessage = async (req, res) => {

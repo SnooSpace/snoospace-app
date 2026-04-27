@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   StyleSheet, View, Platform, Alert, Text, TextInput, Modal, ScrollView,
-  TouchableOpacity, Image, KeyboardAvoidingView, Pressable,
+  TouchableOpacity, Image, KeyboardAvoidingView, Pressable, ActivityIndicator,
 } from "react-native";
 import Animated, {
-  useSharedValue, useAnimatedStyle, withTiming, withSpring, Easing, runOnJS,
-  withSequence, useDerivedValue,
+  useSharedValue, useAnimatedStyle, withTiming, Easing,
 } from "react-native-reanimated";
-import { Gesture, GestureDetector, GestureHandlerRootView, FlatList as RNGHFlatList } from "react-native-gesture-handler";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { FlashList } from "@shopify/flash-list";
+import SwipeableMessageRow from "../../components/SwipeableMessageRow";
+import useChatPagination from "../../hooks/useChatPagination";
 import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -36,7 +38,7 @@ import ProfilePostFeed from "../../components/ProfilePostFeed";
 import SnooLoader from "../../components/ui/SnooLoader";
 import EmptyChatState from "../../components/EmptyChatState";
 
-// ── Palette ──────────────────────────────────────────────────────────────────
+// ΓöÇΓöÇ Palette ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 const PRIMARY_COLOR       = "#3565F2";
 const ACCENT              = PRIMARY_COLOR;
 const SEND_BUTTON_PRESSED = "#2E56D6";
@@ -49,7 +51,8 @@ const LIGHT_TEXT          = COLORS.textSecondary;
 const REPLY_SWIPE_MAX     = 72;
 const REPLY_HAPTIC_THRESHOLD = 64;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ΓöÇΓöÇ Helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ── Helpers ────────────────────────────────────────────────────────────────
 const formatTime = (dateString) => {
   if (!dateString) return "";
   const d = new Date(dateString);
@@ -68,36 +71,44 @@ const formatSeparatorLabel = (dateString) => {
 };
 
 /**
- * buildMessageList: converts raw messages array into a mixed list of
- * { type:'separator', id, label } | { type:'message', data }
- * – filters sender-deleted messages
- * – injects date separators on 15-minute gaps or date changes
+ * buildMessageList: converts a raw messages array (oldest → newest) into a
+ * mixed list ordered newest → oldest, ready for an inverted FlashList.
+ *
+ * Date separators are injected AFTER the oldest message of each day in
+ * this reversed order, so they render ABOVE that day's message group
+ * exactly as expected in a chat UI.
+ *
+ * Input:  [oldest, …, newest]  (chronological, as stored in useChatPagination)
+ * Output: [newest, …, oldest, separator, …]  (for inverted FlashList)
  */
 const buildMessageList = (messages) => {
   if (!messages || messages.length === 0) return [];
+
+  // Work in ascending order to detect day boundaries, then emit newest-first.
+  // We iterate in reverse (newest → oldest) and inject a separator whenever
+  // the day changes compared to the next-older message.
   const result = [];
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-    const prev = messages[i - 1];
-    
-    let isNewDay = false;
-    if (!prev) {
-      isNewDay = true;
-    } else {
-      const tCur = new Date(msg.createdAt);
-      const tPrev = new Date(prev.createdAt);
-      isNewDay = tCur.toDateString() !== tPrev.toDateString();
-    }
-    
-    if (isNewDay) {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg  = messages[i];
+    const older = messages[i - 1]; // undefined when i === 0 (oldest message)
+
+    result.push({ type: "message", data: msg });
+
+    // Inject a separator after (below in the inverted list) this message if:
+    // • it is the oldest message overall, OR
+    // • the next-older message belongs to a different calendar day.
+    const isOldestOfDay =
+      !older ||
+      new Date(msg.createdAt).toDateString() !== new Date(older.createdAt).toDateString();
+
+    if (isOldestOfDay) {
       result.push({ type: "separator", id: `sep-${msg.id}`, label: formatSeparatorLabel(msg.createdAt) });
     }
-    result.push({ type: "message", data: msg });
   }
   return result;
 };
 
-// ── TimestampSeparator ─────────────────────────────────────────────────────────
+// ── TimestampSeparator ──────────────────────────────────────────────────────
 const TimestampSeparator = ({ label }) => (
   <View style={sepStyles.row}>
     <Text style={sepStyles.label}>{label}</Text>
@@ -108,7 +119,7 @@ const sepStyles = StyleSheet.create({
   label: { fontFamily: "Manrope-Medium", fontSize: 12, color: LIGHT_TEXT, opacity: 0.7 },
 });
 
-// ── ReplyBar (above input) ────────────────────────────────────────────────────
+// ── ReplyBar (above input) ──────────────────────────────────────────────────
 const ReplyBar = ({ reply, onClose }) => {
   const translateY = useSharedValue(30);
   const opacity    = useSharedValue(0);
@@ -130,7 +141,7 @@ const ReplyBar = ({ reply, onClose }) => {
     preview = "This message was unsent";
   } else if (isPostShare) {
     const authorLine = reply.postAuthorUsername ? `@${reply.postAuthorUsername}` : "Shared post";
-    const captionLine = reply.postCaption ? ` · ${reply.postCaption.slice(0, 40)}${reply.postCaption.length > 40 ? "…" : ""}` : "";
+    const captionLine = reply.postCaption ? ` ∙ ${reply.postCaption.slice(0, 40)}${reply.postCaption.length > 40 ? "…" : ""}` : "";
     preview = authorLine + captionLine;
   } else {
     preview = (reply.messageText || "").slice(0, 60) + ((reply.messageText || "").length > 60 ? "…" : "");
@@ -163,7 +174,7 @@ const replyBarStyles = StyleSheet.create({
   preview: { fontFamily:"Manrope-Regular", fontSize:12, color: LIGHT_TEXT },
 });
 
-// ── ReplyQuote ────────────────────────────────────────────────────────────────
+// ── ReplyQuote ─────────────────────────────────────────────────────────────
 const ReplyQuote = ({ replyPreview, isMyMessage, onPress }) => {
   const isPostShare = replyPreview.isPostShare ||
     (!replyPreview.isDeleted && replyPreview.messageText === "Shared a post");
@@ -189,7 +200,7 @@ const ReplyQuote = ({ replyPreview, isMyMessage, onPress }) => {
               {(replyPreview.postAuthorUsername || replyPreview.postCaption) && (
                 <Text style={[quoteStyles.text, isMyMessage ? quoteStyles.myText : quoteStyles.otherText, { opacity: 0.75 }]} numberOfLines={1}>
                   {replyPreview.postAuthorUsername ? `@${replyPreview.postAuthorUsername}` : ""}
-                  {replyPreview.postAuthorUsername && replyPreview.postCaption ? " · " : ""}
+                  {replyPreview.postAuthorUsername && replyPreview.postCaption ? " ∙ " : ""}
                   {replyPreview.postCaption ? replyPreview.postCaption.slice(0, 50) : ""}
                 </Text>
               )}
@@ -328,7 +339,7 @@ const optionsStyles = StyleSheet.create({
 
 // ReportModal is removed in favor of CustomAlertModal logic in the main component
 
-// ── REPORT_REASONS ────────────────────────────────────────────────────────────
+// ── REPORT_REASONS ────────────────────────────────────────────────────────
 const REPORT_REASONS = [
   { key: "harassment",           label: "Harassment or bullying" },
   { key: "spam",                 label: "Spam or unwanted content" },
@@ -338,7 +349,7 @@ const REPORT_REASONS = [
   { key: "other",                label: "Other" },
 ];
 
-// ── ChatActionsSheet ─────────────────────────────────────────────────────────
+// ── ChatActionsSheet ──────────────────────────────────────────────────────
 const ChatActionsSheet = ({ visible, onClose, onDeleteChat, onReport, onMute, isMuted }) => (
   <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
     <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
@@ -399,7 +410,7 @@ const actionSheetStyles = StyleSheet.create({
   divider: { height: 1, backgroundColor: "#F3F4F6" },
 });
 
-// ── ReportReasonSheet ─────────────────────────────────────────────────────────
+// ── ReportReasonSheet ─────────────────────────────────────────────────────
 const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
   const [otherMode, setOtherMode]   = React.useState(false);
   const [otherText, setOtherText]   = React.useState("");
@@ -514,135 +525,10 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
   );
 };
 
-// ── SwipeableMessage ──────────────────────────────────────────────────────────
-// IMPORTANT: This MUST be a module-level React.memo component — NOT defined
-// inside useCallback. Defining it inside the parent with hooks would violate
-// the Rules of Hooks and cause stale-closure bugs (highlight never fires).
-//
-// highlightedIdSV is a Reanimated shared value (string). We use useDerivedValue
-// to reactively detect when *this* message becomes highlighted, entirely on the
-// UI thread with zero React re-renders.
-const SwipeableMessage = React.memo(({ messageId, highlightedIdSV, onReply, onLongPress, isMyMessage: isMine, children }) => {
-  const translateX  = useSharedValue(0);
-  const iconOpacity = useSharedValue(0);
-  const scale       = useSharedValue(1);
-  const bgOpacity   = useSharedValue(0);
-  const fired       = useRef(false);
+// SwipeableMessage extracted to components/SwipeableMessageRow.js
+const SwipeableMessage = SwipeableMessageRow;
 
-  // useDerivedValue runs on the UI thread. Every time highlightedIdSV changes,
-  // this derived value recomputes and triggers the animation worklet below.
-  const isHighlighted = useDerivedValue(() => {
-    return highlightedIdSV.value === String(messageId);
-  });
-
-  // useAnimatedReaction would be the canonical hook here, but since we need
-  // to chain multiple animations we drive them directly from useAnimatedStyle
-  // by caching a "has run" guard via a separate shared value.
-  const hasAnimated = useSharedValue(false);
-
-  const highlightOverlayStyle = useAnimatedStyle(() => {
-    const highlighted = isHighlighted.value;
-
-    if (highlighted && !hasAnimated.value) {
-      hasAnimated.value = true;
-
-      // Pulse: scale up then back
-      scale.value = withSequence(
-        withTiming(1.04, { duration: 150 }),
-        withTiming(1,    { duration: 300 })
-      );
-
-      // Glow: fade in fast, then fade out slow
-      bgOpacity.value = withTiming(1, { duration: 180 }, () => {
-        bgOpacity.value = withTiming(0, { duration: 900 });
-      });
-    }
-
-    if (!highlighted) {
-      hasAnimated.value = false;
-    }
-
-    return {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: "rgba(255, 213, 79, 0.38)",
-      borderRadius: 18,
-      opacity: bgOpacity.value,
-      pointerEvents: "none",
-    };
-  });
-
-  const bubbleStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: translateX.value },
-      { scale: scale.value },
-    ],
-  }));
-
-  const iconStyle = useAnimatedStyle(() => ({
-    opacity: iconOpacity.value,
-    transform: [{ scale: Math.max(0.5, iconOpacity.value) }],
-  }));
-
-  // Long press for options
-  const longPress = Gesture.LongPress()
-    .onStart(() => { if (onLongPress) runOnJS(onLongPress)(); })
-    .maxDistance(20);
-
-  // Pan for swipe-to-reply
-  const pan = Gesture.Pan()
-    .activeOffsetX(isMine ? [-20, 9999] : [-9999, 20])
-    .failOffsetY([-10, 10])
-    .onUpdate((e) => {
-      const raw = isMine
-        ? Math.max(Math.min(e.translationX, 0), -REPLY_SWIPE_MAX)
-        : Math.min(Math.max(e.translationX, 0), REPLY_SWIPE_MAX);
-      translateX.value  = raw;
-      iconOpacity.value = Math.abs(raw) / REPLY_SWIPE_MAX;
-      if (Math.abs(raw) >= REPLY_HAPTIC_THRESHOLD && !fired.current) {
-        fired.current = true;
-        runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
-      }
-    })
-    .onEnd((e) => {
-      const didTrigger = Math.abs(e.translationX) >= REPLY_HAPTIC_THRESHOLD;
-      translateX.value  = withSpring(0, { damping: 18, stiffness: 200 });
-      iconOpacity.value = withTiming(0, { duration: 150 });
-      fired.current = false;
-      if (didTrigger) runOnJS(onReply)();
-    });
-
-  const composed = Gesture.Simultaneous(longPress, pan);
-
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
-      <Animated.View style={[
-        { position: "absolute", zIndex: -1 },
-        isMine ? { right: 12 } : { left: 12 },
-        iconStyle,
-      ]}>
-        <View style={{
-          width: 32, height: 32, borderRadius: 16,
-          backgroundColor: INCOMING_MESSAGE_BG, borderWidth: 1, borderColor: INCOMING_BORDER,
-          alignItems: "center", justifyContent: "center",
-          shadowColor: "#000", shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1,
-        }}>
-          <Reply size={16} color={MESSAGE_TEXT_COLOR} strokeWidth={2.5} />
-        </View>
-      </Animated.View>
-
-      <Animated.View style={[{ flex: 1, alignItems: isMine ? "flex-end" : "flex-start" }, bubbleStyle]}>
-        <GestureDetector gesture={composed}>
-          <View collapsable={false}>
-            <Animated.View style={highlightOverlayStyle} />
-            {children}
-          </View>
-        </GestureDetector>
-      </Animated.View>
-    </View>
-  );
-});
-
-// ── Main Component ────────────────────────────────────────────────────────────
+// ── Main Component ──────────────────────────────────────────────────────────
 export default function ChatScreen({ route, navigation }) {
   const {
     conversationId, recipientId, recipientType = "member",
@@ -654,7 +540,13 @@ export default function ChatScreen({ route, navigation }) {
   } = route.params || {};
 
 
-  const [messages,              setMessages]             = useState([]);
+  const {
+    messages, hasMore, loadingOlder,
+    loadInitial, loadOlderMessages,
+    addNewMessage, addNewMessages,
+    updateMessageById, newestAtRef,
+  } = useChatPagination();
+
   const [messageText,           setMessageText]          = useState("");
   const [loading,               setLoading]              = useState(true);
   const [sending,               setSending]              = useState(false);
@@ -699,13 +591,14 @@ export default function ChatScreen({ route, navigation }) {
   const showAlert = (config) => setAlertConfig({ ...config, visible: true });
   const hideAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
 
-  const flatListRef        = useRef(null);
+  const flashListRef       = useRef(null);
   const scrollOffsetRef    = useRef(0);
   const inputRef           = useRef(null);
   const subscriptionRef    = useRef(null);
   const supabaseRef        = useRef(null);
   const pollingIntervalRef = useRef(null);
-  const groupParticipantsRef = useRef([]); // stores group participant list for role resolution
+  const groupParticipantsRef = useRef([]);
+  const visibleItemIdsRef  = useRef(new Set());
   const insets             = useSafeAreaInsets();
 
   // Reanimated keyboard tracking
@@ -735,12 +628,10 @@ export default function ChatScreen({ route, navigation }) {
   }, []);
 
   // ── flatListData: memoised mixed separator + message list ──────────────────
-  const flatListData = useMemo(() => {
-    // messages from API are oldest→newest; buildMessageList works oldest→newest
-    return buildMessageList([...messages]);
-  }, [messages]);
+  // buildMessageList now outputs newest→oldest directly (no .reverse() needed).
+  const flatListData = useMemo(() => buildMessageList(messages), [messages]);
 
-  // ── mediaTimeline: flattened array of all media in the chat ────────────
+  // ΓöÇΓöÇ mediaTimeline: flattened array of all media in the chat ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const mediaTimeline = useMemo(() => {
     const timeline = [];
     messages.forEach((msg) => {
@@ -788,7 +679,7 @@ export default function ChatScreen({ route, navigation }) {
     return timeline.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   }, [messages, currentUser]);
 
-  // Map message id → index in flatListData for scroll-to-reply
+  // Map message id ΓåÆ index in flatListData for scroll-to-reply
   const messageIndexMap = useMemo(() => {
     const map = {};
     flatListData.forEach((item, idx) => {
@@ -797,69 +688,40 @@ export default function ChatScreen({ route, navigation }) {
     return map;
   }, [flatListData]);
 
-  // ── scrollToMessage ────────────────────────────────────────────────────────
+  // ΓöÇΓöÇ scrollToMessage ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const scrollToMessage = useCallback((targetId) => {
     const idx = messageIndexMap[targetId];
     if (idx == null) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    // ── Nudge trick ─────────────────────────────────────────────────────────
-    // FlatList skips scrollToIndex entirely if the item is already inside
-    // the render window ("already visible" optimisation). Scrolling 1px off
-    // the current offset forces FlatList to treat the target as out-of-view
-    // and always honour the subsequent scrollToIndex call.
-    flatListRef.current?.scrollToOffset({
-      offset: scrollOffsetRef.current + 1,
-      animated: false,
+    flashListRef.current?.scrollToIndex({
+      index: idx,
+      animated: true,
+      viewPosition: 0.5,
     });
-
-    // ── Precise scroll ──────────────────────────────────────────────────────
-    // viewPosition: 1  → in an inverted FlatList this anchors the TOP edge of
-    // the item to the TOP of the visible viewport, ensuring the full message
-    // is always on screen regardless of height (critical for SharedPostCard).
-    // viewOffset: 16   → breathing room so the item isn’t flush against the header.
-    setTimeout(() => {
-      flatListRef.current?.scrollToIndex({
-        index: idx,
-        animated: true,
-        viewPosition: 1,
-        viewOffset: 16,
-      });
-    }, 30);
-
-    // Signal the UI thread to start the highlight animation.
-    // Writing directly to a shared value bypasses React scheduling entirely —
-    // no re-renders, no stale closures.
     highlightedIdSV.value = String(targetId);
     setTimeout(() => { highlightedIdSV.value = ""; }, 1600);
   }, [messageIndexMap, highlightedIdSV]);
 
-  // ── loadMessages ────────────────────────────────────────────────────────────
-  const loadMessages = useCallback(async (convId) => {
-    try {
-      const response = await getMessages(convId);
-      setMessages(response.messages || []);
-      EventBus.emit("messages-read");
-      setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: false }), 100);
-    } catch (err) {
-      console.error("Error loading messages:", err);
-    }
-  }, []);
+  // ΓöÇΓöÇ loadMessages ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
-  // ── initializeConversation ──────────────────────────────────────────────────
+  // loadMessages replaced by useChatPagination.loadInitial()
+
+
+  // ΓöÇΓöÇ initializeConversation ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   useEffect(() => {
     const init = async () => {
       try {
         if (conversationId) {
           setCurrentConversationId(conversationId);
-          await loadMessages(conversationId);
+          await loadInitial(conversationId);
+          EventBus.emit("messages-read");
           // For group chats: fetch restriction flag + current user role
           if (isGroup) {
             try {
               const gpRes = await getGroupParticipants(conversationId);
               setMessagingRestricted(gpRes.messagingRestricted || false);
-              // find current user's role by matching token user — we get it from auth via getConversations
+              // find current user's role by matching token user ΓÇö we get it from auth via getConversations
               // We store it after we also load current user identity below
               if (gpRes._myRole) setMyGroupRole(gpRes._myRole); // populated below
             } catch { /* non-fatal */ }
@@ -869,7 +731,8 @@ export default function ChatScreen({ route, navigation }) {
           const existing = res.conversations?.find(c => c.otherParticipant?.id === recipientId);
           if (existing) {
             setCurrentConversationId(existing.id);
-            await loadMessages(existing.id);
+            await loadInitial(existing.id);
+            EventBus.emit("messages-read");
           } else {
             setCurrentConversationId(null);
           }
@@ -898,7 +761,7 @@ export default function ChatScreen({ route, navigation }) {
     init();
   }, [conversationId, recipientId, recipientType]);
 
-  // ── load recipient from conversationId ─────────────────────────────────────
+  // ——— load recipient from conversationId ———————————————————————————————————————————
   useEffect(() => {
     if (!conversationId || recipient) return;
     (async () => {
@@ -914,7 +777,7 @@ export default function ChatScreen({ route, navigation }) {
     })();
   }, [conversationId, recipient]);
 
-  // ── Background-refresh group restriction + role (stale-while-revalidate) ────────────
+  // ——— Background-refresh group restriction + role (stale-while-revalidate) ———————————
   // Initial values already seeded from route.params (zero-latency, set at render time).
   // This effect silently validates them against the server in case the admin
   // toggled restriction between when the conversations list loaded and now.
@@ -930,7 +793,7 @@ export default function ChatScreen({ route, navigation }) {
     })();
   }, [isGroup, currentConversationId]);
 
-  // ── Supabase init ──────────────────────────────────────────────────────────
+  // ——— Supabase init ————————————————————————————————————————————————————————————————
   useEffect(() => {
     const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
     const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -943,7 +806,7 @@ export default function ChatScreen({ route, navigation }) {
     })();
   }, []);
 
-  // ── Realtime / polling ─────────────────────────────────────────────────────
+  // ——— Realtime / polling ———————————————————————————————————————————————————————————
   useEffect(() => {
     if (!currentConversationId) return;
     if (supabaseRef.current) {
@@ -954,29 +817,40 @@ export default function ChatScreen({ route, navigation }) {
           (payload) => {
             if (payload.eventType === "INSERT") {
               const m = payload.new;
-              setMessages(prev => prev.some(x => x.id === m.id) ? prev : [...prev, {
+              addNewMessage({
                 id: m.id, senderId: m.sender_id, senderType: m.sender_type,
                 messageText: m.message_text, messageType: m.message_type,
                 isDeleted: m.is_deleted, deletedByType: m.deleted_by_type,
                 replyToMessageId: m.reply_to_message_id, isRead: m.is_read, createdAt: m.created_at,
-              }]);
-              setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 100);
+              });
             }
             if (payload.eventType === "UPDATE") {
-              setMessages(prev => prev.map(x => x.id === payload.new.id
-                ? { ...x, isDeleted: payload.new.is_deleted, deletedByType: payload.new.deleted_by_type, messageText: payload.new.is_deleted ? null : x.messageText }
-                : x));
+              updateMessageById(payload.new.id, {
+                isDeleted: payload.new.is_deleted,
+                deletedByType: payload.new.deleted_by_type,
+                messageText: payload.new.is_deleted ? null : undefined,
+              });
             }
           })
         .subscribe();
       subscriptionRef.current = ch;
       return () => { if (supabaseRef.current) supabaseRef.current.removeChannel(ch); };
     } else {
+      // Polling fallback (no Supabase realtime available).
+      // We use a forward cursor: each tick only fetches messages that arrived
+      // AFTER the newest message we already have, so we never re-download the
+      // full recent history on every interval.
       const poll = async () => {
         try {
-          const res = await getMessages(currentConversationId, { page: 1, limit: 50 });
-          const fresh = res.messages || [];
-          setMessages(prev => fresh.length !== prev.length ? fresh : prev);
+          // Build params: pass `after` when we have a baseline, otherwise fall
+          // back to a small initial load (handles the very first poll tick).
+          const after = newestAtRef.current;
+          const params = after
+            ? { after, limit: 50 }
+            : { limit: 50 };
+          const res = await getMessages(currentConversationId, params);
+          // Batch-merge: one state update, deduped + sorted inside the hook.
+          addNewMessages(res.messages || []);
         } catch { }
       };
       poll();
@@ -1006,7 +880,7 @@ export default function ChatScreen({ route, navigation }) {
       if (!finalRecipientId && !currentConversationId) throw new Error("Recipient information is missing.");
 
       if (attachmentsSnap.length === 0) {
-        // ── Text-only message ────────────────────────────────────────────────────
+        // ——— Text-only message ——————————————————————————————————————————————————————
         const response = await sendMessage({
           conversationId:      currentConversationId || undefined,
           recipientId:         currentConversationId ? undefined : finalRecipientId,
@@ -1018,7 +892,7 @@ export default function ChatScreen({ route, navigation }) {
         });
         const msg = { ...response.message, replyPreview: replyPreviewObj };
         if (!currentConversationId) setCurrentConversationId(msg.conversationId);
-        setMessages(prev => [...prev, msg]);
+        addNewMessage(msg);
         EventBus.emit("conversation-updated", {
           conversationId: msg.conversationId,
           lastMessage: msg.messageText,
@@ -1026,7 +900,7 @@ export default function ChatScreen({ route, navigation }) {
           otherParticipant: recipient ? { ...recipient, type: finalRecipientType } : { id: finalRecipientId, type: finalRecipientType },
         });
       } else {
-        // ── Multi-media: upload all in parallel, send sequentially ────────────
+        // ——— Multi-media: upload all in parallel, send sequentially ——————————————————
         setUploadingMedia(true);
         setUploadProgress(0);
 
@@ -1091,11 +965,11 @@ export default function ChatScreen({ route, navigation }) {
         const msg = { ...response.message, replyPreview: replyPreviewObj };
         if (!resolvedConvId) resolvedConvId = msg.conversationId;
         if (!currentConversationId && resolvedConvId) setCurrentConversationId(resolvedConvId);
-        setMessages(prev => [...prev, msg]);
+        addNewMessage(msg);
 
         const previewLabel = isMulti
-          ? `${uploadedItems.length} 📷 Media`
-          : (messageType === "image" ? "📷 Photo" : "🎥 Video");
+          ? `${uploadedItems.length} ≡ƒô╖ Media`
+          : (messageType === "image" ? "≡ƒô╖ Photo" : "≡ƒÄÑ Video");
 
         EventBus.emit("conversation-updated", {
           conversationId: resolvedConvId,
@@ -1106,7 +980,6 @@ export default function ChatScreen({ route, navigation }) {
       }
 
       EventBus.emit("new-message");
-      setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 100);
     } catch (err) {
       console.error("Error sending message:", err);
       setMessageText(text);
@@ -1123,7 +996,7 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
-  // ── handleCustomPickerDone ───────────────────────────────────────────────────────
+  // ——— handleCustomPickerDone ————————————————————————————————————————————————————
   // Called by CustomImagePicker when the user taps Done.
   // Assets already filtered by picker (too-long videos are greyed out/unselectable).
   const handleCustomPickerDone = useCallback(async (assets) => {
@@ -1199,19 +1072,10 @@ export default function ChatScreen({ route, navigation }) {
     setVideoPreviewing(null);
   }, [videoPreviewing]);
 
-  // ── handleUnsend ───────────────────────────────────────────────────────────
+  // ——— handleUnsend ————————————————————————————————————————————————————————————————
   const handleUnsend = async (id) => {
-    setMessages(prev => prev.map(m => {
-      // Mark the deleted message itself
-      if (m.id === id) {
-        return { ...m, isDeleted: true, deletedByType: "sender", messageText: null };
-      }
-      // Mark any reply previews that reference this message
-      if (m.replyPreview && m.replyToMessageId === id) {
-        return { ...m, replyPreview: { ...m.replyPreview, isDeleted: true, messageText: null } };
-      }
-      return m;
-    }));
+    // Optimistic: mark deleted immediately on the UI thread
+    updateMessageById(id, { isDeleted: true, deletedByType: "sender", messageText: null });
     try {
       await unsendMessage(id);
     } catch (err) {
@@ -1222,18 +1086,12 @@ export default function ChatScreen({ route, navigation }) {
         primaryAction: { text: "OK", onPress: hideAlert },
         icon: AlertTriangle,
       });
-      // Revert both the message and any reply previews pointing to it
-      setMessages(prev => prev.map(m => {
-        if (m.id === id) return { ...m, isDeleted: false };
-        if (m.replyPreview && m.replyToMessageId === id) {
-          return { ...m, replyPreview: { ...m.replyPreview, isDeleted: false } };
-        }
-        return m;
-      }));
+      // Revert on failure
+      updateMessageById(id, { isDeleted: false, deletedByType: null, messageText: undefined });
     }
   };
 
-  // ── handleDeleteChat ────────────────────────────────────────────────────
+  // ——— handleDeleteChat ————————————————————————————————————————————————————————————
   const handleDeleteChat = () => {
     setChatActionsVisible(false);
     setTimeout(() => {
@@ -1266,7 +1124,7 @@ export default function ChatScreen({ route, navigation }) {
     }, 300);
   };
 
-  // ── handleMuteChat ───────────────────────────────────────────────────────
+  // ——— handleMuteChat ——————————————————————————————————————————————————————————————
   const handleMuteChat = () => {
     setChatActionsVisible(false);
     if (isMuted) {
@@ -1329,7 +1187,7 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
-  // ── handleStartReport ─────────────────────────────────────────────────
+  // ——— handleStartReport ————————————————————————————————————————————————————————————
   const handleStartReport = () => {
     setChatActionsVisible(false);
     setTimeout(() => setReportSheetVisible(true), 300);
@@ -1379,7 +1237,7 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
-  // ── shouldShowAvatar ───────────────────────────────────────────────────────
+  // ——— shouldShowAvatar —————————————————————————————————————————————————————————————
   const shouldShowAvatar = useCallback((message, nextMessage) => {
     const recipientUserId = recipient?.id || recipientId;
     if (message.senderId !== recipientUserId) return false;
@@ -1393,7 +1251,7 @@ export default function ChatScreen({ route, navigation }) {
   // animations in SwipeableMessage without any React re-renders.
   const highlightedIdSV = useSharedValue("");
 
-  // ── renderItem ─────────────────────────────────────────────────────────────
+  // ——— renderItem ———————————————————————————————————————————————————————————————————
   const renderItem = ({ item, index }) => {
     if (item.type === "separator") return <TimestampSeparator label={item.label} />;
     const msg = item.data;
@@ -1405,8 +1263,9 @@ export default function ChatScreen({ route, navigation }) {
       );
     }
     const isMyMessage  = msg.senderId !== (recipient?.id || recipientId);
-    const reversedData = [...flatListData].reverse();
-    const nextItem     = reversedData[index - 1];
+    // flatListData is already reversed (newest=index 0 for inverted FlashList).
+    // The next item chronologically (older message below this one in the chat) is at index+1.
+    const nextItem     = flatListData[index + 1];
     const nextMsg      = nextItem?.type === "message" ? nextItem.data : null;
     const showAvatar   = shouldShowAvatar(msg, nextMsg);
     const avatarUri    = recipient?.profilePhotoUrl || "https://via.placeholder.com/30";
@@ -1433,9 +1292,9 @@ export default function ChatScreen({ route, navigation }) {
         try {
           const result = await confirmGiftRSVP(giftId, response);
           if (result.success) {
-            setMessages(prev => prev.map(m => m.id === msg.id ? { ...m, metadata: { ...m.metadata, status: result.status } } : m));
+            updateMessageById(msg.id, { metadata: { ...msg.metadata, status: result.status } });
             showAlert({
-              title: response === "going" ? "You're In! 🎉" : "Maybe Next Time",
+              title: response === "going" ? "You're In! ≡ƒÄë" : "Maybe Next Time",
               message: result.message,
               primaryAction: { text: "Sweet!", onPress: hideAlert },
               icon: PartyPopper,
@@ -1458,7 +1317,7 @@ export default function ChatScreen({ route, navigation }) {
       );
     }
 
-    // ── Image / Video / MultiMedia messages ──────────────────────────────────────────
+    // ——— Image / Video / MultiMedia messages ————————————————————————————————————————
     if (msg.messageType === "image" || msg.messageType === "video" || msg.messageType === "multi_media") {
       return (
         <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
@@ -1469,7 +1328,7 @@ export default function ChatScreen({ route, navigation }) {
             isMyMessage={isMyMessage}
             onReply={() => setSelectedReply({
               id: msg.id,
-              messageText: msg.messageType === "multi_media" ? "📸 Media" : (msg.messageType === "image" ? "📷 Photo" : "🎥 Video"),
+              messageText: msg.messageType === "multi_media" ? "≡ƒô╕ Media" : (msg.messageType === "image" ? "≡ƒô╖ Photo" : "≡ƒÄÑ Video"),
               senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
               isDeleted: msg.isDeleted,
             })}
@@ -1593,7 +1452,7 @@ export default function ChatScreen({ route, navigation }) {
     );
   };
 
-  // ── Loading screen ─────────────────────────────────────────────────────────
+  // ——— Loading screen —————————————————————————————————————————————————————————————
   if (loading) {
     return (
       <View style={styles.container}>
@@ -1610,7 +1469,7 @@ export default function ChatScreen({ route, navigation }) {
     );
   }
 
-  // ── Main render ─────────────────────────────────────────────────────────────
+  // ΓöÇΓöÇ Main render ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
@@ -1666,49 +1525,59 @@ export default function ChatScreen({ route, navigation }) {
           keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
           <Animated.View style={[{ flex: 1 }, androidContainerStyle]}>
-            <RNGHFlatList
-              ref={flatListRef}
-              data={[...flatListData].reverse()}
-              keyExtractor={(item) => item.type === "separator" ? item.id : String(item.data.id)}
+            <FlashList
+              ref={flashListRef}
+              data={flatListData}
+              keyExtractor={(item) => item.id}
               renderItem={renderItem}
-              contentContainerStyle={[styles.messagesList, { flexGrow: 1 }]}
+              estimatedItemSize={72}
               inverted
-              initialNumToRender={10}
-              windowSize={5}
-              removeClippedSubviews={false}
-              scrollEventThrottle={16}
-              onScroll={(e) => { scrollOffsetRef.current = e.nativeEvent.contentOffset.y; }}
-              onScrollToIndexFailed={(info) => {
-                // Item not rendered yet — scroll to approximate offset first,
-                // then retry with the same viewPosition:1 anchor.
-                flatListRef.current?.scrollToOffset({
-                  offset: info.averageItemLength * info.index,
-                  animated: true,
-                });
-                setTimeout(() => {
-                  flatListRef.current?.scrollToIndex({
-                    index: info.index,
-                    animated: true,
-                    viewPosition: 1,
-                    viewOffset: 16,
-                  });
-                }, 150);
-              }}
-              onLayout={() => {
-                // Only auto-scroll to bottom on the very first layout (initial load).
-                // Subsequent layouts happen on every re-render/data change and
-                // must NOT force-scroll or the user gets snapped away from old messages.
-                if (!flatListRef._hasInitialScrolled) {
-                  flatListRef._hasInitialScrolled = true;
-                  setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: false }), 100);
+              maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.listContent}
+              onStartReached={() => {
+                if (hasMore && !loadingOlder) {
+                  loadOlderMessages(currentConversationId);
                 }
               }}
-              ListEmptyComponent={
-                <View style={{ flex: 1, justifyContent: "center", minHeight: 500 }}>
-                  <EmptyChatState onSendMessage={() => inputRef.current?.focus()} />
-                </View>
+              onStartReachedThreshold={0.3}
+              ListFooterComponent={
+                loadingOlder ? (
+                  <View style={styles.loadingOlderContainer}>
+                    <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+                  </View>
+                ) : null
               }
+              overrideItemLayout={(layout, item) => {
+                if (!item) return;
+                if (item.type === "date_separator") {
+                  layout.size = 36;
+                } else if (item.type === "message") {
+                  const msg = item.data;
+                  if (msg.messageType === "post_share") {
+                    layout.size = 280;
+                  } else if (msg.messageType === "image" || msg.messageType === "video" || msg.messageType === "multi_media") {
+                    layout.size = 220;
+                  } else if (msg.messageType === "ticket") {
+                    layout.size = 140;
+                  } else if (msg.replyPreview) {
+                    layout.size = 110;
+                  } else {
+                    layout.size = 72;
+                  }
+                }
+              }}
+              viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+              onViewableItemsChanged={({ viewableItems }) => {
+                const ids = new Set(
+                  viewableItems
+                    .filter(v => v.item?.type === "message")
+                    .map(v => v.item?.data?.id)
+                );
+                visibleItemIdsRef.current = ids;
+              }}
             />
+
           </Animated.View>
         </KeyboardAvoidingView>
 
@@ -1716,7 +1585,7 @@ export default function ChatScreen({ route, navigation }) {
           <View style={{ flexDirection: "column" }}>
             <ReplyBar reply={selectedReply} onClose={() => setSelectedReply(null)} />
 
-            {/* ── Locked bar: shown to non-admins when messaging is restricted ── */}
+            {/* ΓöÇΓöÇ Locked bar: shown to non-admins when messaging is restricted ΓöÇΓöÇ */}
             {isGroup && messagingRestricted && myGroupRole !== "admin" ? (
               <View style={styles.lockedBar}>
                 <View style={styles.lockedBarIcon}>
@@ -1730,7 +1599,7 @@ export default function ChatScreen({ route, navigation }) {
               </View>
             ) : (
               <>
-                {/* ── Media preview strip ── */}
+                {/* ΓöÇΓöÇ Media preview strip ΓöÇΓöÇ */}
                 {mediaAttachments.length > 0 && (
                   <View style={styles.mediaPreviewStrip}>
                     {/* Scrollable thumbnail row */}
@@ -1749,7 +1618,7 @@ export default function ChatScreen({ route, navigation }) {
                           />
                           {att.type === "video" && (
                             <View style={styles.mediaPreviewVideoIcon}>
-                              <Text style={{ fontSize: 9 }}>🎥</Text>
+                              <Text style={{ fontSize: 9 }}>≡ƒÄÑ</Text>
                             </View>
                           )}
                           {/* Per-item remove button */}
@@ -1770,7 +1639,7 @@ export default function ChatScreen({ route, navigation }) {
                     <View style={styles.mediaCaptionRow}>
                       <TextInput
                         style={styles.mediaCaption}
-                        placeholder={`Add a caption…`}
+                        placeholder={`Add a captionΓÇª`}
                         placeholderTextColor="#B0BEC5"
                         value={messageText}
                         onChangeText={setMessageText}
@@ -1787,9 +1656,9 @@ export default function ChatScreen({ route, navigation }) {
                   </View>
                 )}
 
-                {/* ── Regular input row ── */}
+                {/* ΓöÇΓöÇ Regular input row ΓöÇΓöÇ */}
                 <View style={styles.inputContent}>
-                  {/* Attachment button — opens CustomImagePicker directly */}
+                  {/* Attachment button ΓÇö opens CustomImagePicker directly */}
                   <TouchableOpacity
                     style={styles.attachBtn}
                     onPress={() => setMediaPickerOpen(true)}
@@ -1911,7 +1780,7 @@ export default function ChatScreen({ route, navigation }) {
             setViewerVisible(false);
             setSelectedReply({
               id: mediaItem.messageId,
-              messageText: mediaItem.type === "video" ? "🎥 Video" : "📷 Photo",
+              messageText: mediaItem.type === "video" ? "≡ƒÄÑ Video" : "≡ƒô╖ Photo",
               senderName: mediaItem.senderName,
               isDeleted: false,
             });
@@ -1972,7 +1841,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 5, elevation: 5 },
   sendButtonDisabled: { backgroundColor: LIGHT_TEXT, shadowOpacity: 0, elevation: 0 },
 
-  // ── Locked announcement bar ──
+  // ΓöÇΓöÇ Locked announcement bar ΓöÇΓöÇ
   lockedBar: {
     flexDirection: "row", alignItems: "center",
     paddingHorizontal: 16, paddingVertical: 14,
@@ -1999,7 +1868,7 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-Medium", fontSize: 10, color: "#8FA1B8",
   },
 
-  // ── Media preview strip ──
+  // ΓöÇΓöÇ Media preview strip ΓöÇΓöÇ
   mediaPreviewStrip: {
     borderTopWidth: 1, borderTopColor: INCOMING_BORDER,
     backgroundColor: CHAT_CANVAS_BG,
@@ -2042,7 +1911,7 @@ const styles = StyleSheet.create({
     maxHeight: 80,
   },
 
-  // ── Attachment button ──
+  // ΓöÇΓöÇ Attachment button ΓöÇΓöÇ
   attachBtn: {
     width: 40, height: 44,
     alignItems: "center", justifyContent: "center",

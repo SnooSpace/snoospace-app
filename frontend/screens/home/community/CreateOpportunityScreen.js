@@ -3,14 +3,62 @@ import React, {
   useEffect,
   useCallback,
   useLayoutEffect,
+  useRef,
 } from "react";
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Switch, KeyboardAvoidingView, Platform, Modal } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  Switch,
+  KeyboardAvoidingView,
+  Platform,
+  Modal,
+  Animated,
+} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  Check,
+  X,
+  Plus,
+  Zap,
+  Repeat,
+  Monitor,
+  MapPin,
+  Info,
+  CheckCircle2,
+  Trash2,
+  Globe,
+  Users,
+  Link,
+  Banknote,
+  Hourglass,
+  PieChart,
+  Lightbulb,
+  AlertTriangle,
+  ChevronRight,
+  ChevronLeft,
+  ArrowLeft,
+  Briefcase,
+  Target,
+  Settings,
+  Layers,
+  CircleDollarSign,
+  HelpCircle,
+  Eye,
+  FileCheck,
+  Award,
+  Coins,
+  ArrowRight,
+  CheckCircle,
+} from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
-import { COLORS } from "../../../constants/theme";
+import { COLORS, FONTS, SHADOWS } from "../../../constants/theme";
 import {
   createOpportunity,
   updateOpportunity,
@@ -27,7 +75,25 @@ import {
 import EventBus from "../../../utils/EventBus";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
-const PRIMARY_COLOR = "#007AFF";
+const MODAL_TOKENS = {
+  primary: "#3565F2",
+  primaryGradient: ["#3565F2", "#2F56D6"],
+  surface: "#F5F8FF",
+  background: "#F9F9F9",
+  border: "#E6ECF8",
+  textPrimary: "#1F2937",
+  textSecondary: "#6B7280",
+  textMuted: "#9CA3AF",
+  error: "#EF4444",
+  success: "#10B981",
+  radius: {
+    xs: 8,
+    sm: 12,
+    md: 14,
+    lg: 16,
+    xl: 24,
+  },
+};
 const TEXT_COLOR = "#1D1D1F";
 const LIGHT_TEXT_COLOR = "#8E8E93";
 const BORDER_COLOR = "#E5E7EB";
@@ -99,7 +165,18 @@ const SAMPLE_TYPES = {
 const TOTAL_STEPS = 8;
 
 export default function CreateOpportunityScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
   const [currentStep, setCurrentStep] = useState(1);
+  const totalSteps = 8;
+  const progressPercent = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(progressPercent, {
+      toValue: currentStep / totalSteps,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [currentStep]);
   const [saving, setSaving] = useState(false);
   const opportunityToEdit = route.params?.opportunityToEdit;
   const isEditing = !!opportunityToEdit;
@@ -591,37 +668,53 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
   // Render step content
   const renderStep1 = () => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <Text style={styles.stepTitle}>Basics</Text>
-      <Text style={styles.stepDescription}>
+    <ScrollView
+      style={styles.stepContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 40 }}
+    >
+      <View style={styles.sectionHeaderNew}>
+        <View style={styles.sectionHeaderTitleRow}>
+          <View style={styles.sectionHeaderIconContainer}>
+            <Briefcase
+              size={24}
+              color={MODAL_TOKENS.primary}
+              strokeWidth={2}
+            />
+          </View>
+          <Text style={styles.sectionHeaderTitle}>Basics</Text>
+        </View>
+      <Text style={styles.sectionHeaderHelper}>
         What role are you looking to fill?
       </Text>
+      </View>
 
-      <Text style={styles.label}>Opportunity Title *</Text>
+      <View style={styles.inputContainerNew}>
+        <Text style={styles.labelNew}>Opportunity Title *</Text>
       <TextInput
-        style={styles.input}
+        style={styles.inputNew}
         value={title}
         onChangeText={setTitle}
         placeholder='e.g., "Looking for a Video Editor"'
-        placeholderTextColor={LIGHT_TEXT_COLOR}
+        placeholderTextColor={MODAL_TOKENS.textMuted}
         maxLength={80}
       />
       <Text style={styles.charCount}>{title.length}/80</Text>
 
-      <Text style={styles.label}>
+      <Text style={styles.labelNew}>
         What roles are you hiring for? *
         <Text style={styles.hint}> ({selectedTypes.length}/5)</Text>
       </Text>
-      <View style={styles.chipsContainer}>
+      <View style={styles.chipsContainerNew}>
         {OPPORTUNITY_TYPES.map((type) => (
           <TouchableOpacity
             key={type}
             style={[
               styles.chip,
-              selectedTypes.includes(type) && styles.chipSelected,
+              selectedTypes.includes(type) && styles.chipSelectedNew,
               selectedTypes.length >= 5 &&
                 !selectedTypes.includes(type) &&
-                styles.chipDisabled,
+                styles.chipDisabledNew,
             ]}
             onPress={() => toggleType(type)}
             disabled={
@@ -630,15 +723,15 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           >
             <Text
               style={[
-                styles.chipText,
-                selectedTypes.includes(type) && styles.chipTextSelected,
+                styles.chipTextNew,
+                selectedTypes.includes(type) && styles.chipTextSelectedNew,
               ]}
             >
               {type}
             </Text>
             {selectedTypes.includes(type) && (
-              <Ionicons
-                name="checkmark"
+              <Check
+
                 size={16}
                 color="#FFFFFF"
                 style={{ marginLeft: 4 }}
@@ -653,12 +746,12 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           .map((type) => (
             <TouchableOpacity
               key={type}
-              style={[styles.chip, styles.chipSelected]}
+              style={[styles.chip, styles.chipSelectedNew]}
               onPress={() => toggleType(type)}
             >
-              <Text style={styles.chipTextSelected}>{type}</Text>
-              <Ionicons
-                name="close"
+              <Text style={styles.chipTextSelectedNew}>{type}</Text>
+              <X
+
                 size={16}
                 color="#FFFFFF"
                 style={{ marginLeft: 4 }}
@@ -667,29 +760,30 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           ))}
 
         {/* Add Custom */}
-        {!showCustomInput && selectedTypes.length < 5 && (
+        {!showCustomInput && selectedTypes.length <= 4 && (
           <TouchableOpacity
-            style={[styles.chip, styles.chipAdd]}
+            style={[styles.chip, styles.chipAddNew]}
             onPress={() => setShowCustomInput(true)}
           >
-            <Ionicons name="add" size={16} color={PRIMARY_COLOR} />
-            <Text style={styles.chipAddText}>Custom</Text>
+            <Plus size={16} color={MODAL_TOKENS.primary} />
+            <Text style={styles.chipAddTextNew}>Custom</Text>
           </TouchableOpacity>
         )}
       </View>
+      </View>
 
       {showCustomInput && (
-        <View style={styles.customInputRow}>
+        <View style={styles.customInputRowNew}>
           <TextInput
-            style={[styles.input, { flex: 1, marginBottom: 0 }]}
+            style={[styles.inputNew, { flex: 1, marginBottom: 0 }]}
             value={customType}
             onChangeText={setCustomType}
             placeholder="Enter custom role"
-            placeholderTextColor={LIGHT_TEXT_COLOR}
+            placeholderTextColor={MODAL_TOKENS.textMuted}
             autoFocus
           />
           <TouchableOpacity style={styles.addButton} onPress={addCustomType}>
-            <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+            <Check size={20} color="#FFFFFF" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.cancelButton}
@@ -698,7 +792,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
               setCustomType("");
             }}
           >
-            <Ionicons name="close" size={20} color={LIGHT_TEXT_COLOR} />
+            <X size={20} color={MODAL_TOKENS.textMuted} />
           </TouchableOpacity>
         </View>
       )}
@@ -707,16 +801,23 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
   const renderStep2 = () => (
     <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <Text style={styles.stepTitle}>Work Details</Text>
-      <Text style={styles.stepDescription}>
+      <View style={styles.sectionHeaderNew}>
+        <View style={styles.sectionHeaderTitleRow}>
+          <View style={styles.sectionHeaderIconContainer}>
+            <Zap size={24} color={MODAL_TOKENS.primary} strokeWidth={2} />
+          </View>
+          <Text style={styles.sectionHeaderTitle}>Work Details</Text>
+        </View>
+      <Text style={styles.sectionHeaderHelper}>
         Define the scope and nature of work.
       </Text>
+      </View>
 
-      <Text style={styles.label}>Work Type</Text>
+      <Text style={styles.labelNew}>Work Type</Text>
       <View style={styles.optionsRow}>
         {[
-          { value: "one_time", label: "One-time", icon: "flash-outline" },
-          { value: "ongoing", label: "Ongoing", icon: "repeat-outline" },
+          { value: "one_time", label: "One-time", Icon: Zap },
+          { value: "ongoing", label: "Ongoing", Icon: Repeat },
         ].map((opt) => (
           <TouchableOpacity
             key={opt.value}
@@ -726,10 +827,10 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             ]}
             onPress={() => setWorkType(opt.value)}
           >
-            <Ionicons
-              name={opt.icon}
+            <opt.Icon
+              strokeWidth={2}
               size={24}
-              color={workType === opt.value ? PRIMARY_COLOR : LIGHT_TEXT_COLOR}
+              color={workType === opt.value ? MODAL_TOKENS.primary : MODAL_TOKENS.textMuted}
             />
             <Text
               style={[
@@ -743,11 +844,11 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         ))}
       </View>
 
-      <Text style={styles.label}>Work Mode</Text>
+      <Text style={styles.labelNew}>Work Mode</Text>
       <View style={styles.optionsRow}>
         {[
-          { value: "remote", label: "Remote", icon: "laptop-outline" },
-          { value: "on_site", label: "On-site", icon: "location-outline" },
+          { value: "remote", label: "Remote", Icon: Monitor },
+          { value: "on_site", label: "On-site", Icon: MapPin },
         ].map((opt) => (
           <TouchableOpacity
             key={opt.value}
@@ -757,10 +858,10 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             ]}
             onPress={() => setWorkMode(opt.value)}
           >
-            <Ionicons
-              name={opt.icon}
+            <opt.Icon
+              strokeWidth={2}
               size={24}
-              color={workMode === opt.value ? PRIMARY_COLOR : LIGHT_TEXT_COLOR}
+              color={workMode === opt.value ? MODAL_TOKENS.primary : MODAL_TOKENS.textMuted}
             />
             <Text
               style={[
@@ -778,15 +879,22 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
   const renderStep3 = () => (
     <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <Text style={styles.stepTitle}>Core Requirements</Text>
+      <View style={styles.sectionHeaderNew}>
+        <View style={styles.sectionHeaderTitleRow}>
+          <View style={styles.sectionHeaderIconContainer}>
+            <Target size={24} color={MODAL_TOKENS.primary} strokeWidth={2} />
+          </View>
+          <Text style={styles.sectionHeaderTitle}>Core Requirements</Text>
+        </View>
+      </View>
       <View style={styles.infoBox}>
-        <Ionicons name="information-circle" size={20} color={PRIMARY_COLOR} />
+        <Info size={20} color={MODAL_TOKENS.primary} />
         <Text style={styles.infoText}>
           These requirements apply to ALL applicants regardless of role.
         </Text>
       </View>
 
-      <Text style={styles.label}>Experience Level</Text>
+      <Text style={styles.labelNew}>Experience Level</Text>
       <View style={styles.dropdownContainer}>
         {["any", "beginner", "intermediate", "advanced"].map((level) => (
           <TouchableOpacity
@@ -808,47 +916,47 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                 : level.charAt(0).toUpperCase() + level.slice(1)}
             </Text>
             {experienceLevel === level && (
-              <Ionicons name="checkmark" size={18} color={PRIMARY_COLOR} />
+              <Check size={18} color={MODAL_TOKENS.primary} />
             )}
           </TouchableOpacity>
         ))}
       </View>
 
-      <Text style={styles.label}>Availability *</Text>
+      <Text style={styles.labelNew}>Availability *</Text>
       <TextInput
-        style={styles.input}
+        style={styles.inputNew}
         value={availability}
         onChangeText={setAvailability}
         placeholder="e.g., 10 hrs/week OR 3 videos/week"
-        placeholderTextColor={LIGHT_TEXT_COLOR}
+        placeholderTextColor={MODAL_TOKENS.textMuted}
         maxLength={100}
       />
 
-      <Text style={styles.label}>Expected Turnaround *</Text>
+      <Text style={styles.labelNew}>Expected Turnaround *</Text>
       <TextInput
-        style={styles.input}
+        style={styles.inputNew}
         value={turnaround}
         onChangeText={setTurnaround}
         placeholder="e.g., 48 hours per video"
-        placeholderTextColor={LIGHT_TEXT_COLOR}
+        placeholderTextColor={MODAL_TOKENS.textMuted}
         maxLength={100}
       />
 
-      <Text style={styles.label}>Timezone Preference (Optional)</Text>
+      <Text style={styles.labelNew}>Timezone Preference (Optional)</Text>
       <TextInput
-        style={styles.input}
+        style={styles.inputNew}
         value={timezone}
         onChangeText={setTimezone}
         placeholder="e.g., IST, EST, or Any"
-        placeholderTextColor={LIGHT_TEXT_COLOR}
+        placeholderTextColor={MODAL_TOKENS.textMuted}
       />
 
-      <Text style={styles.label}>Application Deadline (Optional)</Text>
+      <Text style={styles.labelNew}>Application Deadline (Optional)</Text>
       <TouchableOpacity
-        style={styles.input}
+        style={styles.inputNew}
         onPress={() => setShowDatePicker(true)}
       >
-        <Text style={{ color: expiresAt ? TEXT_COLOR : LIGHT_TEXT_COLOR }}>
+        <Text style={{ color: expiresAt ? TEXT_COLOR : MODAL_TOKENS.textMuted }}>
           {expiresAt
             ? expiresAt.toLocaleDateString("en-US", {
                 weekday: "short",
@@ -879,11 +987,18 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
   const renderStep4 = () => (
     <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <Text style={styles.stepTitle}>Skill Requirements</Text>
-      <Text style={styles.stepDescription}>
+      <View style={styles.sectionHeaderNew}>
+        <View style={styles.sectionHeaderTitleRow}>
+          <View style={styles.sectionHeaderIconContainer}>
+            <Award size={24} color={MODAL_TOKENS.primary} strokeWidth={2} />
+          </View>
+          <Text style={styles.sectionHeaderTitle}>Skill Requirements</Text>
+        </View>
+      <Text style={styles.sectionHeaderHelper}>
         Configure requirements for each role. Applicants can apply if they match
         ANY ONE role.
       </Text>
+      </View>
 
       <View style={styles.eligibilityToggle}>
         <TouchableOpacity
@@ -922,7 +1037,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
       {eligibilityMode === "multiple" && (
         <View style={styles.warningBox}>
-          <Ionicons name="warning" size={18} color="#FF9500" />
+          <AlertTriangle size={18} color="#FF9500" />
           <Text style={styles.warningText}>
             This will significantly reduce applications (~85% fewer).
           </Text>
@@ -966,8 +1081,8 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                   onPress={() => toggleTool(group.role, tool)}
                 >
                   <Text style={styles.toolChipTextSelected}>{tool}</Text>
-                  <Ionicons
-                    name="close"
+                  <X
+
                     size={14}
                     color="#FFFFFF"
                     style={{ marginLeft: 4 }}
@@ -978,7 +1093,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             {/* Add Custom Tool Button */}
             {!showCustomToolInput[group.role] && (
               <TouchableOpacity
-                style={[styles.toolChip, styles.chipAdd]}
+                style={[styles.toolChip, styles.chipAddNew]}
                 onPress={() =>
                   setShowCustomToolInput({
                     ...showCustomToolInput,
@@ -986,28 +1101,28 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                   })
                 }
               >
-                <Ionicons name="add" size={16} color={PRIMARY_COLOR} />
-                <Text style={styles.chipAddText}>Custom</Text>
+                <Plus size={16} color={MODAL_TOKENS.primary} />
+                <Text style={styles.chipAddTextNew}>Custom</Text>
               </TouchableOpacity>
             )}
           </View>
 
           {/* Custom Tool Input */}
           {showCustomToolInput[group.role] && (
-            <View style={styles.customInputRow}>
+            <View style={styles.customInputRowNew}>
               <TextInput
-                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                style={[styles.inputNew, { flex: 1, marginBottom: 0 }]}
                 value={customTool}
                 onChangeText={setCustomTool}
                 placeholder="Enter custom tool"
-                placeholderTextColor={LIGHT_TEXT_COLOR}
+                placeholderTextColor={MODAL_TOKENS.textMuted}
                 autoFocus
               />
               <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => addCustomTool(group.role)}
               >
-                <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                <Check size={20} color="#FFFFFF" />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.cancelButton}
@@ -1019,7 +1134,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                   setCustomTool("");
                 }}
               >
-                <Ionicons name="close" size={20} color={LIGHT_TEXT_COLOR} />
+                <X size={20} color={MODAL_TOKENS.textMuted} />
               </TouchableOpacity>
             </View>
           )}
@@ -1062,8 +1177,8 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                   <Text style={styles.sampleTypeTextSelected}>
                     {group.sample_type}
                   </Text>
-                  <Ionicons
-                    name="close"
+                  <X
+
                     size={14}
                     color="#FFFFFF"
                     style={{ marginLeft: 4 }}
@@ -1074,7 +1189,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             {/* Add Custom Sample Type Button */}
             {!showCustomSampleInput[group.role] && (
               <TouchableOpacity
-                style={[styles.sampleTypeChip, styles.chipAdd]}
+                style={[styles.sampleTypeChip, styles.chipAddNew]}
                 onPress={() =>
                   setShowCustomSampleInput({
                     ...showCustomSampleInput,
@@ -1082,28 +1197,28 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                   })
                 }
               >
-                <Ionicons name="add" size={16} color={PRIMARY_COLOR} />
-                <Text style={styles.chipAddText}>Custom</Text>
+                <Plus size={16} color={MODAL_TOKENS.primary} />
+                <Text style={styles.chipAddTextNew}>Custom</Text>
               </TouchableOpacity>
             )}
           </View>
 
           {/* Custom Sample Type Input */}
           {showCustomSampleInput[group.role] && (
-            <View style={styles.customInputRow}>
+            <View style={styles.customInputRowNew}>
               <TextInput
-                style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                style={[styles.inputNew, { flex: 1, marginBottom: 0 }]}
                 value={customSampleType}
                 onChangeText={setCustomSampleType}
                 placeholder="Enter custom sample type"
-                placeholderTextColor={LIGHT_TEXT_COLOR}
+                placeholderTextColor={MODAL_TOKENS.textMuted}
                 autoFocus
               />
               <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => addCustomSampleType(group.role)}
               >
-                <Ionicons name="checkmark" size={20} color="#FFFFFF" />
+                <Check size={20} color="#FFFFFF" />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.cancelButton}
@@ -1115,7 +1230,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                   setCustomSampleType("");
                 }}
               >
-                <Ionicons name="close" size={20} color={LIGHT_TEXT_COLOR} />
+                <X size={20} color={MODAL_TOKENS.textMuted} />
               </TouchableOpacity>
             </View>
           )}
@@ -1126,12 +1241,19 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
   const renderStep5 = () => (
     <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <Text style={styles.stepTitle}>Compensation</Text>
-      <Text style={styles.stepDescription}>
+      <View style={styles.sectionHeaderNew}>
+        <View style={styles.sectionHeaderTitleRow}>
+          <View style={styles.sectionHeaderIconContainer}>
+            <Coins size={24} color={MODAL_TOKENS.primary} strokeWidth={2} />
+          </View>
+          <Text style={styles.sectionHeaderTitle}>Compensation</Text>
+        </View>
+      <Text style={styles.sectionHeaderHelper}>
         How will you compensate the selected talent?
       </Text>
+      </View>
 
-      <Text style={styles.label}>Payment Type</Text>
+      <Text style={styles.labelNew}>Payment Type</Text>
       <View style={styles.optionsRow}>
         {[
           { value: "fixed", label: "Fixed" },
@@ -1158,24 +1280,24 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         ))}
       </View>
 
-      <Text style={styles.label}>Budget Range (Optional)</Text>
+      <Text style={styles.labelNew}>Budget Range (Optional)</Text>
       <TextInput
-        style={styles.input}
+        style={styles.inputNew}
         value={budgetRange}
         onChangeText={setBudgetRange}
         placeholder="e.g., ₹5,000 - ₹10,000"
-        placeholderTextColor={LIGHT_TEXT_COLOR}
+        placeholderTextColor={MODAL_TOKENS.textMuted}
       />
 
-      <Text style={styles.label}>Payment Nature</Text>
+      <Text style={styles.labelNew}>Payment Nature</Text>
       <View style={styles.paymentNatureContainer}>
         {[
-          { value: "paid", label: "Paid", icon: "cash-outline" },
-          { value: "trial", label: "Trial-based", icon: "hourglass-outline" },
+          { value: "paid", label: "Paid", Icon: Coins },
+          { value: "trial", label: "Trial-based", Icon: Clock },
           {
             value: "revenue_share",
             label: "Revenue Share",
-            icon: "pie-chart-outline",
+            Icon: PieChart,
           },
         ].map((opt) => (
           <TouchableOpacity
@@ -1186,12 +1308,13 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             ]}
             onPress={() => setPaymentNature(opt.value)}
           >
-            <Ionicons
-              name={opt.icon}
+            <opt.Icon
+
               size={20}
               color={
-                paymentNature === opt.value ? PRIMARY_COLOR : LIGHT_TEXT_COLOR
+                paymentNature === opt.value ? MODAL_TOKENS.primary : MODAL_TOKENS.textMuted
               }
+              strokeWidth={2}
             />
             <Text
               style={[
@@ -1208,7 +1331,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
       {paymentNature === "trial" && (
         <View style={styles.infoBox}>
-          <Ionicons name="bulb-outline" size={18} color="#FF9500" />
+          <Lightbulb size={18} color="#FF9500" />
           <Text style={styles.infoText}>
             Consider offering a small stipend for trial work.
           </Text>
@@ -1219,10 +1342,17 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
   const renderStep6 = () => (
     <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <Text style={styles.stepTitle}>Application Questions</Text>
+      <View style={styles.sectionHeaderNew}>
+        <View style={styles.sectionHeaderTitleRow}>
+          <View style={styles.sectionHeaderIconContainer}>
+            <HelpCircle size={24} color={MODAL_TOKENS.primary} strokeWidth={2} />
+          </View>
+          <Text style={styles.sectionHeaderTitle}>Application Questions</Text>
+        </View>
+      </View>
 
       <View style={styles.infoBox}>
-        <Ionicons name="bulb-outline" size={18} color={PRIMARY_COLOR} />
+        <Lightbulb size={18} color={MODAL_TOKENS.primary} />
         <Text style={styles.infoText}>
           Keep this short. Fewer questions = better quality applicants.
         </Text>
@@ -1233,27 +1363,27 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           Auto-Included (Not editable)
         </Text>
         <View style={styles.autoItem}>
-          <Ionicons name="checkmark-circle" size={16} color="#34C759" />
+          <CheckCircle2 size={16} color="#34C759" />
           <Text style={styles.autoItemText}>Applicant Profile</Text>
         </View>
         <View style={styles.autoItem}>
-          <Ionicons name="checkmark-circle" size={16} color="#34C759" />
+          <CheckCircle2 size={16} color="#34C759" />
           <Text style={styles.autoItemText}>Skill Applied For</Text>
         </View>
         <View style={styles.autoItem}>
-          <Ionicons name="checkmark-circle" size={16} color="#34C759" />
+          <CheckCircle2 size={16} color="#34C759" />
           <Text style={styles.autoItemText}>Portfolio Samples</Text>
         </View>
       </View>
 
-      <Text style={styles.label}>Your Questions (max 4)</Text>
+      <Text style={styles.labelNew}>Your Questions (max 4)</Text>
 
       {questions.map((q, index) => (
         <View key={index} style={styles.questionCard}>
           <View style={styles.questionHeader}>
             <Text style={styles.questionNumber}>Question {index + 1}</Text>
             <TouchableOpacity onPress={() => removeQuestion(index)}>
-              <Ionicons name="trash-outline" size={18} color="#FF3B30" />
+              <Trash2 size={18} color="#FF3B30" />
             </TouchableOpacity>
           </View>
           <TextInput
@@ -1261,7 +1391,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             value={q.prompt}
             onChangeText={(text) => updateQuestion(index, "prompt", text)}
             placeholder="Enter your question"
-            placeholderTextColor={LIGHT_TEXT_COLOR}
+            placeholderTextColor={MODAL_TOKENS.textMuted}
             multiline
           />
           <View style={styles.requiredRow}>
@@ -1269,19 +1399,19 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             <Switch
               value={q.required}
               onValueChange={(val) => updateQuestion(index, "required", val)}
-              trackColor={{ false: "#E5E7EB", true: `${PRIMARY_COLOR}50` }}
-              thumbColor={q.required ? PRIMARY_COLOR : "#FFFFFF"}
+              trackColor={{ false: "#E5E7EB", true: `${MODAL_TOKENS.primary}50` }}
+              thumbColor={q.required ? MODAL_TOKENS.primary : "#FFFFFF"}
             />
           </View>
         </View>
       ))}
 
-      {questions.length < 4 && (
+      {questions.length <= 3 && (
         <TouchableOpacity
           style={styles.addQuestionButton}
           onPress={addQuestion}
         >
-          <Ionicons name="add" size={20} color={PRIMARY_COLOR} />
+          <Plus size={20} color={MODAL_TOKENS.primary} />
           <Text style={styles.addQuestionText}>
             Add Question ({4 - questions.length} remaining)
           </Text>
@@ -1290,10 +1420,11 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
       {questions.length > 2 && (
         <View style={styles.warningBox}>
-          <Ionicons name="warning" size={18} color="#FF9500" />
+          <AlertTriangle size={18} color="#FF9500" />
           <Text style={styles.warningText}>
             Each additional question reduces completion rate by ~15%.
           </Text>
+
         </View>
       )}
     </ScrollView>
@@ -1301,10 +1432,17 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
   const renderStep7 = () => (
     <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <Text style={styles.stepTitle}>Visibility</Text>
-      <Text style={styles.stepDescription}>
+      <View style={styles.sectionHeaderNew}>
+        <View style={styles.sectionHeaderTitleRow}>
+          <View style={styles.sectionHeaderIconContainer}>
+            <Eye size={24} color={MODAL_TOKENS.primary} strokeWidth={2} />
+          </View>
+          <Text style={styles.sectionHeaderTitle}>Visibility</Text>
+        </View>
+      <Text style={styles.sectionHeaderHelper}>
         Who should see this opportunity?
       </Text>
+      </View>
 
       <View style={styles.visibilityOptions}>
         {[
@@ -1312,19 +1450,19 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             value: "public",
             title: "Public",
             description: "Anyone on SnooSpace can discover",
-            icon: "globe-outline",
+            Icon: Globe,
           },
           {
             value: "community",
             title: "Community Only",
             description: "Only members of your community",
-            icon: "people-outline",
+            Icon: Users,
           },
           {
             value: "invite",
             title: "Invite Only",
             description: "Share link manually",
-            icon: "link-outline",
+            Icon: Link,
           },
         ].map((opt) => (
           <TouchableOpacity
@@ -1345,12 +1483,13 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                 {visibility === opt.value && <View style={styles.radioInner} />}
               </View>
             </View>
-            <Ionicons
-              name={opt.icon}
+            <opt.Icon
+
               size={24}
               color={
-                visibility === opt.value ? PRIMARY_COLOR : LIGHT_TEXT_COLOR
+                visibility === opt.value ? MODAL_TOKENS.primary : MODAL_TOKENS.textMuted
               }
+              strokeWidth={2}
             />
             <View style={styles.visibilityText}>
               <Text
@@ -1379,8 +1518,8 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         <Switch
           value={notifyTalent}
           onValueChange={setNotifyTalent}
-          trackColor={{ false: "#E5E7EB", true: `${PRIMARY_COLOR}50` }}
-          thumbColor={notifyTalent ? PRIMARY_COLOR : "#FFFFFF"}
+          trackColor={{ false: "#E5E7EB", true: `${MODAL_TOKENS.primary}50` }}
+          thumbColor={notifyTalent ? MODAL_TOKENS.primary : "#FFFFFF"}
         />
       </View>
     </ScrollView>
@@ -1388,7 +1527,14 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
   const renderStep8 = () => (
     <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <Text style={styles.stepTitle}>Review & Publish</Text>
+      <View style={styles.sectionHeaderNew}>
+        <View style={styles.sectionHeaderTitleRow}>
+          <View style={styles.sectionHeaderIconContainer}>
+            <CheckCircle size={24} color={MODAL_TOKENS.primary} strokeWidth={2} />
+          </View>
+          <Text style={styles.sectionHeaderTitle}>Review & Publish</Text>
+        </View>
+      </View>
 
       <View style={styles.reviewCard}>
         <Text style={styles.reviewTitle}>
@@ -1404,10 +1550,10 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         </View>
 
         <View style={styles.reviewRow}>
-          <Ionicons
-            name="briefcase-outline"
+          <Briefcase
+            strokeWidth={2}
             size={18}
-            color={LIGHT_TEXT_COLOR}
+            color={MODAL_TOKENS.textMuted}
           />
           <Text style={styles.reviewText}>
             {workType === "one_time" ? "One-time" : "Ongoing"} ·{" "}
@@ -1416,7 +1562,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         </View>
 
         <View style={styles.reviewRow}>
-          <Ionicons name="cash-outline" size={18} color={LIGHT_TEXT_COLOR} />
+          <Banknote size={18} color={MODAL_TOKENS.textMuted} />
           <Text style={styles.reviewText}>
             {paymentType.replace("_", " ")} ·{" "}
             {paymentNature === "paid" ? "Paid" : paymentNature}
@@ -1425,7 +1571,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         </View>
 
         <View style={styles.reviewRow}>
-          <Ionicons name="eye-outline" size={18} color={LIGHT_TEXT_COLOR} />
+          <Eye size={18} color={MODAL_TOKENS.textMuted} strokeWidth={2} />
           <Text style={styles.reviewText}>
             {visibility === "public"
               ? "Public"
@@ -1512,7 +1658,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <ArrowLeft size={24} color={MODAL_TOKENS.textPrimary} strokeWidth={2} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
             {isEditing ? "Edit Opportunity" : "Create Opportunity"}
@@ -1525,7 +1671,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
               <Text
                 style={[
                   styles.cancelText,
-                  { color: PRIMARY_COLOR, fontWeight: "600" },
+                  { color: MODAL_TOKENS.primary, fontWeight: "600" },
                 ]}
               >
                 Review
@@ -1541,12 +1687,12 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         {/* Progress Indicator */}
         <View style={styles.progressContainer}>
           <View style={styles.progressBar}>
-            <View
+            <Animated.View
               style={[
                 styles.progressFill,
-                { width: `${(currentStep / TOTAL_STEPS) * 100}%` },
-              ]}
-            />
+                { width: progressPercent.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) },
+              ]} />
+
           </View>
         </View>
 
@@ -1581,7 +1727,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                     <SnooLoader color="#FFFFFF" />
                   ) : (
                     <>
-                      <Ionicons name="rocket" size={20} color="#FFFFFF" />
+                      <Zap size={20} color="#FFFFFF" />
                       <Text style={[styles.publishButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
                         {isEditing ? "Update Opportunity" : "Publish"}
                       </Text>
@@ -1599,7 +1745,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                 style={styles.nextGradient}
               >
                 <Text style={styles.nextButtonText}>Continue</Text>
-                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                <ArrowRight size={20} color="#FFFFFF" />
               </LinearGradient>
             </TouchableOpacity>
           )}
@@ -1617,7 +1763,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         <View style={styles.modalOverlay}>
           <View style={styles.draftPromptCard}>
             <View style={styles.draftPromptIcon}>
-              <Ionicons name="document-text" size={32} color={PRIMARY_COLOR} />
+              <FileCheck size={32} color={MODAL_TOKENS.primary} strokeWidth={2} />
             </View>
             <Text style={styles.draftPromptTitle}>Resume Draft?</Text>
             <Text style={styles.draftPromptMessage}>
@@ -1654,9 +1800,57 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
+  // New Premium Section Header
+  sectionHeaderNew: {
+    marginBottom: 24,
+  },
+  sectionHeaderTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  sectionHeaderIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: `${MODAL_TOKENS.primary}10`,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  // New Premium Input Container
+  inputContainerNew: {
+    marginBottom: 20,
+  },
+  charCountRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 6,
+  },
+  charCountText: {
+    fontSize: 12,
+    fontFamily: "Manrope-Medium",
+    color: MODAL_TOKENS.textMuted,
+  },
+  labelHint: {
+    fontFamily: "Manrope-Medium",
+    color: MODAL_TOKENS.textMuted,
+    fontSize: 12,
+  },
+  actionButtonNew: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: MODAL_TOKENS.primary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  actionButtonCancelNew: {
+    backgroundColor: "#F3F4F6",
+  },
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: MODAL_TOKENS.background,
   },
   keyboardView: {
     flex: 1,
@@ -1668,21 +1862,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
+    borderBottomColor: MODAL_TOKENS.border,
   },
   backButton: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "flex-start",
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+    flex: 1,
+    fontSize: 18,
+    fontFamily: "BasicCommercial-Black",
+    color: MODAL_TOKENS.textPrimary,
+    textAlign: "center",
   },
   cancelButton: {
-    padding: 4,
+    minWidth: 60,
+    alignItems: "flex-end",
+    justifyContent: "center",
   },
   cancelText: {
     fontSize: 15,
+    fontFamily: "Manrope-SemiBold",
     color: "#FF3B30",
   },
   progressContainer: {
@@ -1697,7 +1899,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: "100%",
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: MODAL_TOKENS.primary,
     borderRadius: 2,
   },
   stepContent: {
@@ -1706,42 +1908,42 @@ const styles = StyleSheet.create({
   },
   stepTitle: {
     fontSize: 24,
-    fontWeight: "700",
-    color: TEXT_COLOR,
+    fontFamily: "BasicCommercial-Bold",
+    color: MODAL_TOKENS.textPrimary,
     marginBottom: 8,
     marginTop: 8,
   },
   stepDescription: {
     fontSize: 15,
-    color: LIGHT_TEXT_COLOR,
+    color: MODAL_TOKENS.textMuted,
     marginBottom: 24,
     lineHeight: 22,
   },
   label: {
     fontSize: 14,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+    fontFamily: "Manrope-SemiBold",
+    color: MODAL_TOKENS.textPrimary,
     marginBottom: 8,
     marginTop: 16,
   },
   hint: {
-    fontWeight: "400",
-    color: LIGHT_TEXT_COLOR,
+    fontFamily: "Manrope-Regular",
+    color: MODAL_TOKENS.textMuted,
   },
   input: {
     backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: MODAL_TOKENS.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
-    color: TEXT_COLOR,
+    color: MODAL_TOKENS.textPrimary,
     marginBottom: 8,
   },
   charCount: {
     fontSize: 12,
-    color: LIGHT_TEXT_COLOR,
+    color: MODAL_TOKENS.textMuted,
     textAlign: "right",
     marginBottom: 8,
   },
@@ -1759,31 +1961,31 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: MODAL_TOKENS.border,
   },
   chipSelected: {
-    backgroundColor: PRIMARY_COLOR,
-    borderColor: PRIMARY_COLOR,
+    backgroundColor: MODAL_TOKENS.primary,
+    borderColor: MODAL_TOKENS.primary,
   },
   chipDisabled: {
     opacity: 0.4,
   },
   chipText: {
     fontSize: 14,
-    color: TEXT_COLOR,
+    color: MODAL_TOKENS.textPrimary,
   },
   chipTextSelected: {
     color: "#FFFFFF",
-    fontWeight: "500",
+    fontFamily: "Manrope-Medium",
   },
   chipAdd: {
     backgroundColor: "#FFFFFF",
-    borderColor: PRIMARY_COLOR,
+    borderColor: MODAL_TOKENS.primary,
     borderStyle: "dashed",
   },
   chipAddText: {
     fontSize: 14,
-    color: PRIMARY_COLOR,
+    color: MODAL_TOKENS.primary,
     marginLeft: 4,
   },
   customInputRow: {
@@ -1793,7 +1995,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   addButton: {
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: MODAL_TOKENS.primary,
     width: 44,
     height: 44,
     borderRadius: 12,
@@ -1815,28 +2017,28 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: MODAL_TOKENS.border,
     borderRadius: 12,
     paddingVertical: 20,
     alignItems: "center",
     gap: 8,
   },
   optionCardSelected: {
-    borderColor: PRIMARY_COLOR,
-    backgroundColor: `${PRIMARY_COLOR}08`,
+    borderColor: MODAL_TOKENS.primary,
+    backgroundColor: `${MODAL_TOKENS.primary}08`,
   },
   optionLabel: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
-    fontWeight: "500",
+    color: MODAL_TOKENS.textMuted,
+    fontFamily: "Manrope-Medium",
   },
   optionLabelSelected: {
-    color: PRIMARY_COLOR,
+    color: MODAL_TOKENS.primary,
   },
   infoBox: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: `${PRIMARY_COLOR}10`,
+    backgroundColor: `${MODAL_TOKENS.primary}10`,
     padding: 12,
     borderRadius: 10,
     gap: 10,
@@ -1845,7 +2047,7 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     fontSize: 13,
-    color: TEXT_COLOR,
+    color: MODAL_TOKENS.textPrimary,
     lineHeight: 18,
   },
   warningBox: {
@@ -1868,7 +2070,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9FAFB",
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: MODAL_TOKENS.border,
     overflow: "hidden",
     marginBottom: 16,
   },
@@ -1882,15 +2084,15 @@ const styles = StyleSheet.create({
     borderBottomColor: BORDER_COLOR,
   },
   dropdownItemSelected: {
-    backgroundColor: `${PRIMARY_COLOR}10`,
+    backgroundColor: `${MODAL_TOKENS.primary}10`,
   },
   dropdownItemText: {
     fontSize: 15,
-    color: TEXT_COLOR,
+    color: MODAL_TOKENS.textPrimary,
   },
   dropdownItemTextSelected: {
-    color: PRIMARY_COLOR,
-    fontWeight: "500",
+    color: MODAL_TOKENS.primary,
+    fontFamily: "Manrope-Medium",
   },
   eligibilityToggle: {
     flexDirection: "row",
@@ -1915,11 +2117,11 @@ const styles = StyleSheet.create({
   },
   eligibilityText: {
     fontSize: 13,
-    fontWeight: "500",
-    color: LIGHT_TEXT_COLOR,
+    fontFamily: "Manrope-Medium",
+    color: MODAL_TOKENS.textMuted,
   },
   eligibilityTextSelected: {
-    color: PRIMARY_COLOR,
+    color: MODAL_TOKENS.primary,
   },
   skillGroupCard: {
     backgroundColor: "#FFFFFF",
@@ -1927,18 +2129,18 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: MODAL_TOKENS.border,
   },
   skillGroupTitle: {
     fontSize: 16,
-    fontWeight: "700",
-    color: TEXT_COLOR,
+    fontFamily: "BasicCommercial-Bold",
+    color: MODAL_TOKENS.textPrimary,
     marginBottom: 12,
   },
   skillGroupLabel: {
     fontSize: 13,
-    fontWeight: "600",
-    color: LIGHT_TEXT_COLOR,
+    fontFamily: "Manrope-SemiBold",
+    color: MODAL_TOKENS.textMuted,
     marginBottom: 8,
     marginTop: 12,
   },
@@ -1954,15 +2156,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   toolChipSelected: {
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: MODAL_TOKENS.primary,
   },
   toolChipText: {
     fontSize: 13,
-    color: TEXT_COLOR,
+    color: MODAL_TOKENS.textPrimary,
   },
   toolChipTextSelected: {
     color: "#FFFFFF",
-    fontWeight: "500",
+    fontFamily: "Manrope-Medium",
   },
   sampleTypesContainer: {
     flexDirection: "row",
@@ -1978,16 +2180,16 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   sampleTypeChipSelected: {
-    borderColor: PRIMARY_COLOR,
-    backgroundColor: `${PRIMARY_COLOR}10`,
+    borderColor: MODAL_TOKENS.primary,
+    backgroundColor: `${MODAL_TOKENS.primary}10`,
   },
   sampleTypeText: {
     fontSize: 13,
-    color: TEXT_COLOR,
+    color: MODAL_TOKENS.textPrimary,
   },
   sampleTypeTextSelected: {
-    color: PRIMARY_COLOR,
-    fontWeight: "500",
+    color: MODAL_TOKENS.primary,
+    fontFamily: "Manrope-Medium",
   },
   paymentTypeChip: {
     flex: 1,
@@ -1997,12 +2199,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   paymentTypeChipSelected: {
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: MODAL_TOKENS.primary,
   },
   paymentTypeText: {
     fontSize: 13,
-    fontWeight: "500",
-    color: TEXT_COLOR,
+    fontFamily: "Manrope-Medium",
+    color: MODAL_TOKENS.textPrimary,
   },
   paymentTypeTextSelected: {
     color: "#FFFFFF",
@@ -2016,22 +2218,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: MODAL_TOKENS.border,
     borderRadius: 12,
     padding: 16,
     gap: 12,
   },
   paymentNatureCardSelected: {
-    borderColor: PRIMARY_COLOR,
-    backgroundColor: `${PRIMARY_COLOR}08`,
+    borderColor: MODAL_TOKENS.primary,
+    backgroundColor: `${MODAL_TOKENS.primary}08`,
   },
   paymentNatureLabel: {
     fontSize: 15,
-    color: TEXT_COLOR,
+    color: MODAL_TOKENS.textPrimary,
   },
   paymentNatureLabelSelected: {
-    color: PRIMARY_COLOR,
-    fontWeight: "500",
+    color: MODAL_TOKENS.primary,
+    fontFamily: "Manrope-Medium",
   },
   autoIncludedBox: {
     backgroundColor: "#F0FDF4",
@@ -2041,7 +2243,7 @@ const styles = StyleSheet.create({
   },
   autoIncludedTitle: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: "#166534",
     marginBottom: 12,
   },
@@ -2061,7 +2263,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: MODAL_TOKENS.border,
   },
   questionHeader: {
     flexDirection: "row",
@@ -2071,15 +2273,15 @@ const styles = StyleSheet.create({
   },
   questionNumber: {
     fontSize: 14,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+    fontFamily: "Manrope-SemiBold",
+    color: MODAL_TOKENS.textPrimary,
   },
   questionInput: {
     backgroundColor: "#F9FAFB",
     borderRadius: 8,
     padding: 12,
     fontSize: 14,
-    color: TEXT_COLOR,
+    color: MODAL_TOKENS.textPrimary,
     minHeight: 60,
     textAlignVertical: "top",
   },
@@ -2091,13 +2293,13 @@ const styles = StyleSheet.create({
   },
   requiredLabel: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: MODAL_TOKENS.textMuted,
   },
   addQuestionButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: `${PRIMARY_COLOR}10`,
+    backgroundColor: `${MODAL_TOKENS.primary}10`,
     paddingVertical: 14,
     borderRadius: 12,
     gap: 8,
@@ -2105,8 +2307,8 @@ const styles = StyleSheet.create({
   },
   addQuestionText: {
     fontSize: 15,
-    fontWeight: "500",
-    color: PRIMARY_COLOR,
+    fontFamily: "Manrope-Medium",
+    color: MODAL_TOKENS.primary,
   },
   visibilityOptions: {
     gap: 12,
@@ -2117,14 +2319,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#F9FAFB",
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: MODAL_TOKENS.border,
     borderRadius: 12,
     padding: 16,
     gap: 12,
   },
   visibilityCardSelected: {
-    borderColor: PRIMARY_COLOR,
-    backgroundColor: `${PRIMARY_COLOR}08`,
+    borderColor: MODAL_TOKENS.primary,
+    backgroundColor: `${MODAL_TOKENS.primary}08`,
   },
   visibilityRadio: {
     width: 24,
@@ -2134,33 +2336,33 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: BORDER_COLOR,
+    borderColor: MODAL_TOKENS.border,
     justifyContent: "center",
     alignItems: "center",
   },
   radioOuterSelected: {
-    borderColor: PRIMARY_COLOR,
+    borderColor: MODAL_TOKENS.primary,
   },
   radioInner: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: MODAL_TOKENS.primary,
   },
   visibilityText: {
     flex: 1,
   },
   visibilityTitle: {
     fontSize: 15,
-    fontWeight: "500",
-    color: TEXT_COLOR,
+    fontFamily: "Manrope-Medium",
+    color: MODAL_TOKENS.textPrimary,
   },
   visibilityTitleSelected: {
-    color: PRIMARY_COLOR,
+    color: MODAL_TOKENS.primary,
   },
   visibilityDescription: {
     fontSize: 13,
-    color: LIGHT_TEXT_COLOR,
+    color: MODAL_TOKENS.textMuted,
     marginTop: 2,
   },
   notifyRow: {
@@ -2176,12 +2378,12 @@ const styles = StyleSheet.create({
   },
   notifyTitle: {
     fontSize: 15,
-    fontWeight: "500",
-    color: TEXT_COLOR,
+    fontFamily: "Manrope-Medium",
+    color: MODAL_TOKENS.textPrimary,
   },
   notifyDescription: {
     fontSize: 13,
-    color: LIGHT_TEXT_COLOR,
+    color: MODAL_TOKENS.textMuted,
     marginTop: 2,
   },
   reviewCard: {
@@ -2189,13 +2391,13 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    borderColor: MODAL_TOKENS.border,
     marginBottom: 16,
   },
   reviewTitle: {
     fontSize: 20,
-    fontWeight: "700",
-    color: TEXT_COLOR,
+    fontFamily: "BasicCommercial-Bold",
+    color: MODAL_TOKENS.textPrimary,
     marginBottom: 12,
   },
   reviewRoles: {
@@ -2205,15 +2407,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   reviewRoleChip: {
-    backgroundColor: `${PRIMARY_COLOR}15`,
+    backgroundColor: `${MODAL_TOKENS.primary}15`,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
   },
   reviewRoleText: {
     fontSize: 13,
-    fontWeight: "500",
-    color: PRIMARY_COLOR,
+    fontFamily: "Manrope-Medium",
+    color: MODAL_TOKENS.primary,
   },
   reviewRow: {
     flexDirection: "row",
@@ -2223,7 +2425,7 @@ const styles = StyleSheet.create({
   },
   reviewText: {
     fontSize: 14,
-    color: TEXT_COLOR,
+    color: MODAL_TOKENS.textPrimary,
   },
   reviewDivider: {
     height: 1,
@@ -2232,19 +2434,19 @@ const styles = StyleSheet.create({
   },
   reviewSectionTitle: {
     fontSize: 14,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+    fontFamily: "Manrope-SemiBold",
+    color: MODAL_TOKENS.textPrimary,
     marginBottom: 8,
     marginTop: 8,
   },
   reviewBullet: {
     fontSize: 14,
-    color: LIGHT_TEXT_COLOR,
+    color: MODAL_TOKENS.textMuted,
     marginBottom: 4,
   },
   editHint: {
     fontSize: 13,
-    color: LIGHT_TEXT_COLOR,
+    color: MODAL_TOKENS.textMuted,
     textAlign: "center",
     marginBottom: 20,
   },
@@ -2253,7 +2455,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderTopWidth: 1,
     borderTopColor: BORDER_COLOR,
-    backgroundColor: COLORS.background,
+    backgroundColor: MODAL_TOKENS.background,
   },
   nextButton: {
     borderRadius: 12,
@@ -2285,8 +2487,8 @@ const styles = StyleSheet.create({
   },
   draftButtonText: {
     fontSize: 16,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+    fontFamily: "Manrope-SemiBold",
+    color: MODAL_TOKENS.textPrimary,
   },
   publishButton: {
     flex: 2,
@@ -2302,7 +2504,7 @@ const styles = StyleSheet.create({
   },
   publishButtonText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "BasicCommercial-Bold",
     color: "#FFFFFF",
   },
   modalOverlay: {
@@ -2324,20 +2526,20 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: `${PRIMARY_COLOR}15`,
+    backgroundColor: `${MODAL_TOKENS.primary}15`,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
   },
   draftPromptTitle: {
     fontSize: 20,
-    fontWeight: "700",
-    color: TEXT_COLOR,
+    fontFamily: "BasicCommercial-Bold",
+    color: MODAL_TOKENS.textPrimary,
     marginBottom: 8,
   },
   draftPromptMessage: {
     fontSize: 15,
-    color: LIGHT_TEXT_COLOR,
+    color: MODAL_TOKENS.textMuted,
     textAlign: "center",
     lineHeight: 22,
     marginBottom: 24,
@@ -2356,8 +2558,8 @@ const styles = StyleSheet.create({
   },
   draftPromptSecondaryText: {
     fontSize: 15,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+    fontFamily: "Manrope-SemiBold",
+    color: MODAL_TOKENS.textPrimary,
   },
   draftPromptPrimary: {
     flex: 1,
@@ -2370,7 +2572,8 @@ const styles = StyleSheet.create({
   },
   draftPromptPrimaryText: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: "#FFFFFF",
   },
-});
+});  
+
