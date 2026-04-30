@@ -9,6 +9,13 @@ import CreatePostScreen from "../components/CreatePostScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import CommunityFollowersListScreen from "../screens/profile/community/CommunityFollowersListScreen";
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
+import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
+
+const MemberProfileScreenWithSwipe = (props) => (
+  <TabSwipeHandler currentTab="Profile">
+    <MemberProfileScreen {...props} />
+  </TabSwipeHandler>
+);
 
 const Stack = createStackNavigator();
 
@@ -18,7 +25,7 @@ export default function ProfileStackNavigator() {
       screenOptions={{ headerShown: false }}
       initialRouteName="Profile"
     >
-      <Stack.Screen name="Profile" component={MemberProfileScreen} />
+      <Stack.Screen name="Profile" component={MemberProfileScreenWithSwipe} />
       <Stack.Screen name="FollowersList" component={FollowersListScreen} />
       <Stack.Screen name="FollowingList" component={FollowingListScreen} />
       <Stack.Screen

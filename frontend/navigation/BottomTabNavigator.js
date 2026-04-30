@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { View, StyleSheet, Platform, Dimensions } from "react-native";
+import { View, StyleSheet, Platform, Dimensions, Pressable } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { House, Search, Compass, Calendar, User } from "lucide-react-native";
@@ -17,6 +17,7 @@ import ProfileStackNavigator from "./ProfileStackNavigator";
 import DiscoverStackNavigator from "./DiscoverStackNavigator";
 import EventsStackNavigator from "./EventsStackNavigator";
 import ProfileTabIcon from "../components/ProfileTabIcon";
+import { getActiveAccount, getAllAccounts, switchAccount } from "../api/auth";
 
 const Tab = createBottomTabNavigator();
 
@@ -45,6 +46,43 @@ const TabIcon = ({ name, focused, color }) => {
       <Ionicons name={name} size={24} color={color} />
     </Animated.View>
   );
+};
+
+const ProfileTabButton = (props) => {
+  const { onPress, ...rest } = props;
+  const lastTapRef = React.useRef(0);
+
+  const handlePress = async (e) => {
+    const now = Date.now();
+    const DOUBLE_PRESS_DELAY = 300;
+
+    if (now - lastTapRef.current < DOUBLE_PRESS_DELAY) {
+      lastTapRef.current = 0;
+      try {
+        const allAccounts = await getAllAccounts();
+        if (allAccounts && allAccounts.length > 1) {
+          const activeAccount = await getActiveAccount();
+          if (activeAccount) {
+            const activeIndex = allAccounts.findIndex((a) => a.id === activeAccount.id);
+            if (activeIndex !== -1) {
+              const nextIndex = (activeIndex + 1) % allAccounts.length;
+              const nextAccount = allAccounts[nextIndex];
+              await switchAccount(nextAccount.id);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error cycling accounts:", err);
+      }
+    } else {
+      lastTapRef.current = now;
+      if (onPress) {
+        onPress(e);
+      }
+    }
+  };
+
+  return <Pressable onPress={handlePress} {...rest} />;
 };
 
 const BottomTabNavigator = ({ navigation, route }) => {
@@ -242,6 +280,7 @@ const BottomTabNavigator = ({ navigation, route }) => {
         component={ProfileStackNavigator}
         options={({ route }) => ({
           tabBarLabel: "Profile",
+          tabBarButton: (props) => <ProfileTabButton {...props} />,
           tabBarStyle: (() => {
             const routeName = getFocusedRouteNameFromRoute(route) ?? "Profile";
             const hiddenRoutes = ["CreatePost", "EditProfile"];

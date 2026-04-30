@@ -6,8 +6,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { useCrop } from "../../components/MediaCrop";
-import { ArrowLeft, Edit2, Check, X, UserMinus, Shield, UserPlus,
-  MoreHorizontal, Camera, LogOut, AlertTriangle, Info, LockKeyhole, Megaphone, Users,
+import { ArrowLeft, Edit2, Check, X, UserMinus, Shield, ShieldOff, ShieldCheck, UserPlus,
+  MoreHorizontal, Camera, LogOut, AlertTriangle, Info, LockKeyhole, Megaphone, Users, Crown,
 } from "lucide-react-native";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import {
@@ -15,6 +15,9 @@ import {
   updateGroupConversation,
   removeGroupParticipant,
   transferAdmin,
+  promoteToAdmin,
+  demoteFromAdmin,
+  transferGroupOwnership,
   addGroupParticipant,
   sendMessage,
 } from "../../api/messages";
@@ -31,8 +34,9 @@ const BORDER   = "#E5E5EA";
 const ACCENT   = "#3565F2";
 const TEXT     = "#000000";
 const TEXT_SEC = "#8E8E93";
-const DANGER   = "#E53935";
-const GOLD     = "#FFB800";
+const DANGER        = "#E53935";
+const GOLD          = "#FFB800";
+const SILVER_ADMIN  = "#9B9B9B";
 
 const CLOUD_NAME   = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || "dulhurgt7";
 const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "harshith_unsigned";
@@ -57,11 +61,32 @@ async function uploadToCloudinary(uri) {
 }
 
 // ── ParticipantRow ───────────────────────────────────────────────────────────
-function ParticipantRow({ participant, isCurrentUser, isMeAdmin, onKick, onTransfer, onPress }) {
+function ParticipantRow({
+  participant, isCurrentUser, isMeAdmin, communityOwnerId,
+  onKick, onPromote, onDemote, onPress,
+}) {
   const [showActions, setShowActions] = useState(false);
   const name    = participant.name || participant.username || "User";
   const uri     = participant.photoUrl;
   const isAdmin = participant.role === "admin";
+
+  // Community owner is the root/immutable admin — shown with Crown
+  const isCommunityOwner =
+    participant.participantType === "community" &&
+    communityOwnerId &&
+    String(participant.participantId) === String(communityOwnerId);
+
+  // Co-admin = admin but NOT the community owner
+  const isCoAdmin = isAdmin && !isCommunityOwner;
+
+  // Can demote: caller is admin, target is co-admin (not community owner, not self)
+  const canDemote  = isMeAdmin && isCoAdmin && !isCurrentUser;
+  // Can promote: caller is admin, target is regular member
+  const canPromote = isMeAdmin && !isAdmin && !isCurrentUser;
+  // Can kick: caller is admin, target is not community owner
+  const canKick    = isMeAdmin && !isCurrentUser && !isCommunityOwner;
+
+  const hasActions = canPromote || canDemote || canKick;
 
   return (
     <View>
@@ -69,7 +94,7 @@ function ParticipantRow({ participant, isCurrentUser, isMeAdmin, onKick, onTrans
         style={pStyles.row}
         activeOpacity={0.75}
         onPress={() => {
-          if (isMeAdmin && !isCurrentUser) {
+          if (hasActions) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             setShowActions((v) => !v);
           } else if (!isCurrentUser) {
@@ -83,12 +108,20 @@ function ParticipantRow({ participant, isCurrentUser, isMeAdmin, onKick, onTrans
           style={pStyles.avatar}
         />
         <View style={{ flex: 1 }}>
-          <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}>
             <Text style={pStyles.name} numberOfLines={1}>{name}</Text>
-            {isAdmin && (
+            {/* Crown badge — community owner */}
+            {isCommunityOwner && (
+              <View style={[pStyles.adminBadge, pStyles.ownerBadge]}>
+                <Crown size={10} color={GOLD} strokeWidth={2} style={{ marginRight: 3 }} />
+                <Text style={pStyles.adminText}>Owner</Text>
+              </View>
+            )}
+            {/* Shield badge — promoted co-admin */}
+            {isCoAdmin && (
               <View style={pStyles.adminBadge}>
-                <Shield size={10} color={GOLD} strokeWidth={2} style={{ marginRight: 3 }} />
-                <Text style={pStyles.adminText}>Admin</Text>
+                <ShieldCheck size={10} color={SILVER_ADMIN} strokeWidth={2} style={{ marginRight: 3 }} />
+                <Text style={[pStyles.adminText, { color: SILVER_ADMIN }]}>Admin</Text>
               </View>
             )}
             {isCurrentUser && (
@@ -99,23 +132,31 @@ function ParticipantRow({ participant, isCurrentUser, isMeAdmin, onKick, onTrans
             {participant.username ? `@${participant.username}` : (participant.participantType || "member")}
           </Text>
         </View>
-        {isMeAdmin && !isCurrentUser && (
+        {hasActions && (
           <MoreHorizontal size={18} color={TEXT_SEC} strokeWidth={2} />
         )}
       </TouchableOpacity>
 
       {showActions && (
         <View style={pStyles.actions}>
-          {!isAdmin && (
-            <TouchableOpacity style={pStyles.actionBtn} onPress={() => { setShowActions(false); onTransfer?.(); }}>
+          {canPromote && (
+            <TouchableOpacity style={pStyles.actionBtn} onPress={() => { setShowActions(false); onPromote?.(); }}>
               <Shield size={16} color={GOLD} strokeWidth={2} style={{ marginRight: 8 }} />
               <Text style={[pStyles.actionText, { color: GOLD }]}>Make Admin</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={pStyles.actionBtn} onPress={() => { setShowActions(false); onKick?.(); }}>
-            <UserMinus size={16} color={DANGER} strokeWidth={2} style={{ marginRight: 8 }} />
-            <Text style={[pStyles.actionText, { color: DANGER }]}>Remove from Group</Text>
-          </TouchableOpacity>
+          {canDemote && (
+            <TouchableOpacity style={pStyles.actionBtn} onPress={() => { setShowActions(false); onDemote?.(); }}>
+              <ShieldOff size={16} color="#FF8C00" strokeWidth={2} style={{ marginRight: 8 }} />
+              <Text style={[pStyles.actionText, { color: "#FF8C00" }]}>Remove Admin</Text>
+            </TouchableOpacity>
+          )}
+          {canKick && (
+            <TouchableOpacity style={pStyles.actionBtn} onPress={() => { setShowActions(false); onKick?.(); }}>
+              <UserMinus size={16} color={DANGER} strokeWidth={2} style={{ marginRight: 8 }} />
+              <Text style={[pStyles.actionText, { color: DANGER }]}>Remove from Group</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
     </View>
@@ -129,8 +170,9 @@ const pStyles = StyleSheet.create({
   name:       { fontFamily:"Manrope-SemiBold", fontSize:14, color:TEXT },
   username:   { fontFamily:"Manrope-Regular",  fontSize:12, color:TEXT_SEC, marginTop:1 },
   youTag:     { fontFamily:"Manrope-Regular", fontSize:12, color:TEXT_SEC },
-  adminBadge: { flexDirection:"row", alignItems:"center", backgroundColor:"rgba(255,184,0,0.15)",
+  adminBadge: { flexDirection:"row", alignItems:"center", backgroundColor:"rgba(155,155,155,0.15)",
     paddingHorizontal:7, paddingVertical:2, borderRadius:10, marginLeft:8 },
+  ownerBadge: { backgroundColor:"rgba(255,184,0,0.15)" },
   adminText:  { fontFamily:"Manrope-SemiBold", fontSize:10, color:GOLD },
   actions:    { backgroundColor:SURFACE, marginHorizontal:16, marginBottom:4,
     borderRadius:12, overflow:"hidden", borderWidth:1, borderColor:BORDER },
@@ -248,6 +290,109 @@ const addStyles = StyleSheet.create({
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// OwnerPickerSheet — shown when community owner tries to leave
+// ═══════════════════════════════════════════════════════════════════════════════
+function OwnerPickerSheet({ participants, currentUserId, onPick, onSkip, onClose }) {
+  const [picking, setPicking] = useState(null);
+
+  const candidates = [
+    ...participants.filter((p) => p.role === "admin"  && String(p.participantId) !== String(currentUserId)),
+    ...participants.filter((p) => p.role !== "admin"  && String(p.participantId) !== String(currentUserId)),
+  ];
+
+  return (
+    <View style={opStyles.sheet}>
+      <View style={opStyles.header}>
+        <View style={{ flex: 1, marginRight: 12 }}>
+          <Text style={opStyles.title}>Transfer Ownership</Text>
+          <Text style={opStyles.sub}>Choose who becomes the next group manager</Text>
+        </View>
+        <TouchableOpacity onPress={onClose} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
+          <X size={20} color={TEXT_SEC} strokeWidth={2} />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+        {candidates.length === 0 && (
+          <Text style={opStyles.empty}>No other participants to transfer to.</Text>
+        )}
+        {candidates.map((p) => {
+          const name = p.name || p.username || "User";
+          const isConfirming = picking === p.participantId;
+          return (
+            <View key={p.participantId} style={opStyles.row}>
+              <Image source={{ uri: p.photoUrl || "https://via.placeholder.com/40" }} style={opStyles.avatar} />
+              <View style={{ flex: 1 }}>
+                <Text style={opStyles.name} numberOfLines={1}>{name}</Text>
+                {p.role === "admin" && <Text style={opStyles.adminTag}>Admin</Text>}
+              </View>
+              {isConfirming ? (
+                <View style={{ flexDirection:"row", gap:8 }}>
+                  <TouchableOpacity style={[opStyles.btn, opStyles.btnConfirm]} onPress={() => { setPicking(null); onPick(p); }}>
+                    <Text style={opStyles.btnConfirmText}>Confirm</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[opStyles.btn, opStyles.btnCancel]} onPress={() => setPicking(null)}>
+                    <Text style={opStyles.btnCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity style={[opStyles.btn, opStyles.btnPick]} onPress={() => setPicking(p.participantId)}>
+                  <Crown size={13} color={GOLD} strokeWidth={2} style={{ marginRight: 4 }} />
+                  <Text style={opStyles.btnPickText}>Make Owner</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          );
+        })}
+      </ScrollView>
+
+      <View style={opStyles.skipArea}>
+        <View style={opStyles.skipNote}>
+          <Info size={13} color={TEXT_SEC} strokeWidth={2} style={{ marginRight: 6 }} />
+          <Text style={opStyles.skipNoteText}>
+            If you skip, the longest-standing admin will automatically become the group manager.
+          </Text>
+        </View>
+        <TouchableOpacity style={opStyles.skipBtn} onPress={onSkip}>
+          <Text style={opStyles.skipBtnText}>Skip &amp; Leave</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const opStyles = StyleSheet.create({
+  sheet:          { backgroundColor:SURFACE, marginHorizontal:16, marginVertical:8,
+    borderRadius:18, borderWidth:1, borderColor:BORDER, overflow:"hidden" },
+  header:         { flexDirection:"row", alignItems:"flex-start", justifyContent:"space-between",
+    padding:16, borderBottomWidth:1, borderBottomColor:BORDER },
+  title:          { fontFamily:"BasicCommercial-Bold", fontSize:16, color:TEXT },
+  sub:            { fontFamily:"Manrope-Regular", fontSize:12, color:TEXT_SEC, marginTop:2 },
+  empty:          { fontFamily:"Manrope-Regular", fontSize:13, color:TEXT_SEC,
+    textAlign:"center", paddingVertical:24 },
+  row:            { flexDirection:"row", alignItems:"center", paddingHorizontal:16,
+    paddingVertical:12, borderBottomWidth:1, borderBottomColor:BORDER },
+  avatar:         { width:40, height:40, borderRadius:20, marginRight:12, backgroundColor:SURFACE2 },
+  name:           { fontFamily:"Manrope-SemiBold", fontSize:14, color:TEXT },
+  adminTag:       { fontFamily:"Manrope-Regular", fontSize:11, color:GOLD, marginTop:1 },
+  btn:            { flexDirection:"row", alignItems:"center", borderRadius:20,
+    paddingHorizontal:12, paddingVertical:7 },
+  btnPick:        { backgroundColor:"rgba(255,184,0,0.12)", borderWidth:1, borderColor:"rgba(255,184,0,0.35)" },
+  btnPickText:    { fontFamily:"Manrope-SemiBold", fontSize:12, color:GOLD },
+  btnConfirm:     { backgroundColor:ACCENT },
+  btnConfirmText: { fontFamily:"Manrope-SemiBold", fontSize:12, color:"#FFF" },
+  btnCancel:      { backgroundColor:SURFACE2 },
+  btnCancelText:  { fontFamily:"Manrope-SemiBold", fontSize:12, color:TEXT_SEC },
+  skipArea:       { padding:16 },
+  skipNote:       { flexDirection:"row", alignItems:"flex-start", backgroundColor:"rgba(142,142,147,0.1)",
+    borderRadius:10, padding:10, marginBottom:12 },
+  skipNoteText:   { fontFamily:"Manrope-Regular", fontSize:12, color:TEXT_SEC, flex:1, lineHeight:17 },
+  skipBtn:        { alignItems:"center", paddingVertical:13, borderRadius:14,
+    backgroundColor:"rgba(229,57,53,0.07)", borderWidth:1, borderColor:"rgba(229,57,53,0.18)" },
+  skipBtnText:    { fontFamily:"Manrope-SemiBold", fontSize:14, color:DANGER },
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN SCREEN
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function GroupInfoScreen({ route, navigation }) {
@@ -268,6 +413,9 @@ export default function GroupInfoScreen({ route, navigation }) {
   const [communityAutoJoin,   setCommunityAutoJoin]   = useState(false);
   const [communityOwnerId,    setCommunityOwnerId]    = useState(null);
   const [togglingAutoJoin,    setTogglingAutoJoin]    = useState(false);
+  const [adminOnlyInvite,     setAdminOnlyInvite]     = useState(false);
+  const [togglingAdminInvite, setTogglingAdminInvite] = useState(false);
+  const [showOwnerPicker,     setShowOwnerPicker]     = useState(false);
   const [alertConfig,         setAlertConfig]         = useState({
     visible: false,
     title: "",
@@ -305,6 +453,7 @@ export default function GroupInfoScreen({ route, navigation }) {
       setMessagingRestricted(res.messagingRestricted || false);
       setCommunityAutoJoin(res.communityAutoJoin   || false);
       setCommunityOwnerId(res.communityOwnerId     || null);
+      setAdminOnlyInvite(res.adminOnlyInvite       || false);
     } catch (err) {
       console.error("GroupInfoScreen: error loading participants:", err);
     } finally {
@@ -318,7 +467,9 @@ export default function GroupInfoScreen({ route, navigation }) {
   const myParticipant = participants.find(
     (p) => String(p.participantId) === String(currentUser?.id)
   );
-  const isMeAdmin = myParticipant?.role === "admin";
+  const isMeAdmin     = myParticipant?.role === "admin";
+  // Any member can add others unless adminOnlyInvite is on
+  const canAddMembers = isMeAdmin || !adminOnlyInvite;
 
   const { pickAndCrop } = useCrop();
 
@@ -391,7 +542,66 @@ export default function GroupInfoScreen({ route, navigation }) {
     });
   }, [conversationId]);
 
-  // ── Transfer admin ─────────────────────────────────────────────────────────
+  // ── Promote to admin ───────────────────────────────────────────────────────
+  const handlePromote = useCallback((participant) => {
+    showAlert({
+      title: "Make Admin",
+      message: `Make ${participant.name || "this member"} a group admin? They'll be able to add/remove members and manage settings.`,
+      icon: Shield,
+      iconColor: GOLD,
+      secondaryAction: { text: "Cancel", onPress: hideAlert },
+      primaryAction: {
+        text: "Make Admin",
+        onPress: async () => {
+          try {
+            await promoteToAdmin(conversationId, participant.participantId, participant.participantType || "member");
+            setParticipants((prev) =>
+              prev.map((p) => p.participantId === participant.participantId ? { ...p, role: "admin" } : p)
+            );
+          } catch (err) {
+            showAlert({
+              title: "Error",
+              message: err?.message || "Could not promote member.",
+              primaryAction: { text: "OK", onPress: hideAlert },
+              icon: AlertTriangle,
+            });
+          }
+        },
+      },
+    });
+  }, [conversationId]);
+
+  // ── Demote from admin ──────────────────────────────────────────────────────
+  const handleDemote = useCallback((participant) => {
+    showAlert({
+      title: "Remove Admin",
+      message: `Remove ${participant.name || "this member"}'s admin privileges?`,
+      icon: ShieldOff,
+      iconColor: "#FF8C00",
+      secondaryAction: { text: "Cancel", onPress: hideAlert },
+      primaryAction: {
+        text: "Remove Admin",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await demoteFromAdmin(conversationId, participant.participantId, participant.participantType || "member");
+            setParticipants((prev) =>
+              prev.map((p) => p.participantId === participant.participantId ? { ...p, role: "member" } : p)
+            );
+          } catch (err) {
+            showAlert({
+              title: "Error",
+              message: err?.message || "Could not demote admin.",
+              primaryAction: { text: "OK", onPress: hideAlert },
+              icon: AlertTriangle,
+            });
+          }
+        },
+      },
+    });
+  }, [conversationId]);
+
+  // ── Transfer admin (legacy, kept for community-only flow) ──────────────────
   const handleTransfer = useCallback((participant) => {
     showAlert({
       title: "Transfer Admin",
@@ -420,22 +630,93 @@ export default function GroupInfoScreen({ route, navigation }) {
 
   // ── Leave group ────────────────────────────────────────────────────────────
   const handleLeave = useCallback(() => {
-    const title   = isMeAdmin ? "Delete Group" : "Leave Group";
-    const message = isMeAdmin
-      ? "As admin, leaving will delete the group for everyone. Are you sure?"
-      : "Are you sure you want to leave this group?";
+    const adminCount  = participants.filter((p) => p.role === "admin").length;
+    const isLastAdmin = isMeAdmin && adminCount === 1 && participants.length > 1;
+
+    // If the community owner is leaving, show the ownership picker first
+    const isCommunityOwnerLeaving =
+      currentUser?.type === "community" &&
+      communityOwnerId &&
+      String(currentUser.id) === String(communityOwnerId);
+
+    if (isCommunityOwnerLeaving) {
+      setShowOwnerPicker(true);
+      return;
+    }
+
+    if (isLastAdmin) {
+      showAlert({
+        title: "Promote Someone First",
+        message: "You're the only admin. Promote another member to admin before leaving the group.",
+        icon: Shield,
+        iconColor: GOLD,
+        primaryAction: { text: "OK", onPress: hideAlert },
+      });
+      return;
+    }
+
     showAlert({
-      title,
-      message,
-      icon: isMeAdmin ? X : LogOut,
+      title: "Leave Group",
+      message: "Are you sure you want to leave this group?",
+      icon: LogOut,
       iconColor: DANGER,
       secondaryAction: { text: "Cancel", onPress: hideAlert },
       primaryAction: {
-        text: isMeAdmin ? "Delete" : "Leave",
+        text: "Leave",
         style: "destructive",
         onPress: async () => {
           try {
             await removeGroupParticipant(conversationId, currentUser.id, currentUser.type || "member");
+            navigation.popToTop();
+          } catch (err) {
+            const isLastAdminErr = err?.message === "LAST_ADMIN" || err?.error === "LAST_ADMIN";
+            showAlert({
+              title: isLastAdminErr ? "Promote Someone First" : "Error",
+              message: isLastAdminErr
+                ? "You're the only admin. Promote another member before leaving."
+                : (err?.message || "Could not leave group."),
+              primaryAction: { text: "OK", onPress: hideAlert },
+              icon: isLastAdminErr ? Shield : AlertTriangle,
+              iconColor: isLastAdminErr ? GOLD : DANGER,
+            });
+          }
+        },
+      },
+    });
+  }, [communityOwnerId, conversationId, currentUser, isMeAdmin, navigation, participants]);
+
+  // ── Pick owner & leave (community owner explicit choice) ───────────────────
+  const handlePickOwner = useCallback(async (target) => {
+    setShowOwnerPicker(false);
+    try {
+      await transferGroupOwnership(conversationId, target.participantId, target.participantType || "member");
+      await removeGroupParticipant(conversationId, currentUser.id, currentUser.type);
+      navigation.popToTop();
+    } catch (err) {
+      showAlert({
+        title: "Error",
+        message: err?.message || "Could not transfer ownership.",
+        primaryAction: { text: "OK", onPress: hideAlert },
+        icon: AlertTriangle,
+      });
+    }
+  }, [conversationId, currentUser, navigation]);
+
+  // ── Skip ownership pick & leave (backend auto-assigns) ─────────────────────
+  const handleSkipOwner = useCallback(() => {
+    setShowOwnerPicker(false);
+    showAlert({
+      title: "Leave Group",
+      message: "The longest-standing admin will automatically become the group manager. Continue?",
+      icon: Crown,
+      iconColor: GOLD,
+      secondaryAction: { text: "Cancel", onPress: hideAlert },
+      primaryAction: {
+        text: "Leave",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await removeGroupParticipant(conversationId, currentUser.id, currentUser.type);
             navigation.popToTop();
           } catch (err) {
             showAlert({
@@ -448,7 +729,7 @@ export default function GroupInfoScreen({ route, navigation }) {
         },
       },
     });
-  }, [conversationId, currentUser, isMeAdmin, navigation]);
+  }, [conversationId, currentUser, navigation]);
 
   // ── Toggle messaging restriction ────────────────────────────────────────────────────────────
   const handleToggleRestrict = useCallback(async (value) => {
@@ -476,6 +757,24 @@ export default function GroupInfoScreen({ route, navigation }) {
       });
     } finally {
       setTogglingRestrict(false);
+    }
+  }, [conversationId]);
+
+  // ── Toggle admin-only invite ───────────────────────────────────────────────
+  const handleToggleAdminInvite = useCallback(async (value) => {
+    setTogglingAdminInvite(true);
+    try {
+      await updateGroupConversation(conversationId, { adminOnlyInvite: value });
+      setAdminOnlyInvite(value);
+    } catch (err) {
+      showAlert({
+        title: "Error",
+        message: err?.message || "Could not update invite setting.",
+        primaryAction: { text: "OK", onPress: hideAlert },
+        icon: AlertTriangle,
+      });
+    } finally {
+      setTogglingAdminInvite(false);
     }
   }, [conversationId]);
 
@@ -534,7 +833,7 @@ export default function GroupInfoScreen({ route, navigation }) {
           <ArrowLeft size={22} color={TEXT} strokeWidth={2} />
         </TouchableOpacity>
         <Text style={styles.title}>Group Info</Text>
-        {isMeAdmin ? (
+        {canAddMembers ? (
           <TouchableOpacity style={styles.iconBtn} onPress={() => setShowAddSheet((v) => !v)}>
             <UserPlus size={20} color={ACCENT} strokeWidth={2} />
           </TouchableOpacity>
@@ -544,6 +843,17 @@ export default function GroupInfoScreen({ route, navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
+
+        {/* Ownership transfer sheet (shown when community owner taps Leave) */}
+        {showOwnerPicker && (
+          <OwnerPickerSheet
+            participants={participants}
+            currentUserId={currentUser?.id}
+            onPick={handlePickOwner}
+            onSkip={handleSkipOwner}
+            onClose={() => setShowOwnerPicker(false)}
+          />
+        )}
 
         {/* Group avatar */}
         <View style={styles.avatarSection}>
@@ -606,7 +916,7 @@ export default function GroupInfoScreen({ route, navigation }) {
         </View>
 
         {/* Add member sheet (inline) */}
-        {showAddSheet && isMeAdmin && (
+        {showAddSheet && canAddMembers && (
           <AddMemberSheet
             conversationId={conversationId}
             existingIds={existingIds}
@@ -684,30 +994,83 @@ export default function GroupInfoScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Members list */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionLabel}>{participants.length} MEMBERS</Text>
-        </View>
+        {/* Admin-only invite toggle (admin only) */}
+        {isMeAdmin && (
+          <View style={styles.restrictRow}>
+            <View style={styles.restrictRowLeft}>
+              <View style={[styles.restrictIcon, { backgroundColor: "rgba(155,155,155,0.12)" }]}>
+                <UserPlus size={16} color={SILVER_ADMIN} strokeWidth={2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.restrictTitle}>Admin-Only Invites</Text>
+                <Text style={styles.restrictSub}>
+                  {adminOnlyInvite ? "Only admins can add new members" : "Anyone can add new members"}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={adminOnlyInvite}
+              onValueChange={handleToggleAdminInvite}
+              disabled={togglingAdminInvite}
+              trackColor={{ false: "#E5E5EA", true: `${ACCENT}40` }}
+              thumbColor={adminOnlyInvite ? ACCENT : "#FFFFFF"}
+              ios_backgroundColor="#E5E5EA"
+            />
+          </View>
+        )}
 
-        {participants.map((p) => (
-          <ParticipantRow
-            key={p.participantId}
-            participant={p}
-            isCurrentUser={String(p.participantId) === String(currentUser?.id)}
-            isMeAdmin={isMeAdmin}
-            onKick={() => handleKick(p)}
-            onTransfer={() => handleTransfer(p)}
-            onPress={() => navigateToProfile(p)}
-          />
-        ))}
+        {/* Grouped participant list — Admins on top, Members below */}
+        {(() => {
+          const admins  = participants.filter((p) => p.role === "admin");
+          const members = participants.filter((p) => p.role !== "admin");
+          return (
+            <>
+              {/* Admins section */}
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionLabel}>ADMINS ({admins.length})</Text>
+              </View>
+              {admins.map((p) => (
+                <ParticipantRow
+                  key={p.participantId}
+                  participant={p}
+                  isCurrentUser={String(p.participantId) === String(currentUser?.id)}
+                  isMeAdmin={isMeAdmin}
+                  communityOwnerId={communityOwnerId}
+                  onKick={() => handleKick(p)}
+                  onPromote={() => handlePromote(p)}
+                  onDemote={() => handleDemote(p)}
+                  onPress={() => navigateToProfile(p)}
+                />
+              ))}
 
-        {/* Leave / Delete button */}
+              {/* Members section */}
+              {members.length > 0 && (
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionLabel}>MEMBERS ({members.length})</Text>
+                </View>
+              )}
+              {members.map((p) => (
+                <ParticipantRow
+                  key={p.participantId}
+                  participant={p}
+                  isCurrentUser={String(p.participantId) === String(currentUser?.id)}
+                  isMeAdmin={isMeAdmin}
+                  communityOwnerId={communityOwnerId}
+                  onKick={() => handleKick(p)}
+                  onPromote={() => handlePromote(p)}
+                  onDemote={() => handleDemote(p)}
+                  onPress={() => navigateToProfile(p)}
+                />
+              ))}
+            </>
+          );
+        })()}
+
+        {/* Leave button */}
         {currentUser && (
           <TouchableOpacity style={styles.leaveBtn} onPress={handleLeave}>
             <LogOut size={18} color={DANGER} strokeWidth={2} style={{ marginRight: 10 }} />
-            <Text style={styles.leaveBtnText}>
-              {isMeAdmin ? "Delete Group" : "Leave Group"}
-            </Text>
+            <Text style={styles.leaveBtnText}>Leave Group</Text>
           </TouchableOpacity>
         )}
       </ScrollView>

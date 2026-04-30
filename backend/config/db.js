@@ -696,6 +696,7 @@ async function ensureTables(pool) {
       -- Group chat columns (idempotent — safe to run on existing DBs)
       ALTER TABLE conversations ADD COLUMN IF NOT EXISTS community_auto_join BOOLEAN NOT NULL DEFAULT FALSE;
       ALTER TABLE conversations ADD COLUMN IF NOT EXISTS community_owner_id INTEGER REFERENCES communities(id) ON DELETE SET NULL;
+      ALTER TABLE conversations ADD COLUMN IF NOT EXISTS admin_only_invite BOOLEAN NOT NULL DEFAULT FALSE;
       CREATE INDEX IF NOT EXISTS idx_conversations_community_owner_id ON conversations(community_owner_id) WHERE community_owner_id IS NOT NULL;
 
       -- Backfill community_owner_id from existing community admins (no-op after first run)

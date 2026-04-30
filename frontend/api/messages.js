@@ -180,6 +180,31 @@ export async function selfJoinGroup(conversationId) {
   return apiPost(`/messages/groups/${conversationId}/self-join`, {}, 10000, token);
 }
 
+/** Promote a participant to admin (any existing admin can call this). */
+export async function promoteToAdmin(conversationId, targetId, targetType = "member") {
+  const token = await getAuthToken();
+  if (!token) throw new Error("Authentication token not found.");
+  return apiPost(`/messages/groups/${conversationId}/promote-admin`, { targetId, targetType }, 10000, token);
+}
+
+/** Demote an admin back to member. Cannot remove the last admin or the community owner. */
+export async function demoteFromAdmin(conversationId, targetId, targetType = "member") {
+  const token = await getAuthToken();
+  if (!token) throw new Error("Authentication token not found.");
+  return apiPost(`/messages/groups/${conversationId}/demote-admin`, { targetId, targetType }, 10000, token);
+}
+
+/**
+ * Explicitly transfer group ownership to a chosen participant before leaving.
+ * Only callable by the community owner (community_owner_id).
+ * After success, call removeGroupParticipant to actually leave.
+ */
+export async function transferGroupOwnership(conversationId, targetId, targetType = "member") {
+  const token = await getAuthToken();
+  if (!token) throw new Error("Authentication token not found.");
+  return apiPost(`/messages/groups/${conversationId}/transfer-ownership`, { targetId, targetType }, 10000, token);
+}
+
 // ─── Conversation Mute ────────────────────────────────────────────────────────
 
 /**

@@ -41,32 +41,61 @@ const chipStyles = StyleSheet.create({
   name:   { fontFamily:"Manrope-Medium", fontSize:12, color:TEXT, maxWidth:80 },
 });
 
-function UserRow({ user, selected, onToggle }) {
+function UserRow({ user, selected, onToggle, isSelf }) {
   const name = user.display_name || user.name || user.full_name || "User";
   const sub  = user.username ? `@${user.username}` : user.type;
   const uri  = user.profile_photo_url || user.logo_url;
   return (
-    <TouchableOpacity style={rowStyles.row} onPress={onToggle} activeOpacity={0.75}>
-      <Image source={{ uri: uri || "https://via.placeholder.com/44" }} style={rowStyles.avatar} />
+    <TouchableOpacity
+      style={[rowStyles.row, isSelf && rowStyles.rowSelf]}
+      onPress={isSelf ? undefined : onToggle}
+      activeOpacity={isSelf ? 1 : 0.75}
+      disabled={isSelf}
+    >
+      <Image source={{ uri: uri || "https://via.placeholder.com/44" }} style={[rowStyles.avatar, isSelf && rowStyles.avatarSelf]} />
       <View style={{ flex:1 }}>
-        <Text style={rowStyles.name} numberOfLines={1}>{name}</Text>
-        <Text style={rowStyles.sub}  numberOfLines={1}>{sub}</Text>
+        <View style={{ flexDirection:"row", alignItems:"center" }}>
+          <Text style={[rowStyles.name, isSelf && rowStyles.nameSelf]} numberOfLines={1}>{name}</Text>
+          {isSelf && (
+            <View style={rowStyles.youBadge}>
+              <Text style={rowStyles.youBadgeText}>You</Text>
+            </View>
+          )}
+        </View>
+        <Text style={[rowStyles.sub, isSelf && rowStyles.subSelf]} numberOfLines={1}>{sub}</Text>
       </View>
-      <View style={[rowStyles.check, selected && rowStyles.checkSelected]}>
-        {selected && <Check size={14} color="#FFF" strokeWidth={2.5} />}
-      </View>
+      {!isSelf && (
+        <View style={[rowStyles.check, selected && rowStyles.checkSelected]}>
+          {selected && <Check size={14} color="#FFF" strokeWidth={2.5} />}
+        </View>
+      )}
+      {isSelf && (
+        <View style={rowStyles.alreadyIn}>
+          <Text style={rowStyles.alreadyInText}>Already in</Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
 const rowStyles = StyleSheet.create({
-  row:          { flexDirection:"row", alignItems:"center", paddingHorizontal:16,
+  row:           { flexDirection:"row", alignItems:"center", paddingHorizontal:16,
     paddingVertical:10, borderBottomWidth:1, borderBottomColor:BORDER },
-  avatar:       { width:44, height:44, borderRadius:22, marginRight:12, backgroundColor:SURFACE2 },
-  name:         { fontFamily:"Manrope-SemiBold", fontSize:14, color:TEXT },
-  sub:          { fontFamily:"Manrope-Regular",  fontSize:12, color:TEXT_SEC, marginTop:1 },
-  check:        { width:24, height:24, borderRadius:12, borderWidth:2, borderColor:BORDER,
+  rowSelf:       { opacity: 0.45 },
+  avatar:        { width:44, height:44, borderRadius:22, marginRight:12, backgroundColor:SURFACE2 },
+  avatarSelf:    { },
+  name:          { fontFamily:"Manrope-SemiBold", fontSize:14, color:TEXT },
+  nameSelf:      { color:TEXT_SEC },
+  sub:           { fontFamily:"Manrope-Regular",  fontSize:12, color:TEXT_SEC, marginTop:1 },
+  subSelf:       { },
+  check:         { width:24, height:24, borderRadius:12, borderWidth:2, borderColor:BORDER,
     alignItems:"center", justifyContent:"center" },
-  checkSelected:{ backgroundColor:ACCENT, borderColor:ACCENT },
+  checkSelected: { backgroundColor:ACCENT, borderColor:ACCENT },
+  youBadge:      { backgroundColor:"rgba(53,101,242,0.12)", borderRadius:8,
+    paddingHorizontal:7, paddingVertical:2, marginLeft:8 },
+  youBadgeText:  { fontFamily:"Manrope-SemiBold", fontSize:10, color:ACCENT },
+  alreadyIn:     { paddingHorizontal:10, paddingVertical:5, backgroundColor:SURFACE2,
+    borderRadius:12 },
+  alreadyInText: { fontFamily:"Manrope-Regular", fontSize:11, color:TEXT_SEC },
 });
 
 export default function CreateGroupScreen({ navigation }) {
@@ -113,8 +142,8 @@ export default function CreateGroupScreen({ navigation }) {
         setSearchLoading(true);
         const res = await searchAccounts(q);
         const filtered = (res.results || []).filter((r) => {
-          if (r.id === currentUser?.id) return false;                           // exclude self
-          if (currentUser?.type === "member") return r.type === "member";
+          // Keep self in results but flagged — filter out communities if current user is member
+          if (currentUser?.type === "member" && r.type !== "member" && r.id !== currentUser?.id) return false;
           return true;
         });
         setSearchResults(filtered);
@@ -122,6 +151,8 @@ export default function CreateGroupScreen({ navigation }) {
       finally { setSearchLoading(false); }
     }, 350);
   }, [searchText, currentUser]);
+
+  const isSelf = (user) => String(user.id) === String(currentUser?.id);
 
   const toggleUser = useCallback((user) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -173,7 +204,9 @@ export default function CreateGroupScreen({ navigation }) {
             onPress={() => { if (selected.length >= 2) setStep(2); }}
             disabled={selected.length < 2}
           >
-            <Text style={[styles.nextText, selected.length < 2 && { opacity: 0.4 }]}>Next</Text>
+            <Text style={[styles.nextText, selected.length < 2 && { opacity: 0.4 }]}>
+              {selected.length < 2 ? `${selected.length}/2` : "Next"}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -223,7 +256,12 @@ export default function CreateGroupScreen({ navigation }) {
             data={searchResults}
             keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => (
-              <UserRow user={item} selected={isSelected(item)} onToggle={() => toggleUser(item)} />
+              <UserRow
+                user={item}
+                selected={isSelected(item)}
+                isSelf={isSelf(item)}
+                onToggle={() => { if (!isSelf(item)) toggleUser(item); }}
+              />
             )}
             contentContainerStyle={{ paddingBottom: 40 }}
             keyboardShouldPersistTaps="handled"

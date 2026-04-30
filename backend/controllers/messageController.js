@@ -693,10 +693,10 @@ const getGroupParticipants = async (req, res) => {
     );
     if (check.rows.length === 0) return res.status(403).json({ error: "Not a participant" });
 
-    // Fetch conversation metadata (created_at, avatar, messaging_restricted, auto-join)
+    // Fetch conversation metadata (created_at, avatar, messaging_restricted, auto-join, admin-only-invite)
     const convInfo = await pool.query(
       `SELECT created_at, group_avatar_url, messaging_restricted,
-              community_auto_join, community_owner_id
+              community_auto_join, community_owner_id, admin_only_invite
        FROM conversations WHERE id = $1`,
       [conversationId],
     );
@@ -740,6 +740,7 @@ const getGroupParticipants = async (req, res) => {
       messagingRestricted: conversationMeta.messaging_restricted || false,
       communityAutoJoin:   conversationMeta.community_auto_join  || false,
       communityOwnerId:    conversationMeta.community_owner_id   || null,
+      adminOnlyInvite:     conversationMeta.admin_only_invite    || false,
       _myRole:             myParticipant?.role || "member",
     });
   } catch (error) {
@@ -754,7 +755,7 @@ const updateGroupConversation = async (req, res) => {
     const { conversationId } = req.params;
     const userId   = req.user?.id;
     const userType = req.user?.type;
-    const { groupName, groupAvatarUrl, communityAutoJoin } = req.body;
+    const { groupName, groupAvatarUrl, communityAutoJoin, messagingRestricted, adminOnlyInvite } = req.body;
 
     if (!userId || (userType !== "member" && userType !== "community")) {
       return res.status(401).json({ error: "Authentication required" });
@@ -766,7 +767,6 @@ const updateGroupConversation = async (req, res) => {
     );
     if (adminCheck.rows.length === 0) return res.status(403).json({ error: "Admin access required" });
 
-    const { messagingRestricted } = req.body;
     const setClauses = [];
     const values = [];
     let i = 1;
@@ -779,6 +779,10 @@ const updateGroupConversation = async (req, res) => {
     if (messagingRestricted !== undefined) {
       setClauses.push(`messaging_restricted = $${i++}`);
       values.push(Boolean(messagingRestricted));
+    }
+    if (adminOnlyInvite !== undefined) {
+      setClauses.push(`admin_only_invite = $${i++}`);
+      values.push(Boolean(adminOnlyInvite));
     }
     if (setClauses.length === 0) return res.status(400).json({ error: "Nothing to update" });
     values.push(conversationId);
@@ -829,11 +833,20 @@ const addGroupParticipant = async (req, res) => {
     if (participantType !== "member") return res.status(403).json({ error: "Only members can be added" });
 
     const selfCheck = await pool.query(
-      `SELECT id FROM conversation_participants
+      `SELECT id, role FROM conversation_participants
        WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
       [conversationId, userId, userType],
     );
     if (selfCheck.rows.length === 0) return res.status(403).json({ error: "Not a participant" });
+
+    // Enforce admin-only invite setting
+    const convMeta = await pool.query(
+      `SELECT admin_only_invite FROM conversations WHERE id = $1`,
+      [conversationId],
+    );
+    if (convMeta.rows[0]?.admin_only_invite && selfCheck.rows[0].role !== "admin") {
+      return res.status(403).json({ error: "Only admins can add members to this group" });
+    }
 
     await pool.query(
       `INSERT INTO conversation_participants (conversation_id, participant_id, participant_type, role)
@@ -930,15 +943,107 @@ const removeGroupParticipant = async (req, res) => {
       const adminCount  = await pool.query(`SELECT COUNT(*) AS cnt FROM conversation_participants WHERE conversation_id = $1 AND role = 'admin'`, [conversationId]);
       const memberCount = await pool.query(`SELECT COUNT(*) AS cnt FROM conversation_participants WHERE conversation_id = $1`, [conversationId]);
       if (parseInt(adminCount.rows[0].cnt) === 1 && parseInt(memberCount.rows[0].cnt) > 1) {
-        return res.status(400).json({ error: "Transfer admin role before leaving" });
+        return res.status(400).json({
+          error: "LAST_ADMIN",
+          message: "You're the only admin. Promote someone before leaving.",
+        });
       }
     }
+
+    // ── Community owner leaving (skip path): auto-handoff ──────────────────────
+    const convOwner = await pool.query(
+      `SELECT community_owner_id FROM conversations WHERE id = $1`,
+      [conversationId],
+    );
+    const storedOwnerId = convOwner.rows[0]?.community_owner_id;
+    const isOwnerLeaving =
+      isSelf &&
+      userType === "community" &&
+      isAdmin &&
+      // Match if: owner column equals this user, OR owner column is NULL (backfill gap)
+      (!storedOwnerId || String(userId) === String(storedOwnerId));
+
+    if (isOwnerLeaving) {
+      // Find the longest-standing admin (joined earliest) who isn't the departing owner
+      const nextAdmin = await pool.query(
+        `SELECT cp.participant_id, cp.participant_type,
+                COALESCE(m.name, comm.name, 'A member') AS name
+         FROM conversation_participants cp
+         LEFT JOIN members m     ON cp.participant_id = m.id    AND cp.participant_type = 'member'
+         LEFT JOIN communities comm ON cp.participant_id = comm.id AND cp.participant_type = 'community'
+         WHERE cp.conversation_id = $1
+           AND NOT (cp.participant_id = $2 AND cp.participant_type = $3)
+           AND cp.role = 'admin'
+         ORDER BY cp.joined_at ASC
+         LIMIT 1`,
+        [conversationId, userId, userType],
+      );
+
+      // Fallback: pick any longest-standing member if no other admin
+      const fallback = nextAdmin.rows.length === 0
+        ? await pool.query(
+            `SELECT cp.participant_id, cp.participant_type,
+                    COALESCE(m.name, comm.name, 'A member') AS name
+             FROM conversation_participants cp
+             LEFT JOIN members m     ON cp.participant_id = m.id    AND cp.participant_type = 'member'
+             LEFT JOIN communities comm ON cp.participant_id = comm.id AND cp.participant_type = 'community'
+             WHERE cp.conversation_id = $1
+               AND NOT (cp.participant_id = $2 AND cp.participant_type = $3)
+             ORDER BY cp.joined_at ASC
+             LIMIT 1`,
+            [conversationId, userId, userType],
+          )
+        : null;
+
+      const newOwner = nextAdmin.rows[0] || fallback?.rows[0];
+
+      if (newOwner) {
+        // Promote to admin if not already
+        await pool.query(
+          `UPDATE conversation_participants SET role = 'admin'
+           WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
+          [conversationId, newOwner.participant_id, newOwner.participant_type],
+        );
+        // Clear community ownership metadata
+        await pool.query(
+          `UPDATE conversations
+           SET community_owner_id = NULL, community_auto_join = FALSE
+           WHERE id = $1`,
+          [conversationId],
+        );
+        await pool.query(
+          `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type)
+           VALUES ($1, $2, $3, $4, 'system')`,
+          [conversationId, userId, userType, `${newOwner.name} is now the group manager.`],
+        );
+      } else {
+        // No other participants — just clear ownership
+        await pool.query(
+          `UPDATE conversations SET community_owner_id = NULL, community_auto_join = FALSE WHERE id = $1`,
+          [conversationId],
+        );
+      }
+    }
+    // ── End community owner auto-handoff ───────────────────────────────────────
 
     await pool.query(
       `DELETE FROM conversation_participants WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
       [conversationId, participantId, participantType],
     );
-    const actionText = isSelf ? "A member left the group" : "A member was removed from the group";
+
+    // Named system message for self-leave
+    let actionText = "A member was removed from the group";
+    if (isSelf) {
+      const leaverName = await pool.query(
+        `SELECT COALESCE(m.name, comm.name, 'A member') AS name
+         FROM (VALUES ($1::bigint)) v(id)
+         LEFT JOIN members m ON m.id = v.id AND $2 = 'member'
+         LEFT JOIN communities comm ON comm.id = v.id AND $2 = 'community'`,
+        [userId, userType],
+      );
+      actionText = `${leaverName.rows[0]?.name || "A member"} left the group.`;
+    }
+
     await pool.query(
       `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type) VALUES ($1, $2, $3, $4, 'system')`,
       [conversationId, userId, userType, actionText],
@@ -951,7 +1056,219 @@ const removeGroupParticipant = async (req, res) => {
   }
 };
 
-// ─── transferAdmin (community-only) ──────────────────────────────────────────
+// ─── transferGroupOwnership ───────────────────────────────────────────────────
+// Called when the community owner explicitly picks a successor before leaving.
+// After this succeeds the caller should call removeGroupParticipant to actually leave.
+const transferGroupOwnership = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+    const { targetId, targetType = "member" } = req.body;
+
+    if (!userId || userType !== "community") {
+      return res.status(403).json({ error: "Only the community owner can transfer ownership" });
+    }
+    if (!targetId) return res.status(400).json({ error: "targetId required" });
+
+    // Verify caller is actually the community_owner_id for this group
+    const ownerCheck = await pool.query(
+      `SELECT community_owner_id FROM conversations WHERE id = $1`,
+      [conversationId],
+    );
+    if (String(ownerCheck.rows[0]?.community_owner_id) !== String(userId)) {
+      return res.status(403).json({ error: "You are not the group owner" });
+    }
+
+    // Target must be a participant
+    const targetCheck = await pool.query(
+      `SELECT role FROM conversation_participants WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
+      [conversationId, targetId, targetType],
+    );
+    if (targetCheck.rows.length === 0) return res.status(404).json({ error: "Target is not a participant" });
+
+    // Get target's name for system message
+    const targetName = await pool.query(
+      `SELECT COALESCE(m.name, comm.name, 'A member') AS name
+       FROM conversation_participants cp
+       LEFT JOIN members m     ON cp.participant_id = m.id    AND cp.participant_type = 'member'
+       LEFT JOIN communities comm ON cp.participant_id = comm.id AND cp.participant_type = 'community'
+       WHERE cp.conversation_id = $1 AND cp.participant_id = $2 AND cp.participant_type = $3`,
+      [conversationId, targetId, targetType],
+    );
+    const name = targetName.rows[0]?.name || "A member";
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      // Promote new owner to admin if not already
+      await client.query(
+        `UPDATE conversation_participants SET role = 'admin'
+         WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
+        [conversationId, targetId, targetType],
+      );
+
+      // Clear community_owner_id (ownership concept dissolves — new owner is just top admin)
+      // Also turn off auto-join since the community is leaving
+      await client.query(
+        `UPDATE conversations SET community_owner_id = NULL, community_auto_join = FALSE WHERE id = $1`,
+        [conversationId],
+      );
+
+      // System message
+      await client.query(
+        `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type)
+         VALUES ($1, $2, $3, $4, 'system')`,
+        [conversationId, userId, userType, `${name} is now the group manager.`],
+      );
+      await client.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1`, [conversationId]);
+
+      await client.query("COMMIT");
+    } catch (err) { await client.query("ROLLBACK"); throw err; }
+    finally { client.release(); }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error transferring group ownership:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// ─── promoteToAdmin ────────────────────────────────────────────────────────────
+// Any admin can promote a member to admin (additive — no one is demoted).
+const promoteToAdmin = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+    const { targetId, targetType = "member" } = req.body;
+
+    if (!userId || (userType !== "member" && userType !== "community")) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    if (!targetId) return res.status(400).json({ error: "targetId required" });
+
+    // Caller must be admin
+    const callerCheck = await pool.query(
+      `SELECT role FROM conversation_participants WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
+      [conversationId, userId, userType],
+    );
+    if (!callerCheck.rows[0] || callerCheck.rows[0].role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    // Target must be a current participant
+    const targetCheck = await pool.query(
+      `SELECT role FROM conversation_participants WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
+      [conversationId, targetId, targetType],
+    );
+    if (targetCheck.rows.length === 0) return res.status(404).json({ error: "Target is not a participant" });
+    if (targetCheck.rows[0].role === "admin") return res.status(400).json({ error: "Already an admin" });
+
+    await pool.query(
+      `UPDATE conversation_participants SET role = 'admin' WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
+      [conversationId, targetId, targetType],
+    );
+
+    // System message in chat
+    const targetName = await pool.query(
+      `SELECT COALESCE(m.name, comm.name, 'A member') AS name
+       FROM conversation_participants cp
+       LEFT JOIN members m ON cp.participant_id = m.id AND cp.participant_type = 'member'
+       LEFT JOIN communities comm ON cp.participant_id = comm.id AND cp.participant_type = 'community'
+       WHERE cp.conversation_id = $1 AND cp.participant_id = $2 AND cp.participant_type = $3`,
+      [conversationId, targetId, targetType],
+    );
+    const name = targetName.rows[0]?.name || "A member";
+    await pool.query(
+      `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type)
+       VALUES ($1, $2, $3, $4, 'system')`,
+      [conversationId, userId, userType, `${name} was made an admin.`],
+    );
+    await pool.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1`, [conversationId]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error promoting to admin:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// ─── demoteFromAdmin ────────────────────────────────────────────────────────────
+// Any admin can demote another admin, unless it would leave 0 admins
+// or the target is the community owner (immutable root admin).
+const demoteFromAdmin = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+    const { targetId, targetType = "member" } = req.body;
+
+    if (!userId || (userType !== "member" && userType !== "community")) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    if (!targetId) return res.status(400).json({ error: "targetId required" });
+
+    // Caller must be admin
+    const callerCheck = await pool.query(
+      `SELECT role FROM conversation_participants WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
+      [conversationId, userId, userType],
+    );
+    if (!callerCheck.rows[0] || callerCheck.rows[0].role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    // Cannot demote the community owner of the group
+    const convOwner = await pool.query(
+      `SELECT community_owner_id FROM conversations WHERE id = $1`,
+      [conversationId],
+    );
+    if (convOwner.rows[0]?.community_owner_id &&
+        String(targetId) === String(convOwner.rows[0].community_owner_id) &&
+        targetType === "community") {
+      return res.status(403).json({ error: "Cannot demote the community owner" });
+    }
+
+    // Cannot leave 0 admins
+    const adminCount = await pool.query(
+      `SELECT COUNT(*) AS cnt FROM conversation_participants WHERE conversation_id = $1 AND role = 'admin'`,
+      [conversationId],
+    );
+    if (parseInt(adminCount.rows[0].cnt) <= 1) {
+      return res.status(400).json({ error: "Cannot remove the last admin" });
+    }
+
+    await pool.query(
+      `UPDATE conversation_participants SET role = 'member' WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
+      [conversationId, targetId, targetType],
+    );
+
+    // System message in chat
+    const targetName = await pool.query(
+      `SELECT COALESCE(m.name, comm.name, 'A member') AS name
+       FROM conversation_participants cp
+       LEFT JOIN members m ON cp.participant_id = m.id AND cp.participant_type = 'member'
+       LEFT JOIN communities comm ON cp.participant_id = comm.id AND cp.participant_type = 'community'
+       WHERE cp.conversation_id = $1 AND cp.participant_id = $2 AND cp.participant_type = $3`,
+      [conversationId, targetId, targetType],
+    );
+    const name = targetName.rows[0]?.name || "A member";
+    await pool.query(
+      `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type)
+       VALUES ($1, $2, $3, $4, 'system')`,
+      [conversationId, userId, userType, `${name} is no longer an admin.`],
+    );
+    await pool.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1`, [conversationId]);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error demoting from admin:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// ─── transferAdmin (community-only, legacy) ───────────────────────────────────
 const transferAdmin = async (req, res) => {
   try {
     const { conversationId } = req.params;
@@ -1377,7 +1694,10 @@ module.exports = {
   updateGroupConversation,
   addGroupParticipant,
   selfJoinGroup,
+  promoteToAdmin,
+  demoteFromAdmin,
   removeGroupParticipant,
+  transferGroupOwnership,
   transferAdmin,
   hideConversation,
   muteConversation,

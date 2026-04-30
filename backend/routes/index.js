@@ -1412,6 +1412,9 @@ router.post("/messages/conversations/:conversationId/report", authMiddleware, Me
 router.get("/messages/groups/:conversationId/join-invite", authMiddleware, MessageController.getGroupJoinInvite);
 router.post("/messages/groups/:conversationId/dismiss-invite", authMiddleware, MessageController.dismissGroupInvite);
 router.post("/messages/groups/:conversationId/self-join", authMiddleware, MessageController.selfJoinGroup);
+router.post("/messages/groups/:conversationId/promote-admin", authMiddleware, MessageController.promoteToAdmin);
+router.post("/messages/groups/:conversationId/demote-admin", authMiddleware, MessageController.demoteFromAdmin);
+router.post("/messages/groups/:conversationId/transfer-ownership", authMiddleware, MessageController.transferGroupOwnership);
 // Community-based: find first eligible auto-join group for this community
 router.get("/messages/communities/:communityId/join-invite", authMiddleware, MessageController.getGroupJoinInviteByCommunity);
 

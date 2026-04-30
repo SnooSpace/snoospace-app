@@ -7,6 +7,13 @@ import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
 import CommunityFollowersListScreen from "../screens/profile/community/CommunityFollowersListScreen";
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
+import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
+
+const SearchScreenWithSwipe = (props) => (
+  <TabSwipeHandler currentTab="Search">
+    <SearchScreen {...props} />
+  </TabSwipeHandler>
+);
 
 const Stack = createStackNavigator();
 
@@ -16,7 +23,7 @@ export default function SearchStackNavigator() {
       screenOptions={{ headerShown: false }}
       initialRouteName="Search"
     >
-      <Stack.Screen name="Search" component={SearchScreen} />
+      <Stack.Screen name="Search" component={SearchScreenWithSwipe} />
       <Stack.Screen name="VenueProfile" component={VenueProfileScreen} />
       <Stack.Screen name="FollowersList" component={FollowersListScreen} />
       <Stack.Screen name="FollowingList" component={FollowingListScreen} />
