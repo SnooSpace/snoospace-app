@@ -3,14 +3,10 @@
  *
  * Renders image / video / multi_media chat bubbles.
  *
- * VIDEO OPTIMIZATION:
- * Videos now use the same VideoPlayer component as the HomeFeed (EditorialPostCard).
- * Key features:
- *   - Inline autoplay (muted) when visible in the list, pauses when scrolled away
- *   - Aggressive off-screen unloading after 5s (prevents memory buildup in long chats)
- *   - Thumbnail placeholder shown while video loads / when unloaded
- *   - Tap to open in full-screen MediaViewerTimeline (unchanged)
- *   - isVisible prop is controlled by the parent FlashList via viewabilityCallback
+ * VIDEO BEHAVIOR (Instagram-style):
+ *   - Shows static thumbnail (Cloudinary first-frame transform) with a centered play button
+ *   - Tap opens the fullscreen MediaViewerTimeline where the video plays
+ *   - No autoplay in the chat list — keeps scrolling smooth and saves bandwidth
  *
  * IMAGE OPTIMIZATION:
  * Static thumbnails remain as-is (Cloudinary URLs are OS-level cached after first load).
@@ -20,8 +16,7 @@ import {
   View, Text, Image, TouchableOpacity,
   StyleSheet, Dimensions,
 } from "react-native";
-import { Film, Image as ImageIcon } from "lucide-react-native";
-import VideoPlayer from "./VideoPlayer";
+import { Film, Image as ImageIcon, Play } from "lucide-react-native";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const BUBBLE_MAX_W = Math.min(SCREEN_W * 0.68, 260);
@@ -107,14 +102,12 @@ function ImageItem({ item, isMyMessage, styleOverrides, mediaId, isUploading, up
 }
 
 // ── Single video item ──────────────────────────────────────────────────────────
-// Uses the same VideoPlayer as EditorialPostCard for consistent behaviour:
-//   - Autoplay (muted) when isVisible=true
-//   - Off-screen unload after 5s via VideoPlayer's internal timer
-//   - Tap → open in MediaViewerTimeline (fullscreen)
-function VideoItem({ item, isMyMessage, styleOverrides, mediaId, isVisible, onOpenViewer }) {
+// Instagram-style: shows static thumbnail + play button.
+// Tap opens the fullscreen MediaViewerTimeline (same as images).
+function VideoItem({ item, isMyMessage, styleOverrides, mediaId, onOpenViewer }) {
+  const [thumbError, setThumbError] = useState(false);
   const mediaUrl     = item?.url || null;
   const thumbnailUrl = item?.thumbnail_url || getCloudinaryVideoThumb(mediaUrl) || null;
-  const muteAudio    = item?.mute_audio ?? false;
 
   return (
     <TouchableOpacity
@@ -126,28 +119,27 @@ function VideoItem({ item, isMyMessage, styleOverrides, mediaId, isVisible, onOp
         styleOverrides,
       ]}
     >
-      {mediaUrl ? (
-        <VideoPlayer
-          source={mediaUrl}
-          thumbnailUrl={thumbnailUrl}
-          aspectRatio={1}                 // fixed square bubble — tap for fullscreen
-          containerWidth={BUBBLE_MAX_W}
-          autoplay={true}
-          muted={true}                    // always muted inline (audio in fullscreen)
-          loop={true}
-          showControls={false}            // no controls in bubble, tap → fullscreen
-          isVisible={isVisible}           // pause/unload when scrolled off-screen
-          isScreenFocused={true}
-          isFullscreen={false}
-          style={{ borderRadius: 18 }}
-        />
-      ) : (
+      {thumbError || !thumbnailUrl ? (
         <View style={[bubbleStyles.errorThumb, bubbleStyles.videoPlaceholder]}>
           <Film size={32} color="rgba(255,255,255,0.6)" strokeWidth={1.5} />
         </View>
+      ) : (
+        <Image
+          source={{ uri: thumbnailUrl }}
+          style={bubbleStyles.thumb}
+          resizeMode="cover"
+          onError={() => setThumbError(true)}
+        />
       )}
 
-      {/* Play icon overlay — visual cue that it's a video (even when autoplaying) */}
+      {/* Centered play button overlay */}
+      <View style={bubbleStyles.playOverlay} pointerEvents="none">
+        <View style={bubbleStyles.playButton}>
+          <Play size={20} color="#FFFFFF" fill="#FFFFFF" strokeWidth={0} />
+        </View>
+      </View>
+
+      {/* Small film icon badge in corner to indicate video type */}
       <View style={bubbleStyles.videoTypeIndicator} pointerEvents="none">
         <Film size={12} color="#FFFFFF" strokeWidth={2} />
       </View>
@@ -161,7 +153,6 @@ export default function ChatMediaMessage({
   isMyMessage,
   uploadProgress = null,
   onOpenViewer,
-  isVisible = true,       // NEW: controls VideoPlayer autoplay/pause/unload
 }) {
   const { messageType, metadata, messageText, isDeleted } = message;
   const isUploading = uploadProgress !== null && uploadProgress < 1;
@@ -182,7 +173,6 @@ export default function ChatMediaMessage({
           isMyMessage={isMyMessage}
           styleOverrides={styleOverrides}
           mediaId={mediaId}
-          isVisible={isVisible}
           onOpenViewer={onOpenViewer}
         />
       );
@@ -322,6 +312,18 @@ const bubbleStyles = StyleSheet.create({
   },
   videoPlaceholder: {
     backgroundColor: "#1A202C",
+  },
+  // Centered play button for video thumbnails
+  playOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playButton: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center", justifyContent: "center",
+    paddingLeft: 2,
   },
   // Small film icon badge in corner to indicate video type
   videoTypeIndicator: {
