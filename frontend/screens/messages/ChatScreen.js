@@ -686,6 +686,8 @@ export default function ChatScreen({ route, navigation }) {
           type: msg.messageType,
           duration: msg.metadata.duration,
           muteAudio: msg.metadata.mute_audio ?? false,
+          width: msg.metadata.width || null,
+          height: msg.metadata.height || null,
           indexInMessage: 0,
           ...commonData
         });
@@ -698,6 +700,8 @@ export default function ChatScreen({ route, navigation }) {
             type: item.resource_type === "video" ? "video" : "image",
             duration: item.duration,
             muteAudio: item.mute_audio ?? false,
+            width: item.width || null,
+            height: item.height || null,
             indexInMessage: index,
             ...commonData
           });

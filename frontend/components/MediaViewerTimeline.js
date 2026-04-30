@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { View, StyleSheet, Modal, Dimensions, TouchableOpacity, Text, Image, FlatList, Pressable, ActivityIndicator } from "react-native";
-import { X, Play, Pause } from "lucide-react-native";
+import { X, Play, Pause, RotateCcw } from "lucide-react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS } from "react-native-reanimated";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,8 +9,11 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-g
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
 
-const VIDEO_CARD_H = SCREEN_H * 0.65;
-const VIDEO_CARD_W = SCREEN_W - 40;
+// Card dimensions — matches Instagram's chat media viewer
+const CARD_W         = SCREEN_W - 40;           // 20px margin each side
+const CARD_MAX_H     = SCREEN_H * 0.7;          // cap so it never touches header/footer
+const CARD_MIN_H     = SCREEN_H * 0.35;         // minimum for very wide landscape images
+const CARD_RADIUS    = 16;
 
 const formatTime = (dateString) => {
   if (!dateString) return "";
@@ -25,15 +28,58 @@ const formatDuration = (seconds) => {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 };
 
-// ── Image item ─────────────────────────────────────────────────────────────
+// ── Dispatcher ─────────────────────────────────────────────────────────────
 function MediaItem({ item, isActive, onPress }) {
   if (item.type === "video") {
     return <VideoItem item={item} isActive={isActive} onPress={onPress} />;
   }
+  return <ImageItem item={item} onPress={onPress} />;
+}
+
+// ── Image item (Instagram-style rounded card) ──────────────────────────────
+// Uses pre-computed dimensions from metadata when available for instant sizing.
+// Falls back to Image.getSize() for older messages without dimensions.
+function ImageItem({ item, onPress }) {
+  // Compute initial height from metadata if available
+  const initialHeight = (item.width && item.height)
+    ? Math.max(CARD_MIN_H, Math.min(CARD_MAX_H, Math.round(CARD_W * (item.height / item.width))))
+    : CARD_MAX_H;
+
+  const [cardHeight, setCardHeight] = useState(initialHeight);
+
+  useEffect(() => {
+    // Only fetch dimensions if metadata didn't have them
+    if (item.width && item.height) return;
+    if (!item.uri) return;
+    Image.getSize(
+      item.uri,
+      (w, h) => {
+        if (w && h) {
+          const ratio = h / w;
+          const computed = Math.round(CARD_W * ratio);
+          setCardHeight(Math.max(CARD_MIN_H, Math.min(CARD_MAX_H, computed)));
+        }
+      },
+      () => {} // on error, keep default
+    );
+  }, [item.uri, item.width, item.height]);
+
   return (
-    <Pressable style={styles.mediaContainer} onPress={onPress}>
-      <Image source={{ uri: item.uri }} style={styles.media} resizeMode="contain" />
-    </Pressable>
+    <View style={styles.mediaContainer}>
+      <Pressable
+        style={[
+          styles.mediaCard,
+          { width: CARD_W, height: cardHeight },
+        ]}
+        onPress={onPress}
+      >
+        <Image
+          source={{ uri: item.uri }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
+      </Pressable>
+    </View>
   );
 }
 
@@ -67,17 +113,17 @@ function getVideoThumbnail(rawUrl) {
 }
 
 // ── Video item (Instagram-style, optimized) ────────────────────────────────
-// Rounded card with play/pause, progress scrubber, elapsed time, buffering
+// Rounded card with play/pause, progress scrubber, elapsed time, buffering,
+// and a "Watch Again" overlay when the video ends.
 function VideoItem({ item, isActive, onPress }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [hasFirstFrame, setHasFirstFrame] = useState(false);
+  const [videoFinished, setVideoFinished] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const progressInterval = useRef(null);
   const bufferTimerRef = useRef(null);
-  const stallCheckRef = useRef(null);
-  const lastTimeRef = useRef(0);
   const scrubberWidth = useRef(0);
 
   const isMuted = item.muteAudio ?? item.mute_audio ?? false;
@@ -111,6 +157,7 @@ function VideoItem({ item, isActive, onPress }) {
 
     const endSub = player.addListener("playToEnd", () => {
       setIsPlaying(false);
+      setVideoFinished(true);
       setCurrentTime(duration);
       clearInterval(progressInterval.current);
     });
@@ -128,11 +175,11 @@ function VideoItem({ item, isActive, onPress }) {
     if (isActive) {
       player.currentTime = 0;
       setCurrentTime(0);
-      // Show buffering only if video doesn't start within 500ms
-      // Avoids flash of spinner on fast networks
+      setVideoFinished(false);
+      // Show buffering only if video doesn't start within 800ms
       bufferTimerRef.current = setTimeout(() => {
         if (!hasFirstFrame) setIsBuffering(true);
-      }, 500);
+      }, 800);
       player.play();
     } else {
       player.pause();
@@ -143,58 +190,49 @@ function VideoItem({ item, isActive, onPress }) {
     return () => clearTimeout(bufferTimerRef.current);
   }, [isActive, player]);
 
-  // Poll current time while playing + stall detection
+  // Poll current time while playing (no stall detection — it caused false positives)
   useEffect(() => {
     clearInterval(progressInterval.current);
-    clearInterval(stallCheckRef.current);
     if (isPlaying) {
       progressInterval.current = setInterval(() => {
         if (player) {
-          const t = player.currentTime || 0;
-          setCurrentTime(t);
-          lastTimeRef.current = t;
+          setCurrentTime(player.currentTime || 0);
         }
       }, 200);
-      // Stall detection: if playing but currentTime hasn't moved in 1.5s
-      stallCheckRef.current = setInterval(() => {
-        if (player) {
-          const t = player.currentTime || 0;
-          if (Math.abs(t - lastTimeRef.current) < 0.05 && isPlaying) {
-            setIsBuffering(true);
-          } else {
-            setIsBuffering(false);
-          }
-          lastTimeRef.current = t;
-        }
-      }, 1500);
     }
-    return () => {
-      clearInterval(progressInterval.current);
-      clearInterval(stallCheckRef.current);
-    };
+    return () => clearInterval(progressInterval.current);
   }, [isPlaying, player]);
 
   // Cleanup
   useEffect(() => {
     return () => {
       clearInterval(progressInterval.current);
-      clearInterval(stallCheckRef.current);
       clearTimeout(bufferTimerRef.current);
     };
   }, []);
 
+  // Replay from buffer — uses player.replay() which seeks within the
+  // already-downloaded data instead of re-fetching from the network.
+  const handleReplay = useCallback(() => {
+    if (!player) return;
+    setVideoFinished(false);
+    setCurrentTime(0);
+    setIsBuffering(false);
+    player.replay();
+  }, [player]);
+
   const togglePlayPause = useCallback(() => {
     if (!player) return;
+    if (videoFinished) {
+      handleReplay();
+      return;
+    }
     if (isPlaying) {
       player.pause();
     } else {
-      if (currentTime >= duration && duration > 0) {
-        player.currentTime = 0;
-        setCurrentTime(0);
-      }
       player.play();
     }
-  }, [player, isPlaying, currentTime, duration]);
+  }, [player, isPlaying, videoFinished, handleReplay]);
 
   const progress = duration > 0 ? currentTime / duration : 0;
 
@@ -205,18 +243,23 @@ function VideoItem({ item, isActive, onPress }) {
     const newTime = ratio * duration;
     player.currentTime = newTime;
     setCurrentTime(newTime);
-  }, [player, duration]);
+    // If scrubbing after video ended, clear the finished state
+    if (videoFinished) {
+      setVideoFinished(false);
+      player.play();
+    }
+  }, [player, duration, videoFinished]);
 
   return (
     <View style={styles.mediaContainer}>
-      {/* Video card */}
-      <View style={styles.videoCard}>
+      {/* Video card — dynamic height based on video dimensions */}
+      <View style={[styles.mediaCard, { width: CARD_W, height: CARD_MAX_H }]}>
         {/* Thumbnail poster behind video — eliminates perceived load time */}
         {thumbnailUrl && !hasFirstFrame && (
           <Image
             source={{ uri: thumbnailUrl }}
-            style={[StyleSheet.absoluteFill, { zIndex: 0 }]}
-            resizeMode="contain"
+            style={StyleSheet.absoluteFill}
+            resizeMode="cover"
           />
         )}
 
@@ -226,7 +269,7 @@ function VideoItem({ item, isActive, onPress }) {
           allowsFullscreen={false}
           allowsPictureInPicture={false}
           nativeControls={false}
-          contentFit="contain"
+          contentFit="cover"
           onFirstFrameRender={() => {
             setHasFirstFrame(true);
             clearTimeout(bufferTimerRef.current);
@@ -234,21 +277,35 @@ function VideoItem({ item, isActive, onPress }) {
           }}
         />
 
-        {/* Buffering spinner — only appears after 500ms delay or on stall */}
-        {isBuffering && (
+        {/* Buffering spinner — only during initial load before first frame */}
+        {isBuffering && !videoFinished && (
           <View style={[styles.bufferingOverlay, { zIndex: 2 }]}>
             <ActivityIndicator size="large" color="#FFFFFF" />
           </View>
         )}
 
-        {/* Tap to toggle overlays (whole card) */}
-        <Pressable style={[StyleSheet.absoluteFill, { zIndex: 3 }]} onPress={onPress} />
+        {/* Watch Again overlay — shown when video finishes */}
+        {videoFinished && (
+          <Pressable style={[styles.watchAgainOverlay, { zIndex: 3 }]} onPress={handleReplay}>
+            <View style={styles.watchAgainButton}>
+              <RotateCcw size={20} color="#FFFFFF" strokeWidth={2.5} />
+              <Text style={styles.watchAgainText}>Watch again</Text>
+            </View>
+          </Pressable>
+        )}
+
+        {/* Tap to toggle overlays (whole card) — hidden when finished */}
+        {!videoFinished && (
+          <Pressable style={[StyleSheet.absoluteFill, { zIndex: 3 }]} onPress={onPress} />
+        )}
 
         {/* Controls bar at bottom of card */}
         <View style={[styles.videoControls, { zIndex: 4 }]}>
-          {/* Play/Pause */}
+          {/* Play/Pause or Replay */}
           <TouchableOpacity onPress={togglePlayPause} style={styles.playPauseBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            {isPlaying ? (
+            {videoFinished ? (
+              <RotateCcw size={16} color="#FFFFFF" strokeWidth={2.5} />
+            ) : isPlaying ? (
               <Pause size={18} color="#FFFFFF" fill="#FFFFFF" strokeWidth={0} />
             ) : (
               <Play size={18} color="#FFFFFF" fill="#FFFFFF" strokeWidth={0} />
@@ -434,23 +491,15 @@ const styles = StyleSheet.create({
     paddingTop: 80,
     paddingBottom: 90,
   },
-  media: {
-    width: "100%",
-    flex: 1,
-    maxHeight: SCREEN_H - 180,
-  },
 
-  // ── Video card (Instagram-style) ──
-  videoCard: {
-    width: VIDEO_CARD_W,
-    height: VIDEO_CARD_H,
-    borderRadius: 16,
+  // ── Shared media card style (images + videos) ──
+  mediaCard: {
+    borderRadius: CARD_RADIUS,
     overflow: "hidden",
     backgroundColor: "#000",
   },
   videoView: {
-    width: "100%",
-    height: "100%",
+    ...StyleSheet.absoluteFillObject,
   },
   bufferingOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -515,6 +564,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     minWidth: 36,
     textAlign: "right",
+  },
+
+  // ── Watch Again overlay ──
+  watchAgainOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: CARD_RADIUS,
+  },
+  watchAgainButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.4)",
+    gap: 8,
+  },
+  watchAgainText: {
+    color: "#FFFFFF",
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 15,
+    letterSpacing: 0.3,
   },
 
   // ── Header ──
