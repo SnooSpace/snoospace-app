@@ -617,12 +617,16 @@ const createGroupConversation = async (req, res) => {
     try {
       await client.query("BEGIN");
 
+      // If the creator is a community, record them as the owner so the per-group
+      // auto-join toggle is visible in GroupInfoScreen.
+      const communityOwnerId = userType === "community" ? userId : null;
+
       const convResult = await client.query(
         `INSERT INTO conversations
-           (is_group, group_name, group_avatar_url, community_auto_join)
-         VALUES (true, $1, $2, $3)
+           (is_group, group_name, group_avatar_url, community_auto_join, community_owner_id)
+         VALUES (true, $1, $2, $3, $4)
          RETURNING id, created_at`,
-        [groupName.trim(), groupAvatarUrl || null, autoJoin],
+        [groupName.trim(), groupAvatarUrl || null, autoJoin, communityOwnerId],
       );
       const convId = convResult.rows[0].id;
 
@@ -689,9 +693,11 @@ const getGroupParticipants = async (req, res) => {
     );
     if (check.rows.length === 0) return res.status(403).json({ error: "Not a participant" });
 
-    // Fetch conversation metadata (created_at, avatar, messaging_restricted)
+    // Fetch conversation metadata (created_at, avatar, messaging_restricted, auto-join)
     const convInfo = await pool.query(
-      `SELECT created_at, group_avatar_url, messaging_restricted FROM conversations WHERE id = $1`,
+      `SELECT created_at, group_avatar_url, messaging_restricted,
+              community_auto_join, community_owner_id
+       FROM conversations WHERE id = $1`,
       [conversationId],
     );
     const conversationMeta = convInfo.rows[0] || {};
@@ -732,6 +738,8 @@ const getGroupParticipants = async (req, res) => {
       createdAt:           conversationMeta.created_at,
       groupAvatarUrl:      conversationMeta.group_avatar_url,
       messagingRestricted: conversationMeta.messaging_restricted || false,
+      communityAutoJoin:   conversationMeta.community_auto_join  || false,
+      communityOwnerId:    conversationMeta.community_owner_id   || null,
       _myRole:             myParticipant?.role || "member",
     });
   } catch (error) {
@@ -775,6 +783,30 @@ const updateGroupConversation = async (req, res) => {
     if (setClauses.length === 0) return res.status(400).json({ error: "Nothing to update" });
     values.push(conversationId);
     await pool.query(`UPDATE conversations SET ${setClauses.join(", ")} WHERE id = $${i}`, values);
+
+    // Sync the community-wide master flag so the join-invite gate reflects per-group state.
+    // When any group has community_auto_join = true → set auto_join_group_chat = true on community.
+    // When all groups are off → set auto_join_group_chat = false.
+    if (communityAutoJoin !== undefined && userType === "community") {
+      const ownerRow = await pool.query(
+        `SELECT community_owner_id FROM conversations WHERE id = $1`,
+        [conversationId],
+      );
+      const ownerId = ownerRow.rows[0]?.community_owner_id;
+      if (ownerId) {
+        const anyOn = await pool.query(
+          `SELECT 1 FROM conversations
+           WHERE community_owner_id = $1 AND community_auto_join = true AND is_group = true
+           LIMIT 1`,
+          [ownerId],
+        );
+        await pool.query(
+          `UPDATE communities SET auto_join_group_chat = $1 WHERE id = $2`,
+          [anyOn.rows.length > 0, ownerId],
+        );
+      }
+    }
+
     res.json({ success: true });
   } catch (error) {
     console.error("Error updating group conversation:", error);
@@ -818,6 +850,55 @@ const addGroupParticipant = async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error("Error adding group participant:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// ─── selfJoinGroup ─────────────────────────────────────────────────────────────
+// Called when a member accepts the "Join Group Chat" invite modal.
+// They are NOT yet a participant, so we can't use the existing guard.
+// Security: only succeeds if the group has community_auto_join = true.
+const selfJoinGroup = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || userType !== "member") {
+      return res.status(401).json({ error: "Only members can self-join a group" });
+    }
+
+    // Verify the group exists and has auto-join enabled
+    const groupCheck = await pool.query(
+      `SELECT id, community_auto_join FROM conversations WHERE id = $1 AND is_group = true`,
+      [conversationId],
+    );
+    if (groupCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Group not found" });
+    }
+    if (!groupCheck.rows[0].community_auto_join) {
+      return res.status(403).json({ error: "This group does not accept open joins" });
+    }
+
+    // Add the member (idempotent — DO NOTHING if already in group)
+    await pool.query(
+      `INSERT INTO conversation_participants (conversation_id, participant_id, participant_type, role)
+       VALUES ($1, $2, 'member', 'member')
+       ON CONFLICT (conversation_id, participant_id, participant_type) DO NOTHING`,
+      [conversationId, userId],
+    );
+
+    // System message announcing the join
+    await pool.query(
+      `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type)
+       VALUES ($1, $2, 'member', 'joined the group.', 'system')`,
+      [conversationId, userId],
+    );
+    await pool.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1`, [conversationId]);
+
+    res.json({ success: true, conversationId: Number(conversationId) });
+  } catch (error) {
+    console.error("Error self-joining group:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -1295,6 +1376,7 @@ module.exports = {
   getGroupParticipants,
   updateGroupConversation,
   addGroupParticipant,
+  selfJoinGroup,
   removeGroupParticipant,
   transferAdmin,
   hideConversation,

@@ -20,7 +20,6 @@ import {
   Check,
   GraduationCap,
   Search,
-  Users,
 } from "lucide-react-native";
 
 
@@ -152,10 +151,6 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   const [sponsoringEnabled, setSponsoringEnabled] = useState(
     Array.isArray(profile?.sponsor_types) && profile.sponsor_types.length > 0,
   );
-  // autoJoinEnabled: community automatically invites followers to its group chat
-  const [autoJoinEnabled, setAutoJoinEnabled] = useState(
-    profile?.auto_join_group_chat === true,
-  );
 
   const [location, setLocation] = useState(profile?.location || null);
 
@@ -216,7 +211,6 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     categories,
     sponsorTypes,
     sponsoringEnabled,
-    autoJoinEnabled,
     email,
     location,
   ]);
@@ -273,8 +267,6 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         JSON.stringify(normalizeArray(originalCategories)) ||
       JSON.stringify(normalizeArray(sponsorTypes)) !==
         JSON.stringify(normalizeArray(sourceProfile?.sponsor_types || [])) ||
-      sponsoringEnabled !== (Array.isArray(sourceProfile?.sponsor_types) && sourceProfile.sponsor_types.length > 0) ||
-      autoJoinEnabled !== (sourceProfile?.auto_join_group_chat === true) ||
       JSON.stringify(location) !==
         JSON.stringify(sourceProfile?.location || null);
 
@@ -466,7 +458,6 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         categories: normalizedCategories,
         // If sponsoring is disabled, send empty array; otherwise send selected types
         sponsor_types: sponsoringEnabled ? sponsorTypes : [],
-        auto_join_group_chat: autoJoinEnabled,
         location: location,
       };
 
@@ -1025,34 +1016,6 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
             </View>
           </View>
         )}
-
-
-        {/* Group Chat Settings */}
-        <View style={styles.card}>
-          {renderSectionHeader("GROUP CHAT SETTINGS", Users)}
-          <View style={styles.inputGroupLast}>
-            <View style={gcStyles.toggleRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={gcStyles.toggleTitle}>Auto-add followers</Text>
-                <Text style={gcStyles.toggleSub}>
-                  When someone follows your community, show them an invite to join your group chat. Members who register for your events will also be prompted even if they don't follow yet.
-                </Text>
-              </View>
-              <Switch
-                value={autoJoinEnabled}
-                onValueChange={(v) => { setAutoJoinEnabled(v); HapticsService.triggerSelection(); }}
-                trackColor={{ false: "#E5E7EB", true: ACCENT_COLOR }}
-                thumbColor="#FFFFFF"
-                ios_backgroundColor="#E5E7EB"
-              />
-            </View>
-            {autoJoinEnabled && (
-              <Text style={gcStyles.hint}>
-                Make sure you have created a group chat first. Members can leave at any time.
-              </Text>
-            )}
-          </View>
-        </View>
 
         <View style={{ height: 40 }} />
 
@@ -1806,34 +1769,3 @@ const styles = StyleSheet.create({
     color: TEXT_SECONDARY,
   },
 });
-
-const gcStyles = StyleSheet.create({
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 16,
-    paddingVertical: 4,
-  },
-  toggleTitle: {
-    fontFamily: "Manrope-SemiBold",
-    fontSize: 14,
-    color: TEXT_PRIMARY,
-    marginBottom: 4,
-  },
-  toggleSub: {
-    fontFamily: "Manrope-Regular",
-    fontSize: 13,
-    color: TEXT_SECONDARY,
-    lineHeight: 18,
-    paddingRight: 8,
-  },
-  hint: {
-    fontFamily: "Manrope-Regular",
-    fontSize: 12,
-    color: ACCENT_COLOR,
-    marginTop: 10,
-    lineHeight: 17,
-  },
-});
-
-

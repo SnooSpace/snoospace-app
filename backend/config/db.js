@@ -692,6 +692,21 @@ async function ensureTables(pool) {
       CREATE INDEX IF NOT EXISTS idx_conversations_participant1 ON conversations(participant1_id);
       CREATE INDEX IF NOT EXISTS idx_conversations_participant2 ON conversations(participant2_id);
       CREATE INDEX IF NOT EXISTS idx_conversations_last_message_at ON conversations(last_message_at DESC);
+
+      -- Group chat columns (idempotent — safe to run on existing DBs)
+      ALTER TABLE conversations ADD COLUMN IF NOT EXISTS community_auto_join BOOLEAN NOT NULL DEFAULT FALSE;
+      ALTER TABLE conversations ADD COLUMN IF NOT EXISTS community_owner_id INTEGER REFERENCES communities(id) ON DELETE SET NULL;
+      CREATE INDEX IF NOT EXISTS idx_conversations_community_owner_id ON conversations(community_owner_id) WHERE community_owner_id IS NOT NULL;
+
+      -- Backfill community_owner_id from existing community admins (no-op after first run)
+      UPDATE conversations c
+      SET community_owner_id = cp.participant_id
+      FROM conversation_participants cp
+      WHERE cp.conversation_id = c.id
+        AND cp.participant_type = 'community'
+        AND cp.role = 'admin'
+        AND c.is_group = TRUE
+        AND c.community_owner_id IS NULL;
       
       -- Add missing columns to members table
       DO $$ BEGIN

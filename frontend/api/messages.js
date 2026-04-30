@@ -169,6 +169,17 @@ export async function dismissGroupInvite(conversationId) {
   return apiPost(`/messages/groups/${conversationId}/dismiss-invite`, {}, 10000, token);
 }
 
+/**
+ * Self-join a community group chat from the invite modal.
+ * The member does not need to already be a participant.
+ * The group must have community_auto_join = true.
+ */
+export async function selfJoinGroup(conversationId) {
+  const token = await getAuthToken();
+  if (!token) throw new Error("Authentication token not found.");
+  return apiPost(`/messages/groups/${conversationId}/self-join`, {}, 10000, token);
+}
+
 // ─── Conversation Mute ────────────────────────────────────────────────────────
 
 /**

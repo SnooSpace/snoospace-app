@@ -18,7 +18,7 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { Users, X } from "lucide-react-native";
-import { getGroupJoinInvite, dismissGroupInvite, addGroupParticipant } from "../../api/messages";
+import { getGroupJoinInvite, dismissGroupInvite, selfJoinGroup } from "../../api/messages";
 import { getAuthToken, getAuthEmail } from "../../api/auth";
 import { apiPost } from "../../api/client";
 import EventBus from "../../utils/EventBus";
@@ -120,7 +120,7 @@ export default function JoinGroupChatModal({ navigation }) {
     if (!invite || !currentUser) return;
     setJoining(true);
     try {
-      await addGroupParticipant(invite.conversationId, currentUser.id, currentUser.type || "member");
+      await selfJoinGroup(invite.conversationId);
       hide(() => {
         isProcessing.current = false;
         processNext();

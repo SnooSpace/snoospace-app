@@ -7,7 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { useCrop } from "../../components/MediaCrop";
 import { ArrowLeft, Edit2, Check, X, UserMinus, Shield, UserPlus,
-  MoreHorizontal, Camera, LogOut, AlertTriangle, Info, LockKeyhole, Megaphone,
+  MoreHorizontal, Camera, LogOut, AlertTriangle, Info, LockKeyhole, Megaphone, Users,
 } from "lucide-react-native";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import {
@@ -265,6 +265,9 @@ export default function GroupInfoScreen({ route, navigation }) {
   const [showAddSheet,        setShowAddSheet]        = useState(false);
   const [messagingRestricted, setMessagingRestricted] = useState(false);
   const [togglingRestrict,    setTogglingRestrict]    = useState(false);
+  const [communityAutoJoin,   setCommunityAutoJoin]   = useState(false);
+  const [communityOwnerId,    setCommunityOwnerId]    = useState(null);
+  const [togglingAutoJoin,    setTogglingAutoJoin]    = useState(false);
   const [alertConfig,         setAlertConfig]         = useState({
     visible: false,
     title: "",
@@ -297,9 +300,11 @@ export default function GroupInfoScreen({ route, navigation }) {
       setLoading(true);
       const res = await getGroupParticipants(conversationId);
       setParticipants(res.participants || []);
-      if (res.groupAvatarUrl) setGroupAvatar(res.groupAvatarUrl);
-      if (res.createdAt) setCreatedAt(res.createdAt);
+      if (res.groupAvatarUrl)    setGroupAvatar(res.groupAvatarUrl);
+      if (res.createdAt)         setCreatedAt(res.createdAt);
       setMessagingRestricted(res.messagingRestricted || false);
+      setCommunityAutoJoin(res.communityAutoJoin   || false);
+      setCommunityOwnerId(res.communityOwnerId     || null);
     } catch (err) {
       console.error("GroupInfoScreen: error loading participants:", err);
     } finally {
@@ -474,6 +479,24 @@ export default function GroupInfoScreen({ route, navigation }) {
     }
   }, [conversationId]);
 
+  // ── Toggle auto-join (community admin only) ────────────────────────────────
+  const handleToggleAutoJoin = useCallback(async (value) => {
+    setTogglingAutoJoin(true);
+    try {
+      await updateGroupConversation(conversationId, { communityAutoJoin: value });
+      setCommunityAutoJoin(value);
+    } catch (err) {
+      showAlert({
+        title: "Error",
+        message: err?.message || "Could not update auto-join setting.",
+        primaryAction: { text: "OK", onPress: hideAlert },
+        icon: AlertTriangle,
+      });
+    } finally {
+      setTogglingAutoJoin(false);
+    }
+  }, [conversationId]);
+
   // ── Navigate to profile ────────────────────────────────────────────────────
   const navigateToProfile = useCallback((participant) => {
     if (String(participant.participantId) === String(currentUser?.id)) return;
@@ -605,6 +628,35 @@ export default function GroupInfoScreen({ route, navigation }) {
             }}
             onClose={() => setShowAddSheet(false)}
           />
+        )}
+
+        {/* Auto-join toggle (community owner + admin only) */}
+        {isMeAdmin &&
+          currentUser?.type === "community" &&
+          String(currentUser?.id) === String(communityOwnerId) && (
+          <View style={styles.restrictRow}>
+            <View style={styles.restrictRowLeft}>
+              <View style={[styles.restrictIcon, { backgroundColor: "rgba(53,101,242,0.1)" }]}>
+                <Users size={16} color={ACCENT} strokeWidth={2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.restrictTitle}>Auto-add followers</Text>
+                <Text style={styles.restrictSub}>
+                  {communityAutoJoin
+                    ? "Followers are invited to join this group"
+                    : "Followers are not auto-invited to this group"}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={communityAutoJoin}
+              onValueChange={handleToggleAutoJoin}
+              disabled={togglingAutoJoin}
+              trackColor={{ false: "#E5E5EA", true: `${ACCENT}40` }}
+              thumbColor={communityAutoJoin ? ACCENT : "#FFFFFF"}
+              ios_backgroundColor="#E5E5EA"
+            />
+          </View>
         )}
 
         {/* Restrict messaging (admin only) */}

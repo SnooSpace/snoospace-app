@@ -1411,6 +1411,7 @@ router.post("/messages/conversations/:conversationId/report", authMiddleware, Me
 // Group auto-join invite
 router.get("/messages/groups/:conversationId/join-invite", authMiddleware, MessageController.getGroupJoinInvite);
 router.post("/messages/groups/:conversationId/dismiss-invite", authMiddleware, MessageController.dismissGroupInvite);
+router.post("/messages/groups/:conversationId/self-join", authMiddleware, MessageController.selfJoinGroup);
 // Community-based: find first eligible auto-join group for this community
 router.get("/messages/communities/:communityId/join-invite", authMiddleware, MessageController.getGroupJoinInviteByCommunity);
 
