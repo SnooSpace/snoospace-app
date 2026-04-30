@@ -15,7 +15,7 @@ import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle, Bell, BellOff, Image as ImageIcon, LockKeyhole, ImagePlus, Megaphone } from "lucide-react-native";
+import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle, Bell, BellOff, Image as ImageIcon, LockKeyhole, ImagePlus, Megaphone, Video } from "lucide-react-native";
 import CustomImagePicker from "../../components/CustomImagePicker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import MediaViewerTimeline from "../../components/MediaViewerTimeline";
@@ -137,6 +137,8 @@ const ReplyBar = ({ reply, onClose }) => {
   if (!reply) return null;
 
   const isPostShare = reply.isPostShare;
+  const isMedia = reply.messageType === "image" || reply.messageType === "video" || reply.messageType === "multi_media";
+  
   let preview;
   if (reply.isDeleted) {
     preview = "This message was unsent";
@@ -145,14 +147,22 @@ const ReplyBar = ({ reply, onClose }) => {
     const captionLine = reply.postCaption ? ` ∙ ${reply.postCaption.slice(0, 40)}${reply.postCaption.length > 40 ? "…" : ""}` : "";
     preview = authorLine + captionLine;
   } else {
-    preview = (reply.messageText || "").slice(0, 60) + ((reply.messageText || "").length > 60 ? "…" : "");
+    preview = reply.messageText || "";
+    if (!preview && isMedia) {
+       preview = reply.messageType === "video" ? "Video" : (reply.messageType === "multi_media" ? "Media" : "Photo");
+    }
+    preview = preview.slice(0, 60) + (preview.length > 60 ? "…" : "");
   }
 
   return (
     <Animated.View style={[replyBarStyles.container, animStyle]}>
-      {isPostShare && (
+      {(isPostShare || isMedia) && (
         <View style={replyBarStyles.postIcon}>
-          <ImageIcon size={14} color="#3565F2" strokeWidth={2} />
+          {reply.messageType === "video" ? (
+            <Video size={14} color="#3565F2" strokeWidth={2} />
+          ) : (
+            <ImageIcon size={14} color="#3565F2" strokeWidth={2} />
+          )}
         </View>
       )}
       <View style={replyBarStyles.body}>
@@ -207,9 +217,18 @@ const ReplyQuote = ({ replyPreview, isMyMessage, onPress }) => {
               )}
             </>
           ) : (
-            <Text style={[quoteStyles.text, isMyMessage ? quoteStyles.myText : quoteStyles.otherText]} numberOfLines={2}>
-              {replyPreview.messageText || "Message"}
-            </Text>
+            <View style={quoteStyles.postShareRow}>
+              {(replyPreview.messageType === "image" || replyPreview.messageType === "video" || replyPreview.messageType === "multi_media") && (
+                replyPreview.messageType === "video" ? (
+                  <Video size={12} color={MESSAGE_TEXT_COLOR} strokeWidth={2} style={{ marginRight: 4 }} />
+                ) : (
+                  <ImageIcon size={12} color={MESSAGE_TEXT_COLOR} strokeWidth={2} style={{ marginRight: 4 }} />
+                )
+              )}
+              <Text style={[quoteStyles.text, isMyMessage ? quoteStyles.myText : quoteStyles.otherText]} numberOfLines={2}>
+                {replyPreview.messageText || (replyPreview.messageType === "video" ? "Video" : (replyPreview.messageType === "image" ? "Photo" : "Media"))}
+              </Text>
+            </View>
           )}
         </View>
       </TouchableOpacity>
@@ -1338,7 +1357,8 @@ export default function ChatScreen({ route, navigation }) {
             isMyMessage={isMyMessage}
             onReply={() => setSelectedReply({
               id: msg.id,
-              messageText: msg.messageType === "multi_media" ? "≡ƒô╕ Media" : (msg.messageType === "image" ? "≡ƒô╖ Photo" : "≡ƒÄÑ Video"),
+              messageText: msg.messageType === "multi_media" ? "Media" : (msg.messageType === "image" ? "Photo" : "Video"),
+              messageType: msg.messageType,
               senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
               isDeleted: msg.isDeleted,
             })}
@@ -1763,7 +1783,8 @@ export default function ChatScreen({ route, navigation }) {
             setViewerVisible(false);
             setSelectedReply({
               id: mediaItem.messageId,
-              messageText: mediaItem.type === "video" ? "≡ƒÄÑ Video" : "≡ƒô╖ Photo",
+              messageText: mediaItem.type === "video" ? "Video" : "Photo",
+              messageType: mediaItem.type === "video" ? "video" : "image",
               senderName: mediaItem.senderName,
               isDeleted: false,
             });
