@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import {
   StyleSheet, View, Platform, Alert, Text, TextInput, Modal, ScrollView,
   TouchableOpacity, Image, KeyboardAvoidingView, Pressable, ActivityIndicator,
+  FlatList,
 } from "react-native";
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, Easing,
 } from "react-native-reanimated";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { FlashList } from "@shopify/flash-list";
+
 import SwipeableMessageRow from "../../components/SwipeableMessageRow";
 import useChatPagination from "../../hooks/useChatPagination";
 import { useKeyboardHandler } from "react-native-keyboard-controller";
@@ -599,6 +600,15 @@ export default function ChatScreen({ route, navigation }) {
   const pollingIntervalRef = useRef(null);
   const groupParticipantsRef = useRef([]);
   const visibleItemIdsRef  = useRef(new Set());
+  const viewabilityConfigRef = useRef({ itemVisiblePercentThreshold: 50 });
+  const onViewableItemsChangedRef = useRef(({ viewableItems }) => {
+    const ids = new Set(
+      viewableItems
+        .filter(v => v.item?.type === "message")
+        .map(v => v.item?.data?.id)
+    );
+    visibleItemIdsRef.current = ids;
+  });
   const insets             = useSafeAreaInsets();
 
   // Reanimated keyboard tracking
@@ -1525,22 +1535,21 @@ export default function ChatScreen({ route, navigation }) {
           keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
           <Animated.View style={[{ flex: 1 }, androidContainerStyle]}>
-            <FlashList
+            <FlatList
               ref={flashListRef}
               data={flatListData}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.type === "message" ? String(item.data.id) : item.id}
               renderItem={renderItem}
-              estimatedItemSize={72}
               inverted
               maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.listContent}
-              onStartReached={() => {
+              onEndReached={() => {
                 if (hasMore && !loadingOlder) {
                   loadOlderMessages(currentConversationId);
                 }
               }}
-              onStartReachedThreshold={0.3}
+              onEndReachedThreshold={0.3}
               ListFooterComponent={
                 loadingOlder ? (
                   <View style={styles.loadingOlderContainer}>
@@ -1548,34 +1557,8 @@ export default function ChatScreen({ route, navigation }) {
                   </View>
                 ) : null
               }
-              overrideItemLayout={(layout, item) => {
-                if (!item) return;
-                if (item.type === "date_separator") {
-                  layout.size = 36;
-                } else if (item.type === "message") {
-                  const msg = item.data;
-                  if (msg.messageType === "post_share") {
-                    layout.size = 280;
-                  } else if (msg.messageType === "image" || msg.messageType === "video" || msg.messageType === "multi_media") {
-                    layout.size = 220;
-                  } else if (msg.messageType === "ticket") {
-                    layout.size = 140;
-                  } else if (msg.replyPreview) {
-                    layout.size = 110;
-                  } else {
-                    layout.size = 72;
-                  }
-                }
-              }}
-              viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
-              onViewableItemsChanged={({ viewableItems }) => {
-                const ids = new Set(
-                  viewableItems
-                    .filter(v => v.item?.type === "message")
-                    .map(v => v.item?.data?.id)
-                );
-                visibleItemIdsRef.current = ids;
-              }}
+              viewabilityConfig={viewabilityConfigRef.current}
+              onViewableItemsChanged={onViewableItemsChangedRef.current}
             />
 
           </Animated.View>
