@@ -5,7 +5,7 @@ import {
   FlatList,
 } from "react-native";
 import Animated, {
-  useSharedValue, useAnimatedStyle, withTiming, Easing,
+  useSharedValue, useAnimatedStyle, withTiming, withSpring, Easing,
 } from "react-native-reanimated";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
@@ -1790,6 +1790,7 @@ const styles = StyleSheet.create({
   headerName:     { fontFamily: "BasicCommercial-Black", fontSize: 16, color: "#1F3A5F" },
   headerUsername: { fontFamily: "Manrope-Medium", fontSize: 12, color: LIGHT_TEXT },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
+  listContent:    { paddingHorizontal: 16, paddingTop: 100, paddingBottom: 20 },
   messagesList:   { paddingHorizontal: 16, paddingTop: 130, paddingBottom: 10 },
   messageContainer: { flexDirection: "row", marginBottom: 8, alignItems: "flex-end" },
   myMessageContainer:    { justifyContent: "flex-end" },
