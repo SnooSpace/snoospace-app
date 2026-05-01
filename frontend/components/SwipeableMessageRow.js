@@ -70,9 +70,16 @@ const SwipeableMessageRow = React.memo(({
     }
     return {
       ...StyleSheet.absoluteFillObject,
-      backgroundColor: "rgba(255, 213, 79, 0.38)",
+      backgroundColor: "rgba(53, 101, 242, 0.15)",
+      borderColor: "rgba(53, 101, 242, 0.5)",
+      borderWidth: 1.5,
       borderRadius: 18,
       opacity: bgOpacity.value,
+      shadowColor: "#3565F2",
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.3,
+      shadowRadius: 6,
+      elevation: 3,
       pointerEvents: "none",
     };
   });
@@ -137,8 +144,8 @@ const SwipeableMessageRow = React.memo(({
       <Animated.View style={[styles.bubble, isMine ? styles.bubbleRight : styles.bubbleLeft, bubbleStyle]}>
         <GestureDetector gesture={composed}>
           <View collapsable={false}>
-            <Animated.View style={highlightOverlayStyle} />
             {children}
+            <Animated.View style={[highlightOverlayStyle, { zIndex: 10 }]} />
           </View>
         </GestureDetector>
       </Animated.View>

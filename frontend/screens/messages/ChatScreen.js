@@ -1632,7 +1632,6 @@ export default function ChatScreen({ route, navigation }) {
               keyExtractor={(item) => item.type === "message" ? String(item.data.id) : item.id}
               renderItem={renderItem}
               inverted
-              maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.listContent}
               onEndReached={() => {
