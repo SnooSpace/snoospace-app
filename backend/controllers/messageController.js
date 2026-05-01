@@ -965,28 +965,37 @@ const removeGroupParticipant = async (req, res) => {
 
     if (!isSelf && !isAdmin) return res.status(403).json({ error: "Admin required to remove others" });
 
-    // ── Community owner leaving (skip path): auto-handoff ──────────────────────
-    // IMPORTANT: Check for community-owner leaving BEFORE the LAST_ADMIN guard.
+    // ── Group owner leaving (skip path): auto-handoff ──────────────────────────
+    // IMPORTANT: Check for group-owner leaving BEFORE the LAST_ADMIN guard.
     // When the owner is the sole admin and uses "Skip & Leave", the backend will
-    // auto-promote a new admin — so blocking on LAST_ADMIN here is wrong.
+    // auto-promote a new admin (or just clear ownership) — blocking on LAST_ADMIN is wrong.
     const convOwner = await pool.query(
-      `SELECT community_owner_id FROM conversations WHERE id = $1`,
+      `SELECT community_owner_id, group_owner_id, group_owner_type FROM conversations WHERE id = $1`,
       [conversationId],
     );
-    const storedOwnerId = convOwner.rows[0]?.community_owner_id;
-    // isOwnerLeaving: the caller is a community user, is an admin, and either:
-    //   a) they are the stored community owner, OR
-    //   b) community_owner_id is NULL (backfill gap — treat oldest community admin as owner)
-    // We explicitly exclude the case where storedOwnerId is NULL but this caller is NOT
-    // a community type — that is handled by the regular LAST_ADMIN guard below.
+    const conv = convOwner.rows[0] || {};
+    const storedOwnerId = conv.community_owner_id;
+
+    // isOwnerLeaving: true if the caller is the recorded group owner (any type), OR
+    // is a community admin in a group that still has community_owner_id set (legacy path).
     const isOwnerLeaving =
       isSelf &&
-      userType === "community" &&
       isAdmin &&
-      (String(userId) === String(storedOwnerId) || !storedOwnerId);
+      (
+        // New generic path: whoever holds group_owner_id (member OR community)
+        (conv.group_owner_id &&
+          String(userId) === String(conv.group_owner_id) &&
+          userType === conv.group_owner_type)
+        ||
+        // Legacy community path: community_owner_id is set (or NULL — backfill gap)
+        (userType === "community" &&
+          (String(userId) === String(storedOwnerId) || !storedOwnerId))
+      );
 
     console.log("[removeGroupParticipant] ownerCheck:", {
-      isSelf, userType, isAdmin, storedOwnerId, userId, isOwnerLeaving,
+      isSelf, userType, isAdmin, storedOwnerId,
+      groupOwnerId: conv.group_owner_id, groupOwnerType: conv.group_owner_type,
+      userId, isOwnerLeaving,
     });
 
     // LAST_ADMIN guard — only for non-owner-leaving cases
@@ -1383,8 +1392,19 @@ const hideConversation = async (req, res) => {
       return res.status(401).json({ error: "Authentication required" });
     }
     const check = await pool.query(
-      `SELECT id FROM conversations WHERE id = $1
-       AND ((participant1_id = $2 AND participant1_type = $3) OR (participant2_id = $2 AND participant2_type = $3))`,
+      `SELECT c.id FROM conversations c
+       WHERE c.id = $1
+         AND (
+           -- DM: caller is one of the two direct participants
+           (c.participant1_id = $2 AND c.participant1_type = $3)
+           OR (c.participant2_id = $2 AND c.participant2_type = $3)
+           -- Group chat: caller is in conversation_participants
+           OR EXISTS (
+             SELECT 1 FROM conversation_participants cp
+             WHERE cp.conversation_id = c.id
+               AND cp.participant_id = $2 AND cp.participant_type = $3
+           )
+         )`,
       [conversationId, userId, userType],
     );
     if (check.rows.length === 0) return res.status(404).json({ error: "Conversation not found" });
