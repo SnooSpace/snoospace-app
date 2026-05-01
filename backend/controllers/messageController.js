@@ -122,6 +122,8 @@ const getConversations = async (req, res) => {
         c.last_message_at,
         c.created_at,
         c.messaging_restricted,
+        c.group_owner_id,
+        c.group_owner_type,
         cp.role                       AS my_role,
         (SELECT COUNT(*) FROM conversation_participants p2
          WHERE p2.conversation_id = c.id)             AS participant_count,
@@ -174,7 +176,9 @@ const getConversations = async (req, res) => {
       groupName:           conv.group_name      || null,
       groupAvatarUrl:      conv.group_avatar_url || null,
       messagingRestricted: conv.messaging_restricted || false,
-      myRole:              conv.my_role           || null,   // 'admin' | 'member' | null for DMs
+      myRole:              conv.my_role           || null,
+      groupOwnerId:        conv.group_owner_id    || null,
+      groupOwnerType:      conv.group_owner_type  || null,
       participantCount:    parseInt(conv.participant_count) || null,
       otherParticipant: conv.is_group ? null : {
         id:             conv.other_participant_id,
@@ -1051,7 +1055,7 @@ const removeGroupParticipant = async (req, res) => {
         await pool.query(
           `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type)
            VALUES ($1, $2, $3, $4, 'system')`,
-          [conversationId, userId, userType, `${newOwner.name} is now the group manager.`],
+          [conversationId, userId, userType, `${newOwner.name} is now the group owner.`],
         );
       } else {
         // No other participants — just clear ownership
@@ -1188,7 +1192,7 @@ const transferGroupOwnership = async (req, res) => {
       await client.query(
         `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type)
          VALUES ($1, $2, $3, $4, 'system')`,
-        [conversationId, userId, userType, `${name} is now the group manager.`],
+        [conversationId, userId, userType, `${name} is now the group owner.`],
       );
       await client.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1`, [conversationId]);
 

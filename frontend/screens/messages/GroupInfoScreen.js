@@ -313,7 +313,7 @@ function OwnerPickerSheet({ participants, currentUserId, onPick, onSkip, onClose
       <View style={opStyles.header}>
         <View style={{ flex: 1, marginRight: 12 }}>
           <Text style={opStyles.title}>Transfer Ownership</Text>
-          <Text style={opStyles.sub}>Choose who becomes the next group manager</Text>
+          <Text style={opStyles.sub}>Choose who becomes the next group owner</Text>
         </View>
         <TouchableOpacity onPress={onClose} hitSlop={{ top:8, bottom:8, left:8, right:8 }}>
           <X size={20} color={TEXT_SEC} strokeWidth={2} />
@@ -359,7 +359,7 @@ function OwnerPickerSheet({ participants, currentUserId, onPick, onSkip, onClose
           <Info size={13} color={TEXT_SEC} strokeWidth={2} style={{ marginRight: 6 }} />
           <Text style={opStyles.skipNoteText}>
             {autoPickPerson
-              ? `If you skip, ${autoPickName} will automatically become the group manager.`
+              ? `If you skip, ${autoPickName} will automatically become the group owner.`
               : "No one will manage this group after you leave."}
           </Text>
         </View>
@@ -795,8 +795,8 @@ export default function GroupInfoScreen({ route, navigation }) {
     showAlert({
       title:   "Leave Group",
       message: autoPickPerson
-        ? `${autoPickName} will automatically become the group manager. Continue?`
-        : "You're the only member. The group will have no manager after you leave. Continue?",
+        ? `${autoPickName} will automatically become the group owner. Continue?`
+        : "You're the only member. The group will have no owner after you leave. Continue?",
       icon:      Crown,
       iconColor: GOLD,
       secondaryAction: { text: "Cancel", onPress: hideAlert },

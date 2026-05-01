@@ -473,6 +473,40 @@ export default function ConversationsListScreen({ navigation }) {
   }, []);
 
   const handleLeaveGroup = useCallback(async (conv) => {
+    // If the current user is the group owner AND there are other members,
+    // they must transfer ownership first — send them to GroupInfoScreen.
+    // If they're the last person, just let them leave directly.
+    const isGroupOwner =
+      conv.groupOwnerId &&
+      String(activeAccount?.id) === String(conv.groupOwnerId) &&
+      activeAccount?.type === conv.groupOwnerType;
+
+    const hasOtherMembers = (conv.participantCount || 1) > 1;
+
+    if (isGroupOwner && hasOtherMembers) {
+      showAlert({
+        title: "Transfer Ownership",
+        message: `You're the owner of "${conv.groupName || "this group"}". Before leaving, you need to transfer ownership to another member.`,
+        icon: LogOut,
+        iconColor: "#FF9500",
+        secondaryAction: { text: "Cancel", onPress: hideAlert },
+        primaryAction: {
+          text: "Go to Group Info",
+          onPress: () => {
+            hideAlert();
+            navigation.navigate("GroupInfo", {
+              conversationId:  conv.id,
+              groupName:       conv.groupName,
+              groupAvatarUrl:  conv.groupAvatarUrl,
+              myGroupRole:     conv.myRole || "admin",
+            });
+          },
+        },
+      });
+      return;
+    }
+
+    // Non-owner: standard leave confirmation
     showAlert({
       title: "Leave Group",
       message: `Leave "${conv.groupName || "this group"}"? You won't receive messages anymore.`,
@@ -490,7 +524,7 @@ export default function ConversationsListScreen({ navigation }) {
         },
       },
     });
-  }, [activeAccount]);
+  }, [activeAccount, navigation]);
 
   // ── Navigate to chat ──────────────────────────────────────────────────────────
   const openConversation = useCallback((conv) => {
