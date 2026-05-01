@@ -623,10 +623,12 @@ const createGroupConversation = async (req, res) => {
 
       const convResult = await client.query(
         `INSERT INTO conversations
-           (is_group, group_name, group_avatar_url, community_auto_join, community_owner_id)
-         VALUES (true, $1, $2, $3, $4)
+           (is_group, group_name, group_avatar_url, community_auto_join, community_owner_id,
+            group_owner_id, group_owner_type)
+         VALUES (true, $1, $2, $3, $4, $5, $6)
          RETURNING id, created_at`,
-        [groupName.trim(), groupAvatarUrl || null, autoJoin, communityOwnerId],
+        [groupName.trim(), groupAvatarUrl || null, autoJoin, communityOwnerId,
+         userId, userType],
       );
       const convId = convResult.rows[0].id;
 
@@ -696,7 +698,8 @@ const getGroupParticipants = async (req, res) => {
     // Fetch conversation metadata (created_at, avatar, messaging_restricted, auto-join, admin-only-invite)
     const convInfo = await pool.query(
       `SELECT created_at, group_avatar_url, messaging_restricted,
-              community_auto_join, community_owner_id, admin_only_invite
+              community_auto_join, community_owner_id, admin_only_invite,
+              group_owner_id, group_owner_type
        FROM conversations WHERE id = $1`,
       [conversationId],
     );
@@ -741,6 +744,8 @@ const getGroupParticipants = async (req, res) => {
       communityAutoJoin:   conversationMeta.community_auto_join  || false,
       communityOwnerId:    conversationMeta.community_owner_id   || null,
       adminOnlyInvite:     conversationMeta.admin_only_invite    || false,
+      groupOwnerId:        conversationMeta.group_owner_id       || null,
+      groupOwnerType:      conversationMeta.group_owner_type     || null,
       _myRole:             myParticipant?.role || "member",
     });
   } catch (error) {
@@ -772,10 +777,6 @@ const updateGroupConversation = async (req, res) => {
     let i = 1;
     if (groupName !== undefined)      { setClauses.push(`group_name = $${i++}`);       values.push(groupName.trim()); }
     if (groupAvatarUrl !== undefined) { setClauses.push(`group_avatar_url = $${i++}`); values.push(groupAvatarUrl); }
-    if (communityAutoJoin !== undefined && userType === "community") {
-      setClauses.push(`community_auto_join = $${i++}`);
-      values.push(communityAutoJoin);
-    }
     if (messagingRestricted !== undefined) {
       setClauses.push(`messaging_restricted = $${i++}`);
       values.push(Boolean(messagingRestricted));
@@ -784,14 +785,35 @@ const updateGroupConversation = async (req, res) => {
       setClauses.push(`admin_only_invite = $${i++}`);
       values.push(Boolean(adminOnlyInvite));
     }
+
+    // communityAutoJoin is settable by the group owner (any type) —
+    // previously locked to userType === "community" which broke after ownership transfer.
+    if (communityAutoJoin !== undefined) {
+      const ownerCheck = await pool.query(
+        `SELECT group_owner_id, group_owner_type, community_owner_id
+         FROM conversations WHERE id = $1`,
+        [conversationId],
+      );
+      const conv = ownerCheck.rows[0];
+      const isGroupOwner =
+        conv &&
+        String(conv.group_owner_id) === String(userId) &&
+        conv.group_owner_type === userType;
+
+      if (isGroupOwner) {
+        setClauses.push(`community_auto_join = $${i++}`);
+        values.push(Boolean(communityAutoJoin));
+      }
+      // If not the group owner, we silently skip this field (don't error — other fields may still update)
+    }
+
     if (setClauses.length === 0) return res.status(400).json({ error: "Nothing to update" });
     values.push(conversationId);
     await pool.query(`UPDATE conversations SET ${setClauses.join(", ")} WHERE id = $${i}`, values);
 
-    // Sync the community-wide master flag so the join-invite gate reflects per-group state.
-    // When any group has community_auto_join = true → set auto_join_group_chat = true on community.
-    // When all groups are off → set auto_join_group_chat = false.
-    if (communityAutoJoin !== undefined && userType === "community") {
+    // Sync the community-wide master flag (only relevant when a community still owns the group).
+    // When community_owner_id is NULL (community left), there is no communities row to update.
+    if (communityAutoJoin !== undefined) {
       const ownerRow = await pool.query(
         `SELECT community_owner_id FROM conversations WHERE id = $1`,
         [conversationId],
@@ -939,10 +961,36 @@ const removeGroupParticipant = async (req, res) => {
 
     if (!isSelf && !isAdmin) return res.status(403).json({ error: "Admin required to remove others" });
 
-    if (isAdmin && isSelf) {
+    // ── Community owner leaving (skip path): auto-handoff ──────────────────────
+    // IMPORTANT: Check for community-owner leaving BEFORE the LAST_ADMIN guard.
+    // When the owner is the sole admin and uses "Skip & Leave", the backend will
+    // auto-promote a new admin — so blocking on LAST_ADMIN here is wrong.
+    const convOwner = await pool.query(
+      `SELECT community_owner_id FROM conversations WHERE id = $1`,
+      [conversationId],
+    );
+    const storedOwnerId = convOwner.rows[0]?.community_owner_id;
+    // isOwnerLeaving: the caller is a community user, is an admin, and either:
+    //   a) they are the stored community owner, OR
+    //   b) community_owner_id is NULL (backfill gap — treat oldest community admin as owner)
+    // We explicitly exclude the case where storedOwnerId is NULL but this caller is NOT
+    // a community type — that is handled by the regular LAST_ADMIN guard below.
+    const isOwnerLeaving =
+      isSelf &&
+      userType === "community" &&
+      isAdmin &&
+      (String(userId) === String(storedOwnerId) || !storedOwnerId);
+
+    console.log("[removeGroupParticipant] ownerCheck:", {
+      isSelf, userType, isAdmin, storedOwnerId, userId, isOwnerLeaving,
+    });
+
+    // LAST_ADMIN guard — only for non-owner-leaving cases
+    if (!isOwnerLeaving && isAdmin && isSelf) {
       const adminCount  = await pool.query(`SELECT COUNT(*) AS cnt FROM conversation_participants WHERE conversation_id = $1 AND role = 'admin'`, [conversationId]);
       const memberCount = await pool.query(`SELECT COUNT(*) AS cnt FROM conversation_participants WHERE conversation_id = $1`, [conversationId]);
       if (parseInt(adminCount.rows[0].cnt) === 1 && parseInt(memberCount.rows[0].cnt) > 1) {
+        console.log("[removeGroupParticipant] LAST_ADMIN guard fired — blocking leave");
         return res.status(400).json({
           error: "LAST_ADMIN",
           message: "You're the only admin. Promote someone before leaving.",
@@ -950,20 +998,8 @@ const removeGroupParticipant = async (req, res) => {
       }
     }
 
-    // ── Community owner leaving (skip path): auto-handoff ──────────────────────
-    const convOwner = await pool.query(
-      `SELECT community_owner_id FROM conversations WHERE id = $1`,
-      [conversationId],
-    );
-    const storedOwnerId = convOwner.rows[0]?.community_owner_id;
-    const isOwnerLeaving =
-      isSelf &&
-      userType === "community" &&
-      isAdmin &&
-      // Match if: owner column equals this user, OR owner column is NULL (backfill gap)
-      (!storedOwnerId || String(userId) === String(storedOwnerId));
-
     if (isOwnerLeaving) {
+      console.log("[removeGroupParticipant] Owner is leaving — running auto-handoff...");
       // Find the longest-standing admin (joined earliest) who isn't the departing owner
       const nextAdmin = await pool.query(
         `SELECT cp.participant_id, cp.participant_type,
@@ -1004,12 +1040,13 @@ const removeGroupParticipant = async (req, res) => {
            WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
           [conversationId, newOwner.participant_id, newOwner.participant_type],
         );
-        // Clear community ownership metadata
+        // Transfer group owner badge + clear community ownership metadata
         await pool.query(
           `UPDATE conversations
-           SET community_owner_id = NULL, community_auto_join = FALSE
+           SET community_owner_id = NULL, community_auto_join = FALSE,
+               group_owner_id = $2, group_owner_type = $3
            WHERE id = $1`,
-          [conversationId],
+          [conversationId, newOwner.participant_id, newOwner.participant_type],
         );
         await pool.query(
           `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type)
@@ -1019,7 +1056,10 @@ const removeGroupParticipant = async (req, res) => {
       } else {
         // No other participants — just clear ownership
         await pool.query(
-          `UPDATE conversations SET community_owner_id = NULL, community_auto_join = FALSE WHERE id = $1`,
+          `UPDATE conversations
+           SET community_owner_id = NULL, community_auto_join = FALSE,
+               group_owner_id = NULL, group_owner_type = NULL
+           WHERE id = $1`,
           [conversationId],
         );
       }
@@ -1066,18 +1106,32 @@ const transferGroupOwnership = async (req, res) => {
     const userType = req.user?.type;
     const { targetId, targetType = "member" } = req.body;
 
+    console.log("[transferGroupOwnership] called:", { conversationId, userId, userType, targetId, targetType });
+
     if (!userId || userType !== "community") {
       return res.status(403).json({ error: "Only the community owner can transfer ownership" });
     }
     if (!targetId) return res.status(400).json({ error: "targetId required" });
 
-    // Verify caller is actually the community_owner_id for this group
+    // Verify caller is the community owner (or community admin when owner_id not set)
     const ownerCheck = await pool.query(
       `SELECT community_owner_id FROM conversations WHERE id = $1`,
       [conversationId],
     );
-    if (String(ownerCheck.rows[0]?.community_owner_id) !== String(userId)) {
+    const storedOwnerId = ownerCheck.rows[0]?.community_owner_id;
+    // Allow if: owner_id matches caller, OR owner_id is NULL (backfill gap) and caller is an admin
+    if (storedOwnerId && String(storedOwnerId) !== String(userId)) {
       return res.status(403).json({ error: "You are not the group owner" });
+    }
+    if (!storedOwnerId) {
+      // Verify caller is at least an admin in this group
+      const adminCheck = await pool.query(
+        `SELECT role FROM conversation_participants WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
+        [conversationId, userId, userType],
+      );
+      if (adminCheck.rows[0]?.role !== "admin") {
+        return res.status(403).json({ error: "You are not the group owner" });
+      }
     }
 
     // Target must be a participant
@@ -1109,11 +1163,25 @@ const transferGroupOwnership = async (req, res) => {
         [conversationId, targetId, targetType],
       );
 
-      // Clear community_owner_id (ownership concept dissolves — new owner is just top admin)
-      // Also turn off auto-join since the community is leaving
+      // Demote the departing community owner to 'member'.
+      // This is critical: when the caller subsequently calls removeGroupParticipant
+      // to actually leave the group, isAdmin will be false, so:
+      //   (a) the LAST_ADMIN guard won't fire, and
+      //   (b) the isOwnerLeaving auto-handoff won't re-trigger a second time.
       await client.query(
-        `UPDATE conversations SET community_owner_id = NULL, community_auto_join = FALSE WHERE id = $1`,
-        [conversationId],
+        `UPDATE conversation_participants SET role = 'member'
+         WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
+        [conversationId, userId, userType],
+      );
+
+      // Transfer group owner badge to the chosen successor
+      // Also clear community_owner_id and turn off auto-join since the community is leaving
+      await client.query(
+        `UPDATE conversations
+         SET community_owner_id = NULL, community_auto_join = FALSE,
+             group_owner_id = $2, group_owner_type = $3
+         WHERE id = $1`,
+        [conversationId, targetId, targetType],
       );
 
       // System message

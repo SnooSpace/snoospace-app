@@ -62,7 +62,7 @@ async function uploadToCloudinary(uri) {
 
 // ── ParticipantRow ───────────────────────────────────────────────────────────
 function ParticipantRow({
-  participant, isCurrentUser, isMeAdmin, communityOwnerId,
+  participant, isCurrentUser, isMeAdmin, communityOwnerId, groupOwnerId, groupOwnerType,
   onKick, onPromote, onDemote, onPress,
 }) {
   const [showActions, setShowActions] = useState(false);
@@ -70,11 +70,13 @@ function ParticipantRow({
   const uri     = participant.photoUrl;
   const isAdmin = participant.role === "admin";
 
-  // Community owner is the root/immutable admin — shown with Crown
+  // Community owner is the root/immutable admin — shown with Crown.
+  // We now use the generic group_owner_id + group_owner_type fields so that
+  // a member who inherits ownership also gets the Crown badge.
   const isCommunityOwner =
-    participant.participantType === "community" &&
-    communityOwnerId &&
-    String(participant.participantId) === String(communityOwnerId);
+    groupOwnerId &&
+    String(participant.participantId) === String(groupOwnerId) &&
+    participant.participantType === groupOwnerType;
 
   // Co-admin = admin but NOT the community owner
   const isCoAdmin = isAdmin && !isCommunityOwner;
@@ -295,10 +297,16 @@ const addStyles = StyleSheet.create({
 function OwnerPickerSheet({ participants, currentUserId, onPick, onSkip, onClose }) {
   const [picking, setPicking] = useState(null);
 
-  const candidates = [
-    ...participants.filter((p) => p.role === "admin"  && String(p.participantId) !== String(currentUserId)),
-    ...participants.filter((p) => p.role !== "admin"  && String(p.participantId) !== String(currentUserId)),
-  ];
+  // Everyone except current owner: admins first, then members (both sorted by join order)
+  const otherAdmins  = participants.filter((p) => p.role === "admin" && String(p.participantId) !== String(currentUserId));
+  const otherMembers = participants.filter((p) => p.role !== "admin" && String(p.participantId) !== String(currentUserId));
+  const candidates   = [...otherAdmins, ...otherMembers];
+
+  // Who would be auto-picked if the owner skips?
+  // Backend logic: longest-standing admin first, fallback to longest-standing member
+  const autoPickPerson = otherAdmins[0] || otherMembers[0];
+  const autoPickName   = autoPickPerson?.name || autoPickPerson?.username || "a member";
+  const autoPickRole   = autoPickPerson?.role === "admin" ? "admin" : "member";
 
   return (
     <View style={opStyles.sheet}>
@@ -350,7 +358,9 @@ function OwnerPickerSheet({ participants, currentUserId, onPick, onSkip, onClose
         <View style={opStyles.skipNote}>
           <Info size={13} color={TEXT_SEC} strokeWidth={2} style={{ marginRight: 6 }} />
           <Text style={opStyles.skipNoteText}>
-            If you skip, the longest-standing admin will automatically become the group manager.
+            {autoPickPerson
+              ? `If you skip, ${autoPickName} will automatically become the group manager.`
+              : "No one will manage this group after you leave."}
           </Text>
         </View>
         <TouchableOpacity style={opStyles.skipBtn} onPress={onSkip}>
@@ -416,6 +426,8 @@ export default function GroupInfoScreen({ route, navigation }) {
   const [adminOnlyInvite,     setAdminOnlyInvite]     = useState(false);
   const [togglingAdminInvite, setTogglingAdminInvite] = useState(false);
   const [showOwnerPicker,     setShowOwnerPicker]     = useState(false);
+  const [groupOwnerId,        setGroupOwnerId]        = useState(null);
+  const [groupOwnerType,      setGroupOwnerType]      = useState(null);
   const [alertConfig,         setAlertConfig]         = useState({
     visible: false,
     title: "",
@@ -454,6 +466,8 @@ export default function GroupInfoScreen({ route, navigation }) {
       setCommunityAutoJoin(res.communityAutoJoin   || false);
       setCommunityOwnerId(res.communityOwnerId     || null);
       setAdminOnlyInvite(res.adminOnlyInvite       || false);
+      setGroupOwnerId(res.groupOwnerId             || null);
+      setGroupOwnerType(res.groupOwnerType         || null);
     } catch (err) {
       console.error("GroupInfoScreen: error loading participants:", err);
     } finally {
@@ -633,13 +647,38 @@ export default function GroupInfoScreen({ route, navigation }) {
     const adminCount  = participants.filter((p) => p.role === "admin").length;
     const isLastAdmin = isMeAdmin && adminCount === 1 && participants.length > 1;
 
+    console.log("[GroupInfo] handleLeave:", {
+      isMeAdmin,
+      adminCount,
+      participantCount: participants.length,
+      isLastAdmin,
+      currentUserType: currentUser?.type,
+      communityOwnerId,
+      currentUserId: currentUser?.id,
+    });
+
     // If the community owner is leaving, show the ownership picker first
     const isCommunityOwnerLeaving =
       currentUser?.type === "community" &&
       communityOwnerId &&
       String(currentUser.id) === String(communityOwnerId);
 
-    if (isCommunityOwnerLeaving) {
+    // Also treat community admin as owner if community_owner_id is NULL
+    const isCommunityAdminLeaving =
+      currentUser?.type === "community" &&
+      isMeAdmin &&
+      !communityOwnerId;
+
+    // Generic group owner leaving — works for any participant type
+    // Fires when a member (or community) who holds the group_owner_id tries to leave
+    const isGroupOwnerLeaving =
+      groupOwnerId &&
+      String(currentUser?.id) === String(groupOwnerId) &&
+      currentUser?.type === groupOwnerType;
+
+    console.log("[GroupInfo] ownerCheck:", { isCommunityOwnerLeaving, isCommunityAdminLeaving, isGroupOwnerLeaving });
+
+    if (isCommunityOwnerLeaving || isCommunityAdminLeaving || isGroupOwnerLeaving) {
       setShowOwnerPicker(true);
       return;
     }
@@ -665,10 +704,14 @@ export default function GroupInfoScreen({ route, navigation }) {
         text: "Leave",
         style: "destructive",
         onPress: async () => {
+          hideAlert();
           try {
+            console.log("[GroupInfo] Calling removeGroupParticipant (normal leave)...");
             await removeGroupParticipant(conversationId, currentUser.id, currentUser.type || "member");
+            console.log("[GroupInfo] removeGroupParticipant success");
             navigation.popToTop();
           } catch (err) {
+            console.error("[GroupInfo] removeGroupParticipant error:", err);
             const isLastAdminErr = err?.message === "LAST_ADMIN" || err?.error === "LAST_ADMIN";
             showAlert({
               title: isLastAdminErr ? "Promote Someone First" : "Error",
@@ -683,53 +726,111 @@ export default function GroupInfoScreen({ route, navigation }) {
         },
       },
     });
-  }, [communityOwnerId, conversationId, currentUser, isMeAdmin, navigation, participants]);
+  }, [communityOwnerId, conversationId, currentUser, groupOwnerId, groupOwnerType, isMeAdmin, navigation, participants]);
 
-  // ── Pick owner & leave (community owner explicit choice) ───────────────────
+  // ── Pick owner & leave (community owner explicit choice) ─────────────────
   const handlePickOwner = useCallback(async (target) => {
+    console.log("[GroupInfo] handlePickOwner called:", {
+      targetId:        target.participantId,
+      targetType:      target.participantType,
+      conversationId,
+      currentUserId:   currentUser?.id,
+      currentUserType: currentUser?.type,
+    });
     setShowOwnerPicker(false);
     try {
-      await transferGroupOwnership(conversationId, target.participantId, target.participantType || "member");
-      await removeGroupParticipant(conversationId, currentUser.id, currentUser.type);
+      // Step 1: Transfer ownership (promotes target, demotes us to member, clears community_owner_id)
+      console.log("[GroupInfo] Step 1: Calling transferGroupOwnership...");
+      const transferRes = await transferGroupOwnership(
+        conversationId,
+        target.participantId,
+        target.participantType || "member",
+      );
+      console.log("[GroupInfo] Step 1 SUCCESS:", transferRes);
+
+      // Step 2: Remove ourselves (we are now a regular member, so this is a clean self-leave)
+      console.log("[GroupInfo] Step 2: Calling removeGroupParticipant (self-leave as member)...");
+      const removeRes = await removeGroupParticipant(conversationId, currentUser.id, currentUser.type);
+      console.log("[GroupInfo] Step 2 SUCCESS:", removeRes);
+
+      console.log("[GroupInfo] Ownership transfer complete. Navigating away...");
       navigation.popToTop();
     } catch (err) {
+      console.error("[GroupInfo] handlePickOwner ERROR:", {
+        message: err?.message,
+        status:  err?.status,
+        data:    err?.data,
+      });
       showAlert({
-        title: "Error",
-        message: err?.message || "Could not transfer ownership.",
+        title:         "Error",
+        message:       err?.message || "Could not transfer ownership.",
         primaryAction: { text: "OK", onPress: hideAlert },
-        icon: AlertTriangle,
+        icon:          AlertTriangle,
       });
     }
   }, [conversationId, currentUser, navigation]);
 
   // ── Skip ownership pick & leave (backend auto-assigns) ─────────────────────
   const handleSkipOwner = useCallback(() => {
+    console.log("[GroupInfo] handleSkipOwner called:", {
+      currentUserId:   currentUser?.id,
+      currentUserType: currentUser?.type,
+      conversationId,
+    });
     setShowOwnerPicker(false);
+
+    // Compute who the backend would auto-pick (same logic as OwnerPickerSheet)
+    const otherAdmins  = participants.filter((p) => p.role === "admin" && String(p.participantId) !== String(currentUser?.id));
+    const otherMembers = participants.filter((p) => p.role !== "admin" && String(p.participantId) !== String(currentUser?.id));
+    const autoPickPerson = otherAdmins[0] || otherMembers[0];
+    const autoPickName   = autoPickPerson?.name || autoPickPerson?.username || "a member";
+
+    console.log("[GroupInfo] Auto-pick preview:", {
+      autoPickName,
+      autoPickId:        autoPickPerson?.participantId,
+      otherAdminsCount:  otherAdmins.length,
+      otherMembersCount: otherMembers.length,
+    });
+
     showAlert({
-      title: "Leave Group",
-      message: "The longest-standing admin will automatically become the group manager. Continue?",
-      icon: Crown,
+      title:   "Leave Group",
+      message: autoPickPerson
+        ? `${autoPickName} will automatically become the group manager. Continue?`
+        : "You're the only member. The group will have no manager after you leave. Continue?",
+      icon:      Crown,
       iconColor: GOLD,
       secondaryAction: { text: "Cancel", onPress: hideAlert },
       primaryAction: {
-        text: "Leave",
+        text:  "Leave",
         style: "destructive",
         onPress: async () => {
+          hideAlert();
           try {
-            await removeGroupParticipant(conversationId, currentUser.id, currentUser.type);
+            console.log("[GroupInfo] Calling removeGroupParticipant (skip & leave):", {
+              conversationId,
+              participantId:   currentUser.id,
+              participantType: currentUser.type,
+            });
+            const res = await removeGroupParticipant(conversationId, currentUser.id, currentUser.type);
+            console.log("[GroupInfo] removeGroupParticipant success (skip):", res);
             navigation.popToTop();
           } catch (err) {
+            console.error("[GroupInfo] handleSkipOwner ERROR:", {
+              message: err?.message,
+              status:  err?.status,
+              data:    err?.data,
+            });
             showAlert({
-              title: "Error",
-              message: err?.message || "Could not leave group.",
+              title:         "Error",
+              message:       err?.message || "Could not leave group.",
               primaryAction: { text: "OK", onPress: hideAlert },
-              icon: AlertTriangle,
+              icon:          AlertTriangle,
             });
           }
         },
       },
     });
-  }, [conversationId, currentUser, navigation]);
+  }, [conversationId, currentUser, navigation, participants]);
 
   // ── Toggle messaging restriction ────────────────────────────────────────────────────────────
   const handleToggleRestrict = useCallback(async (value) => {
@@ -940,10 +1041,11 @@ export default function GroupInfoScreen({ route, navigation }) {
           />
         )}
 
-        {/* Auto-join toggle (community owner + admin only) */}
+        {/* Auto-join toggle — visible to the group owner (any type) */}
         {isMeAdmin &&
-          currentUser?.type === "community" &&
-          String(currentUser?.id) === String(communityOwnerId) && (
+          groupOwnerId &&
+          String(currentUser?.id) === String(groupOwnerId) &&
+          currentUser?.type === groupOwnerType && (
           <View style={styles.restrictRow}>
             <View style={styles.restrictRowLeft}>
               <View style={[styles.restrictIcon, { backgroundColor: "rgba(53,101,242,0.1)" }]}>
@@ -1036,6 +1138,8 @@ export default function GroupInfoScreen({ route, navigation }) {
                   isCurrentUser={String(p.participantId) === String(currentUser?.id)}
                   isMeAdmin={isMeAdmin}
                   communityOwnerId={communityOwnerId}
+                  groupOwnerId={groupOwnerId}
+                  groupOwnerType={groupOwnerType}
                   onKick={() => handleKick(p)}
                   onPromote={() => handlePromote(p)}
                   onDemote={() => handleDemote(p)}
@@ -1056,6 +1160,8 @@ export default function GroupInfoScreen({ route, navigation }) {
                   isCurrentUser={String(p.participantId) === String(currentUser?.id)}
                   isMeAdmin={isMeAdmin}
                   communityOwnerId={communityOwnerId}
+                  groupOwnerId={groupOwnerId}
+                  groupOwnerType={groupOwnerType}
                   onKick={() => handleKick(p)}
                   onPromote={() => handlePromote(p)}
                   onDemote={() => handleDemote(p)}

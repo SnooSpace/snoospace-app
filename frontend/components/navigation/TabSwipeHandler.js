@@ -6,6 +6,7 @@ import Animated, { runOnJS } from 'react-native-reanimated';
 
 // Define the order of bottom tabs
 const TABS = ["Home", "Search", "Discover", "YourEvents", "Profile"];
+const SWIPE_THRESHOLD = Dimensions.get('window').width * 0.2;
 
 export default function TabSwipeHandler({ children, currentTab }) {
   const navigation = useNavigation();
@@ -34,18 +35,19 @@ export default function TabSwipeHandler({ children, currentTab }) {
     .activeOffsetX([-50, 50])
     // If the user scrolls vertically more than 20px, cancel this horizontal swipe gesture
     .failOffsetY([-20, 20])
+    .runOnJS(true)
     .onEnd((event) => {
       // Once ended, check if the velocity or translation was enough to trigger a tab switch
       const { translationX, velocityX } = event;
       
       const isFast = Math.abs(velocityX) > 400;
-      const isFar = Math.abs(translationX) > Dimensions.get('window').width * 0.2;
+      const isFar = Math.abs(translationX) > SWIPE_THRESHOLD;
 
       if (isFast || isFar) {
         if (translationX < 0) {
-          runOnJS(handleSwipe)('left');
+          handleSwipe('left');
         } else {
-          runOnJS(handleSwipe)('right');
+          handleSwipe('right');
         }
       }
     });

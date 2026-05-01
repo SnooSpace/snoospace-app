@@ -708,6 +708,21 @@ async function ensureTables(pool) {
         AND cp.role = 'admin'
         AND c.is_group = TRUE
         AND c.community_owner_id IS NULL;
+
+      -- Generic group owner columns (Migration 008) — type-agnostic, works for member OR community
+      ALTER TABLE conversations ADD COLUMN IF NOT EXISTS group_owner_id   BIGINT;
+      ALTER TABLE conversations ADD COLUMN IF NOT EXISTS group_owner_type VARCHAR(20);
+      CREATE INDEX IF NOT EXISTS idx_conversations_group_owner
+        ON conversations(group_owner_id, group_owner_type)
+        WHERE group_owner_id IS NOT NULL;
+
+      -- Backfill group_owner_id from community_owner_id (no-op after first run)
+      UPDATE conversations
+      SET group_owner_id   = community_owner_id,
+          group_owner_type = 'community'
+      WHERE is_group = TRUE
+        AND community_owner_id IS NOT NULL
+        AND group_owner_id IS NULL;
       
       -- Add missing columns to members table
       DO $$ BEGIN
