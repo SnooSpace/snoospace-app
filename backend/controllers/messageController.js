@@ -965,6 +965,41 @@ const removeGroupParticipant = async (req, res) => {
 
     if (!isSelf && !isAdmin) return res.status(403).json({ error: "Admin required to remove others" });
 
+    // Prevent any admin from kicking the group owner — the owner can only leave themselves.
+    // Also prevent regular admins from kicking other admins — only the owner can do that.
+    if (!isSelf && isAdmin) {
+      const ownerGuard = await pool.query(
+        `SELECT c.group_owner_id, c.group_owner_type,
+                cp.role AS target_role
+         FROM conversations c
+         LEFT JOIN conversation_participants cp
+           ON cp.conversation_id = c.id
+           AND cp.participant_id = $2 AND cp.participant_type = $3
+         WHERE c.id = $1`,
+        [conversationId, participantId, participantType],
+      );
+      const g = ownerGuard.rows[0] || {};
+
+      // Block kicking the group owner entirely
+      if (
+        g.group_owner_id &&
+        String(participantId) === String(g.group_owner_id) &&
+        participantType === g.group_owner_type
+      ) {
+        return res.status(403).json({ error: "The group owner cannot be removed by another admin" });
+      }
+
+      // Block non-owner admins from kicking other admins
+      const callerIsOwner =
+        g.group_owner_id &&
+        String(userId) === String(g.group_owner_id) &&
+        userType === g.group_owner_type;
+
+      if (g.target_role === "admin" && !callerIsOwner) {
+        return res.status(403).json({ error: "Only the group owner can remove other admins" });
+      }
+    }
+
     // ── Group owner leaving (skip path): auto-handoff ──────────────────────────
     // IMPORTANT: Check for group-owner leaving BEFORE the LAST_ADMIN guard.
     // When the owner is the sole admin and uses "Skip & Leave", the backend will
@@ -1110,7 +1145,7 @@ const removeGroupParticipant = async (req, res) => {
 };
 
 // ─── transferGroupOwnership ───────────────────────────────────────────────────
-// Called when the community owner explicitly picks a successor before leaving.
+// Called when the group owner explicitly picks a successor before leaving.
 // After this succeeds the caller should call removeGroupParticipant to actually leave.
 const transferGroupOwnership = async (req, res) => {
   try {
@@ -1121,23 +1156,28 @@ const transferGroupOwnership = async (req, res) => {
 
     console.log("[transferGroupOwnership] called:", { conversationId, userId, userType, targetId, targetType });
 
-    if (!userId || userType !== "community") {
-      return res.status(403).json({ error: "Only the community owner can transfer ownership" });
+    if (!userId || (userType !== "member" && userType !== "community")) {
+      return res.status(401).json({ error: "Authentication required" });
     }
     if (!targetId) return res.status(400).json({ error: "targetId required" });
 
-    // Verify caller is the community owner (or community admin when owner_id not set)
+    // Verify caller is the current group owner
     const ownerCheck = await pool.query(
-      `SELECT community_owner_id FROM conversations WHERE id = $1`,
+      `SELECT group_owner_id, group_owner_type, community_owner_id FROM conversations WHERE id = $1`,
       [conversationId],
     );
-    const storedOwnerId = ownerCheck.rows[0]?.community_owner_id;
-    // Allow if: owner_id matches caller, OR owner_id is NULL (backfill gap) and caller is an admin
-    if (storedOwnerId && String(storedOwnerId) !== String(userId)) {
-      return res.status(403).json({ error: "You are not the group owner" });
-    }
-    if (!storedOwnerId) {
-      // Verify caller is at least an admin in this group
+    const conv = ownerCheck.rows[0] || {};
+
+    // Allow if: caller holds group_owner_id (any type), OR is a community admin on legacy group
+    const isGroupOwner =
+      (conv.group_owner_id &&
+        String(conv.group_owner_id) === String(userId) &&
+        conv.group_owner_type === userType) ||
+      (userType === "community" &&
+        (!conv.community_owner_id || String(conv.community_owner_id) === String(userId)));
+
+    if (!isGroupOwner) {
+      // Fall back: verify caller is at least an admin (legacy backfill gap)
       const adminCheck = await pool.query(
         `SELECT role FROM conversation_participants WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
         [conversationId, userId, userType],
