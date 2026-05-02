@@ -252,7 +252,7 @@ const EditorialPostCard = ({
     // Skip video (handled separately) or not in viewport
     if (isVideo || !isInViewport) return;
 
-    const dwellThreshold = isImage ? 1500 : 2000; // 1.5s for images, 2s for text
+    const dwellThreshold = 2500; // 2.5s for all post types (image, text)
 
     const alreadyViewed = viewQueueService.hasViewed(post.id);
     console.log(`[EditorialPostCard] Dwell timer START post=${post.id} alreadyViewed=${alreadyViewed} threshold=${dwellThreshold}ms`);
@@ -312,7 +312,7 @@ const EditorialPostCard = ({
     (isPlaying) => {
       if (isPlaying) {
         playbackStartTimeRef.current = Date.now();
-        // Check after 2 seconds if still playing
+        // Check after 2.5 seconds if still playing
         setTimeout(() => {
           if (
             playbackStartTimeRef.current &&
@@ -320,7 +320,7 @@ const EditorialPostCard = ({
             !viewQueueService.hasViewed(post.id)
           ) {
             const elapsed = Date.now() - playbackStartTimeRef.current;
-            if (elapsed >= 2000) {
+            if (elapsed >= 2500) {
               setVideoViewCounted(true);
               viewQueueService.addQualifiedView(post.id, {
                 postType: "video",
@@ -329,7 +329,7 @@ const EditorialPostCard = ({
               });
             }
           }
-        }, 2000);
+        }, 2500);
       } else {
         playbackStartTimeRef.current = null;
       }
