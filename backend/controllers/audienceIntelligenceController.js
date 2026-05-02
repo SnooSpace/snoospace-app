@@ -487,13 +487,13 @@ async function getCreatorStats(req, res) {
 
     const stats = result.rows[0];
 
-    // Enrich geographic_breakdown with learned city scores
-    const geoBreakdown = stats.geographic_breakdown || {};
-    const cityNames = Object.keys(geoBreakdown);
-    const enrichedGeo = {};
+    // Enrich geographic_breakdown with learned city scores (non-fatal)
+    try {
+      const geoBreakdown = stats.geographic_breakdown || {};
+      const cityNames = Object.keys(geoBreakdown);
+      const enrichedGeo = {};
 
-    if (cityNames.length > 0) {
-      try {
+      if (cityNames.length > 0) {
         const scoresResult = await pool.query(
           `SELECT dimension_value, learned_score, confidence_level
            FROM learned_demographic_scores
@@ -517,15 +517,13 @@ async function getCreatorStats(req, res) {
             confidence: scoreMap[city]?.confidence ?? "insufficient",
           };
         }
-      } catch (geoErr) {
-        // Non-fatal — return raw breakdown without scores
-        for (const city of cityNames) {
-          enrichedGeo[city] = { ...geoBreakdown[city], buyingPowerIndex: null, confidence: "insufficient" };
-        }
-      }
-    }
 
-    stats.geographic_breakdown = enrichedGeo;
+        stats.geographic_breakdown = enrichedGeo;
+      }
+    } catch (geoErr) {
+      // Non-fatal — migration may not have run yet; return raw breakdown
+      console.warn("[AQI] getCreatorStats geo enrichment skipped:", geoErr.message);
+    }
 
     res.json({ success: true, stats });
   } catch (error) {

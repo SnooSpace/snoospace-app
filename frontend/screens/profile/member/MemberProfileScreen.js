@@ -1423,9 +1423,21 @@ export default function MemberProfileScreen({ navigation }) {
         visible={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
         onNotificationsPress={handleEditProfile}
-        onPrivacyPress={() =>
-          Alert.alert("Privacy", "Privacy settings will be implemented soon!")
-        }
+        onPrivacyPress={() => {
+          setShowSettingsModal(false);
+          // Navigate to MyDataScreen via root navigator (AppNavigator level)
+          let rootNav = navigation;
+          try {
+            if (navigation.getParent) {
+              const p1 = navigation.getParent();
+              if (p1 && p1.getParent) {
+                const p2 = p1.getParent();
+                if (p2) rootNav = p2;
+              }
+            }
+          } catch (_) {}
+          rootNav.navigate("MyDataScreen");
+        }}
         onHelpPress={() =>
           Alert.alert("Help", "Help & Support will be implemented soon!")
         }

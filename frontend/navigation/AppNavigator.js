@@ -32,6 +32,8 @@ import { CropScreen, BatchCropScreen } from "../components/MediaCrop";
 import DeleteAccountScreen from "../screens/profile/DeleteAccountScreen";
 import DeleteConfirmationScreen from "../screens/profile/DeleteConfirmationScreen";
 import SavedPostsScreen from "../screens/SavedPostsScreen";
+import ConsentScreen from "../screens/Privacy/ConsentScreen";
+import MyDataScreen from "../screens/Privacy/MyDataScreen";
 
 const Stack = createStackNavigator();
 
@@ -167,6 +169,16 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="SavedPostsScreen"
         component={SavedPostsScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="ConsentScreen"
+        component={ConsentScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="MyDataScreen"
+        component={MyDataScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

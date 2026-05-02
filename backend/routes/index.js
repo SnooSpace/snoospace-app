@@ -34,7 +34,9 @@ const ViewsController = require("../controllers/viewsController");
 const ShareController = require("../controllers/shareController");
 const SaveController = require("../controllers/saveController");
 const AudienceIntelligenceController = require("../controllers/audienceIntelligenceController");
+const PrivacyController = require("../controllers/privacyController");
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
+const { requireBehavioralConsent, requireBrandConsent } = require("../middleware/consentGate");
 
 const router = express.Router();
 
@@ -1172,16 +1174,26 @@ router.get(
 );
 
 // ============================================
+// PRIVACY & CONSENT (DPDP Act Compliance)
+// ============================================
+router.post("/privacy/consent", authMiddleware, PrivacyController.updateConsent);
+router.get("/privacy/consent", authMiddleware, PrivacyController.getConsent);
+router.post("/privacy/request-deletion", authMiddleware, PrivacyController.requestDataDeletion);
+router.get("/privacy/my-data-summary", authMiddleware, PrivacyController.getMyDataSummary);
+
+// ============================================
 // AUDIENCE INTELLIGENCE
 // ============================================
 router.post(
   "/audience/track-follow",
   authMiddleware,
+  requireBehavioralConsent,
   AudienceIntelligenceController.trackFollow,
 );
 router.post(
   "/audience/track-engagement",
   authMiddleware,
+  requireBehavioralConsent,
   AudienceIntelligenceController.trackEngagement,
 );
 router.post(
@@ -1197,6 +1209,7 @@ router.get(
 router.get(
   "/audience/brand-matches/:brandId/:campaignId",
   authMiddleware,
+  requireBrandConsent,
   AudienceIntelligenceController.getBrandMatches,
 );
 router.post(
@@ -1208,6 +1221,7 @@ router.post(
 router.post(
   "/audience/recalculate-interest-vectors/:userId",
   authMiddleware,
+  requireBehavioralConsent,
   AudienceIntelligenceController.recalculateInterestVectorsEndpoint,
 );
 router.post(

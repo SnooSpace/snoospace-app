@@ -605,7 +605,7 @@ export default function AudienceIntelligenceScreen({ navigation }) {
 
         {loading ? (
           <LoadingSkeleton />
-        ) : error ? (
+        ) : error || !stats ? (
           <ErrorState onRetry={fetchStats} />
         ) : (
           <ScrollView
