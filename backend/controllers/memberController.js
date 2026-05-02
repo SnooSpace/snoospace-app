@@ -1,3 +1,5 @@
+const { ensureOccupationInHierarchy } = require("../utils/demographicScoreLookup");
+
 function parsePgTextArray(value) {
   if (!value) return null;
   if (Array.isArray(value)) return value;
@@ -124,6 +126,12 @@ async function signup(req, res) {
         show_pronouns !== false, // default to true
       ]
     );
+
+    // V2: Ensure occupation is tracked in hierarchy for demographic learning
+    if (occupation) {
+      ensureOccupationInHierarchy(pool, occupation, null).catch(() => {});
+    }
+
     res.json({ member: result.rows[0] });
   } catch (err) {
     console.error("/members/signup error:", err && err.stack ? err.stack : err);

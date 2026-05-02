@@ -15,7 +15,7 @@ import {
 } from "lucide-react-native";
 
 import { COLORS, FONTS, SPACING } from "../../../constants/theme";
-import { getBrandMatches } from "../../../api/audienceIntelligence";
+import { getBrandMatches, getActiveCategories } from "../../../api/audienceIntelligence";
 import { getActiveAccount } from "../../../api/auth";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
@@ -31,7 +31,7 @@ const SECONDARY = "rgba(255,255,255,0.70)";
 
 // ── Filter Chips ──
 const TIER_FILTERS = ["All tiers", "Tier 1 heavy", "Tier 1+2 balanced"];
-const CATEGORY_FILTERS = ["All", "Fitness", "Tech", "Lifestyle", "Business", "Food", "Wellness"];
+const FALLBACK_CATEGORIES = ["All", "Fitness", "Tech", "Lifestyle", "Business", "Food", "Wellness"];
 const SORT_OPTIONS = [
   { key: "match", label: "By Match Score" },
   { key: "reach", label: "By Quality Reach" },
@@ -106,16 +106,24 @@ const CreatorCard = ({ match, onPress }) => {
             </View>
           </View>
 
-          {/* Category chips */}
-          {match.top_spending_categories && match.top_spending_categories.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
-              {match.top_spending_categories.slice(0, 4).map((cat, i) => (
-                <View key={i} style={styles.miniChip}>
-                  <Text style={styles.miniChipText}>{typeof cat === "string" ? cat : cat.name}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          )}
+          {/* Category chips + trajectory badge */}
+          <View style={styles.chipTrajectoryRow}>
+            {match.top_spending_categories && match.top_spending_categories.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
+                {match.top_spending_categories.slice(0, 3).map((cat, i) => (
+                  <View key={i} style={styles.miniChip}>
+                    <Text style={styles.miniChipText}>{typeof cat === "string" ? cat : cat.name}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+            {(match.aqi_trajectory === "rising") && (
+              <View style={styles.trajectoryBadge}>
+                <TrendingUp size={12} color={ACCENT_GREEN} />
+                <Text style={styles.trajectoryBadgeText}>Rising</Text>
+              </View>
+            )}
+          </View>
 
           {/* Why this match? */}
           <TouchableOpacity style={styles.whyMatchRow} onPress={() => setExpanded(!expanded)}>
@@ -263,6 +271,8 @@ export default function CreatorDiscoveryScreen({ navigation }) {
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [selectedCreator, setSelectedCreator] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [dynamicCategories, setDynamicCategories] = useState(FALLBACK_CATEGORIES);
+  const [risingOnly, setRisingOnly] = useState(false);
 
   const fetchMatches = useCallback(async () => {
     try {
@@ -288,8 +298,27 @@ export default function CreatorDiscoveryScreen({ navigation }) {
 
   useEffect(() => { fetchMatches(); }, [fetchMatches]);
 
+  // Fetch dynamic categories
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await getActiveCategories();
+        if (res?.success && res.categories?.length > 0) {
+          setDynamicCategories(["All", ...res.categories.map((c) => c.category)]);
+        }
+      } catch (e) {
+        // Fallback to hardcoded categories
+      }
+    })();
+  }, []);
+
+  // Filter: rising audience
+  const filteredMatches = risingOnly
+    ? [...matches].filter((m) => m.aqi_trajectory === "rising")
+    : matches;
+
   // Sort
-  const sortedMatches = [...matches].sort((a, b) => {
+  const sortedMatches = [...filteredMatches].sort((a, b) => {
     if (sortBy === "reach") return ((b.tier1_followers || 0) + (b.tier2_followers || 0)) - ((a.tier1_followers || 0) + (a.tier2_followers || 0));
     if (sortBy === "aqi") return (b.audience_buying_power_score || 0) - (a.audience_buying_power_score || 0);
     return (b.total_match_score || 0) - (a.total_match_score || 0);
@@ -333,10 +362,18 @@ export default function CreatorDiscoveryScreen({ navigation }) {
             ))}
           </ScrollView>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {CATEGORY_FILTERS.map(f => (
+            {dynamicCategories.map(f => (
               <FilterChip key={f} label={f} active={selectedCategory === f} onPress={() => setSelectedCategory(f)} />
             ))}
           </ScrollView>
+          <View style={{ marginTop: 8 }}>
+            <TouchableOpacity
+              style={[styles.filterChip, risingOnly && styles.filterChipActive, { alignSelf: "flex-start" }]}
+              onPress={() => setRisingOnly(!risingOnly)}
+            >
+              <Text style={[styles.filterChipText, risingOnly && styles.filterChipTextActive]}>🔺 Rising Only</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Content */}
@@ -407,6 +444,10 @@ const styles = StyleSheet.create({
   // Mini chips
   miniChip: { backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 12, paddingHorizontal: 10, paddingVertical: 4, marginRight: 6 },
   miniChipText: { fontFamily: FONTS.medium, fontSize: 11, color: MUTED },
+  // Trajectory badge
+  chipTrajectoryRow: { flexDirection: "row", alignItems: "center", marginTop: 12, gap: 8 },
+  trajectoryBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(52,211,153,0.12)", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
+  trajectoryBadgeText: { fontFamily: FONTS.semiBold, fontSize: 11, color: ACCENT_GREEN },
   // Why match
   whyMatchRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: "rgba(255,255,255,0.06)" },
   whyMatchText: { fontFamily: FONTS.medium, fontSize: 12, color: MUTED },

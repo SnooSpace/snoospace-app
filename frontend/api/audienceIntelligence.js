@@ -118,3 +118,57 @@ export const recalculateCreatorStats = async (creatorId) => {
     return null;
   }
 };
+
+// ── V2 Endpoints ──
+
+/**
+ * Get active categories on the platform (for brand filters)
+ */
+export const getActiveCategories = async () => {
+  try {
+    const response = await apiGet("/audience/active-categories");
+    return response;
+  } catch (error) {
+    console.error("[AudienceAPI] getActiveCategories error:", error);
+    return null;
+  }
+};
+
+/**
+ * Get a user's interest vector
+ */
+export const getUserInterests = async (userId) => {
+  try {
+    const response = await apiGet(`/audience/user-interests/${userId}`);
+    return response;
+  } catch (error) {
+    console.error("[AudienceAPI] getUserInterests error:", error);
+    return null;
+  }
+};
+
+/**
+ * Trigger interest vector recalculation for a user
+ */
+export const recalculateInterestVectors = async (userId) => {
+  try {
+    const response = await apiPost(`/audience/recalculate-interest-vectors/${userId}`);
+    return response;
+  } catch (error) {
+    console.error("[AudienceAPI] recalculateInterestVectors error:", error);
+    return null;
+  }
+};
+
+/**
+ * Trigger drift detection for a user
+ */
+export const detectDrift = async (userId) => {
+  try {
+    const response = await apiPost(`/audience/detect-drift/${userId}`);
+    return response;
+  } catch (error) {
+    console.error("[AudienceAPI] detectDrift error:", error);
+    return null;
+  }
+};

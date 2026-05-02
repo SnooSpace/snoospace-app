@@ -7,6 +7,13 @@
 
 const { createPool } = require("../config/db");
 const pool = createPool();
+const {
+  getLearnedDemographicScore,
+  resolveOccupationFallback,
+  resolveAgeFallback,
+  getPlatformMedianAqi,
+} = require("../utils/demographicScoreLookup");
+const { recalculateInterestVectors, detectDrift } = require("../utils/interestVectorEngine");
 
 // ============================================================
 // HELPERS
@@ -104,6 +111,26 @@ async function trackFollow(req, res) {
     res.status(500).json({ error: "Failed to track follow event" });
   }
 }
+// Signal strength by action type — stronger actions get higher weight
+const SIGNAL_STRENGTH_MAP = {
+  paid_event_attended: 3.0,
+  event_hosted: 3.0,
+  free_event_attended: 1.5,
+  event_rsvp: 1.0,
+  content_watched_long: 1.0,
+  content_shared: 2.0,
+  search_performed: 0.5,
+  profile_visited: 0.3,
+  content_watched_short: 0.3,
+};
+
+/**
+ * Calculate onboarding weight decay based on total behavior events.
+ * Starts at 0.90, decays toward 0.02 as behavior accumulates.
+ */
+function calculateOnboardingWeight(totalEvents) {
+  return Math.max(0.02, 0.90 * Math.exp(-0.008 * totalEvents));
+}
 
 // ============================================================
 // POST /audience/track-engagement
@@ -132,14 +159,69 @@ async function trackEngagement(req, res) {
       [userId],
     );
 
-    // Build incremental updates based on engagement type
+    // --- V2: Determine signal strength and event type ---
+    let eventType = "content_watched";
+    let signalStrength = 0.3;
+
+    if (isPaidEvent) {
+      eventType = "event_attended";
+      signalStrength = SIGNAL_STRENGTH_MAP.paid_event_attended;
+    } else if (contentType === "event") {
+      eventType = "event_attended";
+      signalStrength = SIGNAL_STRENGTH_MAP.free_event_attended;
+    } else if (contentType === "share") {
+      eventType = "content_shared";
+      signalStrength = SIGNAL_STRENGTH_MAP.content_shared;
+    } else if (contentType === "search") {
+      eventType = "search_performed";
+      signalStrength = SIGNAL_STRENGTH_MAP.search_performed;
+    } else if (durationSeconds > 60) {
+      signalStrength = SIGNAL_STRENGTH_MAP.content_watched_long;
+    }
+
+    // --- V2: Insert into behavior event stream ---
+    await pool.query(
+      `INSERT INTO user_behavior_events (user_id, event_type, category, metadata, signal_strength)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        userId,
+        eventType,
+        eventCategory || null,
+        JSON.stringify({ contentType, contentId, durationSeconds, ticketPrice }),
+        signalStrength,
+      ],
+    );
+
+    // --- V2: Upsert interest vector if category exists ---
+    if (eventCategory) {
+      await pool.query(
+        `INSERT INTO user_interest_vectors (user_id, category, raw_score, signal_count, last_signal_at)
+         VALUES ($1, $2, $3, 1, NOW())
+         ON CONFLICT (user_id, category) DO UPDATE SET
+           raw_score = user_interest_vectors.raw_score + $3,
+           signal_count = user_interest_vectors.signal_count + 1,
+           last_signal_at = NOW()`,
+        [userId, eventCategory.toLowerCase(), signalStrength],
+      );
+    }
+
+    // --- V2: Update dynamic weights ---
+    await pool.query(
+      `UPDATE user_aqi_signals SET
+         total_behavior_events = total_behavior_events + 1,
+         onboarding_weight = GREATEST(0.02, 0.90 * EXP(-0.008 * (total_behavior_events + 1))),
+         behavior_weight = 1.0 - GREATEST(0.02, 0.90 * EXP(-0.008 * (total_behavior_events + 1)))
+       WHERE user_id = $1`,
+      [userId],
+    );
+
+    // --- Original v1 user_aqi_signals updates (preserved) ---
     const updates = [];
     const params = [userId];
     let paramIndex = 2;
 
     if (isPaidEvent) {
       updates.push(`paid_events_attended = paid_events_attended + 1`);
-      // Update rolling average ticket price
       updates.push(
         `avg_ticket_price_paid = (avg_ticket_price_paid * paid_events_attended + $${paramIndex}) / (paid_events_attended + 1)`,
       );
@@ -149,9 +231,8 @@ async function trackEngagement(req, res) {
       updates.push(`free_events_attended = free_events_attended + 1`);
     }
 
-    // Update content depth score (weighted rolling average of engagement duration)
     if (durationSeconds > 0 && (contentType === "post" || contentType === "video")) {
-      const depthContribution = Math.min(100, durationSeconds / 3); // 300s = perfect score
+      const depthContribution = Math.min(100, durationSeconds / 3);
       updates.push(
         `content_depth_score = (content_depth_score * 0.9) + ($${paramIndex} * 0.1)`,
       );
@@ -159,45 +240,27 @@ async function trackEngagement(req, res) {
       paramIndex++;
     }
 
-    // Update engagement hour pattern
     if (hourOfDay !== undefined && hourOfDay >= 0 && hourOfDay <= 23) {
       updates.push(
         `engagement_hour_pattern = jsonb_set(
           COALESCE(engagement_hour_pattern, '{}'::jsonb),
           $${paramIndex}::text[],
-          (COALESCE((engagement_hour_pattern->>$${paramIndex + 1})::int, 0) + 1)::text::jsonb
+          (COALESCE((engagement_hour_pattern->>'${hourOfDay}')::int, 0) + 1)::text::jsonb
         )`,
       );
       params.push(`{${hourOfDay}}`);
-      params.push(String(hourOfDay));
-      paramIndex += 2;
+      paramIndex++;
 
-      // Update professional hours ratio (8am–7pm weekdays simplified)
       if (hourOfDay >= 8 && hourOfDay <= 19) {
-        updates.push(
-          `professional_hours_ratio = (professional_hours_ratio * 0.95) + (1.0 * 0.05)`,
-        );
+        updates.push(`professional_hours_ratio = (professional_hours_ratio * 0.95) + (1.0 * 0.05)`);
       } else {
-        updates.push(
-          `professional_hours_ratio = (professional_hours_ratio * 0.95) + (0.0 * 0.05)`,
-        );
+        updates.push(`professional_hours_ratio = (professional_hours_ratio * 0.95) + (0.0 * 0.05)`);
       }
     }
 
-    // Update premium categories ratio
-    const premiumCategories = [
-      "wellness",
-      "tech",
-      "technology",
-      "business",
-      "luxury",
-      "finance",
-      "professional",
-    ];
+    const premiumCategories = ["wellness", "tech", "technology", "business", "luxury", "finance", "professional"];
     if (eventCategory) {
-      const isPremium = premiumCategories.includes(
-        eventCategory.toLowerCase(),
-      );
+      const isPremium = premiumCategories.includes(eventCategory.toLowerCase());
       updates.push(
         `premium_categories_ratio = (premium_categories_ratio * 0.9) + ($${paramIndex} * 0.1)`,
       );
@@ -240,9 +303,7 @@ async function calculateAqi(req, res) {
     );
 
     if (result.rows.length === 0) {
-      return res
-        .status(404)
-        .json({ error: "No AQI signals found for this user" });
+      return res.status(404).json({ error: "No AQI signals found for this user" });
     }
 
     const signals = result.rows[0];
@@ -259,52 +320,83 @@ async function calculateAqi(req, res) {
 
     const platformAvg = avgResult.rows[0];
 
-    // Weighted AQI formula
-    const paidEventsScore = normalizeScore(
-      signals.paid_events_attended,
-      parseFloat(platformAvg.avg_paid_events),
-    );
-    const avgTicketPriceScore = normalizeScore(
-      parseFloat(signals.avg_ticket_price_paid),
-      parseFloat(platformAvg.avg_ticket_price),
-    );
+    // --- Step 1: Calculate raw behavioral AQI (0-100) ---
+    const paidEventsScore = normalizeScore(signals.paid_events_attended, parseFloat(platformAvg.avg_paid_events));
+    const avgTicketPriceScore = normalizeScore(parseFloat(signals.avg_ticket_price_paid), parseFloat(platformAvg.avg_ticket_price));
     const rsvpAttendRatio = parseFloat(signals.rsvp_to_attend_ratio) * 100;
     const contentDepth = parseFloat(signals.content_depth_score);
-    const professionalHours =
-      parseFloat(signals.professional_hours_ratio) * 100;
+    const professionalHours = parseFloat(signals.professional_hours_ratio) * 100;
     const networkQuality = parseFloat(signals.network_quality_avg);
-    const premiumCategories =
-      parseFloat(signals.premium_categories_ratio) * 100;
-    const eventsHostedScore = normalizeScore(
-      signals.events_hosted,
-      parseFloat(platformAvg.avg_events_hosted),
+    const eventsHostedScore = normalizeScore(signals.events_hosted, parseFloat(platformAvg.avg_events_hosted));
+
+    const behavioralAqi =
+      paidEventsScore * 0.27 +
+      avgTicketPriceScore * 0.22 +
+      rsvpAttendRatio * 0.15 +
+      contentDepth * 0.13 +
+      professionalHours * 0.10 +
+      networkQuality * 0.08 +
+      eventsHostedScore * 0.05;
+
+    // --- Step 2: Calculate onboarding AQI from learned demographic scores ---
+    // Fetch user's occupation and dob from members table
+    const memberResult = await pool.query(
+      `SELECT occupation, dob FROM members WHERE id = $1 LIMIT 1`,
+      [userId],
     );
 
-    const aqiScore =
-      paidEventsScore * 0.25 +
-      avgTicketPriceScore * 0.2 +
-      rsvpAttendRatio * 0.15 +
-      contentDepth * 0.12 +
-      professionalHours * 0.1 +
-      networkQuality * 0.08 +
-      premiumCategories * 0.06 +
-      eventsHostedScore * 0.04;
+    let occupationScore = await getPlatformMedianAqi(pool);
+    let ageScore = await getPlatformMedianAqi(pool);
 
+    if (memberResult.rows.length > 0) {
+      const member = memberResult.rows[0];
+
+      // Occupation — learned score with fallback chain
+      if (member.occupation) {
+        const occFallback = await resolveOccupationFallback(pool, member.occupation);
+        const occResult = await getLearnedDemographicScore(pool, "occupation_exact", member.occupation, occFallback);
+        occupationScore = occResult.score;
+      }
+
+      // Age — learned score with fallback chain
+      if (member.dob) {
+        const userAge = Math.floor((Date.now() - new Date(member.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+        const ageFallback = await resolveAgeFallback(pool, userAge);
+        const ageResult = await getLearnedDemographicScore(pool, "age_exact", String(userAge), ageFallback);
+        ageScore = ageResult.score;
+      }
+    }
+
+    const onboardingAqi = (occupationScore * 0.65) + (ageScore * 0.35);
+
+    // --- Step 3: Blend using dynamic weights ---
+    const onboardingWeight = parseFloat(signals.onboarding_weight) || 0.9;
+    const behaviorWeight = parseFloat(signals.behavior_weight) || 0.1;
+
+    const aqiScore = (onboardingAqi * onboardingWeight) + (behavioralAqi * behaviorWeight);
     const clampedScore = Math.min(100, Math.max(0, Math.round(aqiScore * 100) / 100));
 
     // Determine tier
     let aqiTier;
-    if (clampedScore >= 75) aqiTier = 1; // The Buyers
-    else if (clampedScore >= 50) aqiTier = 2; // The Aspirants
-    else if (clampedScore >= 25) aqiTier = 3; // The Browsers
-    else aqiTier = 4; // The Ghosts
+    if (clampedScore >= 75) aqiTier = 1;
+    else if (clampedScore >= 50) aqiTier = 2;
+    else if (clampedScore >= 25) aqiTier = 3;
+    else aqiTier = 4;
+
+    // --- Step 4: Compute trajectory ---
+    const previousScore = parseFloat(signals.aqi_score_4w_ago) || 0;
+    const delta = clampedScore - previousScore;
+    let trajectory = "stable";
+    if (delta > 5) trajectory = "rising";
+    else if (delta < -5) trajectory = "declining";
 
     // Update
     await pool.query(
       `UPDATE user_aqi_signals
-       SET aqi_score = $2, aqi_tier = $3, last_calculated_at = NOW(), updated_at = NOW()
+       SET aqi_score = $2, aqi_tier = $3, aqi_trajectory = $4,
+           last_calculated_at = NOW(), updated_at = NOW()
        WHERE user_id = $1`,
-      [userId, clampedScore, aqiTier],
+      [userId, clampedScore, aqiTier, trajectory],
     );
 
     res.json({
@@ -313,23 +405,14 @@ async function calculateAqi(req, res) {
         userId: parseInt(userId),
         score: clampedScore,
         tier: aqiTier,
-        tierLabel:
-          aqiTier === 1
-            ? "The Buyers"
-            : aqiTier === 2
-              ? "The Aspirants"
-              : aqiTier === 3
-                ? "The Browsers"
-                : "The Ghosts",
+        trajectory,
+        tierLabel: aqiTier === 1 ? "The Buyers" : aqiTier === 2 ? "The Aspirants" : aqiTier === 3 ? "The Browsers" : "The Ghosts",
+        weights: { onboardingWeight, behaviorWeight },
         components: {
-          paidEventsScore: Math.round(paidEventsScore * 100) / 100,
-          avgTicketPriceScore: Math.round(avgTicketPriceScore * 100) / 100,
-          rsvpAttendRatio: Math.round(rsvpAttendRatio * 100) / 100,
-          contentDepth: Math.round(contentDepth * 100) / 100,
-          professionalHours: Math.round(professionalHours * 100) / 100,
-          networkQuality: Math.round(networkQuality * 100) / 100,
-          premiumCategories: Math.round(premiumCategories * 100) / 100,
-          eventsHostedScore: Math.round(eventsHostedScore * 100) / 100,
+          behavioral: Math.round(behavioralAqi * 100) / 100,
+          onboarding: Math.round(onboardingAqi * 100) / 100,
+          occupationScore: Math.round(occupationScore * 100) / 100,
+          ageScore: Math.round(ageScore * 100) / 100,
         },
       },
     });
@@ -738,6 +821,92 @@ async function getAdminAudienceOverview(req, res) {
   }
 }
 
+// ============================================================
+// V2: POST /audience/recalculate-interest-vectors/:userId
+// ============================================================
+
+async function recalculateInterestVectorsEndpoint(req, res) {
+  try {
+    const { userId } = req.params;
+    if (!userId) return res.status(400).json({ error: "userId is required" });
+
+    await recalculateInterestVectors(pool, userId);
+    res.json({ success: true, message: "Interest vectors recalculated" });
+  } catch (error) {
+    console.error("[AQI] recalculateInterestVectors error:", error.message);
+    res.status(500).json({ error: "Failed to recalculate interest vectors" });
+  }
+}
+
+// ============================================================
+// V2: POST /audience/detect-drift/:userId
+// ============================================================
+
+async function detectDriftEndpoint(req, res) {
+  try {
+    const { userId } = req.params;
+    if (!userId) return res.status(400).json({ error: "userId is required" });
+
+    await detectDrift(pool, userId);
+    res.json({ success: true, message: "Drift detection completed" });
+  } catch (error) {
+    console.error("[AQI] detectDrift error:", error.message);
+    res.status(500).json({ error: "Failed to detect drift" });
+  }
+}
+
+// ============================================================
+// V2: GET /audience/active-categories
+// ============================================================
+
+async function getActiveCategories(req, res) {
+  try {
+    const result = await pool.query(`
+      SELECT category, COUNT(DISTINCT user_id) as user_count
+      FROM user_interest_vectors
+      WHERE decayed_score > 10
+      GROUP BY category
+      HAVING COUNT(DISTINCT user_id) >= 100
+      ORDER BY user_count DESC
+    `);
+
+    res.json({
+      success: true,
+      categories: result.rows.map((r) => ({
+        category: r.category,
+        userCount: parseInt(r.user_count),
+      })),
+    });
+  } catch (error) {
+    console.error("[AQI] getActiveCategories error:", error.message);
+    res.status(500).json({ error: "Failed to fetch active categories" });
+  }
+}
+
+// ============================================================
+// V2: GET /audience/user-interests/:userId
+// ============================================================
+
+async function getUserInterests(req, res) {
+  try {
+    const { userId } = req.params;
+    if (!userId) return res.status(400).json({ error: "userId is required" });
+
+    const result = await pool.query(
+      `SELECT category, raw_score, decayed_score, signal_count, trend, trend_delta, last_signal_at
+       FROM user_interest_vectors
+       WHERE user_id = $1 AND decayed_score > 5
+       ORDER BY decayed_score DESC`,
+      [userId],
+    );
+
+    res.json({ success: true, interests: result.rows });
+  } catch (error) {
+    console.error("[AQI] getUserInterests error:", error.message);
+    res.status(500).json({ error: "Failed to fetch user interests" });
+  }
+}
+
 module.exports = {
   trackFollow,
   trackEngagement,
@@ -747,4 +916,8 @@ module.exports = {
   calculateCreatorStatsEndpoint,
   getAdminCommunityAudienceStats,
   getAdminAudienceOverview,
+  recalculateInterestVectorsEndpoint,
+  detectDriftEndpoint,
+  getActiveCategories,
+  getUserInterests,
 };

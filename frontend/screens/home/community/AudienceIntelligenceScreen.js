@@ -16,7 +16,7 @@ import {
 } from "lucide-react-native";
 
 import { COLORS, FONTS, SPACING, SHADOWS } from "../../../constants/theme";
-import { getCreatorStats } from "../../../api/audienceIntelligence";
+import { getCreatorStats, getUserInterests } from "../../../api/audienceIntelligence";
 import { getActiveAccount } from "../../../api/auth";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
@@ -274,33 +274,83 @@ const FollowQualityTrend = ({ stats }) => {
   );
 };
 
-// ── Section 4: Spending Fingerprint ──
-const SpendingFingerprint = ({ stats }) => {
-  const categories = stats.top_spending_categories || [];
-  const defaultCats = [
-    { name: "Fitness", pct: 0 }, { name: "Tech", pct: 0 }, { name: "Lifestyle", pct: 0 },
-    { name: "Food", pct: 0 }, { name: "Business", pct: 0 }, { name: "Wellness", pct: 0 },
-  ];
-  const display = categories.length > 0
-    ? categories.map((c, i) => ({ name: typeof c === "string" ? c : c.name || "Other", pct: c.pct || 0 }))
-    : defaultCats;
+// ── Section 4: Dynamic Interest Fingerprint ──
+const TREND_CONFIG = {
+  rising: { icon: (props) => <TrendingUp {...props} />, color: ACCENT_GREEN, label: "Rising" },
+  emerging: { icon: (props) => <TrendingUp {...props} />, color: ACCENT_BLUE, label: "New" },
+  stable: { icon: null, color: MUTED_TEXT, label: "Stable" },
+  declining: { icon: (props) => <TrendingDown {...props} />, color: ACCENT_AMBER, label: "Falling" },
+  dormant: { icon: null, color: "#D1D5DB", label: "Dormant" },
+};
+
+const InterestFingerprint = ({ interests }) => {
+  const display = (interests || []).filter((i) => parseFloat(i.decayed_score) > 5);
+  if (display.length === 0) {
+    return (
+      <GlassCard entering={FadeInDown.delay(240).duration(500)}>
+        <Text style={styles.sectionLabel}>INTEREST FINGERPRINT</Text>
+        <Text style={styles.emptyText}>Not enough data yet. Keep creating events!</Text>
+      </GlassCard>
+    );
+  }
 
   return (
     <GlassCard entering={FadeInDown.delay(240).duration(500)}>
-      <Text style={styles.sectionLabel}>AUDIENCE SPENDING FINGERPRINT</Text>
-      <Text style={styles.sectionHelper}>What your Tier 1 & 2 audience spends on</Text>
+      <Text style={styles.sectionLabel}>INTEREST FINGERPRINT</Text>
+      <Text style={styles.sectionHelper}>
+        Dynamic interests based on your audience's recent behavior
+      </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
-        {display.map((cat, i) => (
-          <View key={i} style={styles.categoryChip}>
-            <Text style={styles.categoryChipText}>{cat.name}</Text>
-            {cat.pct > 0 && (
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryBadgeText}>{cat.pct}%</Text>
+        {display.map((item, i) => {
+          const trend = TREND_CONFIG[item.trend] || TREND_CONFIG.stable;
+          const isDormant = item.trend === "dormant";
+          return (
+            <View key={i} style={[styles.interestChip, isDormant && { opacity: 0.5 }]}>
+              <Text style={[styles.interestChipText, { color: isDormant ? "#9CA3AF" : SECONDARY_TEXT }]}>
+                {item.category}
+              </Text>
+              {trend.icon && (
+                <View style={[styles.trendBadge, { backgroundColor: trend.color + "20" }]}>
+                  {trend.icon({ size: 12, color: trend.color })}
+                </View>
+              )}
+              <View style={[styles.categoryBadge, { backgroundColor: trend.color + "20" }]}>
+                <Text style={[styles.categoryBadgeText, { color: trend.color }]}>
+                  {Math.round(parseFloat(item.decayed_score))}
+                </Text>
               </View>
-            )}
-          </View>
-        ))}
+            </View>
+          );
+        })}
       </ScrollView>
+    </GlassCard>
+  );
+};
+
+// ── Section 4b: Trajectory Card ──
+const TrajectoryCard = ({ stats }) => {
+  const trajectory = stats.aqi_trajectory || "stable";
+  const isRising = trajectory === "rising";
+  const isDeclining = trajectory === "declining";
+  const color = isRising ? ACCENT_GREEN : isDeclining ? ACCENT_AMBER : MUTED_TEXT;
+  const label = isRising
+    ? "Your audience quality is rising"
+    : isDeclining
+      ? "Your audience quality is shifting"
+      : "Your audience quality is stable";
+  const IconComp = isRising ? TrendingUp : isDeclining ? TrendingDown : Target;
+
+  return (
+    <GlassCard entering={FadeInDown.delay(200).duration(500)}>
+      <View style={styles.trajectoryRow}>
+        <View style={[styles.trajectoryIcon, { backgroundColor: color + "15" }]}>
+          <IconComp size={20} color={color} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.trajectoryLabel, { color }]}>{trajectory.toUpperCase()}</Text>
+          <Text style={styles.trajectoryBody}>{label}</Text>
+        </View>
+      </View>
     </GlassCard>
   );
 };
@@ -390,6 +440,7 @@ const ErrorState = ({ onRetry }) => (
 // ── Main Screen ──
 export default function AudienceIntelligenceScreen({ navigation }) {
   const [stats, setStats] = useState(null);
+  const [interests, setInterests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -399,11 +450,17 @@ export default function AudienceIntelligenceScreen({ navigation }) {
       setError(false);
       const account = await getActiveAccount();
       if (!account?.id) { setLoading(false); setError(true); return; }
-      const response = await getCreatorStats(account.id);
-      if (response?.success) {
-        setStats(response.stats);
+      const [statsRes, interestsRes] = await Promise.all([
+        getCreatorStats(account.id),
+        getUserInterests(account.id),
+      ]);
+      if (statsRes?.success) {
+        setStats(statsRes.stats);
       } else {
         setError(true);
+      }
+      if (interestsRes?.success) {
+        setInterests(interestsRes.interests || []);
       }
     } catch (e) {
       console.error("[AQI Screen] fetch error:", e);
@@ -443,8 +500,9 @@ export default function AudienceIntelligenceScreen({ navigation }) {
           >
             <FollowQualityHero stats={stats} />
             <AudienceTierBreakdown stats={stats} />
+            <TrajectoryCard stats={stats} />
             <FollowQualityTrend stats={stats} />
-            <SpendingFingerprint stats={stats} />
+            <InterestFingerprint interests={interests} />
             <InsightCards stats={stats} />
             <View style={{ height: 100 }} />
           </ScrollView>
@@ -504,4 +562,13 @@ const styles = StyleSheet.create({
   errorBody: { fontFamily: FONTS.regular, fontSize: 14, color: MUTED_TEXT, textAlign: "center" },
   retryButton: { marginTop: 12, backgroundColor: ACCENT_BLUE, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16 },
   retryButtonText: { fontFamily: FONTS.semiBold, fontSize: 14, color: "white" },
+  // V2: Interest chips
+  interestChip: { flexDirection: "row", alignItems: "center", backgroundColor: SURFACE_NEUTRAL, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8, gap: 6 },
+  interestChipText: { fontFamily: FONTS.medium, fontSize: 13 },
+  trendBadge: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  // V2: Trajectory
+  trajectoryRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  trajectoryIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  trajectoryLabel: { fontFamily: FONTS.semiBold, fontSize: 11, letterSpacing: 1, marginBottom: 2 },
+  trajectoryBody: { fontFamily: FONTS.regular, fontSize: 14, color: SECONDARY_TEXT, lineHeight: 20 },
 });

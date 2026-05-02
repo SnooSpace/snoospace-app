@@ -1204,6 +1204,27 @@ router.post(
   authMiddleware,
   AudienceIntelligenceController.calculateCreatorStatsEndpoint,
 );
+// V2 endpoints
+router.post(
+  "/audience/recalculate-interest-vectors/:userId",
+  authMiddleware,
+  AudienceIntelligenceController.recalculateInterestVectorsEndpoint,
+);
+router.post(
+  "/audience/detect-drift/:userId",
+  authMiddleware,
+  AudienceIntelligenceController.detectDriftEndpoint,
+);
+router.get(
+  "/audience/active-categories",
+  authMiddleware,
+  AudienceIntelligenceController.getActiveCategories,
+);
+router.get(
+  "/audience/user-interests/:userId",
+  authMiddleware,
+  AudienceIntelligenceController.getUserInterests,
+);
 
 // Notifications
 router.get(

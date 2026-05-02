@@ -9,6 +9,7 @@
 const cron = require("node-cron");
 const notificationService = require("./notificationService");
 const pushService = require("./pushService");
+const { runDemographicLearningJob } = require("../jobs/learnDemographicScores");
 
 let pool = null;
 
@@ -35,6 +36,12 @@ const init = (dbPool) => {
   // Run ticket reservation cleanup every minute
   cron.schedule("* * * * *", async () => {
     await cleanupExpiredReservations();
+  });
+
+  // Run weekly demographic learning job every Sunday at 3am
+  cron.schedule("0 3 * * 0", async () => {
+    console.log("[Scheduler] Running weekly demographic learning job...");
+    await runDemographicLearningJob(pool);
   });
 
   console.log("[Scheduler] Scheduler service initialized");
