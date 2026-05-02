@@ -149,10 +149,124 @@ async function ensureOccupationInHierarchy(pool, occupationExact, occupationCate
   }
 }
 
+// ── Location utilities ──
+
+/**
+ * Canonical city name aliases — handles common spelling variations.
+ * Users type "Bengaluru", "Bombay", "Calcutta" — all resolve to the
+ * canonical name used in location_hierarchy.
+ */
+const CITY_ALIASES = {
+  'Bengaluru':      'Bangalore',
+  'Bombay':         'Mumbai',
+  'Calcutta':       'Kolkata',
+  'Madras':         'Chennai',
+  'Gurgaon':        'Gurugram',
+  'Prayagraj':      'Allahabad',
+  'Vishakhapatnam': 'Visakhapatnam',
+  'Vizag':          'Visakhapatnam',
+  'Mysore':         'Mysuru',
+  'Mangalore':      'Mangaluru',
+  'Cochin':         'Kochi',
+  'Trivandrum':     'Thiruvananthapuram',
+  'Pondichery':     'Pondicherry',
+  'Ooty':           'Udhagamandalam',
+  'Belagavi':       'Belgaum',
+};
+
+/**
+ * Normalize a city name — trim whitespace and resolve aliases.
+ */
+function normalizeCity(city) {
+  if (!city) return null;
+  const trimmed = city.trim();
+  return CITY_ALIASES[trimmed] ?? trimmed;
+}
+
+/**
+ * Build the fallback chain for a location lookup.
+ * Walks: area → city → city_tier → platform median
+ */
+async function resolveLocationFallback(pool, city, area) {
+  if (!city) return [];
+
+  const normalizedCityName = normalizeCity(city);
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT city_tier FROM location_hierarchy WHERE city = $1 LIMIT 1`,
+      [normalizedCityName],
+    );
+
+    const cityTier = rows[0]?.city_tier ?? null;
+
+    return [
+      area ? { dimension: "location_area", value: area } : null,
+      normalizedCityName ? { dimension: "location_city", value: normalizedCityName } : null,
+      cityTier ? { dimension: "location_city_tier", value: cityTier } : null,
+    ].filter(Boolean);
+  } catch (err) {
+    console.error("[DemographicLookup] resolveLocationFallback error:", err.message);
+    return [];
+  }
+}
+
+/**
+ * Auto-register a city (and optionally an area) in the location hierarchy.
+ * Called during onboarding — inserts unknown cities with 'Tier3' default.
+ * If the city exists but the area is new, adds the area row inheriting
+ * the city's tier.
+ */
+async function ensureCityInHierarchy(pool, rawCity, area) {
+  if (!rawCity) return;
+
+  const city = normalizeCity(rawCity);
+
+  try {
+    const existing = await pool.query(
+      `SELECT id, city_tier FROM location_hierarchy WHERE city = $1 AND area_exact IS NULL LIMIT 1`,
+      [city],
+    );
+
+    if (existing.rows.length === 0) {
+      // New city — insert with Tier3 default (conservative starting point)
+      await pool.query(
+        `INSERT INTO location_hierarchy (city, city_tier, area_exact)
+         VALUES ($1, 'Tier3', $2)
+         ON CONFLICT DO NOTHING`,
+        [city, area || null],
+      );
+    } else if (area) {
+      // City exists — check if this neighborhood is registered
+      const areaExists = await pool.query(
+        `SELECT id FROM location_hierarchy WHERE city = $1 AND area_exact = $2 LIMIT 1`,
+        [city, area],
+      );
+
+      if (areaExists.rows.length === 0) {
+        // Inherits city_tier from the parent city row
+        await pool.query(
+          `INSERT INTO location_hierarchy (city, city_tier, area_exact)
+           SELECT $1, city_tier, $2 FROM location_hierarchy
+           WHERE city = $1 AND area_exact IS NULL LIMIT 1
+           ON CONFLICT DO NOTHING`,
+          [city, area],
+        );
+      }
+    }
+  } catch (err) {
+    console.error("[DemographicLookup] ensureCityInHierarchy error:", err.message);
+  }
+}
+
 module.exports = {
   getPlatformMedianAqi,
   getLearnedDemographicScore,
   resolveOccupationFallback,
   resolveAgeFallback,
   ensureOccupationInHierarchy,
+  resolveLocationFallback,
+  ensureCityInHierarchy,
+  normalizeCity,
+  CITY_ALIASES,
 };

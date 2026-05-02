@@ -22,6 +22,9 @@ const CONFIDENCE_THRESHOLDS = {
   age_exact: 30,
   age_band: 150,
   age_life_stage: 400,
+  location_area: 80,
+  location_city: 300,
+  location_city_tier: 800,
 };
 
 /**
@@ -166,6 +169,11 @@ async function runDemographicLearningJob(pool) {
   await learnScoresForDimension(pool, "age_exact");
   await learnScoresForDimension(pool, "age_band");
   await learnScoresForDimension(pool, "age_life_stage");
+
+  // Step 5: Learn location scores at all three levels
+  await learnScoresForDimension(pool, "location_city_tier");
+  await learnScoresForDimension(pool, "location_city");
+  await learnScoresForDimension(pool, "location_area");
 
   const elapsed = Math.round((Date.now() - startTime) / 1000);
   console.log(

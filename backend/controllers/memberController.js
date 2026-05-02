@@ -1,4 +1,4 @@
-const { ensureOccupationInHierarchy } = require("../utils/demographicScoreLookup");
+const { ensureOccupationInHierarchy, ensureCityInHierarchy, normalizeCity } = require("../utils/demographicScoreLookup");
 
 function parsePgTextArray(value) {
   if (!value) return null;
@@ -130,6 +130,12 @@ async function signup(req, res) {
     // V2: Ensure occupation is tracked in hierarchy for demographic learning
     if (occupation) {
       ensureOccupationInHierarchy(pool, occupation, null).catch(() => {});
+    }
+
+    // V2: Ensure city is tracked in location hierarchy for demographic learning
+    if (location && location.city) {
+      const normCity = normalizeCity(location.city);
+      ensureCityInHierarchy(pool, normCity, location.area || null).catch(() => {});
     }
 
     res.json({ member: result.rows[0] });

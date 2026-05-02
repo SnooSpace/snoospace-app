@@ -11,6 +11,8 @@ const {
   getLearnedDemographicScore,
   resolveOccupationFallback,
   resolveAgeFallback,
+  resolveLocationFallback,
+  normalizeCity,
   getPlatformMedianAqi,
 } = require("../utils/demographicScoreLookup");
 const { recalculateInterestVectors, detectDrift } = require("../utils/interestVectorEngine");
@@ -341,12 +343,13 @@ async function calculateAqi(req, res) {
     // --- Step 2: Calculate onboarding AQI from learned demographic scores ---
     // Fetch user's occupation and dob from members table
     const memberResult = await pool.query(
-      `SELECT occupation, dob FROM members WHERE id = $1 LIMIT 1`,
+      `SELECT occupation, dob, location FROM members WHERE id = $1 LIMIT 1`,
       [userId],
     );
 
     let occupationScore = await getPlatformMedianAqi(pool);
     let ageScore = await getPlatformMedianAqi(pool);
+    let locationScore = await getPlatformMedianAqi(pool);
 
     if (memberResult.rows.length > 0) {
       const member = memberResult.rows[0];
@@ -365,9 +368,27 @@ async function calculateAqi(req, res) {
         const ageResult = await getLearnedDemographicScore(pool, "age_exact", String(userAge), ageFallback);
         ageScore = ageResult.score;
       }
+
+      // Location — learned score with fallback chain (area → city → city_tier)
+      const loc = member.location || {};
+      const memberCity = normalizeCity(loc.city);
+      const memberArea = loc.area || null;
+      if (memberCity) {
+        const locFallback = await resolveLocationFallback(pool, memberCity, memberArea);
+        const locResult = await getLearnedDemographicScore(
+          pool,
+          memberArea ? "location_area" : "location_city",
+          memberArea || memberCity,
+          locFallback,
+        );
+        locationScore = locResult.score;
+      }
     }
 
-    const onboardingAqi = (occupationScore * 0.65) + (ageScore * 0.35);
+    // Occupation: strongest income proxy → 50%
+    // Age: financial life stage → 25%
+    // Location: city-level buying power context → 25%
+    const onboardingAqi = (occupationScore * 0.50) + (ageScore * 0.25) + (locationScore * 0.25);
 
     // --- Step 3: Blend using dynamic weights ---
     const onboardingWeight = parseFloat(signals.onboarding_weight) || 0.9;
@@ -413,6 +434,7 @@ async function calculateAqi(req, res) {
           onboarding: Math.round(onboardingAqi * 100) / 100,
           occupationScore: Math.round(occupationScore * 100) / 100,
           ageScore: Math.round(ageScore * 100) / 100,
+          locationScore: Math.round(locationScore * 100) / 100,
         },
       },
     });
@@ -462,7 +484,49 @@ async function getCreatorStats(req, res) {
       });
     }
 
-    res.json({ success: true, stats: result.rows[0] });
+    const stats = result.rows[0];
+
+    // Enrich geographic_breakdown with learned city scores
+    const geoBreakdown = stats.geographic_breakdown || {};
+    const cityNames = Object.keys(geoBreakdown);
+    const enrichedGeo = {};
+
+    if (cityNames.length > 0) {
+      try {
+        const scoresResult = await pool.query(
+          `SELECT dimension_value, learned_score, confidence_level
+           FROM learned_demographic_scores
+           WHERE dimension = 'location_city'
+             AND dimension_value = ANY($1)`,
+          [cityNames],
+        );
+
+        const scoreMap = {};
+        for (const row of scoresResult.rows) {
+          scoreMap[row.dimension_value] = {
+            score: parseFloat(row.learned_score),
+            confidence: row.confidence_level,
+          };
+        }
+
+        for (const city of cityNames) {
+          enrichedGeo[city] = {
+            ...geoBreakdown[city],
+            buyingPowerIndex: scoreMap[city]?.score ?? null,
+            confidence: scoreMap[city]?.confidence ?? "insufficient",
+          };
+        }
+      } catch (geoErr) {
+        // Non-fatal — return raw breakdown without scores
+        for (const city of cityNames) {
+          enrichedGeo[city] = { ...geoBreakdown[city], buyingPowerIndex: null, confidence: "insufficient" };
+        }
+      }
+    }
+
+    stats.geographic_breakdown = enrichedGeo;
+
+    res.json({ success: true, stats });
   } catch (error) {
     console.error("[AQI] getCreatorStats error:", error.message, error.stack);
     res.status(500).json({ error: "Failed to fetch creator stats" });

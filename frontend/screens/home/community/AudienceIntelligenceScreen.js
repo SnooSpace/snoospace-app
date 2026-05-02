@@ -12,7 +12,7 @@ import Animated, {
 import Svg, { Circle as SvgCircle, Polyline, Line, Text as SvgText } from "react-native-svg";
 import {
   ArrowLeft, TrendingUp, TrendingDown, Users, Target,
-  Sparkles, ShieldCheck, BarChart3, Zap,
+  Sparkles, ShieldCheck, BarChart3, Zap, MapPin,
 } from "lucide-react-native";
 
 import { COLORS, FONTS, SPACING, SHADOWS } from "../../../constants/theme";
@@ -355,7 +355,76 @@ const TrajectoryCard = ({ stats }) => {
   );
 };
 
-// ── Section 5: Insights ──
+// ── Section 5: Geographic Breakdown ──
+const GeographicBreakdown = ({ stats }) => {
+  const geo = stats.geographic_breakdown || {};
+  const cities = Object.entries(geo)
+    .map(([city, data]) => ({
+      city,
+      count: data.count || 0,
+      buyingPower: data.buyingPowerIndex,
+      confidence: data.confidence || "insufficient",
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  if (cities.length === 0) {
+    return (
+      <GlassCard entering={FadeInDown.delay(280).duration(500)}>
+        <Text style={styles.sectionLabel}>GEOGRAPHIC BREAKDOWN</Text>
+        <Text style={styles.emptyText}>Location data will appear as your audience grows.</Text>
+      </GlassCard>
+    );
+  }
+
+  const maxCount = Math.max(...cities.map((c) => c.count), 1);
+
+  const getBpiLabel = (score) => {
+    if (score == null) return null;
+    if (score >= 65) return { text: "High", color: ACCENT_GREEN };
+    if (score >= 40) return { text: "Medium", color: ACCENT_AMBER };
+    return { text: "Emerging", color: MUTED_TEXT };
+  };
+
+  return (
+    <GlassCard entering={FadeInDown.delay(280).duration(500)}>
+      <Text style={styles.sectionLabel}>GEOGRAPHIC BREAKDOWN</Text>
+      <Text style={styles.sectionHelper}>Where your audience is — and their buying power</Text>
+      <View style={{ marginTop: 12, gap: 10 }}>
+        {cities.map((item, i) => {
+          const bpi = getBpiLabel(item.buyingPower);
+          return (
+            <View key={i} style={styles.geoRow}>
+              <View style={styles.geoIconCircle}>
+                <MapPin size={14} color={ACCENT_BLUE} />
+              </View>
+              <View style={styles.geoInfo}>
+                <View style={styles.geoHeader}>
+                  <Text style={styles.geoCity}>{item.city}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    {item.confidence === "insufficient" ? (
+                      <Text style={styles.geoBuildingText}>Building data…</Text>
+                    ) : bpi ? (
+                      <View style={[styles.geoBpiBadge, { backgroundColor: bpi.color + "18" }]}>
+                        <Text style={[styles.geoBpiText, { color: bpi.color }]}>{bpi.text}</Text>
+                      </View>
+                    ) : null}
+                    <Text style={styles.geoCount}>{item.count}</Text>
+                  </View>
+                </View>
+                <View style={styles.geoBarBg}>
+                  <View style={[styles.geoBarFill, { width: `${(item.count / maxCount) * 100}%` }]} />
+                </View>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    </GlassCard>
+  );
+};
+
+// ── Section 6: Insights ──
 const generateInsights = (stats) => {
   const insights = [];
   if (stats.follow_quality_score >= 70) {
@@ -503,6 +572,7 @@ export default function AudienceIntelligenceScreen({ navigation }) {
             <TrajectoryCard stats={stats} />
             <FollowQualityTrend stats={stats} />
             <InterestFingerprint interests={interests} />
+            <GeographicBreakdown stats={stats} />
             <InsightCards stats={stats} />
             <View style={{ height: 100 }} />
           </ScrollView>
@@ -571,4 +641,16 @@ const styles = StyleSheet.create({
   trajectoryIcon: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   trajectoryLabel: { fontFamily: FONTS.semiBold, fontSize: 11, letterSpacing: 1, marginBottom: 2 },
   trajectoryBody: { fontFamily: FONTS.regular, fontSize: 14, color: SECONDARY_TEXT, lineHeight: 20 },
+  // V2: Geographic breakdown
+  geoRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  geoIconCircle: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(59,130,246,0.08)", alignItems: "center", justifyContent: "center" },
+  geoInfo: { flex: 1 },
+  geoHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  geoCity: { fontFamily: FONTS.semiBold, fontSize: 14, color: PRIMARY_TEXT },
+  geoCount: { fontFamily: FONTS.medium, fontSize: 13, color: MUTED_TEXT },
+  geoBarBg: { height: 5, borderRadius: 3, backgroundColor: SURFACE_NEUTRAL },
+  geoBarFill: { height: 5, borderRadius: 3, backgroundColor: ACCENT_BLUE, minWidth: 3 },
+  geoBpiBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  geoBpiText: { fontFamily: FONTS.semiBold, fontSize: 10 },
+  geoBuildingText: { fontFamily: FONTS.regular, fontSize: 11, color: MUTED_TEXT, fontStyle: "italic" },
 });

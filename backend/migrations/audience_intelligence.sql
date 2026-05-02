@@ -347,6 +347,52 @@ BEGIN
         AND m.dob IS NOT NULL
       GROUP BY ab.life_stage
       HAVING COUNT(*) >= 5;
+
+  -- Location dimensions (city extracted from JSONB location column)
+
+  ELSIF p_dimension = 'location_city' THEN
+    RETURN QUERY
+      SELECT
+        (m.location->>'city')::TEXT AS dimension_value,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY s.aqi_score) AS median_behavioral_aqi,
+        COUNT(*)::INTEGER AS sample_size
+      FROM members m
+      JOIN user_aqi_signals s ON s.user_id = m.id
+      WHERE s.total_behavior_events >= p_min_events
+        AND s.aqi_score IS NOT NULL
+        AND m.location->>'city' IS NOT NULL
+      GROUP BY m.location->>'city'
+      HAVING COUNT(*) >= 5;
+
+  ELSIF p_dimension = 'location_area' THEN
+    RETURN QUERY
+      SELECT
+        (m.location->>'area')::TEXT AS dimension_value,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY s.aqi_score) AS median_behavioral_aqi,
+        COUNT(*)::INTEGER AS sample_size
+      FROM members m
+      JOIN user_aqi_signals s ON s.user_id = m.id
+      WHERE s.total_behavior_events >= p_min_events
+        AND s.aqi_score IS NOT NULL
+        AND m.location->>'area' IS NOT NULL
+      GROUP BY m.location->>'area'
+      HAVING COUNT(*) >= 5;
+
+  ELSIF p_dimension = 'location_city_tier' THEN
+    RETURN QUERY
+      SELECT
+        lh.city_tier::TEXT AS dimension_value,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY s.aqi_score) AS median_behavioral_aqi,
+        COUNT(*)::INTEGER AS sample_size
+      FROM members m
+      JOIN location_hierarchy lh ON lh.city = m.location->>'city'
+      JOIN user_aqi_signals s ON s.user_id = m.id
+      WHERE s.total_behavior_events >= p_min_events
+        AND s.aqi_score IS NOT NULL
+        AND m.location->>'city' IS NOT NULL
+      GROUP BY lh.city_tier
+      HAVING COUNT(*) >= 5;
+
   END IF;
 END;
 $$;
@@ -366,3 +412,130 @@ BEGIN
   RETURN COALESCE(result, 45);
 END;
 $$;
+
+-- ============================================================
+-- V2 Addendum: Location Hierarchy
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS location_hierarchy (
+  id BIGSERIAL PRIMARY KEY,
+  area_exact VARCHAR(100),
+  city VARCHAR(100) NOT NULL,
+  city_tier VARCHAR(20) NOT NULL,
+  state VARCHAR(100),
+  country VARCHAR(60) DEFAULT 'India',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(area_exact, city)
+);
+
+CREATE INDEX IF NOT EXISTS idx_location_hierarchy_city ON location_hierarchy(city);
+CREATE INDEX IF NOT EXISTS idx_location_hierarchy_tier ON location_hierarchy(city_tier);
+
+-- Pre-populate with Indian cities by census classification
+INSERT INTO location_hierarchy (city, city_tier, state) VALUES
+-- METROS (8)
+('Mumbai',          'Metro', 'Maharashtra'),
+('Delhi',           'Metro', 'Delhi'),
+('Bangalore',       'Metro', 'Karnataka'),
+('Chennai',         'Metro', 'Tamil Nadu'),
+('Hyderabad',       'Metro', 'Telangana'),
+('Kolkata',         'Metro', 'West Bengal'),
+('Pune',            'Metro', 'Maharashtra'),
+('Ahmedabad',       'Metro', 'Gujarat'),
+-- TIER 1
+('Jaipur',          'Tier1', 'Rajasthan'),
+('Lucknow',         'Tier1', 'Uttar Pradesh'),
+('Kochi',           'Tier1', 'Kerala'),
+('Chandigarh',      'Tier1', 'Punjab'),
+('Nagpur',          'Tier1', 'Maharashtra'),
+('Coimbatore',      'Tier1', 'Tamil Nadu'),
+('Surat',           'Tier1', 'Gujarat'),
+('Visakhapatnam',   'Tier1', 'Andhra Pradesh'),
+('Bhubaneswar',     'Tier1', 'Odisha'),
+('Thiruvananthapuram','Tier1','Kerala'),
+('Guwahati',        'Tier1', 'Assam'),
+('Dehradun',        'Tier1', 'Uttarakhand'),
+('Mysuru',          'Tier1', 'Karnataka'),
+('Vadodara',        'Tier1', 'Gujarat'),
+('Rajkot',          'Tier1', 'Gujarat'),
+('Ludhiana',        'Tier1', 'Punjab'),
+('Amritsar',        'Tier1', 'Punjab'),
+('Nashik',          'Tier1', 'Maharashtra'),
+('Madurai',         'Tier1', 'Tamil Nadu'),
+('Noida',           'Tier1', 'Uttar Pradesh'),
+('Gurugram',        'Tier1', 'Haryana'),
+('Faridabad',       'Tier1', 'Haryana'),
+('Ghaziabad',       'Tier1', 'Uttar Pradesh'),
+('Patna',           'Tier1', 'Bihar'),
+('Indore',          'Tier1', 'Madhya Pradesh'),
+('Bhopal',          'Tier1', 'Madhya Pradesh'),
+('Raipur',          'Tier1', 'Chhattisgarh'),
+('Jodhpur',         'Tier1', 'Rajasthan'),
+('Tiruchirappalli', 'Tier1', 'Tamil Nadu'),
+('Mangaluru',       'Tier1', 'Karnataka'),
+('Hubli',           'Tier1', 'Karnataka'),
+('Kozhikode',       'Tier1', 'Kerala'),
+('Jabalpur',        'Tier1', 'Madhya Pradesh'),
+('Agra',            'Tier1', 'Uttar Pradesh'),
+('Varanasi',        'Tier1', 'Uttar Pradesh'),
+('Meerut',          'Tier1', 'Uttar Pradesh'),
+('Aurangabad',      'Tier1', 'Maharashtra'),
+('Navi Mumbai',     'Tier1', 'Maharashtra'),
+('Thane',           'Tier1', 'Maharashtra'),
+-- TIER 2
+('Gwalior',         'Tier2', 'Madhya Pradesh'),
+('Ujjain',          'Tier2', 'Madhya Pradesh'),
+('Jalandhar',       'Tier2', 'Punjab'),
+('Patiala',         'Tier2', 'Punjab'),
+('Rohtak',          'Tier2', 'Haryana'),
+('Aligarh',         'Tier2', 'Uttar Pradesh'),
+('Kanpur',          'Tier2', 'Uttar Pradesh'),
+('Allahabad',       'Tier2', 'Uttar Pradesh'),
+('Gorakhpur',       'Tier2', 'Uttar Pradesh'),
+('Ranchi',          'Tier2', 'Jharkhand'),
+('Jamshedpur',      'Tier2', 'Jharkhand'),
+('Dhanbad',         'Tier2', 'Jharkhand'),
+('Cuttack',         'Tier2', 'Odisha'),
+('Guntur',          'Tier2', 'Andhra Pradesh'),
+('Vijayawada',      'Tier2', 'Andhra Pradesh'),
+('Warangal',        'Tier2', 'Telangana'),
+('Salem',           'Tier2', 'Tamil Nadu'),
+('Tirunelveli',     'Tier2', 'Tamil Nadu'),
+('Vellore',         'Tier2', 'Tamil Nadu'),
+('Pondicherry',     'Tier2', 'Puducherry'),
+('Thrissur',        'Tier2', 'Kerala'),
+('Kollam',          'Tier2', 'Kerala'),
+('Kannur',          'Tier2', 'Kerala'),
+('Shimla',          'Tier2', 'Himachal Pradesh'),
+('Jammu',           'Tier2', 'Jammu & Kashmir'),
+('Srinagar',        'Tier2', 'Jammu & Kashmir'),
+('Imphal',          'Tier2', 'Manipur'),
+('Shillong',        'Tier2', 'Meghalaya'),
+('Agartala',        'Tier2', 'Tripura'),
+('Gangtok',         'Tier2', 'Sikkim'),
+('Panaji',          'Tier2', 'Goa'),
+('Margao',          'Tier2', 'Goa'),
+('Bikaner',         'Tier2', 'Rajasthan'),
+('Ajmer',           'Tier2', 'Rajasthan'),
+('Kota',            'Tier2', 'Rajasthan'),
+('Udaipur',         'Tier2', 'Rajasthan'),
+('Bhavnagar',       'Tier2', 'Gujarat'),
+('Jamnagar',        'Tier2', 'Gujarat'),
+('Gandhinagar',     'Tier2', 'Gujarat'),
+('Kolhapur',        'Tier2', 'Maharashtra'),
+('Solapur',         'Tier2', 'Maharashtra'),
+('Amravati',        'Tier2', 'Maharashtra'),
+('Nanded',          'Tier2', 'Maharashtra'),
+('Belgaum',         'Tier2', 'Karnataka'),
+('Davangere',       'Tier2', 'Karnataka'),
+('Bellary',         'Tier2', 'Karnataka'),
+('Tumkur',          'Tier2', 'Karnataka'),
+('Bokaro',          'Tier2', 'Jharkhand'),
+('Muzaffarpur',     'Tier2', 'Bihar'),
+('Gaya',            'Tier2', 'Bihar'),
+('Bhagalpur',       'Tier2', 'Bihar'),
+('Dibrugarh',       'Tier2', 'Assam'),
+('Silchar',         'Tier2', 'Assam'),
+('Noida Extension', 'Tier2', 'Uttar Pradesh'),
+('Greater Noida',   'Tier2', 'Uttar Pradesh')
+ON CONFLICT DO NOTHING;
