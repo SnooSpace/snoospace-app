@@ -896,7 +896,7 @@ export default function ChatScreen({ route, navigation }) {
               updateMessageById(payload.new.id, {
                 isDeleted: payload.new.is_deleted,
                 deletedByType: payload.new.deleted_by_type,
-                messageText: payload.new.is_deleted ? null : undefined,
+                messageText: payload.new.is_deleted ? null : payload.new.message_text,
               });
             }
           })
@@ -1414,54 +1414,52 @@ export default function ChatScreen({ route, navigation }) {
       return (
         <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
           {avatarEl}
-          <View style={{ alignSelf: isMyMessage ? "flex-end" : "flex-start" }}>
-            {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
-            <SwipeableMessage
-              messageId={msg.id}
-              highlightedIdSV={highlightedIdSV}
-              isMyMessage={isMyMessage}
-              onReply={() => setSelectedReply({
-                id: msg.id,
-                messageText: msg.messageType === "multi_media" ? "Media" : (msg.messageType === "image" ? "Photo" : "Video"),
-                messageType: msg.messageType,
-                senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
-                isDeleted: msg.isDeleted,
-              })}
-              onLongPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                setOptionsTarget(msg);
-              }}
-            >
-              <View collapsable={false} style={{ alignSelf: isMyMessage ? "flex-end" : "flex-start" }}>
-                {msg.replyPreview && (
-                  <ReplyQuote
-                    replyPreview={msg.replyPreview}
-                    isMyMessage={isMyMessage}
-                    onPress={() => scrollToMessage(msg.replyToMessageId)}
-                  />
-                )}
-                <ChatMediaMessage
-                  message={msg}
+          <SwipeableMessage
+            messageId={msg.id}
+            highlightedIdSV={highlightedIdSV}
+            isMyMessage={isMyMessage}
+            onReply={() => setSelectedReply({
+              id: msg.id,
+              messageText: msg.messageType === "multi_media" ? "Media" : (msg.messageType === "image" ? "Photo" : "Video"),
+              messageType: msg.messageType,
+              senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
+              isDeleted: msg.isDeleted,
+            })}
+            onLongPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setOptionsTarget(msg);
+            }}
+          >
+            <View collapsable={false}>
+              {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
+              {msg.replyPreview && (
+                <ReplyQuote
+                  replyPreview={msg.replyPreview}
                   isMyMessage={isMyMessage}
-                  uploadProgress={null}
-                  onOpenViewer={(mediaId) => {
-                    const idx = mediaTimeline.findIndex((m) => m.id === mediaId);
-                    if (idx !== -1) {
-                      setViewerIndex(idx);
-                      setViewerVisible(true);
-                    }
-                  }}
+                  onPress={() => scrollToMessage(msg.replyToMessageId)}
                 />
-                <Text style={[
-                  styles.messageTime,
-                  isMyMessage ? styles.myMessageTime : styles.otherMessageTime,
-                  { marginRight: isMyMessage ? 4 : 0, marginLeft: isMyMessage ? 0 : 4, marginTop: 2 },
-                ]}>
-                  {formatTime(msg.createdAt)}
-                </Text>
-              </View>
-            </SwipeableMessage>
-          </View>
+              )}
+              <ChatMediaMessage
+                message={msg}
+                isMyMessage={isMyMessage}
+                uploadProgress={null}
+                onOpenViewer={(mediaId) => {
+                  const idx = mediaTimeline.findIndex((m) => m.id === mediaId);
+                  if (idx !== -1) {
+                    setViewerIndex(idx);
+                    setViewerVisible(true);
+                  }
+                }}
+              />
+              <Text style={[
+                styles.messageTime,
+                isMyMessage ? styles.myMessageTime : styles.otherMessageTime,
+                { marginRight: isMyMessage ? 4 : 0, marginLeft: isMyMessage ? 0 : 4, marginTop: 2 },
+              ]}>
+                {formatTime(msg.createdAt)}
+              </Text>
+            </View>
+          </SwipeableMessage>
         </View>
       );
     }
@@ -1470,47 +1468,45 @@ export default function ChatScreen({ route, navigation }) {
       return (
         <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
           {avatarEl}
-          <View>
-            {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
-            <SwipeableMessage
-              messageId={msg.id}
-              highlightedIdSV={highlightedIdSV}
-              isMyMessage={isMyMessage}
-              onReply={() => setSelectedReply({
-                id: msg.id,
-                messageText: "Shared a post",
-                senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
-                isDeleted: msg.isDeleted,
-                isPostShare: true,
-                postAuthorUsername: msg.metadata?.authorUsername || msg.metadata?.author_username,
-                postCaption: msg.metadata?.caption,
-              })}
-              onLongPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                setOptionsTarget(msg);
-              }}
-            >
-              <View collapsable={false}>
-                {msg.replyPreview && (
-                  <ReplyQuote
-                    replyPreview={msg.replyPreview}
-                    isMyMessage={isMyMessage}
-                    onPress={() => scrollToMessage(msg.replyToMessageId)}
-                  />
-                )}
-                <SharedPostCard 
-                  metadata={msg.metadata} 
-                  onPress={(postId, postData) => {
-                    setSharedPosts(prev => ({ ...prev, [postId]: postData }));
-                    setSelectedSharedPost(postData); setSharedPostModalVisible(true);
-                  }}
-                  onUserPress={(userId, userType) => {
-                    navigation.navigate("MemberProfile", { memberId: userId });
-                  }}
+          <SwipeableMessage
+            messageId={msg.id}
+            highlightedIdSV={highlightedIdSV}
+            isMyMessage={isMyMessage}
+            onReply={() => setSelectedReply({
+              id: msg.id,
+              messageText: "Shared a post",
+              senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
+              isDeleted: msg.isDeleted,
+              isPostShare: true,
+              postAuthorUsername: msg.metadata?.authorUsername || msg.metadata?.author_username,
+              postCaption: msg.metadata?.caption,
+            })}
+            onLongPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setOptionsTarget(msg);
+            }}
+          >
+            <View collapsable={false}>
+              {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
+              {msg.replyPreview && (
+                <ReplyQuote
+                  replyPreview={msg.replyPreview}
+                  isMyMessage={isMyMessage}
+                  onPress={() => scrollToMessage(msg.replyToMessageId)}
                 />
-              </View>
-            </SwipeableMessage>
-          </View>
+              )}
+              <SharedPostCard 
+                metadata={msg.metadata} 
+                onPress={(postId, postData) => {
+                  setSharedPosts(prev => ({ ...prev, [postId]: postData }));
+                  setSelectedSharedPost(postData); setSharedPostModalVisible(true);
+                }}
+                onUserPress={(userId, userType) => {
+                  navigation.navigate("MemberProfile", { memberId: userId });
+                }}
+              />
+            </View>
+          </SwipeableMessage>
         </View>
       );
     }
