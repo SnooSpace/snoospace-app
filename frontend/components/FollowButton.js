@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { apiPost, apiDelete } from "../api/client";
 import { getAuthToken } from "../api/auth";
+import { trackFollow } from "../utils/followTracker";
 
 const COLORS = {
   primary: "#3B82F6", // Editorial accent blue
@@ -29,6 +30,8 @@ const FollowButton = ({
   style,
   textStyle,
   isLoading: externalLoading = false,
+  currentFollowerId,
+  navigationContext,
 }) => {
   // Fully controlled component - no internal state, just use props
   const handleFollowToggle = async () => {
@@ -38,6 +41,11 @@ const FollowButton = ({
       // Just call the callback - let parent handle API calls and state management
       if (onFollowChange) {
         await onFollowChange(userId, userType, !isFollowing);
+      }
+
+      // Track follow intent (non-blocking, fire-and-forget)
+      if (!isFollowing && currentFollowerId) {
+        trackFollow(currentFollowerId, userId, navigationContext);
       }
     } catch (error) {
       console.error("Error toggling follow:", error);

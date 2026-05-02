@@ -31,6 +31,9 @@ import {
   FileText,
   Trash2,
   PauseCircle,
+  BarChart3,
+  Users,
+  ChevronRight,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -55,6 +58,7 @@ import {
 } from "../../../utils/draftStorage";
 import { getActiveAccount } from "../../../api/auth";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import { getCreatorStats } from "../../../api/audienceIntelligence";
 
 // --- Design Tokens (Founder Dashboard) ---
 const DASHBOARD_TOKENS = {
@@ -194,12 +198,14 @@ export default function CommunityDashboardScreen({ navigation }) {
   const [previousEvents, setPreviousEvents] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [activeTab, setActiveTab] = useState("upcoming");
+  const [audienceStats, setAudienceStats] = useState(null);
 
   // Scroll Animation
   const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadDashboard();
+    loadAudienceStats();
   }, []);
 
   const loadDashboard = async () => {
@@ -221,6 +227,19 @@ export default function CommunityDashboardScreen({ navigation }) {
       console.error("Dashboard error:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAudienceStats = async () => {
+    try {
+      const account = await getActiveAccount();
+      if (!account?.id) return;
+      const response = await getCreatorStats(account.id);
+      if (response?.success) {
+        setAudienceStats(response.stats);
+      }
+    } catch (error) {
+      console.error("Audience stats error:", error);
     }
   };
 
@@ -715,47 +734,59 @@ export default function CommunityDashboardScreen({ navigation }) {
           </View>
         </View>
 
-        {/* 2️⃣ Growth & Engagement Row (Swapped Position) */}
+        {/* 2️⃣ Audience Quality Summary (Replaces Growth & Engagement) */}
         <View style={[styles.section, { marginBottom: 16 }]}>
           <View style={{ flexDirection: "row", gap: 12 }}>
-            {/* New Members Card */}
+            {/* Follow Quality Card */}
             <View style={styles.statCard}>
               <View style={styles.statDecoration} />
               <View style={styles.statHeader}>
                 <View style={styles.iconCircle}>
-                  <UserPlus size={20} color="#2563EB" />
+                  <BarChart3 size={20} color="#2563EB" />
                 </View>
-                <View
-                  style={[styles.badgePill, { backgroundColor: "#E3F2FD" }]}
-                >
-                  <Text style={[styles.badgeText, { color: "#1E40AF" }]}>
-                    +12%
-                  </Text>
-                </View>
+                {audienceStats?.follow_quality_score > 0 && (
+                  <View
+                    style={[styles.badgePill, { backgroundColor: "#E3F2FD" }]}
+                  >
+                    <Text style={[styles.badgeText, { color: "#1E40AF" }]}>
+                      Content
+                    </Text>
+                  </View>
+                )}
               </View>
-              <Text style={styles.statValue}>+124</Text>
-              <Text style={styles.statLabel}>New Members</Text>
+              <Text style={styles.statValue}>
+                {audienceStats
+                  ? `${Math.round(audienceStats.follow_quality_score)}%`
+                  : "—"}
+              </Text>
+              <Text style={styles.statLabel}>Follow Quality</Text>
             </View>
 
-            {/* Engagement Rate Card */}
+            {/* Audience Score Card */}
             <View style={styles.statCard}>
               <View style={styles.statDecoration} />
               <View style={styles.statHeader}>
                 <View style={styles.iconCircle}>
-                  <TrendingUp size={20} color="#2563EB" />
+                  <Users size={20} color="#2563EB" />
                 </View>
-                <View
-                  style={[styles.badgePill, { backgroundColor: "#F3F4F6" }]}
-                >
-                  <Text
-                    style={[styles.badgeText, { color: COLORS.textSecondary }]}
+                {audienceStats?.tier1_percentage >= 20 && (
+                  <View
+                    style={[styles.badgePill, { backgroundColor: "#F3F4F6" }]}
                   >
-                    Top 5%
-                  </Text>
-                </View>
+                    <Text
+                      style={[styles.badgeText, { color: COLORS.textSecondary }]}
+                    >
+                      🏆 {Math.round(audienceStats.tier1_percentage)}%
+                    </Text>
+                  </View>
+                )}
               </View>
-              <Text style={styles.statValue}>High</Text>
-              <Text style={styles.statLabel}>Engagement Rate</Text>
+              <Text style={styles.statValue}>
+                {audienceStats
+                  ? Math.round(audienceStats.audience_buying_power_score)
+                  : "—"}
+              </Text>
+              <Text style={styles.statLabel}>Audience Score</Text>
             </View>
           </View>
         </View>
@@ -815,6 +846,32 @@ export default function CommunityDashboardScreen({ navigation }) {
               </Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Audience Intelligence CTA Card */}
+        <View style={styles.section}>
+          <TouchableOpacity
+            style={styles.audienceCTACard}
+            onPress={() => navigation.navigate("AudienceIntelligence")}
+            activeOpacity={0.9}
+          >
+            <View style={styles.audienceCTAContent}>
+              <View style={styles.audienceCTALeft}>
+                <View style={styles.audienceCTAIcon}>
+                  <BarChart3 size={22} color="#2563EB" />
+                </View>
+                <View>
+                  <Text style={styles.audienceCTATitle}>Audience Intelligence</Text>
+                  <Text style={styles.audienceCTASub}>
+                    {audienceStats
+                      ? `🏆 T1: ${Math.round(audienceStats.tier1_percentage || 0)}%  ⭐ T2: ${Math.round(audienceStats.tier2_percentage || 0)}%`
+                      : "See your audience quality breakdown"}
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={22} color={COLORS.textMuted} />
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* 4️⃣ Events Section (Compact List) */}
@@ -1493,5 +1550,43 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 16,
     color: "#6B7280",
+  },
+  audienceCTACard: {
+    backgroundColor: DASHBOARD_TOKENS.surface,
+    borderRadius: DASHBOARD_TOKENS.cardRadius,
+    ...DASHBOARD_TOKENS.dominantShadow,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.02)",
+    overflow: "hidden",
+  },
+  audienceCTAContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 24,
+  },
+  audienceCTALeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  audienceCTAIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "rgba(37,99,235,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  audienceCTATitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  audienceCTASub: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.textSecondary,
   },
 });

@@ -145,7 +145,28 @@ const CommunityBottomTabNavigator = () => {
       <Tab.Screen
         name="Dashboard"
         component={CommunityDashboardStackNavigator}
-        options={{ tabBarLabel: "Dashboard" }}
+        options={({ route }) => ({
+          tabBarLabel: "Dashboard",
+          tabBarStyle: (() => {
+            const routeName = getFocusedRouteNameFromRoute(route) ?? "DashboardHome";
+            if (routeName === "AudienceIntelligence") {
+              return { display: "none" };
+            }
+            return {
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: Platform.OS === "ios" ? "transparent" : "#FFFFFF",
+              borderTopWidth: 0,
+              elevation: 0,
+              shadowOpacity: 0,
+              height: Platform.OS === "ios" ? 95 : 80,
+              paddingTop: 12,
+              paddingBottom: Platform.OS === "ios" ? 20 : 10,
+            };
+          })(),
+        })}
       />
       <Tab.Screen
         name="Requests"

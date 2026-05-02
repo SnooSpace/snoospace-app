@@ -33,6 +33,7 @@ const OpportunityController = require("../controllers/opportunityController");
 const ViewsController = require("../controllers/viewsController");
 const ShareController = require("../controllers/shareController");
 const SaveController = require("../controllers/saveController");
+const AudienceIntelligenceController = require("../controllers/audienceIntelligenceController");
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 
 const router = express.Router();
@@ -143,6 +144,20 @@ router.get(
   "/admin/audit-log",
   adminAuthMiddleware,
   ModerationController.getAuditLog,
+);
+
+// ============================================
+// ADMIN AUDIENCE INTELLIGENCE (Protected)
+// ============================================
+router.get(
+  "/admin/audience/community/:communityId",
+  adminAuthMiddleware,
+  AudienceIntelligenceController.getAdminCommunityAudienceStats,
+);
+router.get(
+  "/admin/audience/overview",
+  adminAuthMiddleware,
+  AudienceIntelligenceController.getAdminAudienceOverview,
 );
 
 // ============================================
@@ -1154,6 +1169,40 @@ router.get("/follow/status", authMiddleware, FollowController.getFollowStatus);
 router.get(
   "/follow/counts/:userId/:userType",
   FollowController.getFollowCounts,
+);
+
+// ============================================
+// AUDIENCE INTELLIGENCE
+// ============================================
+router.post(
+  "/audience/track-follow",
+  authMiddleware,
+  AudienceIntelligenceController.trackFollow,
+);
+router.post(
+  "/audience/track-engagement",
+  authMiddleware,
+  AudienceIntelligenceController.trackEngagement,
+);
+router.post(
+  "/audience/calculate-aqi/:userId",
+  authMiddleware,
+  AudienceIntelligenceController.calculateAqi,
+);
+router.get(
+  "/audience/creator-stats/:creatorId",
+  authMiddleware,
+  AudienceIntelligenceController.getCreatorStats,
+);
+router.get(
+  "/audience/brand-matches/:brandId/:campaignId",
+  authMiddleware,
+  AudienceIntelligenceController.getBrandMatches,
+);
+router.post(
+  "/audience/calculate-creator-stats/:creatorId",
+  authMiddleware,
+  AudienceIntelligenceController.calculateCreatorStatsEndpoint,
 );
 
 // Notifications

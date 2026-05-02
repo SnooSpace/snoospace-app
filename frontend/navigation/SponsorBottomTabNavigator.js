@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 // Import Sponsor screens
 import HomeFeedScreen from '../components/HomeFeedScreen';
-import SponsorBrowseScreen from '../screens/home/sponsor/SponsorBrowseScreen';
+import CreatorDiscoveryScreen from '../screens/home/sponsor/CreatorDiscoveryScreen';
 import SponsorOffersScreen from '../screens/home/sponsor/SponsorOffersScreen';
 import CreatePostScreen from '../components/CreatePostScreen';
 import SponsorProfileScreen from '../screens/profile/sponsor/SponsorProfileScreen';
@@ -24,10 +24,10 @@ const SponsorBottomTabNavigator = ({ navigation }) => {
       component: (props) => <HomeFeedScreen {...props} role="sponsor" />
     },
     {
-      name: 'Browse',
+      name: 'Discover',
       icon: 'search-outline',
       activeIcon: 'search',
-      component: SponsorBrowseScreen
+      component: CreatorDiscoveryScreen
     },
     {
       name: 'Offers',
