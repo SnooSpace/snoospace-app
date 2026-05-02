@@ -97,13 +97,21 @@ class ViewQueueService {
     // Persist changes
     await this.persistData();
 
-    // Flush immediately if queue is large
+    // Flush soon — server confirmation triggers the UI count increment.
+    // Using a short delay (500ms) to batch rapid-fire views from multiple
+    // posts becoming visible simultaneously, while still feeling responsive.
     if (this.pendingQueue.length >= MAX_BATCH_SIZE) {
       this.flushQueue();
+    } else if (!this._immediateFlushTimer) {
+      this._immediateFlushTimer = setTimeout(() => {
+        this._immediateFlushTimer = null;
+        this.flushQueue();
+      }, 500);
     }
 
-    // Notify screens to optimistically increment the visible view count
-    EventBus.emit("post-view-updated", { postId });
+    // NOTE: We do NOT optimistically increment the view count here.
+    // The EventBus notification fires in flushQueue() only after the
+    // server confirms the view was accepted (not a duplicate).
 
     return true;
   }
@@ -186,10 +194,12 @@ class ViewQueueService {
       );
 
       // Server returns which posts were accepted as unique
-      // Update local cache with server truth
+      // Update local cache with server truth and notify UI
       if (response.accepted && Array.isArray(response.accepted)) {
         response.accepted.forEach((id) => {
           this.viewedPostsCache.add(String(id));
+          // Only increment the visible count for server-confirmed new views
+          EventBus.emit("post-view-updated", { postId: id });
         });
       }
 
@@ -233,6 +243,27 @@ class ViewQueueService {
     if (this.appStateSubscription) {
       this.appStateSubscription.remove();
     }
+  }
+
+  /**
+   * Reset view cache on account switch.
+   * Flushes pending views for the outgoing account, then clears
+   * the local viewed-posts cache so the new account starts fresh.
+   */
+  async resetForAccountSwitch() {
+    // Flush any pending views for the current (old) account
+    await this.flushQueue();
+    // Clear the in-memory cache
+    this.viewedPostsCache = new Set();
+    this.pendingQueue = [];
+    // Clear the persisted cache
+    try {
+      await AsyncStorage.setItem(VIEWED_POSTS_KEY, JSON.stringify([]));
+      await AsyncStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify([]));
+    } catch (e) {
+      console.error("[ViewQueueService] Failed to clear cache on account switch:", e);
+    }
+    console.log("[ViewQueueService] Cache reset for account switch");
   }
 }
 

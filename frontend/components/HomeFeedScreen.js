@@ -221,7 +221,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
 
-  // Auto-play state
+  // Auto-play state (for video: requires 60% viewport coverage)
   const [visiblePostId, setVisiblePostId] = useState(null);
   const lastVisiblePostIdRef = useRef(null); // Track last visible post to restore on focus
 
@@ -1095,6 +1095,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         currentUserId={currentUserId}
         currentUserType={currentUserType}
         isVideoPlaying={item.id === visiblePostId}
+        isInViewport={isFocused}
         isScreenFocused={isFocused}
         onUserPress={(userId, userType) => {
           const actualUserType = userType || item?.author_type;
@@ -1181,8 +1182,6 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       );
 
       if (videoItems.length > 0) {
-        // If multiple videos pass threshold, pick the first one
-        // (In practice, only one should pass the 60% threshold at a time)
         const targetVideo = videoItems[0];
 
         console.log("[HomeFeed] Video viewable (60% coverage):", {

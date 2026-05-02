@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -17,7 +17,8 @@ import {
   ArrowLeft,
 } from "lucide-react-native";
 import { getSavedPosts } from "../api/client";
-import { getAuthToken } from "../api/auth";
+import { getAuthToken, getActiveAccount } from "../api/auth";
+import EventBus from "../utils/EventBus";
 import ProfilePostFeed from "../components/ProfilePostFeed";
 import SnooLoader from "../components/ui/SnooLoader";
 
@@ -34,13 +35,70 @@ const SavedPostsScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUserType, setCurrentUserType] = useState(null);
 
   // Post modal state
   const [postModalVisible, setPostModalVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
 
+  // Load logged-in user info for isOwnPost check
+  useEffect(() => {
+    getActiveAccount().then((account) => {
+      if (account?.id) setCurrentUserId(account.id);
+      if (account?.type) setCurrentUserType(account.type);
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     loadSavedPosts();
+  }, []);
+
+  // Real-time EventBus sync for view/like/save counts
+  useEffect(() => {
+    const handleViewUpdate = (payload) => {
+      if (!payload?.postId) return;
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === payload.postId
+            ? { ...p, public_view_count: (p.public_view_count || 0) + 1 }
+            : p,
+        ),
+      );
+    };
+    const handleLikeUpdate = (payload) => {
+      if (!payload?.postId) return;
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === payload.postId
+            ? { ...p, is_liked: payload.isLiked, isLiked: payload.isLiked, like_count: payload.likeCount ?? p.like_count }
+            : p,
+        ),
+      );
+    };
+    const handleSaveUpdate = (payload) => {
+      if (!payload?.postId) return;
+      // If unsaved, remove from list; otherwise update save state
+      if (!payload.isSaved) {
+        setPosts((prev) => prev.filter((p) => p.id !== payload.postId));
+      } else {
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === payload.postId
+              ? { ...p, is_saved: payload.isSaved, save_count: payload.saveCount }
+              : p,
+          ),
+        );
+      }
+    };
+    const unsubView = EventBus.on("post-view-updated", handleViewUpdate);
+    const unsubLike = EventBus.on("post-like-updated", handleLikeUpdate);
+    const unsubSave = EventBus.on("post-save-updated", handleSaveUpdate);
+    return () => {
+      if (unsubView) unsubView();
+      if (unsubLike) unsubLike();
+      if (unsubSave) unsubSave();
+    };
   }, []);
 
   const loadSavedPosts = async (isRefresh = false) => {
@@ -210,8 +268,15 @@ const SavedPostsScreen = ({ navigation }) => {
           posts={posts}
           initialPostId={selectedPost.id}
           onClose={closePostModal}
-          currentUserId={selectedPost.author_id}
-          currentUserType={selectedPost.author_type}
+          currentUserId={currentUserId}
+          currentUserType={currentUserType}
+          onLikeUpdate={(postId, isLiked, likeCount) => {
+            setPosts((prev) =>
+              prev.map((p) =>
+                p.id === postId ? { ...p, is_liked: isLiked, like_count: likeCount } : p,
+              ),
+            );
+          }}
           onSave={handleUnsave}
           navigation={navigation}
         />

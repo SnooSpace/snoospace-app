@@ -247,8 +247,48 @@ async function getViewedPosts(req, res) {
   }
 }
 
+/**
+ * GET /posts/:postId/view-stats
+ *
+ * Public view stats — no ownership check.
+ * Returns unique viewer count and total impression count (including revisits).
+ * Used by the post card "View Insights" bottom sheet visible to all users.
+ */
+async function getPostViewStats(req, res) {
+  try {
+    const { postId } = req.params;
+
+    const result = await pool.query(
+      `SELECT
+         p.public_view_count AS unique_views,
+         p.public_view_count + COUNT(r.id) AS total_views
+       FROM posts p
+       LEFT JOIN repeat_view_events r ON r.post_id = p.id
+       WHERE p.id = $1
+       GROUP BY p.public_view_count`,
+      [postId],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    const row = result.rows[0];
+    return res.json({
+      post_id: parseInt(postId),
+      unique_views: parseInt(row.unique_views || 0),
+      total_views: parseInt(row.total_views || 0),
+    });
+  } catch (e) {
+    console.error("[ViewsController] getPostViewStats error:", e);
+    return res.status(500).json({ error: "Failed to get view stats" });
+  }
+}
+
 module.exports = {
   submitViewsBatch,
   getPostViewAnalytics,
   getViewedPosts,
+  getPostViewStats,
 };
+

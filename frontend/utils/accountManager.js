@@ -259,6 +259,10 @@ export async function switchAccount(accountId) {
         previousAccount.type,
         previousAccount.id,
       );
+
+      // Clear viewed-posts cache so the new account's view tracking starts fresh
+      const { viewQueueService } = await import("../services/ViewQueueService");
+      await viewQueueService.resetForAccountSwitch();
     }
 
     // CRITICAL: Increment generation FIRST to invalidate all in-flight requests

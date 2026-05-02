@@ -17,6 +17,25 @@ import DeletePostModal from "./DeletePostModal";
 import { VideoProvider } from "../context/VideoContext";
 import { COLORS, SPACING } from "../constants/theme";
 
+// Defined OUTSIDE ProfilePostFeed to prevent recreation on every render.
+// If defined inside, React treats it as a new component type each render,
+// causing full unmount+remount of each card — resetting carousel position,
+// video state, dwell timers, etc.
+const MemoizedPostCard = React.memo(EditorialPostCard, (prev, next) => {
+  return (
+    prev.post.id === next.post.id &&
+    prev.isVideoPlaying === next.isVideoPlaying &&
+    prev.isInViewport === next.isInViewport &&
+    prev.post.like_count === next.post.like_count &&
+    prev.post.is_liked === next.post.is_liked &&
+    prev.post.comment_count === next.post.comment_count &&
+    prev.post.public_view_count === next.post.public_view_count &&
+    prev.post.save_count === next.post.save_count &&
+    prev.post.saves_count === next.post.saves_count &&
+    prev.post.is_saved === next.post.is_saved
+  );
+});
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const ProfilePostFeed = ({
@@ -118,13 +137,7 @@ const ProfilePostFeed = ({
     setPostToDelete(null);
   };
 
-const MemoizedPostCard = React.memo(EditorialPostCard, (prev, next) => {
-  return prev.post.id === next.post.id &&
-    prev.isVideoPlaying === next.isVideoPlaying &&
-    prev.post.like_count === next.post.like_count &&
-    prev.post.is_liked === next.post.is_liked &&
-    prev.post.comment_count === next.post.comment_count;
-});
+// MemoizedPostCard is now defined outside this component (above). See top of file.
 
   const renderItem = useCallback(({ item }) => {
     // Use string comparison to avoid type mismatches
@@ -136,6 +149,7 @@ const MemoizedPostCard = React.memo(EditorialPostCard, (prev, next) => {
         currentUserId={currentUserId}
         currentUserType={currentUserType}
         isVideoPlaying={shouldPlayVideo}
+        isInViewport={shouldPlayVideo} // Gate dwell-time view tracking to visible post only
         isScreenFocused={true} // Modal is visible, so screen is focused
         onLike={onLikeUpdate} // Adapting to the signature expected by EditorialPostCard
         onComment={handleCommentPress}

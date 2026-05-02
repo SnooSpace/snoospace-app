@@ -887,6 +887,7 @@ export default function ChatScreen({ route, navigation }) {
               addNewMessage({
                 id: m.id, senderId: m.sender_id, senderType: m.sender_type,
                 messageText: m.message_text, messageType: m.message_type,
+                metadata: m.metadata,
                 isDeleted: m.is_deleted, deletedByType: m.deleted_by_type,
                 replyToMessageId: m.reply_to_message_id, isRead: m.is_read, createdAt: m.created_at,
               });
@@ -1413,7 +1414,7 @@ export default function ChatScreen({ route, navigation }) {
       return (
         <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
           {avatarEl}
-          <View>
+          <View style={{ alignSelf: isMyMessage ? "flex-end" : "flex-start" }}>
             {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
             <SwipeableMessage
               messageId={msg.id}
@@ -1431,7 +1432,7 @@ export default function ChatScreen({ route, navigation }) {
                 setOptionsTarget(msg);
               }}
             >
-              <View collapsable={false}>
+              <View collapsable={false} style={{ alignSelf: isMyMessage ? "flex-end" : "flex-start" }}>
                 {msg.replyPreview && (
                   <ReplyQuote
                     replyPreview={msg.replyPreview}
@@ -1451,7 +1452,11 @@ export default function ChatScreen({ route, navigation }) {
                     }
                   }}
                 />
-                <Text style={[styles.messageTime, isMyMessage ? styles.myMessageTime : styles.otherMessageTime, { marginRight: isMyMessage ? 4 : 0, marginLeft: isMyMessage ? 0 : 4, marginTop: 2 }]}>
+                <Text style={[
+                  styles.messageTime,
+                  isMyMessage ? styles.myMessageTime : styles.otherMessageTime,
+                  { marginRight: isMyMessage ? 4 : 0, marginLeft: isMyMessage ? 0 : 4, marginTop: 2 },
+                ]}>
                   {formatTime(msg.createdAt)}
                 </Text>
               </View>
@@ -1712,7 +1717,7 @@ export default function ChatScreen({ route, navigation }) {
                     <View style={styles.mediaCaptionRow}>
                       <TextInput
                         style={styles.mediaCaption}
-                        placeholder={`Add a captionΓÇª`}
+                        placeholder={`Add a caption`}
                         placeholderTextColor="#B0BEC5"
                         value={messageText}
                         onChangeText={setMessageText}
@@ -1823,8 +1828,8 @@ export default function ChatScreen({ route, navigation }) {
             posts={[selectedSharedPost]}
             initialPostId={selectedSharedPost.id}
             onClose={() => { setSharedPostModalVisible(false); setSelectedSharedPost(null); }}
-            currentUserId={selectedSharedPost.author_id}
-            currentUserType={selectedSharedPost.author_type}
+            currentUserId={currentUser?.id}
+            currentUserType={currentUser?.type || "member"}
             onLikeUpdate={(postId, isLiked) => setSelectedSharedPost(prev => ({ ...prev, is_liked: isLiked, isLiked, like_count: Math.max(0, (prev.like_count || 0) + (isLiked ? 1 : -1)) }))}
             onComment={(postId, newCount) => setSelectedSharedPost(prev => ({ ...prev, comment_count: newCount }))}
             navigation={navigation}

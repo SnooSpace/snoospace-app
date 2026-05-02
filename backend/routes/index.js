@@ -870,6 +870,11 @@ router.get(
   authMiddleware,
   ViewsController.getPostViewAnalytics,
 );
+router.get(
+  "/posts/:postId/view-stats",
+  authMiddleware,
+  ViewsController.getPostViewStats,
+);
 
 // Share routes
 router.post("/posts/:postId/share", authMiddleware, ShareController.sharePost);

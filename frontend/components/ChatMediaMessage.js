@@ -247,8 +247,14 @@ export default function ChatMediaMessage({
     <View style={[bubbleStyles.wrapper, isMyMessage ? bubbleStyles.wrapperRight : bubbleStyles.wrapperLeft]}>
       {renderContent()}
       {!!messageText && (
-        <View style={[bubbleStyles.captionBubble, isMyMessage ? bubbleStyles.myCaptionBubble : bubbleStyles.otherCaptionBubble]}>
-          <Text style={[bubbleStyles.captionText, isMyMessage ? bubbleStyles.myCaptionText : bubbleStyles.otherCaptionText]}>
+        <View style={[
+          bubbleStyles.captionBubble,
+          isMyMessage ? bubbleStyles.myCaptionBubble : bubbleStyles.otherCaptionBubble,
+        ]}>
+          <Text style={[
+            bubbleStyles.captionText,
+            isMyMessage ? bubbleStyles.myCaptionText : bubbleStyles.otherCaptionText,
+          ]}>
             {messageText}
           </Text>
         </View>

@@ -28,6 +28,7 @@ import {
   ScrollView,
   Alert,
   Modal,
+  Animated,
 } from "react-native";
 import {
   Heart,
@@ -37,8 +38,11 @@ import {
   Bookmark,
   Ellipsis,
   Trash2,
+  Users,
+  RefreshCw,
+  X,
 } from "lucide-react-native";
-import { apiPost, apiDelete, savePost, unsavePost } from "../api/client";
+import { apiGet, apiPost, apiDelete, savePost, unsavePost } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 import MentionTextRenderer from "./MentionTextRenderer";
@@ -106,6 +110,7 @@ const EditorialPostCard = ({
   currentUserType,
   isVideoPlaying = false,
   isScreenFocused = true,
+  isInViewport = true, // Must be explicitly passed in multi-post feeds (HomeFeed, ProfilePostFeed). Default true for single-post detail screens.
   showFollowButton = true,
 }) => {
   // Route to type-specific card components for special post types
@@ -189,6 +194,12 @@ const EditorialPostCard = ({
   const [videoViewCounted, setVideoViewCounted] = useState(false);
   const [imageViewCounted, setImageViewCounted] = useState(false);
 
+  // ── View Insights state ────────────────────────────────────────────────────
+  const [viewStatsVisible, setViewStatsVisible] = useState(false);
+  const [viewStats, setViewStats] = useState(null); // { unique_views, total_views }
+  const [viewStatsLoading, setViewStatsLoading] = useState(false);
+  const viewSheetAnim = useRef(new Animated.Value(0)).current;
+
   // ── Normalise image_urls ──────────────────────────────────────────────────
   // The API may return a nested array [["url1","url2"]] when the raw DB value
   // is a JSON string that gets double-parsed somewhere in the pipeline.
@@ -238,33 +249,41 @@ const EditorialPostCard = ({
   const imageDwellTimerRef = React.useRef(null);
 
   useEffect(() => {
-    // Skip if video (handled separately) or already counted
-    if (isVideo || viewQueueService.hasViewed(post.id)) {
-      return;
-    }
+    // Skip video (handled separately) or not in viewport
+    if (isVideo || !isInViewport) return;
 
     const dwellThreshold = isImage ? 1500 : 2000; // 1.5s for images, 2s for text
 
-    // Start dwell timer when component mounts (becomes visible)
-    imageDwellStartRef.current = Date.now();
+    const alreadyViewed = viewQueueService.hasViewed(post.id);
+    console.log(`[EditorialPostCard] Dwell timer START post=${post.id} alreadyViewed=${alreadyViewed} threshold=${dwellThreshold}ms`);
 
-    imageDwellTimerRef.current = setTimeout(() => {
-      if (!imageViewCounted && !viewQueueService.hasViewed(post.id)) {
-        setImageViewCounted(true);
-        viewQueueService.addQualifiedView(post.id, {
-          postType: isImage ? "image" : "text",
-          trigger: "dwell",
-          dwellTime: dwellThreshold,
-        });
-      }
-    }, dwellThreshold);
+    if (!alreadyViewed) {
+      // ── Fresh view path: qualify and count as unique viewer ──────────────
+      imageDwellStartRef.current = Date.now();
+      imageDwellTimerRef.current = setTimeout(() => {
+        if (!imageViewCounted && !viewQueueService.hasViewed(post.id)) {
+          setImageViewCounted(true);
+          viewQueueService.addQualifiedView(post.id, {
+            postType: isImage ? "image" : "text",
+            trigger: "dwell",
+            dwellTime: dwellThreshold,
+          });
+        }
+      }, dwellThreshold);
+    } else {
+      // ── Repeat view path: user is revisiting a post they already counted ──
+      // addRepeatView contributes to total_views (impressions) only, not unique.
+      imageDwellTimerRef.current = setTimeout(() => {
+        viewQueueService.addRepeatView(post.id, "revisit");
+      }, dwellThreshold);
+    }
 
     return () => {
       if (imageDwellTimerRef.current) {
         clearTimeout(imageDwellTimerRef.current);
       }
     };
-  }, [post.id, isVideo, isImage, imageViewCounted]);
+  }, [post.id, isVideo, isImage, imageViewCounted, isInViewport]);
 
   // Video qualified view tracking callbacks
   const handleVideoUnmute = useCallback(() => {
@@ -487,6 +506,44 @@ const EditorialPostCard = ({
     showFollowButton,
     willShowButton: showFollowButton && !isOwnPost,
     isFollowing: post.is_following,
+  });
+
+  // ── View Stats handler ─────────────────────────────────────────────────────
+  const handleViewPress = useCallback(async () => {
+    setViewStatsVisible(true);
+    Animated.spring(viewSheetAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+    if (viewStats) return;
+    setViewStatsLoading(true);
+    try {
+      const token = await getAuthToken();
+      const data = await apiGet(`/posts/${post.id}/view-stats`, 8000, token);
+      setViewStats(data);
+    } catch (e) {
+      setViewStats({
+        unique_views: post.public_view_count || post.view_count || 0,
+        total_views: post.public_view_count || post.view_count || 0,
+      });
+    } finally {
+      setViewStatsLoading(false);
+    }
+  }, [post.id, post.public_view_count, post.view_count, viewStats, viewSheetAnim]);
+
+  const handleCloseViewStats = useCallback(() => {
+    Animated.timing(viewSheetAnim, {
+      toValue: 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(() => setViewStatsVisible(false));
+  }, [viewSheetAnim]);
+
+  const sheetTranslateY = viewSheetAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [300, 0],
   });
 
   return (
@@ -716,7 +773,7 @@ const EditorialPostCard = ({
         </Pressable>
 
         {/* Views */}
-        <View style={styles.engagementButton}>
+        <Pressable style={styles.engagementButton} onPress={handleViewPress}>
           <ChartNoAxesCombined
             size={EDITORIAL_SPACING.iconSize}
             color={COLORS.editorial.textSecondary}
@@ -724,7 +781,7 @@ const EditorialPostCard = ({
           <Text style={styles.engagementCount}>
             {formatCount(post.public_view_count || post.view_count || 0)}
           </Text>
-        </View>
+        </Pressable>
 
         {/* Share */}
         <Pressable style={styles.engagementButton} onPress={handleShare}>
@@ -751,6 +808,70 @@ const EditorialPostCard = ({
           )}
         </Pressable>
       </View>
+
+      {/* View Insights Bottom Sheet Modal */}
+      <Modal
+        visible={viewStatsVisible}
+        transparent
+        animationType="none"
+        onRequestClose={handleCloseViewStats}
+        statusBarTranslucent
+      >
+        <Pressable style={viewStyles.overlay} onPress={handleCloseViewStats}>
+          <Animated.View
+            style={[viewStyles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View style={viewStyles.handle} />
+              <View style={viewStyles.header}>
+                <View style={viewStyles.headerLeft}>
+                  <ChartNoAxesCombined size={18} color="#3565F2" strokeWidth={2} />
+                  <Text style={viewStyles.headerTitle}>View Insights</Text>
+                </View>
+                <Pressable onPress={handleCloseViewStats} hitSlop={12}>
+                  <X size={18} color="#8FA1B8" strokeWidth={2} />
+                </Pressable>
+              </View>
+              {viewStatsLoading ? (
+                <View style={viewStyles.loadingRow}>
+                  <Text style={viewStyles.loadingText}>Loading…</Text>
+                </View>
+              ) : (
+                <>
+                  <View style={viewStyles.statRow}>
+                    <View style={[viewStyles.statIconBox, { backgroundColor: "rgba(53,101,242,0.10)" }]}>
+                      <Users size={18} color="#3565F2" strokeWidth={2} />
+                    </View>
+                    <View style={viewStyles.statTextCol}>
+                      <Text style={viewStyles.statValue}>
+                        {formatCount(viewStats?.unique_views ?? (post.public_view_count || 0))}
+                      </Text>
+                      <Text style={viewStyles.statLabel}>Unique viewers</Text>
+                    </View>
+                  </View>
+                  <View style={viewStyles.statRow}>
+                    <View style={[viewStyles.statIconBox, { backgroundColor: "rgba(108,77,246,0.10)" }]}>
+                      <RefreshCw size={18} color="#6C4DF6" strokeWidth={2} />
+                    </View>
+                    <View style={viewStyles.statTextCol}>
+                      <Text style={viewStyles.statValue}>
+                        {formatCount(viewStats?.total_views ?? (post.public_view_count || 0))}
+                      </Text>
+                      <Text style={viewStyles.statLabel}>Total impressions</Text>
+                    </View>
+                  </View>
+                  <View style={viewStyles.explainerBox}>
+                    <Text style={viewStyles.explainerText}>
+                      Unique viewers are people who saw this post for the first time.
+                      Total impressions include everyone who revisited.
+                    </Text>
+                  </View>
+                </>
+              )}
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -920,6 +1041,103 @@ const styles = StyleSheet.create({
   },
   likedCount: {
     color: COLORS.error,
+  },
+});
+
+// ── View Insights sheet styles ─────────────────────────────────────────────
+const viewStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 36,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.10,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E0E0E0",
+    alignSelf: "center",
+    marginBottom: 18,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerTitle: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 17,
+    color: "#1F3A5F",
+  },
+  loadingRow: {
+    paddingVertical: 32,
+    alignItems: "center",
+  },
+  loadingText: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 14,
+    color: "#8FA1B8",
+  },
+  statRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F2F4F8",
+  },
+  statIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+  statTextCol: {
+    flex: 1,
+  },
+  statValue: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 22,
+    color: "#1F3A5F",
+    lineHeight: 26,
+  },
+  statLabel: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#8FA1B8",
+    marginTop: 2,
+  },
+  explainerBox: {
+    marginTop: 16,
+    backgroundColor: "#F7F9FC",
+    borderRadius: 12,
+    padding: 14,
+  },
+  explainerText: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 12,
+    color: "#8FA1B8",
+    lineHeight: 18,
   },
 });
 
