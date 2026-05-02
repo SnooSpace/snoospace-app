@@ -16,6 +16,7 @@ const {
   getPlatformMedianAqi,
 } = require("../utils/demographicScoreLookup");
 const { recalculateInterestVectors, detectDrift } = require("../utils/interestVectorEngine");
+const { calculateGenderFitScore, getGenderAffinityForCategory } = require("../utils/genderFitCalculator");
 
 // ============================================================
 // HELPERS
@@ -553,7 +554,8 @@ async function getBrandMatches(req, res) {
         cas.tier1_followers,
         cas.tier2_followers,
         cas.top_spending_categories,
-        cas.weekly_follow_quality_trend
+        cas.weekly_follow_quality_trend,
+        cas.audience_gender_breakdown
       FROM brand_creator_matches bcm
       LEFT JOIN communities c ON bcm.creator_id = c.id
       LEFT JOIN creator_audience_stats cas ON bcm.creator_id = cas.creator_id
@@ -694,6 +696,27 @@ async function recalculateCreatorStats(creatorId) {
     followQualityScore * 0.6 + tier1Pct * 0.25 + tier2Pct * 0.15,
   );
 
+  // Gender breakdown of audience — aggregated percentages only
+  const audienceGenderBreakdown = {};
+  if (followerIds.length > 0) {
+    const genderResult = await pool.query(
+      `SELECT
+        COALESCE(m.gender, 'Unknown') AS gender,
+        COUNT(*)::float / $2 * 100 AS percentage
+      FROM follow_events fe
+      JOIN members m ON m.id = fe.follower_id
+      WHERE fe.creator_id = $1
+      GROUP BY m.gender`,
+      [creatorId, totalFollowers],
+    );
+
+    for (const row of genderResult.rows) {
+      audienceGenderBreakdown[row.gender] = parseFloat(
+        parseFloat(row.percentage).toFixed(1),
+      );
+    }
+  }
+
   // Get existing weekly trend and append current week
   const existingStats = await pool.query(
     `SELECT weekly_follow_quality_trend FROM creator_audience_stats WHERE creator_id = $1`,
@@ -718,8 +741,8 @@ async function recalculateCreatorStats(creatorId) {
       follow_quality_score, tier1_followers, tier2_followers, tier3_followers, tier4_followers,
       tier1_percentage, tier2_percentage, audience_buying_power_score,
       top_spending_categories, geographic_breakdown, engagement_authenticity_score,
-      weekly_follow_quality_trend, calculated_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,NOW())
+      weekly_follow_quality_trend, audience_gender_breakdown, calculated_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,NOW())
     ON CONFLICT (creator_id) DO UPDATE SET
       total_followers = $2, content_follows = $3, social_follows = $4, discovery_follows = $5,
       follow_quality_score = $6, tier1_followers = $7, tier2_followers = $8,
@@ -727,7 +750,7 @@ async function recalculateCreatorStats(creatorId) {
       tier1_percentage = $11, tier2_percentage = $12,
       audience_buying_power_score = $13, top_spending_categories = $14,
       geographic_breakdown = $15, engagement_authenticity_score = $16,
-      weekly_follow_quality_trend = $17, calculated_at = NOW()`,
+      weekly_follow_quality_trend = $17, audience_gender_breakdown = $18, calculated_at = NOW()`,
     [
       creatorId,
       totalFollowers,
@@ -746,6 +769,7 @@ async function recalculateCreatorStats(creatorId) {
       JSON.stringify({}), // geographic_breakdown — populate from member locations
       Math.round(authenticityScore * 100) / 100,
       JSON.stringify(weeklyTrend),
+      JSON.stringify(audienceGenderBreakdown),
     ],
   );
 
@@ -971,6 +995,37 @@ async function getUserInterests(req, res) {
   }
 }
 
+// ============================================================
+// GET /audience/gender-affinity/:category
+// ============================================================
+
+async function getGenderAffinityByCategory(req, res) {
+  try {
+    const { category } = req.params;
+    const affinityData = await getGenderAffinityForCategory(pool, category);
+
+    if (affinityData.length === 0) {
+      return res.json({
+        success: true,
+        category,
+        status: "building",
+        message: "Affinity data is still being learned for this category",
+        affinities: [],
+      });
+    }
+
+    return res.json({
+      success: true,
+      category,
+      status: "ready",
+      affinities: affinityData,
+    });
+  } catch (err) {
+    console.error("[AQI] getGenderAffinityByCategory error:", err.message, err.stack);
+    res.status(500).json({ error: "Failed to fetch gender affinity data" });
+  }
+}
+
 module.exports = {
   trackFollow,
   trackEngagement,
@@ -984,4 +1039,5 @@ module.exports = {
   detectDriftEndpoint,
   getActiveCategories,
   getUserInterests,
+  getGenderAffinityByCategory,
 };

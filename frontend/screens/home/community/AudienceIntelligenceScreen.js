@@ -221,6 +221,52 @@ const AudienceTierBreakdown = ({ stats }) => {
   );
 };
 
+// ── Section 2b: Audience Gender Composition ──
+const GENDER_COLORS = {
+  Female: "#EC4899",
+  Male: ACCENT_BLUE,
+  "Non-binary": "#8B5CF6",
+  Unknown: MUTED_TEXT,
+};
+
+const AudienceGenderSection = ({ genderBreakdown }) => {
+  if (!genderBreakdown || Object.keys(genderBreakdown).length === 0) {
+    return (
+      <GlassCard entering={FadeInDown.delay(140).duration(500)}>
+        <Text style={styles.sectionLabel}>AUDIENCE COMPOSITION</Text>
+        <Text style={styles.emptyText}>Building audience data…</Text>
+      </GlassCard>
+    );
+  }
+
+  const genders = ["Female", "Male", "Non-binary", "Unknown"].filter(
+    (g) => (genderBreakdown[g] ?? 0) > 0,
+  );
+
+  return (
+    <GlassCard entering={FadeInDown.delay(140).duration(500)}>
+      <Text style={styles.sectionLabel}>AUDIENCE COMPOSITION</Text>
+      <Text style={styles.sectionHelper}>Gender breakdown of your followers</Text>
+      <View style={{ marginTop: 12, gap: 10 }}>
+        {genders.map((key) => {
+          const pct = genderBreakdown[key] ?? 0;
+          const color = GENDER_COLORS[key] || MUTED_TEXT;
+          return (
+            <View key={key} style={styles.genderRow}>
+              <Text style={styles.genderLabel}>{key}</Text>
+              <View style={styles.genderBarTrack}>
+                <View style={[styles.genderBarFill, { backgroundColor: color, width: `${pct}%` }]} />
+              </View>
+              <Text style={styles.genderPct}>{pct.toFixed(1)}%</Text>
+            </View>
+          );
+        })}
+      </View>
+      <Text style={styles.privacyNote}>Aggregated audience data only — never individual</Text>
+    </GlassCard>
+  );
+};
+
 // ── Section 3: Follow Quality Trend (SVG Sparkline) ──
 const FollowQualityTrend = ({ stats }) => {
   const trend = stats.weekly_follow_quality_trend || [];
@@ -569,6 +615,7 @@ export default function AudienceIntelligenceScreen({ navigation }) {
           >
             <FollowQualityHero stats={stats} />
             <AudienceTierBreakdown stats={stats} />
+            <AudienceGenderSection genderBreakdown={stats.audience_gender_breakdown} />
             <TrajectoryCard stats={stats} />
             <FollowQualityTrend stats={stats} />
             <InterestFingerprint interests={interests} />
@@ -653,4 +700,11 @@ const styles = StyleSheet.create({
   geoBpiBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   geoBpiText: { fontFamily: FONTS.semiBold, fontSize: 10 },
   geoBuildingText: { fontFamily: FONTS.regular, fontSize: 11, color: MUTED_TEXT, fontStyle: "italic" },
+  // V2: Gender breakdown
+  genderRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  genderLabel: { fontFamily: FONTS.medium, fontSize: 13, color: SECONDARY_TEXT, width: 80 },
+  genderBarTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: SURFACE_NEUTRAL },
+  genderBarFill: { height: 8, borderRadius: 4, minWidth: 3 },
+  genderPct: { fontFamily: FONTS.semiBold, fontSize: 13, color: PRIMARY_TEXT, width: 50, textAlign: "right" },
+  privacyNote: { fontFamily: FONTS.regular, fontSize: 11, color: MUTED_TEXT, marginTop: 14, textAlign: "center", fontStyle: "italic" },
 });

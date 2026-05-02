@@ -539,3 +539,46 @@ INSERT INTO location_hierarchy (city, city_tier, state) VALUES
 ('Noida Extension', 'Tier2', 'Uttar Pradesh'),
 ('Greater Noida',   'Tier2', 'Uttar Pradesh')
 ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- V2 Addendum: Gender Intelligence
+-- ============================================================
+
+-- Learned gender-category affinity indexes
+-- Never written by a human — only by the weekly learning job
+CREATE TABLE IF NOT EXISTS learned_gender_category_affinity (
+  id BIGSERIAL PRIMARY KEY,
+  gender VARCHAR(30) NOT NULL,
+  category VARCHAR(100) NOT NULL,
+  affinity_index NUMERIC NOT NULL DEFAULT 1.0,
+  sample_size INT NOT NULL DEFAULT 0,
+  confidence_level VARCHAR(20) NOT NULL DEFAULT 'insufficient',
+  last_calculated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(gender, category)
+);
+
+CREATE INDEX IF NOT EXISTS idx_gender_affinity_gender ON learned_gender_category_affinity(gender);
+CREATE INDEX IF NOT EXISTS idx_gender_affinity_category ON learned_gender_category_affinity(category);
+CREATE INDEX IF NOT EXISTS idx_gender_affinity_confidence ON learned_gender_category_affinity(confidence_level);
+
+-- Add gender distribution to creator audience stats
+ALTER TABLE creator_audience_stats
+  ADD COLUMN IF NOT EXISTS audience_gender_breakdown JSONB;
+
+-- Add gender fit score to brand_creator_matches
+ALTER TABLE brand_creator_matches
+  ADD COLUMN IF NOT EXISTS gender_fit_score NUMERIC DEFAULT 0;
+
+-- Brand campaigns table
+CREATE TABLE IF NOT EXISTS brand_campaigns (
+  id BIGSERIAL PRIMARY KEY,
+  brand_id BIGINT NOT NULL,
+  name VARCHAR(200),
+  target_gender_breakdown JSONB,
+  target_category VARCHAR(100),
+  target_city VARCHAR(100),
+  status VARCHAR(30) DEFAULT 'active',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_brand_campaigns_brand ON brand_campaigns(brand_id);

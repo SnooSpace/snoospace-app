@@ -1225,7 +1225,11 @@ router.get(
   authMiddleware,
   AudienceIntelligenceController.getUserInterests,
 );
-
+router.get(
+  "/audience/gender-affinity/:category",
+  authMiddleware,
+  AudienceIntelligenceController.getGenderAffinityByCategory,
+);
 // Notifications
 router.get(
   "/notifications",

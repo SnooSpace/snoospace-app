@@ -15,7 +15,7 @@ import {
 } from "lucide-react-native";
 
 import { COLORS, FONTS, SPACING } from "../../../constants/theme";
-import { getBrandMatches, getActiveCategories } from "../../../api/audienceIntelligence";
+import { getBrandMatches, getActiveCategories, getGenderAffinity, formatAffinityInsight } from "../../../api/audienceIntelligence";
 import { getActiveAccount } from "../../../api/auth";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
@@ -37,6 +37,26 @@ const SORT_OPTIONS = [
   { key: "reach", label: "By Quality Reach" },
   { key: "aqi", label: "By Audience Score" },
 ];
+
+const GENDER_AUDIENCE_FILTERS = [
+  { label: "Any", key: "any" },
+  { label: "Majority Female", key: "majority_female" },
+  { label: "Majority Male", key: "majority_male" },
+  { label: "Balanced", key: "balanced" },
+  { label: "NB Inclusive", key: "nonbinary" },
+];
+
+const applyGenderFilter = (creators, filterKey) => {
+  if (filterKey === "any") return creators;
+  return creators.filter((c) => {
+    const bd = c.audience_gender_breakdown ?? {};
+    if (filterKey === "majority_female") return (bd.Female ?? 0) >= 55;
+    if (filterKey === "majority_male") return (bd.Male ?? 0) >= 55;
+    if (filterKey === "balanced") return (bd.Female ?? 0) >= 40 && (bd.Female ?? 0) <= 60;
+    if (filterKey === "nonbinary") return (bd["Non-binary"] ?? 0) >= 5;
+    return true;
+  });
+};
 
 const FilterChip = ({ label, active, onPress }) => (
   <TouchableOpacity
@@ -194,10 +214,17 @@ const CreatorDetailSheet = ({ visible, creator, onClose }) => {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-              {/* Match score */}
-              <View style={styles.sheetSection}>
-                <Text style={styles.sheetSectionTitle}>Match Score</Text>
-                <MatchBadge score={creator.total_match_score || 0} />
+              {/* Fit scores row */}
+              <View style={styles.fitScoreRow}>
+                <View style={styles.fitScoreItem}>
+                  <Text style={styles.fitScoreValue}>{Math.round(creator.total_match_score || 0)}%</Text>
+                  <Text style={styles.fitScoreLbl}>Brand Fit</Text>
+                </View>
+                <View style={styles.fitScoreDivider} />
+                <View style={styles.fitScoreItem}>
+                  <Text style={styles.fitScoreValue}>{Math.round(creator.gender_fit_score || 0)}%</Text>
+                  <Text style={styles.fitScoreLbl}>Gender Fit</Text>
+                </View>
               </View>
 
               {/* Key stats */}
@@ -216,11 +243,34 @@ const CreatorDetailSheet = ({ visible, creator, onClose }) => {
                 </View>
               </View>
 
+              {/* Audience gender breakdown */}
+              {creator.audience_gender_breakdown && Object.keys(creator.audience_gender_breakdown).length > 0 && (
+                <View style={styles.sheetSection}>
+                  <Text style={styles.sheetSectionTitle}>Audience Gender</Text>
+                  {["Female", "Male", "Non-binary", "Unknown"]
+                    .filter((g) => (creator.audience_gender_breakdown[g] ?? 0) > 0)
+                    .map((g) => {
+                      const pct = creator.audience_gender_breakdown[g] ?? 0;
+                      const color = g === "Female" ? "#EC4899" : g === "Male" ? ACCENT_BLUE : g === "Non-binary" ? "#8B5CF6" : MUTED;
+                      return (
+                        <View key={g} style={styles.sheetGenderRow}>
+                          <Text style={styles.sheetGenderLabel}>{g}</Text>
+                          <View style={styles.sheetGenderBarBg}>
+                            <View style={[styles.sheetGenderBarFill, { backgroundColor: color, width: `${pct}%` }]} />
+                          </View>
+                          <Text style={styles.sheetGenderPct}>{pct.toFixed(1)}%</Text>
+                        </View>
+                      );
+                    })}
+                </View>
+              )}
+
               {/* Match breakdown */}
               <View style={styles.sheetSection}>
                 <Text style={styles.sheetSectionTitle}>Match Breakdown</Text>
                 <MatchBar label="AQI Density" value={creator.audience_aqi_density_score || 0} />
                 <MatchBar label="Category Fit" value={creator.category_alignment_score || 0} />
+                <MatchBar label="Gender Fit" value={creator.gender_fit_score || 0} />
                 <MatchBar label="Geographic Fit" value={creator.geographic_fit_score || 0} />
                 <MatchBar label="Past Performance" value={creator.past_performance_score || 0} />
               </View>
@@ -273,6 +323,7 @@ export default function CreatorDiscoveryScreen({ navigation }) {
   const [showDetail, setShowDetail] = useState(false);
   const [dynamicCategories, setDynamicCategories] = useState(FALLBACK_CATEGORIES);
   const [risingOnly, setRisingOnly] = useState(false);
+  const [genderFilter, setGenderFilter] = useState("any");
 
   const fetchMatches = useCallback(async () => {
     try {
@@ -313,9 +364,10 @@ export default function CreatorDiscoveryScreen({ navigation }) {
   }, []);
 
   // Filter: rising audience
-  const filteredMatches = risingOnly
+  const risingFiltered = risingOnly
     ? [...matches].filter((m) => m.aqi_trajectory === "rising")
     : matches;
+  const filteredMatches = applyGenderFilter(risingFiltered, genderFilter);
 
   // Sort
   const sortedMatches = [...filteredMatches].sort((a, b) => {
@@ -366,14 +418,24 @@ export default function CreatorDiscoveryScreen({ navigation }) {
               <FilterChip key={f} label={f} active={selectedCategory === f} onPress={() => setSelectedCategory(f)} />
             ))}
           </ScrollView>
-          <View style={{ marginTop: 8 }}>
+          <View style={{ marginTop: 8, flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
             <TouchableOpacity
-              style={[styles.filterChip, risingOnly && styles.filterChipActive, { alignSelf: "flex-start" }]}
+              style={[styles.filterChip, risingOnly && styles.filterChipActive]}
               onPress={() => setRisingOnly(!risingOnly)}
             >
               <Text style={[styles.filterChipText, risingOnly && styles.filterChipTextActive]}>🔺 Rising Only</Text>
             </TouchableOpacity>
           </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+            {GENDER_AUDIENCE_FILTERS.map((f) => (
+              <FilterChip
+                key={f.key}
+                label={f.label}
+                active={genderFilter === f.key}
+                onPress={() => setGenderFilter(f.key)}
+              />
+            ))}
+          </ScrollView>
         </View>
 
         {/* Content */}
@@ -481,4 +543,15 @@ const styles = StyleSheet.create({
   // CTA
   ctaButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, height: 52, borderRadius: 16, overflow: "hidden", marginTop: 8 },
   ctaText: { fontFamily: FONTS.semiBold, fontSize: 16, color: "white" },
+  // Gender in sheet
+  fitScoreRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 20 },
+  fitScoreItem: { flex: 1, alignItems: "center", paddingVertical: 12 },
+  fitScoreValue: { fontFamily: FONTS.primary, fontSize: 28, color: "white" },
+  fitScoreLbl: { fontFamily: FONTS.medium, fontSize: 11, color: MUTED, marginTop: 4 },
+  fitScoreDivider: { width: 1, height: 36, backgroundColor: "rgba(255,255,255,0.10)" },
+  sheetGenderRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+  sheetGenderLabel: { fontFamily: FONTS.medium, fontSize: 12, color: SECONDARY, width: 72 },
+  sheetGenderBarBg: { flex: 1, height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.06)" },
+  sheetGenderBarFill: { height: 6, borderRadius: 3, minWidth: 2 },
+  sheetGenderPct: { fontFamily: FONTS.medium, fontSize: 12, color: SECONDARY, width: 44, textAlign: "right" },
 });

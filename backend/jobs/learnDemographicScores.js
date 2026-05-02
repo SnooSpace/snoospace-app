@@ -175,10 +175,116 @@ async function runDemographicLearningJob(pool) {
   await learnScoresForDimension(pool, "location_city");
   await learnScoresForDimension(pool, "location_area");
 
+  // Step 6: Learn gender-category affinity indexes
+  await learnGenderCategoryAffinity(pool);
+
   const elapsed = Math.round((Date.now() - startTime) / 1000);
   console.log(
     `[DemographicLearning] === Weekly job completed in ${elapsed}s ===`,
   );
+}
+
+/**
+ * Learn gender-category affinity indexes.
+ * Compares per-gender engagement rates against platform-wide rates.
+ * affinity_index = gender_rate / platform_rate
+ *   1.0 = same as platform average
+ *   1.4 = 40% more engagement than average
+ *   0.6 = 40% less than average
+ */
+async function learnGenderCategoryAffinity(pool) {
+  try {
+    console.log("[DemographicLearning] Learning gender-category affinity indexes...");
+
+    // Step 1: Platform-wide engagement rate per category
+    const platformRatesResult = await pool.query(`
+      SELECT
+        v.category,
+        COUNT(DISTINCT v.user_id)::float /
+          NULLIF(
+            (SELECT COUNT(*) FROM user_aqi_signals
+             WHERE total_behavior_events >= $1),
+          0) AS platform_rate
+      FROM user_interest_vectors v
+      JOIN user_aqi_signals s ON s.user_id = v.user_id
+      WHERE s.total_behavior_events >= $1
+        AND v.decayed_score > 10
+      GROUP BY v.category
+      HAVING COUNT(DISTINCT v.user_id) >= 20
+    `, [MINIMUM_BEHAVIOR_EVENTS_TO_QUALIFY]);
+
+    if (platformRatesResult.rows.length === 0) {
+      console.log("[DemographicLearning] Not enough platform data yet for gender affinity");
+      return;
+    }
+
+    const platformRateMap = {};
+    for (const row of platformRatesResult.rows) {
+      platformRateMap[row.category] = parseFloat(row.platform_rate);
+    }
+
+    // Step 2: Per-gender engagement rate per category
+    const genderRatesResult = await pool.query(`
+      SELECT
+        m.gender,
+        v.category,
+        COUNT(DISTINCT v.user_id)::float /
+          NULLIF(
+            (SELECT COUNT(*) FROM members m2
+             JOIN user_aqi_signals s2 ON s2.user_id = m2.id
+             WHERE m2.gender = m.gender
+               AND s2.total_behavior_events >= $1),
+          0) AS gender_rate,
+        COUNT(DISTINCT v.user_id) AS sample_size
+      FROM members m
+      JOIN user_aqi_signals s ON s.user_id = m.id
+      JOIN user_interest_vectors v ON v.user_id = m.id
+      WHERE s.total_behavior_events >= $1
+        AND m.gender IS NOT NULL
+        AND m.gender NOT IN ('Prefer not to say', 'Unknown', '')
+        AND v.decayed_score > 10
+      GROUP BY m.gender, v.category
+      HAVING COUNT(DISTINCT v.user_id) >= 30
+    `, [MINIMUM_BEHAVIOR_EVENTS_TO_QUALIFY]);
+
+    let upserted = 0;
+
+    for (const row of genderRatesResult.rows) {
+      const platformRate = platformRateMap[row.category];
+      if (!platformRate || platformRate === 0) continue;
+
+      const genderRate = parseFloat(row.gender_rate);
+      const affinityIndex = genderRate / platformRate;
+      const sampleSize = parseInt(row.sample_size);
+
+      const confidence =
+        sampleSize >= 200 ? "high" :
+        sampleSize >= 100 ? "medium" :
+        sampleSize >= 30 ? "low" :
+        "insufficient";
+
+      if (confidence === "insufficient") continue;
+
+      await pool.query(`
+        INSERT INTO learned_gender_category_affinity
+          (gender, category, affinity_index, sample_size, confidence_level, last_calculated_at)
+        VALUES ($1, $2, $3, $4, $5, NOW())
+        ON CONFLICT (gender, category) DO UPDATE SET
+          affinity_index = EXCLUDED.affinity_index,
+          sample_size = EXCLUDED.sample_size,
+          confidence_level = EXCLUDED.confidence_level,
+          last_calculated_at = NOW()
+      `, [row.gender, row.category, affinityIndex, sampleSize, confidence]);
+
+      upserted++;
+    }
+
+    console.log(
+      `[DemographicLearning] Gender affinity: ${upserted} gender-category pairs learned`,
+    );
+  } catch (err) {
+    console.error("[DemographicLearning] learnGenderCategoryAffinity error:", err.message);
+  }
 }
 
 module.exports = {
@@ -186,4 +292,5 @@ module.exports = {
   learnScoresForDimension,
   seedOccupationHierarchy,
   recalculateAllUserVectors,
+  learnGenderCategoryAffinity,
 };

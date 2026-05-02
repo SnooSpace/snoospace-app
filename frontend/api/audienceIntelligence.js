@@ -172,3 +172,37 @@ export const detectDrift = async (userId) => {
     return null;
   }
 };
+
+/**
+ * Get learned gender-category affinity data for a specific category
+ */
+export const getGenderAffinity = async (category) => {
+  try {
+    const response = await apiGet(`/audience/gender-affinity/${encodeURIComponent(category)}`);
+    return response;
+  } catch (error) {
+    console.error("[AudienceAPI] getGenderAffinity error:", error);
+    return null;
+  }
+};
+
+/**
+ * Format affinity data into a human-readable insight string
+ * e.g. "On SnooSpace, female users engage with wellness events 32% more than average"
+ */
+export const formatAffinityInsight = (affinityData, targetGender) => {
+  if (!affinityData || !affinityData.affinities || affinityData.affinities.length === 0) return null;
+
+  const match = affinityData.affinities.find(
+    (a) => a.gender === targetGender && ["high", "medium"].includes(a.confidence_level),
+  );
+
+  if (!match) return null;
+
+  const direction = match.affinity_index >= 1 ? "more" : "less";
+  const magnitude = Math.abs(Math.round((match.affinity_index - 1) * 100));
+
+  if (magnitude < 5) return null; // trivial difference
+
+  return `On SnooSpace, ${targetGender.toLowerCase()} users engage with ${affinityData.category} events ${magnitude}% ${direction} than average`;
+};
