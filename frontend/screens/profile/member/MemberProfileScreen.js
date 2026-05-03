@@ -364,6 +364,7 @@ export default function MemberProfileScreen({ navigation }) {
         return { ...prev, following_count: next };
       });
     });
+
     return () => {
       console.log("[Profile] useEffect cleanup (unsubscribing)");
       off();

@@ -491,6 +491,7 @@ export default function CommunityProfileScreen({ navigation }) {
     const unsubscribe = EventBus.on("post-created", () => {
       loadProfile();
     });
+    
     return () => {
       if (unsubscribe) unsubscribe();
     };
