@@ -36,7 +36,7 @@ const SaveController = require("../controllers/saveController");
 const AudienceIntelligenceController = require("../controllers/audienceIntelligenceController");
 const PrivacyController = require("../controllers/privacyController");
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
-const { requireBehavioralConsent, requireBrandConsent } = require("../middleware/consentGate");
+const { requireBehavioralConsent, requireBrandConsent, requireBrandAcknowledgment, checkCreatorEventConsent } = require("../middleware/consentGate");
 
 const router = express.Router();
 
@@ -1204,12 +1204,13 @@ router.post(
 router.get(
   "/audience/creator-stats/:creatorId",
   authMiddleware,
+  checkCreatorEventConsent,
   AudienceIntelligenceController.getCreatorStats,
 );
 router.get(
   "/audience/brand-matches/:brandId/:campaignId",
   authMiddleware,
-  requireBrandConsent,
+  requireBrandAcknowledgment,
   AudienceIntelligenceController.getBrandMatches,
 );
 router.post(

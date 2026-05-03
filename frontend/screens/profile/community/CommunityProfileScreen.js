@@ -2144,9 +2144,10 @@ export default function CommunityProfileScreen({ navigation }) {
             "Notifications settings will be implemented soon!",
           )
         }
-        onPrivacyPress={() =>
-          Alert.alert("Privacy", "Privacy settings will be implemented soon!")
-        }
+        onPrivacyPress={() => {
+          setShowSettingsModal(false);
+          navigation.navigate("MyDataScreen");
+        }}
         onHelpPress={() =>
           Alert.alert("Help", "Help & Support will be implemented soon!")
         }

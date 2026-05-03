@@ -525,12 +525,25 @@ async function getCreatorStats(req, res) {
       console.warn("[AQI] getCreatorStats geo enrichment skipped:", geoErr.message);
     }
 
+    // ── Event Intelligence Consent Gate ─────────────────────────────────────
+    // If the creator is a Community account and has NOT consented to event
+    // audience intelligence, strip event-level fields before returning to brands.
+    if (req.creatorConsentedToEventIntelligence === false) {
+      stats.geographic_breakdown = { restricted: true };
+      stats.tier1_percentage = null;
+      stats.tier2_percentage = null;
+      stats.audience_buying_power_score = null;
+      stats.top_spending_categories = [];
+      stats._eventIntelligenceRestricted = true;
+    }
+
     res.json({ success: true, stats });
   } catch (error) {
     console.error("[AQI] getCreatorStats error:", error.message, error.stack);
     res.status(500).json({ error: "Failed to fetch creator stats" });
   }
 }
+
 
 // ============================================================
 // GET /audience/brand-matches/:brandId/:campaignId
