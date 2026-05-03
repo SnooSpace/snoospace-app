@@ -308,7 +308,7 @@ const MyDataScreen = ({ navigation }) => {
               <Text style={styles.tierExplanation}>{summary?.tierExplanation || ""}</Text>
             </View>
 
-            {/* Your Data stats — 3 meaningful categories */}
+            {/* Your Data stats — 4 meaningful categories */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Your Data</Text>
               <View style={styles.statsRow}>
@@ -323,9 +323,14 @@ const MyDataScreen = ({ navigation }) => {
                   <Text style={styles.statLabel}>Content</Text>
                 </View>
                 <View style={styles.statCard}>
-                  <View style={styles.statHeader}><View style={[styles.statIconWrap,{backgroundColor:"rgba(59,130,246,0.1)"}]}><ShieldCheck size={14} color="#3B82F6" strokeWidth={2} /></View></View>
+                  <View style={styles.statHeader}><View style={[styles.statIconWrap,{backgroundColor:"rgba(236,72,153,0.1)"}]}><ShieldCheck size={14} color="#EC4899" strokeWidth={2} /></View></View>
                   <Text style={styles.statValue}>{summary?.followQualityPct || 0}%</Text>
                   <Text style={styles.statLabel}>Quality</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <View style={styles.statHeader}><View style={[styles.statIconWrap,{backgroundColor:"rgba(59,130,246,0.1)"}]}><TrendingUp size={14} color="#3B82F6" strokeWidth={2} /></View></View>
+                  <Text style={styles.statValue}>{accountAge}d</Text>
+                  <Text style={styles.statLabel}>Age</Text>
                 </View>
               </View>
               <Text style={styles.positiveFrame}>{dataDescription}</Text>
@@ -454,8 +459,8 @@ const styles = StyleSheet.create({
   trajectoryText: { fontSize:13, fontFamily:FONTS.medium },
   tierExplanation: { fontSize:14, fontFamily:FONTS.regular, color:"#4B5563", lineHeight:20 },
   // Stats
-  statsRow: { flexDirection:"row", gap:8, marginBottom:12 },
-  statCard: { flex:1, backgroundColor:"#FFFFFF", borderRadius:20, padding:14, alignItems:"flex-start", gap:8, borderWidth:1, borderColor:"rgba(0,0,0,0.03)", shadowColor:"#000", shadowOffset:{width:0,height:4}, shadowOpacity:0.03, shadowRadius:10, elevation:2 },
+  statsRow: { flexDirection:"row", flexWrap:"wrap", justifyContent:"space-between", gap:12, marginBottom:16 },
+  statCard: { width:"48%", backgroundColor:"#FFFFFF", borderRadius:20, padding:14, alignItems:"flex-start", gap:8, borderWidth:1, borderColor:"rgba(0,0,0,0.03)", shadowColor:"#000", shadowOffset:{width:0,height:4}, shadowOpacity:0.03, shadowRadius:10, elevation:2 },
   statHeader: { flexDirection:"row", alignItems:"center", justifyContent:"space-between", width:"100%", marginBottom:2 },
   statIconWrap: { width:30, height:30, borderRadius:15, alignItems:"center", justifyContent:"center" },
   statValue: { fontSize:22, fontFamily:FONTS.semiBold, color:"#111827" },
