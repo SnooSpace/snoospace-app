@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import EditorialPostCard from "./EditorialPostCard";
 import CommentsModal from "./CommentsModal";
@@ -174,9 +175,10 @@ const ProfilePostFeed = ({
       onRequestClose={onClose}
       statusBarTranslucent={true}
     >
-      <VideoProvider>
-        <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-          {/* Header */}
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <VideoProvider>
+          <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+            {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity onPress={onClose} style={styles.backButton}>
               <Ionicons
@@ -254,7 +256,8 @@ const ProfilePostFeed = ({
             onDelete={handleConfirmDelete}
           />
         </SafeAreaView>
-      </VideoProvider>
+        </VideoProvider>
+      </GestureHandlerRootView>
     </Modal>
   );
 };

@@ -42,6 +42,16 @@ import {
   RefreshCw,
   X,
 } from "lucide-react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import AnimatedReanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  withSequence,
+  runOnJS,
+} from "react-native-reanimated";
+import Svg, { Defs, LinearGradient, Stop, Path } from "react-native-svg";
 import { apiGet, apiPost, apiDelete, savePost, unsavePost } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
@@ -64,6 +74,22 @@ import {
   SPACING,
   FONTS,
 } from "../constants/theme";
+
+const GradientHeart = ({ width = 150, height = 150 }) => (
+  <Svg width={width} height={height} viewBox="0 0 48 48" style={{ filter: 'none' }}>
+    <Defs>
+      <LinearGradient id="blueGradient" x1="5%" y1="5%" x2="95%" y2="95%">
+        <Stop offset="0%" stopColor="#00f2fe" stopOpacity="1" />
+        <Stop offset="45%" stopColor="#00c6ff" stopOpacity="1" />
+        <Stop offset="100%" stopColor="#0072ff" stopOpacity="1" />
+      </LinearGradient>
+    </Defs>
+    <Path
+      fill="url(#blueGradient)"
+      d="M34.6 3.1c-4.5 0-7.9 1.8-10.6 5.6-2.7-3.7-6.1-5.5-10.6-5.5C6 3.1 0 9.6 0 17.6c0 7.3 5.4 12 10.6 16.5.6.5 1.3 1.1 1.9 1.7l2.3 2c4.4 3.9 6.6 5.9 7.6 6.5.5.3 1.1.5 1.6.5s1.1-.2 1.6-.5c1-.6 2.8-2.2 7.8-6.8l2-1.8c.7-.6 1.3-1.2 2-1.7C42.7 29.6 48 25 48 17.6c0-8-6-14.5-13.4-14.5z"
+    />
+  </Svg>
+);
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CONTENT_WIDTH = SCREEN_WIDTH - EDITORIAL_SPACING.cardPadding * 2;
@@ -199,6 +225,12 @@ const EditorialPostCard = ({
   const [viewStats, setViewStats] = useState(null); // { unique_views, total_views }
   const [viewStatsLoading, setViewStatsLoading] = useState(false);
   const viewSheetAnim = useRef(new Animated.Value(0)).current;
+
+  // ── Double Tap to Like state ───────────────────────────────────────────────
+  const heartX = useSharedValue(0);
+  const heartY = useSharedValue(0);
+  const heartScale = useSharedValue(0);
+  const heartRotation = useSharedValue(0);
 
   // ── Normalise image_urls ──────────────────────────────────────────────────
   // The API may return a nested array [["url1","url2"]] when the raw DB value
@@ -546,6 +578,48 @@ const EditorialPostCard = ({
     outputRange: [300, 0],
   });
 
+  // ── Double Tap to Like gesture ─────────────────────────────────────────────
+  const onDoubleTap = (e) => {
+    // Only like, don't unlike on double tap
+    if (!isLiked && !isLiking) {
+      handleLike();
+    }
+
+    // trigger animation
+    heartX.value = e.x;
+    heartY.value = e.y;
+    heartScale.value = 0;
+    heartRotation.value = Math.random() * 30 - 15; // Randomize rotation slightly (-15 to 15 deg)
+
+    heartScale.value = withSequence(
+      withTiming(1.2, { duration: 250 }), // Pop in
+      withTiming(0.9, { duration: 150 }), // Jiggle down
+      withTiming(1.05, { duration: 150 }), // Jiggle up
+      withTiming(1, { duration: 150 }), // Settle
+      withTiming(1, { duration: 800 }), // Hold state
+      withTiming(0, { duration: 500 }) // Fade out
+    );
+  };
+
+  const doubleTap = Gesture.Tap()
+    .numberOfTaps(2)
+    .maxDelay(250)
+    .onStart((e) => {
+      runOnJS(onDoubleTap)(e);
+    });
+
+  const heartStyle = useAnimatedStyle(() => ({
+    position: 'absolute',
+    top: heartY.value - 75, // Center the 150px heart
+    left: heartX.value - 75,
+    transform: [
+      { scale: heartScale.value },
+      { rotate: `${heartRotation.value}deg` }
+    ],
+    opacity: heartScale.value > 0 ? 1 : 0,
+    zIndex: 1000,
+  }));
+
   return (
     <View style={styles.container}>
       {/* Author Row */}
@@ -632,7 +706,8 @@ const EditorialPostCard = ({
 
       {/* Media Container */}
       {hasMedia && firstMediaUrl && (
-        <View style={styles.mediaContainer}>
+        <GestureDetector gesture={doubleTap}>
+          <View style={styles.mediaContainer}>
           {isVideo ? (
             <View
               style={[
@@ -748,7 +823,13 @@ const EditorialPostCard = ({
               />
             </View>
           )}
+
+          {/* Double Tap Heart Overlay */}
+          <AnimatedReanimated.View style={heartStyle} pointerEvents="none">
+            <GradientHeart />
+          </AnimatedReanimated.View>
         </View>
+        </GestureDetector>
       )}
 
       {/* Engagement Row */}
