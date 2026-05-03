@@ -1,9 +1,6 @@
-import React, { useEffect } from "react";
-import { View, StyleSheet, Platform, Dimensions } from "react-native";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import React from "react";
+import { Platform } from "react-native";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
-import { House, Search, LayoutGrid, Inbox, User } from "lucide-react-native";
-import { BlurView } from "expo-blur";
 
 // Import Community screens
 import CommunityHomeStackNavigator from "./CommunityHomeStackNavigator";
@@ -11,97 +8,61 @@ import CommunitySearchStackNavigator from "./CommunitySearchStackNavigator";
 import CommunityDashboardStackNavigator from "./CommunityDashboardStackNavigator";
 import CommunityRequestsScreen from "../screens/home/community/CommunityRequestsScreen";
 import CommunityProfileStackNavigator from "./CommunityProfileStackNavigator";
-import ProfileTabIcon from "../components/ProfileTabIcon";
 
-const Tab = createBottomTabNavigator();
+import { createSwipeablePagerNavigator } from "./SwipeablePagerNavigator";
+import { getActiveAccount, getAllAccounts, switchAccount } from "../api/auth";
+import { Pressable } from "react-native";
 
-const PRIMARY_COLOR = "#5f27cd";
-const LIGHT_TEXT_COLOR = "#6c757d";
+const Tab = createSwipeablePagerNavigator();
 
-const CommunityBottomTabNavigator = () => {
+const ProfileTabButton = (props) => {
+  const { onPress, ...rest } = props;
+  const lastTapRef = React.useRef(0);
+
+  const handlePress = async (e) => {
+    const now = Date.now();
+    const DOUBLE_PRESS_DELAY = 300;
+
+    if (now - lastTapRef.current < DOUBLE_PRESS_DELAY) {
+      lastTapRef.current = 0;
+      try {
+        const allAccounts = await getAllAccounts();
+        if (allAccounts && allAccounts.length > 1) {
+          const activeAccount = await getActiveAccount();
+          if (activeAccount) {
+            const activeIndex = allAccounts.findIndex((a) => a.id === activeAccount.id);
+            if (activeIndex !== -1) {
+              const nextIndex = (activeIndex + 1) % allAccounts.length;
+              const nextAccount = allAccounts[nextIndex];
+              await switchAccount(nextAccount.id);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error cycling accounts:", err);
+      }
+    } else {
+      lastTapRef.current = now;
+      if (onPress) {
+        onPress(e);
+      }
+    }
+  };
+
+  return <Pressable onPress={handlePress} {...rest} />;
+};
+
+const CommunityBottomTabNavigator = ({ navigation, route }) => {
+  // Handle programmatic tab switching via route params
+  React.useEffect(() => {
+    const desired = route?.params?.tab;
+    if (desired && typeof desired === "string") {
+      navigation.navigate(desired);
+    }
+  }, [route?.params?.tab, navigation]);
+
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let IconComponent;
-
-          if (route.name === "Home") {
-            IconComponent = House;
-          } else if (route.name === "Search") {
-            IconComponent = Search;
-          } else if (route.name === "Dashboard") {
-            IconComponent = LayoutGrid;
-          } else if (route.name === "Requests") {
-            IconComponent = Inbox;
-          }
-
-          if (route.name === "Profile") {
-            return (
-              <ProfileTabIcon
-                focused={focused}
-                color={color}
-                userType="community"
-              />
-            );
-          }
-
-          return (
-            <View
-              style={{
-                width: 30,
-                height: 30,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <IconComponent
-                size={26}
-                color={focused ? "#007AFF" : "#8E8E93"} // Premium Blue or Cool Gray
-                strokeWidth={focused ? 2.5 : 2}
-              />
-            </View>
-          );
-        },
-        tabBarShowLabel: false,
-        tabBarStyle: {
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          backgroundColor: Platform.OS === "ios" ? "transparent" : "#FFFFFF",
-          borderTopWidth: 0,
-          elevation: 0,
-          shadowOpacity: 0,
-          height: Platform.OS === "ios" ? 95 : 80,
-          paddingTop: 12,
-          paddingBottom: Platform.OS === "ios" ? 20 : 10,
-        },
-        tabBarBackground: () =>
-          Platform.OS === "ios" ? (
-            <View style={StyleSheet.absoluteFill}>
-              <BlurView
-                tint="systemChromeMaterialLight"
-                intensity={80} // Slightly more translucent
-                style={StyleSheet.absoluteFill}
-              />
-            </View>
-          ) : (
-            <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
-              <View
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 1,
-                  backgroundColor: "rgba(0, 0, 0, 0.05)",
-                }}
-              />
-            </View>
-          ),
-        headerShown: false,
-      })}
-    >
+    <Tab.Navigator role="community">
       <Tab.Screen
         name="Home"
         component={CommunityHomeStackNavigator}
@@ -109,15 +70,15 @@ const CommunityBottomTabNavigator = () => {
           tabBarLabel: "Home",
           tabBarStyle: (() => {
             const routeName = getFocusedRouteNameFromRoute(route) ?? "HomeFeed";
-            // Hide for Chat functionality
-            if (
-              routeName === "ConversationsList" ||
-              routeName === "Chat" ||
-              routeName === "Notifications" ||
-              routeName === "PromptReplies" ||
-              routeName === "CreateGroupChat" ||
-              routeName === "GroupInfo"
-            ) {
+            const hiddenRoutes = [
+              "ConversationsList",
+              "Chat",
+              "Notifications",
+              "PromptReplies",
+              "CreateGroupChat",
+              "GroupInfo",
+            ];
+            if (hiddenRoutes.includes(routeName)) {
               return { display: "none" };
             }
             return {
@@ -125,8 +86,7 @@ const CommunityBottomTabNavigator = () => {
               bottom: 0,
               left: 0,
               right: 0,
-              backgroundColor:
-                Platform.OS === "ios" ? "transparent" : "#FFFFFF",
+              backgroundColor: Platform.OS === "ios" ? "transparent" : "#FFFFFF",
               borderTopWidth: 0,
               elevation: 0,
               shadowOpacity: 0,
@@ -176,7 +136,30 @@ const CommunityBottomTabNavigator = () => {
       <Tab.Screen
         name="Profile"
         component={CommunityProfileStackNavigator}
-        options={{ tabBarLabel: "Profile" }}
+        options={({ route }) => ({
+          tabBarLabel: "Profile",
+          tabBarButton: (props) => <ProfileTabButton {...props} />,
+          tabBarStyle: (() => {
+            const routeName = getFocusedRouteNameFromRoute(route) ?? "Profile";
+            const hiddenRoutes = ["EditProfile"];
+            if (hiddenRoutes.includes(routeName)) {
+              return { display: "none" };
+            }
+            return {
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: Platform.OS === "ios" ? "transparent" : "#FFFFFF",
+              borderTopWidth: 0,
+              elevation: 0,
+              shadowOpacity: 0,
+              height: Platform.OS === "ios" ? 95 : 80,
+              paddingTop: 12,
+              paddingBottom: Platform.OS === "ios" ? 20 : 10,
+            };
+          })(),
+        })}
       />
     </Tab.Navigator>
   );

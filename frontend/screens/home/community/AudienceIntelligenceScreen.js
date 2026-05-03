@@ -621,7 +621,7 @@ export default function AudienceIntelligenceScreen({ navigation }) {
             <InterestFingerprint interests={interests} />
             <GeographicBreakdown stats={stats} />
             <InsightCards stats={stats} />
-            <View style={{ height: 100 }} />
+            <View style={{ height: 40 }} />
           </ScrollView>
         )}
       </SafeAreaView>

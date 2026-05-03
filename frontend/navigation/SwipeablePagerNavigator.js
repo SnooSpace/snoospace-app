@@ -14,14 +14,14 @@ import Animated, {
   useAnimatedRef,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
-import { House, Search, Compass, Calendar } from 'lucide-react-native';
+import { House, Search, Compass, Calendar, LayoutGrid, Inbox } from 'lucide-react-native';
 
 import ProfileTabIcon from '../components/ProfileTabIcon';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ---------------- TAB BAR ----------------
-const AnimatedTabBar = ({ state, onTabPress, translateX, insets }) => {
+const AnimatedTabBar = ({ state, onTabPress, translateX, insets, role }) => {
   return (
     <View style={[styles.tabBarContainer, { paddingBottom: Platform.OS === "ios" ? Math.max(20, insets.bottom) : 10 }]}>
       {Platform.OS === "ios" ? (
@@ -42,6 +42,8 @@ const AnimatedTabBar = ({ state, onTabPress, translateX, insets }) => {
           else if (route.name === "Search") IconComponent = Search;
           else if (route.name === "Discover") IconComponent = Compass;
           else if (route.name === "YourEvents") IconComponent = Calendar;
+          else if (route.name === "Dashboard") IconComponent = LayoutGrid;
+          else if (route.name === "Requests") IconComponent = Inbox;
 
           const inputRange = [
             -(index + 1) * SCREEN_WIDTH,
@@ -73,7 +75,7 @@ const AnimatedTabBar = ({ state, onTabPress, translateX, insets }) => {
                 {/* Inactive Icon Layer */}
                 <Animated.View style={inactiveOpacityStyle}>
                   {route.name === "Profile" ? (
-                    <ProfileTabIcon focused={false} color="#999999" userType="member" />
+                    <ProfileTabIcon focused={false} color="#999999" userType={role} />
                   ) : (
                     <IconComponent size={26} color="#999999" fill="transparent" strokeWidth={2.2} />
                   )}
@@ -82,7 +84,7 @@ const AnimatedTabBar = ({ state, onTabPress, translateX, insets }) => {
                 {/* Active Icon Layer (Cross-fades on top) */}
                 <Animated.View style={activeOpacityStyle}>
                   {route.name === "Profile" ? (
-                    <ProfileTabIcon focused={true} color="#3565F2" userType="member" />
+                    <ProfileTabIcon focused={true} color="#3565F2" userType={role} />
                   ) : (
                     <IconComponent size={26} color="#3565F2" fill="rgba(53, 101, 242, 0.15)" strokeWidth={2.5} />
                   )}
@@ -98,7 +100,7 @@ const AnimatedTabBar = ({ state, onTabPress, translateX, insets }) => {
 
 
 // ---------------- MAIN NAVIGATOR ----------------
-function SwipeablePagerNavigator({ initialRouteName, children, screenOptions }) {
+function SwipeablePagerNavigator({ initialRouteName, children, screenOptions, role = "member" }) {
 
   const { state, navigation, descriptors } = useNavigationBuilder(TabRouter, {
     initialRouteName,
@@ -187,6 +189,10 @@ function SwipeablePagerNavigator({ initialRouteName, children, screenOptions }) 
   });
 
   // ---------------- RENDER ----------------
+  const currentRoute = state.routes[state.index];
+  const currentDescriptor = descriptors[currentRoute.key];
+  const shouldHideTabBar = currentDescriptor.options.tabBarStyle?.display === 'none';
+
   return (
     <View style={styles.container}>
       <Animated.ScrollView
@@ -197,6 +203,7 @@ function SwipeablePagerNavigator({ initialRouteName, children, screenOptions }) 
         showsHorizontalScrollIndicator={false}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
+        scrollEnabled={!shouldHideTabBar}
         style={styles.pager}
         // directionalLockEnabled tells iOS to commit to ONE axis per gesture.
         // When a nested carousel is scrolling horizontally, iOS automatically
@@ -219,12 +226,15 @@ function SwipeablePagerNavigator({ initialRouteName, children, screenOptions }) 
         })}
       </Animated.ScrollView>
 
-      <AnimatedTabBar
-        state={state}
-        onTabPress={handleTabPress}
-        translateX={translateX}
-        insets={insets}
-      />
+      {!shouldHideTabBar && (
+        <AnimatedTabBar
+          state={state}
+          onTabPress={handleTabPress}
+          translateX={translateX}
+          insets={insets}
+          role={role}
+        />
+      )}
     </View>
   );
 }
