@@ -685,6 +685,14 @@ const EditorialPostCard = ({
                 scrollEventThrottle={16}
                 style={{ width: CONTENT_WIDTH }}
                 decelerationRate="fast"
+                // nestedScrollEnabled: Android — tells the OS this inner
+                // ScrollView should receive horizontal touches before the
+                // parent pager ScrollView does.
+                nestedScrollEnabled={true}
+                // directionalLockEnabled: iOS — once the user commits to a
+                // horizontal swipe inside the carousel, this prevents the
+                // parent pager from also interpreting the gesture.
+                directionalLockEnabled={true}
               >
                 {imageUrls.map((url, index) => {
                   // Handle both array and single number formats for aspect_ratios

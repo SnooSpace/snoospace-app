@@ -1,6 +1,5 @@
 import React, { useEffect } from "react";
 import { View, StyleSheet, Platform, Dimensions, Pressable } from "react-native";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { House, Search, Compass, Calendar, User } from "lucide-react-native";
 import { BlurView } from "expo-blur";
@@ -18,8 +17,9 @@ import DiscoverStackNavigator from "./DiscoverStackNavigator";
 import EventsStackNavigator from "./EventsStackNavigator";
 import ProfileTabIcon from "../components/ProfileTabIcon";
 import { getActiveAccount, getAllAccounts, switchAccount } from "../api/auth";
+import { createSwipeablePagerNavigator } from "./SwipeablePagerNavigator";
 
-const Tab = createBottomTabNavigator();
+const Tab = createSwipeablePagerNavigator();
 
 import { COLORS } from "../constants/theme"; // Use COLORS theme
 
