@@ -152,6 +152,10 @@ const MyDataScreen = ({ navigation }) => {
   const accountAge = summary?.accountCreatedAt
     ? Math.floor((Date.now() - new Date(summary.accountCreatedAt).getTime()) / 86400000)
     : 0;
+  
+  const joinDate = summary?.accountCreatedAt
+    ? new Date(summary.accountCreatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    : "Unknown";
 
   const tierColor  = TIER_COLORS[summary?.aqiTier || 4];
   const trajectory = TRAJECTORY_CONFIG[summary?.trajectory || "stable"];
@@ -330,7 +334,7 @@ const MyDataScreen = ({ navigation }) => {
                 <View style={styles.statCard}>
                   <View style={styles.statHeader}><View style={[styles.statIconWrap,{backgroundColor:"rgba(59,130,246,0.1)"}]}><TrendingUp size={14} color="#3B82F6" strokeWidth={2} /></View></View>
                   <Text style={styles.statValue}>{accountAge}d</Text>
-                  <Text style={styles.statLabel}>Age</Text>
+                  <Text style={styles.statLabel}>Joined on {joinDate}</Text>
                 </View>
               </View>
               <Text style={styles.positiveFrame}>{dataDescription}</Text>
