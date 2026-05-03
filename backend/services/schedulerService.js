@@ -10,6 +10,7 @@ const cron = require("node-cron");
 const notificationService = require("./notificationService");
 const pushService = require("./pushService");
 const { runDemographicLearningJob } = require("../jobs/learnDemographicScores");
+const { runBehaviorEventRetention } = require("../jobs/behaviorEventRetention");
 
 let pool = null;
 
@@ -42,6 +43,13 @@ const init = (dbPool) => {
   cron.schedule("0 3 * * 0", async () => {
     console.log("[Scheduler] Running weekly demographic learning job...");
     await runDemographicLearningJob(pool);
+  });
+
+  // Run behavior event retention every Sunday at 4am (after the 3am learning job)
+  // Deletes raw events older than 90 days once they've been processed
+  cron.schedule("0 4 * * 0", async () => {
+    console.log("[Scheduler] Running behavior event retention job...");
+    await runBehaviorEventRetention(pool);
   });
 
   console.log("[Scheduler] Scheduler service initialized");

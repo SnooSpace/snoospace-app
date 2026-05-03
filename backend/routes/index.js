@@ -37,6 +37,7 @@ const AudienceIntelligenceController = require("../controllers/audienceIntellige
 const PrivacyController = require("../controllers/privacyController");
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 const { requireBehavioralConsent, requireBrandConsent, requireBrandAcknowledgment, checkCreatorEventConsent } = require("../middleware/consentGate");
+const { trackingRateLimit, followTrackingRateLimit, aqiCalculationRateLimit } = require("../middleware/rateLimiter");
 
 const router = express.Router();
 
@@ -1187,18 +1188,21 @@ router.get("/privacy/my-data-summary", authMiddleware, PrivacyController.getMyDa
 router.post(
   "/audience/track-follow",
   authMiddleware,
+  followTrackingRateLimit,
   requireBehavioralConsent,
   AudienceIntelligenceController.trackFollow,
 );
 router.post(
   "/audience/track-engagement",
   authMiddleware,
+  trackingRateLimit,
   requireBehavioralConsent,
   AudienceIntelligenceController.trackEngagement,
 );
 router.post(
   "/audience/calculate-aqi/:userId",
   authMiddleware,
+  aqiCalculationRateLimit,
   AudienceIntelligenceController.calculateAqi,
 );
 router.get(

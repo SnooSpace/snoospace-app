@@ -182,6 +182,32 @@ async function trackEngagement(req, res) {
       signalStrength = SIGNAL_STRENGTH_MAP.content_watched_long;
     }
 
+    // --- V2: Server-side verification of the reported action ---
+    // Before trusting a signal, verify the underlying action exists in our DB.
+    // This prevents clients from fabricating engagement events.
+    if (eventType === 'event_attended' && req.body.metadata?.event_id) {
+      const verification = await pool.query(
+        `SELECT id FROM event_rsvps WHERE user_id = $1 AND event_id = $2`,
+        [userId, req.body.metadata.event_id],
+      );
+      if (verification.rows.length === 0) {
+        return res.status(400).json({
+          error: 'unverifiable_event',
+          message: 'Cannot track attendance for an event you did not RSVP to',
+        });
+      }
+    }
+
+    if (eventType === 'content_watched' && req.body.metadata?.content_id) {
+      const verification = await pool.query(
+        `SELECT id FROM posts WHERE id = $1`,
+        [req.body.metadata.content_id],
+      );
+      if (verification.rows.length === 0) {
+        return res.status(400).json({ error: 'content_not_found' });
+      }
+    }
+
     // --- V2: Insert into behavior event stream ---
     await pool.query(
       `INSERT INTO user_behavior_events (user_id, event_type, category, metadata, signal_strength)

@@ -148,11 +148,93 @@ async function recalculateAllUserVectors(pool) {
 }
 
 /**
+ * Detect anomalous signals before the learning run.
+ * Flags users whose behaviour patterns suggest bot activity or artificial
+ * signal inflation. Flagged users are excluded from this week's scoring.
+ *
+ * Rule 1 — Velocity anomaly:
+ *   User's 7-day event count > 5× the platform-wide 7-day per-user average.
+ *
+ * Rule 2 — Uniform timing anomaly:
+ *   Users with > 50 events in 30 days whose hourly STDDEV is below 1.5
+ *   (real humans cluster at specific hours; bots spread uniformly).
+ *
+ * Rule 3 — Follow/unfollow loop:
+ *   > 5 follow/unfollow cycles between the same pair in 7 days.
+ */
+async function detectAnomalousSignals(pool) {
+  console.log("[DemographicLearning] Running fraud detection...");
+
+  try {
+    // Rule 1: Signal velocity anomaly
+    await pool.query(`
+      WITH weekly_avg AS (
+        SELECT AVG(event_count) AS avg_events
+        FROM (
+          SELECT user_id, COUNT(*) AS event_count
+          FROM user_behavior_events
+          WHERE occurred_at >= NOW() - INTERVAL '7 days'
+          GROUP BY user_id
+        ) counts
+      )
+      UPDATE user_aqi_signals
+      SET fraud_flag = true, fraud_reason = 'velocity_anomaly'
+      WHERE user_id IN (
+        SELECT user_id FROM user_behavior_events
+        WHERE occurred_at >= NOW() - INTERVAL '7 days'
+        GROUP BY user_id
+        HAVING COUNT(*) > (SELECT avg_events * 5 FROM weekly_avg)
+      )
+    `);
+
+    // Rule 2: Signal uniformity anomaly — unnaturally uniform hour distribution
+    await pool.query(`
+      UPDATE user_aqi_signals
+      SET fraud_flag = true, fraud_reason = 'uniform_timing'
+      WHERE user_id IN (
+        SELECT user_id
+        FROM user_behavior_events
+        WHERE occurred_at >= NOW() - INTERVAL '30 days'
+        GROUP BY user_id
+        HAVING COUNT(*) > 50
+          AND STDDEV(EXTRACT(HOUR FROM occurred_at)) < 1.5
+      )
+    `);
+
+    // Rule 3: Follow/unfollow loop — > 5 cycles between same pair in 7 days
+    await pool.query(`
+      UPDATE user_aqi_signals
+      SET fraud_flag = true, fraud_reason = 'follow_loop'
+      WHERE user_id IN (
+        SELECT follower_id
+        FROM follow_events
+        WHERE followed_at >= NOW() - INTERVAL '7 days'
+        GROUP BY follower_id, creator_id
+        HAVING COUNT(*) > 5
+      )
+    `);
+
+    const flaggedResult = await pool.query(
+      `SELECT COUNT(*) AS flagged FROM user_aqi_signals WHERE fraud_flag = true`
+    );
+    console.log(
+      `[DemographicLearning] Fraud detection complete: ${flaggedResult.rows[0].flagged} user(s) flagged`
+    );
+  } catch (err) {
+    // Non-fatal: log and continue — we'd rather run with dirty data than skip
+    console.error("[DemographicLearning] detectAnomalousSignals error:", err.message);
+  }
+}
+
+/**
  * Main entry point — runs the full weekly learning pipeline.
  */
 async function runDemographicLearningJob(pool) {
   console.log("[DemographicLearning] === Starting weekly demographic learning job ===");
   const startTime = Date.now();
+
+  // Step 0: Flag anomalous signals — these users are excluded from scoring
+  await detectAnomalousSignals(pool);
 
   // Step 1: Seed occupation hierarchy from latest member data
   await seedOccupationHierarchy(pool);
@@ -293,4 +375,5 @@ module.exports = {
   seedOccupationHierarchy,
   recalculateAllUserVectors,
   learnGenderCategoryAffinity,
+  detectAnomalousSignals,
 };
