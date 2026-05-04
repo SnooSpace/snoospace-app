@@ -206,3 +206,21 @@ export const formatAffinityInsight = (affinityData, targetGender) => {
 
   return `On SnooSpace, ${targetGender.toLowerCase()} users engage with ${affinityData.category} events ${magnitude}% ${direction} than average`;
 };
+
+/**
+ * Get community health score for the authenticated community account.
+ * Returns health_status, brand_match_multiplier, active_flag_count, and active_flags.
+ * Non-fatal — returns null for non-community accounts (403) or on any error.
+ */
+export const getCommunityHealthScore = async () => {
+  try {
+    const response = await apiGet("/community/health-score");
+    return response;
+  } catch (error) {
+    // 403 is expected for non-community accounts — silent fail
+    if (error?.status !== 403) {
+      console.error("[AudienceAPI] getCommunityHealthScore error:", error);
+    }
+    return null;
+  }
+};

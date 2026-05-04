@@ -38,6 +38,7 @@ const PrivacyController = require("../controllers/privacyController");
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 const { requireBehavioralConsent, requireBrandConsent, requireBrandAcknowledgment, checkCreatorEventConsent } = require("../middleware/consentGate");
 const { trackingRateLimit, followTrackingRateLimit, aqiCalculationRateLimit } = require("../middleware/rateLimiter");
+const { getCommunityHealthScore } = AudienceIntelligenceController;
 
 const router = express.Router();
 
@@ -1248,6 +1249,13 @@ router.get(
   "/audience/gender-affinity/:category",
   authMiddleware,
   AudienceIntelligenceController.getGenderAffinityByCategory,
+);
+
+// Community health score — visible to the community owner in their dashboard
+router.get(
+  "/community/health-score",
+  authMiddleware,
+  AudienceIntelligenceController.getCommunityHealthScore,
 );
 // Notifications
 router.get(

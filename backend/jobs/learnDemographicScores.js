@@ -10,6 +10,13 @@
  */
 
 const { recalculateInterestVectors, detectDrift } = require("../utils/interestVectorEngine");
+const {
+  detectRsvpStuffing,
+  detectUnverifiedTicketPrices,
+  detectFollowCoordination,
+} = require("../utils/communityFraudDetector");
+const { recalculateCommunityHealthScore } = require("../utils/communityHealthScore");
+
 
 // Minimum behavior events before a user's AQI is considered trustworthy
 const MINIMUM_BEHAVIOR_EVENTS_TO_QUALIFY = 80;
@@ -233,8 +240,25 @@ async function runDemographicLearningJob(pool) {
   console.log("[DemographicLearning] === Starting weekly demographic learning job ===");
   const startTime = Date.now();
 
-  // Step 0: Flag anomalous signals — these users are excluded from scoring
+  // Step 0: Flag anomalous member signals — these users are excluded from scoring
   await detectAnomalousSignals(pool);
+
+  // Step 0b: Community fraud detection — runs before scoring so restricted
+  // communities are excluded from brand matching this cycle
+  console.log('[DemographicLearning] Running community fraud detection...');
+  await detectRsvpStuffing(pool);
+  await detectUnverifiedTicketPrices(pool);
+  await detectFollowCoordination(pool);
+  // Refresh health scores for all communities with open flags
+  const flaggedCommunities = await pool.query(`
+    SELECT DISTINCT community_id
+    FROM community_fraud_signals
+    WHERE resolved = false
+  `);
+  for (const row of flaggedCommunities.rows) {
+    await recalculateCommunityHealthScore(pool, row.community_id);
+  }
+  console.log('[DemographicLearning] Community fraud detection complete');
 
   // Step 1: Seed occupation hierarchy from latest member data
   await seedOccupationHierarchy(pool);

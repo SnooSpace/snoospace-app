@@ -582,3 +582,86 @@ CREATE TABLE IF NOT EXISTS brand_campaigns (
 );
 
 CREATE INDEX IF NOT EXISTS idx_brand_campaigns_brand ON brand_campaigns(brand_id);
+
+-- ============================================================
+-- Community-Level Fraud Detection (Prompt 2 Addendum)
+-- ============================================================
+
+-- Community fraud signals
+-- Separate from user_aqi_signals fraud_flag because communities
+-- can be flagged at event level AND community level.
+CREATE TABLE IF NOT EXISTS community_fraud_signals (
+  id              BIGSERIAL    PRIMARY KEY,
+  community_id    BIGINT       NOT NULL,
+  flag_type       VARCHAR(60)  NOT NULL,
+  -- 'rsvp_stuffing'           → attendance/rsvp ratio anomaly
+  -- 'dummy_account_rsvps'     → high % of RSVPs from new accounts
+  -- 'unverified_ticket_price' → claimed paid event with no Razorpay record
+  -- 'engagement_spike'        → coordinated engagement on sponsored content
+  -- 'follow_coordination'     → cross-community follow manipulation
+  event_id        BIGINT,
+  severity        VARCHAR(20)  DEFAULT 'medium',
+  -- 'low' → logged, no action
+  -- 'medium' → match score penalized, under monitoring
+  -- 'high' → immediately excluded from brand discovery
+  evidence        JSONB,
+  resolved        BOOLEAN      DEFAULT false,
+  resolved_at     TIMESTAMPTZ,
+  resolution_notes TEXT,
+  flagged_at      TIMESTAMPTZ  DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_community_fraud_community
+  ON community_fraud_signals(community_id, resolved);
+CREATE INDEX IF NOT EXISTS idx_community_fraud_severity
+  ON community_fraud_signals(severity, resolved);
+CREATE INDEX IF NOT EXISTS idx_community_fraud_event
+  ON community_fraud_signals(event_id)
+  WHERE event_id IS NOT NULL;
+
+-- Razorpay payments — populated exclusively by verified webhooks
+CREATE TABLE IF NOT EXISTS razorpay_payments (
+  id                   BIGSERIAL    PRIMARY KEY,
+  razorpay_order_id    VARCHAR(100) UNIQUE NOT NULL,
+  razorpay_payment_id  VARCHAR(100) UNIQUE,
+  user_id              BIGINT       REFERENCES members(id),
+  event_id             BIGINT,
+  amount_paise         INT          NOT NULL,
+  currency             VARCHAR(10)  DEFAULT 'INR',
+  status               VARCHAR(30)  DEFAULT 'created',
+  -- 'created', 'captured', 'failed', 'refunded'
+  webhook_verified     BOOLEAN      DEFAULT false,
+  -- CRITICAL: only true after cryptographic Razorpay webhook signature check
+  metadata             JSONB,
+  created_at           TIMESTAMPTZ  DEFAULT now(),
+  captured_at          TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_razorpay_user_event
+  ON razorpay_payments(user_id, event_id);
+CREATE INDEX IF NOT EXISTS idx_razorpay_status
+  ON razorpay_payments(status);
+CREATE INDEX IF NOT EXISTS idx_razorpay_verified
+  ON razorpay_payments(webhook_verified, status);
+
+-- Community health scores — recalculated weekly + on new flags
+CREATE TABLE IF NOT EXISTS community_health_scores (
+  id                    BIGSERIAL    PRIMARY KEY,
+  community_id          BIGINT       NOT NULL UNIQUE,
+  health_status         VARCHAR(20)  DEFAULT 'healthy',
+  -- 'healthy' → no active flags
+  -- 'under_review' → one or more medium flags
+  -- 'restricted' → one or more high flags
+  active_flag_count     INT          DEFAULT 0,
+  medium_flag_count     INT          DEFAULT 0,
+  high_flag_count       INT          DEFAULT 0,
+  brand_match_multiplier NUMERIC     DEFAULT 1.0,
+  -- 1.0 = no penalty
+  -- 0.75 = one medium flag (25% penalty)
+  -- 0.5 = two+ medium flags (50% penalty)
+  -- 0.0 = any high flag (excluded entirely)
+  last_calculated_at    TIMESTAMPTZ  DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_community_health_status
+  ON community_health_scores(health_status);

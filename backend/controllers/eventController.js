@@ -8,6 +8,7 @@ const {
   sendCancellationEmail,
 } = require("../services/emailService");
 const { sendTicketMessage } = require("./messageController");
+const { checkForDummyAccountRsvps } = require("../utils/communityFraudDetector");
 
 const pool = createPool();
 
@@ -3386,6 +3387,11 @@ const registerForEvent = async (req, res) => {
     }
 
     await client.query("COMMIT");
+
+    // Fraud guard — fire-and-forget, never blocks the RSVP response
+    checkForDummyAccountRsvps(pool, eventId).catch((err) =>
+      console.error('[FraudGuard] Dummy account RSVP check failed:', err.message)
+    );
 
     // 13. Send confirmation email (async, don't block response)
     sendBookingConfirmationEmail({

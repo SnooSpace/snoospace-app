@@ -4,9 +4,20 @@ require("dotenv").config();
 const { createPool, ensureTables } = require("./config/db");
 const routes = require("./routes/index");
 const schedulerService = require("./services/schedulerService");
+const { verifyRazorpaySignature, handleRazorpayWebhook } = require("./routes/webhooks");
 
 const app = express();
 app.use(cors());
+
+// ⚠️ Razorpay webhook MUST be registered before express.json()
+// Razorpay signs the raw request body — parsing it first breaks signature verification
+app.post(
+  "/webhooks/razorpay",
+  express.raw({ type: "application/json" }),
+  verifyRazorpaySignature,
+  handleRazorpayWebhook,
+);
+
 app.use(express.json());
 
 // PostgreSQL connection

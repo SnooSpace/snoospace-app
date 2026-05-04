@@ -12,11 +12,11 @@ import Animated, {
 import Svg, { Circle as SvgCircle, Polyline, Line, Text as SvgText } from "react-native-svg";
 import {
   ArrowLeft, TrendingUp, TrendingDown, Users, Target,
-  Sparkles, ShieldCheck, BarChart3, Zap, MapPin,
+  Sparkles, ShieldCheck, BarChart3, Zap, MapPin, AlertCircle,
 } from "lucide-react-native";
 
 import { COLORS, FONTS, SPACING, SHADOWS } from "../../../constants/theme";
-import { getCreatorStats, getUserInterests } from "../../../api/audienceIntelligence";
+import { getCreatorStats, getUserInterests, getCommunityHealthScore } from "../../../api/audienceIntelligence";
 import { getActiveAccount } from "../../../api/auth";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
@@ -30,10 +30,96 @@ const ACCENT_BLUE = "#3B82F6";
 const ACCENT_GREEN = "#10B981";
 const ACCENT_AMBER = "#F59E0B";
 const ACCENT_GOLD = "#D97706";
+const ACCENT_RED = "#EF4444";
 const MUTED_TEXT = "#9CA3AF"; 
 const SECONDARY_TEXT = "#4B5563"; 
 const PRIMARY_TEXT = "#111827"; 
 const SURFACE_NEUTRAL = "#F3F4F6"; 
+
+// ── Community Health Status Card ──────────────────────────────────────────
+const HEALTH_CONFIG = {
+  healthy: {
+    icon: ShieldCheck,
+    color: ACCENT_GREEN,
+    label: "Healthy",
+    message: "Your community signals look authentic. You're eligible for full brand discovery.",
+  },
+  under_review: {
+    icon: Target,
+    color: ACCENT_AMBER,
+    label: "Under Review",
+    message: "Some engagement patterns are being monitored. This may reduce your brand partnership visibility.",
+  },
+  restricted: {
+    icon: AlertCircle,
+    color: ACCENT_RED,
+    label: "Restricted",
+    message: "Your community has been removed from brand discovery due to engagement anomalies. Contact support to resolve.",
+  },
+};
+
+const CommunityHealthCard = ({ healthData }) => {
+  if (!healthData) return null;
+
+  const status = healthData.health_status ?? "healthy";
+  const config = HEALTH_CONFIG[status] ?? HEALTH_CONFIG.healthy;
+  const IconComp = config.icon;
+  const multiplier = parseFloat(healthData.brand_match_multiplier ?? 1.0);
+  const flagCount = parseInt(healthData.active_flag_count ?? 0);
+
+  return (
+    <GlassCard
+      entering={FadeInDown.delay(0).duration(400)}
+      style={{
+        borderLeftWidth: 3,
+        borderLeftColor: config.color,
+        marginBottom: 0,
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 14 }}>
+        <View
+          style={[{
+            width: 40, height: 40, borderRadius: 12,
+            alignItems: "center", justifyContent: "center",
+          }, { backgroundColor: config.color + "18" }]}
+        >
+          <IconComp size={20} color={config.color} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <Text style={[
+              styles.sectionLabel,
+              { color: config.color, marginBottom: 0, letterSpacing: 0.5, fontSize: 12 }
+            ]}>
+              {config.label.toUpperCase()}
+            </Text>
+            {status !== "healthy" && (
+              <View style={[
+                styles.pill,
+                { backgroundColor: config.color + "18", paddingHorizontal: 8, paddingVertical: 2 }
+              ]}>
+                <Text style={[styles.pillText, { color: config.color, fontSize: 10 }]}>
+                  {flagCount} {flagCount === 1 ? "flag" : "flags"}
+                </Text>
+              </View>
+            )}
+          </View>
+          <Text style={[styles.heroSubtext, { textAlign: "left", color: SECONDARY_TEXT }]}>
+            {config.message}
+          </Text>
+          {status !== "healthy" && multiplier < 1.0 && (
+            <Text style={[
+              styles.heroSubtext,
+              { textAlign: "left", color: MUTED_TEXT, marginTop: 6, fontSize: 12 }
+            ]}>
+              Brand match score: {Math.round(multiplier * 100)}% of normal
+            </Text>
+          )}
+        </View>
+      </View>
+    </GlassCard>
+  );
+};
 
 // ── Shimmer Skeleton ──
 const ShimmerBlock = ({ width, height, style }) => {
@@ -556,6 +642,7 @@ const ErrorState = ({ onRetry }) => (
 export default function AudienceIntelligenceScreen({ navigation }) {
   const [stats, setStats] = useState(null);
   const [interests, setInterests] = useState([]);
+  const [healthData, setHealthData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -565,9 +652,10 @@ export default function AudienceIntelligenceScreen({ navigation }) {
       setError(false);
       const account = await getActiveAccount();
       if (!account?.id) { setLoading(false); setError(true); return; }
-      const [statsRes, interestsRes] = await Promise.all([
+      const [statsRes, interestsRes, healthRes] = await Promise.all([
         getCreatorStats(account.id),
         getUserInterests(account.id),
+        getCommunityHealthScore().catch(() => null), // non-fatal
       ]);
       if (statsRes?.success) {
         setStats(statsRes.stats);
@@ -576,6 +664,9 @@ export default function AudienceIntelligenceScreen({ navigation }) {
       }
       if (interestsRes?.success) {
         setInterests(interestsRes.interests || []);
+      }
+      if (healthRes && !healthRes.error) {
+        setHealthData(healthRes);
       }
     } catch (e) {
       console.error("[AQI Screen] fetch error:", e);
@@ -613,6 +704,8 @@ export default function AudienceIntelligenceScreen({ navigation }) {
             contentContainerStyle={styles.scrollContent}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={MUTED_TEXT} />}
           >
+            {/* Community health status — shown only when data is available */}
+            <CommunityHealthCard healthData={healthData} />
             <FollowQualityHero stats={stats} />
             <AudienceTierBreakdown stats={stats} />
             <AudienceGenderSection genderBreakdown={stats.audience_gender_breakdown} />

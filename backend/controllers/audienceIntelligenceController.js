@@ -592,17 +592,30 @@ async function getBrandMatches(req, res) {
         cas.tier2_followers,
         cas.top_spending_categories,
         cas.weekly_follow_quality_trend,
-        cas.audience_gender_breakdown
+        cas.audience_gender_breakdown,
+        -- Community health: join health score to apply fraud penalty
+        COALESCE(chs.brand_match_multiplier, 1.0) AS brand_match_multiplier,
+        COALESCE(chs.health_status, 'healthy') AS health_status
       FROM brand_creator_matches bcm
       LEFT JOIN communities c ON bcm.creator_id = c.id
       LEFT JOIN creator_audience_stats cas ON bcm.creator_id = cas.creator_id
+      LEFT JOIN community_health_scores chs ON chs.community_id = bcm.creator_id
       WHERE bcm.brand_id = $1 AND bcm.campaign_id = $2
-      ORDER BY bcm.total_match_score DESC
+        -- Exclude restricted communities entirely at the DB level
+        AND COALESCE(chs.health_status, 'healthy') != 'restricted'
+      ORDER BY bcm.total_match_score * COALESCE(chs.brand_match_multiplier, 1.0) DESC
       LIMIT 20`,
       [brandId, campaignId],
     );
 
-    res.json({ success: true, matches: result.rows });
+    // Apply the multiplier to the returned score so the client sees the adjusted value
+    const matches = result.rows.map((row) => ({
+      ...row,
+      total_match_score: parseFloat(row.total_match_score) * parseFloat(row.brand_match_multiplier),
+      _score_adjusted: parseFloat(row.brand_match_multiplier) < 1.0,
+    }));
+
+    res.json({ success: true, matches });
   } catch (error) {
     console.error("[AQI] getBrandMatches error:", error.message, error.stack);
     res.status(500).json({ error: "Failed to fetch brand matches" });
@@ -1063,6 +1076,58 @@ async function getGenderAffinityByCategory(req, res) {
   }
 }
 
+// ============================================================
+// GET /community/health-score
+// Returns health status for the authenticated community account
+// ============================================================
+
+async function getCommunityHealthScore(req, res) {
+  try {
+    const communityId = req.user?.id;
+
+    if (!communityId || req.user?.type !== 'community') {
+      return res.status(403).json({ error: 'Community accounts only' });
+    }
+
+    const result = await pool.query(`
+      SELECT
+        chs.*,
+        (
+          SELECT COALESCE(jsonb_agg(
+            jsonb_build_object(
+              'flag_type', flag_type,
+              'severity', severity,
+              'flagged_at', flagged_at
+            )
+          ), '[]'::jsonb)
+          FROM community_fraud_signals
+          WHERE community_id = $1
+            AND resolved = false
+            AND flagged_at >= NOW() - INTERVAL '90 days'
+        ) AS active_flags
+      FROM community_health_scores chs
+      WHERE chs.community_id = $1
+    `, [communityId]);
+
+    if (result.rows.length === 0) {
+      // No record yet — community is clean by default
+      return res.json({
+        health_status: 'healthy',
+        brand_match_multiplier: 1.0,
+        active_flag_count: 0,
+        medium_flag_count: 0,
+        high_flag_count: 0,
+        active_flags: [],
+      });
+    }
+
+    return res.json(result.rows[0]);
+  } catch (error) {
+    console.error('[AQI] getCommunityHealthScore error:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to fetch community health score' });
+  }
+}
+
 module.exports = {
   trackFollow,
   trackEngagement,
@@ -1077,4 +1142,5 @@ module.exports = {
   getActiveCategories,
   getUserInterests,
   getGenderAffinityByCategory,
+  getCommunityHealthScore,
 };
