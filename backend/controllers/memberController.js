@@ -1,4 +1,5 @@
 const { ensureOccupationInHierarchy, ensureCityInHierarchy, normalizeCity } = require("../utils/demographicScoreLookup");
+const { handleProfileFieldChange } = require("../utils/profileChangeHandler");
 
 function parsePgTextArray(value) {
   if (!value) return null;
@@ -863,6 +864,37 @@ async function patchProfile(req, res) {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Member not found" });
     }
+
+    // ── AQI-Affecting Profile Change Detection (fire-and-forget) ─────────
+    // Runs asynchronously so it never blocks the profile save response.
+    ;(async () => {
+      try {
+        const memberNow = await pool.query(
+          `SELECT occupation, occupation_category, gender,
+                  (location->>'city') AS city, (location->>'area') AS area
+           FROM members WHERE id = $1`,
+          [userId]
+        );
+        if (memberNow.rows.length === 0) return;
+        const current = memberNow.rows[0];
+
+        if (occupation !== undefined) {
+          await handleProfileFieldChange(
+            pool, userId, 'occupation', null, current.occupation,
+            { occupation_category: current.occupation_category }
+          );
+        }
+        if (req.body.gender !== undefined) {
+          await handleProfileFieldChange(pool, userId, 'gender', null, current.gender);
+        }
+        if (location !== undefined) {
+          if (current.city) await handleProfileFieldChange(pool, userId, 'city', null, current.city);
+          if (current.area) await handleProfileFieldChange(pool, userId, 'area', null, current.area);
+        }
+      } catch (err) {
+        console.error('[patchProfile] AQI change detection error (non-fatal):', err.message);
+      }
+    })();
 
     const member = result.rows[0];
     res.json({

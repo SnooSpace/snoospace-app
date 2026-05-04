@@ -9,10 +9,10 @@
  * No preset interest mappings. Interests emerge purely from behavior.
  */
 
-// Decay constant — controls how fast old signals lose weight
-// With 0.02, a 30-day-old signal retains ~55% weight
-// With 0.02, a 90-day-old signal retains ~16% weight
-const DECAY_LAMBDA = 0.02;
+// Decay constant is now loaded from platform_config at runtime.
+// Fallback: 0.02 (a 30-day-old signal retains ~55% weight).
+// Update via: UPDATE platform_config SET value = '0.03' WHERE key = 'interest_vector_decay_lambda';
+const DEFAULT_DECAY_LAMBDA = 0.02;
 
 /**
  * Recalculate all interest vectors for a user.
@@ -22,6 +22,21 @@ const DECAY_LAMBDA = 0.02;
  */
 async function recalculateInterestVectors(pool, userId) {
   try {
+    // Load decay lambda from platform_config (DB-configurable, no code deploy needed)
+    let decayLambda = DEFAULT_DECAY_LAMBDA;
+    try {
+      const configResult = await pool.query(
+        `SELECT value FROM platform_config WHERE key = $1`,
+        ['interest_vector_decay_lambda']
+      );
+      if (configResult.rows.length > 0) {
+        decayLambda = parseFloat(configResult.rows[0].value);
+        if (!Number.isFinite(decayLambda) || decayLambda <= 0) decayLambda = DEFAULT_DECAY_LAMBDA;
+      }
+    } catch {
+      // platform_config table may not exist yet — use default
+    }
+
     // Fetch all interest vectors for this user
     const { rows: vectors } = await pool.query(
       `SELECT id, category, raw_score, decayed_score, last_signal_at, signal_count, trend
@@ -38,7 +53,7 @@ async function recalculateInterestVectors(pool, userId) {
       // Apply exponential decay based on time since last signal
       const lastSignal = vec.last_signal_at ? new Date(vec.last_signal_at).getTime() : now;
       const daysSinceSignal = Math.max(0, (now - lastSignal) / (1000 * 60 * 60 * 24));
-      const newDecayed = parseFloat(vec.raw_score) * Math.exp(-DECAY_LAMBDA * daysSinceSignal);
+      const newDecayed = parseFloat(vec.raw_score) * Math.exp(-decayLambda * daysSinceSignal);
 
       // Compute trend by comparing to previous decayed_score
       const previousDecayed = parseFloat(vec.decayed_score) || 0;
@@ -227,5 +242,5 @@ async function detectDrift(pool, userId) {
 module.exports = {
   recalculateInterestVectors,
   detectDrift,
-  DECAY_LAMBDA,
+  DECAY_LAMBDA: DEFAULT_DECAY_LAMBDA,
 };

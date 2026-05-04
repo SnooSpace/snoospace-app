@@ -128,11 +128,40 @@ const SIGNAL_STRENGTH_MAP = {
 };
 
 /**
- * Calculate onboarding weight decay based on total behavior events.
- * Starts at 0.90, decays toward 0.02 as behavior accumulates.
+ * Calculate onboarding weight decay.
+ *
+ * Decays from 0.90 toward 0.02 as behavior accumulates (event-count decay).
+ * For dormant users (60+ days inactive) the weight partially recovers toward 0.5
+ * so the system falls back to declared demographic signals rather than
+ * treating a stale behavioral fingerprint as ground truth.
+ *
+ * @param {number}    totalEvents  - total behavior events accumulated
+ * @param {Date|null} lastActiveAt - timestamp of last tracked engagement
  */
-function calculateOnboardingWeight(totalEvents) {
-  return Math.max(0.02, 0.90 * Math.exp(-0.008 * totalEvents));
+function calculateOnboardingWeight(totalEvents, lastActiveAt = null) {
+  // Step 1: Base decay from accumulated events
+  const eventDecay = Math.max(0.02, 0.90 * Math.exp(-0.008 * totalEvents));
+
+  if (!lastActiveAt) return eventDecay;
+
+  // Step 2: Dormancy adjustment
+  const daysSinceActive = Math.floor(
+    (Date.now() - new Date(lastActiveAt).getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (daysSinceActive < 60) {
+    // Active user — pure event-based decay
+    return eventDecay;
+  }
+
+  // After 60 days inactive, onboarding weight gradually recovers toward 0.5
+  // (linear from 0 to +0.5 over 240 days of inactivity, capped at 0.5)
+  const dormancyRecovery = Math.min(
+    0.5,
+    ((daysSinceActive - 60) / 240) * 0.5
+  );
+
+  return Math.min(0.5, eventDecay + dormancyRecovery);
 }
 
 // ============================================================
@@ -234,12 +263,13 @@ async function trackEngagement(req, res) {
       );
     }
 
-    // --- V2: Update dynamic weights ---
+    // --- V2: Update dynamic weights + last active timestamp ---
     await pool.query(
       `UPDATE user_aqi_signals SET
          total_behavior_events = total_behavior_events + 1,
          onboarding_weight = GREATEST(0.02, 0.90 * EXP(-0.008 * (total_behavior_events + 1))),
-         behavior_weight = 1.0 - GREATEST(0.02, 0.90 * EXP(-0.008 * (total_behavior_events + 1)))
+         behavior_weight = 1.0 - GREATEST(0.02, 0.90 * EXP(-0.008 * (total_behavior_events + 1))),
+         last_active_at = NOW()
        WHERE user_id = $1`,
       [userId],
     );

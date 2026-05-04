@@ -665,3 +665,48 @@ CREATE TABLE IF NOT EXISTS community_health_scores (
 
 CREATE INDEX IF NOT EXISTS idx_community_health_status
   ON community_health_scores(health_status);
+
+-- ============================================================
+-- Prompt 3 — Data Change Handling & Dormant User Fix
+-- ============================================================
+
+-- Track profile field changes that affect AQI signals
+CREATE TABLE IF NOT EXISTS member_profile_change_log (
+  id                  BIGSERIAL    PRIMARY KEY,
+  user_id             BIGINT       NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  field_changed       VARCHAR(50)  NOT NULL,
+  -- 'occupation', 'city', 'area', 'gender', 'date_of_birth'
+  old_value           TEXT,
+  new_value           TEXT,
+  changed_at          TIMESTAMPTZ  DEFAULT now(),
+  aqi_recalculated    BOOLEAN      DEFAULT false,
+  recalculated_at     TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_profile_changes_user
+  ON member_profile_change_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_profile_changes_pending
+  ON member_profile_change_log(aqi_recalculated)
+  WHERE aqi_recalculated = false;
+
+-- Dormant user detection columns on user_aqi_signals
+ALTER TABLE user_aqi_signals
+  ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS dormancy_adjustment_applied BOOLEAN DEFAULT false;
+
+-- Platform configuration table (tunable constants without code deploys)
+CREATE TABLE IF NOT EXISTS platform_config (
+  key         VARCHAR(100) PRIMARY KEY,
+  value       TEXT         NOT NULL,
+  description TEXT,
+  updated_at  TIMESTAMPTZ  DEFAULT now()
+);
+
+INSERT INTO platform_config (key, value, description) VALUES
+  ('interest_vector_decay_lambda', '0.02',
+   'Controls how fast interest scores decay without activity. Higher = faster decay. Typical range: 0.01 to 0.05'),
+  ('aqi_minimum_behavior_events', '80',
+   'Minimum behavior events before a user is included in demographic learning jobs'),
+  ('aqi_dormancy_threshold_days', '60',
+   'Days of inactivity before dormancy adjustment kicks in for onboarding weight')
+ON CONFLICT (key) DO NOTHING;
