@@ -120,6 +120,7 @@ export const useCrop = () => {
             lockedPreset: options.lockedPreset || null, // Lock aspect ratio when multiple images exist
             allowPresetChange: options.allowPresetChange || false,
             initialCropData: options.initialCropData || null, // For position restoration
+            videoNaturalAR: options.videoNaturalAR || null,   // Raw pixel AR for pan room calculation
             onComplete: (result) => {
               if (resolveRef.current) {
                 resolveRef.current(result);

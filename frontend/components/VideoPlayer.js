@@ -38,7 +38,6 @@ const VideoPlayer = ({
   onPress,
   onVideoEnd,
   containerWidth = SCREEN_WIDTH,
-  cropMetadata,
   onUnmute,
   onPlaybackStart,
   onFullscreen,
@@ -294,28 +293,6 @@ const VideoPlayer = ({
 
   const thumbnailUrl = propThumbnailUrl || getThumbnailUrl(source);
 
-  const hasUserCrop =
-    cropMetadata?.hasUserCrop ||
-    (cropMetadata &&
-      (cropMetadata.scale !== 1 ||
-        Math.abs(cropMetadata.translateX || 0) > 0.5 ||
-        Math.abs(cropMetadata.translateY || 0) > 0.5));
-
-  // translateX/Y in cropMetadata are in crop-frame pixel space (frameWidth × frameHeight).
-  // Scale them to the actual VideoPlayer container dimensions.
-  const scaleFactor =
-    cropMetadata?.displayWidth && containerWidth > 0
-      ? containerWidth / cropMetadata.displayWidth
-      : 1;
-
-  const videoTransform = hasUserCrop
-    ? [
-        { scale: cropMetadata.scale || 1 },
-        { translateX: (cropMetadata.translateX || 0) * scaleFactor },
-        { translateY: (cropMetadata.translateY || 0) * scaleFactor },
-      ]
-    : [];
-
   const videoHeight = containerWidth / aspectRatio;
 
   // Show thumbnail when unloaded
@@ -325,8 +302,8 @@ const VideoPlayer = ({
         {thumbnailUrl ? (
           <Image
             source={{ uri: thumbnailUrl }}
-            style={[styles.video, hasUserCrop && { transform: videoTransform }]}
-            resizeMode="contain"
+            style={styles.video}
+            resizeMode="cover"
           />
         ) : (
           <View style={styles.thumbnailFallback} />
@@ -337,11 +314,14 @@ const VideoPlayer = ({
 
   return (
     <View style={[styles.container, { width: containerWidth, height: videoHeight }, style]}>
+      {/* Video crop is now applied server-side via Cloudinary URL transformations.
+          The delivered HLS stream is already cropped — no client-side transforms needed.
+          This matches the image pattern (ImageManipulator crops pixels before upload). */}
       <VideoView
         ref={videoRef}
         player={player}
-        style={[styles.video, hasUserCrop && { transform: videoTransform }]}
-        contentFit={hasUserCrop ? "cover" : "contain"}
+        style={styles.video}
+        contentFit="cover"
         nativeControls={false}
         allowsFullscreen={false}
         allowsPictureInPicture={false}
@@ -355,8 +335,8 @@ const VideoPlayer = ({
       {shouldLoad && thumbnailUrl && !hasFirstFrameRendered && (
         <Image
           source={{ uri: thumbnailUrl }}
-          style={[styles.thumbnailOverlay, hasUserCrop && { transform: videoTransform }]}
-          resizeMode={hasUserCrop ? "cover" : "contain"}
+          style={styles.thumbnailOverlay}
+          resizeMode="cover"
         />
       )}
 

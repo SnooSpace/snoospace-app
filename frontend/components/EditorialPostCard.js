@@ -520,7 +520,16 @@ const EditorialPostCard = ({
     : typeof rawAspectRatio === "number"
       ? rawAspectRatio
       : 4 / 5;
-  const firstCropMetadata = post.crop_metadata?.[0] || null; // NEW: Get crop metadata for first media
+
+  // Instagram-standard aspect ratio capping for video containers.
+  // Without a cap, a 9:21 screen recording produces a container taller than
+  // the phone screen, and contentFit="cover" shows the ENTIRE video — no framing.
+  // Cap: portrait allows down to 9:16 (so user-chosen 9:16 crop displays correctly),
+  //      landscape caps at 1.91:1 to prevent extreme wide containers.
+  const videoNativeAR = post.video_aspect_ratio || firstAspectRatio;
+  const clampedVideoAR = videoNativeAR < 1
+    ? Math.max(videoNativeAR, 9 / 16)  // portrait: cap at 9:16 (allows 4:5 and 9:16 crops)
+    : Math.min(videoNativeAR, 1.91);    // landscape: cap at 1.91:1
 
   // Check if author is the current user (to hide follow button)
   // Convert both to strings since author_id from API is string but currentUserId might be number
@@ -714,16 +723,15 @@ const EditorialPostCard = ({
                 styles.mediaWrapper,
                 {
                   width: CONTENT_WIDTH,
-                  height: CONTENT_WIDTH / firstAspectRatio,
+                  height: CONTENT_WIDTH / clampedVideoAR,
                 },
               ]}
             >
               <VideoPlayer
                 source={post.video_hls_url || post.video_url || firstMediaUrl}
                 thumbnailUrl={post.video_thumbnail}
-                aspectRatio={post.video_aspect_ratio || firstAspectRatio}
+                aspectRatio={clampedVideoAR}
                 containerWidth={CONTENT_WIDTH}
-                cropMetadata={firstCropMetadata}
                 postId={post.id} // For VideoContext registration
                 autoplay={true}
                 muted={true}

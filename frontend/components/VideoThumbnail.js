@@ -1,74 +1,86 @@
 /**
  * VideoThumbnail.js
- * Shows the first frame of a video at a given size, with crop transforms applied.
- * Designed for use in the ImageUploader grid where hooks are needed.
+ * Shows the first frame of a video at a given size, with crop applied via
+ * absolute positioning (not CSS transform, which doesn't work on native VideoView).
  */
 import React, { memo } from "react";
-import { View, StyleSheet } from "react-native";
+import { View } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 
 const VideoThumbnail = memo(({ uri, width, height, cropMetadata }) => {
   const player = useVideoPlayer(uri ? { uri } : null, (p) => {
     p.muted = true;
     p.loop = false;
-    // Must call play() so expo-video decodes and renders the first frame.
-    // We pause immediately in onFirstFrameRender to freeze at frame 0.
     p.play();
   });
 
-  const scale = cropMetadata?.scale || 1;
-  // displayWidth is the crop-frame width when the crop was done
-  const displayWidth = cropMetadata?.displayWidth || width;
-  const scaleFactor = displayWidth > 0 ? width / displayWidth : 1;
-  const translateX = (cropMetadata?.translateX || 0) * scaleFactor;
-  const translateY = (cropMetadata?.translateY || 0) * scaleFactor;
+  // --- Crop-aware sizing via absolute positioning ---
+  // CSS transforms on the wrapper View don't propagate reliably to native
+  // VideoView surfaces on iOS. Instead we:
+  //  1. Size the VideoView to the FULL video height at container width
+  //  2. Offset it with position:absolute top/left to show the correct region
+  //  3. The outer container's overflow:hidden clips to the thumbnail bounds
 
-  const hasTransform =
-    Math.abs(scale - 1) > 0.01 ||
-    Math.abs(translateX) > 0.5 ||
-    Math.abs(translateY) > 0.5;
+  const videoNaturalAR =
+    cropMetadata?.videoPixelWidth && cropMetadata?.videoPixelHeight
+      ? cropMetadata.videoPixelWidth / cropMetadata.videoPixelHeight
+      : null;
+
+  let videoW = width;
+  let videoH = height;
+  let videoTop = 0;
+  let videoLeft = 0;
+
+  if (videoNaturalAR && videoNaturalAR > 0) {
+    // Full video height when filling the thumbnail width
+    const fullVideoH = width / videoNaturalAR;
+    const userScale = cropMetadata?.scale || 1;
+
+    // The CropView displayWidth = CropView frameWidth. Scale crop-space → thumb-space.
+    const cropFrameW = cropMetadata?.displayWidth || width;
+    const thumbScale = width / cropFrameW;
+
+    // Apply user zoom on top of natural fill
+    videoW = width * userScale;
+    videoH = fullVideoH * userScale;
+
+    // Center the (possibly zoomed) video, then apply user pan (scaled to thumb space)
+    const userTX = (cropMetadata?.translateX || 0) * thumbScale;
+    const userTY = (cropMetadata?.translateY || 0) * thumbScale;
+
+    videoLeft = (width - videoW) / 2 + userTX;
+    videoTop = (height - videoH) / 2 + userTY;
+  }
 
   return (
-    <View style={[styles.container, { width, height }]}>
-      <View
-        style={[
-          styles.inner,
-          hasTransform && {
-            transform: [{ scale }, { translateX }, { translateY }],
-          },
-        ]}
-      >
-        <VideoView
-          player={player}
-          style={styles.video}
-          contentFit="cover"
-          nativeControls={false}
-          allowsFullscreen={false}
-          allowsPictureInPicture={false}
-          onFirstFrameRender={() => {
-            // Freeze at the first frame — we only wanted play() to trigger decoding
-            player.pause();
-            player.currentTime = 0;
-          }}
-        />
-      </View>
+    <View
+      style={{
+        width,
+        height,
+        backgroundColor: "#000",
+        overflow: "hidden",
+      }}
+    >
+      <VideoView
+        player={player}
+        style={{
+          position: "absolute",
+          width: videoW,
+          height: videoH,
+          top: videoTop,
+          left: videoLeft,
+        }}
+        contentFit="fill"
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
+        onFirstFrameRender={() => {
+          player.pause();
+          player.currentTime = 0;
+        }}
+      />
     </View>
   );
-});
-
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: "#000",
-    overflow: "hidden",
-  },
-  inner: {
-    width: "100%",
-    height: "100%",
-  },
-  video: {
-    width: "100%",
-    height: "100%",
-  },
 });
 
 export default VideoThumbnail;

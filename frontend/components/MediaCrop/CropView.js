@@ -60,6 +60,7 @@ const CropView = ({
   initialTranslateX,
   initialTranslateY,
   mediaType = "image",
+  videoNaturalAR = null, // Actual pixel AR of the video (width/height), unaffected by frame cap
 }) => {
   const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -295,16 +296,28 @@ const CropView = ({
         width = event.naturalSize.width;
         height = event.naturalSize.height;
       } else if (mediaType === "video" && event && event.isLoaded) {
-        // The frame is already sized to the correct aspect ratio via customPreset.
-        // Use frame dimensions as the effective "image" size so displayDimensions
-        // exactly matches the frame (initialScale = 1, no overflow).
-        // VideoView's contentFit="cover" handles fitting the actual video pixels.
-        console.log("[CropView] Video loaded — using frame dimensions:", {
+        // The frame is capped (e.g. 4:5) but the actual video may be taller (e.g. 9:21).
+        // Set imageWidth/imageHeight to reflect the video's real display size at frame width
+        // so CropView calculates correct overflow → pan room.
+        //
+        // If videoNaturalAR is provided (e.g. 0.43 for 9:21), the video would display as:
+        //   width  = frameWidth
+        //   height = frameWidth / videoNaturalAR   (much taller than the 4:5 frame)
+        // This gives vertical overflow = videoHeight - frameHeight → pan range.
+        //
+        // Falls back to frameHeight (no overflow) when AR isn't provided.
+        const videoDisplayHeight = videoNaturalAR && videoNaturalAR > 0
+          ? Math.round(frameWidth / videoNaturalAR)
+          : frameHeight;
+        console.log("[CropView] Video loaded — computing display size from natural AR:", {
           frameWidth,
           frameHeight,
+          videoNaturalAR,
+          videoDisplayHeight,
+          verticalOverflow: videoDisplayHeight - frameHeight,
         });
         width = frameWidth;
-        height = frameHeight;
+        height = videoDisplayHeight;
       } else if (event && event.nativeEvent && event.nativeEvent.source) {
         // Image component returns nativeEvent with source
         width = event.nativeEvent.source.width;

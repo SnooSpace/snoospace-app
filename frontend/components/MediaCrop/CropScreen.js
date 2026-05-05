@@ -45,6 +45,7 @@ const CropScreen = ({ route, navigation }) => {
     lockedPreset = null, // If set, aspect ratio toggle is hidden (all images must match first)
     allowPresetChange = false,
     initialCropData = null, // For position restoration on re-edit
+    videoNaturalAR = null,  // Raw pixel AR of the video file (e.g. 0.43 for 9:21)
     onComplete,
     onCancel,
   } = route?.params || {};
@@ -55,8 +56,15 @@ const CropScreen = ({ route, navigation }) => {
   const [showGrid, setShowGrid] = useState(true);
   const [showSafeZone, setShowSafeZone] = useState(false);
 
-  // Current preset configuration - use custom preset if provided, otherwise look up by key
-  const preset = customPreset || getPreset(currentPresetKey);
+  // activePreset drives the crop frame.
+  // For videos with a customPreset, toggle between 9:16 and 1:1 (two options only).
+  // We start at the STORY (9:16) preset since customPreset is already capped to 9:16.
+  const [activePreset, setActivePreset] = useState(
+    customPreset ? CROP_PRESETS.STORY : (customPreset || getPreset(presetKey))
+  );
+
+  // Current preset configuration - use activePreset
+  const preset = activePreset;
 
   // Check if this is a video
   const isVideo =
@@ -64,8 +72,24 @@ const CropScreen = ({ route, navigation }) => {
     imageUri?.toLowerCase().includes(".mov") ||
     imageUri?.toLowerCase().includes(".webm");
 
-  // Check if this is a feed post mode (allows toggling)
-  // Disable toggling when using a custom preset (natural video aspect ratio) OR when locked
+  // Label for the toggle button
+  const getPresetLabel = () => {
+    if (customPreset) {
+      return activePreset?.key === "feed_square" ? "1:1" : "9:16";
+    }
+    if (currentPresetKey === "feed_square") return "1:1";
+    if (currentPresetKey === "feed_portrait") return "4:5";
+    if (currentPresetKey === "feed_landscape") return "16:9";
+    if (currentPresetKey === "story") return "9:16";
+    return "4:5";
+  };
+
+  // Square icon for 1:1, portrait rect for everything else
+  const isCurrentlySquare = activePreset?.key === "feed_square" ||
+    (!customPreset && currentPresetKey === "feed_square");
+
+  // Check if this is a feed post mode (named presets — allows toggling between
+  // named presets). Videos with customPreset use a separate toggle below.
   const isFeedMode =
     !customPreset &&
     !lockedPreset &&
@@ -74,31 +98,46 @@ const CropScreen = ({ route, navigation }) => {
       "feed_portrait",
       "feed_landscape",
       "feed_landscape_photo",
-      "story", // Video support
+      "story",
     ].includes(currentPresetKey);
 
-  // Toggle between feed aspect ratios
+  // Toggle for named-preset videos/images
   const handleAspectToggle = useCallback(() => {
+    if (customPreset) {
+      // Simple two-way toggle: 9:16 ↔ 1:1
+      setActivePreset((prev) =>
+        prev?.key === "feed_square" ? CROP_PRESETS.STORY : CROP_PRESETS.FEED_SQUARE
+      );
+      return;
+    }
     if (isVideo) {
       // Toggle between video presets: 9:16 -> 4:5 -> 1:1 -> 16:9 -> 9:16
       if (currentPresetKey === "story") {
         setCurrentPresetKey("feed_portrait");
+        setActivePreset(getPreset("feed_portrait"));
       } else if (currentPresetKey === "feed_portrait") {
         setCurrentPresetKey("feed_square");
+        setActivePreset(CROP_PRESETS.FEED_SQUARE);
       } else if (currentPresetKey === "feed_square") {
         setCurrentPresetKey("feed_landscape");
+        setActivePreset(getPreset("feed_landscape"));
       } else {
         setCurrentPresetKey("story");
+        setActivePreset(getPreset("story"));
       }
     } else {
-      // Existing logic for images
       if (currentPresetKey === "feed_square") {
         setCurrentPresetKey("feed_portrait");
+        setActivePreset(getPreset("feed_portrait"));
       } else if (currentPresetKey === "feed_portrait") {
         setCurrentPresetKey("feed_square");
+        setActivePreset(CROP_PRESETS.FEED_SQUARE);
       }
     }
-  }, [currentPresetKey, isVideo]);
+  }, [currentPresetKey, isVideo, customPreset]);
+
+  // Show the toggle for all videos (custom preset) or named-preset feed mode
+  const showAspectToggle = !lockedPreset && (isVideo || isFeedMode);
 
   // Store crop data from CropView
   const cropDataRef = useRef({
@@ -358,6 +397,7 @@ const CropScreen = ({ route, navigation }) => {
         {/* Crop View */}
         <View style={styles.cropContainer}>
           <CropView
+            key={activePreset?.key || currentPresetKey}
             imageUri={imageUri}
             aspectRatio={preset.aspectRatio}
             maxZoom={preset.maxZoom}
@@ -371,16 +411,17 @@ const CropScreen = ({ route, navigation }) => {
             initialTranslateX={initialCropData?.translateX}
             initialTranslateY={initialCropData?.translateY}
             mediaType={isVideo ? "video" : "image"}
+            videoNaturalAR={isVideo ? videoNaturalAR : null}
           />
 
-          {/* Floating Aspect Ratio Toggle Button (for feed posts) */}
-          {isFeedMode && (
+          {/* Floating Aspect Ratio Toggle Button (for all videos + feed-mode images) */}
+          {showAspectToggle && (
             <TouchableOpacity
               style={styles.aspectToggleButton}
               onPress={handleAspectToggle}
             >
               <View style={styles.aspectToggleIcon}>
-                {currentPresetKey === "feed_square" ? (
+                {isCurrentlySquare ? (
                   <Square size={16} color="#FFFFFF" strokeWidth={2} />
                 ) : (
                   <RectangleVertical
@@ -390,17 +431,7 @@ const CropScreen = ({ route, navigation }) => {
                   />
                 )}
               </View>
-              <Text style={styles.aspectToggleText}>
-                {currentPresetKey === "feed_square"
-                  ? "1:1"
-                  : currentPresetKey === "feed_portrait"
-                    ? "4:5"
-                    : currentPresetKey === "feed_landscape"
-                      ? "16:9"
-                      : currentPresetKey === "story"
-                        ? "9:16"
-                        : "4:5"}
-              </Text>
+              <Text style={styles.aspectToggleText}>{getPresetLabel()}</Text>
             </TouchableOpacity>
           )}
         </View>

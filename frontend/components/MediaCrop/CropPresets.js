@@ -198,24 +198,40 @@ export const getPreset = (key) => {
 };
 
 /**
- * Create a custom preset for a video's natural aspect ratio.
- * This allows editing videos without forcing them into predefined aspect ratios.
- * @param {number} width - Video's natural width
- * @param {number} height - Video's natural height
+ * Create a custom preset for a video's display aspect ratio.
+ * The crop frame is capped at Instagram-standard bounds so the edit screen,
+ * thumbnail, and feed all show the same framing:
+ *   - Portrait: max 4:5 (height no more than 1.25× width)
+ *   - Landscape: max 1.91:1 (width no more than 1.91× height)
+ *
+ * @param {number} width - Video's natural pixel width
+ * @param {number} height - Video's natural pixel height
  * @returns {Object} Custom preset configuration
  */
 export const createNaturalVideoPreset = (width, height) => {
-  const aspectRatio =
-    width && height ? Math.round((width / height) * 1000) / 1000 : 16 / 9;
+  const naturalAR =
+    width && height ? width / height : 16 / 9;
+
+  // Cap the frame AR so extremely tall videos don't produce enormous crop frames.
+  // 9:16 is the tallest supported feed format, so cap there.
+  // A 9:21 screen recording is capped to 9:16; a true 9:16 video keeps its AR.
+  const clampedAR = naturalAR < 1
+    ? Math.max(naturalAR, 9 / 16)   // portrait: cap at 9:16
+    : Math.min(naturalAR, 1.91);    // landscape: cap at 1.91:1
+
+  // Derive capped dimensions that preserve the clamped AR.
+  // Use width as the reference axis so pixel coordinates stay reasonable.
+  const cappedWidth = width || 1920;
+  const cappedHeight = Math.round(cappedWidth / clampedAR);
 
   return {
     key: "natural_video",
     label: "Original",
-    aspectRatio: [width || 1920, height || 1080],
+    aspectRatio: [cappedWidth, cappedHeight],   // drives the crop frame AR
     minWidth: 320,
     minHeight: 320,
-    recommendedWidth: width || 1920,
-    recommendedHeight: height || 1080,
+    recommendedWidth: cappedWidth,
+    recommendedHeight: cappedHeight,
     maxZoom: 5,
     showGrid: true,
     isCircular: false,

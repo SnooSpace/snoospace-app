@@ -59,7 +59,6 @@ const FullscreenVideoModal = ({
   onClose,
   initialMuted = false,
   aspectRatio = 16 / 9,
-  cropMetadata,
   post,
   onLike,
   onComment,
@@ -99,13 +98,6 @@ const FullscreenVideoModal = ({
   const likeCount = post?.like_count || 0;
   const isSaved = post?.is_saved;
 
-  // CRITICAL FIX: Only apply transforms when user actually panned/zoomed
-  const hasUserCrop =
-    cropMetadata?.hasUserCrop ||
-    (cropMetadata &&
-      (cropMetadata.scale !== 1 ||
-        Math.abs(cropMetadata.translateX || 0) > 0.5 ||
-        Math.abs(cropMetadata.translateY || 0) > 0.5));
 
   // Use CONTAIN for all aspect ratios to maintain gaps (Instagram-style)
   // All videos are centered with black bars where needed
@@ -210,15 +202,6 @@ const FullscreenVideoModal = ({
     return () => clearInterval(interval);
   }, [player, isSeeking]);
 
-  // Only compute transforms when user actually modified crop
-  const videoTransform = hasUserCrop
-    ? [
-        { scale: cropMetadata.scale || 1 },
-        { translateX: cropMetadata.translateX || 0 },
-        { translateY: cropMetadata.translateY || 0 },
-      ]
-    : [];
-
   return (
     <Modal
       visible={visible}
@@ -233,16 +216,17 @@ const FullscreenVideoModal = ({
         {/* Video Surface */}
         <TouchableWithoutFeedback onPress={handlePress}>
           <View style={styles.videoContainer}>
+            {/* Video crop is applied server-side via Cloudinary URL transformations.
+                The source URL is already cropped — no client-side transforms needed. */}
             <VideoView
               player={player}
               style={[
-                styles.video,
+                styles.fullVideo,
                 {
                   width: SCREEN_WIDTH,
                   height: SCREEN_HEIGHT,
                   aspectRatio,
                 },
-                hasUserCrop && { transform: videoTransform },
               ]}
               contentFit="contain"
               nativeControls={false}

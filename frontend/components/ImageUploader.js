@@ -54,8 +54,10 @@ import {
 } from "./MediaCrop";
 import VideoPlayer from "./VideoPlayer";
 import VideoThumbnail from "./VideoThumbnail";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+
 
 // Mock Feed Card Header for Preview
 const FeedCardHeader = ({ name = "You" }) => (
@@ -69,6 +71,62 @@ const FeedCardHeader = ({ name = "You" }) => (
     <Ionicons name="ellipsis-horizontal" size={20} color="#666" />
   </View>
 );
+
+/**
+ * CropAwareVideoPreview
+ * Renders a video with the user's crop/pan/zoom applied via absolute positioning.
+ * Uses expo-video's useVideoPlayer at component level (hooks rules compliance).
+ * contentFit="fill" ensures the video renders exactly at the specified dimensions.
+ */
+const CropAwareVideoPreview = ({
+  uri,
+  containerWidth,
+  containerHeight,
+  videoWidth,
+  videoHeight,
+  videoTop,
+  videoLeft,
+  muted = false,
+}) => {
+  const player = useVideoPlayer(uri ? { uri } : null, (p) => {
+    p.muted = muted;
+    p.loop = true;
+    p.play();
+  });
+
+  // Sync mute state when it changes
+  React.useEffect(() => {
+    if (player) player.muted = muted;
+  }, [muted, player]);
+
+  return (
+    <View
+      style={{
+        width: containerWidth,
+        height: containerHeight,
+        backgroundColor: "#000",
+        overflow: "hidden",
+        borderRadius: 12,
+      }}
+    >
+      <VideoView
+        player={player}
+        style={{
+          position: "absolute",
+          width: videoWidth,
+          height: videoHeight,
+          top: videoTop,
+          left: videoLeft,
+        }}
+        contentFit="fill"
+        nativeControls={false}
+        allowsFullscreen={false}
+        allowsPictureInPicture={false}
+      />
+    </View>
+  );
+};
+
 
 // Mock Feed Card Footer for Preview
 const FeedCardFooter = () => (
@@ -409,14 +467,21 @@ const ImageUploader = forwardRef(
           "[ImageUploader] Processing videos directly (skipping crop screen)",
         );
         const videoResults = videoAssets.map((asset) => {
-          // Calculate natural aspect ratio
+          // Natural pixel AR of the video file
           const naturalAspectRatio =
             asset.width && asset.height ? asset.width / asset.height : 16 / 9;
 
-          console.log("[ImageUploader] Video natural dimensions:", {
+          // Cap the display AR at 9:16 (tallest supported format) so extremely
+          // tall videos like 9:21 screen recordings are shown consistently.
+          const displayAspectRatio = naturalAspectRatio < 1
+            ? Math.max(naturalAspectRatio, 9 / 16)  // portrait: cap at 9:16
+            : Math.min(naturalAspectRatio, 1.91);    // landscape: cap at 1.91:1
+
+          console.log("[ImageUploader] Video dimensions:", {
             width: asset.width,
             height: asset.height,
-            aspectRatio: naturalAspectRatio.toFixed(3),
+            naturalAR: naturalAspectRatio.toFixed(3),
+            displayAR: displayAspectRatio.toFixed(3),
           });
 
           return {
@@ -427,11 +492,14 @@ const ImageUploader = forwardRef(
               originalUri: asset.uri,
               // Store the canonical key so presetKeys[] never falls back to cropPreset
               preset: "natural_video",
-              aspectRatio: naturalAspectRatio,
+              aspectRatio: displayAspectRatio,  // CAPPED — used for thumbnail/crop frame/feed
               mediaType: "video",
-              // Persist raw pixel dimensions so re-edit can rebuild the natural preset
+              // Raw pixel dimensions for CropView re-edit
               imageWidth: asset.width || 1920,
               imageHeight: asset.height || 1080,
+              // Actual video file pixel dimensions for Cloudinary server-side crop
+              videoPixelWidth: asset.width || 1920,
+              videoPixelHeight: asset.height || 1080,
               // No crop applied — natural video
               hasUserCrop: false,
               scale: 1,
@@ -668,6 +736,15 @@ const ImageUploader = forwardRef(
           initialCropData: savedCropData,
           customPreset: customPreset, // Natural aspect ratio for videos; null for photos
           lockedPreset: shouldLockPreset ? firstImagePreset : null, // Enforce consistent AR
+          // Raw pixel AR of the video file — used by CropView to compute pan room.
+          // (distinct from the capped display AR stored in metadata.aspectRatio)
+          videoNaturalAR: isVideo
+            ? (savedCropData?.imageWidth && savedCropData?.imageHeight
+                ? savedCropData.imageWidth / savedCropData.imageHeight
+                : savedCropData?.videoPixelWidth && savedCropData?.videoPixelHeight
+                  ? savedCropData.videoPixelWidth / savedCropData.videoPixelHeight
+                  : null)
+            : null,
         });
 
         if (result) {
@@ -700,6 +777,18 @@ const ImageUploader = forwardRef(
               Math.abs(newMetadata.translateX || 0) > 0.5 ||
               Math.abs(newMetadata.translateY || 0) > 0.5;
             newMetadata.hasUserCrop = hasUserCrop;
+
+            // For videos: CropScreen sets originalWidth/Height to crop-frame
+            // dimensions, but we need the actual video file pixel dimensions
+            // for Cloudinary server-side crop. Restore them from the initial
+            // metadata (set at video pick time from asset.width/height).
+            if (isVideo) {
+              const prevMeta = cropMetadata[index];
+              newMetadata.videoPixelWidth =
+                prevMeta?.videoPixelWidth || prevMeta?.imageWidth || images[index]?.width || 1920;
+              newMetadata.videoPixelHeight =
+                prevMeta?.videoPixelHeight || prevMeta?.imageHeight || images[index]?.height || 1080;
+            }
           }
 
           updatedCropMetadata[index] = newMetadata;
@@ -1086,9 +1175,19 @@ const ImageUploader = forwardRef(
       if (horizontal) {
         const getThumbDimensions = (index) => {
           const ar = aspectRatios[index];
-          const ratio = Array.isArray(ar)
+          let ratio = Array.isArray(ar)
             ? ar[0] / ar[1]
             : typeof ar === "number" ? ar : 1;
+
+          // For videos, apply the same AR cap as EditorialPostCard so the grid
+          // thumbnail matches what the feed will show. 9:16 allows user-chosen
+          // 9:16 crops to render correctly (not forced up to 4:5).
+          if (mediaTypes[index] === "video") {
+            ratio = ratio < 1
+              ? Math.max(ratio, 9 / 16)
+              : Math.min(ratio, 1.91);
+          }
+
           let thumbHeight;
           if (ratio > 1.5) {
             thumbHeight = 120;
@@ -1294,66 +1393,22 @@ const ImageUploader = forwardRef(
       if (!isVideoPreviewVisible || !previewVideoUri) return null;
 
       const metadata = previewVideoMetadata || {};
-      const scale = metadata.scale || 1;
 
-      // Calculate scale factor for translation based on preview dimensions vs original crop dimensions
+      // Content width for the preview card (mirrors EditorialPostCard's CONTENT_WIDTH)
       const contentWidth = width - EDITORIAL_SPACING.cardPadding * 2;
 
-      // Get aspect ratio
-      const aspectRatio = Array.isArray(metadata.aspectRatio)
+      // Get raw aspect ratio from crop metadata
+      const rawAR = Array.isArray(metadata.aspectRatio)
         ? metadata.aspectRatio[0] / metadata.aspectRatio[1]
         : metadata.aspectRatio || 0.8;
 
-      const contentHeight = contentWidth / aspectRatio;
+      // Apply the same AR cap as EditorialPostCard so the preview matches the feed.
+      // Portrait allows down to 9:16 (so user-chosen 9:16 crop displays correctly).
+      const clampedAR = rawAR < 1
+        ? Math.max(rawAR, 9 / 16)
+        : Math.min(rawAR, 1.91);
 
-      // Scale factors for X and Y based on the actual display size vs crop size
-      const scaleFactorX = metadata.displayWidth
-        ? contentWidth / metadata.displayWidth
-        : 1;
-      const scaleFactorY = metadata.displayHeight
-        ? contentHeight / metadata.displayHeight
-        : 1;
-
-      const translateX = (metadata.translateX || 0) * scaleFactorX;
-      const translateY = (metadata.translateY || 0) * scaleFactorY;
-
-      console.log("[ImageUploader] Video Preview Transform:", {
-        aspectRatio,
-        scale,
-        translateX,
-        translateY,
-        metadata: {
-          scale: metadata.scale,
-          translateX: metadata.translateX,
-          translateY: metadata.translateY,
-          displayWidth: metadata.displayWidth,
-          displayHeight: metadata.displayHeight,
-          aspectRatio: metadata.aspectRatio,
-        },
-        calculated: {
-          contentWidth,
-          contentHeight,
-          scaleFactorX,
-          scaleFactorY,
-        },
-      });
-
-      // Transform style for the video content
-      // Only apply transforms if the video is actually zoomed/panned
-      const hasTransform =
-        (scale && Math.abs(scale - 1) > 0.01) ||
-        (translateX && Math.abs(translateX) > 0.5) ||
-        (translateY && Math.abs(translateY) > 0.5);
-
-      const transformStyle = hasTransform
-        ? {
-            transform: [
-              { scale: scale },
-              { translateX: translateX },
-              { translateY: translateY },
-            ],
-          }
-        : {};
+      console.log("[ImageUploader] Video Preview AR:", { rawAR, clampedAR });
 
       return (
         <Modal
@@ -1449,19 +1504,53 @@ const ImageUploader = forwardRef(
                   </View>
                 )}
 
-                {/* Media Container */}
+                {/* Media Container — crop-aware preview matching what the feed will show */}
                 <View style={styles.mediaContainer}>
-                  {/* Video preview with crop transform applied via cropMetadata prop */}
-                  <VideoPlayer
-                    source={previewVideoUri}
-                    aspectRatio={aspectRatio}
-                    cropMetadata={metadata}
-                    autoplay={true}
-                    muted={previewVideoIndex !== null && mutedVideoIndices.has(previewVideoIndex)}
-                    loop={true}
-                    showControls={false}
-                    containerWidth={contentWidth}
-                  />
+                  {(() => {
+                    // Replicate the CropView crop statically using absolute positioning.
+                    // CSS transforms on a wrapper View don't affect native VideoView
+                    // surfaces reliably on iOS, so we size the VideoView to the full
+                    // natural video dimensions and offset it with top/left.
+                    const videoNaturalAR =
+                      metadata?.videoPixelWidth && metadata?.videoPixelHeight
+                        ? metadata.videoPixelWidth / metadata.videoPixelHeight
+                        : null;
+
+                    const previewH = contentWidth / clampedAR;
+
+                    // Full video height when filling the preview width
+                    const fullVideoH = videoNaturalAR
+                      ? contentWidth / videoNaturalAR
+                      : previewH;
+
+                    const userScale = metadata?.scale || 1;
+
+                    // Scale crop-space coords → preview-space coords
+                    const cropFrameW = metadata?.displayWidth || contentWidth;
+                    const previewScale = contentWidth / cropFrameW;
+
+                    const videoW = contentWidth * userScale;
+                    const videoH = fullVideoH * userScale;
+
+                    const userTX = (metadata?.translateX || 0) * previewScale;
+                    const userTY = (metadata?.translateY || 0) * previewScale;
+
+                    const videoLeft = (contentWidth - videoW) / 2 + userTX;
+                    const videoTop = (previewH - videoH) / 2 + userTY;
+
+                    return (
+                      <CropAwareVideoPreview
+                        uri={previewVideoUri}
+                        containerWidth={contentWidth}
+                        containerHeight={previewH}
+                        videoWidth={videoW}
+                        videoHeight={videoH}
+                        videoTop={videoTop}
+                        videoLeft={videoLeft}
+                        muted={previewVideoIndex !== null && mutedVideoIndices.has(previewVideoIndex)}
+                      />
+                    );
+                  })()}
                 </View>
 
                 {/* Engagement Row */}

@@ -677,7 +677,8 @@ const getFeed = async (req, res) => {
         if (videoIndex !== -1 && parsedPost.image_urls[videoIndex]) {
           const rawVideoUrl = parsedPost.image_urls[videoIndex];
           const aspectRatio = parsedPost.aspect_ratios?.[videoIndex] || null;
-          const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio);
+          const videoCropMeta = parsedPost.crop_metadata?.[videoIndex] || null;
+          const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio, videoCropMeta);
 
           // Merge video metadata into post
           parsedPost.video_url = videoMeta.video_url;
@@ -1034,7 +1035,8 @@ const getExplore = async (req, res) => {
       if (videoIndex !== -1 && parsedPost.image_urls[videoIndex]) {
         const rawVideoUrl = parsedPost.image_urls[videoIndex];
         const aspectRatio = parsedPost.aspect_ratios?.[videoIndex] || null;
-        const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio);
+        const videoCropMeta = parsedPost.crop_metadata?.[videoIndex] || null;
+        const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio, videoCropMeta);
 
         // Merge video metadata into post
         parsedPost.video_url = videoMeta.video_url;
@@ -1353,7 +1355,17 @@ const getPost = async (req, res) => {
     if (videoIndex !== -1 && post.image_urls[videoIndex]) {
       const rawVideoUrl = post.image_urls[videoIndex];
       const aspectRatio = post.aspect_ratios?.[videoIndex] || null;
-      const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio);
+      // Parse crop_metadata for this endpoint (may not be parsed yet)
+      let cropMetadataArr = null;
+      try {
+        if (post.crop_metadata) {
+          cropMetadataArr = Array.isArray(post.crop_metadata)
+            ? post.crop_metadata
+            : JSON.parse(post.crop_metadata);
+        }
+      } catch { cropMetadataArr = null; }
+      const videoCropMeta = Array.isArray(cropMetadataArr) ? cropMetadataArr[videoIndex] || null : null;
+      const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio, videoCropMeta);
 
       // Merge video metadata into post
       post.video_url = videoMeta.video_url;
@@ -1526,7 +1538,17 @@ const getUserPosts = async (req, res) => {
       if (videoIndex !== -1 && parsedPost.image_urls[videoIndex]) {
         const rawVideoUrl = parsedPost.image_urls[videoIndex];
         const aspectRatio = parsedPost.aspect_ratios?.[videoIndex] || null;
-        const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio);
+        // Parse crop_metadata inline for this endpoint
+        let cropMetadataArr = null;
+        try {
+          if (post.crop_metadata) {
+            cropMetadataArr = Array.isArray(post.crop_metadata)
+              ? post.crop_metadata
+              : JSON.parse(post.crop_metadata);
+          }
+        } catch { cropMetadataArr = null; }
+        const videoCropMeta = Array.isArray(cropMetadataArr) ? cropMetadataArr[videoIndex] || null : null;
+        const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio, videoCropMeta);
 
         // Merge video metadata into post
         parsedPost.video_url = videoMeta.video_url;
