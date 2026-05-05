@@ -27,6 +27,7 @@ import {
   Trophy,
   Image as ImageIcon,
   Check,
+  Video as VideoIcon,
 } from "lucide-react-native";
 import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";

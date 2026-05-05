@@ -53,6 +53,7 @@ import {
   createNaturalVideoPreset,
 } from "./MediaCrop";
 import VideoPlayer from "./VideoPlayer";
+import VideoThumbnail from "./VideoThumbnail";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -1124,48 +1125,22 @@ const ImageUploader = forwardRef(
                       { width: thumbWidth, height: thumbHeight, marginRight: 12 },
                     ]}
                   >
-                    {mediaTypes[index] === "video" && metadata ? (
-                      (() => {
-                        const hasTransform =
-                          (metadata.scale && Math.abs(metadata.scale - 1) > 0.01) ||
-                          (metadata.translateX && Math.abs(metadata.translateX) > 0.5) ||
-                          (metadata.translateY && Math.abs(metadata.translateY) > 0.5);
-
-                        if (!hasTransform) {
-                          return (
-                            <Image
-                              source={{ uri: imageUri }}
-                              style={{ width: "100%", height: "100%" }}
-                              resizeMode="contain"
-                            />
-                          );
-                        }
-
-                        return (
-                          <View style={{ width: "100%", height: "100%", overflow: "hidden", backgroundColor: "#000" }} pointerEvents="none">
-                            <View
-                              style={{
-                                width: "100%",
-                                height: "100%",
-                                transform: [
-                                  { scale: metadata.scale || 1 },
-                                  { translateX: (metadata.translateX || 0) * (metadata.displayWidth ? thumbWidth / metadata.displayWidth : 1) },
-                                  { translateY: (metadata.translateY || 0) * (metadata.displayHeight ? thumbHeight / metadata.displayHeight : 1) },
-                                ],
-                              }}
-                            >
-                              <Image source={{ uri: imageUri }} style={{ width: "100%", height: "100%" }} resizeMode="contain" />
-                            </View>
-                          </View>
-                        );
-                      })()
-                    ) : (
+                    {mediaTypes[index] === "video" ? (
+                      // Image cannot render a local video URI — use VideoThumbnail
+                      // which shows the first frame with the stored crop transform.
+                      <VideoThumbnail
+                        uri={originalUris[index] || imageUri}
+                        width={thumbWidth}
+                        height={thumbHeight}
+                        cropMetadata={metadata}
+                      />
+                    ) : metadata ? (
                       <Image
                         source={{ uri: imageUri, cache: "reload" }}
                         style={styles.image}
                         resizeMode="contain"
                       />
-                    )}
+                    ) : null}
 
                     {/* Video / Crop hint badge */}
                     {enableCrop && (
@@ -1476,11 +1451,11 @@ const ImageUploader = forwardRef(
 
                 {/* Media Container */}
                 <View style={styles.mediaContainer}>
-                  {/* Let VideoPlayer handle its own sizing based on aspect ratio */}
-                  {/* Don't apply transforms here - VideoPlayer uses CONTAIN mode */}
+                  {/* Video preview with crop transform applied via cropMetadata prop */}
                   <VideoPlayer
                     source={previewVideoUri}
                     aspectRatio={aspectRatio}
+                    cropMetadata={metadata}
                     autoplay={true}
                     muted={previewVideoIndex !== null && mutedVideoIndices.has(previewVideoIndex)}
                     loop={true}

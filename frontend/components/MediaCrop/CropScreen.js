@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CropScreen.js
  * Full-screen modal crop editor with navigation integration.
  * Handles preset selection, image cropping, and export.
@@ -126,8 +126,14 @@ const CropScreen = ({ route, navigation }) => {
   // Handle image load and validate dimensions (skip for re-edit since image was already approved)
   const handleImageLoad = useCallback(
     ({ width, height }) => {
-      // Skip validation for re-edit mode - the image was already approved during initial selection
+      // Skip validation for re-edit mode (image was already approved)
       if (initialCropData) {
+        return;
+      }
+
+      // Skip validation for videos — their effective dimensions are the crop frame
+      // size, not real pixel dimensions, so size checks would produce false positives.
+      if (isVideo) {
         return;
       }
 
@@ -144,7 +150,7 @@ const CropScreen = ({ route, navigation }) => {
         ]);
       }
     },
-    [preset, initialCropData],
+    [preset, initialCropData, isVideo],
   );
 
   // Handle cancel

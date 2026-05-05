@@ -83,6 +83,8 @@ export default function CommunityCreatePostScreen({ navigation }) {
   const [showCelebration, setShowCelebration] = useState(false);
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [showRemoveMediaModal, setShowRemoveMediaModal] = useState(false);
+  const [pendingPostType, setPendingPostType] = useState(null);
   const [showEntityTagger, setShowEntityTagger] = useState(false);
   const [parentScrollEnabled, setParentScrollEnabled] = useState(true);
   const insets = useSafeAreaInsets();
@@ -449,6 +451,40 @@ export default function CommunityCreatePostScreen({ navigation }) {
     />
   );
 
+  const renderRemoveMediaModal = () => (
+    <CustomAlertModal
+      visible={showRemoveMediaModal}
+      onClose={() => setShowRemoveMediaModal(false)}
+      title="Remove Media?"
+      message="Switching post types will remove your attached media. Continue?"
+      icon={AlertTriangle}
+      iconColor="#FF3B30"
+      primaryAction={{
+        text: "Remove & Switch",
+        style: "destructive",
+        onPress: () => {
+          setImages([]);
+          setAspectRatios([]);
+          setMediaTypes([]);
+          setMutedVideoIndices(new Set());
+          LayoutAnimation.configureNext(
+            LayoutAnimation.Presets.easeInEaseOut,
+          );
+          if (pendingPostType) setPostType(pendingPostType);
+          setShowRemoveMediaModal(false);
+          setPendingPostType(null);
+        },
+      }}
+      secondaryAction={{
+        text: "Cancel",
+        onPress: () => {
+          setShowRemoveMediaModal(false);
+          setPendingPostType(null);
+        },
+      }}
+    />
+  );
+
   const renderGuidelinesModal = () => (
     <Modal
       visible={showGuidelines}
@@ -630,6 +666,17 @@ export default function CommunityCreatePostScreen({ navigation }) {
           <PostTypeSelector
             selectedType={postType}
             onSelectType={(type) => {
+              if (type === postType) return;
+
+              // Guardrail: switching away from media while items are attached
+              // causes video thumbnails to break (players unmount/remount incorrectly).
+              // Ask the user to confirm before clearing their media.
+              if (postType === "media" && images.length > 0) {
+                setPendingPostType(type);
+                setShowRemoveMediaModal(true);
+                return;
+              }
+
               LayoutAnimation.configureNext(
                 LayoutAnimation.Presets.easeInEaseOut,
               );
@@ -844,6 +891,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
       )}
       {renderGuidelinesModal()}
       {renderDiscardModal()}
+      {renderRemoveMediaModal()}
     </View>
   );
 }
