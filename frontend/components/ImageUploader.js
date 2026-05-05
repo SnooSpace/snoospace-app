@@ -424,9 +424,14 @@ const ImageUploader = forwardRef(
             height: asset.height || 1080,
             metadata: {
               originalUri: asset.uri,
+              // Store the canonical key so presetKeys[] never falls back to cropPreset
+              preset: "natural_video",
               aspectRatio: naturalAspectRatio,
               mediaType: "video",
-              // No crop applied - natural video
+              // Persist raw pixel dimensions so re-edit can rebuild the natural preset
+              imageWidth: asset.width || 1920,
+              imageHeight: asset.height || 1080,
+              // No crop applied — natural video
               hasUserCrop: false,
               scale: 1,
               translateX: 0,
@@ -627,21 +632,25 @@ const ImageUploader = forwardRef(
 
         const isVideo = thisMediaType === "video";
 
-        // For videos: Create a custom preset using natural dimensions
-        // This allows pan/zoom within the natural aspect ratio (no forced presets)
+        // For videos: always derive the crop frame from the video's real pixel dimensions.
+        // Named presets (feed_portrait, feed_landscape, etc.) only apply to photos.
         let customPreset = null;
         if (isVideo) {
-          // Get natural dimensions from saved crop data or use defaults
+          // Prefer stored dimensions (set at first-pick); fall back to 1920×1080 only
+          // when cropping a video that was added before this fix.
           const videoWidth =
-            savedCropData?.originalWidth || savedCropData?.imageWidth || 1920;
+            savedCropData?.imageWidth ||
+            savedCropData?.originalWidth ||
+            1920;
           const videoHeight =
-            savedCropData?.originalHeight || savedCropData?.imageHeight || 1080;
-
+            savedCropData?.imageHeight ||
+            savedCropData?.originalHeight ||
+            1080;
           customPreset = createNaturalVideoPreset(videoWidth, videoHeight);
-          console.log("[ImageUploader] Created natural video preset:", {
-            width: videoWidth,
-            height: videoHeight,
-            aspectRatio: videoWidth / videoHeight,
+          console.log("[ImageUploader] Video re-edit — using natural preset:", {
+            videoWidth,
+            videoHeight,
+            aspectRatio: (videoWidth / videoHeight).toFixed(3),
           });
         }
 
@@ -656,7 +665,7 @@ const ImageUploader = forwardRef(
         // Pass saved crop data for position restoration
         const result = await cropImage(originalUri, savedPreset, {
           initialCropData: savedCropData,
-          customPreset: customPreset, // Use natural aspect ratio for videos
+          customPreset: customPreset, // Natural aspect ratio for videos; null for photos
           lockedPreset: shouldLockPreset ? firstImagePreset : null, // Enforce consistent AR
         });
 

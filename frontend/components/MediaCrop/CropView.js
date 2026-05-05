@@ -73,10 +73,11 @@ const CropView = ({
     }
   );
 
-  // Calculate frame dimensions based on aspect ratio and screen size
+  // Calculate frame dimensions based on aspect ratio and screen size.
+  // Cap at 65% of screen height to leave room for the header and bottom toolbar.
   const padding = 40;
   const maxWidth = screenWidth - padding;
-  const maxHeight = screenHeight * 0.6; // Max 60% of screen height
+  const maxHeight = screenHeight * 0.65;
   const ratio = aspectRatio[0] / aspectRatio[1];
 
   let frameWidth = maxWidth;
@@ -294,16 +295,16 @@ const CropView = ({
         width = event.naturalSize.width;
         height = event.naturalSize.height;
       } else if (mediaType === "video" && event && event.isLoaded) {
-        // Android Video component - try to get dimensions from the event
-        // The video is loaded but dimensions might not be in naturalSize
-        // We'll use a fallback approach
-        console.log(
-          "[CropView] Video loaded on Android, using fallback dimensions",
-        );
-        // For now, use standard HD video dimensions as fallback
-        // This will be updated when we can properly detect video dimensions
-        width = 1080;
-        height = 1920;
+        // The frame is already sized to the correct aspect ratio via customPreset.
+        // Use frame dimensions as the effective "image" size so displayDimensions
+        // exactly matches the frame (initialScale = 1, no overflow).
+        // VideoView's contentFit="cover" handles fitting the actual video pixels.
+        console.log("[CropView] Video loaded — using frame dimensions:", {
+          frameWidth,
+          frameHeight,
+        });
+        width = frameWidth;
+        height = frameHeight;
       } else if (event && event.nativeEvent && event.nativeEvent.source) {
         // Image component returns nativeEvent with source
         width = event.nativeEvent.source.width;
@@ -427,8 +428,9 @@ const CropView = ({
         <GestureDetector gesture={composedGestures}>
           <Animated.View style={styles.imageWrapper}>
             {mediaType === "video" ? (
-              <VideoView
-                player={videoPlayer}
+              // VideoView is not a Reanimated-aware component, so wrap it in
+              // Animated.View to receive the animated transform style.
+              <Animated.View
                 style={[
                   animatedImageStyle,
                   displayDimensions.width > 0
@@ -441,17 +443,25 @@ const CropView = ({
                         height: "100%",
                       },
                 ]}
-                contentFit="cover"
-                nativeControls={false}
-                allowsFullscreen={false}
-                allowsPictureInPicture={false}
-                onFirstFrameRender={() => {
-                  // Use fixed HD dimensions as fallback for crop view
-                  if (handleImageLoad) {
-                    handleImageLoad({ isLoaded: true });
-                  }
-                }}
-              />
+              >
+                <VideoView
+                  player={videoPlayer}
+                  style={{
+                    width: displayDimensions.width > 0 ? displayDimensions.width : "100%",
+                    height: displayDimensions.height > 0 ? displayDimensions.height : "100%",
+                  }}
+                  contentFit="cover"
+                  nativeControls={false}
+                  allowsFullscreen={false}
+                  allowsPictureInPicture={false}
+                  onFirstFrameRender={() => {
+                    // Use fixed HD dimensions as fallback for crop view
+                    if (handleImageLoad) {
+                      handleImageLoad({ isLoaded: true });
+                    }
+                  }}
+                />
+              </Animated.View>
             ) : (
               <AnimatedImage
                 source={{ uri: imageUri }}
