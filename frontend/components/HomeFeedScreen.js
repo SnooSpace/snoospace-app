@@ -995,43 +995,45 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
 
   const handleConfirmDelete = async () => {
-    if (postToDelete) {
-      // Optimistically remove from UI
-      handleDelete(postToDelete);
-      // Show mid-screen toast
-      showDeleteToast();
+    if (!postToDelete) return;
+    const postId = postToDelete;
 
-      try {
-        const token = await getAuthToken();
-        if (token) {
-          await apiDelete(`/posts/${postToDelete}`, null, 15000, token);
-        }
-      } catch (error) {
-        console.error("Error deleting post:", error);
-        Alert.alert("Error", "Failed to delete post");
-        // Optionally revert local deletion here if needed, but for now we keep it optimistic
-      }
-    }
+    // Close modal immediately so UI feels responsive
     setDeleteModalVisible(false);
     setPostToDelete(null);
-  };
 
-  const handleDelete = (postId) => {
-    // Immediately remove from local state for instant UI update
+    // Optimistically remove from UI and show toast
     setPosts((prev) => prev.filter((post) => post.id !== postId));
-
-    // Notify other screens via EventBus
     EventBus.emit("postDeleted", postId);
+    showDeleteToast();
+
+    try {
+      const token = await getAuthToken();
+      if (token) {
+        await apiDelete(`/posts/${postId}`, null, 15000, token);
+      }
+    } catch (error) {
+      console.error("Error deleting post:", error);
+      Alert.alert("Error", "Failed to delete post");
+    }
   };
+
+  // Use a ref so the EventBus listener always has the latest handler
+  // without needing to re-register on every render.
+  const handleDeleteRef = useRef(null);
+  const handleDelete = useCallback((postId) => {
+    setPosts((prev) => prev.filter((post) => post.id !== postId));
+  }, []);
+  handleDeleteRef.current = handleDelete;
 
   // Listen for global events (deletions, updates from other screens)
   useEffect(() => {
-    // Using direct references since setPosts/setOpportunities use callback form
-    EventBus.on("postDeleted", handleDelete);
+    const stableHandler = (postId) => handleDeleteRef.current?.(postId);
+    EventBus.on("postDeleted", stableHandler);
     EventBus.on("opportunityUpdated", handlePostUpdate);
 
     return () => {
-      EventBus.off("postDeleted", handleDelete);
+      EventBus.off("postDeleted", stableHandler);
       EventBus.off("opportunityUpdated", handlePostUpdate);
     };
   }, []);

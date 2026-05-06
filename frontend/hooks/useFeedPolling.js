@@ -24,7 +24,9 @@ export function useFeedPolling(options = {}) {
   const appStateRef = useRef(AppState.currentState);
   const lastPostTimestampRef = useRef(null);
   const lastChangeTimeRef = useRef(Date.now());
-  const [currentInterval, setCurrentInterval] = useState(baseInterval);
+  // Use a ref for the current interval value so poll closures always read
+  // the latest value without triggering effect restarts.
+  const currentIntervalRef = useRef(baseInterval);
   const [isPolling, setIsPolling] = useState(false);
   const [newPostsCount, setNewPostsCount] = useState(0);
 
@@ -41,19 +43,24 @@ export function useFeedPolling(options = {}) {
     const hasBeenIdle = timeSinceLastChange > 120000; // 2 minutes
     
     if (isNightTime) {
-      // Night time: 1 minute
       return 60000;
     } else if (hasBeenIdle) {
-      // No new posts for 2+ minutes: slow to max interval
-      return Math.min(currentInterval * 1.5, maxInterval);
+      return Math.min(currentIntervalRef.current * 1.5, maxInterval);
     } else {
-      // Active time with recent changes: base interval
       return baseInterval;
     }
-  }, [baseInterval, maxInterval, currentInterval]);
+  }, [baseInterval, maxInterval]);
+
+  // Restart the polling interval with a new ms value
+  const restartInterval = useCallback((ms, pollFn) => {
+    currentIntervalRef.current = ms;
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(pollFn, ms);
+  }, []);
 
   // Check for new posts (lightweight check)
-  const checkForNewPosts = useCallback(async () => {
+  // Uses refs for interval state so this callback is stable across renders.
+  const checkForNewPosts = useCallback(async (pollFn) => {
     if (appStateRef.current !== 'active') {
       console.log('[FeedPolling] App not active, skipping poll');
       return null;
@@ -64,10 +71,10 @@ export function useFeedPolling(options = {}) {
       const token = await getAuthToken();
       if (!token) {
         console.log('[FeedPolling] No auth token, skipping poll');
+        setIsPolling(false);
         return null;
       }
 
-      // Fetch latest posts to check for new ones
       const response = await apiGet('/posts/feed', 15000, token);
       const posts = response.posts || [];
       
@@ -76,7 +83,6 @@ export function useFeedPolling(options = {}) {
         return null;
       }
 
-      // Check if we have newer posts than last time
       const latestTimestamp = posts[0]?.created_at;
       
       if (lastPostTimestampRef.current && latestTimestamp) {
@@ -84,7 +90,6 @@ export function useFeedPolling(options = {}) {
         const newTime = new Date(latestTimestamp).getTime();
         
         if (newTime > lastTime) {
-          // New posts detected!
           const newCount = posts.filter(p => 
             new Date(p.created_at).getTime() > lastTime
           ).length;
@@ -94,23 +99,23 @@ export function useFeedPolling(options = {}) {
           lastChangeTimeRef.current = Date.now();
           lastPostTimestampRef.current = latestTimestamp;
           
-          // Reset to fast polling
-          setCurrentInterval(baseInterval);
+          // Reset to fast polling if we have a poll fn to reschedule
+          if (pollFn && currentIntervalRef.current !== baseInterval) {
+            restartInterval(baseInterval, pollFn);
+          }
           
-          // Auto-load: return the new posts for the component to update
           setIsPolling(false);
           return { posts, hasNew: true, newCount };
         }
       } else if (latestTimestamp) {
-        // First poll - store timestamp
         lastPostTimestampRef.current = latestTimestamp;
       }
       
       // No new posts - apply backoff
       const newInterval = getAdaptiveInterval();
-      if (newInterval !== currentInterval) {
+      if (pollFn && newInterval !== currentIntervalRef.current) {
         console.log(`[FeedPolling] Adjusting interval to ${newInterval / 1000}s`);
-        setCurrentInterval(newInterval);
+        restartInterval(newInterval, pollFn);
       }
       
       setIsPolling(false);
@@ -120,7 +125,7 @@ export function useFeedPolling(options = {}) {
       setIsPolling(false);
       return null;
     }
-  }, [baseInterval, currentInterval, getAdaptiveInterval]);
+  }, [baseInterval, getAdaptiveInterval, restartInterval]);
 
   // Initialize last timestamp when first receiving posts
   const initializeTimestamp = useCallback((timestamp) => {
@@ -130,27 +135,26 @@ export function useFeedPolling(options = {}) {
     }
   }, []);
 
-  // Main polling effect
+  // Single stable polling effect — never restarts due to internal state changes
   useEffect(() => {
     if (!enabled) {
       console.log('[FeedPolling] Polling disabled');
       return;
     }
 
-    console.log(`[FeedPolling] Starting with ${currentInterval / 1000}s interval`);
+    currentIntervalRef.current = baseInterval;
+    console.log(`[FeedPolling] Starting with ${baseInterval / 1000}s interval`);
 
     const poll = async () => {
-      const result = await checkForNewPosts();
+      const result = await checkForNewPosts(poll);
       if (result?.hasNew && onNewPostsLoaded) {
         onNewPostsLoaded(result.posts);
       }
     };
 
-    // Initial poll after a short delay
-    const initialTimer = setTimeout(poll, currentInterval);
-
-    // Set up interval
-    intervalRef.current = setInterval(poll, currentInterval);
+    // Initial poll after one interval
+    const initialTimer = setTimeout(poll, baseInterval);
+    intervalRef.current = setInterval(poll, baseInterval);
 
     // Handle app state changes
     const subscription = AppState.addEventListener('change', (nextAppState) => {
@@ -158,10 +162,9 @@ export function useFeedPolling(options = {}) {
         appStateRef.current.match(/inactive|background/) &&
         nextAppState === 'active'
       ) {
-        // App came to foreground - poll immediately
         console.log('[FeedPolling] App came to foreground, polling...');
         lastChangeTimeRef.current = Date.now();
-        setCurrentInterval(baseInterval);
+        restartInterval(baseInterval, poll);
         poll();
       }
       appStateRef.current = nextAppState;
@@ -169,46 +172,18 @@ export function useFeedPolling(options = {}) {
 
     return () => {
       clearTimeout(initialTimer);
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
+      if (intervalRef.current) clearInterval(intervalRef.current);
       subscription.remove();
     };
-  }, [enabled, currentInterval, checkForNewPosts, onNewPostsLoaded, baseInterval]);
-
-  // Restart interval when currentInterval changes
-  useEffect(() => {
-    if (!enabled) return;
-    
-    // Clear old interval
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    
-    const poll = async () => {
-      if (appStateRef.current !== 'active') return;
-      
-      const result = await checkForNewPosts();
-      if (result?.hasNew && onNewPostsLoaded) {
-        onNewPostsLoaded(result.posts);
-      }
-    };
-    
-    intervalRef.current = setInterval(poll, currentInterval);
-    
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [currentInterval, enabled, checkForNewPosts, onNewPostsLoaded]);
+  // Only restart when enabled/baseInterval/callbacks change — NOT on currentInterval
+  }, [enabled, baseInterval, checkForNewPosts, onNewPostsLoaded, restartInterval]);
 
   // Force refresh function for manual trigger
   const forceRefresh = useCallback(async () => {
     console.log('[FeedPolling] Force refresh triggered');
     lastChangeTimeRef.current = Date.now();
-    setCurrentInterval(baseInterval);
-    const result = await checkForNewPosts();
+    currentIntervalRef.current = baseInterval;
+    const result = await checkForNewPosts(null);
     if (result?.hasNew && onNewPostsLoaded) {
       onNewPostsLoaded(result.posts);
     }
@@ -218,7 +193,7 @@ export function useFeedPolling(options = {}) {
   return {
     isPolling,
     newPostsCount,
-    currentInterval,
+    currentInterval: currentIntervalRef.current,
     forceRefresh,
     initializeTimestamp,
   };
