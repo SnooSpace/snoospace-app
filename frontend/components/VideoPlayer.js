@@ -17,6 +17,8 @@ import { RotateCcw } from "lucide-react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useVideoContext } from "../context/VideoContext";
 import SnooLoader from "./ui/SnooLoader";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -45,6 +47,7 @@ const VideoPlayer = ({
   thumbnailUrl: propThumbnailUrl,
   cropMetadata = null,
   onPositionChange,
+  onDoubleTap,
 }) => {
   const { isVideoActive, registerVideo } = useVideoContext();
 
@@ -186,15 +189,19 @@ const VideoPlayer = ({
     clearTimeout(unloadTimeoutRef.current);
 
     if (isVisible && shouldLoad) {
-      if (autoplay && hasStartedPlaying) {
-        setVideoFinished(false);
-        setShowWatchAgainOverlay(false);
-        hasScrolledAwayWhileFinishedRef.current = false;
-        player.currentTime = 0;
+      if (autoplay && !hasStartedPlaying) {
+        // ── First time entering viewport → play from the start
         player.play();
-      } else if (autoplay && !hasStartedPlaying) {
+      } else if (autoplay && hasStartedPlaying && !videoFinished) {
+        // ── Returning mid-playback (scrolled away and back) → just resume.
+        // Do NOT reset currentTime — player already holds the correct position.
         player.play();
+      } else if (autoplay && hasStartedPlaying && videoFinished) {
+        // ── Returning after the video already ended → re-show Watch Again.
+        // Never auto-replay; let the user decide.
+        setShowWatchAgainOverlay(true);
       }
+      // If videoFinished and overlay already visible, do nothing.
     } else if (!isVisible) {
       player.pause();
 
@@ -367,6 +374,23 @@ const VideoPlayer = ({
     };
   }, [cropMetadata, containerWidth, videoHeight]);
 
+  // ── Gestures ─────────────────────────────────────────────────────────────
+  const singleTap = Gesture.Tap()
+    .onEnd(() => {
+      runOnJS(handleOverlayPress)();
+    });
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .maxDelay(250)
+    .onStart((e) => {
+      if (onDoubleTap) {
+        runOnJS(onDoubleTap)(e);
+      }
+    });
+
+  const taps = Gesture.Exclusive(doubleTapGesture, singleTap);
+
   // Show thumbnail when unloaded
   if (!shouldLoad) {
     return (
@@ -412,30 +436,32 @@ const VideoPlayer = ({
       )}
 
       {/* Tap overlay */}
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={handleOverlayPress}>
-        {isLoading && (
-          <View style={styles.loadingContainer}>
-            <SnooLoader size="large" color="#fff" />
-          </View>
-        )}
-
-        {showPlayButton && !isLoading && !showWatchAgainOverlay && (
-          <View style={styles.playButtonContainer}>
-            <View style={styles.playButton}>
-              <Ionicons name="play" size={32} color="#fff" />
+      <GestureDetector gesture={taps}>
+        <View style={styles.overlay}>
+          {isLoading && (
+            <View style={styles.loadingContainer}>
+              <SnooLoader size="large" color="#fff" />
             </View>
-          </View>
-        )}
+          )}
 
-        {showWatchAgainOverlay && !isLoading && (
-          <View style={styles.watchAgainOverlay}>
-            <View style={styles.watchAgainButton}>
-              <RotateCcw size={20} color="#fff" strokeWidth={2.5} />
-              <Text style={styles.watchAgainText}>Watch again</Text>
+          {showPlayButton && !isLoading && !showWatchAgainOverlay && (
+            <View style={styles.playButtonContainer}>
+              <View style={styles.playButton}>
+                <Ionicons name="play" size={32} color="#fff" />
+              </View>
             </View>
-          </View>
-        )}
-      </TouchableOpacity>
+          )}
+
+          {showWatchAgainOverlay && !isLoading && (
+            <View style={styles.watchAgainOverlay}>
+              <View style={styles.watchAgainButton}>
+                <RotateCcw size={20} color="#fff" strokeWidth={2.5} />
+                <Text style={styles.watchAgainText}>Watch again</Text>
+              </View>
+            </View>
+          )}
+        </View>
+      </GestureDetector>
 
       {/* Controls: mute only (fullscreen opens via tap when playing) */}
       {showControls && !showWatchAgainOverlay && (

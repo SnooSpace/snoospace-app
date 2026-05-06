@@ -754,6 +754,7 @@ const EditorialPostCard = ({
                 onFullscreen={handleVideoFullscreen}
                 onPlaybackStart={handleVideoPlaybackChange}
                 onPositionChange={handleVideoPositionChange}
+                onDoubleTap={onDoubleTap}
                 cropMetadata={post.video_crop_transform || null}
               />
             </View>
