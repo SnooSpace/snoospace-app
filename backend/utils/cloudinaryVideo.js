@@ -39,6 +39,7 @@ const cropMetadataToCloudinary = (cropMeta) => {
     translateY = 0,
     displayWidth,
     displayHeight,
+    aspectRatio,         // [cappedWidth, cappedHeight] from the preset
     originalWidth: metaOrigWidth,
     originalHeight: metaOrigHeight,
     videoPixelWidth,
@@ -46,73 +47,81 @@ const cropMetadataToCloudinary = (cropMeta) => {
   } = cropMeta;
 
   // videoPixelWidth/Height are the actual video file dimensions (e.g., 1080×2340).
-  // originalWidth/Height from CropScreen are frame dimensions (not file pixels).
-  // Fall back to originalWidth/Height for backward compatibility with old data.
   const originalWidth = videoPixelWidth || metaOrigWidth;
   const originalHeight = videoPixelHeight || metaOrigHeight;
 
-  // Need all dimension fields to compute the crop region
   if (!displayWidth || !displayHeight || !originalWidth || !originalHeight) {
+    console.warn("[CloudinaryVideo] Missing dimensions, skipping crop:", cropMeta);
     return null;
   }
 
-  // --- Replicate CropUtils.calculateCropRegion logic ---
+  // --- Derive the actual crop FRAME dimensions ---
+  //
+  // In the new CropView:
+  //   displayWidth  = CropView frameWidth  (e.g. 335px)
+  //   displayHeight = full natural video height at frameWidth scale
+  //                   (e.g. 782px for a 9:21 video in a 9:16 frame — much taller than frameHeight)
+  //
+  // The visible crop window is defined by the PRESET's aspect ratio, NOT displayHeight.
+  // We derive frameHeight from displayWidth + stored aspectRatio.
+  let frameWidth = displayWidth;
+  let frameHeight;
 
-  // displayScale: how much the original video was scaled to fill the crop frame
-  // In CropView for videos: imageWidth = frameWidth, so displayWidth = frameWidth * initialScale
-  // initialScale = calculateInitialScale({imageWidth: frameW, imageHeight: frameH, frameW, frameH}) = 1
-  // So displayWidth ≈ frameWidth, displayHeight ≈ frameHeight
-  const displayScale = displayWidth / originalWidth;
+  if (Array.isArray(aspectRatio) && aspectRatio[0] > 0 && aspectRatio[1] > 0) {
+    // Use the preset's aspect ratio to compute the exact visible window height
+    frameHeight = Math.round(frameWidth * (aspectRatio[1] / aspectRatio[0]));
+  } else if (typeof aspectRatio === "number" && aspectRatio > 0) {
+    frameHeight = Math.round(frameWidth / aspectRatio);
+  } else {
+    // Fallback: assume frameHeight = displayHeight (old behaviour, no pan room)
+    frameHeight = displayHeight;
+  }
 
-  // userZoom: additional zoom the user applied on top of the fill-scale
-  // effectiveScale = displayScale * userZoom => userZoom = scale (since displayScale ≈ 1 for video)
-  // But we need to be precise: effectiveScale = displayScale * scale
-  const effectiveScale = displayScale * scale;
+  // --- Map CropView coordinates to source video pixel coordinates ---
+  //
+  // At scale=1 (no user zoom), the VideoView is sized to displayWidth × displayHeight.
+  // The crop frame shows a window of frameWidth × frameHeight centered in that view.
+  // When the user pans (translateX, translateY), the window shifts relative to the video.
+  //
+  // Pan semantics: positive translateY = video moves DOWN = we see the TOP of the video.
+  //   Centre of visible window in display-space: (displayWidth/2 - translateX, displayHeight/2 - translateY)
+  //
+  // With user zoom (scale > 1), the video is also scaled, so all display coords scale by `scale`.
 
-  // The actual displayed size at the time of interaction
-  const actualDisplayedWidth = displayWidth * scale;
-  const actualDisplayedHeight = displayHeight * scale;
+  // Top-left of the visible frame in display-space at the given scale+pan:
+  const frameLeftInDisplay = (displayWidth * scale - frameWidth) / 2 - translateX;
+  const frameTopInDisplay  = (displayHeight * scale - frameHeight) / 2 - translateY;
 
-  // Frame position in displayed coordinates
-  // (frame is the visible area; displayWidth/Height is the frame size at scale=1)
-  const frameWidth = displayWidth;
-  const frameHeight = displayHeight;
-  const frameLeftInDisplayed =
-    (actualDisplayedWidth - frameWidth) / 2 - translateX;
-  const frameTopInDisplayed =
-    (actualDisplayedHeight - frameHeight) / 2 - translateY;
+  // Scale factor from display-space → source pixel space
+  const pixelsPerDisplayX = originalWidth  / (displayWidth  * scale);
+  const pixelsPerDisplayY = originalHeight / (displayHeight * scale);
 
-  // Convert from displayed coordinates to original video pixel coordinates
-  const scaleToOriginalX = originalWidth / actualDisplayedWidth;
-  const scaleToOriginalY = originalHeight / actualDisplayedHeight;
-
-  let originX = frameLeftInDisplayed * scaleToOriginalX;
-  let originY = frameTopInDisplayed * scaleToOriginalY;
-  let cropWidth = frameWidth * scaleToOriginalX;
-  let cropHeight = frameHeight * scaleToOriginalY;
+  let originX   = frameLeftInDisplay  * pixelsPerDisplayX;
+  let originY   = frameTopInDisplay   * pixelsPerDisplayY;
+  let cropWidth  = frameWidth          * pixelsPerDisplayX;
+  let cropHeight = frameHeight         * pixelsPerDisplayY;
 
   // Clamp to valid bounds
-  originX = Math.max(0, Math.min(originX, originalWidth - 1));
-  originY = Math.max(0, Math.min(originY, originalHeight - 1));
-  cropWidth = Math.max(1, Math.min(cropWidth, originalWidth - originX));
+  originX    = Math.max(0, Math.min(originX,    originalWidth  - 1));
+  originY    = Math.max(0, Math.min(originY,    originalHeight - 1));
+  cropWidth  = Math.max(1, Math.min(cropWidth,  originalWidth  - originX));
   cropHeight = Math.max(1, Math.min(cropHeight, originalHeight - originY));
 
-  // Round to integers (Cloudinary requires whole pixels)
   const x = Math.round(originX);
   const y = Math.round(originY);
   const w = Math.round(cropWidth);
   const h = Math.round(cropHeight);
 
-  // Calculate the new aspect ratio from the cropped dimensions
-  const aspectRatio = w / h;
+  const aspectRatioOut = w / h;
 
   console.log("[CloudinaryVideo] cropMetadataToCloudinary:", {
-    input: { scale, translateX, translateY, displayWidth, displayHeight, originalWidth, originalHeight },
-    output: { x, y, w, h, aspectRatio: aspectRatio.toFixed(3) },
+    input: { scale, translateX, translateY, displayWidth, displayHeight, frameWidth, frameHeight, originalWidth, originalHeight },
+    output: { x, y, w, h, aspectRatio: aspectRatioOut.toFixed(3) },
   });
 
-  return { x, y, w, h, aspectRatio };
+  return { x, y, w, h, aspectRatio: aspectRatioOut };
 };
+
 
 /**
  * Build the Cloudinary crop transformation string
@@ -204,15 +213,24 @@ const generateVideoMetadata = (rawUrl, aspectRatio = null, cropMetadata = null) 
   const crop = cropMetadataToCloudinary(cropMetadata);
   const cropTransform = buildCropTransform(crop);
 
-  // If crop was applied, use the cropped aspect ratio (Instagram-style:
-  // the feed shows exactly what the user framed)
+  console.log("[generateVideoMetadata] crop result:", {
+    hasCropMeta: !!cropMetadata,
+    hasUserCrop: cropMetadata?.hasUserCrop,
+    scale: cropMetadata?.scale,
+    translateX: cropMetadata?.translateX,
+    translateY: cropMetadata?.translateY,
+    cropApplied: !!crop,
+    cropTransform: cropTransform || "(none)",
+  });
+
+  // If crop was applied, use the cropped aspect ratio
   const finalAspectRatio = crop ? crop.aspectRatio : aspectRatio;
 
   return {
-    video_url: rawUrl, // Original URL (fallback)
-    video_hls_url: toHlsUrl(rawUrl, cropTransform), // HLS with crop baked in
-    video_thumbnail: toThumbnailUrl(rawUrl, { cropTransform }), // Thumbnail with crop
-    video_aspect_ratio: finalAspectRatio, // Cropped aspect ratio
+    video_url: rawUrl,
+    video_hls_url: toHlsUrl(rawUrl, cropTransform),
+    video_thumbnail: toThumbnailUrl(rawUrl, { cropTransform }),
+    video_aspect_ratio: finalAspectRatio,
   };
 };
 

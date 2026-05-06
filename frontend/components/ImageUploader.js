@@ -676,7 +676,17 @@ const ImageUploader = forwardRef(
         if (onImagesChange) onImagesChange(updatedImages);
         if (onAspectRatiosChange) onAspectRatiosChange(updatedAspectRatios);
         if (onMediaTypesChange) onMediaTypesChange(updatedMediaTypes);
-        if (onCropMetadataChange) onCropMetadataChange(updatedCropMetadata);
+        if (onCropMetadataChange) {
+          console.log("[ImageUploader] Calling onCropMetadataChange (dense):", {
+            length: updatedCropMetadata.length,
+            items: updatedCropMetadata.map((m) => ({
+              mediaType: m?.mediaType,
+              hasUserCrop: m?.hasUserCrop,
+              scale: m?.scale,
+            })),
+          });
+          onCropMetadataChange(updatedCropMetadata);
+        }
       }
     };
 

@@ -44,6 +44,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [images, setImages] = useState([]);
   const [aspectRatios, setAspectRatios] = useState([]);
   const [cropMetadata, setCropMetadata] = useState([]); // Track crop metadata (scale, translate)
+  const cropMetadataRef = useRef([]); // Ref mirror — always current, survives async closures
   const [mediaTypes, setMediaTypes] = useState([]); // Track 'image' or 'video' for each media item
   const [mutedVideoIndices, setMutedVideoIndices] = useState(new Set()); // NEW: Track muted video indices
   const [taggedEntities, setTaggedEntities] = useState([]);
@@ -161,7 +162,16 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   };
 
   const handleCropMetadataChange = (newMetadata) => {
+    console.log("[CreatePostScreen] handleCropMetadataChange called:", {
+      length: newMetadata?.length,
+      items: newMetadata?.map((m) => ({
+        mediaType: m?.mediaType,
+        hasUserCrop: m?.hasUserCrop,
+        scale: m?.scale,
+      })),
+    });
     setCropMetadata(newMetadata);
+    cropMetadataRef.current = newMetadata; // Keep ref in sync
   };
 
   const handleMediaTypesChange = (newMediaTypes) => {
@@ -292,10 +302,33 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
       }
 
       // 4. Send post data to the backend (include aspectRatios if available)
-      console.log("[CreatePostScreen] Sending:", {
+      // Use ref value as primary source — React state can be stale in async closures
+      const resolvedCropMetadata =
+        cropMetadataRef.current?.length > 0
+          ? cropMetadataRef.current
+          : cropMetadata;
+
+      // --- DEBUG: Log exactly what crop data is being sent ---
+      console.log("[CreatePostScreen] Submitting post:", {
         imageCount: imageUrls.length,
-        aspectRatiosCount: aspectRatios.length,
-        aspectRatios,
+        cropMetadataLength: resolvedCropMetadata.length,
+        cropMetadataSource:
+          cropMetadataRef.current?.length > 0 ? "ref" : "state",
+        cropMetadataLengthMatch:
+          resolvedCropMetadata.length === imageUrls.length,
+        cropMeta: resolvedCropMetadata.map((m) => ({
+          mediaType: m?.mediaType,
+          hasUserCrop: m?.hasUserCrop,
+          scale: m?.scale,
+          translateX: m?.translateX,
+          translateY: m?.translateY,
+          displayWidth: m?.displayWidth,
+          displayHeight: m?.displayHeight,
+          videoPixelWidth: m?.videoPixelWidth,
+          videoPixelHeight: m?.videoPixelHeight,
+          hasAspectRatio: !!m?.aspectRatio,
+          aspectRatio: m?.aspectRatio,
+        })),
       });
 
       // Convert aspect ratios from [width, height] format to float (width/height)
@@ -307,10 +340,35 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
         return typeof ar === "number" ? ar : 1; // Fallback to 1:1
       });
 
-      console.log(
-        "[CreatePostScreen] Formatted aspectRatios:",
-        formattedAspectRatios,
-      );
+      // Always send cropMetadata if we have it — don't silently null-out
+      // on length mismatch. Pad/trim to match imageUrls length.
+      let finalCropMetadata = null;
+      if (resolvedCropMetadata.length > 0) {
+        if (resolvedCropMetadata.length === imageUrls.length) {
+          finalCropMetadata = resolvedCropMetadata;
+        } else if (resolvedCropMetadata.length > imageUrls.length) {
+          // Trim to match
+          finalCropMetadata = resolvedCropMetadata.slice(
+            0,
+            imageUrls.length,
+          );
+        } else {
+          // Pad with null entries
+          finalCropMetadata = [
+            ...resolvedCropMetadata,
+            ...Array(imageUrls.length - resolvedCropMetadata.length).fill(
+              null,
+            ),
+          ];
+        }
+        console.log(
+          "[CreatePostScreen] Final cropMetadata:",
+          finalCropMetadata?.length,
+          "items (was",
+          resolvedCropMetadata.length,
+          ")",
+        );
+      }
 
       await apiPost(
         "/posts",
@@ -323,9 +381,9 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               : null,
           mediaTypes:
             mediaTypes.length === imageUrls.length ? mediaTypes : null,
-          cropMetadata:
-            cropMetadata.length === imageUrls.length ? cropMetadata : null,
-          mutedIndices: mutedVideoIndices.size > 0 ? [...mutedVideoIndices] : null, // NEW: muted video indices
+          cropMetadata: finalCropMetadata,
+          mutedIndices:
+            mutedVideoIndices.size > 0 ? [...mutedVideoIndices] : null,
           taggedEntities: taggedEntitiesData,
         },
         15000,

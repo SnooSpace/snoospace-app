@@ -120,29 +120,51 @@ const createPost = async (req, res) => {
     // Validate crop metadata if provided
     let validatedCropMetadata = null;
     if (cropMetadata && Array.isArray(cropMetadata)) {
+      console.log("[createPost] Received cropMetadata:", JSON.stringify(cropMetadata.map(m => ({
+        mediaType: m?.mediaType,
+        scale: m?.scale,
+        translateX: m?.translateX,
+        translateY: m?.translateY,
+        displayWidth: m?.displayWidth,
+        displayHeight: m?.displayHeight,
+        videoPixelWidth: m?.videoPixelWidth,
+        videoPixelHeight: m?.videoPixelHeight,
+        hasAspectRatio: !!m?.aspectRatio,
+        hasUserCrop: m?.hasUserCrop,
+      }))));
       if (cropMetadata.length !== imageUrls.length) {
-        console.warn("[createPost] cropMetadata length mismatch, ignoring");
-        validatedCropMetadata = null;
+        console.warn(`[createPost] cropMetadata length (${cropMetadata.length}) !== imageUrls length (${imageUrls.length}), adjusting`);
+        // Instead of discarding, pad or trim to match
+        if (cropMetadata.length > imageUrls.length) {
+          validatedCropMetadata = cropMetadata.slice(0, imageUrls.length);
+        } else {
+          validatedCropMetadata = [
+            ...cropMetadata,
+            ...Array(imageUrls.length - cropMetadata.length).fill(null),
+          ];
+        }
       } else {
         validatedCropMetadata = cropMetadata;
       }
+    } else {
+      console.log("[createPost] No cropMetadata received — cropMetadata value:", typeof cropMetadata, cropMetadata === null ? "null" : cropMetadata === undefined ? "undefined" : JSON.stringify(cropMetadata));
     }
 
-    // Generate video thumbnails for videos using Cloudinary transformation
+    // Generate video thumbnails using Cloudinary transformation (with crop applied)
     let videoThumbnails = null;
     if (validatedMediaTypes && validatedMediaTypes.includes("video")) {
-      const { toThumbnailUrl } = require("../utils/cloudinaryVideo");
+      const { toThumbnailUrl, cropMetadataToCloudinary, buildCropTransform } = require("../utils/cloudinaryVideo");
       videoThumbnails = imageUrls.map((url, index) => {
-        // Only generate thumbnail if this media is a video
         if (validatedMediaTypes[index] === "video") {
-          const thumbnail = toThumbnailUrl(url, { width: 800 });
-          console.log(
-            `[createPost] Generated thumbnail for video ${index}:`,
-            thumbnail,
-          );
+          // Apply crop transform to thumbnail if crop metadata exists for this video
+          const vidCropMeta = validatedCropMetadata?.[index] || null;
+          const crop = cropMetadataToCloudinary(vidCropMeta);
+          const cropTransform = buildCropTransform(crop);
+          const thumbnail = toThumbnailUrl(url, { width: 800, cropTransform });
+          console.log(`[createPost] Generated thumbnail for video ${index}:`, { hasCrop: !!crop, thumbnail });
           return thumbnail;
         }
-        return null; // Not a video, no thumbnail
+        return null;
       });
     }
 
