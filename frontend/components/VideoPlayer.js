@@ -10,7 +10,7 @@
  *
  * Migrated from expo-av → expo-video (SDK 55)
  */
-import React, { useState, useRef, useEffect, useCallback, memo } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import { View, TouchableOpacity, StyleSheet, Dimensions, Text, Image } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { RotateCcw } from "lucide-react-native";
@@ -43,6 +43,7 @@ const VideoPlayer = ({
   onFullscreen,
   postId,
   thumbnailUrl: propThumbnailUrl,
+  cropMetadata = null,
 }) => {
   const { isVideoActive, registerVideo } = useVideoContext();
 
@@ -295,6 +296,60 @@ const VideoPlayer = ({
 
   const videoHeight = containerWidth / aspectRatio;
 
+  // ── Client-side crop transforms ──────────────────────────────────────────
+  // Cloudinary free tier can't re-encode cropped videos on-the-fly,
+  // so we play the raw MP4 and replicate the crop visually using
+  // scale + translate + overflow:hidden — exactly like the CropView preview.
+  const cropStyle = useMemo(() => {
+    if (!cropMetadata || !cropMetadata.hasUserCrop) return null;
+
+    const {
+      scale = 1,
+      translateX = 0,
+      translateY = 0,
+      displayWidth,
+      displayHeight,
+      aspectRatio: presetAR,
+    } = cropMetadata;
+
+    if (!displayWidth || !displayHeight) return null;
+
+    // frameHeight = the visible crop window height in CropView coords
+    let frameHeight;
+    if (Array.isArray(presetAR) && presetAR[0] > 0 && presetAR[1] > 0) {
+      frameHeight = displayWidth * (presetAR[1] / presetAR[0]);
+    } else {
+      frameHeight = displayHeight;
+    }
+
+    // Map CropView dimensions → card container dimensions
+    const containerH = videoHeight; // already sized for cropped AR
+    const mapX = containerWidth / displayWidth;
+    const mapY = containerH / frameHeight;
+
+    // The video view size = original video display size scaled by user zoom,
+    // then mapped to the card coordinate system
+    const videoW = displayWidth * scale * mapX;
+    const videoH = displayHeight * scale * mapY;
+
+    // Centre of the video in card coords, plus the user's pan offset
+    const tx = translateX * mapX;
+    const ty = translateY * mapY;
+
+    // Offset so the visible frame aligns with the container
+    const offsetX = (videoW - containerWidth) / 2;
+    const offsetY = (videoH - containerH) / 2;
+
+    return {
+      width: videoW,
+      height: videoH,
+      transform: [
+        { translateX: -offsetX + tx },
+        { translateY: -offsetY + ty },
+      ],
+    };
+  }, [cropMetadata, containerWidth, videoHeight]);
+
   // Show thumbnail when unloaded
   if (!shouldLoad) {
     return (
@@ -314,13 +369,12 @@ const VideoPlayer = ({
 
   return (
     <View style={[styles.container, { width: containerWidth, height: videoHeight }, style]}>
-      {/* Video crop is now applied server-side via Cloudinary URL transformations.
-          The delivered HLS stream is already cropped — no client-side transforms needed.
-          This matches the image pattern (ImageManipulator crops pixels before upload). */}
+      {/* Client-side crop: the VideoView is scaled up and translated so
+          the container's overflow:hidden clips to the user's chosen frame. */}
       <VideoView
         ref={videoRef}
         player={player}
-        style={styles.video}
+        style={cropStyle ? [{ position: 'absolute' }, cropStyle] : styles.video}
         contentFit="cover"
         nativeControls={false}
         allowsFullscreen={false}

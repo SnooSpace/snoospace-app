@@ -728,7 +728,7 @@ const EditorialPostCard = ({
               ]}
             >
               <VideoPlayer
-                source={post.video_hls_url || post.video_url || firstMediaUrl}
+                source={post.video_url || firstMediaUrl}
                 thumbnailUrl={post.video_thumbnail}
                 aspectRatio={clampedVideoAR}
                 containerWidth={CONTENT_WIDTH}
@@ -743,6 +743,7 @@ const EditorialPostCard = ({
                 onUnmute={handleVideoUnmute}
                 onFullscreen={handleVideoFullscreen}
                 onPlaybackStart={handleVideoPlaybackChange}
+                cropMetadata={post.video_crop_transform || null}
               />
             </View>
           ) : hasMultipleMedia ? (

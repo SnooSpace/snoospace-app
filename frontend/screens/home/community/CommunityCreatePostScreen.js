@@ -42,6 +42,8 @@ export default function CommunityCreatePostScreen({ navigation }) {
   const [images, setImages] = useState([]);
   const [aspectRatios, setAspectRatios] = useState([]); // Track aspect ratios for images
   const [mediaTypes, setMediaTypes] = useState([]); // Track media types (image | video)
+  const [cropMetadata, setCropMetadata] = useState([]); // Track crop metadata (scale, translate)
+  const cropMetadataRef = useRef([]); // Ref mirror — always current, survives async closures
   const [mutedVideoIndices, setMutedVideoIndices] = useState(new Set()); // NEW: Track muted video indices
   const [taggedEntities, setTaggedEntities] = useState([]);
   const [entityTags, setEntityTags] = useState([]); // From EntityTagSelector
@@ -160,6 +162,20 @@ export default function CommunityCreatePostScreen({ navigation }) {
     setMediaTypes(newMediaTypes);
   };
 
+  // Handle crop metadata from ImageUploader
+  const handleCropMetadataChange = (newMetadata) => {
+    console.log("[CommunityCreatePost] handleCropMetadataChange called:", {
+      length: newMetadata?.length,
+      items: newMetadata?.map((m) => ({
+        mediaType: m?.mediaType,
+        hasUserCrop: m?.hasUserCrop,
+        scale: m?.scale,
+      })),
+    });
+    setCropMetadata(newMetadata);
+    cropMetadataRef.current = newMetadata; // Keep ref in sync
+  };
+
   // NEW: Handle muted video indices from ImageUploader
   const handleMutedIndicesChange = (newMutedSet) => {
     setMutedVideoIndices(newMutedSet);
@@ -267,6 +283,40 @@ export default function CommunityCreatePostScreen({ navigation }) {
           return typeof ar === "number" ? ar : 1;
         });
 
+        // Resolve crop metadata — use ref as primary source (immune to stale closures)
+        const resolvedCropMetadata =
+          cropMetadataRef.current?.length > 0
+            ? cropMetadataRef.current
+            : cropMetadata;
+
+        // Build final crop metadata, pad/trim to match image count
+        let finalCropMetadata = null;
+        if (resolvedCropMetadata.length > 0) {
+          if (resolvedCropMetadata.length === finalImageUrls.length) {
+            finalCropMetadata = resolvedCropMetadata;
+          } else if (resolvedCropMetadata.length > finalImageUrls.length) {
+            finalCropMetadata = resolvedCropMetadata.slice(0, finalImageUrls.length);
+          } else {
+            finalCropMetadata = [
+              ...resolvedCropMetadata,
+              ...Array(finalImageUrls.length - resolvedCropMetadata.length).fill(null),
+            ];
+          }
+        }
+
+        console.log("[CommunityCreatePost] Submitting with cropMetadata:", {
+          imageCount: finalImageUrls.length,
+          cropMetadataLength: finalCropMetadata?.length || 0,
+          source: cropMetadataRef.current?.length > 0 ? "ref" : "state",
+          items: finalCropMetadata?.map((m) => ({
+            mediaType: m?.mediaType,
+            hasUserCrop: m?.hasUserCrop,
+            scale: m?.scale,
+            translateX: m?.translateX,
+            translateY: m?.translateY,
+          })),
+        });
+
         typePayload = {
           imageUrls: finalImageUrls,
           aspectRatios:
@@ -277,7 +327,8 @@ export default function CommunityCreatePostScreen({ navigation }) {
             finalMediaTypes.length === finalImageUrls.length
               ? finalMediaTypes
               : null,
-          mutedIndices: mutedVideoIndices.size > 0 ? [...mutedVideoIndices] : null, // NEW: muted video indices
+          cropMetadata: finalCropMetadata,
+          mutedIndices: mutedVideoIndices.size > 0 ? [...mutedVideoIndices] : null,
           taggedEntities: taggedPayload.length > 0 ? taggedPayload : null,
         };
       } else if (postType === "poll") {
@@ -743,6 +794,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
                     onImagesChange={handleImageSelect}
                     onAspectRatiosChange={handleAspectRatiosChange}
                     onMediaTypesChange={handleMediaTypesChange}
+                    onCropMetadataChange={handleCropMetadataChange}
                     onMutedIndicesChange={handleMutedIndicesChange}
                     initialImages={images}
                     horizontal={true}

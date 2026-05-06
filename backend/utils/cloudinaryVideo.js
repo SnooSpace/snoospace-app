@@ -226,12 +226,32 @@ const generateVideoMetadata = (rawUrl, aspectRatio = null, cropMetadata = null) 
   // If crop was applied, use the cropped aspect ratio
   const finalAspectRatio = crop ? crop.aspectRatio : aspectRatio;
 
-  return {
-    video_url: rawUrl,
-    video_hls_url: toHlsUrl(rawUrl, cropTransform),
+  // IMPORTANT: Cloudinary free tier can extract frames (thumbnails) with
+  // crop transforms, but CANNOT re-encode videos on-the-fly. So:
+  //   - video_url = raw MP4 (always playable)
+  //   - video_thumbnail = Cloudinary cropped JPEG (works!)
+  //   - video_crop_transform = crop metadata for client-side rendering
+  // The frontend applies the crop visually via CSS transforms (scale + translate + overflow hidden).
+
+  const result = {
+    video_url: rawUrl,                                      // ← raw MP4, always playable
+    video_hls_url: null,                                    // ← disabled (needs paid add-on)
     video_thumbnail: toThumbnailUrl(rawUrl, { cropTransform }),
     video_aspect_ratio: finalAspectRatio,
+    video_crop_transform: cropMetadata || null,             // ← passed to frontend for client-side crop
   };
+
+  if (crop) {
+    console.log("[generateVideoMetadata] CROP — client-side transform will be applied:", {
+      scale: cropMetadata?.scale,
+      translateX: cropMetadata?.translateX,
+      translateY: cropMetadata?.translateY,
+      thumb: result.video_thumbnail?.substring(0, 120) + "...",
+      finalAR: finalAspectRatio?.toFixed(3),
+    });
+  }
+
+  return result;
 };
 
 /**

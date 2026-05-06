@@ -707,6 +707,15 @@ const getFeed = async (req, res) => {
           parsedPost.video_hls_url = videoMeta.video_hls_url;
           parsedPost.video_thumbnail = videoMeta.video_thumbnail;
           parsedPost.video_aspect_ratio = videoMeta.video_aspect_ratio;
+          parsedPost.video_crop_transform = videoMeta.video_crop_transform;
+
+          console.log(`[Feed] Post ${parsedPost.id} video metadata:`, {
+            hasHls: !!parsedPost.video_hls_url,
+            hasThumb: !!parsedPost.video_thumbnail,
+            hasCropMeta: !!videoCropMeta,
+            media_types: parsedPost.media_types,
+            videoAR: parsedPost.video_aspect_ratio,
+          });
         }
 
         // For poll posts, check if user has voted
@@ -1013,6 +1022,8 @@ const getExplore = async (req, res) => {
         ...post,
         image_urls: (() => {
           try {
+            if (!post.image_urls) return [];
+            if (Array.isArray(post.image_urls)) return post.image_urls;
             const parsed = JSON.parse(post.image_urls);
             return Array.isArray(parsed) ? parsed : [parsed];
           } catch {
@@ -1022,34 +1033,42 @@ const getExplore = async (req, res) => {
         media_types: (() => {
           try {
             if (!post.media_types) return null;
+            if (Array.isArray(post.media_types)) return post.media_types;
             const parsed = JSON.parse(post.media_types);
             return Array.isArray(parsed) ? parsed : [parsed];
           } catch {
             return null;
           }
         })(),
-        tagged_entities: post.tagged_entities
-          ? JSON.parse(post.tagged_entities)
-          : null,
+        tagged_entities: (() => {
+          try {
+            if (!post.tagged_entities) return null;
+            if (typeof post.tagged_entities === "object") return post.tagged_entities;
+            return JSON.parse(post.tagged_entities);
+          } catch {
+            return null;
+          }
+        })(),
         aspect_ratios: (() => {
           try {
             if (!post.aspect_ratios) return null;
+            if (Array.isArray(post.aspect_ratios)) return post.aspect_ratios;
             const parsed = JSON.parse(post.aspect_ratios);
             return Array.isArray(parsed) ? parsed : [parsed];
           } catch {
             return null;
           }
         })(),
-        crop_metadata: post.crop_metadata
-          ? (() => {
-              try {
-                const parsed = JSON.parse(post.crop_metadata);
-                return Array.isArray(parsed) ? parsed : [parsed];
-              } catch {
-                return null;
-              }
-            })()
-          : null,
+        crop_metadata: (() => {
+          try {
+            if (!post.crop_metadata) return null;
+            if (Array.isArray(post.crop_metadata)) return post.crop_metadata;
+            const parsed = JSON.parse(post.crop_metadata);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            return null;
+          }
+        })(),
       };
 
       // Extract video data with HLS streaming support
@@ -1065,6 +1084,7 @@ const getExplore = async (req, res) => {
         parsedPost.video_hls_url = videoMeta.video_hls_url;
         parsedPost.video_thumbnail = videoMeta.video_thumbnail;
         parsedPost.video_aspect_ratio = videoMeta.video_aspect_ratio;
+        parsedPost.video_crop_transform = videoMeta.video_crop_transform;
       }
 
       return parsedPost;
@@ -1340,53 +1360,66 @@ const getPost = async (req, res) => {
 
     // Parse JSON fields for media posts
     try {
-      const parsed = JSON.parse(post.image_urls);
-      post.image_urls = Array.isArray(parsed) ? parsed : [parsed];
+      if (Array.isArray(post.image_urls)) { /* already parsed */ }
+      else {
+        const parsed = JSON.parse(post.image_urls);
+        post.image_urls = Array.isArray(parsed) ? parsed : [parsed];
+      }
     } catch {
       post.image_urls = post.image_urls ? [post.image_urls] : [];
     }
 
     try {
-      post.tagged_entities = post.tagged_entities
-        ? JSON.parse(post.tagged_entities)
-        : null;
+      if (!post.tagged_entities) post.tagged_entities = null;
+      else if (typeof post.tagged_entities === "object") { /* already parsed */ }
+      else post.tagged_entities = JSON.parse(post.tagged_entities);
     } catch {
       post.tagged_entities = null;
     }
 
     try {
-      post.aspect_ratios = post.aspect_ratios
-        ? JSON.parse(post.aspect_ratios)
-        : null;
+      if (!post.aspect_ratios) post.aspect_ratios = null;
+      else if (Array.isArray(post.aspect_ratios)) { /* already parsed */ }
+      else {
+        const parsed = JSON.parse(post.aspect_ratios);
+        post.aspect_ratios = Array.isArray(parsed) ? parsed : [parsed];
+      }
     } catch {
       post.aspect_ratios = null;
     }
 
     // Parse media_types
     try {
-      post.media_types = post.media_types ? JSON.parse(post.media_types) : null;
-      if (post.media_types && !Array.isArray(post.media_types)) {
-        post.media_types = [post.media_types];
+      if (!post.media_types) post.media_types = null;
+      else if (Array.isArray(post.media_types)) { /* already parsed by pg jsonb */ }
+      else {
+        post.media_types = JSON.parse(post.media_types);
+        if (post.media_types && !Array.isArray(post.media_types)) {
+          post.media_types = [post.media_types];
+        }
       }
     } catch {
       post.media_types = null;
     }
+
+    // Parse crop_metadata
+    let cropMetadataArr = null;
+    try {
+      if (post.crop_metadata) {
+        if (Array.isArray(post.crop_metadata)) cropMetadataArr = post.crop_metadata;
+        else {
+          const parsed = JSON.parse(post.crop_metadata);
+          cropMetadataArr = Array.isArray(parsed) ? parsed : [parsed];
+        }
+      }
+    } catch { cropMetadataArr = null; }
 
     // Extract video data with HLS streaming support
     const videoIndex = findVideoIndex(post.media_types);
     if (videoIndex !== -1 && post.image_urls[videoIndex]) {
       const rawVideoUrl = post.image_urls[videoIndex];
       const aspectRatio = post.aspect_ratios?.[videoIndex] || null;
-      // Parse crop_metadata for this endpoint (may not be parsed yet)
-      let cropMetadataArr = null;
-      try {
-        if (post.crop_metadata) {
-          cropMetadataArr = Array.isArray(post.crop_metadata)
-            ? post.crop_metadata
-            : JSON.parse(post.crop_metadata);
-        }
-      } catch { cropMetadataArr = null; }
-      const videoCropMeta = Array.isArray(cropMetadataArr) ? cropMetadataArr[videoIndex] || null : null;
+      const videoCropMeta = cropMetadataArr?.[videoIndex] || null;
       const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio, videoCropMeta);
 
       // Merge video metadata into post
@@ -1394,6 +1427,7 @@ const getPost = async (req, res) => {
       post.video_hls_url = videoMeta.video_hls_url;
       post.video_thumbnail = videoMeta.video_thumbnail;
       post.video_aspect_ratio = videoMeta.video_aspect_ratio;
+      post.video_crop_transform = videoMeta.video_crop_transform;
     }
 
     // Get type-specific user interaction status
@@ -1520,6 +1554,7 @@ const getUserPosts = async (req, res) => {
         image_urls: (() => {
           try {
             if (!post.image_urls) return [];
+            if (Array.isArray(post.image_urls)) return post.image_urls;
             const parsed = JSON.parse(post.image_urls);
             return Array.isArray(parsed) ? parsed : [parsed];
           } catch {
@@ -1529,6 +1564,7 @@ const getUserPosts = async (req, res) => {
         media_types: (() => {
           try {
             if (!post.media_types) return null;
+            if (Array.isArray(post.media_types)) return post.media_types;
             const parsed = JSON.parse(post.media_types);
             return Array.isArray(parsed) ? parsed : [parsed];
           } catch {
@@ -1537,17 +1573,28 @@ const getUserPosts = async (req, res) => {
         })(),
         tagged_entities: (() => {
           try {
-            return post.tagged_entities
-              ? JSON.parse(post.tagged_entities)
-              : null;
+            if (!post.tagged_entities) return null;
+            if (typeof post.tagged_entities === "object") return post.tagged_entities;
+            return JSON.parse(post.tagged_entities);
           } catch {
-            return null; // Fallback on parsing error
+            return null;
           }
         })(),
         aspect_ratios: (() => {
           try {
             if (!post.aspect_ratios) return null;
+            if (Array.isArray(post.aspect_ratios)) return post.aspect_ratios;
             const parsed = JSON.parse(post.aspect_ratios);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            return null;
+          }
+        })(),
+        crop_metadata: (() => {
+          try {
+            if (!post.crop_metadata) return null;
+            if (Array.isArray(post.crop_metadata)) return post.crop_metadata;
+            const parsed = JSON.parse(post.crop_metadata);
             return Array.isArray(parsed) ? parsed : [parsed];
           } catch {
             return null;
@@ -1560,16 +1607,7 @@ const getUserPosts = async (req, res) => {
       if (videoIndex !== -1 && parsedPost.image_urls[videoIndex]) {
         const rawVideoUrl = parsedPost.image_urls[videoIndex];
         const aspectRatio = parsedPost.aspect_ratios?.[videoIndex] || null;
-        // Parse crop_metadata inline for this endpoint
-        let cropMetadataArr = null;
-        try {
-          if (post.crop_metadata) {
-            cropMetadataArr = Array.isArray(post.crop_metadata)
-              ? post.crop_metadata
-              : JSON.parse(post.crop_metadata);
-          }
-        } catch { cropMetadataArr = null; }
-        const videoCropMeta = Array.isArray(cropMetadataArr) ? cropMetadataArr[videoIndex] || null : null;
+        const videoCropMeta = parsedPost.crop_metadata?.[videoIndex] || null;
         const videoMeta = generateVideoMetadata(rawVideoUrl, aspectRatio, videoCropMeta);
 
         // Merge video metadata into post
@@ -1577,6 +1615,7 @@ const getUserPosts = async (req, res) => {
         parsedPost.video_hls_url = videoMeta.video_hls_url;
         parsedPost.video_thumbnail = videoMeta.video_thumbnail;
         parsedPost.video_aspect_ratio = videoMeta.video_aspect_ratio;
+        parsedPost.video_crop_transform = videoMeta.video_crop_transform;
       }
 
       return parsedPost;
