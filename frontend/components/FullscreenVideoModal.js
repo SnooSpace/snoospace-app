@@ -339,6 +339,25 @@ const FullscreenVideoModal = ({
     [seekTo, showToolbar, clearHideTimer, startAutoHide, isPlaying],
   );
 
+  // ── Swipe-to-close PanResponder ──────────────────────────────────────────
+  const swipeDownPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) => {
+          // Only take over if the user is swiping downwards with vertical intent
+          const { dx, dy } = gestureState;
+          return dy > 15 && Math.abs(dy) > Math.abs(dx) * 2;
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          // Close if swiped down far enough or fast enough
+          if (gestureState.dy > 50 || gestureState.vy > 1.2) {
+            onClose();
+          }
+        },
+      }),
+    [onClose],
+  );
+
   // ── Client-side crop — exact mirror of VideoPlayer.js ────────────────────
   // VideoPlayer: map = containerWidth / displayWidth  (same for X and Y)
   // Modal:       map = SCREEN_WIDTH  / displayWidth  (same formula, larger container)
@@ -423,10 +442,10 @@ const FullscreenVideoModal = ({
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <View style={styles.root}>
-        <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <View style={styles.root} {...swipeDownPanResponder.panHandlers}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFF" />
 
-        {/* ── Black status bar strip ── */}
+        {/* ── White status bar strip ── */}
         <View style={[styles.statusBarBg, { height: insets.top }]} />
 
         {/* ── 9:16 video container ── */}
@@ -663,15 +682,15 @@ const FullscreenVideoModal = ({
 
         {/* ── Comment bar — fills the space below 9:16 video ── */}
         {showCommentBar && (
-          <TouchableOpacity
-            style={[styles.commentBar, { height: commentBarHeight + insets.bottom }]}
-            activeOpacity={0.85}
-            onPress={onComment}
-          >
-            <MessageCircle size={18} color="rgba(255,255,255,0.55)" strokeWidth={1.8} />
-            <Text style={styles.commentBarText}>Add a comment...</Text>
-            <Send size={17} color="rgba(255,255,255,0.45)" strokeWidth={1.8} />
-          </TouchableOpacity>
+          <View style={[styles.commentBarContainer, { height: commentBarHeight + insets.bottom, paddingBottom: insets.bottom }]}>
+            <TouchableOpacity
+              style={styles.commentInputPill}
+              activeOpacity={0.85}
+              onPress={onComment}
+            >
+              <Text style={styles.commentBarText}>Add a comment...</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
     </Modal>
@@ -682,10 +701,10 @@ const FullscreenVideoModal = ({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#FFF",
   },
   statusBarBg: {
-    backgroundColor: "#000",
+    backgroundColor: "#FFF",
     width: "100%",
   },
   videoContainer: {
@@ -921,21 +940,27 @@ const styles = StyleSheet.create({
   },
 
   // ── Comment bar (below 9:16 video) ──
-  commentBar: {
+  commentBarContainer: {
+    backgroundColor: "#FFF",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(0,0,0,0.05)",
+  },
+  commentInputPill: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 18,
-    paddingTop: 12,
-    gap: 12,
-    backgroundColor: "#0d0d0d",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "rgba(255,255,255,0.10)",
+    backgroundColor: "#F3F4F6", // very light gray
+    borderRadius: 24,
+    width: "100%",
+    paddingHorizontal: 20,
+    height: 48,
   },
   commentBarText: {
-    flex: 1,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.medium,
     fontSize: 14,
-    color: "rgba(255,255,255,0.40)",
+    color: "rgba(0,0,0,0.45)",
   },
 });
 
