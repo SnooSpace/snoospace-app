@@ -84,7 +84,7 @@ const FullscreenVideoModal = ({
   currentUserId,
   currentUserType,
   cropMetadata = null,
-  initialPosition = 0,   // seek here once player is ready
+  initialPosition = 0, // seek here once player is ready
 }) => {
   const insets = useSafeAreaInsets();
 
@@ -98,7 +98,7 @@ const FullscreenVideoModal = ({
     (p) => {
       p.muted = false;
       p.loop = true;
-    }
+    },
   );
 
   // ── Local state ──────────────────────────────────────────────────────────
@@ -107,11 +107,11 @@ const FullscreenVideoModal = ({
   const [position, setPosition] = useState(0);
   const [isSeeking, setIsSeeking] = useState(false);
   const [captionExpanded, setCaptionExpanded] = useState(false);
-  const didSeekRef = useRef(false);   // only seek to initialPosition once
+  const didSeekRef = useRef(false); // only seek to initialPosition once
 
   // ── Toolbar visibility ───────────────────────────────────────────────────
   const toolbarOpacity = useRef(new Animated.Value(1)).current;
-  const toolbarVisibleRef = useRef(true);  // track without re-render for tap handler
+  const toolbarVisibleRef = useRef(true); // track without re-render for tap handler
   const [toolbarVisible, setToolbarVisible] = useState(true);
   const hideTimer = useRef(null);
 
@@ -175,7 +175,7 @@ const FullscreenVideoModal = ({
     if (!player) return;
     const sub = player.addListener("playingChange", (nowPlaying) => {
       setIsPlaying(nowPlaying);
-      isPlayingRef.current = nowPlaying;  // always up-to-date
+      isPlayingRef.current = nowPlaying; // always up-to-date
     });
     return () => sub?.remove();
   }, [player]);
@@ -184,7 +184,11 @@ const FullscreenVideoModal = ({
   useEffect(() => {
     if (!player) return;
     const sub = player.addListener("statusChange", (status) => {
-      if (status.status === "readyToPlay" && !didSeekRef.current && initialPosition > 0) {
+      if (
+        status.status === "readyToPlay" &&
+        !didSeekRef.current &&
+        initialPosition > 0
+      ) {
         didSeekRef.current = true;
         player.currentTime = initialPosition;
       }
@@ -200,7 +204,7 @@ const FullscreenVideoModal = ({
     if (!player) return;
     if (visible) {
       didSeekRef.current = false;
-      isPlayingRef.current = true;  // sync immediately so togglePlayPause is correct
+      isPlayingRef.current = true; // sync immediately so togglePlayPause is correct
       player.play();
       setIsPlaying(true);
     } else {
@@ -258,9 +262,17 @@ const FullscreenVideoModal = ({
       // Invalidate the pending single-tap by zeroing lastTapRef
       lastTapRef.current = -Infinity;
       Animated.sequence([
-        Animated.spring(heartScale, { toValue: 1, useNativeDriver: true, bounciness: 14 }),
+        Animated.spring(heartScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          bounciness: 14,
+        }),
         Animated.delay(500),
-        Animated.timing(heartScale, { toValue: 0, duration: 220, useNativeDriver: true }),
+        Animated.timing(heartScale, {
+          toValue: 0,
+          duration: 220,
+          useNativeDriver: true,
+        }),
       ]).start();
       if (!isLiked && onLike) onLike();
     } else {
@@ -300,7 +312,7 @@ const FullscreenVideoModal = ({
         setPosition(ratio * duration);
       });
     },
-    [player, duration]
+    [player, duration],
   );
 
   const panResponder = useMemo(
@@ -324,32 +336,54 @@ const FullscreenVideoModal = ({
           if (isPlaying) startAutoHide();
         },
       }),
-    [seekTo, showToolbar, clearHideTimer, startAutoHide, isPlaying]
+    [seekTo, showToolbar, clearHideTimer, startAutoHide, isPlaying],
   );
 
-  // ── Client-side crop (mirrors VideoPlayer logic) ─────────────────────────
+  // ── Client-side crop — exact mirror of VideoPlayer.js ────────────────────
+  // VideoPlayer: map = containerWidth / displayWidth  (same for X and Y)
+  // Modal:       map = SCREEN_WIDTH  / displayWidth  (same formula, larger container)
+  // Because our container aspect ratio matches the crop frame AR (see videoHeight),
+  // mapX === mapY === map, so scaling is uniform and the visible region is identical.
   const cropStyle = useMemo(() => {
     if (!cropMetadata || !cropMetadata.hasUserCrop) return null;
-    const { scale = 1, translateX = 0, translateY = 0, displayWidth, displayHeight, aspectRatio: presetAR } = cropMetadata;
+    const {
+      scale = 1,
+      translateX = 0,
+      translateY = 0,
+      displayWidth,
+      displayHeight,
+      aspectRatio: presetAR,
+    } = cropMetadata;
     if (!displayWidth || !displayHeight) return null;
+
+    // frameHeight = visible crop window height in CropView pixel space
     let frameHeight;
     if (Array.isArray(presetAR) && presetAR[0] > 0 && presetAR[1] > 0) {
       frameHeight = displayWidth * (presetAR[1] / presetAR[0]);
     } else {
       frameHeight = displayHeight;
     }
-    const mapX = SCREEN_WIDTH / displayWidth;
-    const mapY = SCREEN_HEIGHT / frameHeight;
-    const videoW = displayWidth * scale * mapX;
-    const videoH = displayHeight * scale * mapY;
+
+    // Single uniform scale factor — identical to VideoPlayer's mapX (= mapY)
+    // since our containerH = frameHeight * map (same AR as crop frame)
+    const map = SCREEN_WIDTH / displayWidth;
+    const containerH = frameHeight * map; // = modal video container height
+
+    const videoW = displayWidth * scale * map; // = scale * SCREEN_WIDTH
+    const videoH = displayHeight * scale * map;
+
+    const tx = translateX * map;
+    const ty = translateY * map;
+
     const offsetX = (videoW - SCREEN_WIDTH) / 2;
-    const offsetY = (videoH - SCREEN_HEIGHT) / 2;
+    const offsetY = (videoH - containerH) / 2;
+
     return {
       width: videoW,
       height: videoH,
       transform: [
-        { translateX: -offsetX + translateX * mapX },
-        { translateY: -offsetY + translateY * mapY },
+        { translateX: -offsetX + tx },
+        { translateY: -offsetY + ty },
       ],
     };
   }, [cropMetadata]);
@@ -360,46 +394,60 @@ const FullscreenVideoModal = ({
     ? { uri: post.author_photo_url }
     : {
         uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-          post?.author_name || "U"
+          post?.author_name || "U",
         )}&background=E5E7EB&color=6B7280&size=88`,
       };
 
-  // The video area sits below the status bar — we push it down by insets.top
-  const videoAreaTop = insets.top;
-  const videoAreaHeight = SCREEN_HEIGHT - videoAreaTop;
+  // ── Modal video container height ─────────────────────────────────────────
+  // CRITICAL: Must use the SAME aspect ratio as the crop frame so the
+  // container proportion matches the card. VideoPlayer does:
+  //   containerH = containerWidth / aspectRatio  (aspectRatio = presetAR[0]/presetAR[1])
+  // We do the same with containerWidth = SCREEN_WIDTH.
+  const videoHeight = useMemo(() => {
+    const ar = cropMetadata?.aspectRatio;
+    if (Array.isArray(ar) && ar[0] > 0 && ar[1] > 0) {
+      // same formula as VideoPlayer: height = width / (w/h) = width * h/w
+      return Math.round(SCREEN_WIDTH * (ar[1] / ar[0]));
+    }
+    return Math.round(SCREEN_WIDTH * (16 / 9)); // fallback: 9:16
+  }, [cropMetadata]);
+
+  const commentBarTop = insets.top + videoHeight;
+  const commentBarHeight = SCREEN_HEIGHT - commentBarTop - insets.bottom;
+  const showCommentBar = commentBarHeight > 36;
 
   return (
     <Modal
       visible={visible}
       animationType="fade"
-      presentationStyle="fullScreen"
       statusBarTranslucent
       onRequestClose={onClose}
     >
       <View style={styles.root}>
-        {/* Status bar kept visible but we don't render video behind it */}
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <StatusBar barStyle="light-content" backgroundColor="#000" />
 
-        {/* Black strip behind status bar */}
-        <View style={[styles.statusBarBg, { height: videoAreaTop }]} />
+        {/* ── Black status bar strip ── */}
+        <View style={[styles.statusBarBg, { height: insets.top }]} />
 
-        {/* Video area — below status bar */}
-        <View style={[styles.videoArea, { top: videoAreaTop, height: videoAreaHeight }]}>
+        {/* ── 9:16 video container ── */}
+        <View style={[styles.videoContainer, { height: videoHeight }]}>
+
+          {/* Video fills the container exactly */}
           <VideoView
             player={player}
-            style={cropStyle ? [styles.videoAbsolute, cropStyle] : styles.videoFill}
+            style={cropStyle ? [StyleSheet.absoluteFill, cropStyle] : StyleSheet.absoluteFill}
             contentFit="cover"
             nativeControls={false}
             allowsFullscreen={false}
             allowsPictureInPicture={false}
           />
 
-          {/* ── Overlay (gradients + all UI) — always box-none so taps reach children ── */}
+          {/* Overlay — gradients + all interactive UI */}
           <Animated.View
             style={[styles.overlay, { opacity: toolbarOpacity }]}
             pointerEvents="box-none"
           >
-            {/* Background tap catcher — shows/hides toolbar, double-tap = like */}
+            {/* Background tap — toolbar toggle + double-tap like */}
             <TouchableOpacity
               style={StyleSheet.absoluteFillObject}
               activeOpacity={1}
@@ -432,21 +480,23 @@ const FullscreenVideoModal = ({
                 activeOpacity={0.85}
                 hitSlop={{ top: 36, bottom: 36, left: 36, right: 36 }}
               >
-                {isPlaying
-                  ? <Pause size={28} color="#fff" fill="#fff" />
-                  : <Play size={28} color="#fff" fill="#fff" />}
+                {isPlaying ? (
+                  <Pause size={28} color="#fff" fill="#fff" />
+                ) : (
+                  <Play size={28} color="#fff" fill="#fff" />
+                )}
               </TouchableOpacity>
             </View>
 
             {/* Bottom gradient */}
             <LinearGradient
-              colors={["transparent", "rgba(0,0,0,0.90)"]}
+              colors={["transparent", "rgba(0,0,0,0.92)"]}
               style={styles.bottomGradient}
               pointerEvents="none"
             />
 
-            {/* Bottom content */}
-            <View style={[styles.bottomArea, { paddingBottom: insets.bottom + 8 }]} pointerEvents="box-none">
+            {/* Bottom content — author, engagement, timeline */}
+            <View style={styles.bottomArea} pointerEvents="box-none">
 
               {/* Author + Caption | Engagement */}
               <View style={styles.contentRow}>
@@ -510,24 +560,44 @@ const FullscreenVideoModal = ({
                       fill={isLiked ? COLORS.error : "transparent"}
                       strokeWidth={2}
                     />
-                    <Text style={styles.iconLabel}>{formatCount(likeCount)}</Text>
+                    <Text style={styles.iconLabel}>
+                      {formatCount(likeCount)}
+                    </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity style={styles.iconButton} onPress={onComment}>
-                    <MessageCircle size={EDITORIAL_SPACING.iconSize} color="#FFF" strokeWidth={2} />
-                    <Text style={styles.iconLabel}>{formatCount(post?.comment_count || 0)}</Text>
+                    <MessageCircle
+                      size={EDITORIAL_SPACING.iconSize}
+                      color="#FFF"
+                      strokeWidth={2}
+                    />
+                    <Text style={styles.iconLabel}>
+                      {formatCount(post?.comment_count || 0)}
+                    </Text>
                   </TouchableOpacity>
 
                   <View style={styles.iconButton}>
-                    <ChartNoAxesCombined size={EDITORIAL_SPACING.iconSize} color="#FFF" strokeWidth={2} />
+                    <ChartNoAxesCombined
+                      size={EDITORIAL_SPACING.iconSize}
+                      color="#FFF"
+                      strokeWidth={2}
+                    />
                     <Text style={styles.iconLabel}>
-                      {formatCount(post?.public_view_count || post?.view_count || 0)}
+                      {formatCount(
+                        post?.public_view_count || post?.view_count || 0,
+                      )}
                     </Text>
                   </View>
 
                   <TouchableOpacity style={styles.iconButton} onPress={onShare}>
-                    <Send size={EDITORIAL_SPACING.iconSize} color="#FFF" strokeWidth={2} />
-                    <Text style={styles.iconLabel}>{formatCount(post?.share_count || 0)}</Text>
+                    <Send
+                      size={EDITORIAL_SPACING.iconSize}
+                      color="#FFF"
+                      strokeWidth={2}
+                    />
+                    <Text style={styles.iconLabel}>
+                      {formatCount(post?.share_count || 0)}
+                    </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity style={styles.iconButton} onPress={onSave}>
@@ -541,31 +611,37 @@ const FullscreenVideoModal = ({
                 </View>
               </View>
 
-              {/* ── Timeline (chat-screen style): [Play/Pause] [track] [time] ── */}
+              {/* Timeline row: [▶] [scrubber] [time] */}
               <View style={styles.timelineRow}>
-                {/* Play/Pause button — identical pattern to chat screen */}
                 <TouchableOpacity
                   onPress={togglePlayPause}
                   style={styles.playPauseBtn}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  {isPlaying
-                    ? <Pause size={18} color="#FFFFFF" fill="#FFFFFF" strokeWidth={0} />
-                    : <Play size={18} color="#FFFFFF" fill="#FFFFFF" strokeWidth={0} />}
+                  {isPlaying ? (
+                    <Pause size={18} color="#FFFFFF" fill="#FFFFFF" strokeWidth={0} />
+                  ) : (
+                    <Play size={18} color="#FFFFFF" fill="#FFFFFF" strokeWidth={0} />
+                  )}
                 </TouchableOpacity>
 
-                {/* Scrubber track */}
                 <View
                   ref={timelineRef}
                   style={styles.trackOuter}
                   {...panResponder.panHandlers}
                 >
                   <View style={styles.trackUnfilled} />
-                  <View style={[styles.trackFilled, { width: `${progressRatio * 100}%` }]} />
-                  <View style={[styles.thumb, { left: `${progressRatio * 100}%` }]} />
+                  <View
+                    style={[
+                      styles.trackFilled,
+                      { width: `${progressRatio * 100}%` },
+                    ]}
+                  />
+                  <View
+                    style={[styles.thumb, { left: `${progressRatio * 100}%` }]}
+                  />
                 </View>
 
-                {/* Time labels: elapsed / total */}
                 <Text style={styles.timeText}>
                   {formatTime(position)} / {formatTime(duration)}
                 </Text>
@@ -573,13 +649,30 @@ const FullscreenVideoModal = ({
             </View>
           </Animated.View>
 
-          {/* Double-tap heart (outside overlay so it's always above video) */}
+          {/* Double-tap heart — always above overlay */}
           <View style={styles.heartWrapper} pointerEvents="none">
             <Animated.View style={{ transform: [{ scale: heartScale }] }}>
-              <Heart size={90} color="rgba(255,255,255,0.92)" fill="rgba(255,255,255,0.92)" />
+              <Heart
+                size={90}
+                color="rgba(255,255,255,0.92)"
+                fill="rgba(255,255,255,0.92)"
+              />
             </Animated.View>
           </View>
         </View>
+
+        {/* ── Comment bar — fills the space below 9:16 video ── */}
+        {showCommentBar && (
+          <TouchableOpacity
+            style={[styles.commentBar, { height: commentBarHeight + insets.bottom }]}
+            activeOpacity={0.85}
+            onPress={onComment}
+          >
+            <MessageCircle size={18} color="rgba(255,255,255,0.55)" strokeWidth={1.8} />
+            <Text style={styles.commentBarText}>Add a comment...</Text>
+            <Send size={17} color="rgba(255,255,255,0.45)" strokeWidth={1.8} />
+          </TouchableOpacity>
+        )}
       </View>
     </Modal>
   );
@@ -595,20 +688,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
     width: "100%",
   },
-  videoArea: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "#000",
-    overflow: "hidden",
-  },
-  videoFill: {
+  videoContainer: {
     width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
-  },
-  videoAbsolute: {
-    position: "absolute",
+    overflow: "hidden",
+    backgroundColor: "#000",
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -814,7 +897,7 @@ const styles = StyleSheet.create({
     borderRadius: 6.5,
     backgroundColor: "#FFFFFF",
     marginLeft: -6.5,
-    top: 7,       // (28 - 13) / 2 = 7.5 ≈ 7
+    top: 7, // (28 - 13) / 2 = 7.5 ≈ 7
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -835,6 +918,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     zIndex: 20,
+  },
+
+  // ── Comment bar (below 9:16 video) ──
+  commentBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    gap: 12,
+    backgroundColor: "#0d0d0d",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(255,255,255,0.10)",
+  },
+  commentBarText: {
+    flex: 1,
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: "rgba(255,255,255,0.40)",
   },
 });
 
