@@ -57,6 +57,7 @@ import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 import MentionTextRenderer from "./MentionTextRenderer";
 import VideoPlayer from "./VideoPlayer";
+import FullscreenVideoModal from "./FullscreenVideoModal";
 import FollowButton from "./FollowButton";
 import { viewQueueService } from "../services/ViewQueueService";
 
@@ -211,6 +212,8 @@ const EditorialPostCard = ({
   }
 
   // Default: Media/text post with editorial design
+  const [fullscreenVisible, setFullscreenVisible] = useState(false);
+  const videoPositionRef = useRef(0);  // tracks current playback position for modal sync
   const initialIsLiked = post.is_liked === true;
   const [isLiked, setIsLiked] = useState(initialIsLiked);
   const [likeCount, setLikeCount] = useState(post.like_count || 0);
@@ -336,7 +339,14 @@ const EditorialPostCard = ({
         trigger: "fullscreen",
       });
     }
+    // Open the immersive fullscreen modal
+    setFullscreenVisible(true);
   }, [post.id, videoViewCounted]);
+
+  // Track current video position so the fullscreen modal can seek to the same point
+  const handleVideoPositionChange = useCallback((posSeconds) => {
+    videoPositionRef.current = posSeconds;
+  }, []);
 
   // Track playback time for 2-second threshold
   const playbackStartTimeRef = React.useRef(null);
@@ -743,6 +753,7 @@ const EditorialPostCard = ({
                 onUnmute={handleVideoUnmute}
                 onFullscreen={handleVideoFullscreen}
                 onPlaybackStart={handleVideoPlaybackChange}
+                onPositionChange={handleVideoPositionChange}
                 cropMetadata={post.video_crop_transform || null}
               />
             </View>
@@ -906,6 +917,25 @@ const EditorialPostCard = ({
           )}
         </Pressable>
       </View>
+
+      {/* Fullscreen Video Modal */}
+      {isVideo && (
+        <FullscreenVideoModal
+          visible={fullscreenVisible}
+          source={post.video_url || firstMediaUrl}
+          onClose={() => setFullscreenVisible(false)}
+          post={post}
+          onLike={handleLike}
+          onComment={handleCommentPress}
+          onShare={handleShare}
+          onSave={handleSave}
+          onFollow={handleFollowChange}
+          currentUserId={currentUserId}
+          currentUserType={currentUserType}
+          cropMetadata={post.video_crop_transform || null}
+          initialPosition={videoPositionRef.current}
+        />
+      )}
 
       {/* View Insights Bottom Sheet Modal */}
       <Modal

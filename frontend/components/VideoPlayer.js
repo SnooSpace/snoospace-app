@@ -44,6 +44,7 @@ const VideoPlayer = ({
   postId,
   thumbnailUrl: propThumbnailUrl,
   cropMetadata = null,
+  onPositionChange,
 }) => {
   const { isVideoActive, registerVideo } = useVideoContext();
 
@@ -128,6 +129,17 @@ const VideoPlayer = ({
       playingSub?.remove();
     };
   }, [player, hasStartedPlaying, onLoad, onError, onPlaybackStart]);
+
+  // Report position to parent for fullscreen seek sync (500ms throttle is sufficient)
+  useEffect(() => {
+    if (!player || !onPositionChange) return;
+    const interval = setInterval(() => {
+      if (player.duration > 0) {
+        onPositionChange(player.currentTime);
+      }
+    }, 500);
+    return () => clearInterval(interval);
+  }, [player, onPositionChange]);
 
   // Subscribe to playback end
   useEffect(() => {
@@ -275,6 +287,11 @@ const VideoPlayer = ({
       handleWatchAgain();
       return;
     }
+    // Tapping a playing video with a fullscreen handler → open fullscreen
+    if (isPlaying && onFullscreen && !showPlayButton) {
+      handleFullscreen();
+      return;
+    }
     if (!isPlaying || showPlayButton) {
       togglePlayPause();
     } else if (onPress) {
@@ -282,7 +299,7 @@ const VideoPlayer = ({
     } else {
       togglePlayPause();
     }
-  }, [showWatchAgainOverlay, handleWatchAgain, isPlaying, showPlayButton, togglePlayPause, onPress]);
+  }, [showWatchAgainOverlay, handleWatchAgain, isPlaying, showPlayButton, togglePlayPause, onPress, onFullscreen, handleFullscreen]);
 
   const getThumbnailUrl = (videoSource) => {
     if (typeof videoSource !== "string") return null;
@@ -420,7 +437,7 @@ const VideoPlayer = ({
         )}
       </TouchableOpacity>
 
-      {/* Controls */}
+      {/* Controls: mute only (fullscreen opens via tap when playing) */}
       {showControls && !showWatchAgainOverlay && (
         <View style={styles.controlsContainer}>
           <TouchableOpacity
