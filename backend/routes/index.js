@@ -35,6 +35,7 @@ const ShareController = require("../controllers/shareController");
 const SaveController = require("../controllers/saveController");
 const AudienceIntelligenceController = require("../controllers/audienceIntelligenceController");
 const PrivacyController = require("../controllers/privacyController");
+const videoInsightsRouter = require('./videoInsights');
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 const { requireBehavioralConsent, requireBrandConsent, requireBrandAcknowledgment, checkCreatorEventConsent } = require("../middleware/consentGate");
 const { trackingRateLimit, followTrackingRateLimit, aqiCalculationRateLimit } = require("../middleware/rateLimiter");
@@ -1538,5 +1539,10 @@ router.patch("/admin/chat-reports/:reportId/resolve", adminAuthMiddleware, Messa
 
 // Search
 router.get("/search/accounts", authMiddleware, SearchController.searchAccounts);
+
+// ============================================
+// VIDEO INSIGHTS
+// ============================================
+router.use('/api/videos', videoInsightsRouter);
 
 module.exports = router;

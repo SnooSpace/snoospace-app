@@ -19,6 +19,7 @@ import { useVideoContext } from "../context/VideoContext";
 import SnooLoader from "./ui/SnooLoader";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
+import { WatchTracker } from "../utils/watchTracker";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -48,6 +49,8 @@ const VideoPlayer = ({
   cropMetadata = null,
   onPositionChange,
   onDoubleTap,
+  viewerId = null,       // pass currentUserId so WatchTracker can associate events
+  viewSource = 'for_you', // feed context passed from EditorialPostCard
 }) => {
   const { isVideoActive, registerVideo } = useVideoContext();
 
@@ -89,11 +92,12 @@ const VideoPlayer = ({
     }
   }, [postId, registerVideo]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount — stop WatchTracker so an exit event is fired
   useEffect(() => {
     return () => {
       isUnmountingRef.current = true;
       clearTimeout(unloadTimeoutRef.current);
+      WatchTracker.stop();
     };
   }, []);
 
@@ -123,6 +127,7 @@ const VideoPlayer = ({
         hasNotifiedPlaybackRef.current = true;
         onPlaybackStart?.(true);
       } else if (!isNowPlaying && hasNotifiedPlaybackRef.current) {
+        hasNotifiedPlaybackRef.current = false; // reset so next play session fires again
         onPlaybackStart?.(false);
       }
     });
@@ -151,6 +156,7 @@ const VideoPlayer = ({
     const endedSub = player.addListener("playToEnd", () => {
       if (!hasStartedPlaying) return;
       onVideoEnd?.();
+      WatchTracker.complete();
 
       if (isFullscreen) {
         player.replay();
@@ -226,6 +232,17 @@ const VideoPlayer = ({
     return () => clearTimeout(unloadTimeoutRef.current);
   }, [isVisible, autoplay, videoFinished, isFullscreen, shouldLoad, postId, hasStartedPlaying, player]);
 
+  // ── WatchTracker: start/stop on visibility ───────────────────────────────
+  // Only track in the feed view (not fullscreen) to avoid double-counting.
+  useEffect(() => {
+    if (isFullscreen || !postId) return;
+    if (isVisible && isPlaying) {
+      WatchTracker.start(postId, viewerId, viewSource);
+    } else if (!isVisible) {
+      WatchTracker.stop();
+    }
+  }, [isVisible, isPlaying, isFullscreen, postId, viewerId, viewSource]);
+
   // Re-load after off-screen unload
   useEffect(() => {
     if (isVisible && !shouldLoad && !isUnmountingRef.current) {
@@ -256,6 +273,7 @@ const VideoPlayer = ({
     player.currentTime = 0;
     player.play();
     setIsPlaying(true);
+    WatchTracker.replay();
   }, [player]);
 
   const togglePlayPause = useCallback(async () => {

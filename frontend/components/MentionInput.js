@@ -36,8 +36,28 @@ const MentionInput = ({
   const [cursorPosition, setCursorPosition] = useState(0);
   const inputRef = useRef(null);
   const cursorPositionRef = useRef(0);
+  // Flag to suppress the onChangeText callback when the parent itself is clearing the field.
+  // Without this, setting text from the value prop triggers onChangeText → parent setState →
+  // new value prop → this effect again → infinite loop.
+  const isExternalUpdate = useRef(false);
+
+  // Sync external value prop into internal state (parent-driven clear after posting).
+  useEffect(() => {
+    if (value === "" && text !== "") {
+      isExternalUpdate.current = true;
+      setText("");
+      setTaggedEntities([]);
+      setShowSearch(false);
+      setSearchQuery("");
+      setSearchResults([]);
+    }
+  }, [value]);
 
   useEffect(() => {
+    if (isExternalUpdate.current) {
+      isExternalUpdate.current = false;
+      return; // Skip notifying parent — it already knows it set value to ""
+    }
     if (onChangeText) {
       onChangeText(text);
     }

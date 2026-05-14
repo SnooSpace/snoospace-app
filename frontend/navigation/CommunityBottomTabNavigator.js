@@ -77,6 +77,7 @@ const CommunityBottomTabNavigator = ({ navigation, route }) => {
               "PromptReplies",
               "CreateGroupChat",
               "GroupInfo",
+              "VideoInsights",
             ];
             if (hiddenRoutes.includes(routeName)) {
               return { display: "none" };

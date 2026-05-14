@@ -162,9 +162,10 @@ const ProfilePostFeed = ({
         onPostUpdate={onPostUpdate}
         onRequestDelete={handleRequestDelete}
         showFollowButton={true} // Allow following if not same user
+        navigation={navigation}
       />
     );
-  }, [visiblePostId, currentUserId, currentUserType, onLikeUpdate, handleCommentPress, handleSharePress, onSave, onFollow, onUserPress, onDelete, onPostUpdate, handleRequestDelete]);
+  }, [visiblePostId, currentUserId, currentUserType, onLikeUpdate, handleCommentPress, handleSharePress, onSave, onFollow, onUserPress, onDelete, onPostUpdate, handleRequestDelete, navigation]);
 
   if (!visible) return null;
 

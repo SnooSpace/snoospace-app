@@ -1099,6 +1099,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         isVideoPlaying={item.id === visiblePostId}
         isInViewport={isFocused}
         isScreenFocused={isFocused}
+        navigation={navigation}
         onUserPress={(userId, userType) => {
           const actualUserType = userType || item?.author_type;
           const actualUserId = userId || item?.author_id;

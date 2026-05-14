@@ -41,6 +41,7 @@ import {
   Users,
   RefreshCw,
   X,
+  BarChart2,
 } from "lucide-react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import AnimatedReanimated, {
@@ -139,6 +140,7 @@ const EditorialPostCard = ({
   isScreenFocused = true,
   isInViewport = true, // Must be explicitly passed in multi-post feeds (HomeFeed, ProfilePostFeed). Default true for single-post detail screens.
   showFollowButton = true,
+  navigation = null, // Optional: pass to enable "Video Insights" button for creator's own video posts
 }) => {
   // Route to type-specific card components for special post types
   const postType = post.post_type || "media";
@@ -356,20 +358,21 @@ const EditorialPostCard = ({
         playbackStartTimeRef.current = Date.now();
         // Check after 2.5 seconds if still playing
         setTimeout(() => {
-          if (
-            playbackStartTimeRef.current &&
-            !videoViewCounted &&
-            !viewQueueService.hasViewed(post.id)
-          ) {
-            const elapsed = Date.now() - playbackStartTimeRef.current;
-            if (elapsed >= 2500) {
-              setVideoViewCounted(true);
-              viewQueueService.addQualifiedView(post.id, {
-                postType: "video",
-                trigger: "playback",
-                dwellTime: elapsed,
-              });
-            }
+          if (!playbackStartTimeRef.current) return;
+          const elapsed = Date.now() - playbackStartTimeRef.current;
+          if (elapsed < 2500) return;
+
+          if (!videoViewCounted && !viewQueueService.hasViewed(post.id)) {
+            // ── First-time view: qualify as unique viewer ──
+            setVideoViewCounted(true);
+            viewQueueService.addQualifiedView(post.id, {
+              postType: "video",
+              trigger: "playback",
+              dwellTime: elapsed,
+            });
+          } else {
+            // ── Repeat view: user already counted, log impression only ──
+            viewQueueService.addRepeatView(post.id, "revisit");
           }
         }, 2500);
       } else {
@@ -559,6 +562,22 @@ const EditorialPostCard = ({
     isFollowing: post.is_following,
   });
 
+  // ── Video Insights handler (creator only, video posts only) ───────────────
+  const handleVideoInsightsPress = useCallback(async () => {
+    if (!navigation) return;
+    const token = await getAuthToken();
+    navigation.navigate('VideoInsights', {
+      videoId: post.id,
+      token,
+      videoMeta: {
+        title: post.caption || null,
+        thumbnail_url: post.video_thumbnail || null,
+        created_at: post.created_at,
+        duration_seconds: post.duration_seconds || 0,
+      },
+    });
+  }, [navigation, post]);
+
   // ── View Stats handler ─────────────────────────────────────────────────────
   const handleViewPress = useCallback(async () => {
     setViewStatsVisible(true);
@@ -568,9 +587,10 @@ const EditorialPostCard = ({
       tension: 65,
       friction: 11,
     }).start();
-    if (viewStats) return;
     setViewStatsLoading(true);
     try {
+      // Flush any pending view events first so the fetched stats are up-to-date
+      await viewQueueService.flushQueue();
       const token = await getAuthToken();
       const data = await apiGet(`/posts/${post.id}/view-stats`, 8000, token);
       setViewStats(data);
@@ -582,14 +602,17 @@ const EditorialPostCard = ({
     } finally {
       setViewStatsLoading(false);
     }
-  }, [post.id, post.public_view_count, post.view_count, viewStats, viewSheetAnim]);
+  }, [post.id, post.public_view_count, post.view_count, viewSheetAnim]);
 
   const handleCloseViewStats = useCallback(() => {
     Animated.timing(viewSheetAnim, {
       toValue: 0,
       duration: 220,
       useNativeDriver: true,
-    }).start(() => setViewStatsVisible(false));
+    }).start(() => {
+      setViewStatsVisible(false);
+      setViewStats(null); // clear so fresh data is fetched next open
+    });
   }, [viewSheetAnim]);
 
   const sheetTranslateY = viewSheetAnim.interpolate({
@@ -705,6 +728,17 @@ const EditorialPostCard = ({
             <Ellipsis size={20} color={COLORS.editorial.textSecondary} />
           </TouchableOpacity>
         )}
+
+        {/* Video Insights button — creator's own video posts only */}
+        {isOwnPost && isVideo && navigation && (
+          <TouchableOpacity
+            style={styles.insightsButton}
+            onPress={handleVideoInsightsPress}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <BarChart2 size={18} color={COLORS.primary} strokeWidth={2} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Post Text */}
@@ -756,6 +790,8 @@ const EditorialPostCard = ({
                 onPositionChange={handleVideoPositionChange}
                 onDoubleTap={onDoubleTap}
                 cropMetadata={post.video_crop_transform || null}
+                viewerId={currentUserId}
+                viewSource="for_you"
               />
             </View>
           ) : hasMultipleMedia ? (
@@ -1082,6 +1118,10 @@ const styles = StyleSheet.create({
     ...EDITORIAL_TYPOGRAPHY.followButton,
   },
   ellipsisButton: {
+    padding: 8,
+    marginLeft: 4,
+  },
+  insightsButton: {
     padding: 8,
     marginLeft: 4,
   },

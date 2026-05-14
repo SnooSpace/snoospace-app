@@ -22,6 +22,7 @@ import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityS
 import CreateGroupScreen from "../screens/messages/CreateGroupScreen";
 import GroupInfoScreen from "../screens/messages/GroupInfoScreen";
 import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
+import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
 
 const HomeFeedWithSwipe = (props) => (
   <TabSwipeHandler currentTab="Home">
@@ -147,6 +148,11 @@ export default function HomeStackNavigator() {
       <Stack.Screen
         name="ApplyToOpportunity"
         component={ApplyToOpportunityScreen}
+      />
+      <Stack.Screen
+        name="VideoInsights"
+        component={VideoInsightsScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );
