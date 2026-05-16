@@ -25,7 +25,7 @@ import {
   Minus,
   MessageCircle,
 } from "lucide-react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import CustomDatePicker from "../ui/CustomDatePicker";
 import {
   COLORS,
   SPACING,
@@ -281,26 +281,21 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
       </View>
 
       {/* Date Picker Modal */}
-      {showDatePicker && (
-        <DateTimePicker
-          value={expiresAt || new Date()}
-          mode="date" // Ideally we'd have a combined picker or two steps
-          is24Hour={false}
-          display="default"
-          onChange={(event, selectedDate) => {
-            setShowDatePicker(false);
-            if (selectedDate) {
-              const date = new Date(selectedDate);
-              // Preserve the default 8 PM time if only date changed, strictly speaking
-              // DateTimePicker logic might vary. For now, we set date.
-              // If we want time picking too, we'd need another step or mode="datetime" on iOS
-              date.setHours(20, 0, 0, 0);
-              setExpiresAt(date);
-            }
-          }}
-          minimumDate={new Date()}
-        />
-      )}
+      <CustomDatePicker
+        visible={showDatePicker}
+        onClose={() => setShowDatePicker(false)}
+        startDate={expiresAt ? new Date(expiresAt) : null}
+        onConfirm={({ startDate }) => {
+          setShowDatePicker(false);
+          if (startDate) {
+            const date = new Date(startDate);
+            date.setHours(20, 0, 0, 0);
+            setExpiresAt(date);
+          }
+        }}
+        minDate={new Date()}
+        singleMode={true}
+      />
     </ScrollView>
   );
 };

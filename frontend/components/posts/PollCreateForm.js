@@ -16,7 +16,7 @@ import {
   Platform,
   UIManager,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import CustomDatePicker from "../ui/CustomDatePicker";
 import { Trash2, Plus, Calendar, Clock, BarChart2 } from "lucide-react-native";
 import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
 
@@ -40,6 +40,7 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
   const [allowMultiple, setAllowMultiple] = useState(false);
   const [showResultsBeforeVote, setShowResultsBeforeVote] = useState(false);
   const [expiresAt, setExpiresAt] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false); // FIX: was referenced but never declared
   const [focusedOptionIndex, setFocusedOptionIndex] = useState(null);
   // Refs for each option TextInput — used for explicit programmatic focus
   const optionInputRefs = useRef([]);
@@ -110,10 +111,10 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
     }
   };
 
-  const handleDateChange = (event, selectedDate) => {
+  const handleDateConfirm = ({ startDate }) => {
     setShowDatePicker(false);
-    if (selectedDate) {
-      const date = new Date(selectedDate);
+    if (startDate) {
+      const date = new Date(startDate);
       date.setHours(23, 59, 59, 999);
       setExpiresAt(date);
       updateData({ expiresAt: date.toISOString() });
@@ -253,6 +254,46 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
             disabled={disabled}
           />
         </View>
+      </View>
+
+      {/* Expiry Date Card */}
+      <View style={styles.card}>
+        <View style={styles.cardHeader}>
+          <Text style={styles.cardTitle}>Poll Expiry</Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.expiryButton, disabled && { opacity: 0.5 }]}
+          onPress={() => !disabled && setShowDatePicker(true)}
+          activeOpacity={0.7}
+        >
+          <Calendar size={18} color={COLORS.primary} strokeWidth={2} style={{ marginRight: 10 }} />
+          <Text style={styles.expiryButtonText}>
+            {expiresAt
+              ? `Ends ${new Date(expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
+              : "Set an end date (optional)"}
+          </Text>
+          {expiresAt && (
+            <TouchableOpacity
+              onPress={() => {
+                setExpiresAt(null);
+                updateData({ expiresAt: null });
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{ marginLeft: "auto" }}
+            >
+              <Clock size={16} color="#9CA3AF" strokeWidth={2} />
+            </TouchableOpacity>
+          )}
+        </TouchableOpacity>
+
+        <CustomDatePicker
+          visible={showDatePicker}
+          onClose={() => setShowDatePicker(false)}
+          startDate={expiresAt ? new Date(expiresAt) : null}
+          onConfirm={handleDateConfirm}
+          minDate={new Date()}
+          singleMode={true}
+        />
       </View>
     </View>
   );
@@ -394,6 +435,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Manrope-Regular",
     color: "#9CA3AF",
+  },
+  expiryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8F9FB",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  expiryButtonText: {
+    flex: 1,
+    fontFamily: "Manrope-Medium",
+    fontSize: 15,
+    color: COLORS.textPrimary,
   },
 });
 

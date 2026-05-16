@@ -384,9 +384,11 @@ const createPost = async (req, res) => {
             // Update participant progress for progress-based challenges
             if (challengeTypeData.challenge_type === "progress") {
               try {
+                // FIX: exclude rejected submissions from progress count
+                // (matches behaviour in challengeController.js submitProof)
                 const submissionCountResult = await pool.query(
                   `SELECT COUNT(*) as count FROM challenge_submissions 
-                   WHERE participant_id = $1`,
+                   WHERE participant_id = $1 AND status != 'rejected'`,
                   [participationId],
                 );
                 const targetCount = challengeTypeData.target_count || 1;

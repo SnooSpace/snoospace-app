@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, TouchableWithoutFeedback, Platform, ScrollView } from "react-native";
 import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import CustomDatePicker from "../ui/CustomDatePicker";
 import { Ionicons } from "@expo/vector-icons";
 import SnooLoader from "../ui/SnooLoader";
 
@@ -47,10 +47,10 @@ const QnAEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
     onSave(updates);
   };
 
-  const handleDateChange = (event, selectedDate) => {
+  const handleDateConfirm = ({ startDate }) => {
     setShowDatePicker(false);
-    if (selectedDate) {
-      setExpiresAt(selectedDate);
+    if (startDate) {
+      setExpiresAt(startDate);
     }
   };
 
@@ -162,15 +162,14 @@ const QnAEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
                   )}
                 </View>
 
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={expiresAt || new Date()}
-                    mode="date"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={handleDateChange}
-                    minimumDate={new Date()}
-                  />
-                )}
+                <CustomDatePicker
+                  visible={showDatePicker}
+                  onClose={() => setShowDatePicker(false)}
+                  startDate={expiresAt ? new Date(expiresAt) : null}
+                  onConfirm={handleDateConfirm}
+                  minDate={new Date()}
+                  singleMode={true}
+                />
               </ScrollView>
 
               {/* Actions */}

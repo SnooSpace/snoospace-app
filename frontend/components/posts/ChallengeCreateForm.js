@@ -32,7 +32,7 @@ import {
   Plus,
   Minus,
 } from "lucide-react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import CustomDatePicker from "../ui/CustomDatePicker";
 import {
   COLORS,
   SPACING,
@@ -449,23 +449,21 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
       </View>
 
       {/* Date Picker Modal */}
-      {showDatePicker && (
-        <DateTimePicker
-          value={deadline || new Date()}
-          mode="date"
-          is24Hour={false}
-          display="default"
-          onChange={(event, selectedDate) => {
-            setShowDatePicker(false);
-            if (selectedDate) {
-              const date = new Date(selectedDate);
-              date.setHours(20, 0, 0, 0);
-              setDeadline(date);
-            }
-          }}
-          minimumDate={new Date()}
-        />
-      )}
+      <CustomDatePicker
+        visible={showDatePicker}
+        onClose={() => setShowDatePicker(false)}
+        startDate={deadline ? new Date(deadline) : null}
+        onConfirm={({ startDate }) => {
+          setShowDatePicker(false);
+          if (startDate) {
+            const date = new Date(startDate);
+            date.setHours(20, 0, 0, 0);
+            setDeadline(date);
+          }
+        }}
+        minDate={new Date()}
+        singleMode={true}
+      />
     </ScrollView>
   );
 };

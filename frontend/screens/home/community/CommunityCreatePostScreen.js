@@ -451,12 +451,13 @@ export default function CommunityCreatePostScreen({ navigation }) {
     setAspectRatios([]);
     setMediaTypes([]);
     setTaggedEntities([]);
-    // Optionally reset other forms or keep them for ease of re-creation if desireable,
-    // but usually "Create another" implies fresh start or maybe keeping settings.
-    // Let's reset the main content but maybe keep some settings?
-    // For now, simple reset is safer.
-
-    // Also scroll to top
+    setEntityTags([]);
+    setCropMetadata([]);
+    cropMetadataRef.current = [];
+    setMutedVideoIndices(new Set());
+    setShowEntityTagger(false);
+    setErrorMsg("");
+    // Scroll to top
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
   };
 
@@ -528,6 +529,10 @@ export default function CommunityCreatePostScreen({ navigation }) {
           setAspectRatios([]);
           setMediaTypes([]);
           setMutedVideoIndices(new Set());
+          setCropMetadata([]);
+          cropMetadataRef.current = [];
+          setEntityTags([]);
+          setShowEntityTagger(false);
           LayoutAnimation.configureNext(
             LayoutAnimation.Presets.easeInEaseOut,
           );
@@ -591,7 +596,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
   // Determine if submit is allowed based on type
   const canSubmit =
     postType === "media"
-      ? images.length > 0 || caption.trim().length > 0
+      ? images.length > 0 // Caption-only posts are rejected by backend — require at least 1 image
       : postType === "poll"
         ? pollData.question.trim().length > 0 &&
           pollData.options.filter((o) => o.trim()).length >= 2
