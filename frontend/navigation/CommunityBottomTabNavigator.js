@@ -77,7 +77,7 @@ const CommunityBottomTabNavigator = ({ navigation, route }) => {
               "PromptReplies",
               "CreateGroupChat",
               "GroupInfo",
-              "VideoInsights",
+              // [VIDEO INSIGHTS - DEFERRED] "VideoInsights" removed — screen not registered in this build
             ];
             if (hiddenRoutes.includes(routeName)) {
               return { display: "none" };

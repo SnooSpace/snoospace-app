@@ -895,6 +895,11 @@ router.get(
   authMiddleware,
   ViewsController.getPostViewStats,
 );
+router.patch(
+  "/posts/views/:postId/dwell",
+  authMiddleware,
+  ViewsController.updateDwellTime,
+);
 
 // Share routes
 router.post("/posts/:postId/share", authMiddleware, ShareController.sharePost);

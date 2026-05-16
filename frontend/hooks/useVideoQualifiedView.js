@@ -8,6 +8,10 @@
  *
  * Looping videos NEVER generate additional public views.
  * Replays are tracked as private analytics only.
+ *
+ * IMPORTANT: After qualification, the hook continues tracking playback time
+ * and sends a dwell-time update when the component unmounts or the user
+ * navigates away, ensuring accurate total watch time for analytics.
  */
 import { useRef, useCallback, useEffect } from "react";
 import { AppState } from "react-native";
@@ -18,6 +22,7 @@ const PLAYBACK_THRESHOLD = 2000; // 2 seconds of playback
 export function useVideoQualifiedView({
   postId,
   videoDuration = null,
+  viewSource = "feed",
   onQualify,
   onEngagedView,
 }) {
@@ -28,6 +33,24 @@ export function useVideoQualifiedView({
   const lastTimestampRef = useRef(null);
   const timerRef = useRef(null);
   const appStateRef = useRef(AppState.currentState);
+  const hasTrackedCompletion50Ref = useRef(false);
+  const hasTrackedUnmuted25Ref = useRef(false);
+
+  // Send dwell time update to backend
+  // Called on unmount and app-background. Safe to call multiple times —
+  // the backend uses GREATEST() so the stored value only ever increases.
+  const sendDwellUpdate = useCallback(() => {
+    if (!qualifiedRef.current) return;
+    if (playbackTimeRef.current <= PLAYBACK_THRESHOLD) return; // No meaningful update beyond qualification
+
+    // Cap at video duration — loops shouldn't inflate a single session
+    let dwellMs = playbackTimeRef.current;
+    if (videoDuration && videoDuration > 0) {
+      dwellMs = Math.min(dwellMs, videoDuration * 1000);
+    }
+
+    viewQueueService.updateDwellTime(postId, dwellMs);
+  }, [postId, videoDuration]);
 
   // Mark view as qualified (only happens once)
   const markQualified = useCallback(
@@ -44,11 +67,12 @@ export function useVideoQualifiedView({
         postType: "video",
         dwellTime: playbackTimeRef.current,
         trigger, // 'playback', 'unmute', or 'fullscreen'
+        viewSource: viewSource || "feed",
       });
 
       onQualify?.(postId);
     },
-    [postId, onQualify],
+    [postId, viewSource, onQualify],
   );
 
   // Track engaged view (private analytics)
@@ -60,9 +84,9 @@ export function useVideoQualifiedView({
     [postId, onEngagedView],
   );
 
-  // Start playback tracking
+  // Start playback tracking — continues tracking AFTER qualification
   const startTracking = useCallback(() => {
-    if (timerRef.current || qualifiedRef.current) return;
+    if (timerRef.current) return; // Already tracking
 
     lastTimestampRef.current = Date.now();
 
@@ -75,20 +99,30 @@ export function useVideoQualifiedView({
 
       playbackTimeRef.current += delta;
 
-      // Check if playback threshold reached
-      if (playbackTimeRef.current >= PLAYBACK_THRESHOLD) {
-        markQualified("playback");
-        clearInterval(timerRef.current);
-        timerRef.current = null;
+      // Cap at video duration — prevents loops from inflating dwell time
+      if (videoDuration && videoDuration > 0) {
+        const maxMs = videoDuration * 1000;
+        if (playbackTimeRef.current > maxMs) {
+          playbackTimeRef.current = maxMs;
+        }
       }
 
-      // Check for engaged view (50% watched or unmuted + 25%)
-      if (videoDuration) {
-        const watchPercentage = playbackTimeRef.current / videoDuration;
+      // Check if playback threshold reached (qualification)
+      if (!qualifiedRef.current && playbackTimeRef.current >= PLAYBACK_THRESHOLD) {
+        markQualified("playback");
+        // NOTE: Do NOT clearInterval here — keep tracking for accurate watch time
+      }
 
-        if (watchPercentage >= 0.5) {
+      // Check for engaged view milestones (50% watched or unmuted + 25%)
+      if (videoDuration && videoDuration > 0) {
+        const videoDurationMs = videoDuration * 1000;
+        const watchPercentage = playbackTimeRef.current / videoDurationMs;
+
+        if (!hasTrackedCompletion50Ref.current && watchPercentage >= 0.5) {
+          hasTrackedCompletion50Ref.current = true;
           trackEngagedView("completion_50");
-        } else if (hasUnmutedRef.current && watchPercentage >= 0.25) {
+        } else if (!hasTrackedUnmuted25Ref.current && hasUnmutedRef.current && watchPercentage >= 0.25) {
+          hasTrackedUnmuted25Ref.current = true;
           trackEngagedView("unmuted_25");
         }
       }
@@ -100,6 +134,11 @@ export function useVideoQualifiedView({
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
+    }
+    // Accumulate any remaining time since last timestamp
+    if (lastTimestampRef.current && isPlayingRef.current) {
+      playbackTimeRef.current += Date.now() - lastTimestampRef.current;
+      lastTimestampRef.current = null;
     }
   }, []);
 
@@ -156,8 +195,10 @@ export function useVideoQualifiedView({
 
       if (wasActive && !isActive) {
         stopTracking();
+        // Send dwell update when app goes to background
+        sendDwellUpdate();
       } else if (!wasActive && isActive) {
-        if (isPlayingRef.current && !qualifiedRef.current) {
+        if (isPlayingRef.current) {
           startTracking();
         }
       }
@@ -166,12 +207,15 @@ export function useVideoQualifiedView({
     });
 
     return () => subscription?.remove();
-  }, [stopTracking, startTracking]);
+  }, [stopTracking, startTracking, sendDwellUpdate]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount — send final dwell time
   useEffect(() => {
-    return () => stopTracking();
-  }, [stopTracking]);
+    return () => {
+      stopTracking();
+      sendDwellUpdate();
+    };
+  }, [stopTracking, sendDwellUpdate]);
 
   return {
     onPlaybackStateChange,

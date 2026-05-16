@@ -317,6 +317,15 @@ export default function CommunityCreatePostScreen({ navigation }) {
           })),
         });
 
+        // Extract video duration from crop metadata (set by ImageUploader from MediaLibrary asset)
+        let videoDurationSeconds = null;
+        if (finalCropMetadata && finalMediaTypes) {
+          const videoIdx = finalMediaTypes.indexOf("video");
+          if (videoIdx !== -1 && finalCropMetadata[videoIdx]?.durationSeconds) {
+            videoDurationSeconds = Math.round(finalCropMetadata[videoIdx].durationSeconds);
+          }
+        }
+
         typePayload = {
           imageUrls: finalImageUrls,
           aspectRatios:
@@ -330,6 +339,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
           cropMetadata: finalCropMetadata,
           mutedIndices: mutedVideoIndices.size > 0 ? [...mutedVideoIndices] : null,
           taggedEntities: taggedPayload.length > 0 ? taggedPayload : null,
+          videoDuration: videoDurationSeconds,
         };
       } else if (postType === "poll") {
         // Validate poll data

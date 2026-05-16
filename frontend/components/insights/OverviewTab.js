@@ -63,7 +63,10 @@ export default function OverviewTab({ data }) {
   );
 
   const rorTier =
-    data.ror_score >= 80 ? 'Top 8%' : data.ror_score >= 60 ? 'Top 25%' : 'Top 50%';
+    data.ror_score >= 80 ? 'Exceptional resonance' :
+    data.ror_score >= 60 ? 'Strong resonance' :
+    data.ror_score >= 40 ? 'Growing resonance' :
+    data.ror_score >= 20 ? 'Early traction' : 'Building momentum';
 
   return (
     <View>

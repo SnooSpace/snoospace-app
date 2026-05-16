@@ -56,7 +56,7 @@ async function submitViewsBatch(req, res) {
     await client.query("BEGIN");
 
     for (const view of batch) {
-      const { postId, type, dwellTime, trigger, engagementType, postType } =
+      const { postId, type, dwellTime, trigger, engagementType, postType, viewSource } =
         view;
 
       if (!postId) continue;
@@ -68,8 +68,8 @@ async function submitViewsBatch(req, res) {
         try {
           await client.query(`SAVEPOINT ${savepointName}`);
           await client.query(
-            `INSERT INTO unique_view_events (post_id, user_id, user_type, dwell_time_ms, trigger_type, post_type)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
+            `INSERT INTO unique_view_events (post_id, user_id, user_type, dwell_time_ms, trigger_type, post_type, view_source)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
             [
               postId,
               userId,
@@ -77,6 +77,7 @@ async function submitViewsBatch(req, res) {
               dwellTime || null,
               trigger || "dwell",
               postType || null,
+              viewSource || null,
             ],
           );
 
@@ -285,10 +286,47 @@ async function getPostViewStats(req, res) {
   }
 }
 
+/**
+ * PATCH /posts/views/:postId/dwell
+ *
+ * Updates the dwell_time_ms for an existing unique_view_event.
+ * Called when video playback ends to record actual total watch time.
+ */
+async function updateDwellTime(req, res) {
+  try {
+    const userId = req.user.id;
+    const userType = req.user.type;
+    const { postId } = req.params;
+    const { dwellTimeMs } = req.body;
+
+    if (!postId || !dwellTimeMs || typeof dwellTimeMs !== 'number') {
+      return res.status(400).json({ error: 'postId and dwellTimeMs (number) are required' });
+    }
+
+    // Only update if the new dwell time is greater than what's already stored
+    const result = await pool.query(
+      `UPDATE unique_view_events
+       SET dwell_time_ms = GREATEST(COALESCE(dwell_time_ms, 0), $1)
+       WHERE post_id = $2 AND user_id = $3 AND user_type = $4
+       RETURNING dwell_time_ms`,
+      [Math.round(dwellTimeMs), postId, userId, userType]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'No unique view event found for this post' });
+    }
+
+    return res.json({ success: true, dwell_time_ms: result.rows[0].dwell_time_ms });
+  } catch (e) {
+    console.error('[ViewsController] updateDwellTime error:', e);
+    return res.status(500).json({ error: 'Failed to update dwell time' });
+  }
+}
+
 module.exports = {
   submitViewsBatch,
   getPostViewAnalytics,
   getViewedPosts,
   getPostViewStats,
+  updateDwellTime,
 };
-

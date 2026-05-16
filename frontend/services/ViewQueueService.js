@@ -12,7 +12,7 @@
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
-import { apiPost } from "../api/client";
+import { apiPost, apiPatch } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 
@@ -91,6 +91,7 @@ class ViewQueueService {
       postId,
       type: "qualified",
       timestamp: Date.now(),
+      viewSource: metadata.viewSource || null,
       ...metadata,
     });
 
@@ -264,6 +265,28 @@ class ViewQueueService {
       console.error("[ViewQueueService] Failed to clear cache on account switch:", e);
     }
     console.log("[ViewQueueService] Cache reset for account switch");
+  }
+
+  /**
+   * Update dwell time for an existing unique view event.
+   * Called when video playback ends or component unmounts.
+   * Fire-and-forget — failures are silently ignored.
+   */
+  async updateDwellTime(postId, dwellTimeMs) {
+    if (!postId || !dwellTimeMs || dwellTimeMs <= 0) return;
+    try {
+      const token = await getAuthToken();
+      if (!token) return;
+      await apiPatch(
+        `/posts/views/${postId}/dwell`,
+        { dwellTimeMs: Math.round(dwellTimeMs) },
+        10000,
+        token,
+      );
+    } catch (e) {
+      // Fire-and-forget — don't block on failures
+      console.warn('[ViewQueueService] updateDwellTime failed:', e?.message);
+    }
   }
 }
 

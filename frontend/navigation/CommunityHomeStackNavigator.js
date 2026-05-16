@@ -19,7 +19,7 @@ import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen"
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
 import CreateGroupScreen from "../screens/messages/CreateGroupScreen";
 import GroupInfoScreen from "../screens/messages/GroupInfoScreen";
-import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
+// [VIDEO INSIGHTS - DEFERRED] import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
 
 const Stack = createStackNavigator();
 
@@ -137,11 +137,7 @@ export default function CommunityHomeStackNavigator() {
           headerShown: false,
         }}
       />
-      <Stack.Screen
-        name="VideoInsights"
-        component={VideoInsightsScreen}
-        options={{ headerShown: false }}
-      />
+      {/* [VIDEO INSIGHTS - DEFERRED] <Stack.Screen name="VideoInsights" component={VideoInsightsScreen} options={{ headerShown: false }} /> */}
     </Stack.Navigator>
   );
 }

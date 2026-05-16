@@ -82,3 +82,6 @@ CREATE TABLE IF NOT EXISTS video_insights_cache (
 
 -- 4. Add duration_seconds to posts (if not already present)
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS duration_seconds FLOAT DEFAULT 0;
+
+-- 5. Add view_source to unique_view_events for traffic source tracking
+ALTER TABLE unique_view_events ADD COLUMN IF NOT EXISTS view_source VARCHAR(50) DEFAULT NULL;

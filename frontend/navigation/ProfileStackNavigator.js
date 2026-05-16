@@ -10,7 +10,7 @@ import CommunityPublicProfileScreen from "../screens/profile/community/Community
 import CommunityFollowersListScreen from "../screens/profile/community/CommunityFollowersListScreen";
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
 import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
-import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
+// [VIDEO INSIGHTS - DEFERRED] import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
 
 const MemberProfileScreenWithSwipe = (props) => (
   <TabSwipeHandler currentTab="Profile">
@@ -47,11 +47,7 @@ export default function ProfileStackNavigator() {
       />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />
-      <Stack.Screen
-        name="VideoInsights"
-        component={VideoInsightsScreen}
-        options={{ headerShown: false }}
-      />
+      {/* [VIDEO INSIGHTS - DEFERRED] <Stack.Screen name="VideoInsights" component={VideoInsightsScreen} options={{ headerShown: false }} /> */}
     </Stack.Navigator>
   );
 }

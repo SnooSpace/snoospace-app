@@ -52,6 +52,7 @@ const createPost = async (req, res) => {
       aspectRatios,
       mediaTypes,
       cropMetadata,
+      videoDuration,
     } = req.body;
 
     if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0) {
@@ -180,9 +181,15 @@ const createPost = async (req, res) => {
 
     const linkedChallengeId = challengeTag ? challengeTag.id : null;
 
+    // Compute duration_seconds for video posts
+    let durationSeconds = null;
+    if (videoDuration && typeof videoDuration === 'number' && videoDuration > 0) {
+      durationSeconds = Math.round(videoDuration);
+    }
+
     const query = `
-      INSERT INTO posts (author_id, author_type, caption, image_urls, tagged_entities, aspect_ratios, media_types, crop_metadata, video_thumbnail, linked_challenge_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      INSERT INTO posts (author_id, author_type, caption, image_urls, tagged_entities, aspect_ratios, media_types, crop_metadata, video_thumbnail, linked_challenge_id, duration_seconds)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING id, created_at
     `;
 
@@ -197,6 +204,7 @@ const createPost = async (req, res) => {
       validatedCropMetadata ? JSON.stringify(validatedCropMetadata) : null,
       videoThumbnails ? JSON.stringify(videoThumbnails) : null,
       linkedChallengeId,
+      durationSeconds,
     ];
 
     const result = await pool.query(query, values);

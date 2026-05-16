@@ -494,6 +494,8 @@ const ImageUploader = forwardRef(
               preset: "natural_video",
               aspectRatio: displayAspectRatio,  // CAPPED — used for thumbnail/crop frame/feed
               mediaType: "video",
+              // Video duration in seconds (from MediaLibrary asset)
+              durationSeconds: asset.duration || 0,
               // Raw pixel dimensions for CropView re-edit
               imageWidth: asset.width || 1920,
               imageHeight: asset.height || 1080,

@@ -37,7 +37,14 @@ const formatDuration = (sec) => {
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  const d = new Date(dateStr);
+  const datePart = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  let hours = d.getHours();
+  const minutes = d.getMinutes();
+  const ampm = hours >= 12 ? 'pm' : 'am';
+  hours = hours % 12 || 12;
+  const timePart = `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  return `${datePart}, ${timePart}`;
 };
 
 export default function VideoInsightsScreen({ route, navigation }) {

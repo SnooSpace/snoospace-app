@@ -97,11 +97,7 @@ export default function RetentionTab({ data }) {
 
       <InsightCard title="AI insight">
         <Text style={styles.aiText}>
-          Major drop at{' '}
-          <Text style={styles.aiHighlight}>{padTime(data.major_drop_at_seconds)}</Text>
-          {' '}— likely a scene cut or pacing change. Your 3-second hook is performing in the
-          top 12% of Reels this week. Consider adding a text hook just before that drop to
-          retain midpoint viewers.
+          {data.ai_insight || 'Not enough data for AI insights yet.'}
         </Text>
       </InsightCard>
     </View>

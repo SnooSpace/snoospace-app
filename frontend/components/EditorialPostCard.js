@@ -562,21 +562,22 @@ const EditorialPostCard = ({
     isFollowing: post.is_following,
   });
 
-  // ── Video Insights handler (creator only, video posts only) ───────────────
-  const handleVideoInsightsPress = useCallback(async () => {
-    if (!navigation) return;
-    const token = await getAuthToken();
-    navigation.navigate('VideoInsights', {
-      videoId: post.id,
-      token,
-      videoMeta: {
-        title: post.caption || null,
-        thumbnail_url: post.video_thumbnail || null,
-        created_at: post.created_at,
-        duration_seconds: post.duration_seconds || 0,
-      },
-    });
-  }, [navigation, post]);
+  // [VIDEO INSIGHTS - DEFERRED] handleVideoInsightsPress and navigation to VideoInsights screen removed for v1 launch.
+  // Restore this block when re-enabling the feature:
+  // const handleVideoInsightsPress = useCallback(async () => {
+  //   if (!navigation) return;
+  //   const token = await getAuthToken();
+  //   navigation.navigate('VideoInsights', {
+  //     videoId: post.id,
+  //     token,
+  //     videoMeta: {
+  //       title: post.caption || null,
+  //       thumbnail_url: post.video_thumbnail || null,
+  //       created_at: post.created_at,
+  //       duration_seconds: post.duration_seconds || 0,
+  //     },
+  //   });
+  // }, [navigation, post]);
 
   // ── View Stats handler ─────────────────────────────────────────────────────
   const handleViewPress = useCallback(async () => {
@@ -729,16 +730,12 @@ const EditorialPostCard = ({
           </TouchableOpacity>
         )}
 
-        {/* Video Insights button — creator's own video posts only */}
-        {isOwnPost && isVideo && navigation && (
-          <TouchableOpacity
-            style={styles.insightsButton}
-            onPress={handleVideoInsightsPress}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
+        {/* [VIDEO INSIGHTS - DEFERRED] BarChart2 insights button removed for v1 launch.
+          Restore when re-enabling: isOwnPost && isVideo && navigation &&
+          <TouchableOpacity style={styles.insightsButton} onPress={handleVideoInsightsPress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <BarChart2 size={18} color={COLORS.primary} strokeWidth={2} />
           </TouchableOpacity>
-        )}
+        */}
       </View>
 
       {/* Post Text */}
