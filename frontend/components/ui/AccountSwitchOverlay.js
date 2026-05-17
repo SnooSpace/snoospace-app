@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import EventBus from "../../utils/EventBus";
+import * as Haptics from "expo-haptics";
 
 const { width } = Dimensions.get("window");
 
@@ -115,6 +116,8 @@ const AccountSwitchOverlay = () => {
       setToastData(data);
       toastY.setValue(-70);
       toastOpacity.setValue(0);
+      
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       Animated.parallel([
         Animated.timing(toastOpacity, {

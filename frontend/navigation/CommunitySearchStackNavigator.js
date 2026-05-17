@@ -12,12 +12,22 @@ import CommunityFollowersListScreen from "../screens/profile/community/Community
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 
+import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
+
+const CommunityTabs = ["Home", "Search", "Dashboard", "Requests", "Profile"];
+
+const SearchScreenWithSwipe = (props) => (
+  <TabSwipeHandler currentTab="Search" tabs={CommunityTabs}>
+    <SearchScreen {...props} />
+  </TabSwipeHandler>
+);
+
 const Stack = createStackNavigator();
 
 export default function CommunitySearchStackNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="CommunitySearchHome" component={SearchScreen} />
+      <Stack.Screen name="CommunitySearchHome" component={SearchScreenWithSwipe} />
       <Stack.Screen
         name="CommunityPublicProfile"
         component={CommunityPublicProfileScreen}

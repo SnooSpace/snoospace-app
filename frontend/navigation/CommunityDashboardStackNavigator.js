@@ -13,6 +13,16 @@ import QRScannerScreen from "../screens/events/QRScannerScreen";
 import ShareTicketScreen from "../screens/events/ShareTicketScreen";
 import AudienceIntelligenceScreen from "../screens/home/community/AudienceIntelligenceScreen";
 
+import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
+
+const CommunityTabs = ["Home", "Search", "Dashboard", "Requests", "Profile"];
+
+const DashboardHomeWithSwipe = (props) => (
+  <TabSwipeHandler currentTab="Dashboard" tabs={CommunityTabs}>
+    <CommunityDashboardScreen {...props} />
+  </TabSwipeHandler>
+);
+
 const Stack = createStackNavigator();
 
 export default function CommunityDashboardStackNavigator() {
@@ -21,7 +31,7 @@ export default function CommunityDashboardStackNavigator() {
       screenOptions={{ headerShown: false }}
       initialRouteName="DashboardHome"
     >
-      <Stack.Screen name="DashboardHome" component={CommunityDashboardScreen} />
+      <Stack.Screen name="DashboardHome" component={DashboardHomeWithSwipe} />
       <Stack.Screen
         name="CommunityEventsList"
         component={CommunityEventsListScreen}

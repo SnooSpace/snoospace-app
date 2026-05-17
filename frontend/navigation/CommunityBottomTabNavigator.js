@@ -12,6 +12,7 @@ import CommunityProfileStackNavigator from "./CommunityProfileStackNavigator";
 import { createSwipeablePagerNavigator } from "./SwipeablePagerNavigator";
 import { getActiveAccount, getAllAccounts, switchAccount } from "../api/auth";
 import EventBus from "../utils/EventBus";
+import * as Haptics from "expo-haptics";
 
 const Tab = createSwipeablePagerNavigator();
 
@@ -25,6 +26,10 @@ const ProfileTabButton = (props) => {
 
     if (now - lastTapRef.current < DOUBLE_PRESS_DELAY) {
       lastTapRef.current = 0;
+      // Provide instant feedback
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      EventBus.emit("account-switch-start");
+
       try {
         const allAccounts = await getAllAccounts();
         if (allAccounts && allAccounts.length > 1) {
@@ -34,7 +39,6 @@ const ProfileTabButton = (props) => {
             if (activeIndex !== -1) {
               const nextIndex = (activeIndex + 1) % allAccounts.length;
               const nextAccount = allAccounts[nextIndex];
-              EventBus.emit("account-switch-start");
               await switchAccount(nextAccount.id);
               EventBus.emit("account-switch-done", {
                 name: nextAccount.name || nextAccount.username || "",

@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { mockData } from '../../../data/mockData';
 import SnooLoader from "../../../components/ui/SnooLoader";
+import TabSwipeHandler from "../../../components/navigation/TabSwipeHandler";
 
 const PRIMARY_COLOR = '#6A0DAD';
 const TEXT_COLOR = '#1D1D1F';
@@ -227,58 +228,60 @@ export default function CommunityRequestsScreen({ navigation }) {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Requests</Text>
-      </View>
+    <TabSwipeHandler currentTab="Requests" tabs={["Home", "Search", "Dashboard", "Requests", "Profile"]}>
+      <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Requests</Text>
+        </View>
 
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'Received' && styles.activeTab]}
-          onPress={() => setActiveTab('Received')}
-        >
-          <Text style={[
-            styles.tabText,
-            activeTab === 'Received' && styles.activeTabText
-          ]}>
-            Received
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'Sent' && styles.activeTab]}
-          onPress={() => setActiveTab('Sent')}
-        >
-          <Text style={[
-            styles.tabText,
-            activeTab === 'Sent' && styles.activeTabText
-          ]}>
-            Sent
-          </Text>
-        </TouchableOpacity>
-      </View>
+        {/* Tabs */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'Received' && styles.activeTab]}
+            onPress={() => setActiveTab('Received')}
+          >
+            <Text style={[
+              styles.tabText,
+              activeTab === 'Received' && styles.activeTabText
+            ]}>
+              Received
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'Sent' && styles.activeTab]}
+            onPress={() => setActiveTab('Sent')}
+          >
+            <Text style={[
+              styles.tabText,
+              activeTab === 'Sent' && styles.activeTabText
+            ]}>
+              Sent
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* Requests List */}
-      <View style={styles.requestsContainer}>
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <SnooLoader size="large" color={PRIMARY_COLOR} />
-            <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Loading requests...</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={requests}
-            renderItem={renderRequest}
-            keyExtractor={(item) => item.id.toString()}
-            ListEmptyComponent={renderEmpty}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContainer}
-          />
-        )}
-      </View>
-    </SafeAreaView>
+        {/* Requests List */}
+        <View style={styles.requestsContainer}>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <SnooLoader size="large" color={PRIMARY_COLOR} />
+              <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Loading requests...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={requests}
+              renderItem={renderRequest}
+              keyExtractor={(item) => item.id.toString()}
+              ListEmptyComponent={renderEmpty}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.listContainer}
+            />
+          )}
+        </View>
+      </SafeAreaView>
+    </TabSwipeHandler>
   );
 }
 

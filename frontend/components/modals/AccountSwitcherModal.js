@@ -6,6 +6,7 @@ import { getAllAccounts, switchAccount, validateToken } from "../../api/auth";
 import * as accountManager from "../../utils/accountManager";
 import hapticsService from "../../services/HapticsService";
 import SnooLoader from "../ui/SnooLoader";
+import EventBus from "../../utils/EventBus";
 
 /**
  * Account Switcher Modal - Instagram-style
@@ -187,6 +188,13 @@ export default function AccountSwitcherModal({
         console.log("[AccountSwitcher] Calling onAccountSwitch...");
         onAccountSwitch(account);
       }
+      
+      // Emit event to show the toast notification
+      EventBus.emit("account-switch-done", {
+        name: account.name || account.username || "",
+        username: account.username || "",
+        photoUrl: account.profilePicture || null,
+      });
 
       // Small delay to ensure navigation completes
       await new Promise((resolve) => setTimeout(resolve, 100));
