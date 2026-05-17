@@ -1477,6 +1477,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+
   header: {
     flexDirection: "row",
     justifyContent: "space-between",

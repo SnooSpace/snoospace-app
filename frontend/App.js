@@ -32,6 +32,7 @@ import { VideoProvider } from "./context/VideoContext";
 import AnimatedSplashScreen from "./components/ui/AnimatedSplashScreen";
 
 import { ToastProvider } from "./context/ToastContext";
+import AccountSwitchOverlay from "./components/ui/AccountSwitchOverlay";
 
 function AppContent() {
   const { currentBanner, setCurrentBanner } = useNotifications();
@@ -66,6 +67,7 @@ function AppContent() {
         onPress={handleBannerPress}
         onDismiss={() => setCurrentBanner(null)}
       />
+      <AccountSwitchOverlay />
     </>
   );
 }

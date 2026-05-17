@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform } from "react-native";
+import { Platform, Pressable } from "react-native";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 
 // Import Community screens
@@ -11,7 +11,7 @@ import CommunityProfileStackNavigator from "./CommunityProfileStackNavigator";
 
 import { createSwipeablePagerNavigator } from "./SwipeablePagerNavigator";
 import { getActiveAccount, getAllAccounts, switchAccount } from "../api/auth";
-import { Pressable } from "react-native";
+import EventBus from "../utils/EventBus";
 
 const Tab = createSwipeablePagerNavigator();
 
@@ -34,12 +34,20 @@ const ProfileTabButton = (props) => {
             if (activeIndex !== -1) {
               const nextIndex = (activeIndex + 1) % allAccounts.length;
               const nextAccount = allAccounts[nextIndex];
+              EventBus.emit("account-switch-start");
               await switchAccount(nextAccount.id);
+              EventBus.emit("account-switch-done", {
+                name: nextAccount.name || nextAccount.username || "",
+                username: nextAccount.username || "",
+                photoUrl: nextAccount.profilePicture || null,
+              });
             }
           }
         }
       } catch (err) {
         console.error("Error cycling accounts:", err);
+      } finally {
+        EventBus.emit("account-switch-end");
       }
     } else {
       lastTapRef.current = now;

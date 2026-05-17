@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { View, Image, StyleSheet, Platform } from "react-native";
+import { View, Image, StyleSheet, ActivityIndicator } from "react-native";
 import { User } from "lucide-react-native";
 import { getAuthToken, getAuthEmail, getActiveAccount } from "../api/auth";
 import { apiPost } from "../api/client";
 import { COLORS } from "../constants/theme";
+import EventBus from "../utils/EventBus";
 
 const ProfileTabIcon = ({ focused, color, userType = "member" }) => {
   const [photoUrl, setPhotoUrl] = useState(null);
+  const [isSwitching, setIsSwitching] = useState(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -38,6 +40,32 @@ const ProfileTabIcon = ({ focused, color, userType = "member" }) => {
 
     fetchProfile();
   }, [userType]);
+
+  // Listen to account switch events to show loading indicator
+  useEffect(() => {
+    const unsubStart = EventBus.on("account-switch-start", () => {
+      setIsSwitching(true);
+    });
+    const unsubEnd = EventBus.on("account-switch-end", () => {
+      setIsSwitching(false);
+    });
+    const unsubDone = EventBus.on("account-switch-done", () => {
+      setIsSwitching(false);
+    });
+    return () => {
+      if (unsubStart) unsubStart();
+      if (unsubEnd) unsubEnd();
+      if (unsubDone) unsubDone();
+    };
+  }, []);
+
+  if (isSwitching) {
+    return (
+      <View style={styles.switchingContainer}>
+        <ActivityIndicator size="small" color="#3565F2" />
+      </View>
+    );
+  }
 
   if (photoUrl) {
     return (
@@ -84,6 +112,12 @@ const styles = StyleSheet.create({
     borderRadius: 15,
   },
   fallbackContainer: {
+    width: 30,
+    height: 30,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  switchingContainer: {
     width: 30,
     height: 30,
     alignItems: "center",

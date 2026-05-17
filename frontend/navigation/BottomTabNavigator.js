@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { View, StyleSheet, Platform, Dimensions, Pressable } from "react-native";
+import EventBus from "../utils/EventBus";
 import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { House, Search, Compass, Calendar, User } from "lucide-react-native";
 import { BlurView } from "expo-blur";
@@ -67,12 +68,20 @@ const ProfileTabButton = (props) => {
             if (activeIndex !== -1) {
               const nextIndex = (activeIndex + 1) % allAccounts.length;
               const nextAccount = allAccounts[nextIndex];
+              EventBus.emit("account-switch-start");
               await switchAccount(nextAccount.id);
+              EventBus.emit("account-switch-done", {
+                name: nextAccount.name || nextAccount.username || "",
+                username: nextAccount.username || "",
+                photoUrl: nextAccount.profilePicture || null,
+              });
             }
           }
         }
       } catch (err) {
         console.error("Error cycling accounts:", err);
+      } finally {
+        EventBus.emit("account-switch-end");
       }
     } else {
       lastTapRef.current = now;
