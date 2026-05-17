@@ -702,6 +702,15 @@ export async function getRecentChatUsers(token) {
 }
 
 /**
+ * Search share recipients (members, communities, group chats)
+ * @param {string} query - Search query (empty = recent contacts)
+ */
+export async function searchShareRecipients(query, token) {
+  const q = encodeURIComponent(query || "");
+  return apiGet(`/chat/share-search?q=${q}`, 10000, token);
+}
+
+/**
  * Save a post
  */
 export async function savePost(postId, token) {

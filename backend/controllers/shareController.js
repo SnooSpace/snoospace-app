@@ -157,7 +157,49 @@ const sharePost = async (req, res) => {
     // Send message to each recipient
     const blockedRecipients = [];
     for (const recipient of recipients) {
-      // ── Messaging restriction check ───────────────────────────────────────
+      // ── GROUP CHAT recipient ───────────────────────────────────────────────
+      // When the frontend sends type:"group" it includes the conversationId
+      // directly — no DM creation needed, just verify membership + restriction.
+      if (recipient.type === "group") {
+        const convId = recipient.conversationId;
+        if (!convId) { blockedRecipients.push(recipient.id); continue; }
+
+        const cpCheck = await pool.query(
+          `SELECT cp.role, c.messaging_restricted
+           FROM conversations c
+           JOIN conversation_participants cp
+             ON cp.conversation_id = c.id
+             AND cp.participant_id = $1 AND cp.participant_type = $2
+           WHERE c.id = $3 AND c.is_group = true`,
+          [userId, userType, convId],
+        );
+        if (cpCheck.rows.length === 0) { blockedRecipients.push(recipient.id); continue; }
+
+        const { role, messaging_restricted } = cpCheck.rows[0];
+        if (messaging_restricted && role !== "admin") {
+          blockedRecipients.push(recipient.id);
+          continue;
+        }
+
+        const messageText = message || "Shared a post with you";
+        await pool.query(
+          `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type, metadata)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [convId, userId, userType, messageText, "post_share", JSON.stringify(postPreview)],
+        );
+        await pool.query(
+          `UPDATE conversations SET last_message_at = NOW() WHERE id = $1`,
+          [convId],
+        );
+        await pool.query(
+          `INSERT INTO post_shares (post_id, sharer_id, sharer_type, share_type, recipient_id, recipient_type)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [postId, userId, userType, "internal", convId, "group"],
+        );
+        continue;
+      }
+
+      // ── DM / COMMUNITY recipient ──────────────────────────────────────────
       // If the recipient is a community, find the group conversation between
       // the current user and that community. If messaging_restricted = true
       // and the current user is not an admin, block the share — same rule
@@ -179,7 +221,7 @@ const sharePost = async (req, res) => {
           const { messaging_restricted, role } = groupConvCheck.rows[0];
           if (messaging_restricted && role !== "admin") {
             blockedRecipients.push(recipient.id);
-            continue; // Skip this recipient — sharing is restricted
+            continue;
           }
         }
       }

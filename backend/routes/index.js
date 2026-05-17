@@ -913,6 +913,11 @@ router.get(
   authMiddleware,
   ShareController.getRecentChatUsers,
 );
+router.get(
+  "/chat/share-search",
+  authMiddleware,
+  ShareController.searchShareRecipients,
+);
 
 // Save routes
 router.post("/posts/:postId/save", authMiddleware, SaveController.savePost);
