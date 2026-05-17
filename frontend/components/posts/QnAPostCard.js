@@ -974,8 +974,24 @@ const styles = StyleSheet.create({
   },
   replyCountText: {
     fontSize: 14,
-    color: "#9CA3AF", // Muted gray like Prompt card
+    color: "#9CA3AF",
     fontWeight: "400",
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "transparent",
+  },
+  menuContainerModal: {
+    position: "absolute",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 8,
+    minWidth: 160,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
   },
 });
 
