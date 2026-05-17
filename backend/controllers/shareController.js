@@ -414,8 +414,224 @@ const getRecentChatUsers = async (req, res) => {
   }
 };
 
+/**
+ * Search share recipients: members, communities, and group chats the user belongs to.
+ * Empty query → recent DM partners + group chats. Non-empty → live search.
+ * GET /chat/share-search?q=<query>
+ */
+const searchShareRecipients = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userType = req.user.type;
+    const q = (req.query.q || "").trim();
+    const limit = Math.min(parseInt(req.query.limit) || 30, 50);
+
+    // ── Helper: check share restriction for a community ──────────────────────
+    const getShareRestricted = async (communityId) => {
+      const check = await pool.query(
+        `SELECT c.messaging_restricted, cp.role
+         FROM conversations c
+         JOIN conversation_participants cp
+           ON cp.conversation_id = c.id
+           AND cp.participant_id = $1 AND cp.participant_type = $2
+         WHERE c.is_group = true
+           AND c.group_owner_id = $3 AND c.group_owner_type = 'community'
+         LIMIT 1`,
+        [userId, userType, communityId],
+      );
+      if (check.rows.length === 0) return false;
+      const { messaging_restricted, role } = check.rows[0];
+      return messaging_restricted === true && role !== "admin";
+    };
+
+    if (!q) {
+      // ── Empty query: recent DM partners + group chats ────────────────────
+      const perLimit = Math.ceil(limit / 2);
+
+      const recentDMs = await pool.query(
+        `SELECT DISTINCT
+           CASE WHEN participant1_id=$1 AND participant1_type=$2 THEN participant2_id ELSE participant1_id END AS user_id,
+           CASE WHEN participant1_id=$1 AND participant1_type=$2 THEN participant2_type ELSE participant1_type END AS user_type,
+           last_message_at
+         FROM conversations
+         WHERE is_group = false
+           AND ((participant1_id=$1 AND participant1_type=$2) OR (participant2_id=$1 AND participant2_type=$2))
+         ORDER BY last_message_at DESC NULLS LAST
+         LIMIT $3`,
+        [userId, userType, perLimit],
+      );
+
+      const recentGroups = await pool.query(
+        `SELECT c.id, c.group_name, c.group_avatar_url, c.messaging_restricted,
+                cp.role, c.last_message_at
+         FROM conversations c
+         JOIN conversation_participants cp
+           ON cp.conversation_id = c.id AND cp.participant_id=$1 AND cp.participant_type=$2
+         WHERE c.is_group = true
+         ORDER BY c.last_message_at DESC NULLS LAST
+         LIMIT $3`,
+        [userId, userType, perLimit],
+      );
+
+      const users = [];
+
+      for (const conv of recentDMs.rows) {
+        let row = null;
+        if (conv.user_type === "member") {
+          const r = await pool.query(
+            "SELECT id, name as full_name, username, profile_photo_url FROM members WHERE id=$1",
+            [conv.user_id],
+          );
+          row = r.rows[0];
+        } else if (conv.user_type === "community") {
+          const r = await pool.query(
+            "SELECT id, name, username, logo_url as profile_photo_url FROM communities WHERE id=$1",
+            [conv.user_id],
+          );
+          row = r.rows[0];
+        } else if (conv.user_type === "sponsor") {
+          const r = await pool.query(
+            "SELECT id, brand_name as name, username, logo_url as profile_photo_url FROM sponsors WHERE id=$1",
+            [conv.user_id],
+          );
+          row = r.rows[0];
+        } else if (conv.user_type === "venue") {
+          const r = await pool.query(
+            "SELECT id, name, username, logo_url as profile_photo_url FROM venues WHERE id=$1",
+            [conv.user_id],
+          );
+          row = r.rows[0];
+        }
+        if (row) {
+          const shareRestricted = conv.user_type === "community"
+            ? await getShareRestricted(conv.user_id)
+            : false;
+          users.push({
+            ...row,
+            type: conv.user_type,
+            lastMessageAt: conv.last_message_at,
+            shareRestricted,
+            isGroup: false,
+          });
+        }
+      }
+
+      for (const g of recentGroups.rows) {
+        const shareRestricted = g.messaging_restricted === true && g.role !== "admin";
+        users.push({
+          id: g.id,
+          name: g.group_name,
+          full_name: g.group_name,
+          profile_photo_url: g.group_avatar_url || null,
+          type: "group",
+          isGroup: true,
+          conversationId: g.id,
+          myRole: g.role,
+          lastMessageAt: g.last_message_at,
+          shareRestricted,
+        });
+      }
+
+      return res.json({ users });
+    }
+
+    // ── Active query: live search ─────────────────────────────────────────────
+    const like = `%${q}%`;
+    const perTypeLimit = Math.ceil(limit / 3);
+
+    let membersQuery, membersParams;
+    if (userType === "member") {
+      membersQuery = `SELECT id, name as full_name, username, profile_photo_url
+                      FROM members
+                      WHERE (LOWER(COALESCE(username,'')) LIKE LOWER($1) OR LOWER(name) LIKE LOWER($1))
+                        AND id <> $2
+                      ORDER BY name ASC LIMIT $3`;
+      membersParams = [like, userId, perTypeLimit];
+    } else {
+      membersQuery = `SELECT id, name as full_name, username, profile_photo_url
+                      FROM members
+                      WHERE LOWER(COALESCE(username,'')) LIKE LOWER($1) OR LOWER(name) LIKE LOWER($1)
+                      ORDER BY name ASC LIMIT $2`;
+      membersParams = [like, perTypeLimit];
+    }
+
+    let communitiesQuery, communitiesParams;
+    if (userType === "community") {
+      communitiesQuery = `SELECT id, name, username, logo_url as profile_photo_url
+                          FROM communities
+                          WHERE (LOWER(COALESCE(username,'')) LIKE LOWER($1) OR LOWER(name) LIKE LOWER($1))
+                            AND id <> $2
+                          ORDER BY name ASC LIMIT $3`;
+      communitiesParams = [like, userId, perTypeLimit];
+    } else {
+      communitiesQuery = `SELECT id, name, username, logo_url as profile_photo_url
+                          FROM communities
+                          WHERE LOWER(COALESCE(username,'')) LIKE LOWER($1) OR LOWER(name) LIKE LOWER($1)
+                          ORDER BY name ASC LIMIT $2`;
+      communitiesParams = [like, perTypeLimit];
+    }
+
+    const groupsQuery = `
+      SELECT c.id, c.group_name, c.group_avatar_url, c.messaging_restricted, cp.role
+      FROM conversations c
+      JOIN conversation_participants cp
+        ON cp.conversation_id = c.id AND cp.participant_id=$1 AND cp.participant_type=$2
+      WHERE c.is_group = true
+        AND LOWER(c.group_name) LIKE LOWER($3)
+      ORDER BY c.group_name ASC LIMIT $4`;
+    const groupsParams = [userId, userType, like, perTypeLimit];
+
+    const [membersResult, communitiesResult, groupsResult] = await Promise.all([
+      pool.query(membersQuery, membersParams).catch(() => ({ rows: [] })),
+      pool.query(communitiesQuery, communitiesParams).catch(() => ({ rows: [] })),
+      pool.query(groupsQuery, groupsParams).catch(() => ({ rows: [] })),
+    ]);
+
+    const users = [];
+
+    for (const row of membersResult.rows) {
+      users.push({ ...row, type: "member", isGroup: false, shareRestricted: false });
+    }
+
+    for (const row of communitiesResult.rows) {
+      const shareRestricted = await getShareRestricted(row.id);
+      users.push({
+        id: row.id,
+        name: row.name,
+        full_name: row.name,
+        username: row.username,
+        profile_photo_url: row.profile_photo_url,
+        type: "community",
+        isGroup: false,
+        shareRestricted,
+      });
+    }
+
+    for (const g of groupsResult.rows) {
+      const shareRestricted = g.messaging_restricted === true && g.role !== "admin";
+      users.push({
+        id: g.id,
+        name: g.group_name,
+        full_name: g.group_name,
+        profile_photo_url: g.group_avatar_url || null,
+        type: "group",
+        isGroup: true,
+        conversationId: g.id,
+        myRole: g.role,
+        shareRestricted,
+      });
+    }
+
+    res.json({ users });
+  } catch (error) {
+    console.error("Search share recipients error:", error);
+    res.status(500).json({ error: "Failed to search recipients" });
+  }
+};
+
 module.exports = {
   sharePost,
   getPostShares,
   getRecentChatUsers,
+  searchShareRecipients,
 };
