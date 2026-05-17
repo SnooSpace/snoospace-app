@@ -8,6 +8,7 @@ import {
   getApplicationDetail,
   updateApplicationStatus,
 } from "../../../api/opportunities";
+import { useToast } from "../../../context/ToastContext";
 
 const COLORS = {
   background: "#FAFAFA",
@@ -34,6 +35,7 @@ const STATUS_CONFIG = {
 
 export default function ApplicantDetailScreen({ route, navigation }) {
   const { applicationId } = route.params || {};
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [application, setApplication] = useState(null);
@@ -81,7 +83,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
               });
               if (response?.success) {
                 setApplication({ ...application, status: newStatus });
-                Alert.alert("Success", `Application ${newStatus} successfully`);
+                showToast("Success", `Application ${newStatus} successfully`);
               }
             } catch (err) {
               console.error("Error updating status:", err);

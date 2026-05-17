@@ -10,7 +10,7 @@ import React, {
   useRef,
   useMemo,
 } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, RefreshControl, TextInput } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, RefreshControl, TextInput } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   SafeAreaView,
@@ -364,7 +364,26 @@ const PromptRepliesScreen = ({ route, navigation }) => {
             </Text>
           </View>
         </TouchableOpacity>
-        <Text style={styles.submissionContent}>{submission.content}</Text>
+        {/* Content: images or text */}
+        {submission.media_urls && submission.media_urls.length > 0 ? (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.imageStrip}
+            contentContainerStyle={styles.imageStripContent}
+          >
+            {submission.media_urls.map((url, idx) => (
+              <Image
+                key={idx}
+                source={{ uri: url }}
+                style={styles.submissionImage}
+                resizeMode="cover"
+              />
+            ))}
+          </ScrollView>
+        ) : submission.content ? (
+          <Text style={styles.submissionContent}>{submission.content}</Text>
+        ) : null}
       </View>
     );
   };
@@ -821,6 +840,20 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     color: COLORS.textPrimary,
     lineHeight: 22,
+  },
+  imageStrip: {
+    marginTop: SPACING.s,
+    marginHorizontal: -SPACING.xs,
+  },
+  imageStripContent: {
+    gap: 8,
+    paddingHorizontal: SPACING.xs,
+  },
+  submissionImage: {
+    width: 160,
+    height: 160,
+    borderRadius: 12,
+    backgroundColor: COLORS.screenBackground,
   },
   // Reply styles
   // Thread container - no global vertical line

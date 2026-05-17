@@ -50,6 +50,7 @@ import {
 import CountdownTimer from "../CountdownTimer";
 import SnooLoader from "../ui/SnooLoader";
 import { viewQueueService } from "../../services/ViewQueueService";
+import { useToast } from "../../context/ToastContext";
 import {
   getExtensionBadgeText,
   getTimeRemaining,
@@ -69,6 +70,7 @@ const ChallengePostCard = ({
   currentUserType,
 }) => {
   const navigation = useNavigation();
+  const { showToast } = useToast();
   const typeData = post.type_data || {};
   const [hasJoined, setHasJoined] = useState(post.has_joined || false);
   const [userParticipation, setUserParticipation] = useState(
@@ -241,7 +243,7 @@ const ChallengePostCard = ({
       }
 
       setShowEditModal(false);
-      Alert.alert("Success", "Post updated successfully");
+      showToast("Success", "Post updated successfully");
     } catch (error) {
       console.error("Failed to update post:", error);
       Alert.alert("Error", error.message || "Failed to update post");

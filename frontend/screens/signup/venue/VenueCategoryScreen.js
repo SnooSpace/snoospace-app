@@ -18,6 +18,7 @@ import ProgressBar from '../../../components/Progressbar';
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 import { ArrowLeft, Plus } from "lucide-react-native";
+import { useToast } from "../../../context/ToastContext";
 
 // --- Constants & Styling ---
 const { width } = Dimensions.get('window');
@@ -67,6 +68,7 @@ const CategoryChip = ({ category, isSelected, onPress }) => (
  */
 const VenueCategoryScreen = ({ navigation, route }) => {
   const { email, accessToken, name, logo_url, bio, phone } = route.params || {};
+  const { showToast } = useToast();
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [availableCategories, setAvailableCategories] = useState(defaultCategories);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -140,7 +142,7 @@ const VenueCategoryScreen = ({ navigation, route }) => {
     setShowCreateModal(false);
     setNewCategoryName('');
     
-    Alert.alert('Success', 'New category created successfully!');
+    showToast("Success", "New category created successfully!");
   };
 
   const handleCancelCreate = () => {

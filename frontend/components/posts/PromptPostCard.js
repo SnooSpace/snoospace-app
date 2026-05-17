@@ -4,7 +4,22 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet, TextInput, Modal, KeyboardAvoidingView, Platform, ScrollView, Alert, Dimensions, Pressable } from "react-native";
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  TextInput,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Alert,
+  Dimensions,
+  Pressable,
+} from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -27,13 +42,19 @@ import {
   Bookmark,
   Ellipsis,
   MoveRight,
+  Image as LucideImage,
+  Camera,
 } from "lucide-react-native";
 import { savePost, unsavePost } from "../../api/client";
+import { uploadMultipleImages } from "../../api/cloudinary";
 import { postService } from "../../services/postService";
 import PromptEditModal from "./PromptEditModal";
 import EventBus from "../../utils/EventBus";
 import SnooLoader from "../ui/SnooLoader";
+import HapticsService from "../../services/HapticsService";
 import { viewQueueService } from "../../services/ViewQueueService";
+import { useToast } from "../../context/ToastContext";
+import CustomImagePicker from "../CustomImagePicker";
 
 const PromptPostCard = ({
   post,
@@ -49,6 +70,7 @@ const PromptPostCard = ({
   currentUserType,
 }) => {
   const navigation = useNavigation();
+  const { showToast } = useToast();
   const typeData = post.type_data || {};
   const [hasSubmitted, setHasSubmitted] = useState(post.has_submitted || false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
@@ -57,7 +79,11 @@ const PromptPostCard = ({
   );
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [submissionText, setSubmissionText] = useState("");
+  const [selectedImages, setSelectedImages] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCustomPicker, setShowCustomPicker] = useState(false);
+
+  const submissionType = typeData.submission_type || "text";
   const [submissionCount, setSubmissionCount] = useState(
     typeData.submission_count || 0,
   );
@@ -80,17 +106,27 @@ const PromptPostCard = ({
   const [likeCount, setLikeCount] = useState(post.like_count || 0);
   const [isLiking, setIsLiking] = useState(false);
   const [isSaved, setIsSaved] = useState(post.is_saved || false);
-  const [saveCount, setSaveCount] = useState(post.save_count || post.saves_count || 0);
+  const [saveCount, setSaveCount] = useState(
+    post.save_count || post.saves_count || 0,
+  );
 
   useEffect(() => {
     setIsLiked(post.is_liked === true);
     setLikeCount(post.like_count || 0);
     setIsSaved(post.is_saved || false);
     setSaveCount(post.save_count || post.saves_count || 0);
-  }, [post.is_liked, post.like_count, post.is_saved, post.save_count, post.saves_count]);
+  }, [
+    post.is_liked,
+    post.like_count,
+    post.is_saved,
+    post.save_count,
+    post.saves_count,
+  ]);
 
   // ── View Tracking ─────────────────────────────────────────────────────────
-  const [viewCount, setViewCount] = useState(post.public_view_count || post.view_count || 0);
+  const [viewCount, setViewCount] = useState(
+    post.public_view_count || post.view_count || 0,
+  );
   const dwellTimerRef = useRef(null);
 
   useEffect(() => {
@@ -98,21 +134,28 @@ const PromptPostCard = ({
     const alreadyViewed = viewQueueService.hasViewed(post.id);
     if (!alreadyViewed) {
       dwellTimerRef.current = setTimeout(() => {
-        viewQueueService.addQualifiedView(post.id, { postType: "prompt", trigger: "dwell" });
+        viewQueueService.addQualifiedView(post.id, {
+          postType: "prompt",
+          trigger: "dwell",
+        });
       }, DWELL_THRESHOLD);
     } else {
       dwellTimerRef.current = setTimeout(() => {
         viewQueueService.addRepeatView(post.id, "revisit");
       }, DWELL_THRESHOLD);
     }
-    return () => { if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current); };
+    return () => {
+      if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
+    };
   }, [post.id]);
 
   useEffect(() => {
     const unsubscribe = EventBus.on("post-view-updated", (payload) => {
       if (payload?.postId === post.id) setViewCount((prev) => prev + 1);
     });
-    return () => { if (unsubscribe) unsubscribe(); };
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [post.id]);
 
   const handleLike = async () => {
@@ -203,7 +246,7 @@ const PromptPostCard = ({
       }
 
       setShowEditModal(false);
-      Alert.alert("Success", "Post updated successfully");
+      showToast("Success", "Post updated successfully");
     } catch (error) {
       console.error("Failed to update post:", error);
       Alert.alert("Error", error.message || "Failed to update post");
@@ -249,25 +292,82 @@ const PromptPostCard = ({
     }
   };
 
-  const handleSubmit = async () => {
-    if (!submissionText.trim() || isSubmitting) return;
+  const pickImage = () => {
+    HapticsService.triggerImpactLight();
+    setShowCustomPicker(true);
+  };
 
-    // Client-side length guard (mirrors backend validation)
-    if (submissionText.length > maxLength) {
-      Alert.alert(
-        "Response too long",
-        `Please shorten your response to ${maxLength} characters or less. You are currently at ${submissionText.length} characters.`,
-      );
-      return;
+  const handleCustomPickerDone = (assets) => {
+    const newUris = assets.map((a) => a.uri);
+    setSelectedImages((prev) => [...prev, ...newUris].slice(0, 5));
+    setShowCustomPicker(false);
+  };
+
+  const takePhoto = async () => {
+    HapticsService.triggerImpactLight();
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission needed",
+          "Please grant camera access to take photos",
+        );
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.85 });
+      if (!result.canceled && result.assets?.[0]) {
+        setSelectedImages((prev) =>
+          [...prev, result.assets[0].uri].slice(0, 5),
+        );
+      }
+    } catch (err) {
+      Alert.alert("Error", "Failed to take photo");
+    }
+  };
+
+  const removeImage = (index) => {
+    HapticsService.triggerImpactLight();
+    setSelectedImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
+
+    if (submissionType === "text") {
+      if (!submissionText.trim()) return;
+      // Client-side length guard
+      if (submissionText.length > maxLength) {
+        Alert.alert(
+          "Response too long",
+          `Please shorten your response to ${maxLength} characters or less.`,
+        );
+        return;
+      }
+    } else if (submissionType === "image") {
+      if (selectedImages.length === 0) {
+        Alert.alert("Required", "Please add at least one image");
+        return;
+      }
     }
 
     setIsSubmitting(true);
     try {
       const token = await getAuthToken();
+
+      let uploadedUrls = [];
+      if (submissionType === "image" && selectedImages.length > 0) {
+        uploadedUrls = await uploadMultipleImages(selectedImages);
+      }
+
+      const body =
+        submissionType === "image"
+          ? { media_urls: uploadedUrls }
+          : { content: submissionText.trim() };
+
       const response = await apiPost(
         `/posts/${post.id}/submissions`,
-        { content: submissionText.trim() },
-        15000,
+        body,
+        30000,
         token,
       );
 
@@ -277,6 +377,7 @@ const PromptPostCard = ({
         setSubmissionCount((prev) => prev + 1);
         setShowSubmitModal(false);
         setSubmissionText("");
+        setSelectedImages([]);
       }
     } catch (error) {
       console.error("Error submitting response:", error);
@@ -391,7 +492,12 @@ const PromptPostCard = ({
             style={styles.modalBackdrop}
             onPress={() => setShowMenu(false)}
           >
-            <View style={[styles.menuContainerModal, { top: menuPosition.y, right: menuPosition.x }]}>
+            <View
+              style={[
+                styles.menuContainerModal,
+                { top: menuPosition.y, right: menuPosition.x },
+              ]}
+            >
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => {
@@ -461,14 +567,32 @@ const PromptPostCard = ({
         </View>
       ) : (
         <TouchableOpacity
-          style={styles.tapToAnswerButton}
+          style={[
+            styles.tapToAnswerButton,
+            submissionStatus === "rejected" && styles.tapToAnswerButtonRetry,
+          ]}
           onPress={() => setShowSubmitModal(true)}
           activeOpacity={0.8}
         >
           <View style={styles.tapIconContainer}>
-            <Ionicons name="pencil" size={16} color="#9CA3AF" />
+            {submissionStatus === "rejected" ? (
+              <Ionicons name="refresh" size={16} color="#D97706" />
+            ) : submissionType === "image" ? (
+              <Camera size={16} color="#9CA3AF" />
+            ) : (
+              <Ionicons name="pencil" size={16} color="#9CA3AF" />
+            )}
           </View>
-          <Text style={styles.tapToAnswerText}>Tap to answer...</Text>
+          <Text
+            style={[
+              styles.tapToAnswerText,
+              submissionStatus === "rejected" && styles.tapToAnswerTextRetry,
+            ]}
+          >
+            {submissionStatus === "rejected"
+              ? "Try again..."
+              : "Tap to answer..."}
+          </Text>
         </TouchableOpacity>
       )}
 
@@ -529,9 +653,7 @@ const PromptPostCard = ({
         {/* Views */}
         <View style={styles.engagementButton}>
           <ChartNoAxesCombined size={22} color="#5e8d9b" />
-          <Text style={styles.engagementCount}>
-            {formatCount(viewCount)}
-          </Text>
+          <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
         </View>
 
         {/* Share */}
@@ -550,9 +672,7 @@ const PromptPostCard = ({
             fill={isSaved ? "#5e8d9b" : "transparent"}
           />
           {saveCount > 0 && (
-            <Text style={styles.engagementCount}>
-              {formatCount(saveCount)}
-            </Text>
+            <Text style={styles.engagementCount}>{formatCount(saveCount)}</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -579,36 +699,108 @@ const PromptPostCard = ({
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.modalPrompt}>{typeData.prompt_text}</Text>
 
-            <TextInput
-              style={styles.textInput}
-              placeholder="Write your response..."
-              placeholderTextColor={COLORS.textSecondary}
-              multiline
-              maxLength={maxLength}
-              value={submissionText}
-              onChangeText={setSubmissionText}
-              autoFocus
-            />
+
+            {submissionType === "image" ? (
+              /* ── Image Picker ──────────────────────────────────────── */
+              <ScrollView
+                style={styles.imagePickerScroll}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={styles.imagesGrid}>
+                  {selectedImages.map((uri, index) => (
+                    <View key={`img-${index}`} style={styles.imageThumbWrapper}>
+                      <Image source={{ uri }} style={styles.imageThumb} />
+                      <TouchableOpacity
+                        style={styles.imageRemoveBtn}
+                        onPress={() => removeImage(index)}
+                      >
+                        <Ionicons
+                          name="close-circle"
+                          size={22}
+                          color="#FFFFFF"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+                <Text style={styles.imageHelperText}>
+                  {selectedImages.length}/5 image
+                  {selectedImages.length !== 1 ? "s" : ""} selected
+                </Text>
+              </ScrollView>
+            ) : (
+              /* ── Text Input ────────────────────────────────────────── */
+              <TextInput
+                style={styles.textInput}
+                placeholder="Write your response..."
+                placeholderTextColor={COLORS.textSecondary}
+                multiline
+                maxLength={maxLength}
+                value={submissionText}
+                onChangeText={setSubmissionText}
+                autoFocus
+              />
+            )}
 
             <View style={styles.modalFooter}>
-              <Text style={styles.charCount}>
-                {submissionText.length}/{maxLength}
-              </Text>
+              {submissionType === "image" ? (
+                <View style={styles.imageAddRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.imageAddBtn,
+                      selectedImages.length >= 5 && styles.imageAddBtnDisabled,
+                    ]}
+                    onPress={pickImage}
+                    disabled={selectedImages.length >= 5}
+                  >
+                    <LucideImage
+                      size={32}
+                      color={selectedImages.length >= 5 ? "#D1D5DB" : "#4B5563"}
+                      strokeWidth={2}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.imageAddBtn,
+                      selectedImages.length >= 5 && styles.imageAddBtnDisabled,
+                    ]}
+                    onPress={takePhoto}
+                    disabled={selectedImages.length >= 5}
+                  >
+                    <Camera
+                      size={32}
+                      color={selectedImages.length >= 5 ? "#D1D5DB" : "#4B5563"}
+                      strokeWidth={2}
+                    />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <Text style={styles.charCount}>
+                  {submissionText.length}/{maxLength}
+                </Text>
+              )}
               <TouchableOpacity
                 style={[
                   styles.submitActionButton,
-                  (!submissionText.trim() || isSubmitting) &&
+                  (isSubmitting ||
+                    (submissionType === "text" && !submissionText.trim()) ||
+                    (submissionType === "image" &&
+                      selectedImages.length === 0)) &&
                     styles.submitActionButtonDisabled,
                 ]}
                 onPress={handleSubmit}
-                disabled={!submissionText.trim() || isSubmitting}
+                disabled={
+                  isSubmitting ||
+                  (submissionType === "text" && !submissionText.trim()) ||
+                  (submissionType === "image" && selectedImages.length === 0)
+                }
               >
                 {isSubmitting ? (
                   <SnooLoader size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={[styles.submitActionButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Submit</Text>
+                  <Text style={styles.submitActionButtonText}>Submit</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -621,6 +813,17 @@ const PromptPostCard = ({
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Custom Image Picker Modal */}
+      {showCustomPicker && (
+        <CustomImagePicker
+          visible={showCustomPicker}
+          onClose={() => setShowCustomPicker(false)}
+          onDone={handleCustomPickerDone}
+          selectionLimit={5 - selectedImages.length}
+          allowVideos={false}
+        />
+      )}
 
       <PromptEditModal
         visible={showEditModal}
@@ -783,6 +986,14 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     fontWeight: "500",
   },
+  tapToAnswerButtonRetry: {
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  tapToAnswerTextRetry: {
+    color: "#D97706",
+  },
   submittedContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -859,16 +1070,11 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.m,
   },
   modalTitle: {
+    fontFamily: FONTS.primary,
     fontSize: 18,
-    fontWeight: "600",
     color: COLORS.textPrimary,
   },
-  modalPrompt: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.m,
-    lineHeight: 20,
-  },
+
   textInput: {
     backgroundColor: COLORS.screenBackground,
     borderRadius: BORDER_RADIUS.m,
@@ -885,6 +1091,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.m,
   },
   charCount: {
+    fontFamily: FONTS.medium,
     fontSize: 13,
     color: COLORS.textSecondary,
   },
@@ -900,17 +1107,67 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.border,
   },
   submitActionButtonText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 14,
-    fontWeight: "600",
     color: "#FFFFFF",
   },
   approvalNote: {
+    fontFamily: FONTS.regular,
     fontSize: 12,
     color: COLORS.textSecondary,
     textAlign: "center",
     marginTop: SPACING.m,
-    marginTop: SPACING.m,
     fontStyle: "italic",
+  },
+
+  // Image Picker styles
+  imagePickerScroll: {
+    maxHeight: 220,
+    marginBottom: 4,
+  },
+  imagesGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  imageThumbWrapper: {
+    width: 90,
+    height: 90,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  imageThumb: {
+    width: "100%",
+    height: "100%",
+  },
+  imageRemoveBtn: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderRadius: 11,
+  },
+  imageAddRow: {
+    flexDirection: "row",
+    gap: 24,
+    alignItems: "center",
+  },
+  imageAddBtn: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+  imageAddBtnDisabled: {
+    opacity: 0.4,
+  },
+  imageHelperText: {
+    fontSize: 12,
+    fontFamily: "Manrope-Regular",
+    color: COLORS.textSecondary,
+    marginTop: 10,
+    marginBottom: 4,
   },
 
   // Engagement Row

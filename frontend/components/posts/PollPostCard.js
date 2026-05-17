@@ -34,6 +34,7 @@ import CountdownTimer from "../CountdownTimer";
 import { getExtensionBadgeText } from "../../utils/cardTiming";
 import SnooLoader from "../ui/SnooLoader";
 import { viewQueueService } from "../../services/ViewQueueService";
+import { useToast } from "../../context/ToastContext";
 
 const PollPostCard = ({
   post,
@@ -48,6 +49,7 @@ const PollPostCard = ({
   currentUserId,
   currentUserType,
 }) => {
+  const { showToast } = useToast();
   const typeData = post.type_data || {};
   const [hasVoted, setHasVoted] = useState(post.has_voted || false);
   const [votedIndexes, setVotedIndexes] = useState(post.voted_indexes || []);
@@ -212,7 +214,7 @@ const PollPostCard = ({
       }
 
       setShowEditModal(false);
-      Alert.alert("Success", "Post updated successfully");
+      showToast("Success", "Post updated successfully");
     } catch (error) {
       console.error("Failed to update post:", error);
       Alert.alert("Error", error.message || "Failed to update post");

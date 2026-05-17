@@ -54,6 +54,7 @@ import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling"
 import UnexpectedLogoutBanner from "../../../components/UnexpectedLogoutBanner";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import EmptyPostsState from "../../../components/EmptyPostsState";
+import { useToast } from "../../../context/ToastContext";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -67,6 +68,7 @@ export default function MemberProfileScreen({ navigation }) {
   console.log(
     "[Profile] MemberProfileScreen component function START (mount or render)",
   );
+  const { showToast } = useToast();
   const [profile, setProfile] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1285,7 +1287,7 @@ export default function MemberProfileScreen({ navigation }) {
               closePostModal();
             }
 
-            Alert.alert("Success", "Post deleted successfully");
+            showToast("Success", "Post deleted successfully");
           } catch (error) {
             console.error("Error deleting post:", error);
             Alert.alert("Error", "Failed to delete post");

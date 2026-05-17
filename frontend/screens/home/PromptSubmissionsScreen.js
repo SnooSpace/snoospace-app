@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, RefreshControl, Alert, Modal, Pressable } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, RefreshControl, Alert, Modal, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { ArrowLeft, Pin, PinOff, MoreHorizontal, MoveRight, FileX, Check, X } from "lucide-react-native";
@@ -14,6 +14,7 @@ import { getActiveAccount } from "../../utils/accountManager";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import EventBus from "../../utils/EventBus";
 import SnooLoader from "../../components/ui/SnooLoader";
+import { useToast } from "../../context/ToastContext";
 
 const TABS = [
   { key: "pending", label: "Pending" },
@@ -23,6 +24,7 @@ const TABS = [
 const PromptSubmissionsScreen = ({ route, navigation }) => {
   const { post } = route.params;
   const typeData = post?.type_data || {};
+  const { showToast } = useToast();
 
   const [submissions, setSubmissions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -105,13 +107,13 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
       // Remove from current list after moderation
       setSubmissions((prev) => prev.filter((s) => s.id !== submissionId));
       // Show success feedback
-      Alert.alert(
-        "Success",
-        `Submission ${newStatus === "approved" ? "approved" : "rejected"}`
+      showToast(
+        `Submission ${newStatus === "approved" ? "approved" : "rejected"} successfully`,
+        "success"
       );
     } catch (error) {
       console.error("Error moderating submission:", error);
-      Alert.alert("Error", "Failed to moderate submission");
+      showToast("Failed to moderate submission", "error");
     } finally {
       setModeratingId(null);
     }
@@ -138,13 +140,13 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
       });
       // Notify HomeFeed to refresh the preview
       EventBus.emit("prompt-pin-updated", { postId: post.id });
-      Alert.alert(
-        "Success",
-        currentlyPinned ? "Submission unpinned" : "Submission pinned"
+      showToast(
+        currentlyPinned ? "Submission unpinned successfully" : "Submission pinned successfully",
+        "success"
       );
     } catch (error) {
       console.error("Error pinning submission:", error);
-      Alert.alert("Error", "Failed to pin submission");
+      showToast("Failed to pin submission", "error");
     } finally {
       setPinningId(null);
     }
@@ -222,7 +224,26 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.submissionContent}>{item.content}</Text>
+      {/* Content: images or text */}
+      {item.media_urls && item.media_urls.length > 0 ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.imageStrip}
+          contentContainerStyle={styles.imageStripContent}
+        >
+          {item.media_urls.map((url, idx) => (
+            <Image
+              key={idx}
+              source={{ uri: url }}
+              style={styles.submissionImage}
+              resizeMode="cover"
+            />
+          ))}
+        </ScrollView>
+      ) : item.content ? (
+        <Text style={styles.submissionContent}>{item.content}</Text>
+      ) : null}
 
       {/* Reply count - navigate to replies (show for approved submissions) */}
       {(activeTab === "approved" || item.status === "approved") && (
@@ -251,11 +272,11 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
             disabled={moderatingId === item.id}
           >
             {moderatingId === item.id ? (
-              <SnooLoader size="small" color="#FFFFFF" />
+              <SnooLoader size="small" color="#047857" />
             ) : (
               <>
-                <Check size={16} color="#FFFFFF" />
-                <Text style={[styles.modButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Approve</Text>
+                <Check size={16} color="#047857" strokeWidth={2.5} />
+                <Text style={styles.approveText}>Approve</Text>
               </>
             )}
           </TouchableOpacity>
@@ -265,8 +286,14 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
             onPress={() => handleModerate(item.id, "rejected")}
             disabled={moderatingId === item.id}
           >
-            <X size={16} color="#FFFFFF" />
-            <Text style={styles.modButtonText}>Reject</Text>
+            {moderatingId === item.id ? (
+              <SnooLoader size="small" color="#C53030" />
+            ) : (
+              <>
+                <X size={16} color="#C53030" strokeWidth={2.5} />
+                <Text style={styles.rejectText}>Reject</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       )}
@@ -502,33 +529,58 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     lineHeight: 22,
   },
+  imageStrip: {
+    marginTop: SPACING.s,
+    marginHorizontal: -SPACING.xs,
+  },
+  imageStripContent: {
+    gap: 8,
+    paddingHorizontal: SPACING.xs,
+  },
+  submissionImage: {
+    width: 160,
+    height: 160,
+    borderRadius: 12,
+    backgroundColor: COLORS.screenBackground,
+  },
   moderationButtons: {
     flexDirection: "row",
     marginTop: SPACING.m,
-    gap: SPACING.s,
+    gap: 12,
   },
   modButton: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: SPACING.s,
-    borderRadius: BORDER_RADIUS.m,
-    gap: 4,
+    paddingVertical: 12,
+    borderRadius: 24,
+    gap: 8,
+    borderWidth: 1.2,
+    // Subtle drop shadow for premium elevation/depth
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   approveButton: {
-    backgroundColor: "#34C759",
+    backgroundColor: "#E6FDF4", // Premium soft mint/emerald tint
+    borderColor: "#34D399", // Sleek emerald border
   },
-  featureButton: {
-    backgroundColor: "#7B1FA2",
-  },
-  rejectButton: {
-    backgroundColor: "#8E8E93",
-  },
-  modButtonText: {
+  approveText: {
     fontSize: 14,
     fontFamily: FONTS.semiBold,
-    color: "#FFFFFF",
+    color: "#047857", // Deep emerald green
+  },
+  rejectButton: {
+    backgroundColor: "#FFF5F5", // Premium soft rose/crimson tint
+    borderColor: "#FEB2B2", // Sleek rose border
+  },
+  rejectText: {
+    fontSize: 14,
+    fontFamily: FONTS.semiBold,
+    color: "#C53030", // Deep crimson red
   },
   statusBadge: {
     flexDirection: "row",

@@ -776,15 +776,31 @@ const getFeed = async (req, res) => {
               ),
             };
 
-            // Check if current user has submitted
+            // Check if current user has an active (non-rejected) submission
             if (viewerId && viewerType) {
               const subResult = await pool.query(
                 `SELECT id, status FROM prompt_submissions 
-                 WHERE post_id = $1 AND author_id = $2 AND author_type = $3`,
+                 WHERE post_id = $1 AND author_id = $2 AND author_type = $3
+                   AND status IN ('pending', 'approved')`,
                 [post.id, viewerId, viewerType],
               );
               parsedPost.has_submitted = subResult.rows.length > 0;
               parsedPost.submission_status = subResult.rows[0]?.status || null;
+
+              // If no active submission, check if they have a rejected one
+              // so the frontend can show a "Try again" hint
+              if (!parsedPost.has_submitted) {
+                const rejectedResult = await pool.query(
+                  `SELECT id FROM prompt_submissions 
+                   WHERE post_id = $1 AND author_id = $2 AND author_type = $3
+                     AND status = 'rejected'
+                   LIMIT 1`,
+                  [post.id, viewerId, viewerType],
+                );
+                if (rejectedResult.rows.length > 0) {
+                  parsedPost.submission_status = "rejected";
+                }
+              }
             }
 
             // Get preview submission (pinned first, then latest approved)
@@ -1461,9 +1477,11 @@ const getPost = async (req, res) => {
         (r) => r.option_index,
       );
     } else if (postType === "prompt" && userId && userType) {
-      // Check if user has submitted
+      // Check if user has an active (non-rejected) submission
       const subResult = await pool.query(
-        `SELECT id, status FROM prompt_submissions WHERE post_id = $1 AND author_id = $2 AND author_type = $3`,
+        `SELECT id, status FROM prompt_submissions 
+         WHERE post_id = $1 AND author_id = $2 AND author_type = $3
+           AND status IN ('pending', 'approved')`,
         [postId, userId, userType],
       );
       interactionStatus.has_submitted = subResult.rows.length > 0;

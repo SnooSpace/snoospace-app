@@ -118,6 +118,7 @@ import EmptyCommunityState from "../../../components/EmptyCommunityState";
 import EmptyEventsState from "../../../components/EmptyEventsState";
 import CreateEventModal from "../../../components/modals/CreateEventModal";
 import ActionModal from "../../../components/modals/ActionModal";
+import { useToast } from "../../../context/ToastContext";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
@@ -140,6 +141,7 @@ const LIGHT_TEXT_COLOR = "#6B7280"; // Slate 500
 
 export default function CommunityProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
+  const { showToast } = useToast();
   const [profile, setProfile] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2389,7 +2391,7 @@ export default function CommunityProfileScreen({ navigation }) {
                 closePostModal();
               }
 
-              Alert.alert("Success", "Post deleted successfully");
+              showToast("Success", "Post deleted successfully");
             } catch (error) {
               console.error("Error deleting post:", error);
               Alert.alert("Error", "Failed to delete post");

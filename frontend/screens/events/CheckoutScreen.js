@@ -17,6 +17,7 @@ import {
 import EventBus from "../../utils/EventBus";
 import CelebrationModal from "../../components/CelebrationModal";
 import SnooLoader from "../../components/ui/SnooLoader";
+import { useToast } from "../../context/ToastContext";
 
 // White Theme Colors
 const BACKGROUND_COLOR = "#F9FAFB";
@@ -29,6 +30,7 @@ const SUCCESS_COLOR = "#34C759";
 
 export default function CheckoutScreen({ route, navigation }) {
   const { event, cartItems, totalAmount } = route.params;
+  const { showToast } = useToast();
   const insets = useSafeAreaInsets();
 
   // 10-minute countdown timer
@@ -164,7 +166,7 @@ export default function CheckoutScreen({ route, navigation }) {
 
     if (discount) {
       setAppliedDiscount(discount);
-      Alert.alert("Success", `Promo code "${code}" applied!`);
+      showToast("Success", `Promo code "${code}" applied!`);
     } else {
       Alert.alert(
         "Invalid Code",

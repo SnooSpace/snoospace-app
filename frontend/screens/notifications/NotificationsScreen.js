@@ -26,6 +26,7 @@ import {
   Mail,
   Hand,
   CheckCircle,
+  CheckCircle2,
   MinusCircle,
 } from "lucide-react-native";
 import { useNotifications } from "../../context/NotificationsContext";
@@ -760,6 +761,70 @@ export default function NotificationsScreen({ navigation }) {
             style={styles.icon}
           />
         </TouchableOpacity>
+      );
+    }
+
+    // SUBMISSION APPROVED
+    if (group.type === "submission_approved") {
+      return (
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => {
+            if (payload.postId) {
+              navigation.navigate("HomeFeed");
+            }
+          }}
+        >
+          <View
+            style={[
+              styles.avatar,
+              styles.iconContainer,
+              { backgroundColor: "#E6FDF4" },
+            ]}
+          >
+            <CheckCircle2 size={22} color="#047857" strokeWidth={2} />
+          </View>
+          <View style={styles.rowBody}>
+            <Text style={styles.title}>
+              <Text style={styles.bold}>
+                {payload.title || "Response approved ✅"}
+              </Text>
+            </Text>
+            <Text style={styles.subtitle}>{payload.message}</Text>
+            <Text style={styles.time}>
+              {new Date(firstItem.created_at).toLocaleString()}
+            </Text>
+          </View>
+          <ChevronRight size={18} color="#8E8E93" style={styles.icon} />
+        </TouchableOpacity>
+      );
+    }
+
+    // SUBMISSION REJECTED
+    if (group.type === "submission_rejected") {
+      return (
+        <View style={styles.row}>
+          <View
+            style={[
+              styles.avatar,
+              styles.iconContainer,
+              { backgroundColor: "#FFF5F5" },
+            ]}
+          >
+            <XCircle size={22} color="#C53030" strokeWidth={2} />
+          </View>
+          <View style={styles.rowBody}>
+            <Text style={styles.title}>
+              <Text style={styles.bold}>
+                {payload.title || "Response not approved"}
+              </Text>
+            </Text>
+            <Text style={styles.subtitle}>{payload.message}</Text>
+            <Text style={styles.time}>
+              {new Date(firstItem.created_at).toLocaleString()}
+            </Text>
+          </View>
+        </View>
       );
     }
 

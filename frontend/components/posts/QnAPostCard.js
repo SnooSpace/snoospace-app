@@ -35,6 +35,7 @@ import EventBus from "../../utils/EventBus";
 import CountdownTimer from "../CountdownTimer";
 import SnooLoader from "../ui/SnooLoader";
 import { viewQueueService } from "../../services/ViewQueueService";
+import { useToast } from "../../context/ToastContext";
 
 const QnAPostCard = ({
   post,
@@ -50,6 +51,7 @@ const QnAPostCard = ({
   currentUserType,
 }) => {
   const navigation = useNavigation();
+  const { showToast } = useToast();
   const typeData = post.type_data || {};
   const [userQuestionCount, setUserQuestionCount] = useState(
     post.user_question_count || 0,
@@ -238,7 +240,7 @@ const QnAPostCard = ({
       }
 
       setShowEditModal(false);
-      Alert.alert("Success", "Post updated successfully");
+      showToast("Success", "Post updated successfully");
     } catch (error) {
       console.error("Failed to update post:", error);
       Alert.alert("Error", error.message || "Failed to update post");

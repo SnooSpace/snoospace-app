@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import { emergencyClearAll } from '../utils/emergencyClear';
+import { useToast } from '../context/ToastContext';
 
 /**
  * TEMPORARY RECOVERY SCREEN
@@ -8,6 +9,7 @@ import { emergencyClearAll } from '../utils/emergencyClear';
  * Navigate here from anywhere with: navigation.navigate('RecoveryScreen')
  */
 export default function RecoveryScreen({ navigation }) {
+  const { showToast } = useToast();
   const handleClearData = async () => {
     Alert.alert(
       'Clear All Account Data?',
@@ -19,7 +21,7 @@ export default function RecoveryScreen({ navigation }) {
           style: 'destructive',
           onPress: async () => {
             await emergencyClearAll();
-            Alert.alert('Success', 'Account data cleared. Please restart the app and log in again.');
+            showToast("Success", "Account data cleared. Please restart the app and log in again.");
             // Navigate to login
             navigation.reset({
               index: 0,

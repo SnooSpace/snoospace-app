@@ -5,6 +5,7 @@
 
 const { createPool } = require("../config/db");
 const pushService = require("../services/pushService");
+const notificationService = require("../services/notificationService");
 
 const pool = createPool();
 
@@ -170,10 +171,11 @@ const submitResponse = async (req, res) => {
       }
     }
 
-    // Check for duplicate submission from same user
+    // Block if user already has a pending or approved submission (rejected = allowed to resubmit)
     const existingSubmission = await pool.query(
-      `SELECT id FROM prompt_submissions 
-       WHERE post_id = $1 AND author_id = $2 AND author_type = $3`,
+      `SELECT id, status FROM prompt_submissions 
+       WHERE post_id = $1 AND author_id = $2 AND author_type = $3
+         AND status IN ('pending', 'approved')`,
       [postId, userId, userType]
     );
 
@@ -439,36 +441,63 @@ const moderateSubmission = async (req, res) => {
       [status, userId, submissionId]
     );
 
-    // Notify the submitter about the moderation decision
+    // Get the prompt text for richer notification messages
+    const postResult = await pool.query(
+      `SELECT type_data->>'prompt_text' AS prompt_text FROM posts WHERE id = $1`,
+      [submission.post_id]
+    );
+    const promptText = postResult.rows[0]?.prompt_text || "a prompt";
+    const shortPrompt = promptText.length > 60 ? promptText.slice(0, 57) + "…" : promptText;
+
+    // Notify the submitter via in-app notification + push
     try {
-      const notificationTitle =
-        status === "approved"
-          ? "Your response was approved ✅"
-          : "Response update";
+      const isApproved = status === "approved";
 
-      const notificationBody =
-        status === "approved"
-          ? "Your prompt response is now visible to others"
-          : "Your prompt response was reviewed";
+      const notificationTitle = isApproved
+        ? "Response approved ✅"
+        : "Response not approved";
 
-      // Only notify for approval
-      if (status === "approved") {
-        await pushService.sendPushNotification(
-          pool,
-          submission.author_id,
-          submission.author_type,
-          notificationTitle,
-          notificationBody,
-          {
-            type: "submission_moderated",
-            postId: submission.post_id,
-            submissionId: parseInt(submissionId),
-            newStatus: status,
-          }
-        );
-      }
+      const notificationMessage = isApproved
+        ? `Your response to "${shortPrompt}" is now live and visible to everyone.`
+        : `Your response to "${shortPrompt}" wasn't approved this time.`;
+
+      // 1. Create in-app notification (always, for both outcomes)
+      await notificationService.createSimpleNotification(pool, {
+        recipientId: submission.author_id,
+        recipientType: submission.author_type,
+        actorId: userId,
+        actorType: userType,
+        type: isApproved ? "submission_approved" : "submission_rejected",
+        payload: {
+          title: notificationTitle,
+          message: notificationMessage,
+          postId: submission.post_id,
+          submissionId: parseInt(submissionId),
+          newStatus: status,
+        },
+      });
+
+      // 2. Send push notification (for both outcomes)
+      await pushService.sendPushNotification(
+        pool,
+        submission.author_id,
+        submission.author_type,
+        notificationTitle,
+        notificationMessage,
+        {
+          type: "submission_moderated",
+          postId: submission.post_id,
+          submissionId: parseInt(submissionId),
+          newStatus: status,
+        }
+      );
+
+      console.log(
+        `[moderateSubmission] Sent ${status} notification to user ${submission.author_id} (${submission.author_type})`
+      );
     } catch (e) {
-      console.error("Failed to send moderation notification", e);
+      // Non-fatal: log but don't fail the moderation action
+      console.error("[moderateSubmission] Failed to send notification:", e);
     }
 
     console.log(
