@@ -11,16 +11,17 @@ import React, {
   useMemo,
 } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, RefreshControl, TextInput } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
-import { Ionicons } from "@expo/vector-icons";
+import { ArrowLeft, CornerDownRight, ChevronDown, ChevronUp, X, Send, EyeOff } from "lucide-react-native";
 import { apiGet, apiPost, apiPatch } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { getActiveAccount } from "../../utils/accountManager";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import SnooLoader from "../../components/ui/SnooLoader";
 
 const PromptRepliesScreen = ({ route, navigation }) => {
@@ -37,6 +38,8 @@ const PromptRepliesScreen = ({ route, navigation }) => {
   const [collapsedThreads, setCollapsedThreads] = useState({}); // { replyId: true } for collapsed threads
 
   const inputRef = useRef(null);
+
+
 
   // ========== CONNECTOR LAYOUT CONSTANTS ==========
   // Each reply renders its own connectors locally - no global spine
@@ -517,10 +520,10 @@ const PromptRepliesScreen = ({ route, navigation }) => {
           {/* Render connector for hidden replies too */}
           {renderConnector()}
           <View style={styles.hiddenReplyContent}>
-            <Ionicons
-              name="eye-off-outline"
+            <EyeOff
               size={16}
               color={COLORS.textSecondary}
+              strokeWidth={1.5}
             />
             <Text style={styles.hiddenText}>
               This response has been hidden by the community
@@ -573,10 +576,10 @@ const PromptRepliesScreen = ({ route, navigation }) => {
                 style={styles.hideButton}
                 onPress={() => handleHideReply(item.id, false)}
               >
-                <Ionicons
-                  name="eye-off-outline"
+                <EyeOff
                   size={18}
                   color={COLORS.textSecondary}
+                  strokeWidth={1.5}
                 />
               </TouchableOpacity>
             )}
@@ -593,8 +596,7 @@ const PromptRepliesScreen = ({ route, navigation }) => {
                 inputRef.current?.focus();
               }}
             >
-              <Ionicons
-                name="return-down-forward"
+              <CornerDownRight
                 size={14}
                 color={COLORS.textSecondary}
               />
@@ -607,11 +609,11 @@ const PromptRepliesScreen = ({ route, navigation }) => {
                 style={styles.showMoreButton}
                 onPress={() => toggleCollapse(item.id)}
               >
-                <Ionicons
-                  name={isCollapsed ? "chevron-down" : "chevron-up"}
-                  size={14}
-                  color={COLORS.primary}
-                />
+                {isCollapsed ? (
+                  <ChevronDown size={14} color={COLORS.primary} />
+                ) : (
+                  <ChevronUp size={14} color={COLORS.primary} />
+                )}
                 <Text style={styles.showMoreText}>
                   {isCollapsed
                     ? `Show ${hiddenCount} ${
@@ -637,7 +639,7 @@ const PromptRepliesScreen = ({ route, navigation }) => {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <ArrowLeft size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Replies</Text>
         <View style={styles.headerSpacer} />
@@ -700,7 +702,7 @@ const PromptRepliesScreen = ({ route, navigation }) => {
               onPress={() => setReplyingTo(null)}
               style={styles.cancelReplyButton}
             >
-              <Ionicons name="close" size={18} color={COLORS.textSecondary} />
+              <X size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
           </View>
         )}
@@ -730,7 +732,7 @@ const PromptRepliesScreen = ({ route, navigation }) => {
             {isSending ? (
               <SnooLoader size="small" color="#FFFFFF" />
             ) : (
-              <Ionicons name="send" size={20} color="#FFFFFF" />
+              <Send size={20} color="#FFFFFF" />
             )}
           </TouchableOpacity>
         </View>
@@ -758,8 +760,8 @@ const styles = StyleSheet.create({
     marginRight: SPACING.s,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 22,
+    fontFamily: FONTS.black,
     color: COLORS.textPrimary,
     flex: 1,
   },
@@ -806,15 +808,17 @@ const styles = StyleSheet.create({
   },
   authorName: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: COLORS.textPrimary,
   },
   timestamp: {
     fontSize: 12,
+    fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
   },
   submissionContent: {
     fontSize: 15,
+    fontFamily: FONTS.regular,
     color: COLORS.textPrimary,
     lineHeight: 22,
   },
@@ -869,15 +873,17 @@ const styles = StyleSheet.create({
   },
   replyAuthorName: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: COLORS.textPrimary,
   },
   replyTimestamp: {
     fontSize: 11,
+    fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
   },
   replyText: {
     fontSize: 14,
+    fontFamily: FONTS.regular,
     color: COLORS.textPrimary,
     lineHeight: 20,
   },
@@ -896,6 +902,7 @@ const styles = StyleSheet.create({
   },
   hiddenText: {
     fontSize: 13,
+    fontFamily: FONTS.regular,
     fontStyle: "italic",
     color: COLORS.textSecondary,
     flex: 1,
@@ -906,8 +913,8 @@ const styles = StyleSheet.create({
   },
   unhideText: {
     fontSize: 12,
+    fontFamily: FONTS.semiBold,
     color: COLORS.primary,
-    fontWeight: "500",
   },
   // Empty state
   emptyState: {
@@ -915,7 +922,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: 15,
+    fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
   },
   // Keyboard-aware input container
@@ -938,10 +946,11 @@ const styles = StyleSheet.create({
   },
   replyingToText: {
     fontSize: 13,
+    fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
   },
   replyingToName: {
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: COLORS.textPrimary,
   },
   cancelReplyButton: {
@@ -963,6 +972,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.m,
     paddingVertical: SPACING.s,
     fontSize: 15,
+    fontFamily: FONTS.regular,
     color: COLORS.textPrimary,
     maxHeight: 100,
   },
@@ -993,6 +1003,7 @@ const styles = StyleSheet.create({
   },
   replyToButtonText: {
     fontSize: 12,
+    fontFamily: FONTS.medium,
     color: COLORS.textSecondary,
   },
   showMoreButton: {
@@ -1002,8 +1013,8 @@ const styles = StyleSheet.create({
   },
   showMoreText: {
     fontSize: 12,
+    fontFamily: FONTS.semiBold,
     color: COLORS.primary,
-    fontWeight: "500",
   },
 });
 

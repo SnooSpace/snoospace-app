@@ -1,9 +1,10 @@
+import { useFocusEffect } from "@react-navigation/native";
 /**
  * ChallengeSubmitScreen
  * Allows users to submit proof for a challenge (text, image, or video)
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,7 +16,9 @@ import { uploadMultipleImages } from "../../api/cloudinary";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import SnooLoader from "../../components/ui/SnooLoader";
 
-const ChallengeSubmitScreen = ({ route, navigation }) => {
+const ChallengeSubmitScreen = ({ route, navigation }) => {
+
+
   const { post, participation } = route.params;
   const typeData = post.type_data || {};
   const submissionType = typeData.submission_type || "image";

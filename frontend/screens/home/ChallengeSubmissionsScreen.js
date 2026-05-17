@@ -1,3 +1,4 @@
+import { useFocusEffect } from "@react-navigation/native";
 /**
  * ChallengeSubmissionsScreen
  * Gallery view of all submissions for a challenge
@@ -22,6 +23,8 @@ const COLUMN_COUNT = 2;
 const ITEM_WIDTH = (width - SPACING.m * 3) / COLUMN_COUNT;
 
 const ChallengeSubmissionsScreen = ({ route, navigation }) => {
+
+
   const { post } = route.params;
   const typeData = post.type_data || {};
 

@@ -7,11 +7,11 @@ import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, RefreshControl, Alert, Modal, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { ArrowLeft, Pin, PinOff, MoreHorizontal, MoveRight, FileX, Check, X } from "lucide-react-native";
 import { apiGet, apiPatch, apiPost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { getActiveAccount } from "../../utils/accountManager";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import EventBus from "../../utils/EventBus";
 import SnooLoader from "../../components/ui/SnooLoader";
 
@@ -182,7 +182,7 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
       {/* Pinned indicator */}
       {item.is_pinned && (
         <View style={styles.pinnedBadge}>
-          <Ionicons name="pin" size={12} color="#FF9500" />
+          <Pin size={12} color="#FF9500" fill="#FF9500" />
           <Text style={styles.pinnedText}>Pinned</Text>
         </View>
       )}
@@ -193,8 +193,7 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
           style={styles.optionsButton}
           onPress={() => openOptionsModal(item)}
         >
-          <Ionicons
-            name="ellipsis-horizontal"
+          <MoreHorizontal
             size={20}
             color={COLORS.textSecondary}
           />
@@ -234,11 +233,12 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
           }
         >
           <Text style={styles.repliesText}>
-            {(item.total_reply_count || item.reply_count) > 0
-              ? `${item.total_reply_count || item.reply_count} replies`
-              : "Reply"}
+            {(() => {
+              const count = Number(item.total_reply_count || item.reply_count || 0);
+              return count > 0 ? `${count} ${count === 1 ? "reply" : "replies"}` : "Reply";
+            })()}
           </Text>
-          <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
+          <MoveRight size={16} color={COLORS.primary} strokeWidth={2} />
         </TouchableOpacity>
       )}
 
@@ -254,7 +254,7 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
               <SnooLoader size="small" color="#FFFFFF" />
             ) : (
               <>
-                <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                <Check size={16} color="#FFFFFF" />
                 <Text style={[styles.modButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Approve</Text>
               </>
             )}
@@ -265,7 +265,7 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
             onPress={() => handleModerate(item.id, "rejected")}
             disabled={moderatingId === item.id}
           >
-            <Ionicons name="close" size={16} color="#FFFFFF" />
+            <X size={16} color="#FFFFFF" />
             <Text style={styles.modButtonText}>Reject</Text>
           </TouchableOpacity>
         </View>
@@ -275,10 +275,10 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <MaterialCommunityIcons
-        name="text-box-remove-outline"
+      <FileX
         size={64}
         color={COLORS.textSecondary}
+        strokeWidth={1.5}
       />
       <Text style={styles.emptyTitle}>No {activeTab} submissions</Text>
       <Text style={styles.emptySubtitle}>
@@ -297,7 +297,7 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <ArrowLeft size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Responses</Text>
@@ -376,11 +376,11 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
                 <SnooLoader size="small" color={COLORS.primary} />
               ) : (
                 <>
-                  <Ionicons
-                    name={selectedSubmission?.is_pinned ? "pin-outline" : "pin"}
-                    size={22}
-                    color={"#FF9500"}
-                  />
+                  {selectedSubmission?.is_pinned ? (
+                    <PinOff size={22} color="#FF9500" />
+                  ) : (
+                    <Pin size={22} color="#FF9500" fill="transparent" />
+                  )}
                   <Text style={[styles.optionText, { fontFamily: 'Manrope-Medium' }]}>
                     {selectedSubmission?.is_pinned
                       ? "Unpin response"
@@ -420,12 +420,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 22,
+    fontFamily: FONTS.black,
     color: COLORS.textPrimary,
   },
   headerSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
+    fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
     marginTop: 2,
   },
@@ -433,7 +434,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: COLORS.surface,
     paddingHorizontal: SPACING.m,
-    paddingBottom: SPACING.s,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
@@ -441,18 +441,19 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: SPACING.s,
     alignItems: "center",
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
   },
   activeTab: {
-    // No underline, just text color change
+    borderBottomColor: COLORS.primary,
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 16,
+    fontFamily: FONTS.semiBold,
     color: COLORS.textSecondary,
   },
   activeTabText: {
     color: COLORS.primary,
-    fontWeight: "600",
   },
   loadingContainer: {
     flex: 1,
@@ -487,15 +488,17 @@ const styles = StyleSheet.create({
   },
   authorName: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: COLORS.textPrimary,
   },
   timestamp: {
     fontSize: 12,
+    fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
   },
   submissionContent: {
     fontSize: 15,
+    fontFamily: FONTS.regular,
     color: COLORS.textPrimary,
     lineHeight: 22,
   },
@@ -523,8 +526,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#8E8E93",
   },
   modButtonText: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 14,
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
   },
   statusBadge: {
@@ -554,13 +557,14 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontFamily: FONTS.primary,
     color: COLORS.textPrimary,
     marginTop: SPACING.m,
   },
   emptySubtitle: {
-    fontSize: 14,
+    fontSize: 15,
+    fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
     marginTop: SPACING.xs,
     textAlign: "center",
@@ -584,7 +588,7 @@ const styles = StyleSheet.create({
   },
   pinnedText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: "#FF9500",
   },
   optionsButton: {
@@ -601,7 +605,7 @@ const styles = StyleSheet.create({
   },
   repliesText: {
     fontSize: 14,
-    fontWeight: "500",
+    fontFamily: FONTS.semiBold,
     color: COLORS.primary,
     flex: 1,
   },

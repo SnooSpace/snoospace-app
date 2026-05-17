@@ -252,12 +252,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E5EA",
   },
   title: {
     fontSize: 20,
-    fontWeight: "700",
     color: "#1D1D1F",
     fontFamily: FONTS.primary,
   },
@@ -284,6 +281,7 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 15,
     color: "#1D1D1F",
+    fontFamily: FONTS.regular,
   },
   textInput: {
     borderWidth: 1,
@@ -292,6 +290,7 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 15,
     color: "#1D1D1F",
+    fontFamily: FONTS.regular,
     minHeight: 100,
     textAlignVertical: "top",
   },
@@ -327,6 +326,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#1D1D1F",
     flex: 1,
+    fontFamily: FONTS.regular,
   },
   clearButton: {
     marginTop: 8,
@@ -341,8 +341,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E5EA",
   },
   button: {
     flex: 1,

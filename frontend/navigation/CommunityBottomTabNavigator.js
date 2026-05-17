@@ -1,6 +1,6 @@
 import React from "react";
 import { Platform, Pressable } from "react-native";
-import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
+import { getFocusedRouteNameFromRoute, useNavigation, CommonActions } from "@react-navigation/native";
 
 // Import Community screens
 import CommunityHomeStackNavigator from "./CommunityHomeStackNavigator";
@@ -19,6 +19,7 @@ const Tab = createSwipeablePagerNavigator();
 const ProfileTabButton = (props) => {
   const { onPress, ...rest } = props;
   const lastTapRef = React.useRef(0);
+  const navigation = useNavigation();
 
   const handlePress = async (e) => {
     const now = Date.now();
@@ -45,6 +46,29 @@ const ProfileTabButton = (props) => {
                 username: nextAccount.username || "",
                 photoUrl: nextAccount.profilePicture || null,
               });
+
+              // Small delay to ensure state propagates, then navigate to correct home
+              setTimeout(() => {
+                const routeMap = {
+                  member: "MemberHome",
+                  community: "CommunityHome",
+                  sponsor: "SponsorHome",
+                  venue: "VenueHome",
+                };
+                const routeName = routeMap[nextAccount.type] || "Landing";
+                
+                let rootNav = navigation;
+                while (rootNav.getParent && rootNav.getParent()) {
+                  rootNav = rootNav.getParent();
+                }
+                
+                rootNav.dispatch(
+                  CommonActions.reset({
+                    index: 0,
+                    routes: [{ name: routeName }],
+                  })
+                );
+              }, 50);
             }
           }
         }
@@ -89,6 +113,10 @@ const CommunityBottomTabNavigator = ({ navigation, route }) => {
               "PromptReplies",
               "CreateGroupChat",
               "GroupInfo",
+              "PromptSubmissions",
+              "ChallengeSubmissions",
+              "ChallengeSubmit",
+              "QnAQuestions",
               // [VIDEO INSIGHTS - DEFERRED] "VideoInsights" removed — screen not registered in this build
             ];
             if (hiddenRoutes.includes(routeName)) {
