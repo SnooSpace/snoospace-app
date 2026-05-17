@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet, TextInput, Modal, KeyboardAvoidingView, Platform, Switch, Alert } from "react-native";
+import { View, Text, Image, TouchableOpacity, StyleSheet, TextInput, Modal, KeyboardAvoidingView, Platform, Switch, Alert, Pressable, Dimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -68,6 +68,7 @@ const QnAPostCard = ({
     post.preview_question || null,
   );
   const [showMenu, setShowMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [showEditModal, setShowEditModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -356,7 +357,12 @@ const QnAPostCard = ({
             {isOwnPost && (onEdit || onDelete) && (
               <TouchableOpacity
                 style={styles.ellipsisButton}
-                onPress={() => setShowMenu(!showMenu)}
+                onPress={(e) => {
+                  const { pageX, pageY } = e.nativeEvent;
+                  const screenWidth = Dimensions.get("window").width;
+                  setMenuPosition({ x: screenWidth - pageX - 10, y: pageY + 12 });
+                  setShowMenu(true);
+                }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Ellipsis size={20} color="#5B6B7C" />
@@ -393,32 +399,44 @@ const QnAPostCard = ({
 
         {/* Edit/Delete Menu */}
         {showMenu && isOwnPost && (
-          <View style={styles.menuContainer}>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setShowMenu(false);
-                setShowEditModal(true);
-              }}
+          <Modal
+            visible={showMenu}
+            transparent={true}
+            animationType="none"
+            onRequestClose={() => setShowMenu(false)}
+          >
+            <Pressable
+              style={styles.modalBackdrop}
+              onPress={() => setShowMenu(false)}
             >
-              <Ionicons name="create-outline" size={18} color="#1D1D1F" />
-              <Text style={styles.menuItemText}>Edit Post</Text>
-            </TouchableOpacity>
-            {(onDelete || isOwnPost) && (
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false);
-                  handleDelete();
-                }}
-              >
-                <Ionicons name="trash-outline" size={18} color="#DC2626" />
-                <Text style={[styles.menuItemText, { color: "#DC2626" }]}>
-                  Delete Post
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
+              <View style={[styles.menuContainerModal, { top: menuPosition.y, right: menuPosition.x }]}>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setShowMenu(false);
+                    setShowEditModal(true);
+                  }}
+                >
+                  <Ionicons name="create-outline" size={18} color="#1D1D1F" />
+                  <Text style={styles.menuItemText}>Edit Post</Text>
+                </TouchableOpacity>
+                {(onDelete || isOwnPost) && (
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setShowMenu(false);
+                      handleDelete();
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                    <Text style={[styles.menuItemText, { color: "#DC2626" }]}>
+                      Delete Post
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </Pressable>
+          </Modal>
         )}
 
         {/* Author Row */}

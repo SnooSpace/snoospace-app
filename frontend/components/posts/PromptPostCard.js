@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet, TextInput, Modal, KeyboardAvoidingView, Platform, ScrollView, Alert } from "react-native";
+import { View, Text, Image, TouchableOpacity, StyleSheet, TextInput, Modal, KeyboardAvoidingView, Platform, ScrollView, Alert, Dimensions, Pressable } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -26,6 +26,7 @@ import {
   Send,
   Bookmark,
   Ellipsis,
+  MoveRight,
 } from "lucide-react-native";
 import { savePost, unsavePost } from "../../api/client";
 import { postService } from "../../services/postService";
@@ -50,6 +51,7 @@ const PromptPostCard = ({
   const navigation = useNavigation();
   const typeData = post.type_data || {};
   const [hasSubmitted, setHasSubmitted] = useState(post.has_submitted || false);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [submissionStatus, setSubmissionStatus] = useState(
     post.submission_status || null,
   );
@@ -360,7 +362,12 @@ const PromptPostCard = ({
           {isOwnPost && (onEdit || onDelete) && (
             <TouchableOpacity
               style={styles.ellipsisButton}
-              onPress={() => setShowMenu(!showMenu)}
+              onPress={(e) => {
+                const { pageX, pageY } = e.nativeEvent;
+                const screenWidth = Dimensions.get("window").width;
+                setMenuPosition({ x: screenWidth - pageX - 10, y: pageY + 12 });
+                setShowMenu(true);
+              }}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <Ellipsis size={20} color="#5B6B7C" />
@@ -374,33 +381,45 @@ const PromptPostCard = ({
 
       {/* Edit/Delete Menu */}
       {showMenu && isOwnPost && (
-        <View style={styles.menuContainer}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              setShowMenu(false);
-              setShowEditModal(true);
-            }}
+        <Modal
+          visible={showMenu}
+          transparent={true}
+          animationType="none"
+          onRequestClose={() => setShowMenu(false)}
+        >
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setShowMenu(false)}
           >
-            <Ionicons name="create-outline" size={18} color="#1D1D1F" />
-            <Text style={styles.menuItemText}>Edit Post</Text>
-          </TouchableOpacity>
+            <View style={[styles.menuContainerModal, { top: menuPosition.y, right: menuPosition.x }]}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false);
+                  setShowEditModal(true);
+                }}
+              >
+                <Ionicons name="create-outline" size={18} color="#1D1D1F" />
+                <Text style={styles.menuItemText}>Edit Post</Text>
+              </TouchableOpacity>
 
-          {(onDelete || isOwnPost) && (
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setShowMenu(false);
-                handleDelete();
-              }}
-            >
-              <Ionicons name="trash-outline" size={18} color="#DC2626" />
-              <Text style={[styles.menuItemText, { color: "#DC2626" }]}>
-                Delete Post
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
+              {(onDelete || isOwnPost) && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setShowMenu(false);
+                    handleDelete();
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                  <Text style={[styles.menuItemText, { color: "#DC2626" }]}>
+                    Delete Post
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </Pressable>
+        </Modal>
       )}
 
       {/* Author Info */}
@@ -469,10 +488,10 @@ const PromptPostCard = ({
           onPress={() => navigation.navigate("PromptSubmissions", { post })}
         >
           <Text style={styles.viewAllText}>View all</Text>
-          <Ionicons
-            name="chevron-forward"
+          <MoveRight
             size={16}
             color={COLORS.primary}
+            strokeWidth={2}
             style={{ marginLeft: 4 }}
           />
         </TouchableOpacity>
@@ -917,6 +936,24 @@ const styles = StyleSheet.create({
   },
   likedCount: {
     color: COLORS.error,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "transparent",
+  },
+  menuContainerModal: {
+    position: "absolute",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 8,
+    ...SHADOWS.medium,
+    zIndex: 10,
+    minWidth: 150,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
   },
 });
 

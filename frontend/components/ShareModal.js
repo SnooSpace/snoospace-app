@@ -109,21 +109,6 @@ const ShareModal = ({ visible, onClose, post }) => {
     }
   };
 
-  const handleCopyLink = async () => {
-    try {
-      const token = await getAuthToken();
-      const link = `https://snoospace.app/post/${post.id}`;
-      await Clipboard.setStringAsync(link);
-      await sharePost(post.id, [], "copy_link", null, token);
-      EventBus.emit("post-share-updated", { postId: post.id, increment: 1 });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Link Copied", "Post link copied to clipboard");
-      onClose();
-    } catch (error) {
-      console.error("Failed to copy link:", error);
-      Alert.alert("Error", error.message || "Failed to copy link");
-    }
-  };
 
   const filteredUsers = recentUsers.filter(
     (user) =>
@@ -278,13 +263,6 @@ const ShareModal = ({ visible, onClose, post }) => {
                     )}
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity
-                  style={styles.copyLinkButton}
-                  onPress={handleCopyLink}
-                >
-                  <Link size={14} color="#1A1826" strokeWidth={2.5} />
-                  <Text style={styles.copyLinkText}>Copy Link</Text>
-                </TouchableOpacity>
               </View>
             </View>
           </KeyboardStickyView>
@@ -452,25 +430,6 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontFamily: "Manrope-SemiBold",
     fontSize: 16,
-  },
-  copyLinkButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-    alignSelf: "center",
-    marginTop: 8,
-    gap: 6,
-  },
-  copyLinkText: {
-    color: "#1A1826",
-    fontFamily: "Manrope-SemiBold",
-    fontSize: 14,
   },
 });
 
