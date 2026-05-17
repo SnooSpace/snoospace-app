@@ -155,7 +155,35 @@ const sharePost = async (req, res) => {
     };
 
     // Send message to each recipient
+    const blockedRecipients = [];
     for (const recipient of recipients) {
+      // ── Messaging restriction check ───────────────────────────────────────
+      // If the recipient is a community, find the group conversation between
+      // the current user and that community. If messaging_restricted = true
+      // and the current user is not an admin, block the share — same rule
+      // as the sendMessage endpoint enforces.
+      if (recipient.type === "community") {
+        const groupConvCheck = await pool.query(
+          `SELECT c.id, c.messaging_restricted, cp.role
+           FROM conversations c
+           JOIN conversation_participants cp
+             ON cp.conversation_id = c.id
+             AND cp.participant_id = $1 AND cp.participant_type = $2
+           WHERE c.is_group = true
+             AND c.group_owner_id = $3 AND c.group_owner_type = 'community'
+           LIMIT 1`,
+          [userId, userType, recipient.id],
+        );
+
+        if (groupConvCheck.rows.length > 0) {
+          const { messaging_restricted, role } = groupConvCheck.rows[0];
+          if (messaging_restricted && role !== "admin") {
+            blockedRecipients.push(recipient.id);
+            continue; // Skip this recipient — sharing is restricted
+          }
+        }
+      }
+
       // Get or create conversation using our helper function
       const conversationId = await getOrCreateConversation(
         userId,
@@ -193,10 +221,18 @@ const sharePost = async (req, res) => {
       );
     }
 
-    // Increment share count by number of recipients
+    // If ALL recipients were blocked, return a clear error
+    const successCount = recipients.length - blockedRecipients.length;
+    if (successCount === 0) {
+      return res.status(403).json({
+        error: "Sharing is restricted in this group. Only admins can share posts here.",
+      });
+    }
+
+    // Increment share count only for successfully shared recipients
     await pool.query(
       "UPDATE posts SET share_count = share_count + $1 WHERE id = $2",
-      [recipients.length, postId],
+      [successCount, postId],
     );
 
     const updatedPost = await pool.query(
@@ -207,7 +243,8 @@ const sharePost = async (req, res) => {
     res.json({
       success: true,
       shareCount: updatedPost.rows[0].share_count,
-      recipientCount: recipients.length,
+      recipientCount: successCount,
+      blockedCount: blockedRecipients.length,
     });
   } catch (error) {
     console.error("Share post error:", error);
@@ -296,10 +333,34 @@ const getRecentChatUsers = async (req, res) => {
       }
 
       if (userQuery && userQuery.rows.length > 0) {
+        let shareRestricted = false;
+
+        // For community recipients, check if their group chat restricts
+        // non-admin members from sending (and thus sharing) posts.
+        if (conv.user_type === "community") {
+          const groupRestrictionCheck = await pool.query(
+            `SELECT c.messaging_restricted, cp.role
+             FROM conversations c
+             JOIN conversation_participants cp
+               ON cp.conversation_id = c.id
+               AND cp.participant_id = $1 AND cp.participant_type = $2
+             WHERE c.is_group = true
+               AND c.group_owner_id = $3 AND c.group_owner_type = 'community'
+             LIMIT 1`,
+            [userId, userType, conv.user_id],
+          );
+
+          if (groupRestrictionCheck.rows.length > 0) {
+            const { messaging_restricted, role } = groupRestrictionCheck.rows[0];
+            shareRestricted = messaging_restricted === true && role !== "admin";
+          }
+        }
+
         users.push({
           ...userQuery.rows[0],
           type: conv.user_type,
           lastMessageAt: conv.last_message_at,
+          shareRestricted, // true = member cannot share to this community group
         });
       }
     }

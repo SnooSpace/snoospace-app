@@ -14,15 +14,17 @@ import {
   Platform,
 } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
-import { X, Search, Check, Send } from "lucide-react-native";
+import { X, Search, Check, Send, Lock } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { getRecentChatUsers, sharePost } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 import SnooLoader from "./ui/SnooLoader";
 import { SHADOWS } from "../constants/theme";
+import { useToast } from "../context/ToastContext";
 
 export default function ShareModal({ visible, onClose, post }) {
+  const { showToast } = useToast();
   // --- State & Functionality ---
   const [searchQuery, setSearchQuery] = useState("");
   const [recentUsers, setRecentUsers] = useState([]);
@@ -78,9 +80,9 @@ export default function ShareModal({ visible, onClose, post }) {
         increment: selectedUsers.length,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        "Success",
-        `Shared with ${selectedUsers.length} ${selectedUsers.length === 1 ? "person" : "people"}`,
+      showToast(
+        "Shared successfully",
+        `Shared with ${selectedUsers.length} ${selectedUsers.length === 1 ? "person" : "people"}`
       );
       onClose();
     } catch (error) {
@@ -103,22 +105,28 @@ export default function ShareModal({ visible, onClose, post }) {
     const isSelected = selectedUsers.some(
       (u) => u.id === item.id && u.type === item.type,
     );
+    const isRestricted = item.shareRestricted === true;
     const displayName = item.full_name || item.name || "User";
 
     return (
       <TouchableOpacity
         style={styles.userItem}
         onPress={() => {
+          if (isRestricted) return; // Blocked — do nothing
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           toggleUserSelection(item);
         }}
-        activeOpacity={0.7}
+        activeOpacity={isRestricted ? 1 : 0.7}
       >
         <View style={styles.userAvatarContainer}>
           {item.profile_photo_url ? (
             <Image
               source={{ uri: item.profile_photo_url }}
-              style={[styles.userAvatar, isSelected && styles.selectedAvatar]}
+              style={[
+                styles.userAvatar,
+                isSelected && styles.selectedAvatar,
+                isRestricted && styles.restrictedAvatar,
+              ]}
             />
           ) : (
             <View
@@ -126,21 +134,31 @@ export default function ShareModal({ visible, onClose, post }) {
                 styles.userAvatar,
                 styles.userAvatarPlaceholder,
                 isSelected && styles.selectedAvatar,
+                isRestricted && styles.restrictedAvatar,
               ]}
             >
-              <Text style={styles.userAvatarText}>
+              <Text style={[styles.userAvatarText, isRestricted && styles.restrictedAvatarText]}>
                 {displayName.charAt(0).toUpperCase()}
               </Text>
             </View>
           )}
-          {isSelected && (
+          {isSelected && !isRestricted && (
             <View style={styles.checkmarkOverlay}>
               <Check size={14} color="#FFF" strokeWidth={3} />
             </View>
           )}
+          {isRestricted && (
+            <View style={styles.lockOverlay}>
+              <Lock size={13} color="#FFF" strokeWidth={2.5} />
+            </View>
+          )}
         </View>
         <Text
-          style={[styles.userName, isSelected && styles.selectedUserName]}
+          style={[
+            styles.userName,
+            isSelected && !isRestricted && styles.selectedUserName,
+            isRestricted && styles.restrictedUserName,
+          ]}
           numberOfLines={1}
         >
           {displayName}
@@ -389,6 +407,30 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-SemiBold",
     color: "#007AFF",
     opacity: 1,
+  },
+  restrictedAvatar: {
+    opacity: 0.35,
+  },
+  restrictedAvatarText: {
+    color: "#8E8E93",
+  },
+  restrictedUserName: {
+    opacity: 0.4,
+    fontFamily: "Manrope-Regular",
+    color: "#8E8E93",
+  },
+  lockOverlay: {
+    position: "absolute",
+    bottom: -2,
+    right: -2,
+    backgroundColor: "#8E8E93",
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#FFF",
+    alignItems: "center",
+    justifyContent: "center",
   },
   emptyContainer: {
     padding: 60,
