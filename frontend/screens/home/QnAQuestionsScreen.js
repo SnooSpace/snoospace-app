@@ -1,16 +1,16 @@
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Alert, Dimensions } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
+import { ArrowLeft, MessageSquare, TrendingUp, Clock, Send, ArrowUp, User, Pin, CheckCircle, Lock, ChevronDown, ChevronUp, Star, MoreVertical } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete } from "../../api/client";
 import { getAuthToken, getActiveAccount } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import SnooLoader from "../../components/ui/SnooLoader";
 
 const QnAQuestionsScreen = ({ route, navigation }) => {
-
-
+  const insets = useSafeAreaInsets();
   const { post } = route.params;
   const typeData = post.type_data || {};
 
@@ -28,6 +28,10 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
   // Question input state
   const [questionText, setQuestionText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Question limit state
+  const [userQuestionCount, setUserQuestionCount] = useState(0);
+  const [maxQuestionsPerUser, setMaxQuestionsPerUser] = useState(1);
 
   // Reply state
   const [replyingToQuestionId, setReplyingToQuestionId] = useState(null);
@@ -47,6 +51,12 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
 
         if (response.success) {
           setQuestions(response.questions || []);
+          if (response.user_question_count !== undefined) {
+            setUserQuestionCount(response.user_question_count);
+          }
+          if (response.max_questions_per_user !== undefined) {
+            setMaxQuestionsPerUser(response.max_questions_per_user);
+          }
         }
       } catch (error) {
         console.error("Error fetching questions:", error);
@@ -103,7 +113,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
         `/posts/${post.id}/questions`,
         {
           content: questionText.trim(),
-          is_anonymous: isAnonymous && typeData.allow_anonymous,
+          is_anonymous: false,
         },
         15000,
         token,
@@ -111,9 +121,8 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
 
       if (response.success) {
         setQuestionText("");
-        setIsAnonymous(false);
+        setUserQuestionCount((prev) => prev + 1); // optimistic increment
         fetchQuestions(false);
-        Alert.alert("Question submitted!", "Your question has been posted.");
       }
     } catch (error) {
       console.error("Error submitting question:", error);
@@ -219,11 +228,13 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
             ]}
             onPress={() => handleUpvote(item.id, item.has_upvoted)}
           >
-            <Ionicons
-              name={item.has_upvoted ? "arrow-up" : "arrow-up-outline"}
-              size={20}
-              color={item.has_upvoted ? "#5856D6" : COLORS.textSecondary}
-            />
+            <View style={[styles.iconContainer, item.has_upvoted && styles.iconContainerActive]}>
+              <ArrowUp
+                size={18}
+                color={item.has_upvoted ? "#3B82F6" : "#8E8E93"}
+                strokeWidth={item.has_upvoted ? 2.5 : 2}
+              />
+            </View>
           </TouchableOpacity>
           <Text
             style={[
@@ -246,8 +257,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
               />
             ) : item.is_anonymous ? (
               <View style={styles.anonymousAvatar}>
-                <Ionicons
-                  name="person"
+                <User
                   size={12}
                   color={COLORS.textSecondary}
                 />
@@ -261,7 +271,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
             </Text>
             {item.is_pinned && (
               <View style={styles.pinnedBadge}>
-                <Ionicons name="pin" size={10} color="#FF9500" />
+                <Pin size={10} color="#FF9500" />
               </View>
             )}
           </View>
@@ -273,14 +283,13 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
           <View style={styles.badgesRow}>
             {item.is_answered && (
               <View style={styles.answeredBadge}>
-                <Ionicons name="checkmark-circle" size={14} color="#34C759" />
+                <CheckCircle size={14} color="#34C759" />
                 <Text style={styles.answeredBadgeText}>Answered</Text>
               </View>
             )}
             {item.is_locked && (
               <View style={styles.lockedBadge}>
-                <Ionicons
-                  name="lock-closed"
+                <Lock
                   size={12}
                   color={COLORS.textSecondary}
                 />
@@ -316,7 +325,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
                 style={styles.replyButton}
                 onPress={() => handleReply(item.id)}
               >
-                <Ionicons name="chatbubble-outline" size={14} color="#5856D6" />
+                <MessageSquare size={14} color="#3B82F6" />
                 <Text style={styles.replyButtonText}>Reply</Text>
               </TouchableOpacity>
             ) : null;
@@ -374,11 +383,13 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
                       item.answers.length > 1 ? "s" : ""
                     }`}
               </Text>
-              <Ionicons
-                name={isExpanded ? "chevron-up" : "chevron-down"}
-                size={16}
-                color={COLORS.primary}
-              />
+              <View style={styles.expandIconContainer}>
+                {isExpanded ? (
+                  <ChevronUp size={16} color="#3B82F6" />
+                ) : (
+                  <ChevronDown size={16} color="#3B82F6" />
+                )}
+              </View>
             </TouchableOpacity>
           )}
 
@@ -399,7 +410,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
                     </Text>
                     {answer.is_best_answer && (
                       <View style={styles.bestAnswerBadge}>
-                        <Ionicons name="star" size={10} color="#FFD700" />
+                        <Star size={10} color="#F59E0B" fill="#F59E0B" />
                         <Text style={styles.bestAnswerText}>Best</Text>
                       </View>
                     )}
@@ -421,16 +432,48 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
     <View style={styles.headerContainer}>
       {/* Post Info */}
       <View style={styles.postInfo}>
-        <MaterialCommunityIcons
-          name="frequently-asked-questions"
-          size={24}
-          color="#5856D6"
-        />
+        <View style={styles.questionIconContainer}>
+          <MessageSquare size={28} color="#85999A" strokeWidth={1.5} />
+          <Text style={styles.questionIconText}>?</Text>
+        </View>
         <View style={styles.postInfoText}>
           <Text style={styles.postTitle}>{typeData.title}</Text>
-          <Text style={styles.postAuthor}>by {post.author_name}</Text>
+          <Text style={styles.postAuthor}>
+            by <Text style={styles.postAuthorName}>{post.author_name}</Text>
+          </Text>
         </View>
       </View>
+
+      {/* Question limit banner */}
+      {!isOwner && (
+        <View style={styles.limitBanner}>
+          <MessageSquare size={14} color={limitReached ? "#EF4444" : "#6B7280"} />
+          <Text style={[
+            styles.limitBannerText,
+            limitReached && styles.limitBannerTextReached,
+          ]}>
+            {limitReached
+              ? `You've used all ${maxQuestionsPerUser} question${maxQuestionsPerUser > 1 ? "s" : ""}`
+              : `${userQuestionCount} / ${maxQuestionsPerUser} question${maxQuestionsPerUser > 1 ? "s" : ""} used`}
+          </Text>
+          <View style={[
+            styles.limitDots,
+            limitReached && styles.limitDotsFull,
+          ]}>
+            {Array.from({ length: maxQuestionsPerUser }).map((_, i) => (
+              <View
+                key={i}
+                style={[
+                  styles.limitDot,
+                  i < userQuestionCount && styles.limitDotFilled,
+                ]}
+              />
+            ))}
+          </View>
+        </View>
+      )}
+
+      <View style={styles.divider} />
 
       {/* Filter Pills */}
       <View style={styles.filterRow}>
@@ -458,6 +501,8 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         ))}
       </View>
+      
+      <View style={styles.dividerSubtle} />
 
       {/* Sort Toggle */}
       <View style={styles.sortRow}>
@@ -466,10 +511,9 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
           style={[styles.sortOption, sort === "top" && styles.sortOptionActive]}
           onPress={() => setSort("top")}
         >
-          <Ionicons
-            name="trending-up"
-            size={14}
-            color={sort === "top" ? "#5856D6" : COLORS.textSecondary}
+          <TrendingUp
+            size={16}
+            color={sort === "top" ? "#3B82F6" : "#8E8E93"}
           />
           <Text
             style={[styles.sortText, sort === "top" && styles.sortTextActive]}
@@ -484,10 +528,9 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
           ]}
           onPress={() => setSort("recent")}
         >
-          <Ionicons
-            name="time-outline"
-            size={14}
-            color={sort === "recent" ? "#5856D6" : COLORS.textSecondary}
+          <Clock
+            size={16}
+            color={sort === "recent" ? "#3B82F6" : "#8E8E93"}
           />
           <Text
             style={[
@@ -502,15 +545,28 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
     </View>
   );
 
+  const limitReached = userQuestionCount >= maxQuestionsPerUser;
+  // Only show input for non-owners (community owners answer, they don't ask)
+  const isOwner =
+    String(post.author_id) === String(currentUserId) &&
+    post.author_type === currentUserType;
+
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <MaterialCommunityIcons
-        name="comment-question-outline"
-        size={48}
-        color={COLORS.textSecondary}
-      />
+      <View style={styles.emptyIconContainer}>
+        {/* Double chat bubble illusion */}
+        <MessageSquare size={64} color="#9CA3AF" strokeWidth={1.5} style={styles.emptyIconBack} />
+        <View style={styles.emptyIconFront}>
+          <MessageSquare size={64} color="#6B7280" strokeWidth={1.5} />
+        </View>
+        <View style={styles.emptyBadgeContainer}>
+          <Text style={styles.emptyBadgeText}>?</Text>
+        </View>
+      </View>
       <Text style={styles.emptyTitle}>No questions yet</Text>
-      <Text style={styles.emptySubtitle}>Be the first to ask!</Text>
+      <Text style={styles.emptySubtitle}>
+        Be the first to ask! Your question{"\n"}will appear here once submitted.
+      </Text>
     </View>
   );
 
@@ -522,31 +578,28 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <ArrowLeft size={24} color="#1D1D1F" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Questions</Text>
-        <View style={styles.headerRight}>
-          <Text style={styles.questionCountBadge}>{questions.length}</Text>
-        </View>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {typeData.title || "Questions"}
+        </Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.keyboardContainer}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-      >
+      <View style={{ flex: 1 }}>
         {isLoading ? (
           <View style={styles.loadingContainer}>
             <SnooLoader size="large" color="#5856D6" />
           </View>
         ) : (
           <FlatList
+            style={{ flex: 1 }}
             data={questions}
             renderItem={renderQuestion}
             keyExtractor={(item) => `question-${item.id}`}
             ListHeaderComponent={renderHeader}
             ListEmptyComponent={renderEmpty}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: 100 }]}
             refreshControl={
               <RefreshControl
                 refreshing={isRefreshing}
@@ -556,14 +609,28 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
             }
           />
         )}
+      </View>
 
-        {/* Question Input Bar */}
-        <View style={styles.inputContainer}>
-          <View style={styles.inputRow}>
+      {/* Floating Question Input Bar */}
+      <KeyboardStickyView
+        offset={{ closed: 0, opened: 0 }}
+        style={styles.floatingInputWrapper}
+      >
+        {isOwner ? null : limitReached ? (
+          // Limit reached — locked state
+          <View style={styles.inputLockedContainer}>
+            <Lock size={16} color="#9CA3AF" />
+            <Text style={styles.inputLockedText}>
+              You've reached the question limit
+            </Text>
+          </View>
+        ) : (
+          // Normal input
+          <View style={styles.inputContainerFloating}>
             <TextInput
-              style={styles.questionInput}
+              style={styles.questionInputFloating}
               placeholder="Ask a question..."
-              placeholderTextColor={COLORS.textSecondary}
+              placeholderTextColor="#9CA3AF"
               value={questionText}
               onChangeText={setQuestionText}
               multiline
@@ -571,9 +638,9 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
             />
             <TouchableOpacity
               style={[
-                styles.sendButton,
+                styles.sendButtonFloating,
                 (!questionText.trim() || isSubmitting) &&
-                  styles.sendButtonDisabled,
+                  styles.sendButtonDisabledFloating,
               ]}
               onPress={handleSubmitQuestion}
               disabled={!questionText.trim() || isSubmitting}
@@ -581,12 +648,12 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
               {isSubmitting ? (
                 <SnooLoader size="small" color="#FFFFFF" />
               ) : (
-                <Ionicons name="send" size={18} color="#FFFFFF" />
+                <Send size={18} color="#FFFFFF" style={styles.sendIcon} />
               )}
             </TouchableOpacity>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        )}
+      </KeyboardStickyView>
     </SafeAreaView>
   );
 };
@@ -594,38 +661,41 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.screenBackground,
+    backgroundColor: "#F9FAFB",
   },
   headerBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: SPACING.m,
-    paddingVertical: SPACING.s,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    paddingVertical: 12,
+    backgroundColor: "#F9FAFB",
   },
   backButton: {
     padding: SPACING.xs,
   },
+  moreButton: {
+    padding: SPACING.xs,
+  },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+    flex: 1,
+    textAlign: "center",
+    fontSize: 20,
+    fontFamily: "BasicCommercial-Bold",
+    color: "#1D1D1F",
   },
   headerRight: {
     minWidth: 40,
     alignItems: "flex-end",
   },
   questionCountBadge: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#5856D6",
-    backgroundColor: "#5856D615",
-    paddingHorizontal: SPACING.s,
-    paddingVertical: 2,
-    borderRadius: BORDER_RADIUS.s,
+    fontSize: 13,
+    fontFamily: "Manrope-Medium",
+    color: "#3B82F6",
+    backgroundColor: "#EAF1FF",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   loadingContainer: {
     flex: 1,
@@ -634,50 +704,88 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: SPACING.xl,
+    backgroundColor: "#F9FAFB", // light gray list background
   },
   // Header Section
   headerContainer: {
-    backgroundColor: COLORS.surface,
-    padding: SPACING.m,
-    marginBottom: SPACING.s,
-    ...SHADOWS.sm,
+    backgroundColor: "#F9FAFB",
+    paddingTop: SPACING.m,
   },
   postInfo: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: SPACING.m,
+    paddingHorizontal: SPACING.m,
+    marginBottom: SPACING.l,
+  },
+  questionIconContainer: {
+    width: 64,
+    height: 64,
+    backgroundColor: "#0F292E",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  questionIconText: {
+    position: "absolute",
+    fontSize: 16,
+    fontFamily: "BasicCommercial-Bold",
+    color: "#85999A",
+    marginTop: 2,
   },
   postInfoText: {
-    marginLeft: SPACING.s,
+    marginLeft: SPACING.m,
     flex: 1,
   },
   postTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+    fontSize: 22,
+    fontFamily: "BasicCommercial-Bold",
+    color: "#1D1D1F",
+    lineHeight: 28,
   },
   postAuthor: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
+    fontSize: 14,
+    fontFamily: "Manrope-Regular",
+    color: "#8E8E93",
+    marginTop: 4,
+  },
+  postAuthorName: {
+    color: "#059669",
+    fontFamily: "Manrope-Medium",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#E5E7EB",
+    marginHorizontal: SPACING.m,
+    marginBottom: SPACING.m,
+  },
+  dividerSubtle: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    marginHorizontal: SPACING.m,
+    marginBottom: SPACING.s,
   },
   filterRow: {
     flexDirection: "row",
-    marginBottom: SPACING.s,
+    paddingHorizontal: SPACING.m,
+    marginBottom: SPACING.m,
   },
   filterPill: {
-    paddingHorizontal: SPACING.m,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.l,
-    backgroundColor: COLORS.screenBackground,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
     marginRight: SPACING.s,
   },
   filterPillActive: {
-    backgroundColor: "#5856D6",
+    backgroundColor: "#000000",
+    borderColor: "#000000",
   },
   filterPillText: {
     fontSize: 13,
-    fontWeight: "500",
-    color: COLORS.textSecondary,
+    fontFamily: "Manrope-SemiBold",
+    color: "#1D1D1F",
   },
   filterPillTextActive: {
     color: "#FFFFFF",
@@ -685,54 +793,96 @@ const styles = StyleSheet.create({
   sortRow: {
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: SPACING.m,
+    marginTop: SPACING.xs,
   },
   sortLabel: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginRight: SPACING.s,
+    fontSize: 14,
+    fontFamily: "Manrope-Regular",
+    color: "#8E8E93",
+    marginRight: SPACING.m,
   },
   sortOption: {
     flexDirection: "row",
     alignItems: "center",
-    marginRight: SPACING.m,
+    marginRight: SPACING.l,
     paddingVertical: 4,
   },
   sortOptionActive: {},
   sortText: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginLeft: 4,
+    fontSize: 14,
+    fontFamily: "Manrope-Medium",
+    color: "#8E8E93",
+    marginLeft: 6,
   },
   sortTextActive: {
-    color: "#5856D6",
-    fontWeight: "600",
+    color: "#1D1D1F",
+    fontFamily: "Manrope-SemiBold",
+  },
+  // Question limit banner
+  limitBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: SPACING.m,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  limitBannerText: {
+    fontSize: 13,
+    fontFamily: "Manrope-Medium",
+    color: "#6B7280",
+    flex: 1,
+  },
+  limitBannerTextReached: {
+    color: "#EF4444",
+  },
+  limitDots: {
+    flexDirection: "row",
+    gap: 6,
+    alignItems: "center",
+  },
+  limitDotsFull: {},
+  limitDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#E5E7EB",
+  },
+  limitDotFilled: {
+    backgroundColor: "#059669",
   },
   // Question Card
   questionCard: {
     flexDirection: "row",
-    backgroundColor: COLORS.surface,
+    backgroundColor: "#FFFFFF",
     marginHorizontal: SPACING.m,
-    marginTop: SPACING.s,
-    borderRadius: BORDER_RADIUS.l,
-    padding: SPACING.m,
-    ...SHADOWS.sm,
+    marginTop: SPACING.m,
+    borderRadius: 16,
+    padding: SPACING.l,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
   },
   upvoteSection: {
     alignItems: "center",
     marginRight: SPACING.m,
-    width: 40,
+    width: 44,
   },
   upvoteButton: {
-    padding: SPACING.xs,
+    marginBottom: 4,
   },
   upvoteButtonActive: {},
   upvoteCount: {
     fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
+    fontFamily: "Manrope-SemiBold",
+    color: "#8E8E93",
   },
   upvoteCountActive: {
-    color: "#5856D6",
+    color: "#3B82F6",
   },
   questionContent: {
     flex: 1,
@@ -740,93 +890,107 @@ const styles = StyleSheet.create({
   questionHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: SPACING.xs,
+    marginBottom: 8,
   },
   authorAvatar: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    marginRight: 6,
+    marginRight: 8,
   },
   authorName: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: COLORS.textPrimary,
+    fontSize: 14,
+    fontFamily: "Manrope-Medium",
+    color: "#1D1D1F",
   },
   questionTime: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    fontFamily: "Manrope-Regular",
+    color: "#8E8E93",
     marginLeft: 4,
   },
   pinnedBadge: {
     marginLeft: SPACING.xs,
-    backgroundColor: "#FF950020",
+    backgroundColor: "#FFFBEB",
     borderRadius: 8,
-    padding: 3,
+    padding: 4,
   },
   questionText: {
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    lineHeight: 22,
-    marginBottom: SPACING.xs,
+    fontSize: 16,
+    fontFamily: "Manrope-Regular",
+    color: "#1D1D1F",
+    lineHeight: 24,
+    marginBottom: 12,
   },
   badgesRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: SPACING.xs,
+    marginBottom: 8,
   },
   answeredBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E8F5E9",
+    backgroundColor: "#ECFDF5",
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: BORDER_RADIUS.s,
+    paddingVertical: 4,
+    borderRadius: 12,
     marginRight: SPACING.xs,
   },
   answeredBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#34C759",
-    marginLeft: 3,
+    fontSize: 12,
+    fontFamily: "Manrope-SemiBold",
+    color: "#059669",
+    marginLeft: 4,
   },
   lockedBadge: {
-    padding: 3,
+    padding: 4,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
   },
   expandButton: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: SPACING.xs,
+    marginTop: 8,
+    paddingVertical: 4,
   },
   expandButtonText: {
-    fontSize: 13,
-    color: COLORS.primary,
-    fontWeight: "500",
-    marginRight: 4,
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+    color: "#3B82F6",
+    marginRight: 6,
+  },
+  expandIconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#EAF1FF",
+    alignItems: "center",
+    justifyContent: "center",
   },
   // Reply Button
   replyButton: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: SPACING.xs,
+    marginTop: 8,
     paddingVertical: 6,
   },
   replyButtonText: {
-    fontSize: 13,
-    color: "#5856D6",
-    fontWeight: "500",
-    marginLeft: 4,
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+    color: "#3B82F6",
+    marginLeft: 6,
   },
   // Reply Input
   replyInputContainer: {
-    marginTop: SPACING.s,
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
+    marginTop: 12,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
     padding: SPACING.m,
   },
   replyInput: {
-    fontSize: 14,
-    color: COLORS.textPrimary,
+    fontSize: 15,
+    fontFamily: "Manrope-Regular",
+    color: "#1D1D1F",
     minHeight: 60,
     maxHeight: 120,
     textAlignVertical: "top",
@@ -834,34 +998,34 @@ const styles = StyleSheet.create({
   replyActions: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    marginTop: SPACING.s,
+    marginTop: SPACING.m,
     gap: SPACING.s,
   },
   cancelReplyButton: {
-    paddingHorizontal: SPACING.m,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.m,
-    backgroundColor: COLORS.border,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
   },
   cancelReplyText: {
-    fontSize: 13,
-    fontWeight: "500",
-    color: COLORS.textSecondary,
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+    color: "#5B6B7C",
   },
   sendReplyButton: {
-    paddingHorizontal: SPACING.m,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.m,
-    backgroundColor: "#5856D6",
-    minWidth: 60,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "#3B82F6",
+    minWidth: 80,
     alignItems: "center",
   },
   sendReplyButtonDisabled: {
-    backgroundColor: COLORS.border,
+    backgroundColor: "#D1D5DB",
   },
   sendReplyText: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
     color: "#FFFFFF",
   },
   // Answers
@@ -869,18 +1033,18 @@ const styles = StyleSheet.create({
     marginTop: SPACING.m,
     paddingTop: SPACING.m,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: "#F3F4F6",
   },
   answerCard: {
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.m,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
     padding: SPACING.m,
     marginBottom: SPACING.s,
   },
   answerHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: SPACING.xs,
+    marginBottom: 8,
   },
   answerAuthorAvatar: {
     width: 18,
@@ -890,33 +1054,35 @@ const styles = StyleSheet.create({
   },
   answerAuthorName: {
     fontSize: 13,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+    fontFamily: "Manrope-Medium",
+    color: "#1D1D1F",
   },
   bestAnswerBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF8E1",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: BORDER_RADIUS.s,
-    marginLeft: SPACING.xs,
+    backgroundColor: "#FFFBEB",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
   },
   bestAnswerText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: "#F9A825",
-    marginLeft: 2,
+    fontSize: 11,
+    fontFamily: "Manrope-Bold",
+    color: "#D97706",
+    marginLeft: 4,
   },
   answerTime: {
     fontSize: 12,
-    color: COLORS.textSecondary,
+    fontFamily: "Manrope-Regular",
+    color: "#8E8E93",
     marginLeft: 4,
   },
   answerText: {
-    fontSize: 14,
-    color: COLORS.textPrimary,
-    lineHeight: 20,
+    fontSize: 15,
+    fontFamily: "Manrope-Regular",
+    color: "#1D1D1F",
+    lineHeight: 22,
   },
   // Empty State
   emptyContainer: {
@@ -925,16 +1091,60 @@ const styles = StyleSheet.create({
     padding: SPACING.xl,
     marginTop: SPACING.xl,
   },
+  emptyIconContainer: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: SPACING.m,
+  },
+  emptyIconBack: {
+    position: "absolute",
+    marginLeft: -20,
+    marginTop: -20,
+  },
+  emptyIconFront: {
+    backgroundColor: "#F3F4F6", // clip illusion
+    padding: 2,
+    borderRadius: 12,
+  },
+  emptyBadgeContainer: {
+    position: "absolute",
+    bottom: 25,
+    right: 30,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  emptyBadgeText: {
+    color: "#059669",
+    fontSize: 20,
+    fontFamily: "BasicCommercial-Bold",
+    marginTop: 2,
+  },
   emptyTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
+    fontSize: 22,
+    fontFamily: "BasicCommercial-Bold",
+    color: "#1D1D1F",
     marginTop: SPACING.m,
   },
   emptySubtitle: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    marginTop: SPACING.xs,
+    fontSize: 15,
+    fontFamily: "Manrope-Regular",
+    color: "#5B6B7C",
+    marginTop: 8,
+    textAlign: "center",
+    lineHeight: 22,
   },
   // Keyboard container
   keyboardContainer: {
@@ -945,47 +1155,70 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: COLORS.border,
+    backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 6,
+    marginRight: 8,
   },
-  // Input Bar
-  inputContainer: {
-    backgroundColor: COLORS.surface,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingHorizontal: SPACING.m,
-    paddingTop: SPACING.s,
-    paddingBottom: SPACING.m,
+  // Floating Input Bar
+  floatingInputWrapper: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
   },
-  inputRow: {
+  inputLockedContainer: {
     flexDirection: "row",
-    alignItems: "flex-end",
-  },
-  questionInput: {
-    flex: 1,
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.l,
-    paddingHorizontal: SPACING.m,
-    paddingVertical: SPACING.s,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    maxHeight: 100,
-    minHeight: 40,
-  },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#5856D6",
     alignItems: "center",
     justifyContent: "center",
-    marginLeft: SPACING.s,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 30,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    gap: 8,
   },
-  sendButtonDisabled: {
-    backgroundColor: COLORS.border,
+  inputLockedText: {
+    fontSize: 14,
+    fontFamily: "Manrope-Medium",
+    color: "#9CA3AF",
   },
+  inputContainerFloating: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 30,
+    paddingLeft: 20,
+    paddingRight: 8,
+    paddingVertical: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  questionInputFloating: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: "Manrope-Regular",
+    color: "#1D1D1F",
+    maxHeight: 100,
+    paddingVertical: 8,
+  },
+  sendButtonFloating: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#000000",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
+  },
+  sendButtonDisabledFloating: {
+    backgroundColor: "#E5E7EB",
+  },
+  sendIcon: {
+    marginLeft: -2,
+  }
 });
 
 export default QnAQuestionsScreen;

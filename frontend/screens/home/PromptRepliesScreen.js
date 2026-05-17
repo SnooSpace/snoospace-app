@@ -10,7 +10,7 @@ import React, {
   useRef,
   useMemo,
 } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, RefreshControl, TextInput } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, RefreshControl, TextInput, Platform } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   SafeAreaView,
@@ -708,52 +708,54 @@ const PromptRepliesScreen = ({ route, navigation }) => {
         }}
         style={styles.stickyInputContainer}
       >
-        {/* Show who we're replying to */}
-        {replyingTo && (
-          <View style={styles.replyingToBar}>
-            <Text style={styles.replyingToText}>
-              Replying to{" "}
-              <Text style={styles.replyingToName}>
-                {replyingTo.author_name}
+        <View style={styles.inputContainerFloating}>
+          {/* Show who we're replying to */}
+          {replyingTo && (
+            <View style={styles.replyingToBar}>
+              <Text style={styles.replyingToText}>
+                Replying to{" "}
+                <Text style={styles.replyingToName}>
+                  {replyingTo.author_name}
+                </Text>
               </Text>
-            </Text>
+              <TouchableOpacity
+                onPress={() => setReplyingTo(null)}
+                style={styles.cancelReplyButton}
+              >
+                <X size={18} color={COLORS.textSecondary} />
+              </TouchableOpacity>
+            </View>
+          )}
+          <View style={styles.inputContentFloating}>
+            <TextInput
+              ref={inputRef}
+              style={styles.questionInputFloating}
+              placeholder={
+                replyingTo
+                  ? `Reply to ${replyingTo.author_name}...`
+                  : "Add a reply..."
+              }
+              placeholderTextColor={COLORS.textSecondary}
+              value={replyText}
+              onChangeText={setReplyText}
+              multiline
+              maxLength={500}
+            />
             <TouchableOpacity
-              onPress={() => setReplyingTo(null)}
-              style={styles.cancelReplyButton}
+              style={[
+                styles.sendButtonFloating,
+                (!replyText.trim() || isSending) && styles.sendButtonDisabledFloating,
+              ]}
+              onPress={handleSendReply}
+              disabled={!replyText.trim() || isSending}
             >
-              <X size={18} color={COLORS.textSecondary} />
+              {isSending ? (
+                <SnooLoader size="small" color="#FFFFFF" />
+              ) : (
+                <Send size={18} color="#FFFFFF" style={styles.sendIcon} />
+              )}
             </TouchableOpacity>
           </View>
-        )}
-        <View style={styles.inputContent}>
-          <TextInput
-            ref={inputRef}
-            style={styles.input}
-            placeholder={
-              replyingTo
-                ? `Reply to ${replyingTo.author_name}...`
-                : "Add a reply..."
-            }
-            placeholderTextColor={COLORS.textSecondary}
-            value={replyText}
-            onChangeText={setReplyText}
-            multiline
-            maxLength={500}
-          />
-          <TouchableOpacity
-            style={[
-              styles.sendButton,
-              (!replyText.trim() || isSending) && styles.sendButtonDisabled,
-            ]}
-            onPress={handleSendReply}
-            disabled={!replyText.trim() || isSending}
-          >
-            {isSending ? (
-              <SnooLoader size="small" color="#FFFFFF" />
-            ) : (
-              <Send size={20} color="#FFFFFF" />
-            )}
-          </TouchableOpacity>
         </View>
       </KeyboardStickyView>
     </SafeAreaView>
@@ -771,8 +773,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.m,
     paddingVertical: SPACING.s,
     backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   backButton: {
     padding: SPACING.xs,
@@ -965,17 +965,32 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: COLORS.surface,
+    backgroundColor: "transparent",
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
+    paddingTop: 10,
+  },
+  inputContainerFloating: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 30,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 8,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
   },
   replyingToBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: SPACING.m,
-    paddingVertical: SPACING.xs,
-    backgroundColor: COLORS.screenBackground,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
   },
   replyingToText: {
     fontSize: 13,
@@ -989,36 +1004,35 @@ const styles = StyleSheet.create({
   cancelReplyButton: {
     padding: SPACING.xs,
   },
-  inputContent: {
+  inputContentFloating: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    paddingHorizontal: SPACING.m,
-    paddingVertical: SPACING.s,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    gap: SPACING.s,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: COLORS.screenBackground,
-    borderRadius: BORDER_RADIUS.l,
-    paddingHorizontal: SPACING.m,
-    paddingVertical: SPACING.s,
-    fontSize: 15,
-    fontFamily: FONTS.regular,
-    color: COLORS.textPrimary,
-    maxHeight: 100,
-  },
-  sendButton: {
-    backgroundColor: COLORS.primary,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
     alignItems: "center",
+    paddingLeft: 20,
+    paddingRight: 8,
+    paddingVertical: 8,
   },
-  sendButtonDisabled: {
-    backgroundColor: COLORS.border,
+  questionInputFloating: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: "Manrope-Regular",
+    color: "#1D1D1F",
+    maxHeight: 100,
+    paddingVertical: 8,
+  },
+  sendButtonFloating: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#000000",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
+  },
+  sendButtonDisabledFloating: {
+    backgroundColor: "#E5E7EB",
+  },
+  sendIcon: {
+    marginLeft: -2,
   },
   nestedReplyCard: {
     marginLeft: SPACING.xl,

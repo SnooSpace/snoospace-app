@@ -44,6 +44,7 @@ import {
   MoveRight,
   Image as LucideImage,
   Camera,
+  Lock,
 } from "lucide-react-native";
 import { savePost, unsavePost } from "../../api/client";
 import { uploadMultipleImages } from "../../api/cloudinary";
@@ -556,36 +557,22 @@ const PromptPostCard = ({
 
       {/* Submission Area */}
       {hasSubmitted ? (
-        <View style={styles.submittedContainer}>
-          <Ionicons
-            name="lock-closed"
-            size={14}
-            color="#9CA3AF"
-            style={{ marginRight: 8 }}
-          />
-          <Text style={styles.submittedText}>You've already responded</Text>
+        <View style={styles.inputLockedContainer}>
+          <Lock size={16} color="#9CA3AF" />
+          <Text style={styles.inputLockedText}>You've already responded</Text>
         </View>
       ) : (
         <TouchableOpacity
           style={[
-            styles.tapToAnswerButton,
-            submissionStatus === "rejected" && styles.tapToAnswerButtonRetry,
+            styles.inputContainerFloating,
+            submissionStatus === "rejected" && styles.inputContainerFloatingRetry,
           ]}
           onPress={() => setShowSubmitModal(true)}
           activeOpacity={0.8}
         >
-          <View style={styles.tapIconContainer}>
-            {submissionStatus === "rejected" ? (
-              <Ionicons name="refresh" size={16} color="#D97706" />
-            ) : submissionType === "image" ? (
-              <Camera size={16} color="#9CA3AF" />
-            ) : (
-              <Ionicons name="pencil" size={16} color="#9CA3AF" />
-            )}
-          </View>
           <Text
             style={[
-              styles.tapToAnswerText,
+              styles.questionInputFloatingFake,
               submissionStatus === "rejected" && styles.tapToAnswerTextRetry,
             ]}
           >
@@ -593,6 +580,18 @@ const PromptPostCard = ({
               ? "Try again..."
               : "Tap to answer..."}
           </Text>
+          <View style={[
+            styles.sendButtonFloating,
+            submissionStatus === "rejected" && styles.sendButtonFloatingRetry,
+          ]}>
+            {submissionStatus === "rejected" ? (
+              <Ionicons name="refresh" size={18} color="#FFFFFF" />
+            ) : submissionType === "image" ? (
+              <Camera size={18} color="#FFFFFF" />
+            ) : (
+              <Send size={18} color="#FFFFFF" style={styles.sendIcon} />
+            )}
+          </View>
         </TouchableOpacity>
       )}
 
@@ -965,46 +964,66 @@ const styles = StyleSheet.create({
     lineHeight: 34,
     letterSpacing: -0.5,
   },
-  tapToAnswerButton: {
+  inputContainerFloating: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    padding: 14,
-  },
-  tapIconContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
-  tapToAnswerText: {
-    fontSize: 15,
-    color: "#9CA3AF",
-    fontWeight: "500",
-  },
-  tapToAnswerButtonRetry: {
-    backgroundColor: "#FFFBEB",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 30,
+    paddingLeft: 20,
+    paddingRight: 8,
+    paddingVertical: 8,
     borderWidth: 1,
+    borderColor: "#F3F4F6",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
+    marginBottom: SPACING.s,
+  },
+  inputContainerFloatingRetry: {
+    backgroundColor: "#FFFBEB",
     borderColor: "#FDE68A",
+  },
+  questionInputFloatingFake: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: "Manrope-Regular",
+    color: "#9CA3AF",
   },
   tapToAnswerTextRetry: {
     color: "#D97706",
   },
-  submittedContainer: {
+  sendButtonFloating: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#000000",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
+  },
+  sendButtonFloatingRetry: {
+    backgroundColor: "#D97706",
+  },
+  sendIcon: {
+    marginLeft: -2,
+  },
+  inputLockedContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F5F5F5",
-    borderRadius: BORDER_RADIUS.m,
-    padding: 14,
-    marginBottom: SPACING.m,
+    justifyContent: "center",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 30,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    gap: 8,
+    marginBottom: SPACING.s,
   },
-  submittedText: {
+  inputLockedText: {
     fontSize: 14,
-    fontWeight: "400",
+    fontFamily: "Manrope-Medium",
     color: "#9CA3AF",
   },
 

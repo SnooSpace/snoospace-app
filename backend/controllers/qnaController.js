@@ -366,9 +366,31 @@ const getQuestions = async (req, res) => {
       [postId],
     );
 
+    // Get user's own question count and the post's max_questions_per_user
+    let userQuestionCount = 0;
+    let maxQuestionsPerUser = 1;
+    if (userId) {
+      const userCountResult = await pool.query(
+        `SELECT COUNT(*) as count FROM qna_questions
+         WHERE post_id = $1 AND author_id = $2 AND author_type = $3`,
+        [postId, userId, userType],
+      );
+      userQuestionCount = parseInt(userCountResult.rows[0].count);
+    }
+    // Read max_questions_per_user from the post's type_data
+    const postResult = await pool.query(
+      `SELECT type_data FROM posts WHERE id = $1`,
+      [postId],
+    );
+    if (postResult.rows.length > 0) {
+      maxQuestionsPerUser = postResult.rows[0].type_data?.max_questions_per_user || 1;
+    }
+
     res.json({
       success: true,
       questions,
+      user_question_count: userQuestionCount,
+      max_questions_per_user: maxQuestionsPerUser,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
