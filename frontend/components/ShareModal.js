@@ -14,39 +14,21 @@ import {
   Platform,
 } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { X, Search, Check, Send, Link } from "lucide-react-native";
+import { X, Search, Check, Send } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import * as NavigationBar from "expo-navigation-bar"; // ← ADD THIS
-import * as Clipboard from "expo-clipboard";
 import { getRecentChatUsers, sharePost } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 import SnooLoader from "./ui/SnooLoader";
+import { SHADOWS } from "../constants/theme";
 
-const ShareModal = ({ visible, onClose, post }) => {
-  const insets = useSafeAreaInsets();
+export default function ShareModal({ visible, onClose, post }) {
+  // --- State & Functionality ---
   const [searchQuery, setSearchQuery] = useState("");
   const [recentUsers, setRecentUsers] = useState([]);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
-
-  // ─── Fix: control Android nav bar colour to match the modal sheet ───
-  const wasVisible = React.useRef(false);
-  useEffect(() => {
-    if (Platform.OS !== "android") return;
-    if (visible) {
-      wasVisible.current = true;
-      NavigationBar.setBackgroundColorAsync("#FFFFFF").catch(() => {});
-      NavigationBar.setButtonStyleAsync("dark").catch(() => {});
-    } else if (wasVisible.current) {
-      // Restore whatever your app's default nav bar colour is
-      NavigationBar.setBackgroundColorAsync("transparent").catch(() => {});
-      NavigationBar.setButtonStyleAsync("light").catch(() => {});
-    }
-  }, [visible]);
-  // ────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (visible) {
@@ -109,7 +91,6 @@ const ShareModal = ({ visible, onClose, post }) => {
     }
   };
 
-
   const filteredUsers = recentUsers.filter(
     (user) =>
       (user.full_name || user.name || "")
@@ -168,139 +149,144 @@ const ShareModal = ({ visible, onClose, post }) => {
     );
   };
 
-  const getPostImage = () => {
-    if (!post?.image_urls) return null;
-    const urls = Array.isArray(post.image_urls) ? post.image_urls.flat() : [];
-    return urls.find(
-      (url) => typeof url === "string" && url.startsWith("http"),
-    );
+  const handleClose = () => {
+    onClose();
   };
 
+  // --- Render (Mirrored exactly from EmailChangeModal) ---
   return (
     <Modal
       visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
+      transparent={true}
+      animationType="slide"
+      onRequestClose={handleClose}
+      statusBarTranslucent={true}
+      navigationBarTranslucent={Platform.OS === 'android'}
     >
-      <View style={styles.overlay}>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <KeyboardStickyView
-            style={{ width: "100%" }}
-            offset={{ opened: Platform.OS === "android" ? insets.bottom : 0 }}
-          >
-            <View
-              style={[
-                styles.container,
-                { paddingBottom: Math.max(insets.bottom, 20) },
-              ]}
-            >
-              {/* Header */}
-              <View style={styles.header}>
-                <Text style={styles.headerTitle}>Share</Text>
-                <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                  <X size={24} color="#1D1D1F" strokeWidth={2.5} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Search Bar */}
-              <View style={styles.searchContainer}>
-                <Search
-                  size={18}
-                  color="#8E8E93"
-                  strokeWidth={2}
-                  style={styles.searchIcon}
-                />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search"
-                  placeholderTextColor="#8E8E93"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-              </View>
-
-              {/* Users Grid */}
-              {loading ? (
-                <View style={styles.loadingContainer}>
-                  <SnooLoader size="large" color="#007AFF" />
-                </View>
-              ) : (
-                <FlatList
-                  data={filteredUsers}
-                  renderItem={renderUser}
-                  keyExtractor={(item) => `${item.type}_${item.id}`}
-                  numColumns={3}
-                  contentContainerStyle={styles.usersList}
-                  ListEmptyComponent={
-                    <View style={styles.emptyContainer}>
-                      <Text style={styles.emptyText}>
-                        {searchQuery ? "No users found" : "No recent chats"}
-                      </Text>
-                    </View>
-                  }
-                />
-              )}
-
-              {/* Bottom Actions */}
-              <View style={styles.bottomActions}>
-                {selectedUsers.length > 0 && (
+      <TouchableWithoutFeedback onPress={handleClose}>
+        <View style={styles.modalOverlay}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <KeyboardStickyView style={styles.keyboardView}>
+              <View style={styles.modalContent}>
+                
+                {/* Header */}
+                <View style={styles.header}>
+                  <Text style={styles.headerTitle}>Share</Text>
                   <TouchableOpacity
-                    style={styles.sendButton}
-                    onPress={handleSend}
-                    disabled={sending}
+                    onPress={handleClose}
+                    style={styles.closeButton}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    {sending ? (
-                      <SnooLoader color="#FFF" />
-                    ) : (
-                      <>
-                        <Send size={18} color="#FFF" strokeWidth={2.5} />
-                        <Text style={styles.sendButtonText}>
-                          Send to {selectedUsers.length}
-                        </Text>
-                      </>
-                    )}
+                    <X size={22} color="#1D1D1F" strokeWidth={2.5} />
                   </TouchableOpacity>
-                )}
+                </View>
+
+                {/* Body Content */}
+                <View style={styles.body}>
+                  {/* Search Bar */}
+                  <View style={styles.searchContainer}>
+                    <Search
+                      size={18}
+                      color="#8E8E93"
+                      strokeWidth={2}
+                      style={styles.searchIcon}
+                    />
+                    <TextInput
+                      style={styles.searchInput}
+                      placeholder="Search"
+                      placeholderTextColor="#8E8E93"
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                    />
+                  </View>
+
+                  {/* Users Grid */}
+                  <View style={styles.usersListContainer}>
+                    {loading ? (
+                      <View style={styles.loadingContainer}>
+                        <SnooLoader size="large" color="#007AFF" />
+                      </View>
+                    ) : (
+                      <FlatList
+                        data={filteredUsers}
+                        renderItem={renderUser}
+                        keyExtractor={(item) => `${item.type}_${item.id}`}
+                        numColumns={3}
+                        contentContainerStyle={styles.usersList}
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                        ListEmptyComponent={
+                          <View style={styles.emptyContainer}>
+                            <Text style={styles.emptyText}>
+                              {searchQuery ? "No users found" : "No recent chats"}
+                            </Text>
+                          </View>
+                        }
+                      />
+                    )}
+                  </View>
+
+                  {/* Bottom Actions */}
+                  {selectedUsers.length > 0 && (
+                    <View style={styles.bottomActions}>
+                      <TouchableOpacity
+                        style={styles.sendButton}
+                        onPress={handleSend}
+                        disabled={sending}
+                      >
+                        {sending ? (
+                          <SnooLoader color="#FFF" />
+                        ) : (
+                          <>
+                            <Send size={18} color="#FFF" strokeWidth={2.5} />
+                            <Text style={styles.sendButtonText}>
+                              Send to {selectedUsers.length}
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
               </View>
-            </View>
-          </KeyboardStickyView>
-        </TouchableWithoutFeedback>
-      </View>
+            </KeyboardStickyView>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  overlay: {
+  modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(26, 24, 38, 0.75)",
-    justifyContent: "flex-end",
+    justifyContent: "flex-end", // Bottom sheet style
   },
-  container: {
-    backgroundColor: "#FFF",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    maxHeight: "92%",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 20,
+  keyboardView: {
+    width: "100%",
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24, // Safe area padding
+    width: "100%",
+    ...SHADOWS.medium,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 20,
+    justifyContent: "center", // Share modal centers title
     paddingHorizontal: 24,
+    paddingBottom: 20,
+    paddingTop: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#F2F2F7",
+    borderBottomColor: "#F0F0F0",
   },
   headerTitle: {
-    fontFamily: "BasicCommercial-Bold",
     fontSize: 18,
+    fontFamily: "BasicCommercial-Bold",
     color: "#1A1826",
     letterSpacing: -0.3,
   },
@@ -313,6 +299,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#F2F2F7",
     alignItems: "center",
     justifyContent: "center",
+  },
+  body: {
+    // We let the FlatList expand but need to contain it within modalContent
   },
   searchContainer: {
     flexDirection: "row",
@@ -334,14 +323,17 @@ const styles = StyleSheet.create({
     color: "#1A1826",
     padding: 0,
   },
-  loadingContainer: {
-    padding: 60,
-    alignItems: "center",
+  usersListContainer: {
+    maxHeight: 400, // Limit height so it scrolls if too many users
   },
   usersList: {
     paddingHorizontal: 12,
     paddingTop: 24,
     paddingBottom: 20,
+  },
+  loadingContainer: {
+    padding: 60,
+    alignItems: "center",
   },
   userItem: {
     width: "33.33%",
@@ -409,8 +401,8 @@ const styles = StyleSheet.create({
   },
   bottomActions: {
     paddingHorizontal: 20,
-    paddingTop: 16,
-    gap: 12,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
   sendButton: {
     backgroundColor: "#007AFF",
@@ -432,5 +424,3 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
-
-export default ShareModal;
