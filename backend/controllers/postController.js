@@ -614,7 +614,14 @@ const getFeed = async (req, res) => {
             AND f2.following_id = p.author_id AND f2.following_type = p.author_type
           )
           ELSE false
-        END AS is_following
+        END AS is_following,
+        CASE 
+          WHEN $4::int IS NOT NULL AND $5::text IS NOT NULL THEN EXISTS (
+            SELECT 1 FROM post_saves ps
+            WHERE ps.post_id = p.id AND ps.saver_id = $4 AND ps.saver_type = $5
+          )
+          ELSE false
+        END AS is_saved
       FROM posts p
       LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
       LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
@@ -1533,7 +1540,14 @@ const getUserPosts = async (req, res) => {
             WHERE l.post_id = p.id AND l.liker_id = $3 AND l.liker_type = $4
           )
           ELSE false
-        END AS is_liked
+        END AS is_liked,
+        CASE 
+          WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN EXISTS (
+            SELECT 1 FROM post_saves ps
+            WHERE ps.post_id = p.id AND ps.saver_id = $3 AND ps.saver_type = $4
+          )
+          ELSE false
+        END AS is_saved
       FROM posts p
       LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
       LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id

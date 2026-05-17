@@ -3,7 +3,7 @@
  * Displays a poll post with voting functionality
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -33,6 +33,7 @@ import EventBus from "../../utils/EventBus";
 import CountdownTimer from "../CountdownTimer";
 import { getExtensionBadgeText } from "../../utils/cardTiming";
 import SnooLoader from "../ui/SnooLoader";
+import { viewQueueService } from "../../services/ViewQueueService";
 
 const PollPostCard = ({
   post,
@@ -87,6 +88,38 @@ const PollPostCard = ({
     setIsSaved(post.is_saved || false);
     setSaveCount(post.save_count || post.saves_count || 0);
   }, [post.is_liked, post.like_count, post.is_saved, post.save_count, post.saves_count]);
+
+  // ── View Tracking ──────────────────────────────────────────────────────────
+  const [viewCount, setViewCount] = useState(post.public_view_count || post.view_count || 0);
+  const dwellTimerRef = useRef(null);
+
+  useEffect(() => {
+    const DWELL_THRESHOLD = 2500;
+    const alreadyViewed = viewQueueService.hasViewed(post.id);
+
+    if (!alreadyViewed) {
+      dwellTimerRef.current = setTimeout(() => {
+        viewQueueService.addQualifiedView(post.id, { postType: "poll", trigger: "dwell" });
+      }, DWELL_THRESHOLD);
+    } else {
+      dwellTimerRef.current = setTimeout(() => {
+        viewQueueService.addRepeatView(post.id, "revisit");
+      }, DWELL_THRESHOLD);
+    }
+
+    return () => {
+      if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
+    };
+  }, [post.id]);
+
+  useEffect(() => {
+    const unsubscribe = EventBus.on("post-view-updated", (payload) => {
+      if (payload?.postId === post.id) {
+        setViewCount((prev) => prev + 1);
+      }
+    });
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, [post.id]);
 
   const handleLike = async () => {
     if (isLiking) return;
@@ -148,8 +181,14 @@ const PollPostCard = ({
       if (onSave) onSave(post.id, newSaveState);
     } catch (error) {
       console.error("Failed to save/unsave post:", error);
-      setIsSaved(!newSaveState);
-      setSaveCount(prevSaveCount);
+      // If server says "already saved", our local state was wrong — correct it
+      if (error?.message?.toLowerCase().includes("already saved")) {
+        setIsSaved(true);
+        setSaveCount(prevSaveCount);
+      } else {
+        setIsSaved(!newSaveState);
+        setSaveCount(prevSaveCount);
+      }
     }
   };
 
@@ -278,22 +317,6 @@ const PollPostCard = ({
     return `${Math.floor(diffInSeconds / 2592000)}mo`;
   };
 
-  const formatExpiryTime = (expiresAt) => {
-    if (!expiresAt) return null;
-    const now = new Date();
-    const expiry = new Date(expiresAt);
-    const diff = expiry - now;
-
-    if (diff <= 0) return "Ended";
-
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const days = Math.floor(hours / 24);
-
-    if (days > 0) return `${days}d left`;
-    if (hours > 0) return `${hours}h left`;
-    return "Ending soon";
-  };
-
   const renderOption = (option, index) => {
     const isSelected = votedIndexes.includes(option.index);
     const percentage =
@@ -366,7 +389,6 @@ const PollPostCard = ({
   };
 
   // Render modal outside container but inside component
-  // Note: For cleaner layering, modals should ideally be at root, but this works for simple cases
   const renderModal = () => (
     <PollEditModal
       visible={showEditModal}
@@ -534,7 +556,7 @@ const PollPostCard = ({
           <View style={styles.engagementButton}>
             <ChartNoAxesCombined size={22} color="#5e8d9b" />
             <Text style={styles.engagementCount}>
-              {formatCount(post.public_view_count || post.view_count || 0)}
+              {formatCount(viewCount)}
             </Text>
           </View>
 
@@ -635,7 +657,7 @@ const styles = StyleSheet.create({
     color: "#1D1D1F",
   },
   pollBadge: {
-    backgroundColor: "#E8EDF5", // Muted light blue
+    backgroundColor: "#E8EDF5",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -643,11 +665,11 @@ const styles = StyleSheet.create({
   pollBadgeText: {
     fontFamily: "BasicCommercial-Bold",
     fontSize: 10,
-    color: "#5B6B7C", // Deeper neutral blue
+    color: "#5B6B7C",
     letterSpacing: 0.5,
   },
   endedBadge: {
-    backgroundColor: "#FEE2E2", // Light red background
+    backgroundColor: "#FEE2E2",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -656,7 +678,7 @@ const styles = StyleSheet.create({
   endedBadgeText: {
     fontFamily: "BasicCommercial-Bold",
     fontSize: 10,
-    color: "#DC2626", // Red text
+    color: "#DC2626",
     letterSpacing: 0.5,
   },
   authorRow: {
@@ -676,15 +698,17 @@ const styles = StyleSheet.create({
     fontFamily: "BasicCommercial-Bold",
   },
   separator: {
-    fontSize: 13,
-    fontWeight: "400",
-    color: "#9CA3AF",
-    marginHorizontal: 4,
+    color: COLORS.textTertiary,
+    marginHorizontal: 6,
+    fontSize: EDITORIAL_TYPOGRAPHY.timestamp.fontSize,
   },
   timestamp: {
-    fontSize: 13,
-    fontWeight: "400",
-    color: "#9CA3AF",
+    ...EDITORIAL_TYPOGRAPHY.timestamp,
+  },
+  editedLabel: {
+    ...EDITORIAL_TYPOGRAPHY.timestamp,
+    color: COLORS.textTertiary,
+    fontStyle: "italic",
   },
   question: {
     fontFamily: "BasicCommercial-Bold",
@@ -701,9 +725,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
   },
-  optionButtonDisabled: {
-    opacity: 0.6,
-  },
   optionButtonText: {
     fontSize: 14,
     fontWeight: "500",
@@ -716,45 +737,11 @@ const styles = StyleSheet.create({
     minHeight: 52,
     position: "relative",
   },
-  optionResultSelected: {
-    backgroundColor: "#3665f3", // Solid blue for selected
-    borderWidth: 0,
-  },
-  progressFill: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-  },
-
   optionContent: {
     padding: 14,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-
-  // The progress bar that sits behind the content
-  resultBarInline: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: "#E5E7EB",
-    zIndex: 0,
-  },
-  resultBarInlineSelected: {
-    backgroundColor: "#3665f3", // Same as container for selected (full fill illusion)
-    opacity: 0, // Hide progress bar for selected item since it's full solid color
-  },
-  // Content that sits on top of the bar
-  optionContentOverlay: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 14,
-    zIndex: 1,
-    position: "relative",
   },
   optionTextRow: {
     flexDirection: "row",
@@ -762,33 +749,21 @@ const styles = StyleSheet.create({
     gap: 8,
     flex: 1,
   },
-  checkIcon: {
-    marginRight: 8,
-    fontSize: 16,
-    color: "#FFFFFF", // White checkmark
-  },
   optionText: {
     fontFamily: "BasicCommercial-Bold",
     fontSize: 14,
     color: "#314151",
   },
-
   optionTextSelected: {
     color: "#ffffff",
     fontWeight: "600",
   },
-
   percentageText: {
     fontSize: 14,
     fontFamily: "BasicCommercial-Bold",
     color: "#AFC8EA",
   },
-
   percentageTextFull: {
-    color: "#ffffff",
-  },
-
-  percentageTextSelected: {
     color: "#ffffff",
   },
   extensionBadge: {
@@ -813,44 +788,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textSecondary,
   },
-  separator: {
-    color: COLORS.textTertiary,
-    marginHorizontal: 6,
-    fontSize: EDITORIAL_TYPOGRAPHY.timestamp.fontSize,
+  activeBadge: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 8,
   },
-  timestamp: {
-    ...EDITORIAL_TYPOGRAPHY.timestamp,
-  },
-  editedLabel: {
-    ...EDITORIAL_TYPOGRAPHY.timestamp,
-    color: COLORS.textTertiary,
-    fontStyle: "italic",
-  },
-  expiryText: {
-    fontSize: 13,
+  activeBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
     color: COLORS.textSecondary,
-    marginLeft: 4,
-  },
-  expiredText: {
-    color: COLORS.error,
-  },
-  expiredOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.85)",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: BORDER_RADIUS.xl,
-  },
-  expiredOverlayText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textSecondary,
-  },
-  votingIndicator: {
-    position: "absolute",
-    right: SPACING.m,
-    top: "50%",
-    marginTop: -10,
   },
 
   // Engagement Row
@@ -876,17 +824,6 @@ const styles = StyleSheet.create({
   },
   likedCount: {
     color: COLORS.error,
-  },
-  activeBadge: {
-    backgroundColor: "#F3F4F6", // Light gray
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  activeBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: COLORS.textSecondary,
   },
 });
 

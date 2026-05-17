@@ -905,7 +905,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
       </KeyboardAvoidingView>
 
       {postType === "media" && (
-        <KeyboardAwareToolbar>
+        <KeyboardAwareToolbar style={{ backgroundColor: COLORS.background }}>
           <View style={styles.toolbarContent}>
             <TouchableOpacity
               onPress={() => {
@@ -920,8 +920,6 @@ export default function CommunityCreatePostScreen({ navigation }) {
                 strokeWidth={2}
               />
             </TouchableOpacity>
-
-
 
             <TouchableOpacity
               onPress={() => {

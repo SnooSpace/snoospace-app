@@ -112,7 +112,7 @@ const SharedPostCard = ({ metadata, onPress, onUserPress, style }) => {
       >
         <PollPostCard
           post={postData}
-          onUserPress={() => {}} // Disable individual user press
+          onUserPress={onUserPress || (() => {})}
           onLike={() => {}}
           onComment={() => {}}
           onSave={() => {}}
@@ -133,7 +133,7 @@ const SharedPostCard = ({ metadata, onPress, onUserPress, style }) => {
       >
         <ChallengePostCard
           post={postData}
-          onUserPress={() => {}} // Disable individual user press
+          onUserPress={onUserPress || (() => {})}
           onLike={() => {}}
           onComment={() => {}}
           onSave={() => {}}
@@ -154,7 +154,7 @@ const SharedPostCard = ({ metadata, onPress, onUserPress, style }) => {
       >
         <PromptPostCard
           post={postData}
-          onUserPress={() => {}} // Disable individual user press
+          onUserPress={onUserPress || (() => {})}
           onLike={() => {}}
           onComment={() => {}}
           onSave={() => {}}
@@ -175,7 +175,7 @@ const SharedPostCard = ({ metadata, onPress, onUserPress, style }) => {
       >
         <QnAPostCard
           post={postData}
-          onUserPress={() => {}} // Disable individual user press
+          onUserPress={onUserPress || (() => {})}
           onLike={() => {}}
           onComment={() => {}}
           onSave={() => {}}

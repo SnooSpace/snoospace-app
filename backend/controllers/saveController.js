@@ -119,6 +119,7 @@ const getSavedPosts = async (req, res) => {
       `SELECT 
         p.*,
         ps.created_at as saved_at,
+        TRUE as is_saved,
         -- Author details based on author_type
         CASE 
           WHEN p.author_type = 'member' THEN (SELECT name FROM members WHERE id = p.author_id)

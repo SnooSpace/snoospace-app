@@ -1502,7 +1502,12 @@ export default function ChatScreen({ route, navigation }) {
                   setSelectedSharedPost(postData); setSharedPostModalVisible(true);
                 }}
                 onUserPress={(userId, userType) => {
-                  navigation.navigate("MemberProfile", { memberId: userId });
+                  const nav = navigation.getParent()?.getParent() || navigation;
+                  if (userType === "community") {
+                    nav.navigate("CommunityPublicProfile", { communityId: userId, viewerRole: "member" });
+                  } else {
+                    nav.navigate("MemberPublicProfile", { memberId: userId });
+                  }
                 }}
               />
             </View>

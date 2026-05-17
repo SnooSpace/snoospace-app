@@ -485,9 +485,14 @@ const EditorialPostCard = ({
       if (onSave) onSave(post.id, newSaveState);
     } catch (error) {
       console.error("Failed to save/unsave post:", error);
-      // Revert on error
-      setIsSaved(!newSaveState);
-      setSaveCount(prevSaveCount);
+      // If server says "already saved", our local state was stale — correct it
+      if (error?.message?.toLowerCase().includes("already saved")) {
+        setIsSaved(true);
+        setSaveCount(prevSaveCount);
+      } else {
+        setIsSaved(!newSaveState);
+        setSaveCount(prevSaveCount);
+      }
     }
   };
 

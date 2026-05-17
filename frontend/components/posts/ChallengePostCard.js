@@ -46,6 +46,7 @@ import {
 } from "../../constants/theme";
 import CountdownTimer from "../CountdownTimer";
 import SnooLoader from "../ui/SnooLoader";
+import { viewQueueService } from "../../services/ViewQueueService";
 import {
   getExtensionBadgeText,
   getTimeRemaining,
@@ -122,6 +123,32 @@ const ChallengePostCard = ({
     setSaveCount(post.save_count || post.saves_count || 0);
   }, [post.is_liked, post.like_count, post.is_saved, post.save_count, post.saves_count]);
 
+  // ── View Tracking ──────────────────────────────────────────────────────────
+  const [viewCount, setViewCount] = useState(post.public_view_count || post.view_count || 0);
+  const dwellTimerRef = useRef(null);
+
+  useEffect(() => {
+    const DWELL_THRESHOLD = 2500;
+    const alreadyViewed = viewQueueService.hasViewed(post.id);
+    if (!alreadyViewed) {
+      dwellTimerRef.current = setTimeout(() => {
+        viewQueueService.addQualifiedView(post.id, { postType: "challenge", trigger: "dwell" });
+      }, DWELL_THRESHOLD);
+    } else {
+      dwellTimerRef.current = setTimeout(() => {
+        viewQueueService.addRepeatView(post.id, "revisit");
+      }, DWELL_THRESHOLD);
+    }
+    return () => { if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current); };
+  }, [post.id]);
+
+  useEffect(() => {
+    const unsubscribe = EventBus.on("post-view-updated", (payload) => {
+      if (payload?.postId === post.id) setViewCount((prev) => prev + 1);
+    });
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, [post.id]);
+
   const handleLike = async () => {
     if (isLiking) return;
 
@@ -182,8 +209,13 @@ const ChallengePostCard = ({
       if (onSave) onSave(post.id, newSaveState);
     } catch (error) {
       console.error("Failed to save/unsave post:", error);
-      setIsSaved(!newSaveState);
-      setSaveCount(prevSaveCount);
+      if (error?.message?.toLowerCase().includes("already saved")) {
+        setIsSaved(true);
+        setSaveCount(prevSaveCount);
+      } else {
+        setIsSaved(!newSaveState);
+        setSaveCount(prevSaveCount);
+      }
     }
   };
 
@@ -820,7 +852,7 @@ const ChallengePostCard = ({
           <View style={styles.engagementButton}>
             <ChartNoAxesCombined size={22} color="#5e8d9b" />
             <Text style={styles.engagementCount}>
-              {formatCount(post.public_view_count || post.view_count || 0)}
+              {formatCount(viewCount)}
             </Text>
           </View>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   Image,
   RefreshControl,
   StatusBar,
+  Animated,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -15,50 +17,75 @@ import {
   Play,
   Bookmark,
   ArrowLeft,
+  LayoutGrid,
+  Layers,
 } from "lucide-react-native";
 import { getSavedPosts } from "../api/client";
 import { getAuthToken, getActiveAccount } from "../api/auth";
 import EventBus from "../utils/EventBus";
 import ProfilePostFeed from "../components/ProfilePostFeed";
 import SnooLoader from "../components/ui/SnooLoader";
+import PollPostCard from "../components/posts/PollPostCard";
+import PromptPostCard from "../components/posts/PromptPostCard";
+import QnAPostCard from "../components/posts/QnAPostCard";
+import ChallengePostCard from "../components/posts/ChallengePostCard";
+import OpportunityFeedCard from "../components/OpportunityFeedCard";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const COLORS = {
   background: "#FFFFFF",
   text: "#000000",
   textSecondary: "#8E8E93",
   border: "#E5E5EA",
+  primary: "#3565F2",
+  primaryLight: "rgba(53,101,242,0.08)",
 };
 
+// ── Community post types that render as full cards ────────────────────────────
+const COMMUNITY_POST_TYPES = ["poll", "prompt", "qna", "challenge", "opportunity"];
+
+const isCommunityPost = (post) =>
+  COMMUNITY_POST_TYPES.includes(post?.post_type);
+
+// ── Tab bar ───────────────────────────────────────────────────────────────────
+const TABS = [
+  { key: "posts",     label: "Posts",           icon: LayoutGrid },
+  { key: "community", label: "Community Posts",  icon: Layers },
+];
+
 const SavedPostsScreen = ({ navigation }) => {
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
-  const [offset, setOffset] = useState(0);
+  const [allPosts,      setAllPosts]      = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [refreshing,    setRefreshing]    = useState(false);
+  const [hasMore,       setHasMore]       = useState(true);
+  const [offset,        setOffset]        = useState(0);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
+  const [activeTab,     setActiveTab]     = useState("posts");
 
-  // Post modal state
+  // Post modal state (for photo/video tab)
   const [postModalVisible, setPostModalVisible] = useState(false);
-  const [selectedPost, setSelectedPost] = useState(null);
+  const [selectedPost,     setSelectedPost]     = useState(null);
 
-  // Load logged-in user info for isOwnPost check
+  // Tab underline animation
+  const tabUnderline = useRef(new Animated.Value(0)).current;
+
+  // Load logged-in user info
   useEffect(() => {
     getActiveAccount().then((account) => {
-      if (account?.id) setCurrentUserId(account.id);
+      if (account?.id)   setCurrentUserId(account.id);
       if (account?.type) setCurrentUserType(account.type);
     }).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    loadSavedPosts();
-  }, []);
+  useEffect(() => { loadSavedPosts(); }, []);
 
-  // Real-time EventBus sync for view/like/save counts
+  // Real-time EventBus sync
   useEffect(() => {
     const handleViewUpdate = (payload) => {
       if (!payload?.postId) return;
-      setPosts((prev) =>
+      setAllPosts((prev) =>
         prev.map((p) =>
           p.id === payload.postId
             ? { ...p, public_view_count: (p.public_view_count || 0) + 1 }
@@ -68,7 +95,7 @@ const SavedPostsScreen = ({ navigation }) => {
     };
     const handleLikeUpdate = (payload) => {
       if (!payload?.postId) return;
-      setPosts((prev) =>
+      setAllPosts((prev) =>
         prev.map((p) =>
           p.id === payload.postId
             ? { ...p, is_liked: payload.isLiked, isLiked: payload.isLiked, like_count: payload.likeCount ?? p.like_count }
@@ -78,11 +105,10 @@ const SavedPostsScreen = ({ navigation }) => {
     };
     const handleSaveUpdate = (payload) => {
       if (!payload?.postId) return;
-      // If unsaved, remove from list; otherwise update save state
       if (!payload.isSaved) {
-        setPosts((prev) => prev.filter((p) => p.id !== payload.postId));
+        setAllPosts((prev) => prev.filter((p) => p.id !== payload.postId));
       } else {
-        setPosts((prev) =>
+        setAllPosts((prev) =>
           prev.map((p) =>
             p.id === payload.postId
               ? { ...p, is_saved: payload.isSaved, save_count: payload.saveCount }
@@ -91,9 +117,9 @@ const SavedPostsScreen = ({ navigation }) => {
         );
       }
     };
-    const unsubView = EventBus.on("post-view-updated", handleViewUpdate);
-    const unsubLike = EventBus.on("post-like-updated", handleLikeUpdate);
-    const unsubSave = EventBus.on("post-save-updated", handleSaveUpdate);
+    const unsubView = EventBus.on("post-view-updated",  handleViewUpdate);
+    const unsubLike = EventBus.on("post-like-updated",  handleLikeUpdate);
+    const unsubSave = EventBus.on("post-save-updated",  handleSaveUpdate);
     return () => {
       if (unsubView) unsubView();
       if (unsubLike) unsubLike();
@@ -103,21 +129,17 @@ const SavedPostsScreen = ({ navigation }) => {
 
   const loadSavedPosts = async (isRefresh = false) => {
     try {
-      if (isRefresh) {
-        setRefreshing(true);
-        setOffset(0);
-      } else {
-        setLoading(true);
-      }
+      if (isRefresh) { setRefreshing(true); setOffset(0); }
+      else { setLoading(true); }
 
       const currentOffset = isRefresh ? 0 : offset;
       const token = await getAuthToken();
-      const response = await getSavedPosts(currentOffset, 20, token);
+      const response = await getSavedPosts(currentOffset, 40, token);
 
       if (isRefresh) {
-        setPosts(response.posts || []);
+        setAllPosts((response.posts || []).map((p) => ({ ...p, is_saved: true })));
       } else {
-        setPosts((prev) => [...prev, ...(response.posts || [])]);
+        setAllPosts((prev) => [...prev, ...(response.posts || []).map((p) => ({ ...p, is_saved: true }))]);
       }
 
       setHasMore(response.hasMore || false);
@@ -130,47 +152,38 @@ const SavedPostsScreen = ({ navigation }) => {
     }
   };
 
-  const handleRefresh = () => {
-    loadSavedPosts(true);
+  // Split posts into the two buckets
+  const mediaPosts     = allPosts.filter((p) => !isCommunityPost(p));
+  const communityPosts = allPosts.filter((p) =>  isCommunityPost(p));
+
+  // ── Tab switch ──────────────────────────────────────────────────────────────
+  const switchTab = (tabKey) => {
+    const idx = TABS.findIndex((t) => t.key === tabKey);
+    Animated.spring(tabUnderline, {
+      toValue: idx * (SCREEN_WIDTH / TABS.length),
+      useNativeDriver: true,
+      tension: 80,
+      friction: 10,
+    }).start();
+    setActiveTab(tabKey);
   };
 
-  const handleLoadMore = () => {
-    if (!loading && hasMore) {
-      loadSavedPosts();
-    }
+  // ── Media post grid ─────────────────────────────────────────────────────────
+  const getFirstImage = (item) => {
+    if (!item.image_urls) return null;
+    const urls = Array.isArray(item.image_urls) ? item.image_urls.flat() : [];
+    const imageUrl = urls.find((url) => {
+      if (typeof url === "string") return url.startsWith("http");
+      if (url?.url) return url.url.startsWith("http");
+      return false;
+    });
+    return typeof imageUrl === "string" ? imageUrl : imageUrl?.url;
   };
 
-  const openPostModal = (post) => {
-    setSelectedPost(post);
-    setPostModalVisible(true);
-  };
-
-  const closePostModal = () => {
-    setPostModalVisible(false);
-    setSelectedPost(null);
-  };
-
-  const handleUnsave = (postId) => {
-    // Remove from list when unsaved
-    setPosts((prev) => prev.filter((p) => p.id !== postId));
-  };
-
-  const renderPost = ({ item }) => {
-    // Get first image from post
-    const getFirstImage = () => {
-      if (!item.image_urls) return null;
-      const urls = Array.isArray(item.image_urls) ? item.image_urls.flat() : [];
-      const imageUrl = urls.find((url) => {
-        if (typeof url === "string") return url.startsWith("http");
-        if (url?.url) return url.url.startsWith("http");
-        return false;
-      });
-      return typeof imageUrl === "string" ? imageUrl : imageUrl?.url;
-    };
-
-    const imageUrl = getFirstImage();
-    const isVideo = item.image_urls?.some(
-    (url) =>
+  const renderMediaPost = ({ item }) => {
+    const imageUrl = getFirstImage(item);
+    const isVideo  = item.image_urls?.some(
+      (url) =>
         (typeof url === "string" ? url : url?.url)?.includes(".mp4") ||
         (typeof url === "object" && url?.type === "video"),
     );
@@ -178,7 +191,7 @@ const SavedPostsScreen = ({ navigation }) => {
     return (
       <TouchableOpacity
         style={styles.postItem}
-        onPress={() => openPostModal(item)}
+        onPress={() => { setSelectedPost(item); setPostModalVisible(true); }}
         activeOpacity={0.9}
       >
         {imageUrl ? (
@@ -197,21 +210,87 @@ const SavedPostsScreen = ({ navigation }) => {
     );
   };
 
-  const renderEmpty = () => {
+  // ── Community post cards ────────────────────────────────────────────────────
+  const handleUnsave = (postId) =>
+    setAllPosts((prev) => prev.filter((p) => p.id !== postId));
+
+  const handleUserPress = (userId, userType) => {
+    const nav = navigation.getParent()?.getParent() || navigation;
+    if (userType === "community") {
+      nav.navigate("CommunityPublicProfile", { communityId: userId, viewerRole: "member" });
+    } else {
+      nav.navigate("MemberPublicProfile", { memberId: userId });
+    }
+  };
+
+  const renderCommunityPost = ({ item }) => {
+    const sharedProps = {
+      post: item,
+      onUserPress: handleUserPress,
+      onLike: () => {},
+      onComment: () => {},
+      onSave: () => handleUnsave(item.id),
+      onShare: () => {},
+      currentUserId,
+      currentUserType,
+    };
+
+    switch (item.post_type) {
+      case "poll":
+        return <PollPostCard {...sharedProps} />;
+      case "prompt":
+        return <PromptPostCard {...sharedProps} />;
+      case "qna":
+        return <QnAPostCard {...sharedProps} />;
+      case "challenge":
+        return <ChallengePostCard {...sharedProps} />;
+      case "opportunity":
+        return (
+          <OpportunityFeedCard
+            opportunity={item}
+            onUserPress={handleUserPress}
+            onLike={() => {}}
+            onComment={() => {}}
+            onSave={() => handleUnsave(item.id)}
+            onShare={() => {}}
+            currentUserId={currentUserId}
+            currentUserType={currentUserType}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  // ── Empty states ────────────────────────────────────────────────────────────
+  const renderEmptyMedia = () => {
     if (loading) return null;
     return (
       <View style={styles.emptyContainer}>
-        <Bookmark size={80} color={COLORS.textSecondary} strokeWidth={1.5} />
-        <Text style={styles.emptyTitle}>No saved posts yet</Text>
+        <LucideImage size={64} color={COLORS.textSecondary} strokeWidth={1.5} />
+        <Text style={styles.emptyTitle}>No saved photos or videos</Text>
         <Text style={styles.emptySubtitle}>
-          Posts you save will appear here
+          Save posts from your feed and they'll appear here
+        </Text>
+      </View>
+    );
+  };
+
+  const renderEmptyCommunity = () => {
+    if (loading) return null;
+    return (
+      <View style={styles.emptyContainer}>
+        <Bookmark size={64} color={COLORS.textSecondary} strokeWidth={1.5} />
+        <Text style={styles.emptyTitle}>No saved community posts</Text>
+        <Text style={styles.emptySubtitle}>
+          Polls, Q&As, Prompts, Challenges and Opportunities you save will appear here
         </Text>
       </View>
     );
   };
 
   const renderFooter = () => {
-    if (!loading || posts.length === 0) return null;
+    if (!loading || allPosts.length === 0) return null;
     return (
       <View style={styles.footerLoader}>
         <SnooLoader size="small" color={COLORS.text} />
@@ -219,59 +298,108 @@ const SavedPostsScreen = ({ navigation }) => {
     );
   };
 
+  const refreshControl = (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={() => loadSavedPosts(true)}
+      tintColor={COLORS.primary}
+    />
+  );
+
+  // ── Tab bar ─────────────────────────────────────────────────────────────────
+  const tabWidth = SCREEN_WIDTH / TABS.length;
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <ArrowLeft size={24} color={COLORS.text} strokeWidth={2} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Saved Posts</Text>
+        <Text style={styles.headerTitle}>Saved</Text>
         <View style={styles.backButton} />
       </View>
 
-      {/* Posts Grid */}
-      {loading && posts.length === 0 ? (
+      {/* Tab Bar */}
+      <View style={styles.tabBar}>
+        {TABS.map((tab, idx) => {
+          const isActive = activeTab === tab.key;
+          const Icon = tab.icon;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={styles.tabItem}
+              onPress={() => switchTab(tab.key)}
+              activeOpacity={0.8}
+            >
+              <Icon
+                size={18}
+                color={isActive ? COLORS.primary : COLORS.textSecondary}
+                strokeWidth={isActive ? 2.5 : 2}
+              />
+              <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+
+        {/* Animated underline */}
+        <Animated.View
+          style={[
+            styles.tabUnderline,
+            { width: tabWidth, transform: [{ translateX: tabUnderline }] },
+          ]}
+        />
+      </View>
+
+      {/* Content */}
+      {loading && allPosts.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <SnooLoader size="large" color={COLORS.text} />
+          <SnooLoader size="large" color={COLORS.primary} />
         </View>
-      ) : (
+      ) : activeTab === "posts" ? (
         <FlatList
-          data={posts}
-          renderItem={renderPost}
-          keyExtractor={(item) => item.id.toString()}
+          key="media-grid"
+          data={mediaPosts}
+          renderItem={renderMediaPost}
+          keyExtractor={(item) => `media-${item.id}`}
           numColumns={3}
           contentContainerStyle={styles.gridContainer}
-          ListEmptyComponent={renderEmpty}
+          ListEmptyComponent={renderEmptyMedia}
           ListFooterComponent={renderFooter}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={COLORS.text}
-            />
-          }
-          onEndReached={handleLoadMore}
+          refreshControl={refreshControl}
+          onEndReached={() => { if (!loading && hasMore) loadSavedPosts(); }}
+          onEndReachedThreshold={0.5}
+        />
+      ) : (
+        <FlatList
+          key="community-list"
+          data={communityPosts}
+          renderItem={renderCommunityPost}
+          keyExtractor={(item) => `community-${item.id}`}
+          contentContainerStyle={styles.communityContainer}
+          ListEmptyComponent={renderEmptyCommunity}
+          ListFooterComponent={renderFooter}
+          refreshControl={refreshControl}
+          onEndReached={() => { if (!loading && hasMore) loadSavedPosts(); }}
           onEndReachedThreshold={0.5}
         />
       )}
 
-      {/* Post Modal */}
+      {/* Photo/Video Fullscreen Modal */}
       {selectedPost && (
         <ProfilePostFeed
           visible={postModalVisible}
-          posts={posts}
+          posts={mediaPosts}
           initialPostId={selectedPost.id}
-          onClose={closePostModal}
+          onClose={() => { setPostModalVisible(false); setSelectedPost(null); }}
           currentUserId={currentUserId}
           currentUserType={currentUserType}
           onLikeUpdate={(postId, isLiked, likeCount) => {
-            setPosts((prev) =>
+            setAllPosts((prev) =>
               prev.map((p) =>
                 p.id === postId ? { ...p, is_liked: isLiked, like_count: likeCount } : p,
               ),
@@ -290,6 +418,8 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+
+  // ── Header ────────────────────────────────────────────────────────────────
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -310,18 +440,54 @@ const styles = StyleSheet.create({
     fontFamily: "BasicCommercial-Black",
     color: COLORS.text,
   },
+
+  // ── Tab Bar ───────────────────────────────────────────────────────────────
+  tabBar: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    position: "relative",
+  },
+  tabItem: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    paddingVertical: 13,
+  },
+  tabLabel: {
+    fontSize: 13,
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.textSecondary,
+  },
+  tabLabelActive: {
+    color: COLORS.primary,
+  },
+  tabUnderline: {
+    position: "absolute",
+    bottom: 0,
+    height: 2.5,
+    backgroundColor: COLORS.primary,
+    borderRadius: 2,
+  },
+
+  // ── Loading ───────────────────────────────────────────────────────────────
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
+
+  // ── Media Grid ────────────────────────────────────────────────────────────
   gridContainer: {
     paddingHorizontal: 1,
     paddingTop: 1,
+    flexGrow: 1,
   },
   postItem: {
     width: "33.33%",
-    aspectRatio: 1, // Grid usually looks better square or 4/5
+    aspectRatio: 1,
     padding: 1,
   },
   postImage: {
@@ -338,23 +504,36 @@ const styles = StyleSheet.create({
     top: 8,
     right: 8,
   },
+
+  // ── Community Posts List ───────────────────────────────────────────────────
+  communityContainer: {
+    paddingTop: 8,
+    paddingBottom: 24,
+    flexGrow: 1,
+  },
+
+  // ── Empty States ──────────────────────────────────────────────────────────
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 150,
+    paddingHorizontal: 40,
+    paddingVertical: 100,
   },
   emptyTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: "BasicCommercial-Bold",
     color: COLORS.text,
     marginTop: 16,
+    textAlign: "center",
   },
   emptySubtitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
     marginTop: 8,
+    textAlign: "center",
+    lineHeight: 20,
   },
   footerLoader: {
     paddingVertical: 20,

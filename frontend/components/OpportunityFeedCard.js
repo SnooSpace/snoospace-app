@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -31,6 +31,7 @@ import { apiPost, apiDelete, savePost, unsavePost } from "../api/client";
 import EventBus from "../utils/EventBus";
 import CountdownTimer from "./CountdownTimer";
 import { getCardState } from "../utils/cardTiming";
+import { viewQueueService } from "../services/ViewQueueService";
 
 const OpportunityFeedCard = ({
   opportunity,
@@ -88,8 +89,31 @@ const OpportunityFeedCard = ({
   const [isLiking, setIsLiking] = useState(false);
   const [isSaved, setIsSaved] = useState(opportunity.is_saved || false);
 
-  // Add useState import if not present (Wait, React import is at top: import React from "react"; need to change that)
-  // I will check if useState is imported. It is NOT in original file.
+  // ── View Tracking ──────────────────────────────────────────────────────────
+  const [viewCount, setViewCount] = useState(opportunity.public_view_count || opportunity.view_count || 0);
+  const dwellTimerRef = useRef(null);
+
+  useEffect(() => {
+    const DWELL_THRESHOLD = 2500;
+    const alreadyViewed = viewQueueService.hasViewed(opportunity.id);
+    if (!alreadyViewed) {
+      dwellTimerRef.current = setTimeout(() => {
+        viewQueueService.addQualifiedView(opportunity.id, { postType: "opportunity", trigger: "dwell" });
+      }, DWELL_THRESHOLD);
+    } else {
+      dwellTimerRef.current = setTimeout(() => {
+        viewQueueService.addRepeatView(opportunity.id, "revisit");
+      }, DWELL_THRESHOLD);
+    }
+    return () => { if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current); };
+  }, [opportunity.id]);
+
+  useEffect(() => {
+    const unsubscribe = EventBus.on("post-view-updated", (payload) => {
+      if (payload?.postId === opportunity.id) setViewCount((prev) => prev + 1);
+    });
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, [opportunity.id]);
 
   const handleLike = async () => {
     if (isLiking) return;
@@ -418,9 +442,7 @@ const OpportunityFeedCard = ({
           <View style={styles.engagementButton}>
             <ChartNoAxesCombined size={22} color="#5e8d9b" />
             <Text style={styles.engagementCount}>
-              {formatCount(
-                opportunity.public_view_count || opportunity.view_count || 0,
-              )}
+              {formatCount(viewCount)}
             </Text>
           </View>
 
