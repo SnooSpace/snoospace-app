@@ -8,7 +8,7 @@ import { View, Text, Image, TouchableOpacity, StyleSheet, TextInput, Modal, Keyb
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { apiPost, apiGet } from "../../api/client";
+import { apiPost, apiGet, apiDelete } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import {
   COLORS,
@@ -298,6 +298,33 @@ const QnAPostCard = ({
     // If we have a preview question (top answer), display it
     if (!previewQuestion) return null;
 
+    const handleUpvoteTopQuestion = async () => {
+      try {
+        const token = await getAuthToken();
+        const hasUpvoted = previewQuestion.has_upvoted;
+        const questionId = previewQuestion.id;
+
+        // Optimistic update
+        setPreviewQuestion(prev => ({
+          ...prev,
+          upvote_count: hasUpvoted ? Math.max(0, prev.upvote_count - 1) : (prev.upvote_count || 0) + 1,
+          has_upvoted: !hasUpvoted
+        }));
+
+        if (hasUpvoted) {
+          await apiDelete(`/questions/${questionId}/upvote`, {}, 10000, token);
+        } else {
+          await apiPost(`/questions/${questionId}/upvote`, {}, 10000, token);
+        }
+        
+        // Also emit an event so QnAQuestionsScreen updates if the user clicks in
+        EventBus.emit("question-upvote-updated", { questionId, hasUpvoted: !hasUpvoted });
+      } catch (error) {
+        console.error("Error toggling upvote on top question:", error);
+        // We could revert optimistic update here if we kept the previous state
+      }
+    };
+
     return (
       <View style={styles.topAnswerContainer}>
         {/* Blue vertical line */}
@@ -321,12 +348,16 @@ const QnAPostCard = ({
               </Text>
             </View>
 
-            <View style={styles.upvoteContainer}>
-              <Ionicons name="arrow-up" size={14} color={COLORS.primary} />
-              <Text style={styles.upvoteCount}>
+            <TouchableOpacity 
+              style={[styles.upvoteContainer, previewQuestion.has_upvoted && { backgroundColor: '#EBF5FF' }]}
+              onPress={handleUpvoteTopQuestion}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="arrow-up" size={14} color={previewQuestion.has_upvoted ? "#3B82F6" : COLORS.primary} />
+              <Text style={[styles.upvoteCount, previewQuestion.has_upvoted && { color: "#3B82F6" }]}>
                 {previewQuestion.upvote_count || 0}
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Answer Content */}

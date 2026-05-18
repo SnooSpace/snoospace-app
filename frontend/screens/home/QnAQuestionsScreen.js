@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Alert, Dimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
-import { ArrowLeft, MessageSquare, TrendingUp, Clock, Send, ArrowUp, User, Pin, CheckCircle, Lock, ChevronDown, ChevronUp, Star, MoreVertical } from "lucide-react-native";
+import { ArrowLeft, MessageSquare, TrendingUp, Clock, Send, ArrowUp, User, Pin, CheckCircle, Lock, ChevronDown, ChevronUp, Star, MoreVertical, X } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete } from "../../api/client";
 import { getAuthToken, getActiveAccount } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
@@ -11,7 +11,7 @@ import SnooLoader from "../../components/ui/SnooLoader";
 
 const QnAQuestionsScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
-  const { post } = route.params;
+  const { post, autoFocus } = route.params;
   const typeData = post.type_data || {};
 
   const [questions, setQuestions] = useState([]);
@@ -37,6 +37,22 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
   const [replyingToQuestionId, setReplyingToQuestionId] = useState(null);
   const [replyText, setReplyText] = useState("");
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const inputRef = React.useRef(null);
+
+  const limitReached = userQuestionCount >= maxQuestionsPerUser;
+  // Only show input for non-owners (community owners answer, they don't ask)
+  const isOwner =
+    String(post.author_id) === String(currentUserId) &&
+    post.author_type === currentUserType;
+
+  // Focus input automatically if requested and allowed
+  useEffect(() => {
+    if (autoFocus && !limitReached && !isOwner) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 500); // slight delay to allow screen transition
+    }
+  }, [autoFocus, limitReached, isOwner]);
 
   const fetchQuestions = useCallback(
     async (showLoading = true) => {
@@ -220,14 +236,12 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
     return (
       <View style={styles.questionCard}>
         {/* Upvote Section */}
-        <View style={styles.upvoteSection}>
-          <TouchableOpacity
-            style={[
-              styles.upvoteButton,
-              item.has_upvoted && styles.upvoteButtonActive,
-            ]}
-            onPress={() => handleUpvote(item.id, item.has_upvoted)}
-          >
+        <TouchableOpacity 
+          style={styles.upvoteSection}
+          onPress={() => handleUpvote(item.id, item.has_upvoted)}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <View style={[styles.upvoteButton, item.has_upvoted && styles.upvoteButtonActive]}>
             <View style={[styles.iconContainer, item.has_upvoted && styles.iconContainerActive]}>
               <ArrowUp
                 size={18}
@@ -235,7 +249,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
                 strokeWidth={item.has_upvoted ? 2.5 : 2}
               />
             </View>
-          </TouchableOpacity>
+          </View>
           <Text
             style={[
               styles.upvoteCount,
@@ -244,7 +258,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
           >
             {item.upvote_count || 0}
           </Text>
-        </View>
+        </TouchableOpacity>
 
         {/* Question Content */}
         <View style={styles.questionContent}>
@@ -332,43 +346,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
           })()}
 
           {/* Reply Input (when replying) */}
-          {replyingToQuestionId === item.id && (
-            <View style={styles.replyInputContainer}>
-              <TextInput
-                style={styles.replyInput}
-                placeholder="Write your reply..."
-                placeholderTextColor={COLORS.textSecondary}
-                value={replyText}
-                onChangeText={setReplyText}
-                multiline
-                maxLength={1000}
-                autoFocus
-              />
-              <View style={styles.replyActions}>
-                <TouchableOpacity
-                  style={styles.cancelReplyButton}
-                  onPress={handleCancelReply}
-                >
-                  <Text style={styles.cancelReplyText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.sendReplyButton,
-                    (!replyText.trim() || isSubmittingReply) &&
-                      styles.sendReplyButtonDisabled,
-                  ]}
-                  onPress={() => handleSubmitReply(item.id)}
-                  disabled={!replyText.trim() || isSubmittingReply}
-                >
-                  {isSubmittingReply ? (
-                    <SnooLoader size="small" color="#FFFFFF" />
-                  ) : (
-                    <Text style={[styles.sendReplyText, { fontFamily: 'Manrope-Medium' }]}>Send</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
+          {/* Replaced by bottom sticky input */}
 
           {/* Expand/Collapse for Answers */}
           {hasAnswers && (
@@ -545,12 +523,6 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
     </View>
   );
 
-  const limitReached = userQuestionCount >= maxQuestionsPerUser;
-  // Only show input for non-owners (community owners answer, they don't ask)
-  const isOwner =
-    String(post.author_id) === String(currentUserId) &&
-    post.author_type === currentUserType;
-
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <View style={styles.emptyIconContainer}>
@@ -581,12 +553,15 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
           <ArrowLeft size={24} color="#1D1D1F" />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>
-          {typeData.title || "Questions"}
+          Q&A
         </Text>
         <View style={{ width: 40 }} />
       </View>
 
-      <View style={{ flex: 1 }}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "padding"}
+      >
         {isLoading ? (
           <View style={styles.loadingContainer}>
             <SnooLoader size="large" color="#5856D6" />
@@ -609,14 +584,54 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
             }
           />
         )}
-      </View>
+      </KeyboardAvoidingView>
 
       {/* Floating Question Input Bar */}
       <KeyboardStickyView
         offset={{ closed: 0, opened: 0 }}
         style={styles.floatingInputWrapper}
       >
-        {isOwner ? null : limitReached ? (
+        {isOwner ? (
+          // IF OWNER and replying to a question
+          replyingToQuestionId ? (
+            <View style={styles.inputContainerFloating}>
+              <View style={styles.replyingToBar}>
+                 <Text style={styles.replyingToText}>Replying to <Text style={styles.replyingToName}>{questions.find(q => q.id === replyingToQuestionId)?.author_name || "question"}</Text></Text>
+                 <TouchableOpacity onPress={handleCancelReply} style={styles.cancelReplyButtonFloating}>
+                   <X size={14} color="#6B7280" />
+                 </TouchableOpacity>
+              </View>
+              <View style={styles.inputContentFloating}>
+                <TextInput
+                  ref={inputRef}
+                  style={styles.questionInputFloating}
+                  placeholder="Write your reply..."
+                  placeholderTextColor="#9CA3AF"
+                  value={replyText}
+                  onChangeText={setReplyText}
+                  multiline
+                  maxLength={1000}
+                  autoFocus
+                />
+                <TouchableOpacity
+                  style={[
+                    styles.sendButtonFloating,
+                    (!replyText.trim() || isSubmittingReply) &&
+                      styles.sendButtonDisabledFloating,
+                  ]}
+                  onPress={() => handleSubmitReply(replyingToQuestionId)}
+                  disabled={!replyText.trim() || isSubmittingReply}
+                >
+                  {isSubmittingReply ? (
+                    <SnooLoader size="small" color="#FFFFFF" />
+                  ) : (
+                    <Send size={18} color="#FFFFFF" style={styles.sendIcon} />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : null
+        ) : limitReached ? (
           // Limit reached — locked state
           <View style={styles.inputLockedContainer}>
             <Lock size={16} color="#9CA3AF" />
@@ -627,30 +642,33 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
         ) : (
           // Normal input
           <View style={styles.inputContainerFloating}>
-            <TextInput
-              style={styles.questionInputFloating}
-              placeholder="Ask a question..."
-              placeholderTextColor="#9CA3AF"
-              value={questionText}
-              onChangeText={setQuestionText}
-              multiline
-              maxLength={500}
-            />
-            <TouchableOpacity
-              style={[
-                styles.sendButtonFloating,
-                (!questionText.trim() || isSubmitting) &&
-                  styles.sendButtonDisabledFloating,
-              ]}
-              onPress={handleSubmitQuestion}
-              disabled={!questionText.trim() || isSubmitting}
-            >
-              {isSubmitting ? (
-                <SnooLoader size="small" color="#FFFFFF" />
-              ) : (
-                <Send size={18} color="#FFFFFF" style={styles.sendIcon} />
-              )}
-            </TouchableOpacity>
+            <View style={styles.inputContentFloating}>
+              <TextInput
+                ref={inputRef}
+                style={styles.questionInputFloating}
+                placeholder="Ask a question..."
+                placeholderTextColor="#9CA3AF"
+                value={questionText}
+                onChangeText={setQuestionText}
+                multiline
+                maxLength={500}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.sendButtonFloating,
+                  (!questionText.trim() || isSubmitting) &&
+                    styles.sendButtonDisabledFloating,
+                ]}
+                onPress={handleSubmitQuestion}
+                disabled={!questionText.trim() || isSubmitting}
+              >
+                {isSubmitting ? (
+                  <SnooLoader size="small" color="#FFFFFF" />
+                ) : (
+                  <Send size={18} color="#FFFFFF" style={styles.sendIcon} />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </KeyboardStickyView>
@@ -1183,18 +1201,45 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
   },
   inputContainerFloating: {
-    flexDirection: "row",
-    alignItems: "center",
     backgroundColor: "#FFFFFF",
     borderRadius: 30,
-    paddingLeft: 20,
-    paddingRight: 8,
-    paddingVertical: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 16,
     elevation: 8,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+  },
+  inputContentFloating: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 20,
+    paddingRight: 8,
+    paddingVertical: 8,
+  },
+  replyingToBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  replyingToText: {
+    fontSize: 13,
+    fontFamily: "Manrope-Regular",
+    color: "#6B7280",
+  },
+  replyingToName: {
+    fontFamily: "Manrope-SemiBold",
+    color: "#1D1D1F",
+  },
+  cancelReplyButtonFloating: {
+    padding: SPACING.xs,
   },
   questionInputFloating: {
     flex: 1,
