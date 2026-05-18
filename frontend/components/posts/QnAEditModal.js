@@ -7,6 +7,7 @@ import SnooLoader from "../ui/SnooLoader";
 
 const QnAEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [maxQuestions, setMaxQuestions] = useState("1");
   const [expiresAt, setExpiresAt] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -15,6 +16,7 @@ const QnAEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
   useEffect(() => {
     if (post && visible) {
       setTitle(post.type_data?.title || "");
+      setDescription(post.type_data?.description || "");
       setMaxQuestions(String(post.type_data?.max_questions_per_user || 1));
       setExpiresAt(post.expires_at ? new Date(post.expires_at) : null);
     }
@@ -26,6 +28,10 @@ const QnAEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
     // Only include changed fields
     if (title.trim() !== post.type_data?.title) {
       updates.title = title.trim();
+    }
+    
+    if (description.trim() !== (post.type_data?.description || "")) {
+      updates.description = description.trim();
     }
 
     const newMaxQuestions = parseInt(maxQuestions, 10);
@@ -110,6 +116,21 @@ const QnAEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
                     maxLength={300}
                   />
                   <Text style={styles.charCount}>{title.length}/300</Text>
+                </View>
+
+                {/* Description Input */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Description (Optional)</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={description}
+                    onChangeText={setDescription}
+                    placeholder="Add more details..."
+                    placeholderTextColor="#999"
+                    multiline
+                    maxLength={500}
+                  />
+                  <Text style={styles.charCount}>{description.length}/500</Text>
                 </View>
 
                 {/* Max Questions Per User */}

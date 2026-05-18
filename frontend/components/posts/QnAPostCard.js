@@ -4,7 +4,21 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet, TextInput, Modal, KeyboardAvoidingView, Platform, Switch, Alert, Pressable, Dimensions } from "react-native";
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  TextInput,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  Switch,
+  Alert,
+  Pressable,
+  Dimensions,
+} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -111,23 +125,82 @@ const QnAPostCard = ({
     post.preview_question,
   ]);
 
+  // Sync with global upvote events
+  useEffect(() => {
+    const unsubscribe = EventBus.on("question-upvote-updated", (data) => {
+      if (previewQuestion && previewQuestion.id === data.questionId) {
+        setPreviewQuestion((prev) => {
+          if (!prev) return prev;
+
+          const newHasUpvoted = data.hasUpvoted;
+          // Only change if it's actually different to avoid unnecessary rerenders
+          if (prev.has_upvoted === newHasUpvoted) return prev;
+
+          return {
+            ...prev,
+            has_upvoted: newHasUpvoted,
+            upvote_count: newHasUpvoted
+              ? (prev.upvote_count || 0) + 1
+              : Math.max(0, (prev.upvote_count || 0) - 1),
+          };
+        });
+      }
+    });
+
+    const unsubscribeRefresh = EventBus.on("qna-post-updated", async (data) => {
+      if (data.postId === post.id) {
+        try {
+          const token = await getAuthToken();
+          const response = await apiGet(`/posts/${post.id}`, 10000, token);
+          if (response.success && response.post) {
+            const updatedPost = response.post;
+            setUserQuestionCount(updatedPost.user_question_count || 0);
+            setQuestionCount(updatedPost.type_data?.question_count || 0);
+            setAnsweredCount(updatedPost.type_data?.answered_count || 0);
+            setPreviewQuestion(updatedPost.preview_question || null);
+            if (onPostUpdate) {
+              onPostUpdate(updatedPost);
+            }
+          }
+        } catch (e) {
+          console.error("Failed to refresh QnA post", e);
+        }
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+      if (unsubscribeRefresh) unsubscribeRefresh();
+    };
+  }, [previewQuestion?.id, post.id, onPostUpdate]);
+
   // Engagement State
   const initialIsLiked = post.is_liked === true;
   const [isLiked, setIsLiked] = useState(initialIsLiked);
   const [likeCount, setLikeCount] = useState(post.like_count || 0);
   const [isLiking, setIsLiking] = useState(false);
   const [isSaved, setIsSaved] = useState(post.is_saved || false);
-  const [saveCount, setSaveCount] = useState(post.save_count || post.saves_count || 0);
+  const [saveCount, setSaveCount] = useState(
+    post.save_count || post.saves_count || 0,
+  );
 
   useEffect(() => {
     setIsLiked(post.is_liked === true);
     setLikeCount(post.like_count || 0);
     setIsSaved(post.is_saved || false);
     setSaveCount(post.save_count || post.saves_count || 0);
-  }, [post.is_liked, post.like_count, post.is_saved, post.save_count, post.saves_count]);
+  }, [
+    post.is_liked,
+    post.like_count,
+    post.is_saved,
+    post.save_count,
+    post.saves_count,
+  ]);
 
   // ── View Tracking ──────────────────────────────────────────────────────────
-  const [viewCount, setViewCount] = useState(post.public_view_count || post.view_count || 0);
+  const [viewCount, setViewCount] = useState(
+    post.public_view_count || post.view_count || 0,
+  );
   const dwellTimerRef = useRef(null);
 
   useEffect(() => {
@@ -135,21 +208,28 @@ const QnAPostCard = ({
     const alreadyViewed = viewQueueService.hasViewed(post.id);
     if (!alreadyViewed) {
       dwellTimerRef.current = setTimeout(() => {
-        viewQueueService.addQualifiedView(post.id, { postType: "qna", trigger: "dwell" });
+        viewQueueService.addQualifiedView(post.id, {
+          postType: "qna",
+          trigger: "dwell",
+        });
       }, DWELL_THRESHOLD);
     } else {
       dwellTimerRef.current = setTimeout(() => {
         viewQueueService.addRepeatView(post.id, "revisit");
       }, DWELL_THRESHOLD);
     }
-    return () => { if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current); };
+    return () => {
+      if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
+    };
   }, [post.id]);
 
   useEffect(() => {
     const unsubscribe = EventBus.on("post-view-updated", (payload) => {
       if (payload?.postId === post.id) setViewCount((prev) => prev + 1);
     });
-    return () => { if (unsubscribe) unsubscribe(); };
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [post.id]);
 
   const handleLike = async () => {
@@ -305,10 +385,12 @@ const QnAPostCard = ({
         const questionId = previewQuestion.id;
 
         // Optimistic update
-        setPreviewQuestion(prev => ({
+        setPreviewQuestion((prev) => ({
           ...prev,
-          upvote_count: hasUpvoted ? Math.max(0, prev.upvote_count - 1) : (prev.upvote_count || 0) + 1,
-          has_upvoted: !hasUpvoted
+          upvote_count: hasUpvoted
+            ? Math.max(0, prev.upvote_count - 1)
+            : (prev.upvote_count || 0) + 1,
+          has_upvoted: !hasUpvoted,
         }));
 
         if (hasUpvoted) {
@@ -316,9 +398,12 @@ const QnAPostCard = ({
         } else {
           await apiPost(`/questions/${questionId}/upvote`, {}, 10000, token);
         }
-        
+
         // Also emit an event so QnAQuestionsScreen updates if the user clicks in
-        EventBus.emit("question-upvote-updated", { questionId, hasUpvoted: !hasUpvoted });
+        EventBus.emit("question-upvote-updated", {
+          questionId,
+          hasUpvoted: !hasUpvoted,
+        });
       } catch (error) {
         console.error("Error toggling upvote on top question:", error);
         // We could revert optimistic update here if we kept the previous state
@@ -334,7 +419,11 @@ const QnAPostCard = ({
           {/* Top Answer Header */}
           <View style={styles.topAnswerHeader}>
             <View style={styles.topAnswerBadge}>
-              <Text style={styles.topAnswerBadgeText}>TOP QUESTION</Text>
+              <Text style={styles.topAnswerBadgeText}>
+                {previewQuestion.upvote_count > 0
+                  ? "TOP QUESTION 🔥"
+                  : "RECENT QUESTION 🕒"}
+              </Text>
             </View>
 
             <View style={styles.topAnswerMeta}>
@@ -348,13 +437,25 @@ const QnAPostCard = ({
               </Text>
             </View>
 
-            <TouchableOpacity 
-              style={[styles.upvoteContainer, previewQuestion.has_upvoted && { backgroundColor: '#EBF5FF' }]}
+            <TouchableOpacity
+              style={[
+                styles.upvoteContainer,
+                previewQuestion.has_upvoted && { backgroundColor: "#EBF5FF" },
+              ]}
               onPress={handleUpvoteTopQuestion}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="arrow-up" size={14} color={previewQuestion.has_upvoted ? "#3B82F6" : COLORS.primary} />
-              <Text style={[styles.upvoteCount, previewQuestion.has_upvoted && { color: "#3B82F6" }]}>
+              <Ionicons
+                name="arrow-up"
+                size={14}
+                color={previewQuestion.has_upvoted ? "#3B82F6" : "#8E8E93"}
+              />
+              <Text
+                style={[
+                  styles.upvoteCount,
+                  previewQuestion.has_upvoted && { color: "#3B82F6" },
+                ]}
+              >
                 {previewQuestion.upvote_count || 0}
               </Text>
             </TouchableOpacity>
@@ -393,7 +494,10 @@ const QnAPostCard = ({
                 onPress={(e) => {
                   const { pageX, pageY } = e.nativeEvent;
                   const screenWidth = Dimensions.get("window").width;
-                  setMenuPosition({ x: screenWidth - pageX - 10, y: pageY + 12 });
+                  setMenuPosition({
+                    x: screenWidth - pageX - 10,
+                    y: pageY + 12,
+                  });
                   setShowMenu(true);
                 }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -442,7 +546,12 @@ const QnAPostCard = ({
               style={styles.modalBackdrop}
               onPress={() => setShowMenu(false)}
             >
-              <View style={[styles.menuContainerModal, { top: menuPosition.y, right: menuPosition.x }]}>
+              <View
+                style={[
+                  styles.menuContainerModal,
+                  { top: menuPosition.y, right: menuPosition.x },
+                ]}
+              >
                 <TouchableOpacity
                   style={styles.menuItem}
                   onPress={() => {
@@ -501,6 +610,12 @@ const QnAPostCard = ({
         <Text style={styles.questionText} numberOfLines={4}>
           {typeData.title}
         </Text>
+
+        {typeData.description ? (
+          <Text style={styles.descriptionText} numberOfLines={2}>
+            {typeData.description}
+          </Text>
+        ) : null}
 
         {/* Top Answer Preview Section */}
         {renderTopAnswer()}
@@ -611,9 +726,7 @@ const QnAPostCard = ({
           {/* Views */}
           <View style={styles.engagementButton}>
             <ChartNoAxesCombined size={22} color="#5e8d9b" />
-            <Text style={styles.engagementCount}>
-              {formatCount(viewCount)}
-            </Text>
+            <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
           </View>
 
           {/* Share */}
@@ -837,6 +950,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     letterSpacing: -0.3,
   },
+  descriptionText: {
+    fontSize: 15,
+    fontFamily: "Manrope-Regular",
+    color: "#5e8d9b", // Muted teal to match authorUsername and answerText
+    lineHeight: 22,
+    marginBottom: 16,
+  },
 
   // Top Answer Section
   topAnswerContainer: {
@@ -899,7 +1019,7 @@ const styles = StyleSheet.create({
   upvoteCount: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#3B82F6",
+    color: "#8E8E93", // Default grey
   },
   answerText: {
     fontSize: 14,

@@ -877,6 +877,13 @@ const getFeed = async (req, res) => {
                 q.id, q.question as content, q.upvote_count, q.is_pinned,
                 q.answered_at IS NOT NULL as is_answered,
                 CASE 
+                  WHEN $2::int IS NOT NULL AND $3::text IS NOT NULL THEN EXISTS (
+                    SELECT 1 FROM qna_question_upvotes u
+                    WHERE u.question_id = q.id AND u.voter_id = $2 AND u.voter_type = $3
+                  )
+                  ELSE false
+                END as has_upvoted,
+                CASE 
                   WHEN q.author_type = 'member' THEN m.name
                   WHEN q.author_type = 'community' THEN c.name
                 END as author_name,
@@ -890,7 +897,7 @@ const getFeed = async (req, res) => {
                WHERE q.post_id = $1 AND q.is_hidden = false
                ORDER BY q.is_pinned DESC, q.upvote_count DESC, q.created_at DESC
                LIMIT 1`,
-              [post.id],
+              [post.id, viewerId || null, viewerType || null],
             );
             parsedPost.preview_question = previewResult.rows[0] || null;
           } catch (e) {
@@ -1864,6 +1871,12 @@ const updatePost = async (req, res) => {
             return res.status(400).json({ error: "Invalid title" });
           }
           updatedTypeData.title = updates.title.trim();
+        }
+        if (updates.description !== undefined) {
+          if (typeof updates.description !== "string") {
+            return res.status(400).json({ error: "Invalid description" });
+          }
+          updatedTypeData.description = updates.description.trim();
         }
         if (updates.max_questions_per_user !== undefined) {
           const newMax = parseInt(updates.max_questions_per_user, 10);

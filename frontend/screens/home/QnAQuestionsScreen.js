@@ -8,6 +8,7 @@ import { apiGet, apiPost, apiDelete } from "../../api/client";
 import { getAuthToken, getActiveAccount } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import SnooLoader from "../../components/ui/SnooLoader";
+import EventBus from "../../utils/EventBus";
 
 const QnAQuestionsScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
@@ -139,6 +140,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
         setQuestionText("");
         setUserQuestionCount((prev) => prev + 1); // optimistic increment
         fetchQuestions(false);
+        EventBus.emit("qna-post-updated", { postId: post.id });
       }
     } catch (error) {
       console.error("Error submitting question:", error);
@@ -172,6 +174,10 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
       } else {
         await apiPost(`/questions/${questionId}/upvote`, {}, 10000, token);
       }
+      
+      // Notify other screens (like QnAPostCard in feed)
+      EventBus.emit("question-upvote-updated", { questionId, hasUpvoted: !hasUpvoted });
+      EventBus.emit("qna-post-updated", { postId: post.id });
     } catch (error) {
       console.error("Error toggling upvote:", error);
       // Revert on error
@@ -208,6 +214,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
         setReplyText("");
         setReplyingToQuestionId(null);
         fetchQuestions(false);
+        EventBus.emit("qna-post-updated", { postId: post.id });
         Alert.alert("Reply posted!", "Your reply has been posted.");
       }
     } catch (error) {
@@ -421,6 +428,13 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
           </Text>
         </View>
       </View>
+
+      {/* Description */}
+      {typeData.description ? (
+        <View style={styles.descriptionContainer}>
+          <Text style={styles.descriptionText}>{typeData.description}</Text>
+        </View>
+      ) : null}
 
       {/* Question limit banner */}
       {!isOwner && (
@@ -769,6 +783,16 @@ const styles = StyleSheet.create({
   postAuthorName: {
     color: "#059669",
     fontFamily: "Manrope-Medium",
+  },
+  descriptionContainer: {
+    paddingHorizontal: SPACING.m,
+    marginBottom: SPACING.l,
+  },
+  descriptionText: {
+    fontSize: 15,
+    fontFamily: "Manrope-Regular",
+    color: "#6B7280", // Gray text
+    lineHeight: 22,
   },
   divider: {
     height: 1,
