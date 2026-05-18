@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Alert, Dimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
-import { ArrowLeft, MessageSquare, TrendingUp, Clock, Send, ArrowUp, User, Pin, CheckCircle, Lock, ChevronDown, ChevronUp, Star, MoreVertical, X } from "lucide-react-native";
+import { ArrowLeft, MessageSquare, TrendingUp, Clock, Send, ArrowUp, User, Pin, CheckCircle, Lock, ChevronDown, ChevronUp, Star, MoreVertical, X, EyeOff } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete } from "../../api/client";
 import { getAuthToken, getActiveAccount } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
@@ -38,7 +38,10 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
   const [replyingToQuestionId, setReplyingToQuestionId] = useState(null);
   const [replyText, setReplyText] = useState("");
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const inputRef = React.useRef(null);
+
+  const allowAnonymous = typeData.allow_anonymous === true;
 
   const limitReached = userQuestionCount >= maxQuestionsPerUser;
   // Only show input for non-owners (community owners answer, they don't ask)
@@ -130,7 +133,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
         `/posts/${post.id}/questions`,
         {
           content: questionText.trim(),
-          is_anonymous: false,
+          is_anonymous: isAnonymous,
         },
         15000,
         token,
@@ -138,6 +141,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
 
       if (response.success) {
         setQuestionText("");
+        setIsAnonymous(false);
         setUserQuestionCount((prev) => prev + 1); // optimistic increment
         fetchQuestions(false);
         EventBus.emit("qna-post-updated", { postId: post.id });
@@ -215,7 +219,6 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
         setReplyingToQuestionId(null);
         fetchQuestions(false);
         EventBus.emit("qna-post-updated", { postId: post.id });
-        Alert.alert("Reply posted!", "Your reply has been posted.");
       }
     } catch (error) {
       console.error("Error submitting reply:", error);
@@ -656,11 +659,34 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
         ) : (
           // Normal input
           <View style={styles.inputContainerFloating}>
+            {/* Anonymous hint bar — only shown when allow_anonymous is on */}
+            {allowAnonymous && (
+              <TouchableOpacity
+                style={[
+                  styles.anonHintBar,
+                  isAnonymous && styles.anonHintBarActive,
+                ]}
+                onPress={() => setIsAnonymous((v) => !v)}
+                activeOpacity={0.8}
+              >
+                <EyeOff
+                  size={14}
+                  color={isAnonymous ? "#5856D6" : "#9CA3AF"}
+                  strokeWidth={2}
+                />
+                <Text style={[
+                  styles.anonHintText,
+                  isAnonymous && styles.anonHintTextActive,
+                ]}>
+                  {isAnonymous ? "Posting anonymously — tap to show name" : "Tap to post anonymously"}
+                </Text>
+              </TouchableOpacity>
+            )}
             <View style={styles.inputContentFloating}>
               <TextInput
                 ref={inputRef}
                 style={styles.questionInputFloating}
-                placeholder="Ask a question..."
+                placeholder={isAnonymous ? "Ask anonymously..." : "Ask a question..."}
                 placeholderTextColor="#9CA3AF"
                 value={questionText}
                 onChangeText={setQuestionText}
@@ -672,6 +698,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
                   styles.sendButtonFloating,
                   (!questionText.trim() || isSubmitting) &&
                     styles.sendButtonDisabledFloating,
+                  isAnonymous && questionText.trim() && styles.sendButtonAnon,
                 ]}
                 onPress={handleSubmitQuestion}
                 disabled={!questionText.trim() || isSubmitting}
@@ -1287,7 +1314,33 @@ const styles = StyleSheet.create({
   },
   sendIcon: {
     marginLeft: -2,
-  }
+  },
+  // Anonymous hint bar
+  anonHintBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  anonHintBarActive: {
+    backgroundColor: "#F0EEFF",
+    borderBottomColor: "#D4D0FF",
+  },
+  anonHintText: {
+    fontSize: 12,
+    fontFamily: "Manrope-Medium",
+    color: "#9CA3AF",
+  },
+  anonHintTextActive: {
+    color: "#5856D6",
+  },
+  sendButtonAnon: {
+    backgroundColor: "#5856D6",
+  },
 });
 
 export default QnAQuestionsScreen;
