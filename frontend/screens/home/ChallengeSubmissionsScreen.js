@@ -4,13 +4,35 @@ import { useFocusEffect } from "@react-navigation/native";
  * Gallery view of all submissions for a challenge
  */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, Dimensions, Modal, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
+import {
+  ArrowLeft,
+  Image as ImageIcon,
+  Users,
+  Star,
+  Clock,
+  EyeOff,
+  ImageOff,
+  Plus,
+  X,
+  PlayCircle,
+  Heart,
+  CheckCircle2,
+  XCircle,
+  Trash2,
+  User,
+  Info,
+  Mail,
+  Trophy
+} from "lucide-react-native";
 import { apiGet, apiPost, apiDelete, apiPatch } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import FullscreenVideoModal from "../../components/FullscreenVideoModal";
 import RemovalRequestsModal from "../../components/RemovalRequestsModal";
 
@@ -40,6 +62,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
   const [actionSheet, setActionSheet] = useState(null); // { submission }
   const [showRemovalRequests, setShowRemovalRequests] = useState(false);
   const [isHost, setIsHost] = useState(false);
+  const lastTapRef = useRef({});
   const challengeEnded =
     post.expires_at && new Date(post.expires_at) <= new Date();
 
@@ -231,7 +254,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
       case "completed":
         return "#34C759";
       case "in_progress":
-        return "#FF9500";
+        return "#2962FF";
       default:
         return COLORS.textSecondary;
     }
@@ -287,10 +310,29 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         ]}
         activeOpacity={0.8}
         onPress={() => {
-          if (hasVideo && item.video_url) {
-            setFullscreenVideo({ uri: item.video_url });
-          } else if (hasMedia && item.media_urls && item.media_urls[0]) {
-            setFullscreenImage({ uri: item.media_urls[0] });
+          const now = Date.now();
+          const lastTap = lastTapRef.current[item.id] || 0;
+          const DOUBLE_TAP_DELAY = 300;
+
+          if (now - lastTap < DOUBLE_TAP_DELAY) {
+            // Double tap detected
+            lastTapRef.current[item.id] = 0; // reset
+            if (!item.has_liked) {
+              handleLike(item.id, item.has_liked);
+            }
+          } else {
+            // Wait to see if it's a single tap
+            lastTapRef.current[item.id] = now;
+            setTimeout(() => {
+              if (lastTapRef.current[item.id] === now) {
+                // It was a single tap
+                if (hasVideo && item.video_url) {
+                  setFullscreenVideo({ uri: item.video_url });
+                } else if (hasMedia && item.media_urls && item.media_urls[0]) {
+                  setFullscreenImage({ uri: item.media_urls[0] });
+                }
+              }
+            }, DOUBLE_TAP_DELAY);
           }
         }}
         onLongPress={() => {
@@ -316,7 +358,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
               style={styles.submissionImage}
             />
             <View style={styles.playOverlay}>
-              <Ionicons name="play-circle" size={36} color="#FFFFFF" />
+              <PlayCircle size={36} color="#FFFFFF" />
             </View>
           </View>
         )}
@@ -331,20 +373,20 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         {/* Featured Badge */}
         {item.is_featured && (
           <View style={styles.featuredBadge}>
-            <Ionicons name="star" size={10} color="#FFD700" />
+            <Star size={10} color="#FFD700" fill="#FFD700" />
           </View>
         )}
 
         {/* Pending/Rejected Badge for user's own submissions */}
         {item.is_own_submission && item.status === "pending" && (
           <View style={styles.pendingBadge}>
-            <Ionicons name="time" size={10} color="#FF9500" />
+            <Clock size={10} color="#FFFFFF" />
             <Text style={styles.pendingBadgeText}>Pending</Text>
           </View>
         )}
         {item.is_own_submission && item.status === "rejected" && (
           <View style={styles.rejectedBadge}>
-            <Ionicons name="close-circle" size={10} color="#FF3B30" />
+            <XCircle size={10} color="#FFFFFF" />
             <Text style={styles.rejectedBadgeText}>Rejected</Text>
           </View>
         )}
@@ -352,14 +394,30 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         {/* Deleted Post Indicator */}
         {item.source_post_deleted && (
           <View style={styles.deletedOverlay}>
-            <Ionicons name="trash-outline" size={14} color="#999" />
+            <Trash2 size={14} color="#999" />
             <Text style={styles.deletedText}>Post deleted</Text>
           </View>
         )}
 
-        {/* Footer */}
-        <View style={styles.submissionFooter}>
-          <View style={styles.submissionAuthor}>
+        {/* Footer overlay */}
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.8)']}
+          style={styles.submissionFooter}
+        >
+          <TouchableOpacity 
+            style={styles.submissionAuthor}
+            onPress={() => {
+              if (item.participant_type === "community") {
+                navigation.push("CommunityPublicProfile", {
+                  communityId: item.participant_id,
+                });
+              } else {
+                navigation.push("MemberPublicProfile", {
+                  memberId: item.participant_id,
+                });
+              }
+            }}
+          >
             {item.participant_photo_url && (
               <Image
                 source={{ uri: item.participant_photo_url }}
@@ -369,19 +427,19 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
             <Text style={styles.authorName} numberOfLines={1}>
               {item.participant_name || "User"}
             </Text>
-          </View>
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.likeButton}
             onPress={() => handleLike(item.id, item.has_liked)}
           >
-            <Ionicons
-              name={item.has_liked ? "heart" : "heart-outline"}
-              size={16}
-              color={item.has_liked ? COLORS.error : COLORS.textSecondary}
+            <Heart
+              size={18}
+              color={item.has_liked ? COLORS.error : "#FFFFFF"}
+              fill={item.has_liked ? COLORS.error : "transparent"}
             />
             <Text style={styles.likeCount}>{item.like_count || 0}</Text>
           </TouchableOpacity>
-        </View>
+        </LinearGradient>
 
         {/* Approve / Reject actions for host on pending submissions */}
         {isHost && filter === "pending" && item.status === "pending" && (
@@ -390,14 +448,14 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
               style={styles.approveButton}
               onPress={() => handleModerate(item.id, "approved")}
             >
-              <Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+              <CheckCircle2 size={16} color="#FFFFFF" />
               <Text style={styles.moderateButtonText}>Approve</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.rejectButton}
               onPress={() => handleModerate(item.id, "rejected")}
             >
-              <Ionicons name="close-circle" size={16} color="#FFFFFF" />
+              <XCircle size={16} color="#FFFFFF" />
               <Text style={styles.moderateButtonText}>Reject</Text>
             </TouchableOpacity>
           </View>
@@ -417,7 +475,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
             />
           ) : (
             <View style={styles.participantAvatarPlaceholder}>
-              <Ionicons name="person" size={20} color={COLORS.textSecondary} />
+              <User size={20} color={COLORS.textSecondary} />
             </View>
           )}
           <View style={styles.participantDetails}>
@@ -430,7 +488,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           </View>
           {item.is_highlighted && (
             <View style={styles.highlightBadge}>
-              <Ionicons name="star" size={12} color="#FFD700" />
+              <Star size={12} color="#FFD700" fill="#FFD700" />
             </View>
           )}
         </View>
@@ -475,30 +533,15 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
-      {/* Challenge Info */}
-      <View style={styles.challengeInfo}>
-        <MaterialCommunityIcons
-          name="trophy-outline"
-          size={24}
-          color="#FF9500"
-        />
-        <View style={styles.challengeInfoText}>
-          <Text style={styles.challengeTitle}>{typeData.title}</Text>
-          <Text style={styles.challengeAuthor}>by {post.author_name}</Text>
-        </View>
-      </View>
-
-      {/* Tabs */}
       <View style={styles.tabsRow}>
         <TouchableOpacity
           style={[styles.tab, activeTab === "submissions" && styles.tabActive]}
           onPress={() => setActiveTab("submissions")}
         >
-          <Ionicons
-            name="images"
+          <ImageIcon
             size={18}
             color={
-              activeTab === "submissions" ? "#FF9500" : COLORS.textSecondary
+              activeTab === "submissions" ? "#2962FF" : COLORS.textSecondary
             }
           />
           <Text
@@ -514,11 +557,10 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           style={[styles.tab, activeTab === "participants" && styles.tabActive]}
           onPress={() => setActiveTab("participants")}
         >
-          <Ionicons
-            name="people"
+          <Users
             size={18}
             color={
-              activeTab === "participants" ? "#FF9500" : COLORS.textSecondary
+              activeTab === "participants" ? "#2962FF" : COLORS.textSecondary
             }
           />
           <Text
@@ -550,6 +592,17 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
             >
               All
             </Text>
+            <View style={[
+              styles.innerBadge,
+              filter === "approved" && styles.innerBadgeActive
+            ]}>
+              <Text style={[
+                styles.innerBadgeText,
+                filter === "approved" && styles.innerBadgeTextActive
+              ]}>
+                {filter === "approved" ? submissions.length : (post.submissions_count || 0)}
+              </Text>
+            </View>
           </TouchableOpacity>
           <TouchableOpacity
             style={[
@@ -558,19 +611,31 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
             ]}
             onPress={() => setFilter("featured")}
           >
-            <Ionicons
-              name="star"
-              size={12}
-              color={filter === "featured" ? "#FFFFFF" : "#FFD700"}
-            />
-            <Text
-              style={[
-                styles.filterPillText,
-                filter === "featured" && styles.filterPillTextActive,
-              ]}
-            >
-              Featured
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", marginRight: 8 }}>
+              <Star
+                size={12}
+                color={filter === "featured" ? "#FFFFFF" : "#1D1D1F"}
+                fill={filter === "featured" ? "#FFFFFF" : "transparent"}
+                style={{ marginRight: 4 }}
+              />
+              <Text
+                style={[
+                  styles.filterPillText,
+                  filter === "featured" && styles.filterPillTextActive,
+                  { marginRight: 0 } // Reset margin since badge handles spacing
+                ]}
+              >
+                Featured
+              </Text>
+            </View>
+            {/* Show badge for featured only when active since we only know count when filtered */}
+            {filter === "featured" && (
+              <View style={[styles.innerBadge, styles.innerBadgeActive]}>
+                <Text style={[styles.innerBadgeText, styles.innerBadgeTextActive]}>
+                  {submissions.length}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
           {/* Pending filter pill — visible only to challenge host */}
           {isHost && (
@@ -581,19 +646,29 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
               ]}
               onPress={() => setFilter("pending")}
             >
-              <Ionicons
-                name="time"
-                size={12}
-                color={filter === "pending" ? "#FFFFFF" : "#FF9500"}
-              />
-              <Text
-                style={[
-                  styles.filterPillText,
-                  filter === "pending" && styles.filterPillTextActive,
-                ]}
-              >
-                Pending
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", marginRight: 8 }}>
+                <Clock
+                  size={12}
+                  color={filter === "pending" ? "#FFFFFF" : "#1D1D1F"}
+                  style={{ marginRight: 4 }}
+                />
+                <Text
+                  style={[
+                    styles.filterPillText,
+                    filter === "pending" && styles.filterPillTextActive,
+                    { marginRight: 0 }
+                  ]}
+                >
+                  Pending
+                </Text>
+              </View>
+              {filter === "pending" && (
+                <View style={[styles.innerBadge, styles.innerBadgeActive]}>
+                  <Text style={[styles.innerBadgeText, styles.innerBadgeTextActive]}>
+                    {submissions.length}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           )}
         </View>
@@ -608,7 +683,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         visibilityInfo &&
         !visibilityInfo.proofs_visible && (
           <View style={styles.visibilityInfoContainer}>
-            <Ionicons name="eye-off-outline" size={32} color="#FF9500" />
+            <EyeOff size={32} color="#2962FF" />
             <Text style={styles.visibilityInfoTitle}>
               Proofs are currently hidden
             </Text>
@@ -627,15 +702,11 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         !visibilityInfo ||
         visibilityInfo.proofs_visible) && (
         <>
-          <MaterialCommunityIcons
-            name={
-              activeTab === "submissions"
-                ? "image-off"
-                : "account-group-outline"
-            }
-            size={48}
-            color={COLORS.textSecondary}
-          />
+          {activeTab === "submissions" ? (
+            <ImageOff size={48} color={COLORS.textSecondary} strokeWidth={1.5} />
+          ) : (
+            <Users size={48} color={COLORS.textSecondary} strokeWidth={1.5} />
+          )}
           <Text style={styles.emptyTitle}>
             {activeTab === "submissions"
               ? "No submissions yet"
@@ -654,37 +725,51 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header Bar */}
-      <View style={styles.headerBar}>
+      <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <ArrowLeft size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Challenge</Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Challenge</Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>
+            {typeData.title} • by {post.author_name}
+          </Text>
+        </View>
         <View style={styles.headerRight}>
           {isHost && challengeEnded && (
             <TouchableOpacity
               style={styles.removalRequestsButton}
               onPress={() => setShowRemovalRequests(true)}
             >
-              <Ionicons name="mail-unread-outline" size={20} color="#FF9500" />
+              <Mail size={20} color="#2962FF" />
             </TouchableOpacity>
           )}
-          <Text style={styles.countBadge}>
-            {activeTab === "submissions"
-              ? submissions.length
-              : participants.length}
-          </Text>
+          {activeTab === "participants" && (
+            <View style={styles.countBadge}>
+              <Text style={styles.countBadgeText}>
+                {participants.length}
+              </Text>
+            </View>
+          )}
         </View>
       </View>
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <SnooLoader size="large" color="#FF9500" />
+          <SnooLoader size="large" color="#2962FF" />
         </View>
       ) : (
         <FlatList
+          style={{
+            flex: 1,
+            backgroundColor:
+              activeTab === "submissions"
+                ? COLORS.screenBackground
+                : COLORS.surface,
+          }}
           data={activeTab === "submissions" ? submissions : participants}
           renderItem={
             activeTab === "submissions" ? renderSubmission : renderParticipant
@@ -694,12 +779,15 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           key={activeTab} // Force re-render when switching tabs
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmpty}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            activeTab === "participants" && { paddingHorizontal: 0 },
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={handleRefresh}
-              tintColor="#FF9500"
+              tintColor="#2962FF"
             />
           }
         />
@@ -713,7 +801,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           onPress={() => navigation.navigate("ChallengeSubmit", { post })}
           activeOpacity={0.8}
         >
-          <Ionicons name="add" size={28} color="#FFFFFF" />
+          <Plus size={28} color="#FFFFFF" />
         </TouchableOpacity>
       ) : null}
 
@@ -740,7 +828,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
             style={styles.fullscreenClose}
             onPress={() => setFullscreenImage(null)}
           >
-            <Ionicons name="close" size={28} color="#FFFFFF" />
+            <X size={28} color="#FFFFFF" />
           </TouchableOpacity>
           {fullscreenImage && (
             <Image
@@ -777,12 +865,10 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
                   )
                 }
               >
-                <Ionicons
-                  name={
-                    actionSheet.submission.is_featured ? "star-outline" : "star"
-                  }
+                <Star
                   size={20}
                   color="#FFD700"
+                  fill={actionSheet.submission.is_featured ? "transparent" : "#FFD700"}
                 />
                 <Text style={styles.actionSheetButtonText}>
                   {actionSheet.submission.is_featured
@@ -796,7 +882,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
                 style={styles.actionSheetButton}
                 onPress={() => handleRequestRemoval(actionSheet.submission)}
               >
-                <Ionicons name="trash-outline" size={20} color="#FF3B30" />
+                <Trash2 size={20} color="#FF3B30" />
                 <Text
                   style={[styles.actionSheetButtonText, { color: "#FF3B30" }]}
                 >
@@ -806,8 +892,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
             )}
             {!challengeEnded && actionSheet?.submission?.is_own_submission && (
               <View style={styles.actionSheetInfoRow}>
-                <Ionicons
-                  name="information-circle-outline"
+                <Info
                   size={18}
                   color="#999"
                 />
@@ -841,43 +926,51 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.screenBackground,
+    backgroundColor: COLORS.surface,
   },
-  headerBar: {
+  header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     paddingHorizontal: SPACING.m,
     paddingVertical: SPACING.s,
     backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   backButton: {
     padding: SPACING.xs,
   },
+  headerContent: {
+    flex: 1,
+    paddingHorizontal: SPACING.s,
+  },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: "600",
+    fontSize: 22,
+    fontFamily: FONTS.black,
     color: COLORS.textPrimary,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    minWidth: 40,
+    gap: 12,
   },
   removalRequestsButton: {
     padding: 4,
   },
   countBadge: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#FF9500",
-    backgroundColor: "#FF950015",
+    backgroundColor: "#2962FF15",
     paddingHorizontal: SPACING.s,
-    paddingVertical: 2,
-    borderRadius: BORDER_RADIUS.s,
+    paddingVertical: 4,
+    borderRadius: BORDER_RADIUS.m,
+  },
+  countBadgeText: {
+    fontSize: 12,
+    fontFamily: FONTS.semiBold,
+    color: "#2962FF",
   },
   loadingContainer: {
     flex: 1,
@@ -890,33 +983,14 @@ const styles = StyleSheet.create({
   // Header Section
   headerContainer: {
     backgroundColor: COLORS.surface,
-    padding: SPACING.m,
-    marginBottom: SPACING.s,
-    ...SHADOWS.sm,
-  },
-  challengeInfo: {
-    flexDirection: "row",
-    alignItems: "center",
+    paddingTop: SPACING.s,
+    paddingHorizontal: SPACING.m,
+    paddingBottom: SPACING.m,
     marginBottom: SPACING.m,
-  },
-  challengeInfoText: {
-    marginLeft: SPACING.s,
-    flex: 1,
-  },
-  challengeTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.textPrimary,
-  },
-  challengeAuthor: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
   },
   tabsRow: {
     flexDirection: "row",
-    marginBottom: SPACING.s,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    marginBottom: SPACING.xs,
   },
   tab: {
     flex: 1,
@@ -927,57 +1001,84 @@ const styles = StyleSheet.create({
   },
   tabActive: {
     borderBottomWidth: 2,
-    borderBottomColor: "#FF9500",
+    borderBottomColor: "#2962FF",
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: "500",
+    fontSize: 15,
+    fontFamily: FONTS.semiBold,
     color: COLORS.textSecondary,
-    marginLeft: 6,
+    marginLeft: 8,
   },
   tabTextActive: {
-    color: "#FF9500",
+    color: "#2962FF",
   },
   filterRow: {
     flexDirection: "row",
-    marginTop: SPACING.xs,
+    marginTop: SPACING.m,
+    marginBottom: SPACING.m,
   },
   filterPill: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: SPACING.m,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.l,
-    backgroundColor: COLORS.screenBackground,
+    paddingLeft: 16,
+    paddingRight: 6, // Smaller padding on the right to hug the badge tightly
+    paddingVertical: 6,
+    borderRadius: 24, // High border radius to contain the circular badge perfectly
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
     marginRight: SPACING.s,
+    height: 36, // Fixed height ensures perfect alignment
   },
   filterPillActive: {
-    backgroundColor: "#FF9500",
+    backgroundColor: "#000000",
+    borderColor: "#000000",
   },
   filterPillText: {
     fontSize: 13,
-    fontWeight: "500",
-    color: COLORS.textSecondary,
-    marginLeft: 4,
+    fontFamily: FONTS.semiBold,
+    color: "#1D1D1F",
+    marginRight: 8, // Space between text and badge
   },
   filterPillTextActive: {
+    color: "#FFFFFF",
+  },
+  innerBadge: {
+    backgroundColor: "#F3F4F6", // Soft grey for inactive state
+    borderRadius: 12,
+    minWidth: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  innerBadgeActive: {
+    backgroundColor: "#333333", // Deep grey inside black pill
+  },
+  innerBadgeText: {
+    fontSize: 11,
+    fontFamily: FONTS.bold,
+    color: "#4B5563",
+  },
+  innerBadgeTextActive: {
     color: "#FFFFFF",
   },
   // Submission Card
   submissionCard: {
     width: ITEM_WIDTH,
-    marginBottom: SPACING.s,
+    height: ITEM_WIDTH * 1.3, // 4:5 ratio for premium look
+    marginBottom: SPACING.m,
     marginRight: SPACING.s / 2,
     backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.m,
+    borderRadius: 16,
     overflow: "hidden",
-    ...SHADOWS.sm,
   },
   submissionImage: {
     width: "100%",
-    height: ITEM_WIDTH,
+    height: "100%",
   },
   videoContainer: {
+    flex: 1,
     position: "relative",
   },
   playOverlay: {
@@ -991,8 +1092,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.3)",
   },
   textSubmissionCard: {
-    width: "100%",
-    height: ITEM_WIDTH,
+    flex: 1,
     padding: SPACING.m,
     backgroundColor: COLORS.screenBackground,
     justifyContent: "center",
@@ -1045,35 +1145,48 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
   submissionFooter: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-end",
     justifyContent: "space-between",
     padding: SPACING.s,
+    paddingTop: 40, // Height for gradient transition
   },
   submissionAuthor: {
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
+    paddingRight: SPACING.xs,
   },
   authorAvatar: {
     width: 20,
     height: 20,
     borderRadius: 10,
     marginRight: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.5)",
   },
   authorName: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: COLORS.textPrimary,
+    fontSize: 13,
+    fontFamily: FONTS.semiBold,
+    color: "#FFFFFF",
     flex: 1,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   likeButton: {
     flexDirection: "row",
     alignItems: "center",
+    paddingLeft: SPACING.xs,
   },
   likeCount: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    fontFamily: FONTS.semiBold,
+    color: "#FFFFFF",
     marginLeft: 4,
   },
   // Moderation buttons (host-only, pending submissions)
@@ -1113,11 +1226,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: COLORS.surface,
-    marginHorizontal: SPACING.m,
-    marginTop: SPACING.s,
-    borderRadius: BORDER_RADIUS.l,
-    padding: SPACING.m,
-    ...SHADOWS.sm,
+    paddingHorizontal: SPACING.m,
+    paddingVertical: 12,
   },
   participantInfo: {
     flexDirection: "row",
@@ -1143,8 +1253,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   participantName: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontFamily: FONTS.semiBold,
     color: COLORS.textPrimary,
   },
   participantJoined: {
@@ -1173,13 +1283,13 @@ const styles = StyleSheet.create({
   },
   progressBarFillSmall: {
     height: "100%",
-    backgroundColor: "#FF9500",
+    backgroundColor: "#2962FF",
     borderRadius: 3,
   },
   progressPercentText: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#FF9500",
+    color: "#2962FF",
   },
   statusBadge: {
     paddingHorizontal: SPACING.s,
@@ -1198,15 +1308,17 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xl,
   },
   emptyTitle: {
-    fontSize: 17,
-    fontWeight: "600",
+    fontSize: 18,
+    fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
-    marginTop: SPACING.m,
+    marginTop: SPACING.l,
   },
   emptySubtitle: {
-    fontSize: 14,
+    fontSize: 15,
+    fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
     marginTop: SPACING.xs,
+    textAlign: "center",
   },
   // Visibility info styles
   visibilityInfoContainer: {
@@ -1219,7 +1331,7 @@ const styles = StyleSheet.create({
   visibilityInfoTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#FF9500",
+    color: "#2962FF",
     marginTop: SPACING.s,
     textAlign: "center",
   },
@@ -1243,7 +1355,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#FF9500",
+    backgroundColor: "#2962FF",
     alignItems: "center",
     justifyContent: "center",
     ...SHADOWS.md,
@@ -1301,8 +1413,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   actionSheetTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 18,
+    fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
     marginBottom: 16,
     textAlign: "center",
@@ -1319,7 +1431,7 @@ const styles = StyleSheet.create({
   },
   actionSheetButtonText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
   },
   actionSheetInfoRow: {
     flexDirection: "row",

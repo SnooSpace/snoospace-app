@@ -290,7 +290,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
                 pickImage();
               }}
             >
-              <ImageIcon size={30} color="#FF9500" strokeWidth={2} />
+              <ImageIcon size={30} color="#2962FF" strokeWidth={2} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.addImageButton}
@@ -299,7 +299,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
                 takePhoto();
               }}
             >
-              <CameraIcon size={30} color="#FF9500" strokeWidth={2} />
+              <CameraIcon size={30} color="#2962FF" strokeWidth={2} />
             </TouchableOpacity>
           </View>
         )}
@@ -330,7 +330,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
       ) : (
         <View style={styles.videoButtonsRow}>
           <TouchableOpacity style={styles.videoButton} onPress={pickVideo}>
-            <Ionicons name="videocam" size={28} color="#FF9500" />
+            <Ionicons name="videocam" size={28} color="#2962FF" />
             <Text style={styles.videoButtonText}>Choose Video</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.videoButton} onPress={recordVideo}>
@@ -397,7 +397,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
               <MaterialCommunityIcons
                 name="trophy-outline"
                 size={28}
-                color="#FF9500"
+                color="#2962FF"
               />
             </View>
             <View style={styles.heroTextContainer}>
@@ -510,7 +510,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
             {/* Requires Approval */}
             {typeData.require_approval && (
               <View style={styles.guidelineRow}>
-                <Ionicons name="time-outline" size={16} color="#FF9500" />
+                <Ionicons name="time-outline" size={16} color="#2962FF" />
                 <Text style={styles.guidelineText}>
                   Submissions require{" "}
                   <Text style={styles.guidelineHighlight}>host approval</Text>
@@ -615,14 +615,14 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   submitButton: {
-    backgroundColor: "#FF9500",
+    backgroundColor: "#2962FF",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
     minWidth: 70,
     alignItems: "center",
     // Soft glow shadow
-    shadowColor: "#FF9500",
+    shadowColor: "#2962FF",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 8,
@@ -840,7 +840,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: "#FFEEDD",
-    shadowColor: "#FF9500",
+    shadowColor: "#2962FF",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 6,
@@ -849,7 +849,7 @@ const styles = StyleSheet.create({
   addImageText: {
     fontSize: 14,
     fontFamily: "Manrope-Medium",
-    color: "#FF9500",
+    color: "#2962FF",
     marginTop: 8,
   },
   videoWrapper: {
@@ -891,7 +891,7 @@ const styles = StyleSheet.create({
   videoButtonText: {
     fontSize: 14,
     fontFamily: "Manrope-Medium",
-    color: "#FF9500",
+    color: "#2962FF",
     marginTop: 8,
   },
   helperText: {
