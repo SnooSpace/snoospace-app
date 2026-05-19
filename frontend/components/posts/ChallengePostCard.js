@@ -18,7 +18,6 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   Heart,
   MessageCircle,
@@ -27,6 +26,17 @@ import {
   Bookmark,
   Ellipsis,
   Trophy,
+  Play,
+  Star,
+  Calendar,
+  Edit2,
+  Trash2,
+  Video,
+  Camera,
+  FileText,
+  LogOut,
+  ArrowRight,
+  User,
 } from "lucide-react-native";
 import {
   apiPost,
@@ -92,6 +102,16 @@ const ChallengePostCard = ({
   const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
   const challengeType = typeData.challenge_type || "single";
   const submissionType = typeData.submission_type || "image";
+  const maxSubmissionsPerUser = typeData.max_submissions_per_user || 1;
+
+  // Track user's active submission count (for blocking re-submission on Single Task)
+  const [userSubmissionCount, setUserSubmissionCount] = useState(
+    post.user_submission_count || 0,
+  );
+
+  // For Single Task: user has already submitted if they have >= 1 active submission
+  const hasSubmittedSingle =
+    challengeType === "single" && userSubmissionCount >= maxSubmissionsPerUser;
 
   // Check if current user owns this post
   const isOwnPost =
@@ -107,11 +127,13 @@ const ChallengePostCard = ({
     setUserParticipation(post.user_participation || null);
     setParticipantCount(typeData.participant_count || 0);
     setPreviewSubmission(post.preview_submission || null);
+    setUserSubmissionCount(post.user_submission_count || 0);
   }, [
     post.has_joined,
     post.user_participation,
     typeData.participant_count,
     post.preview_submission,
+    post.user_submission_count,
   ]);
 
   // Engagement State
@@ -407,14 +429,15 @@ const ChallengePostCard = ({
     }
   };
 
-  const getSubmissionTypeIcon = () => {
+  const renderSubmissionTypeIcon = () => {
+    const iconProps = { size: 18, color: "#FFFFFF", style: { zIndex: 1 } };
     switch (submissionType) {
       case "video":
-        return "videocam";
+        return <Video {...iconProps} />;
       case "image":
-        return "camera";
+        return <Camera {...iconProps} />;
       default:
-        return "document-text";
+        return <FileText {...iconProps} />;
     }
   };
 
@@ -466,7 +489,7 @@ const ChallengePostCard = ({
               style={styles.previewImage}
             />
             <View style={styles.playIconOverlay}>
-              <Ionicons name="play-circle" size={32} color="#FFFFFF" />
+              <Play size={32} color="#FFFFFF" fill="#FFFFFF" />
             </View>
           </View>
         )}
@@ -483,7 +506,7 @@ const ChallengePostCard = ({
             </Text>
             {previewSubmission.is_featured && (
               <View style={styles.featuredBadge}>
-                <Ionicons name="star" size={10} color="#FFD700" />
+                <Star size={10} color="#FFD700" fill="#FFD700" />
               </View>
             )}
           </View>
@@ -493,7 +516,7 @@ const ChallengePostCard = ({
             </Text>
           )}
           <View style={styles.previewLikes}>
-            <Ionicons name="heart" size={12} color={COLORS.textSecondary} />
+            <Heart size={12} color={COLORS.textSecondary} />
             <Text style={styles.previewLikesText}>
               {previewSubmission.like_count || 0}
             </Text>
@@ -581,7 +604,7 @@ const ChallengePostCard = ({
         {/* Deadline Date/Time - on its own line */}
         {post.expires_at && (
           <View style={styles.deadlineRow}>
-            <Ionicons name="calendar-outline" size={14} color="#5e8d9b" />
+            <Calendar size={14} color="#5e8d9b" />
             <Text style={styles.deadlineText}>
               {isExpired
                 ? `Ended ${new Date(post.expires_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${new Date(post.expires_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}`
@@ -610,7 +633,7 @@ const ChallengePostCard = ({
                     setShowEditModal(true);
                   }}
                 >
-                  <Ionicons name="create-outline" size={18} color="#1D1D1F" />
+                  <Edit2 size={18} color="#1D1D1F" />
                   <Text style={styles.menuItemText}>Edit Post</Text>
                 </TouchableOpacity>
 
@@ -622,7 +645,7 @@ const ChallengePostCard = ({
                       handleDelete();
                     }}
                   >
-                    <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                    <Trash2 size={18} color="#DC2626" />
                     <Text style={[styles.menuItemText, { color: "#DC2626" }]}>
                       Delete Post
                     </Text>
@@ -686,47 +709,60 @@ const ChallengePostCard = ({
         {/* Join/Submit Button */}
         {!isExpired && hasJoined ? (
           <View style={styles.joinedButtonsRow}>
-            <TouchableOpacity
-              style={styles.submitProofButton}
-              onPress={() =>
-                navigation.navigate("ChallengeSubmit", {
-                  post,
-                  participation: userParticipation,
-                })
-              }
-              activeOpacity={0.8}
-            >
-              <LinearGradient
-                colors={["#34C759", "#2E7D32"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={StyleSheet.absoluteFillObject}
-              />
-              <Ionicons
-                name={getSubmissionTypeIcon()}
-                size={18}
-                color="#FFFFFF"
-                style={{ zIndex: 1 }}
-              />
-              <Text style={[styles.submitProofButtonText, { zIndex: 1 }]}>
-                Submit Proof
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.leaveButton}
-              onPress={handleJoinChallenge}
-              disabled={isJoining}
-            >
-              {isJoining ? (
-                <SnooLoader size="small" color={COLORS.textSecondary} />
-              ) : (
+            {hasSubmittedSingle ? (
+              // ── Single Task: already submitted ──────────────────────────────
+              <View style={styles.submittedBadge}>
                 <Ionicons
-                  name="exit-outline"
+                  name="checkmark-circle"
                   size={18}
-                  color={COLORS.textSecondary}
+                  color="#34C759"
+                  style={{ marginRight: 6 }}
                 />
-              )}
-            </TouchableOpacity>
+                <Text style={styles.submittedBadgeText}>
+                  Submitted — awaiting review
+                </Text>
+              </View>
+            ) : (
+              // ── Normal submit button ────────────────────────────────────────
+              <TouchableOpacity
+                style={styles.submitProofButton}
+                onPress={() => {
+                  navigation.navigate("ChallengeSubmit", {
+                    post,
+                    participation: userParticipation,
+                    onSubmitSuccess: () => setUserSubmissionCount((c) => c + 1),
+                  });
+                }}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={["#34C759", "#2E7D32"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                {renderSubmissionTypeIcon()}
+                <Text style={[styles.submitProofButtonText, { zIndex: 1 }]}>
+                  Submit Proof
+                </Text>
+              </TouchableOpacity>
+            )}
+            {!hasSubmittedSingle && (
+              <TouchableOpacity
+                style={styles.leaveButton}
+                onPress={handleJoinChallenge}
+                disabled={isJoining}
+              >
+                {isJoining ? (
+                  <SnooLoader size="small" color={COLORS.textSecondary} />
+                ) : (
+                  <LogOut
+                    size={18}
+                    color={COLORS.textSecondary}
+                  />
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <TouchableOpacity
@@ -745,16 +781,10 @@ const ChallengePostCard = ({
                 <SnooLoader size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <Text
-                    style={[
-                      styles.joinButtonText,
-                      { fontFamily: "Manrope-SemiBold" },
-                    ]}
-                  >
+                  <Text style={styles.joinButtonText}>
                     Join Challenge
                   </Text>
-                  <Ionicons
-                    name="arrow-forward"
+                  <ArrowRight
                     size={18}
                     color="#FFFFFF"
                     style={{ marginLeft: 6 }}
@@ -775,68 +805,128 @@ const ChallengePostCard = ({
             activeOpacity={0.7}
           >
             <Text style={styles.participantCountText}>Joined by</Text>
-            <View style={[styles.participantAvatars, { marginLeft: 8 }]}>
-              {participantPreviews.length > 0 ? (
-                <>
-                  {participantPreviews.slice(0, 3).map((participant, index) => (
-                    <View
-                      key={`${participant.participant_id}-${participant.participant_type}`}
-                      style={[
-                        styles.participantAvatarImage,
-                        { zIndex: 3 - index, marginLeft: index > 0 ? -10 : 0 },
-                      ]}
-                    >
-                      {participant.participant_photo_url ? (
-                        <Image
-                          source={{ uri: participant.participant_photo_url }}
-                          style={styles.participantAvatarImg}
-                        />
-                      ) : (
-                        <View style={styles.participantAvatarPlaceholder}>
-                          <Ionicons name="person" size={12} color="#FFFFFF" />
+            {(() => {
+              const displayCount = Math.min(3, participantPreviews.length > 0 ? participantPreviews.length : participantCount);
+              const showBadge = participantCount > 3;
+              const totalClusterItems = showBadge ? displayCount + 1 : displayCount;
+              
+              // Helper to define cluster positions dynamically
+              const getAvatarClusterLayout = (total) => {
+                const size = 28;
+                const overlap = 8;
+                const spacing = size - overlap; // 20
+                
+                if (total <= 1) {
+                  return {
+                    containerStyle: { width: size, height: size },
+                    getItemStyle: (index) => ({
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                    }),
+                  };
+                }
+                
+                if (total === 2) {
+                  return {
+                    containerStyle: { width: size + spacing, height: size },
+                    getItemStyle: (index) => ({
+                      position: "absolute",
+                      top: 0,
+                      left: index * spacing,
+                    }),
+                  };
+                }
+                
+                // 3 or 4 items: triangle/2x2 layout
+                return {
+                  containerStyle: { width: size + spacing, height: size + spacing },
+                  getItemStyle: (index) => {
+                    const isTop = index < 2;
+                    const isLeft = index % 2 === 0;
+                    return {
+                      position: "absolute",
+                      top: isTop ? 0 : spacing,
+                      left: isLeft ? 0 : spacing,
+                    };
+                  },
+                };
+              };
+
+              const { containerStyle, getItemStyle } = getAvatarClusterLayout(totalClusterItems);
+
+              return (
+                <View style={[containerStyle, { marginLeft: 8 }]}>
+                  {participantPreviews.length > 0 ? (
+                    <>
+                      {participantPreviews.slice(0, 3).map((participant, index) => (
+                        <View
+                          key={`${participant.participant_id}-${participant.participant_type}`}
+                          style={[
+                            styles.participantAvatarImage,
+                            getItemStyle(index),
+                            { zIndex: 10 - index },
+                          ]}
+                        >
+                          {participant.participant_photo_url ? (
+                            <Image
+                              source={{ uri: participant.participant_photo_url }}
+                              style={styles.participantAvatarImg}
+                            />
+                          ) : (
+                            <View style={styles.participantAvatarPlaceholder}>
+                              <User size={12} color="#FFFFFF" />
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                      {showBadge && (
+                        <View
+                          style={[
+                            styles.participantCountBadge,
+                            getItemStyle(3),
+                            { zIndex: 1 },
+                          ]}
+                        >
+                          <Text style={styles.participantCountBadgeText}>
+                            +{participantCount - 3}
+                          </Text>
                         </View>
                       )}
-                    </View>
-                  ))}
-                  {participantCount > 3 && (
-                    <View
-                      style={[
-                        styles.participantCountBadge,
-                        { marginLeft: -10 },
-                      ]}
-                    >
-                      <Text style={styles.participantCountBadgeText}>
-                        +{participantCount - 3}
-                      </Text>
-                    </View>
+                    </>
+                  ) : (
+                    // Fallback to placeholder if no previews loaded yet
+                    <>
+                      {Array.from({ length: displayCount }).map((_, index) => (
+                        <View
+                          key={`placeholder-${index}`}
+                          style={[
+                            styles.participantAvatar,
+                            getItemStyle(index),
+                            { zIndex: 10 - index },
+                          ]}
+                        >
+                          <User size={10} color="#FFFFFF" />
+                        </View>
+                      ))}
+                      {showBadge && (
+                        <View
+                          style={[
+                            styles.participantCountBadge,
+                            getItemStyle(3),
+                            { zIndex: 1 },
+                          ]}
+                        >
+                          <Text style={styles.participantCountBadgeText}>
+                            +{participantCount - 3}
+                          </Text>
+                        </View>
+                      )}
+                    </>
                   )}
-                </>
-              ) : (
-                // Fallback to placeholder if no previews loaded yet
-                <>
-                  <View style={[styles.participantAvatar, { zIndex: 3 }]}>
-                    <Ionicons name="person" size={10} color="#FFFFFF" />
-                  </View>
-                  <View
-                    style={[
-                      styles.participantAvatar,
-                      { zIndex: 2, marginLeft: -8 },
-                    ]}
-                  >
-                    <Ionicons name="person" size={10} color="#FFFFFF" />
-                  </View>
-                  {participantCount > 2 && (
-                    <View
-                      style={[styles.participantCountBadge, { marginLeft: -8 }]}
-                    >
-                      <Text style={styles.participantCountBadgeText}>
-                        +{participantCount - 2}
-                      </Text>
-                    </View>
-                  )}
-                </>
-              )}
-            </View>
+                </View>
+              );
+            })()}
           </TouchableOpacity>
         )}
 
@@ -960,6 +1050,22 @@ const styles = StyleSheet.create({
     zIndex: 10,
     minWidth: 150,
   },
+  menuContainerModal: {
+    position: "absolute",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 8,
+    ...SHADOWS.medium,
+    minWidth: 160,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  modalBackdrop: {
+    flex: 1,
+  },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -968,8 +1074,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   menuItemText: {
+    fontFamily: FONTS.medium,
     fontSize: 15,
-    fontWeight: "500",
     color: "#1D1D1F",
   },
   authorRow: {
@@ -984,7 +1090,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   authorName: {
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: FONTS.semiBold,
     fontSize: 16,
     color: "#1D1D1F",
   },
@@ -1025,7 +1131,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   endedBadgeText: {
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: FONTS.semiBold,
     fontSize: 10,
     color: "#DC2626", // Red text
     letterSpacing: 0.5,
@@ -1076,8 +1182,8 @@ const styles = StyleSheet.create({
     borderRadius: 12, // Matching reference chips
   },
   challengePillText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 10.5,
-    fontFamily: "BasicCommercial-Bold",
     color: "#A67C52", // Warm brown-gold
     letterSpacing: 0.5,
   },
@@ -1093,6 +1199,7 @@ const styles = StyleSheet.create({
     lineHeight: 26,
   },
   description: {
+    fontFamily: FONTS.regular,
     fontSize: 14,
     color: "#5e8d9b",
     marginBottom: SPACING.s,
@@ -1106,9 +1213,9 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.s,
   },
   deadlineText: {
+    fontFamily: FONTS.medium,
     fontSize: 13,
     color: "#5e8d9b",
-    fontWeight: "500",
   },
   extensionBadge: {
     backgroundColor: "#FFF4E0",
@@ -1136,13 +1243,13 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   progressLabel: {
+    fontFamily: FONTS.medium,
     fontSize: 13,
-    fontWeight: "500",
     color: COLORS.textPrimary,
   },
   progressText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 13,
-    fontWeight: "600",
     color: "#FF9500",
   },
   progressBarBg: {
@@ -1157,6 +1264,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   progressSubtext: {
+    fontFamily: FONTS.regular,
     fontSize: 11,
     color: COLORS.textSecondary,
     marginTop: SPACING.xs,
@@ -1205,8 +1313,8 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   previewAuthorName: {
+    fontFamily: FONTS.medium,
     fontSize: 13,
-    fontWeight: "500",
     color: COLORS.textPrimary,
     flex: 1,
   },
@@ -1216,6 +1324,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   previewContent: {
+    fontFamily: FONTS.regular,
     fontSize: 13,
     color: COLORS.textSecondary,
     lineHeight: 18,
@@ -1226,6 +1335,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   previewLikesText: {
+    fontFamily: FONTS.medium,
     fontSize: 12,
     color: COLORS.textSecondary,
     marginLeft: 4,
@@ -1246,8 +1356,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#2979FF", // Fallback
   },
   joinButtonText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 15,
-    fontWeight: "700",
     color: "#FFFFFF",
   },
   joinedButtonsRow: {
@@ -1267,10 +1377,27 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   submitProofButtonText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 15,
-    fontWeight: "600",
     color: "#FFFFFF",
     marginLeft: SPACING.s,
+  },
+  submittedBadge: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F0FDF4",
+    borderRadius: BORDER_RADIUS.m,
+    paddingVertical: 12,
+    paddingHorizontal: SPACING.m,
+    borderWidth: 1,
+    borderColor: "#34C75930",
+  },
+  submittedBadgeText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: "#22A447",
   },
   leaveButton: {
     width: 48,
@@ -1281,6 +1408,7 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.m,
     borderWidth: 1,
     borderColor: COLORS.border,
+    marginLeft: SPACING.s,
   },
   expiredContainer: {
     alignItems: "center",
@@ -1289,6 +1417,7 @@ const styles = StyleSheet.create({
     padding: SPACING.m,
   },
   expiredText: {
+    fontFamily: FONTS.regular,
     fontSize: 14,
     color: COLORS.textSecondary,
   },
@@ -1306,9 +1435,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   participantCountText: {
+    fontFamily: FONTS.medium,
     fontSize: 12,
     color: "#5e8d9b",
-    fontWeight: "500",
   },
   participantCountContainer: {
     flexDirection: "row",
@@ -1341,6 +1470,16 @@ const styles = StyleSheet.create({
     color: COLORS.error,
   },
   // New avatar stack styles
+  participantAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    backgroundColor: "#90CAF9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   participantAvatarImage: {
     width: 28,
     height: 28,
@@ -1373,8 +1512,8 @@ const styles = StyleSheet.create({
     borderColor: "#FFFFFF",
   },
   participantCountBadgeText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 10,
-    fontWeight: "700",
     color: "#FFFFFF",
   },
 });

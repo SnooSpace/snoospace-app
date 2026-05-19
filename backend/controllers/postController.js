@@ -938,6 +938,20 @@ const getFeed = async (req, res) => {
               );
               parsedPost.has_joined = joinedResult.rows.length > 0;
               parsedPost.user_participation = joinedResult.rows[0] || null;
+
+              // Get user's active (non-rejected) submission count for this challenge
+              if (parsedPost.has_joined && joinedResult.rows[0]?.id) {
+                const userSubCountResult = await pool.query(
+                  `SELECT COUNT(*) as count FROM challenge_submissions 
+                   WHERE participant_id = $1 AND status != 'rejected'`,
+                  [joinedResult.rows[0].id],
+                );
+                parsedPost.user_submission_count = parseInt(
+                  userSubCountResult.rows[0]?.count || 0,
+                );
+              } else {
+                parsedPost.user_submission_count = 0;
+              }
             }
 
             // Get featured submission preview

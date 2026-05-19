@@ -138,6 +138,10 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
     HapticsService.triggerImpactLight();
     animateCardPress();
     setChallengeType(type);
+    // Lock submissions to 1 for Single Task
+    if (type === "single") {
+      setMaxSubmissionsPerUser(1);
+    }
   };
 
   const handleSubmissionTypeChange = (type) => {
@@ -327,33 +331,67 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
 
         {/* Submissions Per User Stepper */}
         <View style={styles.settingSection}>
-          <Text style={styles.settingLabelCentered}>Submissions per user</Text>
-          <View style={styles.stepperContainer}>
+          <Text
+            style={[
+              styles.settingLabelCentered,
+              challengeType === "single" && styles.settingLabelDisabled,
+            ]}
+          >
+            Submissions per user
+          </Text>
+          <View
+            style={[
+              styles.stepperContainer,
+              challengeType === "single" && styles.stepperContainerDisabled,
+            ]}
+          >
             <TouchableOpacity
-              style={styles.stepperButton}
+              style={[
+                styles.stepperButton,
+                challengeType === "single" && styles.stepperButtonDisabled,
+              ]}
               onPress={handleDecrement}
               activeOpacity={0.7}
+              disabled={challengeType === "single"}
             >
-              <Minus size={20} color={COLORS.textPrimary} strokeWidth={2.5} />
+              <Minus
+                size={20}
+                color={challengeType === "single" ? "#C0C7D0" : COLORS.textPrimary}
+                strokeWidth={2.5}
+              />
             </TouchableOpacity>
 
             <Animated.Text
               style={[
                 styles.stepperValue,
                 { transform: [{ scale: stepperScale }] },
+                challengeType === "single" && styles.stepperValueDisabled,
               ]}
             >
               {maxSubmissionsPerUser}
             </Animated.Text>
 
             <TouchableOpacity
-              style={styles.stepperButton}
+              style={[
+                styles.stepperButton,
+                challengeType === "single" && styles.stepperButtonDisabled,
+              ]}
               onPress={handleIncrement}
               activeOpacity={0.7}
+              disabled={challengeType === "single"}
             >
-              <Plus size={20} color={COLORS.textPrimary} strokeWidth={2.5} />
+              <Plus
+                size={20}
+                color={challengeType === "single" ? "#C0C7D0" : COLORS.textPrimary}
+                strokeWidth={2.5}
+              />
             </TouchableOpacity>
           </View>
+          {challengeType === "single" && (
+            <Text style={styles.stepperLockedNote}>
+              Locked to 1 — Single Task allows only one submission per user
+            </Text>
+          )}
         </View>
 
         {/* Require Approval */}
@@ -641,6 +679,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textAlign: "center",
   },
+  settingLabelDisabled: {
+    color: "#B0BAC5",
+  },
+  stepperLockedNote: {
+    fontSize: 12,
+    fontFamily: "Manrope-Regular",
+    color: "#B0BAC5",
+    textAlign: "center",
+    marginTop: 8,
+  },
   stepperContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -649,6 +697,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     height: 48,
     paddingHorizontal: 8,
+  },
+  stepperContainerDisabled: {
+    backgroundColor: "#F0F1F3",
+    opacity: 0.7,
   },
   stepperButton: {
     width: 36,
@@ -663,12 +715,20 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
+  stepperButtonDisabled: {
+    backgroundColor: "#F0F1F3",
+    shadowOpacity: 0,
+    elevation: 0,
+  },
   stepperValue: {
     fontSize: 16,
     fontFamily: "Manrope-SemiBold",
     color: COLORS.textPrimary,
     minWidth: 40,
     textAlign: "center",
+  },
+  stepperValueDisabled: {
+    color: "#B0BAC5",
   },
   settingRow: {
     flexDirection: "row",
