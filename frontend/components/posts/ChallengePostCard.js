@@ -37,6 +37,7 @@ import {
   LogOut,
   ArrowRight,
   User,
+  CheckCircle2,
 } from "lucide-react-native";
 import {
   apiPost,
@@ -712,10 +713,10 @@ const ChallengePostCard = ({
             {hasSubmittedSingle ? (
               // ── Single Task: already submitted ──────────────────────────────
               <View style={styles.submittedBadge}>
-                <Ionicons
-                  name="checkmark-circle"
+                <CheckCircle2
                   size={18}
                   color="#34C759"
+                  strokeWidth={2.5}
                   style={{ marginRight: 6 }}
                 />
                 <Text style={styles.submittedBadgeText}>

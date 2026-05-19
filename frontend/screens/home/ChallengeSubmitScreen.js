@@ -17,18 +17,22 @@ import { uploadMultipleImages } from "../../api/cloudinary";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import SnooLoader from "../../components/ui/SnooLoader";
 import HapticsService from "../../services/HapticsService";
+import CustomImagePicker from "../../components/CustomImagePicker";
+import { useToast } from "../../context/ToastContext";
 
 const ChallengeSubmitScreen = ({ route, navigation }) => {
 
   const { post, participation, onSubmitSuccess } = route.params;
   const typeData = post.type_data || {};
   const submissionType = typeData.submission_type || "image";
+  const { showToast } = useToast();
 
   const [content, setContent] = useState("");
   const [selectedImages, setSelectedImages] = useState([]);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [videoThumbnail, setVideoThumbnail] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCustomPickerVisible, setIsCustomPickerVisible] = useState(false);
 
   // expo-video player for video preview
   const videoPreviewPlayer = useVideoPlayer(
@@ -67,22 +71,15 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
 
   const canSubmitMore = submissionStatus?.can_submit !== false;
 
-  const pickImage = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsMultipleSelection: true,
-        quality: 0.8,
-        selectionLimit: 5 - selectedImages.length,
-      });
+  const pickImage = () => {
+    setIsCustomPickerVisible(true);
+  };
 
-      if (!result.canceled && result.assets) {
-        const newImages = result.assets.map((asset) => asset.uri);
-        setSelectedImages((prev) => [...prev, ...newImages].slice(0, 5));
-      }
-    } catch (error) {
-      console.error("Error picking image:", error);
-      Alert.alert("Error", "Failed to select images");
+  const handleCustomPickerDone = (assets) => {
+    setIsCustomPickerVisible(false);
+    if (assets && assets.length > 0) {
+      const newImages = assets.map((asset) => asset.uri);
+      setSelectedImages((prev) => [...prev, ...newImages].slice(0, 5));
     }
   };
 
@@ -219,18 +216,15 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
       );
 
       if (response.success) {
-        Alert.alert(
+        showToast(
           "Submitted! 🎉",
           typeData.require_approval
             ? "Your submission is pending review by the host."
             : "Your submission has been posted!",
-          [
-            {
-              text: "OK",
-              onPress: () => navigation.goBack(),
-            },
-          ],
+          "success"
         );
+        if (onSubmitSuccess) onSubmitSuccess();
+        navigation.goBack();
       }
     } catch (error) {
       console.error("Error submitting proof:", error);
@@ -369,7 +363,9 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
         >
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Submit Proof</Text>
+        <View style={styles.headerTitleContainer} pointerEvents="none">
+          <Text style={styles.headerTitle}>Submit Proof</Text>
+        </View>
         <TouchableOpacity
           style={[
             styles.submitButton,
@@ -571,6 +567,12 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+      <CustomImagePicker
+        visible={isCustomPickerVisible}
+        onClose={() => setIsCustomPickerVisible(false)}
+        onDone={handleCustomPickerDone}
+        selectionLimit={5 - selectedImages.length}
+      />
     </SafeAreaView>
   );
 };
@@ -598,6 +600,15 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: SPACING.xs,
   },
+  headerTitleContainer: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   headerTitle: {
     fontSize: 18,
     fontFamily: "BasicCommercial-Bold",
@@ -610,9 +621,21 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     minWidth: 70,
     alignItems: "center",
+    // Soft glow shadow
+    shadowColor: "#FF9500",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
+    // Glowing border styling
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 200, 100, 0.4)",
   },
   submitButtonDisabled: {
     backgroundColor: COLORS.border,
+    borderColor: "transparent",
+    shadowOpacity: 0,
+    elevation: 0,
   },
   submitButtonText: {
     fontSize: 14,
@@ -711,7 +734,7 @@ const styles = StyleSheet.create({
   },
   guidelinesTitle: {
     fontSize: 15,
-    fontFamily: "Manrope-Bold",
+    fontFamily: "BasicCommercial-Bold",
     color: "#111827",
     marginBottom: 16,
   },
@@ -751,7 +774,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: 15,
-    fontFamily: "Manrope-Bold",
+    fontFamily: "BasicCommercial-Bold",
     color: "#111827",
     marginBottom: 12,
   },
