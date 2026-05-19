@@ -31,6 +31,7 @@ import {
   Pencil,
   Plus,
   Minus,
+  Images,
 } from "lucide-react-native";
 import CustomDatePicker from "../ui/CustomDatePicker";
 import {
@@ -83,6 +84,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
   const [submissionType, setSubmissionType] = useState("image");
   const [targetCount, setTargetCount] = useState(1);
   const [maxSubmissionsPerUser, setMaxSubmissionsPerUser] = useState(1);
+  const [maxImagesPerSubmission, setMaxImagesPerSubmission] = useState(5);
   const [requireApproval, setRequireApproval] = useState(true);
   const [showProofsImmediately, setShowProofsImmediately] = useState(true);
   const [hasDeadline, setHasDeadline] = useState(false);
@@ -102,6 +104,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
       submission_type: submissionType,
       target_count: targetCount,
       max_submissions_per_user: maxSubmissionsPerUser,
+      max_images_per_submission: submissionType === "image" ? maxImagesPerSubmission : 1,
       require_approval: requireApproval,
       show_proofs_immediately: showProofsImmediately,
       deadline: hasDeadline && deadline ? deadline.toISOString() : null,
@@ -113,6 +116,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
     submissionType,
     targetCount,
     maxSubmissionsPerUser,
+    maxImagesPerSubmission,
     requireApproval,
     showProofsImmediately,
     hasDeadline,
@@ -323,6 +327,58 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
             );
           })}
         </View>
+
+        {/* Max images per submission — only shown for image type */}
+        {submissionType === "image" && (
+          <View style={styles.imageCountContainer}>
+            <View style={styles.imageCountRow}>
+              <View style={styles.imageCountLeft}>
+                <Images size={16} color={COLORS.textSecondary} strokeWidth={2} />
+                <Text style={styles.imageCountLabel}>Max photos per submission</Text>
+              </View>
+              <View style={styles.imageCountStepper}>
+                <TouchableOpacity
+                  style={styles.imageCountBtn}
+                  onPress={() => {
+                    if (maxImagesPerSubmission > 1) {
+                      HapticsService.triggerImpactLight();
+                      setMaxImagesPerSubmission((p) => p - 1);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                  disabled={maxImagesPerSubmission <= 1}
+                >
+                  <Minus
+                    size={14}
+                    color={maxImagesPerSubmission <= 1 ? "#C0C7D0" : COLORS.textPrimary}
+                    strokeWidth={2.5}
+                  />
+                </TouchableOpacity>
+                <Text style={styles.imageCountValue}>{maxImagesPerSubmission}</Text>
+                <TouchableOpacity
+                  style={styles.imageCountBtn}
+                  onPress={() => {
+                    if (maxImagesPerSubmission < 10) {
+                      HapticsService.triggerImpactLight();
+                      setMaxImagesPerSubmission((p) => p + 1);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                  disabled={maxImagesPerSubmission >= 10}
+                >
+                  <Plus
+                    size={14}
+                    color={maxImagesPerSubmission >= 10 ? "#C0C7D0" : COLORS.textPrimary}
+                    strokeWidth={2.5}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <Text style={styles.imageCountHint}>
+              Participants can upload up to {maxImagesPerSubmission} photo{maxImagesPerSubmission > 1 ? "s" : ""} per submission
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Settings Card */}
@@ -780,6 +836,58 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Manrope-SemiBold",
     color: COLORS.textPrimary,
+  },
+  // Max images per submission
+  imageCountContainer: {
+    marginTop: 14,
+    backgroundColor: "#F8F9FB",
+    borderRadius: 16,
+    padding: 14,
+  },
+  imageCountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  imageCountLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
+  },
+  imageCountLabel: {
+    fontSize: 13,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textPrimary,
+  },
+  imageCountStepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  imageCountBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  imageCountValue: {
+    fontSize: 15,
+    fontFamily: "Manrope-Bold",
+    color: COLORS.textPrimary,
+    minWidth: 20,
+    textAlign: "center",
+  },
+  imageCountHint: {
+    fontSize: 11,
+    fontFamily: "Manrope-Regular",
+    color: "#9CA3AF",
+    marginTop: 8,
   },
 });
 

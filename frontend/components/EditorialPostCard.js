@@ -132,15 +132,16 @@ const EditorialPostCard = ({
   onSave,
   onShare,
   onDelete,
-  onRequestDelete, // Optional: function(postId) -> void. If provided, overrides internal Alert.
-  onPostUpdate, // New prop
+  onRequestDelete,
+  onPostUpdate,
   currentUserId,
   currentUserType,
   isVideoPlaying = false,
   isScreenFocused = true,
-  isInViewport = true, // Must be explicitly passed in multi-post feeds (HomeFeed, ProfilePostFeed). Default true for single-post detail screens.
+  isInViewport = true,
   showFollowButton = true,
-  navigation = null, // Optional: pass to enable "Video Insights" button for creator's own video posts
+  hideSave = false,
+  navigation = null,
 }) => {
   // Route to type-specific card components for special post types
   const postType = post.post_type || "media";
@@ -943,18 +944,20 @@ const EditorialPostCard = ({
         </Pressable>
 
         {/* Bookmark */}
-        <Pressable style={styles.engagementButton} onPress={handleSave}>
-          <Bookmark
-            size={EDITORIAL_SPACING.iconSize}
-            color={COLORS.editorial.textSecondary}
-            fill={isSaved ? COLORS.editorial.textSecondary : "transparent"}
-          />
-          {saveCount > 0 && (
-            <Text style={styles.engagementCount}>
-              {formatCount(saveCount)}
-            </Text>
-          )}
-        </Pressable>
+        {!hideSave && (
+          <Pressable style={styles.engagementButton} onPress={handleSave}>
+            <Bookmark
+              size={EDITORIAL_SPACING.iconSize}
+              color={COLORS.editorial.textSecondary}
+              fill={isSaved ? COLORS.editorial.textSecondary : "transparent"}
+            />
+            {saveCount > 0 && (
+              <Text style={styles.engagementCount}>
+                {formatCount(saveCount)}
+              </Text>
+            )}
+          </Pressable>
+        )}
       </View>
 
       {/* Fullscreen Video Modal */}

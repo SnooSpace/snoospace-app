@@ -25,6 +25,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
   const { post, participation, onSubmitSuccess } = route.params;
   const typeData = post.type_data || {};
   const submissionType = typeData.submission_type || "image";
+  const maxImagesPerSubmission = Math.min(10, Math.max(1, parseInt(typeData.max_images_per_submission) || 5));
   const { showToast } = useToast();
 
   const [content, setContent] = useState("");
@@ -79,7 +80,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
     setIsCustomPickerVisible(false);
     if (assets && assets.length > 0) {
       const newImages = assets.map((asset) => asset.uri);
-      setSelectedImages((prev) => [...prev, ...newImages].slice(0, 5));
+      setSelectedImages((prev) => [...prev, ...newImages].slice(0, maxImagesPerSubmission));
     }
   };
 
@@ -100,7 +101,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
 
       if (!result.canceled && result.assets && result.assets[0]) {
         setSelectedImages((prev) =>
-          [...prev, result.assets[0].uri].slice(0, 5),
+          [...prev, result.assets[0].uri].slice(0, maxImagesPerSubmission),
         );
       }
     } catch (error) {
@@ -281,7 +282,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
             </TouchableOpacity>
           </View>
         ))}
-        {selectedImages.length < 5 && (
+        {selectedImages.length < maxImagesPerSubmission && (
           <View style={styles.addButtonsRow}>
             <TouchableOpacity
               style={styles.addImageButton}
@@ -571,7 +572,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
         visible={isCustomPickerVisible}
         onClose={() => setIsCustomPickerVisible(false)}
         onDone={handleCustomPickerDone}
-        selectionLimit={5 - selectedImages.length}
+        selectionLimit={maxImagesPerSubmission - selectedImages.length}
       />
     </SafeAreaView>
   );

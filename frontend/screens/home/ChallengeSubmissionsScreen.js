@@ -5,7 +5,7 @@ import { useFocusEffect } from "@react-navigation/native";
  */
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, Dimensions, Modal, Alert } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, Dimensions, Modal, Alert, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -22,27 +22,31 @@ import {
   X,
   PlayCircle,
   Heart,
+  MessageCircle,
+  Send,
+  ChartNoAxesCombined,
   CheckCircle2,
   XCircle,
-  Trash2,
   User,
   Info,
   Mail,
   Trophy
 } from "lucide-react-native";
-import { apiGet, apiPost, apiDelete, apiPatch } from "../../api/client";
+import { apiGet, apiPost, apiDelete, apiPatch, sharePost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import FullscreenVideoModal from "../../components/FullscreenVideoModal";
 import RemovalRequestsModal from "../../components/RemovalRequestsModal";
+import EditorialPostCard from "../../components/EditorialPostCard";
+import ShareModal from "../../components/ShareModal";
+import SubmissionCommentsModal from "../../components/SubmissionCommentsModal";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getActiveAccount } from "../../utils/accountManager";
 import SnooLoader from "../../components/ui/SnooLoader";
 
 const { width } = Dimensions.get("window");
-const COLUMN_COUNT = 2;
-const ITEM_WIDTH = (width - SPACING.m * 3) / COLUMN_COUNT;
+
 
 const ChallengeSubmissionsScreen = ({ route, navigation }) => {
 
@@ -54,17 +58,31 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
   const [participants, setParticipants] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState("submissions"); // submissions, participants
-  const [filter, setFilter] = useState("approved"); // approved, featured
+  const [activeTab, setActiveTab] = useState("submissions");
+  const [filter, setFilter] = useState("approved");
   const [visibilityInfo, setVisibilityInfo] = useState(null);
-  const [fullscreenVideo, setFullscreenVideo] = useState(null); // { uri }
-  const [fullscreenImage, setFullscreenImage] = useState(null); // { uri }
-  const [actionSheet, setActionSheet] = useState(null); // { submission }
+  const [fullscreenVideo, setFullscreenVideo] = useState(null);
+  const [fullscreenImage, setFullscreenImage] = useState(null);
+  const [actionSheet, setActionSheet] = useState(null);
   const [showRemovalRequests, setShowRemovalRequests] = useState(false);
   const [isHost, setIsHost] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUserType, setCurrentUserType] = useState(null);
+  // Share modal
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [selectedShareSubmission, setSelectedShareSubmission] = useState(null);
+  // Submission comments modal — uses SubmissionCommentsModal (isolated from challenge post)
+  const [commentsModalVisible, setCommentsModalVisible] = useState(false);
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState(null);
+  const [selectedSubmissionAuthorName, setSelectedSubmissionAuthorName] = useState(null);
+  // Reply in DMs sheet
+  const [replyDMState, setReplyDMState] = useState({
+    visible: false, submission: null, message: "", sending: false,
+  });
   const lastTapRef = useRef({});
   const challengeEnded =
     post.expires_at && new Date(post.expires_at) <= new Date();
+
 
   // Check if current user is the challenge host
   useEffect(() => {
@@ -89,6 +107,46 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
     };
     checkHost();
   }, [post.author_id, post.author_type]);
+
+  // Load current user for card interactions
+  useEffect(() => {
+    getActiveAccount().then((account) => {
+      if (account) {
+        setCurrentUserId(account.id);
+        setCurrentUserType(account.type);
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Normalize a submission into an EditorialPostCard-compatible post shape
+  const normalizeSubmissionToPost = useCallback((submission) => {
+    const mediaUrls = Array.isArray(submission.media_urls) ? submission.media_urls : [];
+    return {
+      id: `sub_${submission.id}`,
+      _submissionId: submission.id,
+      _submission: submission,
+      author_id: submission.participant_id,
+      author_type: submission.participant_type,
+      author_name: submission.participant_name,
+      author_username: submission.participant_name,
+      author_photo_url: submission.participant_photo_url,
+      content: submission.content || "",
+      image_urls: mediaUrls,
+      video_url: submission.video_url || null,
+      video_thumbnail: submission.video_thumbnail || null,
+      like_count: submission.like_count || 0,
+      is_liked: submission.has_liked || false,
+      comment_count: parseInt(submission.comment_count) || 0,
+      public_view_count: submission.view_count || 0,
+      view_count: submission.view_count || 0,
+      share_count: parseInt(submission.share_count) || 0,
+      is_saved: false,
+      created_at: submission.created_at,
+      post_type: "media",
+    };
+  }, []);
+
+
 
   const fetchSubmissions = useCallback(
     async (showLoading = true) => {
@@ -210,12 +268,23 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           s.id === submissionId
             ? {
                 ...s,
-                like_count: hasLiked ? s.like_count - 1 : s.like_count + 1,
+                like_count: hasLiked ? Math.max(0, s.like_count - 1) : s.like_count + 1,
                 has_liked: !hasLiked,
               }
             : s,
         ),
       );
+      
+      setFullscreenImage((prev) => {
+        if (prev && prev.id === submissionId) {
+          return {
+            ...prev,
+            like_count: hasLiked ? Math.max(0, prev.like_count - 1) : prev.like_count + 1,
+            has_liked: !hasLiked,
+          };
+        }
+        return prev;
+      });
 
       if (hasLiked) {
         await apiDelete(
@@ -296,152 +365,112 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
     );
   };
 
-  const renderSubmission = ({ item, index }) => {
-    const hasMedia = item.media_urls && item.media_urls.length > 0;
-    const hasVideo = item.video_url;
 
+  // ── Submission-level comments — opens SubmissionCommentsModal ─────────────
+  const openSubmissionComments = useCallback((submission) => {
+    setSelectedSubmissionId(submission.id);
+    setSelectedSubmissionAuthorName(submission.participant_name || null);
+    setCommentsModalVisible(true);
+  }, []);
+
+  // ── Per-submission share tracking ────────────────────────────────
+  const handleShareSubmission = useCallback(async (submission) => {
+    setSelectedShareSubmission(submission);
+    setShareModalVisible(true);
+    // Fire-and-forget: increment submission-level share count (no ux block needed)
+    try {
+      const token = await getAuthToken();
+      await apiPost(`/challenge-submissions/${submission.id}/share`, {}, 10000, token);
+    } catch (e) {
+      // Non-critical — don't surface errors to user
+      console.warn("[ChallengeSubmissions] Failed to increment share count:", e);
+    }
+  }, []);
+
+  // ── Per-submission view tracking ───────────────────────────────
+  const viewedSubmissionsRef = useRef(new Set());
+  const recordSubmissionView = useCallback(async (submissionId) => {
+    if (viewedSubmissionsRef.current.has(submissionId)) return; // deduplicate
+    viewedSubmissionsRef.current.add(submissionId);
+    try {
+      const token = await getAuthToken();
+      await apiPost(`/challenge-submissions/${submissionId}/view`, {}, 10000, token);
+    } catch (e) {
+      console.warn("[ChallengeSubmissions] Failed to record view:", e);
+    }
+  }, []);
+
+  // ── Reply in DMs ──────────────────────────────────────────────────────────
+  const sendReplyDM = useCallback(async () => {
+    const { submission, message } = replyDMState;
+    if (!submission) return;
+    setReplyDMState((prev) => ({ ...prev, sending: true }));
+    try {
+      const token = await getAuthToken();
+      await sharePost(
+        post.id,
+        [{ id: submission.participant_id, type: submission.participant_type }],
+        "internal",
+        message.trim() || null,
+        token
+      );
+      setReplyDMState({ visible: false, submission: null, message: "", sending: false });
+      Alert.alert("Sent!", `Your message was sent to ${submission.participant_name}.`);
+    } catch (e) {
+      setReplyDMState((prev) => ({ ...prev, sending: false }));
+      Alert.alert("Error", e?.message || "Failed to send DM");
+    }
+  }, [replyDMState, post.id]);
+
+  const renderSubmission = ({ item }) => {
+    const normalizedPost = normalizeSubmissionToPost(item);
     return (
-      <TouchableOpacity
-        style={[
-          styles.submissionCard,
-          {
-            marginLeft: index % COLUMN_COUNT === 0 ? SPACING.m : SPACING.s / 2,
-          },
-        ]}
-        activeOpacity={0.8}
-        onPress={() => {
-          const now = Date.now();
-          const lastTap = lastTapRef.current[item.id] || 0;
-          const DOUBLE_TAP_DELAY = 300;
-
-          if (now - lastTap < DOUBLE_TAP_DELAY) {
-            // Double tap detected
-            lastTapRef.current[item.id] = 0; // reset
-            if (!item.has_liked) {
-              handleLike(item.id, item.has_liked);
+      <View>
+        <EditorialPostCard
+          post={normalizedPost}
+          currentUserId={currentUserId}
+          currentUserType={currentUserType}
+          showFollowButton={false}
+          navigation={navigation}
+          isInViewport={true}
+          onUserPress={() => {
+            if (item.participant_type === "community") {
+              navigation.push("CommunityPublicProfile", { communityId: item.participant_id });
+            } else {
+              navigation.push("MemberPublicProfile", { memberId: item.participant_id });
             }
-          } else {
-            // Wait to see if it's a single tap
-            lastTapRef.current[item.id] = now;
-            setTimeout(() => {
-              if (lastTapRef.current[item.id] === now) {
-                // It was a single tap
-                if (hasVideo && item.video_url) {
-                  setFullscreenVideo({ uri: item.video_url });
-                } else if (hasMedia && item.media_urls && item.media_urls[0]) {
-                  setFullscreenImage({ uri: item.media_urls[0] });
-                }
-              }
-            }, DOUBLE_TAP_DELAY);
-          }
-        }}
-        onLongPress={() => {
-          // Allow long-press for:
-          // 1. Own submissions (for removal request after challenge ends)
-          // 2. Hosts on any approved submission (for featuring)
-          if (item.is_own_submission || isHost) {
-            setActionSheet({ submission: item });
-          }
-        }}
-      >
-        {/* Media */}
-        {hasMedia && (
-          <Image
-            source={{ uri: item.media_urls[0] }}
-            style={styles.submissionImage}
-          />
-        )}
-        {hasVideo && (
-          <View style={styles.videoContainer}>
-            <Image
-              source={{ uri: item.video_thumbnail || item.video_url }}
-              style={styles.submissionImage}
-            />
-            <View style={styles.playOverlay}>
-              <PlayCircle size={36} color="#FFFFFF" />
-            </View>
-          </View>
-        )}
-        {!hasMedia && !hasVideo && (
-          <View style={styles.textSubmissionCard}>
-            <Text style={styles.textSubmissionContent} numberOfLines={4}>
-              {item.content || "No content"}
-            </Text>
-          </View>
-        )}
-
-        {/* Featured Badge */}
-        {item.is_featured && (
-          <View style={styles.featuredBadge}>
-            <Star size={10} color="#FFD700" fill="#FFD700" />
-          </View>
-        )}
-
-        {/* Pending/Rejected Badge for user's own submissions */}
-        {item.is_own_submission && item.status === "pending" && (
-          <View style={styles.pendingBadge}>
-            <Clock size={10} color="#FFFFFF" />
-            <Text style={styles.pendingBadgeText}>Pending</Text>
-          </View>
-        )}
-        {item.is_own_submission && item.status === "rejected" && (
-          <View style={styles.rejectedBadge}>
-            <XCircle size={10} color="#FFFFFF" />
-            <Text style={styles.rejectedBadgeText}>Rejected</Text>
-          </View>
-        )}
-
-        {/* Deleted Post Indicator */}
-        {item.source_post_deleted && (
-          <View style={styles.deletedOverlay}>
-            <Trash2 size={14} color="#999" />
-            <Text style={styles.deletedText}>Post deleted</Text>
-          </View>
-        )}
-
-        {/* Footer overlay */}
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.8)']}
-          style={styles.submissionFooter}
-        >
-          <TouchableOpacity 
-            style={styles.submissionAuthor}
-            onPress={() => {
-              if (item.participant_type === "community") {
-                navigation.push("CommunityPublicProfile", {
-                  communityId: item.participant_id,
-                });
-              } else {
-                navigation.push("MemberPublicProfile", {
-                  memberId: item.participant_id,
-                });
-              }
-            }}
-          >
-            {item.participant_photo_url && (
-              <Image
-                source={{ uri: item.participant_photo_url }}
-                style={styles.authorAvatar}
-              />
+          }}
+          onLike={() => handleLike(item.id, item.has_liked)}
+          onComment={() => openSubmissionComments(item)}
+          onShare={() => handleShareSubmission(item)}
+          hideSave
+          onSave={null}
+          onDelete={null}
+        />
+        {/* Status badges */}
+        {(item.is_featured || (item.is_own_submission && item.status !== "approved")) && (
+          <View style={styles.submissionBadgeRow}>
+            {item.is_featured && (
+              <View style={styles.featuredBadgeInline}>
+                <Star size={11} color="#FFD700" fill="#FFD700" />
+                <Text style={styles.featuredBadgeInlineText}>Featured</Text>
+              </View>
             )}
-            <Text style={styles.authorName} numberOfLines={1}>
-              {item.participant_name || "User"}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.likeButton}
-            onPress={() => handleLike(item.id, item.has_liked)}
-          >
-            <Heart
-              size={18}
-              color={item.has_liked ? COLORS.error : "#FFFFFF"}
-              fill={item.has_liked ? COLORS.error : "transparent"}
-            />
-            <Text style={styles.likeCount}>{item.like_count || 0}</Text>
-          </TouchableOpacity>
-        </LinearGradient>
-
-        {/* Approve / Reject actions for host on pending submissions */}
+            {item.is_own_submission && item.status === "pending" && (
+              <View style={styles.pendingBadgeInline}>
+                <Clock size={11} color={COLORS.primary} />
+                <Text style={styles.pendingBadgeInlineText}>Pending approval</Text>
+              </View>
+            )}
+            {item.is_own_submission && item.status === "rejected" && (
+              <View style={styles.rejectedBadgeInline}>
+                <XCircle size={11} color={COLORS.error} />
+                <Text style={styles.rejectedBadgeInlineText}>Rejected</Text>
+              </View>
+            )}
+          </View>
+        )}
+        {/* Host moderation row */}
         {isHost && filter === "pending" && item.status === "pending" && (
           <View style={styles.moderateRow}>
             <TouchableOpacity
@@ -460,11 +489,12 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
             </TouchableOpacity>
           </View>
         )}
-      </TouchableOpacity>
+      </View>
     );
   };
 
   const renderParticipant = ({ item }) => {
+
     return (
       <View style={styles.participantCard}>
         <View style={styles.participantInfo}>
@@ -763,20 +793,13 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         </View>
       ) : (
         <FlatList
-          style={{
-            flex: 1,
-            backgroundColor:
-              activeTab === "submissions"
-                ? COLORS.screenBackground
-                : COLORS.surface,
-          }}
+          style={{ flex: 1, backgroundColor: COLORS.screenBackground }}
           data={activeTab === "submissions" ? submissions : participants}
           renderItem={
             activeTab === "submissions" ? renderSubmission : renderParticipant
           }
           keyExtractor={(item) => `${activeTab}-${item.id}`}
-          numColumns={activeTab === "submissions" ? COLUMN_COUNT : 1}
-          key={activeTab} // Force re-render when switching tabs
+          key={activeTab}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={renderEmpty}
           contentContainerStyle={[
@@ -790,8 +813,20 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
               tintColor="#2962FF"
             />
           }
+          onViewableItemsChanged={({ viewableItems }) => {
+            if (activeTab !== "submissions") return;
+            viewableItems.forEach(({ item, isViewable }) => {
+              if (isViewable && item?.id) {
+                // 2-second dwell before counting as a view
+                setTimeout(() => recordSubmissionView(item.id), 2000);
+              }
+            });
+          }}
+          viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
         />
+
       )}
+
 
       {/* FAB for Submit */}
       {(post.has_joined && !post.expires_at) ||
@@ -816,28 +851,131 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         />
       )}
 
-      {/* Fullscreen Image Modal */}
+      {/* Fullscreen Image Modal (Rich Detail View) */}
       <Modal
         visible={!!fullscreenImage}
-        transparent
-        animationType="fade"
+        transparent={false}
+        animationType="slide"
         onRequestClose={() => setFullscreenImage(null)}
       >
-        <View style={styles.fullscreenOverlay}>
-          <TouchableOpacity
-            style={styles.fullscreenClose}
-            onPress={() => setFullscreenImage(null)}
-          >
-            <X size={28} color="#FFFFFF" />
-          </TouchableOpacity>
+        <SafeAreaView style={styles.detailModalContainer} edges={["top", "bottom"]}>
           {fullscreenImage && (
-            <Image
-              source={{ uri: fullscreenImage.uri }}
-              style={styles.fullscreenImage}
-              resizeMode="contain"
-            />
+            <>
+              {/* Header */}
+              <View style={styles.detailHeader}>
+                <TouchableOpacity 
+                  style={styles.detailAuthorInfo} 
+                  onPress={() => {
+                    setFullscreenImage(null);
+                    if (fullscreenImage.participant_type === "community") {
+                      navigation.push("CommunityPublicProfile", {
+                        communityId: fullscreenImage.participant_id,
+                      });
+                    } else {
+                      navigation.push("MemberPublicProfile", {
+                        memberId: fullscreenImage.participant_id,
+                      });
+                    }
+                  }}
+                >
+                  {fullscreenImage.participant_photo_url ? (
+                    <Image
+                      source={{ uri: fullscreenImage.participant_photo_url }}
+                      style={styles.detailAvatar}
+                    />
+                  ) : (
+                    <View style={styles.detailAvatarPlaceholder}>
+                      <User size={16} color={COLORS.textSecondary} />
+                    </View>
+                  )}
+                  <View>
+                    <Text style={styles.detailAuthorName}>
+                      {fullscreenImage.participant_name || "User"}
+                    </Text>
+                    <Text style={styles.detailTimeAgo}>
+                      {formatTimeAgo(fullscreenImage.created_at)}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.detailCloseBtn}
+                  onPress={() => setFullscreenImage(null)}
+                >
+                  <X size={24} color={COLORS.textPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Scrollable Content */}
+              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                {/* Media */}
+                <View style={styles.detailMediaContainer}>
+                  <Image
+                    source={{ uri: fullscreenImage.media_urls?.[0] }}
+                    style={styles.detailImage}
+                    resizeMode="contain"
+                  />
+                </View>
+
+                {/* Action Bar */}
+                <View style={styles.detailActionBar}>
+                  <View style={styles.detailActionGroup}>
+                    <TouchableOpacity 
+                      style={styles.detailActionBtn}
+                      onPress={() => handleLike(fullscreenImage.id, fullscreenImage.has_liked)}
+                    >
+                      <Heart
+                        size={24}
+                        color={fullscreenImage.has_liked ? COLORS.error : COLORS.textPrimary}
+                        fill={fullscreenImage.has_liked ? COLORS.error : "transparent"}
+                      />
+                      {fullscreenImage.like_count > 0 && (
+                        <Text style={styles.detailActionText}>
+                          {fullscreenImage.like_count}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.detailActionBtn}>
+                      <MessageCircle size={24} color={COLORS.textPrimary} />
+                    </TouchableOpacity>
+                    <View style={styles.detailActionBtn}>
+                      <ChartNoAxesCombined size={24} color={COLORS.textPrimary} />
+                      <Text style={styles.detailActionText}>
+                        {fullscreenImage.view_count || fullscreenImage.views || 0}
+                      </Text>
+                    </View>
+                    <TouchableOpacity style={styles.detailActionBtn}>
+                      <Send size={24} color={COLORS.textPrimary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Caption */}
+                {fullscreenImage.content ? (
+                  <View style={styles.detailCaptionContainer}>
+                    <Text style={styles.detailCaptionText}>
+                      <Text style={styles.detailCaptionName}>
+                        {fullscreenImage.participant_name}
+                      </Text>
+                      {" "}{fullscreenImage.content}
+                    </Text>
+                  </View>
+                ) : null}
+              </ScrollView>
+
+              {/* Reply Bar */}
+              <View style={styles.detailReplyBar}>
+                <View style={styles.detailReplyAvatarPlaceholder}>
+                  <User size={16} color={COLORS.textSecondary} />
+                </View>
+                <TouchableOpacity style={styles.detailReplyInput}>
+                  <Text style={styles.detailReplyPlaceholder}>
+                    Reply to {fullscreenImage?.participant_name || "User"} in DM's
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </>
           )}
-        </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Action Sheet Modal */}
@@ -919,9 +1057,91 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         postId={post.id}
         onRequestReviewed={() => fetchSubmissions(false)}
       />
+
+      {/* Share Modal — passes the submission's parent post for share context */}
+      <ShareModal
+        visible={shareModalVisible}
+        onClose={() => {
+          setShareModalVisible(false);
+          setSelectedShareSubmission(null);
+        }}
+        post={selectedShareSubmission ? { ...post, id: post.id } : post}
+      />
+
+      {/* Submission Comments Modal — isolated from challenge post's comment count */}
+      <SubmissionCommentsModal
+        visible={commentsModalVisible}
+        submissionId={selectedSubmissionId}
+        submissionAuthorName={selectedSubmissionAuthorName}
+        onClose={() => {
+          setCommentsModalVisible(false);
+          setSelectedSubmissionId(null);
+          setSelectedSubmissionAuthorName(null);
+        }}
+        onCommentCountChange={(count) => {
+          // Update the local submission's comment_count so the card refreshes
+          setSubmissions((prev) =>
+            prev.map((s) =>
+              s.id === selectedSubmissionId ? { ...s, comment_count: count } : s
+            )
+          );
+        }}
+      />
+
+      {/* Reply in DMs Sheet */}
+      <Modal
+        visible={replyDMState.visible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setReplyDMState((p) => ({ ...p, visible: false }))}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <TouchableOpacity
+            style={styles.commentsOverlay}
+            activeOpacity={1}
+            onPress={() => setReplyDMState((p) => ({ ...p, visible: false }))}
+          />
+          <View style={styles.commentsSheet}>
+            <View style={styles.commentsHandle} />
+            <View style={styles.dmHeader}>
+              {replyDMState.submission?.participant_photo_url ? (
+                <Image source={{ uri: replyDMState.submission.participant_photo_url }} style={styles.dmAvatar} />
+              ) : (
+                <View style={styles.dmAvatarFallback}><User size={16} color={COLORS.textSecondary} /></View>
+              )}
+              <View>
+                <Text style={styles.dmTitle}>Reply in DMs</Text>
+                <Text style={styles.dmSubtitle}>{replyDMState.submission?.participant_name}</Text>
+              </View>
+            </View>
+            <View style={styles.commentsInputRow}>
+              <TextInput
+                style={[styles.commentsInput, { flex: 1 }]}
+                placeholder="Add a message (optional)…"
+                placeholderTextColor={COLORS.textSecondary}
+                value={replyDMState.message}
+                onChangeText={(t) => setReplyDMState((p) => ({ ...p, message: t }))}
+                multiline
+                maxLength={500}
+              />
+              <TouchableOpacity
+                style={[styles.commentsSendBtn, replyDMState.sending && styles.commentsSendBtnDisabled]}
+                onPress={sendReplyDM}
+                disabled={replyDMState.sending}
+              >
+                <Send size={18} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
@@ -1063,16 +1283,8 @@ const styles = StyleSheet.create({
   innerBadgeTextActive: {
     color: "#FFFFFF",
   },
-  // Submission Card
-  submissionCard: {
-    width: ITEM_WIDTH,
-    height: ITEM_WIDTH * 1.3, // 4:5 ratio for premium look
-    marginBottom: SPACING.m,
-    marginRight: SPACING.s / 2,
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    overflow: "hidden",
-  },
+  // submissionCard is no longer used — replaced by EditorialPostCard
+
   submissionImage: {
     width: "100%",
     height: "100%",
@@ -1360,25 +1572,125 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     ...SHADOWS.md,
   },
-  // Fullscreen modals
-  fullscreenOverlay: {
+  // Detail Modal Styles
+  detailModalContainer: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.95)",
+    backgroundColor: COLORS.surface,
+  },
+  detailHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: SPACING.m,
+    paddingVertical: SPACING.s,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  detailAuthorInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  detailAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    marginRight: SPACING.s,
+  },
+  detailAvatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.screenBackground,
     alignItems: "center",
     justifyContent: "center",
+    marginRight: SPACING.s,
   },
-  fullscreenClose: {
-    position: "absolute",
-    top: 50,
-    right: 20,
-    zIndex: 10,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    borderRadius: 20,
-    padding: 8,
+  detailAuthorName: {
+    fontSize: 15,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
   },
-  fullscreenImage: {
+  detailTimeAgo: {
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  detailCloseBtn: {
+    padding: 4,
+  },
+  detailMediaContainer: {
     width: "100%",
-    height: "80%",
+    aspectRatio: 4 / 5,
+    backgroundColor: COLORS.screenBackground,
+  },
+  detailImage: {
+    width: "100%",
+    height: "100%",
+  },
+  detailActionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: SPACING.m,
+    paddingVertical: SPACING.m,
+  },
+  detailActionGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACING.l,
+  },
+  detailActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  detailActionText: {
+    fontSize: 14,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.textPrimary,
+    marginLeft: 6,
+  },
+  detailCaptionContainer: {
+    paddingHorizontal: SPACING.m,
+    paddingBottom: SPACING.m,
+  },
+  detailCaptionText: {
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: COLORS.textPrimary,
+    lineHeight: 20,
+  },
+  detailCaptionName: {
+    fontFamily: FONTS.bold,
+  },
+  detailReplyBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: SPACING.m,
+    paddingVertical: SPACING.m,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  detailReplyAvatarPlaceholder: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.screenBackground,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: SPACING.s,
+  },
+  detailReplyInput: {
+    flex: 1,
+    height: 40,
+    backgroundColor: COLORS.screenBackground,
+    borderRadius: 20,
+    paddingHorizontal: SPACING.m,
+    justifyContent: "center",
+  },
+  detailReplyPlaceholder: {
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
   },
   // Deleted post indicator
   deletedOverlay: {
@@ -1458,6 +1770,215 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: COLORS.textSecondary,
   },
+
+  // ── New inline badge styles ─────────────────────────────────────────────
+  submissionBadgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingHorizontal: SPACING.m,
+    paddingTop: 6,
+    paddingBottom: 10,
+  },
+  featuredBadgeInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FFF8E1",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "#FFD700",
+  },
+  featuredBadgeInlineText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#B8860B",
+  },
+  pendingBadgeInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#EEF2FF",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "#C7D2FE",
+  },
+  pendingBadgeInlineText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#3730A3",
+  },
+  rejectedBadgeInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#FEF2F2",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  rejectedBadgeInlineText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#991B1B",
+  },
+
+  // ── Comments & DM Sheet ──────────────────────────────────────────────────
+  commentsOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+  },
+  commentsSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: SPACING.m,
+    paddingBottom: 24,
+    maxHeight: "80%",
+    minHeight: 300,
+  },
+  commentsHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: "#E0E0E0",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  commentsTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 12,
+  },
+  commentsList: {
+    maxHeight: 320,
+  },
+  commentsEmpty: {
+    textAlign: "center",
+    color: COLORS.textSecondary,
+    fontSize: 14,
+    paddingVertical: 24,
+  },
+  commentsLoading: {
+    height: 120,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  commentItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 14,
+    gap: 10,
+  },
+  commentAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.border,
+  },
+  commentAvatarFallback: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.border,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  commentBubble: {
+    flex: 1,
+    backgroundColor: "#F5F5F7",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  commentAuthor: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+    marginBottom: 2,
+  },
+  commentText: {
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    lineHeight: 20,
+  },
+  commentDelete: {
+    padding: 6,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  commentsInputRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 10,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  commentsInput: {
+    flex: 1,
+    minHeight: 40,
+    maxHeight: 100,
+    backgroundColor: "#F5F5F7",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+  },
+  commentsSendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#2962FF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  commentsSendBtnDisabled: {
+    opacity: 0.4,
+  },
+  // DM sheet
+  dmHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 16,
+  },
+  dmAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.border,
+  },
+  dmAvatarFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.border,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dmTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: COLORS.textPrimary,
+  },
+  dmSubtitle: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginTop: 1,
+  },
 });
 
 export default ChallengeSubmissionsScreen;
+

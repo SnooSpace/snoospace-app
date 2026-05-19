@@ -38,6 +38,8 @@ import {
   ArrowRight,
   User,
   CheckCircle2,
+  ChevronRight,
+  MoveRight,
 } from "lucide-react-native";
 import {
   apiPost,
@@ -151,6 +153,23 @@ const ChallengePostCard = ({
     setIsSaved(post.is_saved || false);
     setSaveCount(post.save_count || post.saves_count || 0);
   }, [post.is_liked, post.like_count, post.is_saved, post.save_count, post.saves_count]);
+
+  // ── Submission Activity Teaser ────────────────────────────────────────────
+  const [submissionStats, setSubmissionStats] = useState(null);
+
+  useEffect(() => {
+    const loadSubmissionStats = async () => {
+      try {
+        const token = await getAuthToken();
+        const data = await apiGet(`/posts/${post.id}/submission-stats`, 8000, token);
+        console.log("[ChallengePostCard] submission-stats for", post.id, "→", JSON.stringify(data));
+        if (data?.success) setSubmissionStats(data);
+      } catch (e) {
+        console.warn("[ChallengePostCard] submission-stats fetch failed:", e?.message);
+      }
+    };
+    loadSubmissionStats();
+  }, [post.id]);
 
   // ── View Tracking ──────────────────────────────────────────────────────────
   const [viewCount, setViewCount] = useState(post.public_view_count || post.view_count || 0);
@@ -516,12 +535,7 @@ const ChallengePostCard = ({
               {previewSubmission.content}
             </Text>
           )}
-          <View style={styles.previewLikes}>
-            <Heart size={12} color={COLORS.textSecondary} />
-            <Text style={styles.previewLikesText}>
-              {previewSubmission.like_count || 0}
-            </Text>
-          </View>
+
         </View>
       </TouchableOpacity>
     );
@@ -708,93 +722,96 @@ const ChallengePostCard = ({
         {renderPreviewSubmission()}
 
         {/* Join/Submit Button */}
-        {!isExpired && hasJoined ? (
-          <View style={styles.joinedButtonsRow}>
-            {hasSubmittedSingle ? (
-              // ── Single Task: already submitted ──────────────────────────────
-              <View style={styles.submittedBadge}>
-                <CheckCircle2
-                  size={18}
-                  color="#34C759"
-                  strokeWidth={2.5}
-                  style={{ marginRight: 6 }}
-                />
-                <Text style={styles.submittedBadgeText}>
-                  Submitted — awaiting review
-                </Text>
-              </View>
-            ) : (
-              // ── Normal submit button ────────────────────────────────────────
-              <TouchableOpacity
-                style={styles.submitProofButton}
-                onPress={() => {
-                  navigation.navigate("ChallengeSubmit", {
-                    post,
-                    participation: userParticipation,
-                    onSubmitSuccess: () => setUserSubmissionCount((c) => c + 1),
-                  });
-                }}
-                activeOpacity={0.8}
-              >
-                <LinearGradient
-                  colors={["#34C759", "#2E7D32"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={StyleSheet.absoluteFillObject}
-                />
-                {renderSubmissionTypeIcon()}
-                <Text style={[styles.submitProofButtonText, { zIndex: 1 }]}>
-                  Submit Proof
-                </Text>
-              </TouchableOpacity>
-            )}
-            {!hasSubmittedSingle && (
-              <TouchableOpacity
-                style={styles.leaveButton}
-                onPress={handleJoinChallenge}
-                disabled={isJoining}
+        {!isExpired && (
+          hasJoined ? (
+            <View style={styles.joinedButtonsRow}>
+              {hasSubmittedSingle ? (
+                // ── Single Task: already submitted ──────────────────────────────
+                <View style={styles.submittedBadge}>
+                  <CheckCircle2
+                    size={18}
+                    color="#34C759"
+                    strokeWidth={2.5}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={styles.submittedBadgeText}>
+                    Submitted — awaiting review
+                  </Text>
+                </View>
+              ) : (
+                // ── Normal submit button ────────────────────────────────────────
+                <TouchableOpacity
+                  style={styles.submitProofButton}
+                  onPress={() => {
+                    navigation.navigate("ChallengeSubmit", {
+                      post,
+                      participation: userParticipation,
+                      onSubmitSuccess: () => setUserSubmissionCount((c) => c + 1),
+                    });
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={["#34C759", "#2E7D32"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                  {renderSubmissionTypeIcon()}
+                  <Text style={[styles.submitProofButtonText, { zIndex: 1 }]}>
+                    Submit Proof
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {!hasSubmittedSingle && (
+                <TouchableOpacity
+                  style={styles.leaveButton}
+                  onPress={handleJoinChallenge}
+                  disabled={isJoining}
+                >
+                  {isJoining ? (
+                    <SnooLoader size="small" color={COLORS.textSecondary} />
+                  ) : (
+                    <LogOut
+                      size={18}
+                      color={COLORS.textSecondary}
+                    />
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.joinButtonContainer}
+              onPress={handleJoinChallenge}
+              disabled={isJoining}
+              activeOpacity={0.9}
+            >
+              <LinearGradient
+                colors={["#448AFF", "#2962FF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.joinButtonGradient}
               >
                 {isJoining ? (
-                  <SnooLoader size="small" color={COLORS.textSecondary} />
+                  <SnooLoader size="small" color="#FFFFFF" />
                 ) : (
-                  <LogOut
-                    size={18}
-                    color={COLORS.textSecondary}
-                  />
+                  <>
+                    <Text style={styles.joinButtonText}>
+                      Join Challenge
+                    </Text>
+                    <ArrowRight
+                      size={18}
+                      color="#FFFFFF"
+                      style={{ marginLeft: 6 }}
+                    />
+                  </>
                 )}
-              </TouchableOpacity>
-            )}
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.joinButtonContainer}
-            onPress={handleJoinChallenge}
-            disabled={isJoining}
-            activeOpacity={0.9}
-          >
-            <LinearGradient
-              colors={["#448AFF", "#2962FF"]} // Brighter/deeper blue gradient
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.joinButtonGradient}
-            >
-              {isJoining ? (
-                <SnooLoader size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Text style={styles.joinButtonText}>
-                    Join Challenge
-                  </Text>
-                  <ArrowRight
-                    size={18}
-                    color="#FFFFFF"
-                    style={{ marginLeft: 6 }}
-                  />
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
+              </LinearGradient>
+            </TouchableOpacity>
+          )
         )}
+
 
         {/* Participant Count (below CTA) - Clickable to view all */}
         {participantCount > 0 && (
@@ -805,129 +822,135 @@ const ChallengePostCard = ({
             }
             activeOpacity={0.7}
           >
-            <Text style={styles.participantCountText}>Joined by</Text>
-            {(() => {
-              const displayCount = Math.min(3, participantPreviews.length > 0 ? participantPreviews.length : participantCount);
-              const showBadge = participantCount > 3;
-              const totalClusterItems = showBadge ? displayCount + 1 : displayCount;
-              
-              // Helper to define cluster positions dynamically
-              const getAvatarClusterLayout = (total) => {
-                const size = 28;
-                const overlap = 8;
-                const spacing = size - overlap; // 20
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Text style={styles.participantCountText}>Joined by</Text>
+              {(() => {
+                const displayCount = Math.min(3, participantPreviews.length > 0 ? participantPreviews.length : participantCount);
+                const showBadge = participantCount > 3;
+                const totalClusterItems = showBadge ? displayCount + 1 : displayCount;
                 
-                if (total <= 1) {
-                  return {
-                    containerStyle: { width: size, height: size },
-                    getItemStyle: (index) => ({
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                    }),
-                  };
-                }
-                
-                if (total === 2) {
-                  return {
-                    containerStyle: { width: size + spacing, height: size },
-                    getItemStyle: (index) => ({
-                      position: "absolute",
-                      top: 0,
-                      left: index * spacing,
-                    }),
-                  };
-                }
-                
-                // 3 or 4 items: triangle/2x2 layout
-                return {
-                  containerStyle: { width: size + spacing, height: size + spacing },
-                  getItemStyle: (index) => {
-                    const isTop = index < 2;
-                    const isLeft = index % 2 === 0;
+                // Helper to define cluster positions dynamically
+                const getAvatarClusterLayout = (total) => {
+                  const size = 28;
+                  const overlap = 8;
+                  const spacing = size - overlap; // 20
+                  
+                  if (total <= 1) {
                     return {
-                      position: "absolute",
-                      top: isTop ? 0 : spacing,
-                      left: isLeft ? 0 : spacing,
+                      containerStyle: { width: size, height: size },
+                      getItemStyle: (index) => ({
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                      }),
                     };
-                  },
+                  }
+                  
+                  if (total === 2) {
+                    return {
+                      containerStyle: { width: size + spacing, height: size },
+                      getItemStyle: (index) => ({
+                        position: "absolute",
+                        top: 0,
+                        left: index * spacing,
+                      }),
+                    };
+                  }
+                  
+                  // 3 or 4 items: triangle/2x2 layout
+                  return {
+                    containerStyle: { width: size + spacing, height: size + spacing },
+                    getItemStyle: (index) => {
+                      const isTop = index < 2;
+                      const isLeft = index % 2 === 0;
+                      return {
+                        position: "absolute",
+                        top: isTop ? 0 : spacing,
+                        left: isLeft ? 0 : spacing,
+                      };
+                    },
+                  };
                 };
-              };
 
-              const { containerStyle, getItemStyle } = getAvatarClusterLayout(totalClusterItems);
+                const { containerStyle, getItemStyle } = getAvatarClusterLayout(totalClusterItems);
 
-              return (
-                <View style={[containerStyle, { marginLeft: 8 }]}>
-                  {participantPreviews.length > 0 ? (
-                    <>
-                      {participantPreviews.slice(0, 3).map((participant, index) => (
-                        <View
-                          key={`${participant.participant_id}-${participant.participant_type}`}
-                          style={[
-                            styles.participantAvatarImage,
-                            getItemStyle(index),
-                            { zIndex: 10 - index },
-                          ]}
-                        >
-                          {participant.participant_photo_url ? (
-                            <Image
-                              source={{ uri: participant.participant_photo_url }}
-                              style={styles.participantAvatarImg}
-                            />
-                          ) : (
-                            <View style={styles.participantAvatarPlaceholder}>
-                              <User size={12} color="#FFFFFF" />
-                            </View>
-                          )}
-                        </View>
-                      ))}
-                      {showBadge && (
-                        <View
-                          style={[
-                            styles.participantCountBadge,
-                            getItemStyle(3),
-                            { zIndex: 1 },
-                          ]}
-                        >
-                          <Text style={styles.participantCountBadgeText}>
-                            +{participantCount - 3}
-                          </Text>
-                        </View>
-                      )}
-                    </>
-                  ) : (
-                    // Fallback to placeholder if no previews loaded yet
-                    <>
-                      {Array.from({ length: displayCount }).map((_, index) => (
-                        <View
-                          key={`placeholder-${index}`}
-                          style={[
-                            styles.participantAvatar,
-                            getItemStyle(index),
-                            { zIndex: 10 - index },
-                          ]}
-                        >
-                          <User size={10} color="#FFFFFF" />
-                        </View>
-                      ))}
-                      {showBadge && (
-                        <View
-                          style={[
-                            styles.participantCountBadge,
-                            getItemStyle(3),
-                            { zIndex: 1 },
-                          ]}
-                        >
-                          <Text style={styles.participantCountBadgeText}>
-                            +{participantCount - 3}
-                          </Text>
-                        </View>
-                      )}
-                    </>
-                  )}
-                </View>
-              );
-            })()}
+                return (
+                  <View style={[containerStyle, { marginLeft: 8 }]}>
+                    {participantPreviews.length > 0 ? (
+                      <>
+                        {participantPreviews.slice(0, 3).map((participant, index) => (
+                          <View
+                            key={`${participant.participant_id}-${participant.participant_type}`}
+                            style={[
+                              styles.participantAvatarImage,
+                              getItemStyle(index),
+                              { zIndex: 10 - index },
+                            ]}
+                          >
+                            {participant.participant_photo_url ? (
+                              <Image
+                                source={{ uri: participant.participant_photo_url }}
+                                style={styles.participantAvatarImg}
+                              />
+                            ) : (
+                              <View style={styles.participantAvatarPlaceholder}>
+                                <User size={12} color="#FFFFFF" />
+                              </View>
+                            )}
+                          </View>
+                        ))}
+                        {showBadge && (
+                          <View
+                            style={[
+                              styles.participantCountBadge,
+                              getItemStyle(3),
+                              { zIndex: 1 },
+                            ]}
+                          >
+                            <Text style={styles.participantCountBadgeText}>
+                              +{participantCount - 3}
+                            </Text>
+                          </View>
+                        )}
+                      </>
+                    ) : (
+                      // Fallback to placeholder if no previews loaded yet
+                      <>
+                        {Array.from({ length: displayCount }).map((_, index) => (
+                          <View
+                            key={`placeholder-${index}`}
+                            style={[
+                              styles.participantAvatar,
+                              getItemStyle(index),
+                              { zIndex: 10 - index },
+                            ]}
+                          >
+                            <User size={10} color="#FFFFFF" />
+                          </View>
+                        ))}
+                        {showBadge && (
+                          <View
+                            style={[
+                              styles.participantCountBadge,
+                              getItemStyle(3),
+                              { zIndex: 1 },
+                            ]}
+                          >
+                            <Text style={styles.participantCountBadgeText}>
+                              +{participantCount - 3}
+                            </Text>
+                          </View>
+                        )}
+                      </>
+                    )}
+                  </View>
+                );
+              })()}
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <Text style={styles.viewAllText}>View all</Text>
+              <MoveRight size={16} color={COLORS.primary} strokeWidth={2} style={{ marginLeft: 4 }} />
+            </View>
           </TouchableOpacity>
         )}
 
@@ -998,6 +1021,40 @@ const ChallengePostCard = ({
             )}
           </TouchableOpacity>
         </View>
+
+        {/* Submission Activity Teaser — shown as soon as any approved submission exists */}
+        {submissionStats && submissionStats.total_submissions > 0 && (
+          <TouchableOpacity
+            style={styles.submissionTeaser}
+            onPress={() =>
+              navigation.navigate("ChallengeSubmissions", { post })
+            }
+            activeOpacity={0.75}
+          >
+            <Trophy size={13} color="#5e8d9b" strokeWidth={2} />
+            <Text style={styles.submissionTeaserText}>
+              {[
+                submissionStats.unique_contributors > 0 &&
+                  `${submissionStats.unique_contributors} participant${
+                    submissionStats.unique_contributors !== 1 ? "s" : ""
+                  }`,
+                submissionStats.total_submission_likes > 0 &&
+                  `${submissionStats.total_submission_likes} like${
+                    submissionStats.total_submission_likes !== 1 ? "s" : ""
+                  }`,
+                submissionStats.total_submission_comments > 0 &&
+                  `${submissionStats.total_submission_comments} comment${
+                    submissionStats.total_submission_comments !== 1 ? "s" : ""
+                  }`,
+              ]
+                .filter(Boolean)
+                .join(" · ") || `${submissionStats.total_submissions} submission${submissionStats.total_submissions !== 1 ? "s" : ""}`}{" "}
+              in submissions
+            </Text>
+            <ArrowRight size={13} color="#5e8d9b" strokeWidth={2} />
+          </TouchableOpacity>
+        )}
+
       </View>
       <ChallengeEditModal
         visible={showEditModal}
@@ -1440,9 +1497,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#5e8d9b",
   },
+  viewAllText: {
+    fontSize: 15,
+    color: COLORS.primary,
+    fontWeight: "600",
+  },
   participantCountContainer: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    alignSelf: "stretch",
     marginTop: 12,
   },
 
@@ -1517,6 +1581,26 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#FFFFFF",
   },
+
+  // Submission Activity Teaser
+  submissionTeaser: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.05)",
+    paddingHorizontal: 2,
+  },
+  submissionTeaserText: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: "#5e8d9b",
+    lineHeight: 17,
+  },
 });
+
 
 export default ChallengePostCard;

@@ -35,12 +35,13 @@ const createChallengePost = async (req, res) => {
     const {
       title,
       description,
-      challenge_type = "single", // 'single', 'progress', 'community'
-      submission_type = "image", // 'text', 'image', 'video'
+      challenge_type = "single",
+      submission_type = "image",
       target_count = 1,
       max_submissions_per_user = 1,
+      max_images_per_submission = 5,
       require_approval = true,
-      show_proofs_immediately = true, // If false, participants only see others' proofs after challenge ends
+      show_proofs_immediately = true,
       deadline,
     } = req.body;
 
@@ -56,6 +57,8 @@ const createChallengePost = async (req, res) => {
       submission_type,
       target_count: parseInt(target_count) || 1,
       max_submissions_per_user: parseInt(max_submissions_per_user) || 1,
+      // Clamp between 1 and 10; only meaningful for image submission type
+      max_images_per_submission: Math.min(10, Math.max(1, parseInt(max_images_per_submission) || 5)),
       require_approval,
       show_proofs_immediately,
       participant_count: 0,
@@ -633,6 +636,13 @@ const getSubmissions = async (req, res) => {
       });
     }
 
+    // Ensure view_count / share_count columns exist (idempotent, runs once per cold start)
+    await pool.query(`
+      ALTER TABLE challenge_submissions
+        ADD COLUMN IF NOT EXISTS view_count  INT NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS share_count INT NOT NULL DEFAULT 0
+    `);
+
     const result = await pool.query(
       `SELECT 
         cs.id,
@@ -645,6 +655,8 @@ const getSubmissions = async (req, res) => {
         cs.like_count,
         cs.is_featured,
         cs.created_at,
+        COALESCE(cs.view_count, 0)  AS view_count,
+        COALESCE(cs.share_count, 0) AS share_count,
         cp.participant_id,
         cp.participant_type,
         CASE 
@@ -665,7 +677,8 @@ const getSubmissions = async (req, res) => {
         (cp.participant_id = $4 AND cp.participant_type = $5) as is_own_submission,
         css.source_post_id,
         css.is_from_tagged_post,
-        CASE WHEN css.source_post_id IS NULL AND css.is_from_tagged_post = true THEN true ELSE false END as source_post_deleted
+        CASE WHEN css.source_post_id IS NULL AND css.is_from_tagged_post = true THEN true ELSE false END as source_post_deleted,
+        (SELECT COUNT(*) FROM challenge_submission_comments csc WHERE csc.submission_id = cs.id) AS comment_count
        FROM challenge_submissions cs
        JOIN challenge_participations cp ON cs.participant_id = cp.id
        LEFT JOIN members m ON cp.participant_type = 'member' AND cp.participant_id = m.id
@@ -676,6 +689,8 @@ const getSubmissions = async (req, res) => {
        LIMIT $2 OFFSET $3`,
       [postId, parseInt(limit), offset, userId || null, userType || null],
     );
+
+
 
     // Parse media_urls
     const submissions = result.rows.map((sub) => ({
@@ -1657,6 +1672,375 @@ const getSubmissionStatus = async (req, res) => {
 };
 
 // =============================================================================
+// SUBMISSION COMMENTS
+// =============================================================================
+
+/**
+ * Get comments for a specific submission
+ * GET /challenge-submissions/:id/comments
+ */
+const getSubmissionComments = async (req, res) => {
+  try {
+    const { id: submissionId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    // Verify submission exists
+    const subCheck = await pool.query(
+      `SELECT cs.id, cp.participant_id, cp.participant_type
+       FROM challenge_submissions cs
+       JOIN challenge_participations cp ON cs.participant_id = cp.id
+       WHERE cs.id = $1`,
+      [submissionId]
+    );
+    if (subCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Submission not found" });
+    }
+
+    // Auto-create table if not exists (idempotent)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS challenge_submission_comments (
+        id          BIGSERIAL PRIMARY KEY,
+        submission_id BIGINT NOT NULL REFERENCES challenge_submissions(id) ON DELETE CASCADE,
+        author_id   BIGINT NOT NULL,
+        author_type TEXT NOT NULL CHECK (author_type IN ('member', 'community')),
+        comment_text TEXT NOT NULL,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    const result = await pool.query(
+      `SELECT
+         csc.id,
+         csc.submission_id,
+         csc.author_id,
+         csc.author_type,
+         csc.comment_text,
+         csc.created_at,
+         CASE
+           WHEN csc.author_type = 'member' THEN m.name
+           WHEN csc.author_type = 'community' THEN c.name
+         END as author_name,
+         CASE
+           WHEN csc.author_type = 'member' THEN m.username
+           WHEN csc.author_type = 'community' THEN c.username
+         END as author_username,
+         CASE
+           WHEN csc.author_type = 'member' THEN m.profile_photo_url
+           WHEN csc.author_type = 'community' THEN c.logo_url
+         END as author_photo_url,
+         ($2::bigint IS NOT NULL AND csc.author_id = $2 AND csc.author_type = $3) as is_own_comment
+       FROM challenge_submission_comments csc
+       LEFT JOIN members m ON csc.author_type = 'member' AND csc.author_id = m.id
+       LEFT JOIN communities c ON csc.author_type = 'community' AND csc.author_id = c.id
+       WHERE csc.submission_id = $1
+       ORDER BY csc.created_at ASC`,
+      [submissionId, userId || null, userType || null]
+    );
+
+    res.json({
+      success: true,
+      comments: result.rows,
+      total: result.rows.length,
+    });
+  } catch (error) {
+    console.error("[Challenge] Error getting submission comments:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+/**
+ * Create a comment on a submission
+ * POST /challenge-submissions/:id/comments
+ */
+const createSubmissionComment = async (req, res) => {
+  try {
+    const { id: submissionId } = req.params;
+    const { commentText } = req.body;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    if (!commentText || commentText.trim().length === 0) {
+      return res.status(400).json({ error: "Comment text is required" });
+    }
+
+    // Auto-create table if not exists (idempotent)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS challenge_submission_comments (
+        id          BIGSERIAL PRIMARY KEY,
+        submission_id BIGINT NOT NULL REFERENCES challenge_submissions(id) ON DELETE CASCADE,
+        author_id   BIGINT NOT NULL,
+        author_type TEXT NOT NULL CHECK (author_type IN ('member', 'community')),
+        comment_text TEXT NOT NULL,
+        created_at  TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Verify submission exists and get participant info for notification
+    const subCheck = await pool.query(
+      `SELECT cs.id, cp.participant_id, cp.participant_type
+       FROM challenge_submissions cs
+       JOIN challenge_participations cp ON cs.participant_id = cp.id
+       WHERE cs.id = $1`,
+      [submissionId]
+    );
+    if (subCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Submission not found" });
+    }
+
+    const submission = subCheck.rows[0];
+
+    const result = await pool.query(
+      `INSERT INTO challenge_submission_comments
+         (submission_id, author_id, author_type, comment_text)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, created_at`,
+      [submissionId, userId, userType, commentText.trim()]
+    );
+    const comment = result.rows[0];
+
+    // Notify submission author (skip if self-commenting)
+    const isOwnSubmission =
+      submission.participant_id === userId &&
+      submission.participant_type === userType;
+
+    if (!isOwnSubmission) {
+      try {
+        let actorName = "Someone";
+        if (userType === "member") {
+          const actorRes = await pool.query(
+            "SELECT name FROM members WHERE id = $1",
+            [userId]
+          );
+          actorName = actorRes.rows[0]?.name || "Someone";
+        } else if (userType === "community") {
+          const actorRes = await pool.query(
+            "SELECT name FROM communities WHERE id = $1",
+            [userId]
+          );
+          actorName = actorRes.rows[0]?.name || "Someone";
+        }
+
+        await pushService.sendPushNotification(
+          pool,
+          submission.participant_id,
+          submission.participant_type,
+          "New comment on your submission 💬",
+          `${actorName} commented on your challenge submission`,
+          {
+            type: "submission_comment",
+            submissionId: parseInt(submissionId),
+            commentId: comment.id,
+          }
+        );
+      } catch (e) {
+        console.error("[Challenge] Failed to send comment notification:", e);
+      }
+    }
+
+    // Fetch author details for response
+    let authorName = null;
+    let authorUsername = null;
+    let authorPhotoUrl = null;
+    if (userType === "member") {
+      const authorRes = await pool.query(
+        "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
+        [userId]
+      );
+      authorName = authorRes.rows[0]?.name || null;
+      authorUsername = authorRes.rows[0]?.username || null;
+      authorPhotoUrl = authorRes.rows[0]?.profile_photo_url || null;
+    } else if (userType === "community") {
+      const authorRes = await pool.query(
+        "SELECT name, username, logo_url FROM communities WHERE id = $1",
+        [userId]
+      );
+      authorName = authorRes.rows[0]?.name || null;
+      authorUsername = authorRes.rows[0]?.username || null;
+      authorPhotoUrl = authorRes.rows[0]?.logo_url || null;
+    }
+
+    res.status(201).json({
+      success: true,
+      comment: {
+        id: comment.id,
+        submission_id: parseInt(submissionId),
+        author_id: userId,
+        author_type: userType,
+        author_name: authorName,
+        author_username: authorUsername,
+        author_photo_url: authorPhotoUrl,
+        comment_text: commentText.trim(),
+        is_own_comment: true,
+        created_at: comment.created_at,
+      },
+    });
+  } catch (error) {
+    console.error("[Challenge] Error creating submission comment:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+/**
+ * Delete a submission comment
+ * DELETE /challenge-submissions/:submissionId/comments/:commentId
+ */
+const deleteSubmissionComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const commentRes = await pool.query(
+      `SELECT id, author_id, author_type FROM challenge_submission_comments WHERE id = $1`,
+      [commentId]
+    );
+    if (commentRes.rows.length === 0) {
+      return res.status(404).json({ error: "Comment not found" });
+    }
+    const comment = commentRes.rows[0];
+    if (comment.author_id !== userId || comment.author_type !== userType) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    await pool.query(`DELETE FROM challenge_submission_comments WHERE id = $1`, [commentId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[Challenge] Error deleting submission comment:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// =============================================================================
+// SUBMISSION STATS — aggregate teaser for ChallengePostCard
+// =============================================================================
+
+/**
+ * GET /posts/:postId/submission-stats
+ * Returns aggregate engagement metrics across all approved submissions for
+ * a challenge post. Used by ChallengePostCard to surface community activity
+ * to non-joined users without conflating it with the challenge post's own counts.
+ */
+const getSubmissionStats = async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    // Ensure the new columns exist before querying them (idempotent migration)
+    await pool.query(`
+      ALTER TABLE challenge_submissions
+        ADD COLUMN IF NOT EXISTS view_count  INT NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS share_count INT NOT NULL DEFAULT 0
+    `);
+
+    const result = await pool.query(
+      `SELECT
+         COUNT(DISTINCT cs.id)                                        AS total_submissions,
+         COUNT(DISTINCT cp.participant_id)                            AS unique_contributors,
+         COALESCE(SUM(cs.like_count), 0)                             AS total_submission_likes,
+         COALESCE(SUM(cs.view_count), 0)                             AS total_submission_views,
+         COALESCE(SUM(cs.share_count), 0)                            AS total_submission_shares,
+         COALESCE((
+           SELECT SUM(sub_count)
+           FROM (
+             SELECT COUNT(*) AS sub_count
+             FROM challenge_submission_comments csc2
+             JOIN challenge_submissions cs2 ON csc2.submission_id = cs2.id
+             WHERE cs2.post_id = $1
+           ) inner_q
+         ), 0)                                                        AS total_submission_comments
+       FROM challenge_submissions cs
+       JOIN challenge_participations cp ON cs.participant_id = cp.id
+       WHERE cs.post_id = $1`,
+      [postId],
+    );
+
+    const row = result.rows[0];
+    res.json({
+      success: true,
+      total_submissions: parseInt(row.total_submissions) || 0,
+      unique_contributors: parseInt(row.unique_contributors) || 0,
+      total_submission_likes: parseInt(row.total_submission_likes) || 0,
+      total_submission_views: parseInt(row.total_submission_views) || 0,
+      total_submission_shares: parseInt(row.total_submission_shares) || 0,
+      total_submission_comments: parseInt(row.total_submission_comments) || 0,
+    });
+  } catch (error) {
+    console.error("[Challenge] Error fetching submission stats:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+
+// =============================================================================
+// PER-SUBMISSION VIEW TRACKING
+// =============================================================================
+
+/**
+ * POST /challenge-submissions/:id/view
+ * Increments view_count on the individual submission row.
+ * Adds view_count column if it doesn't exist yet (safe migration).
+ */
+const recordSubmissionView = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Safe migration: add column if absent
+    await pool.query(
+      `ALTER TABLE challenge_submissions
+         ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0`,
+    );
+
+    await pool.query(
+      `UPDATE challenge_submissions SET view_count = view_count + 1 WHERE id = $1`,
+      [id],
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[Challenge] Error recording submission view:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// =============================================================================
+// PER-SUBMISSION SHARE TRACKING
+// =============================================================================
+
+/**
+ * POST /challenge-submissions/:id/share
+ * Increments share_count on the individual submission row.
+ * Adds share_count column if it doesn't exist yet (safe migration).
+ */
+const incrementSubmissionShare = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Safe migration: add column if absent
+    await pool.query(
+      `ALTER TABLE challenge_submissions
+         ADD COLUMN IF NOT EXISTS share_count INT NOT NULL DEFAULT 0`,
+    );
+
+    await pool.query(
+      `UPDATE challenge_submissions SET share_count = share_count + 1 WHERE id = $1`,
+      [id],
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[Challenge] Error incrementing submission share:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// =============================================================================
 // EXPORTS
 // =============================================================================
 
@@ -1680,4 +2064,11 @@ module.exports = {
   reviewRemovalRequest,
   getPendingRemovalRequests,
   searchChallenges,
+  getSubmissionComments,
+  createSubmissionComment,
+  deleteSubmissionComment,
+  getSubmissionStats,
+  recordSubmissionView,
+  incrementSubmissionShare,
 };
+

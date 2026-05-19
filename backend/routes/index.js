@@ -1097,6 +1097,23 @@ router.delete(
   ChallengeController.unlikeSubmission,
 );
 
+// Submission Comments
+router.get(
+  "/challenge-submissions/:id/comments",
+  authMiddleware,
+  ChallengeController.getSubmissionComments,
+);
+router.post(
+  "/challenge-submissions/:id/comments",
+  authMiddleware,
+  ChallengeController.createSubmissionComment,
+);
+router.delete(
+  "/challenge-submission-comments/:commentId",
+  authMiddleware,
+  ChallengeController.deleteSubmissionComment,
+);
+
 // Challenge tagging - search & removal requests
 router.get(
   "/challenges/search",
@@ -1117,6 +1134,25 @@ router.get(
   "/posts/:postId/removal-requests",
   authMiddleware,
   ChallengeController.getPendingRemovalRequests,
+);
+
+// Submission aggregate stats (teaser for ChallengePostCard)
+router.get(
+  "/posts/:postId/submission-stats",
+  authMiddleware,
+  ChallengeController.getSubmissionStats,
+);
+
+// Per-submission view & share tracking
+router.post(
+  "/challenge-submissions/:id/view",
+  authMiddleware,
+  ChallengeController.recordSubmissionView,
+);
+router.post(
+  "/challenge-submissions/:id/share",
+  authMiddleware,
+  ChallengeController.incrementSubmissionShare,
 );
 
 // ============================================
