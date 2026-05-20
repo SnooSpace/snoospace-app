@@ -15,7 +15,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
-  Alert,
   Pressable,
   Dimensions,
 } from "react-native";
@@ -41,9 +40,14 @@ import {
   Bookmark,
   Ellipsis,
   Check,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Info,
 } from "lucide-react-native";
 import { savePost, unsavePost } from "../../api/client";
 import { postService } from "../../services/postService";
+import CustomAlertModal from "../ui/CustomAlertModal";
 import QnAEditModal from "./QnAEditModal";
 import EventBus from "../../utils/EventBus";
 import CountdownTimer from "../CountdownTimer";
@@ -87,6 +91,67 @@ const QnAPostCard = ({
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [showEditModal, setShowEditModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Custom Alert Modal State
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    title: "",
+    message: "",
+    primaryAction: null,
+    secondaryAction: null,
+    icon: null,
+    iconColor: "#FF3B30",
+  });
+
+  const showAlert = (title, message, buttons = null, icon = null, iconColor = null) => {
+    if (!buttons || buttons.length === 0) {
+      const isSuccess = title.toLowerCase().includes("success") || title.toLowerCase().includes("sent");
+      const isError = title.toLowerCase().includes("error") || title.toLowerCase().includes("fail");
+      setAlertConfig({
+        title,
+        message,
+        primaryAction: {
+          text: "OK",
+          onPress: () => setAlertVisible(false),
+        },
+        secondaryAction: null,
+        icon: icon || (isSuccess ? CheckCircle2 : isError ? XCircle : Info),
+        iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
+      });
+      setAlertVisible(true);
+      return;
+    }
+
+    const cancelBtn = buttons.find((b) => b.style === "cancel" || b.text.toLowerCase() === "cancel");
+    const actionBtn = buttons.find((b) => b.style !== "cancel" && b.text.toLowerCase() !== "cancel");
+
+    setAlertConfig({
+      title,
+      message,
+      primaryAction: actionBtn
+        ? {
+            text: actionBtn.text,
+            style: actionBtn.style,
+            onPress: () => {
+              setAlertVisible(false);
+              actionBtn.onPress?.();
+            },
+          }
+        : null,
+      secondaryAction: cancelBtn
+        ? {
+            text: cancelBtn.text,
+            onPress: () => {
+              setAlertVisible(false);
+              cancelBtn.onPress?.();
+            },
+          }
+        : null,
+      icon: icon || (actionBtn?.style === "destructive" ? AlertTriangle : Info),
+      iconColor: iconColor || (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
+    });
+    setAlertVisible(true);
+  };
 
   const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
 
@@ -323,14 +388,14 @@ const QnAPostCard = ({
       showToast("Success", "Post updated successfully");
     } catch (error) {
       console.error("Failed to update post:", error);
-      Alert.alert("Error", error.message || "Failed to update post");
+      showAlert("Error", error.message || "Failed to update post");
     } finally {
       setIsUpdating(false);
     }
   };
 
   const handleDelete = async () => {
-    Alert.alert(
+    showAlert(
       "Delete Post",
       "Are you sure you want to delete this post? This action cannot be undone.",
       [
@@ -343,7 +408,7 @@ const QnAPostCard = ({
               await postService.deletePost(post.id);
               if (onDelete) onDelete(post.id);
             } catch (error) {
-              Alert.alert("Error", "Failed to delete post");
+              showAlert("Error", "Failed to delete post");
             }
           },
         },
@@ -766,6 +831,16 @@ const QnAPostCard = ({
         post={post}
         onSave={handleSaveEdit}
         isLoading={isUpdating}
+      />
+      <CustomAlertModal
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={() => setAlertVisible(false)}
+        primaryAction={alertConfig.primaryAction}
+        secondaryAction={alertConfig.secondaryAction}
+        icon={alertConfig.icon}
+        iconColor={alertConfig.iconColor}
       />
     </>
   );

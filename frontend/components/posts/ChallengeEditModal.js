@@ -18,9 +18,8 @@ const ChallengeEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
       setTitle(post.type_data?.title || "");
       setDescription(post.type_data?.description || "");
       setTargetCount(String(post.type_data?.target_count || ""));
-      setDeadline(
-        post.type_data?.deadline ? new Date(post.type_data.deadline) : null,
-      );
+      // Deadline lives on post.expires_at, not inside type_data
+      setDeadline(post.expires_at ? new Date(post.expires_at) : null);
     }
   }, [post, visible]);
 
@@ -44,14 +43,13 @@ const ChallengeEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
       }
     }
 
-    if (deadline) {
-      const originalDeadline = post.type_data?.deadline
-        ? new Date(post.type_data.deadline).getTime()
-        : null;
-      const newDeadline = deadline.getTime();
-      if (originalDeadline !== newDeadline) {
-        updates.deadline = deadline.toISOString();
-      }
+    // Send expires_at (not deadline) — matches the DB column name used by all other post types
+    const originalExpiry = post.expires_at
+      ? new Date(post.expires_at).getTime()
+      : null;
+    const newExpiry = deadline ? deadline.getTime() : null;
+    if (newExpiry !== originalExpiry) {
+      updates.expires_at = deadline ? deadline.toISOString() : null;
     }
 
     onSave(updates);

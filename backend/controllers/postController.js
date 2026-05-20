@@ -1813,24 +1813,28 @@ const updatePost = async (req, res) => {
           updatedTypeData.question = updates.question.trim();
         }
         if (updates.expires_at !== undefined) {
-          const newExpiry = new Date(updates.expires_at);
-          const currentExpiry = post.expires_at
-            ? new Date(post.expires_at)
-            : null;
-          if (isNaN(newExpiry.getTime())) {
-            return res.status(400).json({ error: "Invalid expiry date" });
+          if (updates.expires_at === null) {
+            allowedUpdates.expires_at = null;
+          } else {
+            const newExpiry = new Date(updates.expires_at);
+            const currentExpiry = post.expires_at
+              ? new Date(post.expires_at)
+              : null;
+            if (isNaN(newExpiry.getTime())) {
+              return res.status(400).json({ error: "Invalid expiry date" });
+            }
+            if (newExpiry <= new Date()) {
+              return res
+                .status(400)
+                .json({ error: "Expiry date must be in the future" });
+            }
+            if (currentExpiry && newExpiry < currentExpiry) {
+              return res
+                .status(400)
+                .json({ error: "Can only extend deadline, not shorten it" });
+            }
+            allowedUpdates.expires_at = newExpiry.toISOString();
           }
-          if (newExpiry <= new Date()) {
-            return res
-              .status(400)
-              .json({ error: "Expiry date must be in the future" });
-          }
-          if (currentExpiry && newExpiry < currentExpiry) {
-            return res
-              .status(400)
-              .json({ error: "Can only extend deadline, not shorten it" });
-          }
-          allowedUpdates.expires_at = newExpiry.toISOString();
         }
         break;
 
@@ -1859,24 +1863,28 @@ const updatePost = async (req, res) => {
           updatedTypeData.max_length = newMaxLength;
         }
         if (updates.expires_at !== undefined) {
-          const newExpiry = new Date(updates.expires_at);
-          const currentExpiry = post.expires_at
-            ? new Date(post.expires_at)
-            : null;
-          if (isNaN(newExpiry.getTime())) {
-            return res.status(400).json({ error: "Invalid expiry date" });
+          if (updates.expires_at === null) {
+            allowedUpdates.expires_at = null;
+          } else {
+            const newExpiry = new Date(updates.expires_at);
+            const currentExpiry = post.expires_at
+              ? new Date(post.expires_at)
+              : null;
+            if (isNaN(newExpiry.getTime())) {
+              return res.status(400).json({ error: "Invalid expiry date" });
+            }
+            if (newExpiry <= new Date()) {
+              return res
+                .status(400)
+                .json({ error: "Expiry date must be in the future" });
+            }
+            if (currentExpiry && newExpiry < currentExpiry) {
+              return res
+                .status(400)
+                .json({ error: "Can only extend deadline, not shorten it" });
+            }
+            allowedUpdates.expires_at = newExpiry.toISOString();
           }
-          if (newExpiry <= new Date()) {
-            return res
-              .status(400)
-              .json({ error: "Expiry date must be in the future" });
-          }
-          if (currentExpiry && newExpiry < currentExpiry) {
-            return res
-              .status(400)
-              .json({ error: "Can only extend deadline, not shorten it" });
-          }
-          allowedUpdates.expires_at = newExpiry.toISOString();
         }
         break;
 
@@ -1914,24 +1922,28 @@ const updatePost = async (req, res) => {
           updatedTypeData.max_questions_per_user = newMax;
         }
         if (updates.expires_at !== undefined) {
-          const newExpiry = new Date(updates.expires_at);
-          const currentExpiry = post.expires_at
-            ? new Date(post.expires_at)
-            : null;
-          if (isNaN(newExpiry.getTime())) {
-            return res.status(400).json({ error: "Invalid expiry date" });
+          if (updates.expires_at === null) {
+            allowedUpdates.expires_at = null;
+          } else {
+            const newExpiry = new Date(updates.expires_at);
+            const currentExpiry = post.expires_at
+              ? new Date(post.expires_at)
+              : null;
+            if (isNaN(newExpiry.getTime())) {
+              return res.status(400).json({ error: "Invalid expiry date" });
+            }
+            if (newExpiry <= new Date()) {
+              return res
+                .status(400)
+                .json({ error: "Expiry date must be in the future" });
+            }
+            if (currentExpiry && newExpiry < currentExpiry) {
+              return res
+                .status(400)
+                .json({ error: "Can only extend deadline, not shorten it" });
+            }
+            allowedUpdates.expires_at = newExpiry.toISOString();
           }
-          if (newExpiry <= new Date()) {
-            return res
-              .status(400)
-              .json({ error: "Expiry date must be in the future" });
-          }
-          if (currentExpiry && newExpiry < currentExpiry) {
-            return res
-              .status(400)
-              .json({ error: "Can only extend deadline, not shorten it" });
-          }
-          allowedUpdates.expires_at = newExpiry.toISOString();
         }
         break;
 
@@ -1965,25 +1977,30 @@ const updatePost = async (req, res) => {
           }
           updatedTypeData.target_count = newTarget;
         }
-        if (updates.deadline !== undefined) {
-          const newDeadline = new Date(updates.deadline);
-          const currentDeadline = typeData.deadline
-            ? new Date(typeData.deadline)
-            : null;
-          if (isNaN(newDeadline.getTime())) {
-            return res.status(400).json({ error: "Invalid deadline" });
+        if (updates.expires_at !== undefined) {
+          if (updates.expires_at === null) {
+            // Allow clearing the deadline
+            allowedUpdates.expires_at = null;
+          } else {
+            const newExpiry = new Date(updates.expires_at);
+            const currentExpiry = post.expires_at
+              ? new Date(post.expires_at)
+              : null;
+            if (isNaN(newExpiry.getTime())) {
+              return res.status(400).json({ error: "Invalid deadline" });
+            }
+            if (newExpiry <= new Date()) {
+              return res
+                .status(400)
+                .json({ error: "Deadline must be in the future" });
+            }
+            if (currentExpiry && newExpiry < currentExpiry) {
+              return res
+                .status(400)
+                .json({ error: "Can only extend deadline, not shorten it" });
+            }
+            allowedUpdates.expires_at = newExpiry.toISOString();
           }
-          if (newDeadline <= new Date()) {
-            return res
-              .status(400)
-              .json({ error: "Deadline must be in the future" });
-          }
-          if (currentDeadline && newDeadline < currentDeadline) {
-            return res
-              .status(400)
-              .json({ error: "Can only extend deadline, not shorten it" });
-          }
-          updatedTypeData.deadline = newDeadline.toISOString();
         }
         break;
 

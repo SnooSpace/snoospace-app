@@ -40,14 +40,12 @@ const QnAEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
       updates.max_questions_per_user = newMaxQuestions;
     }
 
-    if (expiresAt) {
-      const originalExpiry = post.expires_at
-        ? new Date(post.expires_at).getTime()
-        : null;
-      const newExpiry = expiresAt.getTime();
-      if (originalExpiry !== newExpiry) {
-        updates.expires_at = expiresAt.toISOString();
-      }
+    const originalExpiry = post.expires_at
+      ? new Date(post.expires_at).getTime()
+      : null;
+    const newExpiry = expiresAt ? expiresAt.getTime() : null;
+    if (newExpiry !== originalExpiry) {
+      updates.expires_at = expiresAt ? expiresAt.toISOString() : null;
     }
 
     onSave(updates);

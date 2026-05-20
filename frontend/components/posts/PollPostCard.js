@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet, Alert, Modal, Pressable, Dimensions } from "react-native";
+import { View, Text, Image, TouchableOpacity, StyleSheet, Modal, Pressable, Dimensions } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { apiPost, apiDelete, savePost, unsavePost } from "../../api/client";
@@ -20,6 +20,7 @@ import {
 import AnimatedProgressBar from "./AnimatedProgressBar";
 import PollEditModal from "./PollEditModal";
 import PollVotersModal from "../modals/PollVotersModal";
+import CustomAlertModal from "../ui/CustomAlertModal";
 import { postService } from "../../services/postService";
 import {
   Heart,
@@ -28,6 +29,10 @@ import {
   Send,
   Bookmark,
   Ellipsis,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Info,
 } from "lucide-react-native";
 import EventBus from "../../utils/EventBus";
 import CountdownTimer from "../CountdownTimer";
@@ -62,6 +67,67 @@ const PollPostCard = ({
   const [showEditModal, setShowEditModal] = useState(false);
   const [showVotersModal, setShowVotersModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Custom Alert Modal State
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    title: "",
+    message: "",
+    primaryAction: null,
+    secondaryAction: null,
+    icon: null,
+    iconColor: "#FF3B30",
+  });
+
+  const showAlert = (title, message, buttons = null, icon = null, iconColor = null) => {
+    if (!buttons || buttons.length === 0) {
+      const isSuccess = title.toLowerCase().includes("success") || title.toLowerCase().includes("sent");
+      const isError = title.toLowerCase().includes("error") || title.toLowerCase().includes("fail");
+      setAlertConfig({
+        title,
+        message,
+        primaryAction: {
+          text: "OK",
+          onPress: () => setAlertVisible(false),
+        },
+        secondaryAction: null,
+        icon: icon || (isSuccess ? CheckCircle2 : isError ? XCircle : Info),
+        iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
+      });
+      setAlertVisible(true);
+      return;
+    }
+
+    const cancelBtn = buttons.find((b) => b.style === "cancel" || b.text.toLowerCase() === "cancel");
+    const actionBtn = buttons.find((b) => b.style !== "cancel" && b.text.toLowerCase() !== "cancel");
+
+    setAlertConfig({
+      title,
+      message,
+      primaryAction: actionBtn
+        ? {
+            text: actionBtn.text,
+            style: actionBtn.style,
+            onPress: () => {
+              setAlertVisible(false);
+              actionBtn.onPress?.();
+            },
+          }
+        : null,
+      secondaryAction: cancelBtn
+        ? {
+            text: cancelBtn.text,
+            onPress: () => {
+              setAlertVisible(false);
+              cancelBtn.onPress?.();
+            },
+          }
+        : null,
+      icon: icon || (actionBtn?.style === "destructive" ? AlertTriangle : Info),
+      iconColor: iconColor || (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
+    });
+    setAlertVisible(true);
+  };
 
   // Sync state with props whenever they change (important for FlatList recycling)
   useEffect(() => {
@@ -217,14 +283,14 @@ const PollPostCard = ({
       showToast("Success", "Post updated successfully");
     } catch (error) {
       console.error("Failed to update post:", error);
-      Alert.alert("Error", error.message || "Failed to update post");
+      showAlert("Error", error.message || "Failed to update post");
     } finally {
       setIsUpdating(false);
     }
   };
 
   const handleDelete = async () => {
-    Alert.alert(
+    showAlert(
       "Delete Post",
       "Are you sure you want to delete this post? This action cannot be undone.",
       [
@@ -237,7 +303,7 @@ const PollPostCard = ({
               await postService.deletePost(post.id);
               if (onDelete) onDelete(post.id);
             } catch (error) {
-              Alert.alert("Error", "Failed to delete post");
+              showAlert("Error", "Failed to delete post");
             }
           },
         },
@@ -619,6 +685,16 @@ const PollPostCard = ({
         onClose={() => setShowVotersModal(false)}
         postId={post.id}
         options={options}
+      />
+      <CustomAlertModal
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={() => setAlertVisible(false)}
+        primaryAction={alertConfig.primaryAction}
+        secondaryAction={alertConfig.secondaryAction}
+        icon={alertConfig.icon}
+        iconColor={alertConfig.iconColor}
       />
     </>
   );

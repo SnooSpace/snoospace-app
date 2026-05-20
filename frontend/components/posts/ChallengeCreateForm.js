@@ -99,13 +99,18 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
 
   // Sync data with parent on every change
   useEffect(() => {
+    // For progress challenges, max_submissions_per_user equals the target —
+    // the user must be able to submit exactly as many times as the goal requires.
+    const effectiveMaxSubmissions =
+      challengeType === "progress" ? targetCount : maxSubmissionsPerUser;
+
     onSubmit({
       title: title.trim(),
       description: description.trim(),
       challenge_type: challengeType,
       submission_type: submissionType,
       target_count: targetCount,
-      max_submissions_per_user: maxSubmissionsPerUser,
+      max_submissions_per_user: effectiveMaxSubmissions,
       max_images_per_submission: submissionType === "image" ? maxImagesPerSubmission : 1,
       require_approval: requireApproval,
       show_proofs_immediately: showProofsImmediately,
@@ -147,6 +152,10 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
     // Lock submissions to 1 for Single Task
     if (type === "single") {
       setMaxSubmissionsPerUser(1);
+    }
+    // Reset target count when leaving progress mode
+    if (type !== "progress") {
+      setTargetCount(1);
     }
   };
 
@@ -195,6 +204,10 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
       d.setDate(d.getDate() + 7);
       d.setHours(23, 59, 0, 0);
       setDeadline(d);
+    }
+    // Proofs can only be hidden until end — reset if deadline is removed
+    if (!val) {
+      setShowProofsImmediately(true);
     }
   };
 
@@ -330,91 +343,105 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
           })}
         </View>
 
-        {/* Max images per submission — only shown for image type */}
-        {submissionType === "image" && (
-          <View style={styles.imageCountContainer}>
-            <View style={styles.imageCountRow}>
-              <View style={styles.imageCountLeft}>
-                <Images size={16} color={COLORS.textSecondary} strokeWidth={2} />
-                <Text style={styles.imageCountLabel}>Max photos per submission</Text>
-              </View>
-              <View style={styles.imageCountStepper}>
-                <TouchableOpacity
-                  style={styles.imageCountBtn}
-                  onPress={() => {
-                    if (maxImagesPerSubmission > 1) {
-                      HapticsService.triggerImpactLight();
-                      setMaxImagesPerSubmission((p) => p - 1);
-                    }
-                  }}
-                  activeOpacity={0.7}
-                  disabled={maxImagesPerSubmission <= 1}
-                >
-                  <Minus
-                    size={14}
-                    color={maxImagesPerSubmission <= 1 ? "#C0C7D0" : COLORS.textPrimary}
-                    strokeWidth={2.5}
-                  />
-                </TouchableOpacity>
-                <Text style={styles.imageCountValue}>{maxImagesPerSubmission}</Text>
-                <TouchableOpacity
-                  style={styles.imageCountBtn}
-                  onPress={() => {
-                    if (maxImagesPerSubmission < 10) {
-                      HapticsService.triggerImpactLight();
-                      setMaxImagesPerSubmission((p) => p + 1);
-                    }
-                  }}
-                  activeOpacity={0.7}
-                  disabled={maxImagesPerSubmission >= 10}
-                >
-                  <Plus
-                    size={14}
-                    color={maxImagesPerSubmission >= 10 ? "#C0C7D0" : COLORS.textPrimary}
-                    strokeWidth={2.5}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-            <Text style={styles.imageCountHint}>
-              Participants can upload up to {maxImagesPerSubmission} photo{maxImagesPerSubmission > 1 ? "s" : ""} per submission
-            </Text>
-          </View>
-        )}
       </View>
 
       {/* Settings Card */}
       <View style={styles.settingsCard}>
         <Text style={styles.cardTitle}>Settings</Text>
 
-        {/* Submissions Per User Stepper */}
+        {/* Submissions to complete — progress challenges only */}
+        {challengeType === "progress" && (
+          <View style={styles.settingSection}>
+            <Text style={styles.settingLabelCentered}>Submissions to complete</Text>
+            <View style={styles.stepperContainer}>
+              <TouchableOpacity
+                style={styles.stepperButton}
+                onPress={() => {
+                  if (targetCount > 1) {
+                    HapticsService.triggerImpactLight();
+                    animateStepper();
+                    setTargetCount((prev) => prev - 1);
+                  }
+                }}
+                activeOpacity={0.7}
+                disabled={targetCount <= 1}
+              >
+                <Minus
+                  size={20}
+                  color={targetCount <= 1 ? "#C0C7D0" : COLORS.textPrimary}
+                  strokeWidth={2.5}
+                />
+              </TouchableOpacity>
+
+              <Animated.Text
+                style={[
+                  styles.stepperValue,
+                  { transform: [{ scale: stepperScale }] },
+                ]}
+              >
+                {targetCount}
+              </Animated.Text>
+
+              <TouchableOpacity
+                style={styles.stepperButton}
+                onPress={() => {
+                  if (targetCount < 100) {
+                    HapticsService.triggerImpactLight();
+                    animateStepper();
+                    setTargetCount((prev) => prev + 1);
+                  }
+                }}
+                activeOpacity={0.7}
+                disabled={targetCount >= 100}
+              >
+                <Plus
+                  size={20}
+                  color={targetCount >= 100 ? "#C0C7D0" : COLORS.textPrimary}
+                  strokeWidth={2.5}
+                />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.stepperLockedNote}>
+              Members upload proof {targetCount} separate time{targetCount > 1 ? "s" : ""} to finish —
+              each upload counts as one submission
+            </Text>
+          </View>
+        )}
+
+        {/* Media per submission */}
         <View style={styles.settingSection}>
           <Text
             style={[
               styles.settingLabelCentered,
-              challengeType === "single" && styles.settingLabelDisabled,
+              submissionType === "video" && styles.settingLabelDisabled,
             ]}
           >
-            Submissions per user
+            {submissionType === "image" ? "Photos per submission" : "Videos per submission"}
           </Text>
           <View
             style={[
               styles.stepperContainer,
-              challengeType === "single" && styles.stepperContainerDisabled,
+              submissionType === "video" && styles.stepperContainerDisabled,
             ]}
           >
             <TouchableOpacity
               style={[
                 styles.stepperButton,
-                challengeType === "single" && styles.stepperButtonDisabled,
+                submissionType === "video" && styles.stepperButtonDisabled,
               ]}
-              onPress={handleDecrement}
+              onPress={() => {
+                if (maxImagesPerSubmission > 1) {
+                  HapticsService.triggerImpactLight();
+                  animateStepper();
+                  setMaxImagesPerSubmission((p) => p - 1);
+                }
+              }}
               activeOpacity={0.7}
-              disabled={challengeType === "single"}
+              disabled={submissionType === "video" || maxImagesPerSubmission <= 1}
             >
               <Minus
                 size={20}
-                color={challengeType === "single" ? "#C0C7D0" : COLORS.textPrimary}
+                color={submissionType === "video" || maxImagesPerSubmission <= 1 ? "#C0C7D0" : COLORS.textPrimary}
                 strokeWidth={2.5}
               />
             </TouchableOpacity>
@@ -423,34 +450,107 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
               style={[
                 styles.stepperValue,
                 { transform: [{ scale: stepperScale }] },
-                challengeType === "single" && styles.stepperValueDisabled,
+                submissionType === "video" && styles.stepperValueDisabled,
               ]}
             >
-              {maxSubmissionsPerUser}
+              {submissionType === "video" ? 1 : maxImagesPerSubmission}
             </Animated.Text>
 
             <TouchableOpacity
               style={[
                 styles.stepperButton,
-                challengeType === "single" && styles.stepperButtonDisabled,
+                submissionType === "video" && styles.stepperButtonDisabled,
               ]}
-              onPress={handleIncrement}
+              onPress={() => {
+                if (maxImagesPerSubmission < 10) {
+                  HapticsService.triggerImpactLight();
+                  animateStepper();
+                  setMaxImagesPerSubmission((p) => p + 1);
+                }
+              }}
               activeOpacity={0.7}
-              disabled={challengeType === "single"}
+              disabled={submissionType === "video" || maxImagesPerSubmission >= 10}
             >
               <Plus
                 size={20}
-                color={challengeType === "single" ? "#C0C7D0" : COLORS.textPrimary}
+                color={submissionType === "video" || maxImagesPerSubmission >= 10 ? "#C0C7D0" : COLORS.textPrimary}
                 strokeWidth={2.5}
               />
             </TouchableOpacity>
           </View>
-          {challengeType === "single" && (
-            <Text style={styles.stepperLockedNote}>
-              Locked to 1 — Single Task allows only one submission per user
-            </Text>
-          )}
+          <Text style={styles.stepperLockedNote}>
+            {submissionType === "video"
+              ? "Locked to 1 — each submission allows one video"
+              : `Members can attach up to ${maxImagesPerSubmission} photo${maxImagesPerSubmission > 1 ? "s" : ""} per submission`}
+          </Text>
         </View>
+
+        {/* Max submissions per user — hidden for progress (auto-matches target count) */}
+        {challengeType !== "progress" && (
+          <View style={styles.settingSection}>
+            <Text
+              style={[
+                styles.settingLabelCentered,
+                challengeType === "single" && styles.settingLabelDisabled,
+              ]}
+            >
+              Max submissions per user
+            </Text>
+            <View
+              style={[
+                styles.stepperContainer,
+                challengeType === "single" && styles.stepperContainerDisabled,
+              ]}
+            >
+              <TouchableOpacity
+                style={[
+                  styles.stepperButton,
+                  challengeType === "single" && styles.stepperButtonDisabled,
+                ]}
+                onPress={handleDecrement}
+                activeOpacity={0.7}
+                disabled={challengeType === "single"}
+              >
+                <Minus
+                  size={20}
+                  color={challengeType === "single" ? "#C0C7D0" : COLORS.textPrimary}
+                  strokeWidth={2.5}
+                />
+              </TouchableOpacity>
+
+              <Animated.Text
+                style={[
+                  styles.stepperValue,
+                  { transform: [{ scale: stepperScale }] },
+                  challengeType === "single" && styles.stepperValueDisabled,
+                ]}
+              >
+                {maxSubmissionsPerUser}
+              </Animated.Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.stepperButton,
+                  challengeType === "single" && styles.stepperButtonDisabled,
+                ]}
+                onPress={handleIncrement}
+                activeOpacity={0.7}
+                disabled={challengeType === "single"}
+              >
+                <Plus
+                  size={20}
+                  color={challengeType === "single" ? "#C0C7D0" : COLORS.textPrimary}
+                  strokeWidth={2.5}
+                />
+              </TouchableOpacity>
+            </View>
+            {challengeType === "single" && (
+              <Text style={styles.stepperLockedNote}>
+                Locked to 1 — Single Task only allows one submission per member
+              </Text>
+            )}
+          </View>
+        )}
 
         {/* Require Approval */}
         <View style={styles.settingRow}>
@@ -479,7 +579,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
         </View>
 
         {/* Show Proofs Immediately */}
-        <View style={styles.settingRow}>
+        <View style={[styles.settingRow, !hasDeadline && { opacity: 0.4 }]}>
           <View style={styles.settingRowLeft}>
             <View style={styles.iconBox}>
               <Eye size={20} color={COLORS.textPrimary} strokeWidth={2} />
@@ -488,14 +588,17 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
               <Text style={styles.settingRowTitle}>
                 Show proofs immediately
               </Text>
-              <Text style={styles.settingRowSubtitle}>
-                When off, hidden until ended
+              <Text style={[styles.settingRowSubtitle]}>
+                {hasDeadline
+                  ? "When off, hidden until ended"
+                  : "Set a deadline to hide proofs until it ends"}
               </Text>
             </View>
           </View>
           <Switch
             value={showProofsImmediately}
-            onValueChange={setShowProofsImmediately}
+            onValueChange={hasDeadline ? setShowProofsImmediately : undefined}
+            disabled={!hasDeadline}
             trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
             thumbColor={"#FFFFFF"}
             ios_backgroundColor="#E5E7EB"

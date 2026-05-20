@@ -15,7 +15,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert,
   Dimensions,
   Pressable,
 } from "react-native";
@@ -45,10 +44,15 @@ import {
   Image as LucideImage,
   Camera,
   Lock,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Info,
 } from "lucide-react-native";
 import { savePost, unsavePost } from "../../api/client";
 import { uploadMultipleImages } from "../../api/cloudinary";
 import { postService } from "../../services/postService";
+import CustomAlertModal from "../ui/CustomAlertModal";
 import PromptEditModal from "./PromptEditModal";
 import EventBus from "../../utils/EventBus";
 import SnooLoader from "../ui/SnooLoader";
@@ -92,6 +96,67 @@ const PromptPostCard = ({
   const [showMenu, setShowMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Custom Alert Modal State
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    title: "",
+    message: "",
+    primaryAction: null,
+    secondaryAction: null,
+    icon: null,
+    iconColor: "#FF3B30",
+  });
+
+  const showAlert = (title, message, buttons = null, icon = null, iconColor = null) => {
+    if (!buttons || buttons.length === 0) {
+      const isSuccess = title.toLowerCase().includes("success") || title.toLowerCase().includes("sent");
+      const isError = title.toLowerCase().includes("error") || title.toLowerCase().includes("fail");
+      setAlertConfig({
+        title,
+        message,
+        primaryAction: {
+          text: "OK",
+          onPress: () => setAlertVisible(false),
+        },
+        secondaryAction: null,
+        icon: icon || (isSuccess ? CheckCircle2 : isError ? XCircle : Info),
+        iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
+      });
+      setAlertVisible(true);
+      return;
+    }
+
+    const cancelBtn = buttons.find((b) => b.style === "cancel" || b.text.toLowerCase() === "cancel");
+    const actionBtn = buttons.find((b) => b.style !== "cancel" && b.text.toLowerCase() !== "cancel");
+
+    setAlertConfig({
+      title,
+      message,
+      primaryAction: actionBtn
+        ? {
+            text: actionBtn.text,
+            style: actionBtn.style,
+            onPress: () => {
+              setAlertVisible(false);
+              actionBtn.onPress?.();
+            },
+          }
+        : null,
+      secondaryAction: cancelBtn
+        ? {
+            text: cancelBtn.text,
+            onPress: () => {
+              setAlertVisible(false);
+              cancelBtn.onPress?.();
+            },
+          }
+        : null,
+      icon: icon || (actionBtn?.style === "destructive" ? AlertTriangle : Info),
+      iconColor: iconColor || (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
+    });
+    setAlertVisible(true);
+  };
 
   const isExpired = post.expires_at && new Date(post.expires_at) < new Date();
   const maxLength = typeData.max_length || 500;
@@ -250,14 +315,14 @@ const PromptPostCard = ({
       showToast("Success", "Post updated successfully");
     } catch (error) {
       console.error("Failed to update post:", error);
-      Alert.alert("Error", error.message || "Failed to update post");
+      showAlert("Error", error.message || "Failed to update post");
     } finally {
       setIsUpdating(false);
     }
   };
 
   const handleDelete = async () => {
-    Alert.alert(
+    showAlert(
       "Delete Post",
       "Are you sure you want to delete this post? This action cannot be undone.",
       [
@@ -270,7 +335,7 @@ const PromptPostCard = ({
               await postService.deletePost(post.id);
               if (onDelete) onDelete(post.id);
             } catch (error) {
-              Alert.alert("Error", "Failed to delete post");
+              showAlert("Error", "Failed to delete post");
             }
           },
         },
@@ -309,7 +374,7 @@ const PromptPostCard = ({
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
+        showAlert(
           "Permission needed",
           "Please grant camera access to take photos",
         );
@@ -322,7 +387,7 @@ const PromptPostCard = ({
         );
       }
     } catch (err) {
-      Alert.alert("Error", "Failed to take photo");
+      showAlert("Error", "Failed to take photo");
     }
   };
 
@@ -338,7 +403,7 @@ const PromptPostCard = ({
       if (!submissionText.trim()) return;
       // Client-side length guard
       if (submissionText.length > maxLength) {
-        Alert.alert(
+        showAlert(
           "Response too long",
           `Please shorten your response to ${maxLength} characters or less.`,
         );
@@ -346,7 +411,7 @@ const PromptPostCard = ({
       }
     } else if (submissionType === "image") {
       if (selectedImages.length === 0) {
-        Alert.alert("Required", "Please add at least one image");
+        showAlert("Required", "Please add at least one image");
         return;
       }
     }
@@ -386,7 +451,7 @@ const PromptPostCard = ({
         error?.response?.data?.error ||
         error?.message ||
         "Failed to submit your response. Please try again.";
-      Alert.alert("Submission Failed", message);
+      showAlert("Submission Failed", message);
     } finally {
       setIsSubmitting(false);
     }
@@ -832,6 +897,16 @@ const PromptPostCard = ({
         post={post}
         onSave={handleSaveEdit}
         isLoading={isUpdating}
+      />
+      <CustomAlertModal
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={() => setAlertVisible(false)}
+        primaryAction={alertConfig.primaryAction}
+        secondaryAction={alertConfig.secondaryAction}
+        icon={alertConfig.icon}
+        iconColor={alertConfig.iconColor}
       />
     </View>
   );

@@ -5,7 +5,7 @@ import { useFocusEffect } from "@react-navigation/native";
  */
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, Dimensions, Modal, Alert, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -35,11 +35,13 @@ import {
   MinusCircle,
   Edit2,
   Trash2,
+  AlertTriangle,
 } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete, apiPatch, sharePost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import FullscreenVideoModal from "../../components/FullscreenVideoModal";
+import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import RemovalRequestsModal from "../../components/RemovalRequestsModal";
 import EditorialPostCard from "../../components/EditorialPostCard";
 import ShareModal from "../../components/ShareModal";
@@ -88,6 +90,68 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
     visible: false, submission: null, message: "", sending: false,
   });
   const lastTapRef = useRef({});
+
+  // Custom Alert Modal State
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    title: "",
+    message: "",
+    primaryAction: null,
+    secondaryAction: null,
+    icon: null,
+    iconColor: "#2962FF",
+  });
+
+  const showAlert = (title, message, buttons = null, icon = null, iconColor = null) => {
+    if (!buttons || buttons.length === 0) {
+      const isSuccess = title.toLowerCase().includes("success") || title.toLowerCase().includes("sent");
+      const isError = title.toLowerCase().includes("error") || title.toLowerCase().includes("fail");
+      setAlertConfig({
+        title,
+        message,
+        primaryAction: {
+          text: "OK",
+          onPress: () => setAlertVisible(false),
+        },
+        secondaryAction: null,
+        icon: icon || (isSuccess ? CheckCircle2 : isError ? XCircle : Info),
+        iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
+      });
+      setAlertVisible(true);
+      return;
+    }
+
+    const cancelBtn = buttons.find((b) => b.style === "cancel" || b.text.toLowerCase() === "cancel");
+    const actionBtn = buttons.find((b) => b.style !== "cancel" && b.text.toLowerCase() !== "cancel");
+
+    setAlertConfig({
+      title,
+      message,
+      primaryAction: actionBtn
+        ? {
+            text: actionBtn.text,
+            style: actionBtn.style,
+            onPress: () => {
+              setAlertVisible(false);
+              actionBtn.onPress?.();
+            },
+          }
+        : null,
+      secondaryAction: cancelBtn
+        ? {
+            text: cancelBtn.text,
+            onPress: () => {
+              setAlertVisible(false);
+              cancelBtn.onPress?.();
+            },
+          }
+        : null,
+      icon: icon || (actionBtn?.style === "destructive" ? Trash2 : Info),
+      iconColor: iconColor || (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
+    });
+    setAlertVisible(true);
+  };
+
   const challengeEnded =
     post.expires_at && new Date(post.expires_at) <= new Date();
 
@@ -274,7 +338,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
       // Refresh the list
       fetchSubmissions(false);
 
-      Alert.alert(
+      showAlert(
         "Success",
         newStatus === "approved"
           ? "Submission approved and now visible to everyone."
@@ -282,7 +346,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
       );
     } catch (error) {
       console.error("Error moderating submission:", error);
-      Alert.alert("Error", "Failed to update submission status.");
+      showAlert("Error", "Failed to update submission status.");
     }
   };
 
@@ -308,7 +372,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         token,
       );
 
-      Alert.alert(
+      showAlert(
         "Success",
         !currentlyFeatured
           ? "Submission featured! ⭐"
@@ -326,7 +390,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           s.id === submissionId ? { ...s, is_featured: currentlyFeatured } : s
         )
       );
-      Alert.alert("Error", "Failed to update featured status.");
+      showAlert("Error", "Failed to update featured status.");
     }
   };
 
@@ -342,7 +406,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         ? "Your submission will be removed from this challenge. Your post will stay on your profile — you can delete it there anytime. You can re-submit before the challenge ends."
         : "Your submission will be removed from this challenge. You can re-submit before the challenge ends.";
 
-    Alert.alert(title, message, [
+    showAlert(title, message, [
       { text: "Cancel", style: "cancel" },
       {
         text: "Withdraw",
@@ -375,7 +439,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
             console.error("Error withdrawing submission:", error);
             // Revert optimistic removal
             fetchSubmissions(false);
-            Alert.alert("Error", error?.message || "Failed to withdraw submission.");
+            showAlert("Error", error?.message || "Failed to withdraw submission.");
           }
         },
       },
@@ -470,7 +534,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
 
   const handleRequestRemoval = async (submission) => {
     setActionSheet(null);
-    Alert.alert(
+    showAlert(
       "Request Removal",
       "Since this challenge has ended, your submission can only be removed by the challenge host. Would you like to send a removal request?",
       [
@@ -487,7 +551,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
                 15000,
                 token,
               );
-              Alert.alert(
+              showAlert(
                 "Request Sent",
                 "Your removal request has been sent to the challenge host. You'll be notified when they respond.",
               );
@@ -496,7 +560,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
                 error?.response?.data?.error ||
                 error.message ||
                 "Failed to send request";
-              Alert.alert("Error", errMsg);
+              showAlert("Error", errMsg);
             }
           },
         },
@@ -554,10 +618,10 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         token
       );
       setReplyDMState({ visible: false, submission: null, message: "", sending: false });
-      Alert.alert("Sent!", `Your message was sent to ${submission.participant_name}.`);
+      showAlert("Sent!", `Your message was sent to ${submission.participant_name}.`);
     } catch (e) {
       setReplyDMState((prev) => ({ ...prev, sending: false }));
-      Alert.alert("Error", e?.message || "Failed to send DM");
+      showAlert("Error", e?.message || "Failed to send DM");
     }
   }, [replyDMState, post.id]);
 
@@ -1422,6 +1486,17 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <CustomAlertModal
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={() => setAlertVisible(false)}
+        primaryAction={alertConfig.primaryAction}
+        secondaryAction={alertConfig.secondaryAction}
+        icon={alertConfig.icon}
+        iconColor={alertConfig.iconColor}
+      />
     </SafeAreaView>
   );
 };

@@ -12,7 +12,6 @@ import {
   StyleSheet,
   FlatList,
   Image,
-  Alert,
 } from "react-native";
 import {
   X,
@@ -21,11 +20,13 @@ import {
   User,
   MessageCircle,
   CheckCircle2,
+  AlertTriangle,
 } from "lucide-react-native";
 import { apiGet, apiPatch } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import { COLORS, SPACING, FONTS } from "../constants/theme";
 import SnooLoader from "./ui/SnooLoader";
+import CustomAlertModal from "./ui/CustomAlertModal";
 
 const RemovalRequestsModal = ({
   visible,
@@ -37,6 +38,67 @@ const RemovalRequestsModal = ({
   const [requests, setRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [reviewingId, setReviewingId] = useState(null);
+
+  // Custom Alert Modal State
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    title: "",
+    message: "",
+    primaryAction: null,
+    secondaryAction: null,
+    icon: null,
+    iconColor: "#FF3B30",
+  });
+
+  const showAlert = (title, message, buttons = null, icon = null, iconColor = null) => {
+    if (!buttons || buttons.length === 0) {
+      const isSuccess = title.toLowerCase().includes("success") || title.toLowerCase().includes("sent");
+      const isError = title.toLowerCase().includes("error") || title.toLowerCase().includes("fail");
+      setAlertConfig({
+        title,
+        message,
+        primaryAction: {
+          text: "OK",
+          onPress: () => setAlertVisible(false),
+        },
+        secondaryAction: null,
+        icon: icon || (isSuccess ? CheckCircle2 : isError ? XCircle : Info),
+        iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
+      });
+      setAlertVisible(true);
+      return;
+    }
+
+    const cancelBtn = buttons.find((b) => b.style === "cancel" || b.text.toLowerCase() === "cancel");
+    const actionBtn = buttons.find((b) => b.style !== "cancel" && b.text.toLowerCase() !== "cancel");
+
+    setAlertConfig({
+      title,
+      message,
+      primaryAction: actionBtn
+        ? {
+            text: actionBtn.text,
+            style: actionBtn.style,
+            onPress: () => {
+              setAlertVisible(false);
+              actionBtn.onPress?.();
+            },
+          }
+        : null,
+      secondaryAction: cancelBtn
+        ? {
+            text: cancelBtn.text,
+            onPress: () => {
+              setAlertVisible(false);
+              cancelBtn.onPress?.();
+            },
+          }
+        : null,
+      icon: icon || (actionBtn?.style === "destructive" ? AlertTriangle : Info),
+      iconColor: iconColor || (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
+    });
+    setAlertVisible(true);
+  };
 
   const fetchRequests = useCallback(async () => {
     if (!postId) return;
@@ -67,7 +129,7 @@ const RemovalRequestsModal = ({
   const handleReview = async (requestId, status) => {
     const actionLabel = status === "approved" ? "approve" : "reject";
 
-    Alert.alert(
+    showAlert(
       `${status === "approved" ? "Approve" : "Reject"} Removal?`,
       status === "approved"
         ? "This will permanently delete the submission."
@@ -92,7 +154,7 @@ const RemovalRequestsModal = ({
                 onRequestReviewed(requestId, status);
               }
             } catch (error) {
-              Alert.alert(
+              showAlert(
                 "Error",
                 error.message || `Failed to ${actionLabel} request`,
               );
@@ -260,6 +322,17 @@ const RemovalRequestsModal = ({
           )}
         </View>
       </View>
+
+      <CustomAlertModal
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={() => setAlertVisible(false)}
+        primaryAction={alertConfig.primaryAction}
+        secondaryAction={alertConfig.secondaryAction}
+        icon={alertConfig.icon}
+        iconColor={alertConfig.iconColor}
+      />
     </Modal>
   );
 };
