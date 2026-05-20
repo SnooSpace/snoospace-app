@@ -603,8 +603,8 @@ const EditorialPostCard = ({
       setViewStats(data);
     } catch (e) {
       setViewStats({
-        unique_views: post.public_view_count || post.view_count || 0,
-        total_views: post.public_view_count || post.view_count || 0,
+        unique_views: post.public_view_count || 0,
+        total_views: post.view_count || post.public_view_count || 0,
       });
     } finally {
       setViewStatsLoading(false);
@@ -1025,7 +1025,7 @@ const EditorialPostCard = ({
                     </View>
                     <View style={viewStyles.statTextCol}>
                       <Text style={viewStyles.statValue}>
-                        {formatCount(viewStats?.total_views ?? (post.public_view_count || 0))}
+                        {formatCount(viewStats?.total_views ?? (post.view_count || 0))}
                       </Text>
                       <Text style={viewStyles.statLabel}>Total impressions</Text>
                     </View>

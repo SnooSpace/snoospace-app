@@ -1077,6 +1077,11 @@ router.patch(
   ChallengeController.moderateSubmission,
 );
 router.patch(
+  "/challenge-submissions/:id/withdraw",
+  authMiddleware,
+  ChallengeController.withdrawSubmission,
+);
+router.patch(
   "/challenge-submissions/:id/feature",
   authMiddleware,
   ChallengeController.featureSubmission,

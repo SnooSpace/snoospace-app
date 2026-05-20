@@ -30,7 +30,11 @@ import {
   User,
   Info,
   Mail,
-  Trophy
+  Trophy,
+  MoreHorizontal,
+  MinusCircle,
+  Edit2,
+  Trash2,
 } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete, apiPatch, sharePost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
@@ -44,6 +48,7 @@ import SubmissionCommentsModal from "../../components/SubmissionCommentsModal";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getActiveAccount } from "../../utils/accountManager";
 import SnooLoader from "../../components/ui/SnooLoader";
+import EventBus from "../../utils/EventBus";
 
 const { width } = Dimensions.get("window");
 
@@ -65,9 +70,12 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [actionSheet, setActionSheet] = useState(null);
   const [showRemovalRequests, setShowRemovalRequests] = useState(false);
+  const [pendingRemovalCount, setPendingRemovalCount] = useState(0);
   const [isHost, setIsHost] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
+  // Pre-fetched counts for each filter tab — shown immediately on all pills
+  const [filterCounts, setFilterCounts] = useState({ approved: null, featured: null, pending: null });
   // Share modal
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [selectedShareSubmission, setSelectedShareSubmission] = useState(null);
@@ -137,8 +145,8 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
       like_count: submission.like_count || 0,
       is_liked: submission.has_liked || false,
       comment_count: parseInt(submission.comment_count) || 0,
-      public_view_count: submission.view_count || 0,
-      view_count: submission.view_count || 0,
+      public_view_count: submission.unique_view_count || 0, // Unique viewers
+      view_count: submission.view_count || 0, // Total impressions
       share_count: parseInt(submission.share_count) || 0,
       is_saved: false,
       created_at: submission.created_at,
@@ -160,8 +168,11 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         );
 
         if (response.success) {
-          setSubmissions(response.submissions || []);
+          const list = response.submissions || [];
+          setSubmissions(list);
           setVisibilityInfo(response.visibility_info || null);
+          // Keep the active filter's count in sync with real data
+          setFilterCounts((prev) => ({ ...prev, [filter]: list.length }));
         }
       } catch (error) {
         console.error("Error fetching submissions:", error);
@@ -172,6 +183,48 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
     },
     [post.id, filter],
   );
+
+  // Pre-fetch counts for all three filters in parallel on mount
+  useEffect(() => {
+    const fetchAllFilterCounts = async () => {
+      try {
+        const token = await getAuthToken();
+        const [approvedRes, featuredRes, pendingRes] = await Promise.allSettled([
+          apiGet(`/posts/${post.id}/challenge-submissions?filter=approved`, 10000, token),
+          apiGet(`/posts/${post.id}/challenge-submissions?filter=featured`, 10000, token),
+          apiGet(`/posts/${post.id}/challenge-submissions?filter=pending`, 10000, token),
+        ]);
+        setFilterCounts({
+          approved: approvedRes.status === "fulfilled" && approvedRes.value?.success
+            ? (approvedRes.value.submissions || []).length : null,
+          featured: featuredRes.status === "fulfilled" && featuredRes.value?.success
+            ? (featuredRes.value.submissions || []).length : null,
+          pending: pendingRes.status === "fulfilled" && pendingRes.value?.success
+            ? (pendingRes.value.submissions || []).length : null,
+        });
+      } catch (e) {
+        // Non-critical — pills will fall back gracefully
+      }
+    };
+    fetchAllFilterCounts();
+  }, [post.id]);
+
+  // Fetch pending removal request count for the mail badge (host only)
+  useEffect(() => {
+    if (!isHost || !challengeEnded) return;
+    const fetchRemovalCount = async () => {
+      try {
+        const token = await getAuthToken();
+        const res = await apiGet(`/posts/${post.id}/removal-requests`, 10000, token);
+        if (res.success) {
+          setPendingRemovalCount((res.requests || []).length);
+        }
+      } catch (e) {
+        // non-critical
+      }
+    };
+    fetchRemovalCount();
+  }, [isHost, challengeEnded, post.id]);
 
   const fetchParticipants = useCallback(async () => {
     try {
@@ -234,6 +287,18 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
   };
 
   const handleFeature = async (submissionId, currentlyFeatured) => {
+    // Optimistic update — instantly reflect the change in the pill badge and submission list
+    setFilterCounts((prev) => ({
+      ...prev,
+      featured: Math.max(0, (prev.featured ?? 0) + (currentlyFeatured ? -1 : 1)),
+    }));
+    setSubmissions((prev) =>
+      prev.map((s) =>
+        s.id === submissionId ? { ...s, is_featured: !currentlyFeatured } : s
+      )
+    );
+    setActionSheet(null);
+
     try {
       const token = await getAuthToken();
       await apiPatch(
@@ -243,9 +308,6 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         token,
       );
 
-      fetchSubmissions(false);
-      setActionSheet(null);
-
       Alert.alert(
         "Success",
         !currentlyFeatured
@@ -254,8 +316,70 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
       );
     } catch (error) {
       console.error("Error featuring submission:", error);
+      // Revert optimistic updates on failure
+      setFilterCounts((prev) => ({
+        ...prev,
+        featured: Math.max(0, (prev.featured ?? 0) + (currentlyFeatured ? 1 : -1)),
+      }));
+      setSubmissions((prev) =>
+        prev.map((s) =>
+          s.id === submissionId ? { ...s, is_featured: currentlyFeatured } : s
+        )
+      );
       Alert.alert("Error", "Failed to update featured status.");
     }
+  };
+
+  // Withdraw own submission (while challenge is still active)
+  const handleWithdraw = (submission, deleteSourcePost = false) => {
+    const isLinked = !!submission.source_post_id;
+    const title = deleteSourcePost
+      ? "Withdraw & Delete Post"
+      : "Withdraw Submission";
+    const message = deleteSourcePost
+      ? "Your submission will be removed from this challenge and your post will be deleted from your profile. You can re-submit before the challenge ends."
+      : isLinked
+        ? "Your submission will be removed from this challenge. Your post will stay on your profile — you can delete it there anytime. You can re-submit before the challenge ends."
+        : "Your submission will be removed from this challenge. You can re-submit before the challenge ends.";
+
+    Alert.alert(title, message, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Withdraw",
+        style: "destructive",
+        onPress: async () => {
+          // Optimistic: remove from list immediately
+          setSubmissions((prev) => prev.filter((s) => s.id !== submission.id));
+          setFilterCounts((prev) => ({
+            ...prev,
+            approved: Math.max(0, (prev.approved ?? 1) - 1),
+          }));
+          setActionSheet(null);
+
+          try {
+            const token = await getAuthToken();
+            await apiPatch(
+              `/challenge-submissions/${submission.id}/withdraw`,
+              { delete_source_post: deleteSourcePost },
+              10000,
+              token,
+            );
+            showToast(
+              "Submission withdrawn",
+              deleteSourcePost
+                ? "Your submission and post have been removed."
+                : "Your submission has been removed. You can re-submit before the challenge ends.",
+              "success",
+            );
+          } catch (error) {
+            console.error("Error withdrawing submission:", error);
+            // Revert optimistic removal
+            fetchSubmissions(false);
+            Alert.alert("Error", error?.message || "Failed to withdraw submission.");
+          }
+        },
+      },
+    ]);
   };
 
   const handleLike = async (submissionId, hasLiked) => {
@@ -286,6 +410,9 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         return prev;
       });
 
+      // Notify the challenge card teaser row instantly
+      EventBus.emit("submission-liked", { postId: post.id, liked: !hasLiked });
+
       if (hasLiked) {
         await apiDelete(
           `/challenge-submissions/${submissionId}/like`,
@@ -303,7 +430,19 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
       }
     } catch (error) {
       console.error("Error toggling like:", error);
-      fetchSubmissions(false);
+      // Revert optimistic updates on error
+      setSubmissions((prev) =>
+        prev.map((s) =>
+          s.id === submissionId
+            ? {
+                ...s,
+                like_count: hasLiked ? s.like_count + 1 : Math.max(0, s.like_count - 1),
+                has_liked: hasLiked,
+              }
+            : s,
+        ),
+      );
+      EventBus.emit("submission-liked", { postId: post.id, liked: hasLiked });
     }
   };
 
@@ -425,7 +564,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
   const renderSubmission = ({ item }) => {
     const normalizedPost = normalizeSubmissionToPost(item);
     return (
-      <View>
+      <View style={{ position: "relative" }}>
         <EditorialPostCard
           post={normalizedPost}
           currentUserId={currentUserId}
@@ -447,6 +586,30 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           onSave={null}
           onDelete={null}
         />
+
+        {/* ⋯ Options button — host sees it on all submissions; owners see it on their own */}
+        {(isHost || item.is_own_submission) && (
+          <TouchableOpacity
+            style={styles.submissionOptionsBtn}
+            onPress={() => setActionSheet({ submission: item })}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <View style={styles.submissionOptionsBtnInner}>
+              <MoreHorizontal size={18} color="#5B6B7C" />
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* Gap 3: source_post_deleted — warn own submitter their post was deleted */}
+        {item.is_own_submission && item.source_post_deleted && (
+          <View style={styles.sourceDeletedBanner}>
+            <Info size={14} color="#92400E" />
+            <Text style={styles.sourceDeletedBannerText}>
+              Your linked post was deleted, so this submission was also removed from the challenge.
+            </Text>
+          </View>
+        )}
+
         {/* Status badges */}
         {(item.is_featured || (item.is_own_submission && item.status !== "approved")) && (
           <View style={styles.submissionBadgeRow}>
@@ -607,6 +770,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
       {/* Filter (for submissions) */}
       {activeTab === "submissions" && (
         <View style={styles.filterRow}>
+          {/* All */}
           <TouchableOpacity
             style={[
               styles.filterPill,
@@ -630,10 +794,14 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
                 styles.innerBadgeText,
                 filter === "approved" && styles.innerBadgeTextActive
               ]}>
-                {filter === "approved" ? submissions.length : (post.submissions_count || 0)}
+                {filter === "approved"
+                  ? submissions.length
+                  : (filterCounts.approved ?? (post.submissions_count || 0))}
               </Text>
             </View>
           </TouchableOpacity>
+
+          {/* Featured */}
           <TouchableOpacity
             style={[
               styles.filterPill,
@@ -652,22 +820,22 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
                 style={[
                   styles.filterPillText,
                   filter === "featured" && styles.filterPillTextActive,
-                  { marginRight: 0 } // Reset margin since badge handles spacing
+                  { marginRight: 0 },
                 ]}
               >
                 Featured
               </Text>
             </View>
-            {/* Show badge for featured only when active since we only know count when filtered */}
-            {filter === "featured" && (
-              <View style={[styles.innerBadge, styles.innerBadgeActive]}>
-                <Text style={[styles.innerBadgeText, styles.innerBadgeTextActive]}>
-                  {submissions.length}
+            {filterCounts.featured !== null && (
+              <View style={[styles.innerBadge, filter === "featured" && styles.innerBadgeActive]}>
+                <Text style={[styles.innerBadgeText, filter === "featured" && styles.innerBadgeTextActive]}>
+                  {filter === "featured" ? submissions.length : filterCounts.featured}
                 </Text>
               </View>
             )}
           </TouchableOpacity>
-          {/* Pending filter pill — visible only to challenge host */}
+
+          {/* Pending — visible only to challenge host */}
           {isHost && (
             <TouchableOpacity
               style={[
@@ -686,16 +854,16 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
                   style={[
                     styles.filterPillText,
                     filter === "pending" && styles.filterPillTextActive,
-                    { marginRight: 0 }
+                    { marginRight: 0 },
                   ]}
                 >
                   Pending
                 </Text>
               </View>
-              {filter === "pending" && (
-                <View style={[styles.innerBadge, styles.innerBadgeActive]}>
-                  <Text style={[styles.innerBadgeText, styles.innerBadgeTextActive]}>
-                    {submissions.length}
+              {filterCounts.pending !== null && (
+                <View style={[styles.innerBadge, filter === "pending" && styles.innerBadgeActive]}>
+                  <Text style={[styles.innerBadgeText, filter === "pending" && styles.innerBadgeTextActive]}>
+                    {filter === "pending" ? submissions.length : filterCounts.pending}
                   </Text>
                 </View>
               )}
@@ -703,6 +871,44 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           )}
         </View>
       )}
+
+      {/* ── Gap 2: My Submission pinned status banner ── */}
+      {activeTab === "submissions" && (() => {
+        const mySubmission = submissions.find((s) => s.is_own_submission);
+        if (!mySubmission) return null;
+        const statusConfig = {
+          featured:  { icon: "star",    color: "#B8860B", bg: "#FFF8E1", border: "#FFD700", label: "Your submission is Featured ⭐" },
+          approved:  { icon: "check",   color: "#2E7D32", bg: "#F0FFF4", border: "#34C759", label: "Your submission is Approved" },
+          pending:   { icon: "clock",   color: "#B45309", bg: "#FFFBEB", border: "#FF9500", label: "Your submission is Pending review" },
+          withdrawn: { icon: "minus",   color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", label: "Your submission was Withdrawn" },
+          rejected:  { icon: "x",       color: "#DC2626", bg: "#FFF0F0", border: "#FF3B30", label: "Your submission was Not approved" },
+        };
+        const cfg = statusConfig[mySubmission.status] || statusConfig.pending;
+        return (
+          <TouchableOpacity
+            style={[styles.mySubmissionBanner, { backgroundColor: cfg.bg, borderColor: cfg.border }]}
+            onPress={() => {
+              // Scroll to or highlight their submission — for now navigate to it
+            }}
+            activeOpacity={0.85}
+          >
+            {mySubmission.status === "featured" ? (
+              <Star size={16} color={cfg.color} fill={cfg.color} />
+            ) : mySubmission.status === "approved" ? (
+              <CheckCircle2 size={16} color={cfg.color} />
+            ) : mySubmission.status === "rejected" ? (
+              <XCircle size={16} color={cfg.color} />
+            ) : mySubmission.status === "withdrawn" ? (
+              <MinusCircle size={16} color={cfg.color} />
+            ) : (
+              <Clock size={16} color={cfg.color} />
+            )}
+            <Text style={[styles.mySubmissionBannerText, { color: cfg.color }]}>
+              {cfg.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })()}
     </View>
   );
 
@@ -772,9 +978,19 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           {isHost && challengeEnded && (
             <TouchableOpacity
               style={styles.removalRequestsButton}
-              onPress={() => setShowRemovalRequests(true)}
+              onPress={() => {
+                setShowRemovalRequests(true);
+                setPendingRemovalCount(0); // clear badge when opened
+              }}
             >
-              <Mail size={20} color="#2962FF" />
+              <Mail size={20} color={pendingRemovalCount > 0 ? "#FF3B30" : "#2962FF"} />
+              {pendingRemovalCount > 0 && (
+                <View style={styles.mailBadge}>
+                  <Text style={styles.mailBadgeText}>
+                    {pendingRemovalCount > 9 ? "9+" : pendingRemovalCount}
+                  </Text>
+                </View>
+              )}
             </TouchableOpacity>
           )}
           {activeTab === "participants" && (
@@ -1015,31 +1231,85 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
                 </Text>
               </TouchableOpacity>
             )}
+            {/* ── ENDED CHALLENGE: Request Removal ── */}
             {challengeEnded && actionSheet?.submission?.is_own_submission && (
               <TouchableOpacity
                 style={styles.actionSheetButton}
                 onPress={() => handleRequestRemoval(actionSheet.submission)}
               >
                 <Trash2 size={20} color="#FF3B30" />
-                <Text
-                  style={[styles.actionSheetButtonText, { color: "#FF3B30" }]}
-                >
+                <Text style={[styles.actionSheetButtonText, { color: "#FF3B30" }]}>
                   Request Removal
                 </Text>
               </TouchableOpacity>
             )}
-            {!challengeEnded && actionSheet?.submission?.is_own_submission && (
-              <View style={styles.actionSheetInfoRow}>
-                <Info
-                  size={18}
-                  color="#999"
-                />
-                <Text style={styles.actionSheetInfoText}>
-                  Delete the original post to remove this submission while the
-                  challenge is active.
+
+            {/* ── ACTIVE CHALLENGE: Edit & Resubmit for rejected ── */}
+            {!challengeEnded &&
+              actionSheet?.submission?.is_own_submission &&
+              actionSheet?.submission?.status === "rejected" && (
+              <TouchableOpacity
+                style={styles.actionSheetButton}
+                onPress={() => {
+                  setActionSheet(null);
+                  navigation.navigate("ChallengeSubmit", {
+                    post,
+                    participation: null,
+                    prefillContent: actionSheet.submission.content || "",
+                    prefillMediaUrls: actionSheet.submission.media_urls || [],
+                    onSubmitSuccess: () => fetchSubmissions(false),
+                  });
+                }}
+              >
+                <Edit2 size={20} color="#2962FF" />
+                <Text style={[styles.actionSheetButtonText, { color: "#2962FF" }]}>
+                  Edit & Resubmit
                 </Text>
-              </View>
+              </TouchableOpacity>
             )}
+
+            {/* ── ACTIVE CHALLENGE: Withdraw options ── */}
+            {!challengeEnded && actionSheet?.submission?.is_own_submission && (
+              <>
+                {/* Divider */}
+                <View style={styles.actionSheetDivider} />
+
+                {/* Withdraw Submission — always visible for own submission */}
+                <TouchableOpacity
+                  style={styles.actionSheetButton}
+                  onPress={() => handleWithdraw(actionSheet.submission, false)}
+                >
+                  <MinusCircle size={20} color="#FF9500" />
+                  <Text style={[styles.actionSheetButtonText, { color: "#FF9500" }]}>
+                    Withdraw Submission
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Withdraw & Delete Post — only for linked (Method 2) submissions */}
+                {actionSheet?.submission?.source_post_id && (
+                  <TouchableOpacity
+                    style={styles.actionSheetButton}
+                    onPress={() => handleWithdraw(actionSheet.submission, true)}
+                  >
+                    <Trash2 size={20} color="#FF3B30" />
+                    <Text style={[styles.actionSheetButtonText, { color: "#FF3B30" }]}>
+                      Withdraw & Delete Post
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Hint for linked submissions: post stays unless explicitly deleted */}
+                {actionSheet?.submission?.source_post_id && (
+                  <View style={styles.actionSheetInfoRow}>
+                    <Info size={15} color="#9CA3AF" />
+                    <Text style={styles.actionSheetInfoText}>
+                      "Withdraw" removes from this challenge only. Your post stays on your profile until you delete it.
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+
             <TouchableOpacity
               style={[styles.actionSheetButton, styles.actionSheetCancel]}
               onPress={() => setActionSheet(null)}
@@ -1055,7 +1325,19 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         visible={showRemovalRequests}
         onClose={() => setShowRemovalRequests(false)}
         postId={post.id}
-        onRequestReviewed={() => fetchSubmissions(false)}
+        onRequestReviewed={() => {
+          fetchSubmissions(false);
+          setPendingRemovalCount((c) => Math.max(0, c - 1));
+        }}
+        onContactUser={(submissionLike) => {
+          // Open the existing DM sheet with the requester as recipient
+          setReplyDMState({
+            visible: true,
+            submission: submissionLike,
+            message: "",
+            sending: false,
+          });
+        }}
       />
 
       {/* Share Modal — passes the submission's parent post for share context */}
@@ -1085,6 +1367,8 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
               s.id === selectedSubmissionId ? { ...s, comment_count: count } : s
             )
           );
+          // Notify challenge card teaser row so it updates instantly
+          EventBus.emit("submission-comment-added", { postId: post.id, submissionId: selectedSubmissionId, count });
         }}
       />
 
@@ -1180,6 +1464,27 @@ const styles = StyleSheet.create({
   },
   removalRequestsButton: {
     padding: 4,
+    position: "relative",
+  },
+  mailBadge: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#FF3B30",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+  },
+  mailBadgeText: {
+    fontSize: 9,
+    fontFamily: "Manrope-Bold",
+    color: "#FFFFFF",
+    lineHeight: 11,
   },
   countBadge: {
     backgroundColor: "#2962FF15",
@@ -1770,6 +2075,52 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: COLORS.textSecondary,
   },
+  actionSheetDivider: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    marginVertical: 6,
+  },
+
+  // ── My Submission banner (Gap 2) ───────────────────────────────────────────────
+  mySubmissionBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  mySubmissionBannerText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 13,
+    flex: 1,
+  },
+
+  // ── Source post deleted banner (Gap 3) ───────────────────────────────────────
+  sourceDeletedBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    marginHorizontal: 16,
+    marginTop: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#FFF8ED",
+    borderWidth: 1,
+    borderColor: "#FCD34D",
+  },
+  sourceDeletedBannerText: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 12,
+    color: "#92400E",
+    flex: 1,
+    lineHeight: 17,
+  },
 
   // ── New inline badge styles ─────────────────────────────────────────────
   submissionBadgeRow: {
@@ -1790,6 +2141,25 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderWidth: 1,
     borderColor: "#FFD700",
+  },
+  submissionOptionsBtn: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    zIndex: 10,
+  },
+  submissionOptionsBtnInner: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 3,
   },
   featuredBadgeInlineText: {
     fontSize: 12,

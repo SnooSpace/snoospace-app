@@ -40,6 +40,7 @@ import {
   CheckCircle2,
   ChevronRight,
   MoveRight,
+  Clock,
 } from "lucide-react-native";
 import {
   apiPost,
@@ -111,6 +112,9 @@ const ChallengePostCard = ({
   const [userSubmissionCount, setUserSubmissionCount] = useState(
     post.user_submission_count || 0,
   );
+  const [userSubmissionStatus, setUserSubmissionStatus] = useState(
+    post.user_submission_status || null,
+  );
 
   // For Single Task: user has already submitted if they have >= 1 active submission
   const hasSubmittedSingle =
@@ -131,12 +135,14 @@ const ChallengePostCard = ({
     setParticipantCount(typeData.participant_count || 0);
     setPreviewSubmission(post.preview_submission || null);
     setUserSubmissionCount(post.user_submission_count || 0);
+    setUserSubmissionStatus(post.user_submission_status || null);
   }, [
     post.has_joined,
     post.user_participation,
     typeData.participant_count,
     post.preview_submission,
     post.user_submission_count,
+    post.user_submission_status,
   ]);
 
   // Engagement State
@@ -169,6 +175,39 @@ const ChallengePostCard = ({
       }
     };
     loadSubmissionStats();
+  }, [post.id]);
+
+  // ── Live teaser counters — react to like/comment events from submissions screen ──
+  useEffect(() => {
+    // A comment was added to a submission belonging to this challenge
+    const unsubComment = EventBus.on("submission-comment-added", (payload) => {
+      if (payload?.postId !== post.id) return;
+      setSubmissionStats((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          total_submission_comments: (prev.total_submission_comments || 0) + 1,
+        };
+      });
+    });
+
+    // A submission was liked/unliked inside this challenge
+    const unsubLike = EventBus.on("submission-liked", (payload) => {
+      if (payload?.postId !== post.id) return;
+      setSubmissionStats((prev) => {
+        if (!prev) return prev;
+        const delta = payload.liked ? 1 : -1;
+        return {
+          ...prev,
+          total_submission_likes: Math.max(0, (prev.total_submission_likes || 0) + delta),
+        };
+      });
+    });
+
+    return () => {
+      if (unsubComment) unsubComment();
+      if (unsubLike) unsubLike();
+    };
   }, [post.id]);
 
   // ── View Tracking ──────────────────────────────────────────────────────────
@@ -377,32 +416,60 @@ const ChallengePostCard = ({
   const handleJoinChallenge = async () => {
     if (isJoining || isExpired) return;
 
+    if (hasJoined) {
+      // Warn if user has active submissions — leaving cascades deletes them
+      if (userSubmissionCount > 0) {
+        Alert.alert(
+          "Leave Challenge?",
+          `You have ${userSubmissionCount} submission${userSubmissionCount > 1 ? "s" : ""} in this challenge. Leaving will permanently delete ${userSubmissionCount > 1 ? "them" : "it"} and cannot be undone.`,
+          [
+            { text: "Stay", style: "cancel" },
+            {
+              text: "Leave & Delete",
+              style: "destructive",
+              onPress: () => performLeave(),
+            },
+          ],
+        );
+        return;
+      }
+      performLeave();
+      return;
+    }
+
+    // Join
     setIsJoining(true);
     try {
       const token = await getAuthToken();
-
-      if (hasJoined) {
-        // Leave challenge
-        await apiDelete(`/posts/${post.id}/join`, {}, 10000, token);
-        setHasJoined(false);
-        setUserParticipation(null);
-        setParticipantCount((prev) => Math.max(0, prev - 1));
-      } else {
-        // Join challenge
-        const response = await apiPost(
-          `/posts/${post.id}/join`,
-          {},
-          10000,
-          token,
-        );
-        if (response.success) {
-          setHasJoined(true);
-          setUserParticipation(response.participation);
-          setParticipantCount((prev) => prev + 1);
-        }
+      const response = await apiPost(
+        `/posts/${post.id}/join`,
+        {},
+        10000,
+        token,
+      );
+      if (response.success) {
+        setHasJoined(true);
+        setUserParticipation(response.participation);
+        setParticipantCount((prev) => prev + 1);
       }
     } catch (error) {
-      console.error("Error joining/leaving challenge:", error);
+      console.error("Error joining challenge:", error);
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const performLeave = async () => {
+    setIsJoining(true);
+    try {
+      const token = await getAuthToken();
+      await apiDelete(`/posts/${post.id}/join`, {}, 10000, token);
+      setHasJoined(false);
+      setUserParticipation(null);
+      setUserSubmissionCount(0);
+      setParticipantCount((prev) => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error("Error leaving challenge:", error);
     } finally {
       setIsJoining(false);
     }
@@ -641,16 +708,18 @@ const ChallengePostCard = ({
               onPress={() => setShowMenu(false)}
             >
               <View style={[styles.menuContainerModal, { top: menuPosition.y, right: menuPosition.x }]}>
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setShowMenu(false);
-                    setShowEditModal(true);
-                  }}
-                >
-                  <Edit2 size={18} color="#1D1D1F" />
-                  <Text style={styles.menuItemText}>Edit Post</Text>
-                </TouchableOpacity>
+                {!isExpired && (
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setShowMenu(false);
+                      setShowEditModal(true);
+                    }}
+                  >
+                    <Edit2 size={18} color="#1D1D1F" />
+                    <Text style={styles.menuItemText}>Edit Post</Text>
+                  </TouchableOpacity>
+                )}
 
                 {(onDelete || isOwnPost) && (
                   <TouchableOpacity
@@ -726,18 +795,32 @@ const ChallengePostCard = ({
           hasJoined ? (
             <View style={styles.joinedButtonsRow}>
               {hasSubmittedSingle ? (
-                // ── Single Task: already submitted ──────────────────────────────
-                <View style={styles.submittedBadge}>
-                  <CheckCircle2
-                    size={18}
-                    color="#34C759"
-                    strokeWidth={2.5}
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text style={styles.submittedBadgeText}>
-                    Submitted — awaiting review
+                // ── Single Task: already submitted — show dynamic status ────────
+                <TouchableOpacity
+                  style={styles.submittedBadge}
+                  onPress={() => navigation.navigate("ChallengeSubmissions", { post })}
+                  activeOpacity={0.8}
+                >
+                  {userSubmissionStatus === "featured" ? (
+                    <Star size={16} color="#FFD700" fill="#FFD700" style={{ marginRight: 6 }} />
+                  ) : userSubmissionStatus === "approved" ? (
+                    <CheckCircle2 size={16} color="#34C759" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                  ) : (
+                    <Clock size={16} color="#FF9500" strokeWidth={2} style={{ marginRight: 6 }} />
+                  )}
+                  <Text style={[
+                    styles.submittedBadgeText,
+                    userSubmissionStatus === "featured" && { color: "#B8860B" },
+                    userSubmissionStatus === "approved" && { color: "#2E7D32" },
+                    userSubmissionStatus === "pending" && { color: "#FF9500" },
+                  ]}>
+                    {userSubmissionStatus === "featured"
+                      ? "Submission Featured ⭐"
+                      : userSubmissionStatus === "approved"
+                        ? "Submitted · Approved"
+                        : "Submitted · Pending Review"}
                   </Text>
-                </View>
+                </TouchableOpacity>
               ) : (
                 // ── Normal submit button ────────────────────────────────────────
                 <TouchableOpacity

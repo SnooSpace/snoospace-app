@@ -643,6 +643,18 @@ const getSubmissions = async (req, res) => {
         ADD COLUMN IF NOT EXISTS share_count INT NOT NULL DEFAULT 0
     `);
 
+    // Ensure unique-viewer tracking table exists (idempotent)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS challenge_submission_views (
+        id            BIGSERIAL PRIMARY KEY,
+        submission_id BIGINT NOT NULL REFERENCES challenge_submissions(id) ON DELETE CASCADE,
+        viewer_id     BIGINT NOT NULL,
+        viewer_type   TEXT   NOT NULL,
+        viewed_at     TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(submission_id, viewer_id, viewer_type)
+      )
+    `);
+
     const result = await pool.query(
       `SELECT 
         cs.id,
@@ -657,6 +669,8 @@ const getSubmissions = async (req, res) => {
         cs.created_at,
         COALESCE(cs.view_count, 0)  AS view_count,
         COALESCE(cs.share_count, 0) AS share_count,
+        (SELECT COUNT(*) FROM challenge_submission_views csv
+         WHERE csv.submission_id = cs.id) AS unique_view_count,
         cp.participant_id,
         cp.participant_type,
         CASE 
@@ -868,6 +882,102 @@ const markComplete = async (req, res) => {
     });
   } catch (error) {
     console.error("[Challenge] Error marking complete:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// =============================================================================
+// WITHDRAWAL
+// =============================================================================
+
+/**
+ * Withdraw own submission (active challenge only)
+ * PATCH /challenge-submissions/:id/withdraw
+ *
+ * Body: { delete_source_post?: boolean }
+ *
+ * - Owner can withdraw while challenge is still active
+ * - Sets status = 'withdrawn' (hidden from all listings, slot freed for re-submit)
+ * - If delete_source_post = true AND a source post exists, deletes it from posts
+ * - After challenge ends, users must use request-removal instead
+ */
+const withdrawSubmission = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { delete_source_post = false } = req.body;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Fetch submission + linked post info + challenge expiry
+    const submissionResult = await pool.query(
+      `SELECT
+         cs.id,
+         cs.status,
+         cs.post_id,
+         cs.participant_id,
+         cp.participant_id   AS owner_id,
+         cp.participant_type AS owner_type,
+         p.expires_at,
+         css.source_post_id
+       FROM challenge_submissions cs
+       JOIN challenge_participations cp ON cs.participant_id = cp.id
+       JOIN posts p ON cs.post_id = p.id
+       LEFT JOIN challenge_submission_sources css ON css.submission_id = cs.id
+       WHERE cs.id = $1`,
+      [id],
+    );
+
+    if (submissionResult.rows.length === 0) {
+      return res.status(404).json({ error: "Submission not found" });
+    }
+
+    const sub = submissionResult.rows[0];
+
+    // Ownership check
+    if (sub.owner_id !== userId || sub.owner_type !== userType) {
+      return res.status(403).json({ error: "You can only withdraw your own submission" });
+    }
+
+    // Only allowed while challenge is active
+    if (sub.expires_at && new Date(sub.expires_at) < new Date()) {
+      return res.status(400).json({
+        error: "The challenge has ended. Use 'Request Removal' instead.",
+      });
+    }
+
+    // Already withdrawn
+    if (sub.status === "withdrawn") {
+      return res.status(400).json({ error: "Submission is already withdrawn" });
+    }
+
+    // Mark as withdrawn
+    await pool.query(
+      `UPDATE challenge_submissions SET status = 'withdrawn', updated_at = NOW() WHERE id = $1`,
+      [id],
+    );
+
+    // If user also wants to delete the linked post
+    if (delete_source_post && sub.source_post_id) {
+      await pool.query(`DELETE FROM posts WHERE id = $1`, [sub.source_post_id]);
+    }
+
+    console.log(
+      `[Challenge] Submission ${id} withdrawn by ${userType}:${userId}` +
+        (delete_source_post && sub.source_post_id ? " (source post deleted)" : ""),
+    );
+
+    res.json({
+      success: true,
+      withdrawn: true,
+      source_post_deleted: !!(delete_source_post && sub.source_post_id),
+      can_resubmit: true,
+    });
+  } catch (error) {
+    console.error("[Challenge] Error withdrawing submission:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -1984,19 +2094,42 @@ const getSubmissionStats = async (req, res) => {
 
 /**
  * POST /challenge-submissions/:id/view
- * Increments view_count on the individual submission row.
- * Adds view_count column if it doesn't exist yet (safe migration).
+ * Tracks unique viewers in challenge_submission_views and increments
+ * the total view_count counter on every call.
  */
 const recordSubmissionView = async (req, res) => {
   try {
     const { id } = req.params;
+    const viewerId   = req.user?.id;
+    const viewerType = req.user?.type;
 
-    // Safe migration: add column if absent
+    // Safe migration: ensure columns & unique-view table exist
     await pool.query(
       `ALTER TABLE challenge_submissions
          ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0`,
     );
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS challenge_submission_views (
+        id            BIGSERIAL PRIMARY KEY,
+        submission_id BIGINT NOT NULL REFERENCES challenge_submissions(id) ON DELETE CASCADE,
+        viewer_id     BIGINT NOT NULL,
+        viewer_type   TEXT   NOT NULL,
+        viewed_at     TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(submission_id, viewer_id, viewer_type)
+      )
+    `);
 
+    // Record unique viewer (silently skip if already recorded)
+    if (viewerId && viewerType) {
+      await pool.query(
+        `INSERT INTO challenge_submission_views (submission_id, viewer_id, viewer_type)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (submission_id, viewer_id, viewer_type) DO NOTHING`,
+        [id, viewerId, viewerType],
+      );
+    }
+
+    // Always increment total impressions
     await pool.query(
       `UPDATE challenge_submissions SET view_count = view_count + 1 WHERE id = $1`,
       [id],
@@ -2055,6 +2188,7 @@ module.exports = {
   getSubmissionStatus,
   updateProgress,
   markComplete,
+  withdrawSubmission,
   moderateSubmission,
   featureSubmission,
   highlightParticipant,

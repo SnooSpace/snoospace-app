@@ -26,6 +26,7 @@ import {
   MessageCircle,
 } from "lucide-react-native";
 import CustomDatePicker from "../ui/CustomDatePicker";
+import CustomTimePicker from "../ui/CustomTimePicker";
 import {
   COLORS,
   SPACING,
@@ -51,6 +52,7 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
   const [hasExpiry, setHasExpiry] = useState(false);
   const [expiresAt, setExpiresAt] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   // Animation values
   const stepperScale = useRef(new Animated.Value(1)).current;
@@ -110,7 +112,7 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
     if (val && !expiresAt) {
       const defaultExpiry = new Date();
       defaultExpiry.setDate(defaultExpiry.getDate() + 1);
-      defaultExpiry.setHours(20, 0, 0, 0); // Default to 8 PM next day
+      defaultExpiry.setHours(23, 59, 0, 0); // end of day — user can change in picker
       setExpiresAt(defaultExpiry);
     }
   };
@@ -263,19 +265,33 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
         {/* Dynamic Deadline Expansion */}
         {hasExpiry && (
           <View style={styles.deadlineExpand}>
-            <TouchableOpacity
-              style={styles.datePreviewCard}
-              onPress={() => setShowDatePicker(true)}
-              activeOpacity={0.8}
-            >
-              <View>
-                <Text style={styles.dateLabel}>Ends on</Text>
-                <Text style={styles.dateValue}>
-                  {formatExpiryDate(expiresAt)} · {formatExpiryTime(expiresAt)}
-                </Text>
-              </View>
-              <Pencil size={16} color={COLORS.primary} strokeWidth={2.5} />
-            </TouchableOpacity>
+            <View style={styles.deadlineChips}>
+              {/* Date chip */}
+              <TouchableOpacity
+                style={styles.deadlineChip}
+                onPress={() => setShowDatePicker(true)}
+                activeOpacity={0.8}
+              >
+                <View>
+                  <Text style={styles.dateLabel}>Date</Text>
+                  <Text style={styles.dateValue}>{formatExpiryDate(expiresAt)}</Text>
+                </View>
+                <Pencil size={14} color={COLORS.primary} strokeWidth={2.5} />
+              </TouchableOpacity>
+
+              {/* Time chip */}
+              <TouchableOpacity
+                style={styles.deadlineChip}
+                onPress={() => setShowTimePicker(true)}
+                activeOpacity={0.8}
+              >
+                <View>
+                  <Text style={styles.dateLabel}>Time</Text>
+                  <Text style={styles.dateValue}>{formatExpiryTime(expiresAt)}</Text>
+                </View>
+                <Pencil size={14} color={COLORS.primary} strokeWidth={2.5} />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </View>
@@ -288,13 +304,23 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
         onConfirm={({ startDate }) => {
           setShowDatePicker(false);
           if (startDate) {
-            const date = new Date(startDate);
-            date.setHours(20, 0, 0, 0);
-            setExpiresAt(date);
+            const d = new Date(startDate);
+            if (expiresAt) {
+              d.setHours(expiresAt.getHours(), expiresAt.getMinutes(), 0, 0);
+            } else {
+              d.setHours(23, 59, 0, 0);
+            }
+            setExpiresAt(d);
           }
         }}
         minDate={new Date()}
         singleMode={true}
+      />
+      <CustomTimePicker
+        visible={showTimePicker}
+        onClose={() => setShowTimePicker(false)}
+        time={expiresAt || new Date()}
+        onChange={(newTime) => setExpiresAt(newTime)}
       />
     </ScrollView>
   );
@@ -454,11 +480,15 @@ const styles = StyleSheet.create({
     color: "#6B7280", // #6B7280
   },
   deadlineExpand: {
-    marginTop: -8, // Pull closer to toggle
+    marginTop: -8,
     marginBottom: 8,
-    paddingLeft: 32, // Indent to align with text
   },
-  datePreviewCard: {
+  deadlineChips: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  deadlineChip: {
+    flex: 1,
     backgroundColor: "#F8F9FB",
     borderRadius: 16,
     padding: 14,

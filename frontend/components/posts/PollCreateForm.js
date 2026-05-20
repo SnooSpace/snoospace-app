@@ -17,7 +17,8 @@ import {
   UIManager,
 } from "react-native";
 import CustomDatePicker from "../ui/CustomDatePicker";
-import { Trash2, Plus, Calendar, Clock, BarChart2 } from "lucide-react-native";
+import CustomTimePicker from "../ui/CustomTimePicker";
+import { Trash2, Plus, Calendar, Clock, BarChart2, Pencil } from "lucide-react-native";
 import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
 
 // Enable LayoutAnimation
@@ -39,14 +40,18 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
   ]);
   const [allowMultiple, setAllowMultiple] = useState(false);
   const [showResultsBeforeVote, setShowResultsBeforeVote] = useState(false);
+  const [hasExpiry, setHasExpiry] = useState(false);
   const [expiresAt, setExpiresAt] = useState(null);
-  const [showDatePicker, setShowDatePicker] = useState(false); // FIX: was referenced but never declared
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [focusedOptionIndex, setFocusedOptionIndex] = useState(null);
   // Refs for each option TextInput — used for explicit programmatic focus
   const optionInputRefs = useRef([]);
 
   // Notify parent of data changes
   const updateData = (updates) => {
+    const isExpiryActive = updates.hasExpiry !== undefined ? updates.hasExpiry : hasExpiry;
+    const currentExpiry = updates.expiresAt !== undefined ? updates.expiresAt : expiresAt;
     const newData = {
       question: updates.question !== undefined ? updates.question : question,
       options:
@@ -61,8 +66,7 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
         updates.showResultsBeforeVote !== undefined
           ? updates.showResultsBeforeVote
           : showResultsBeforeVote,
-      expires_at:
-        updates.expiresAt !== undefined ? updates.expiresAt : expiresAt,
+      expires_at: isExpiryActive && currentExpiry ? (currentExpiry instanceof Date ? currentExpiry.toISOString() : currentExpiry) : null,
     };
     onDataChange?.(newData);
   };
@@ -111,14 +115,37 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
     }
   };
 
+  const toggleExpiry = (val) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setHasExpiry(val);
+    let newExpiry = expiresAt;
+    if (val && !expiresAt) {
+      newExpiry = new Date();
+      newExpiry.setDate(newExpiry.getDate() + 1);
+      newExpiry.setHours(23, 59, 0, 0); // 11:59 PM next day
+      setExpiresAt(newExpiry);
+    }
+    updateData({ hasExpiry: val, expiresAt: newExpiry });
+  };
+
   const handleDateConfirm = ({ startDate }) => {
     setShowDatePicker(false);
     if (startDate) {
-      const date = new Date(startDate);
-      date.setHours(23, 59, 59, 999);
-      setExpiresAt(date);
-      updateData({ expiresAt: date.toISOString() });
+      // Preserve existing time on new date
+      const d = new Date(startDate);
+      if (expiresAt) {
+        d.setHours(expiresAt.getHours(), expiresAt.getMinutes(), 0, 0);
+      } else {
+        d.setHours(23, 59, 0, 0);
+      }
+      setExpiresAt(d);
+      updateData({ expiresAt: d });
     }
+  };
+
+  const handleTimeChange = (newTime) => {
+    setExpiresAt(newTime);
+    updateData({ expiresAt: newTime });
   };
 
   return (
@@ -261,30 +288,70 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>Poll Expiry</Text>
         </View>
-        <TouchableOpacity
-          style={[styles.expiryButton, disabled && { opacity: 0.5 }]}
-          onPress={() => !disabled && setShowDatePicker(true)}
-          activeOpacity={0.7}
-        >
-          <Calendar size={18} color={COLORS.primary} strokeWidth={2} style={{ marginRight: 10 }} />
-          <Text style={styles.expiryButtonText}>
-            {expiresAt
-              ? `Ends ${new Date(expiresAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}`
-              : "Set an end date (optional)"}
-          </Text>
-          {expiresAt && (
-            <TouchableOpacity
-              onPress={() => {
-                setExpiresAt(null);
-                updateData({ expiresAt: null });
-              }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={{ marginLeft: "auto" }}
-            >
-              <Clock size={16} color="#9CA3AF" strokeWidth={2} />
-            </TouchableOpacity>
-          )}
-        </TouchableOpacity>
+
+        <View style={[styles.settingRow, { borderBottomWidth: 0, marginBottom: hasExpiry ? 16 : 0 }]}>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Set deadline</Text>
+            <Text style={styles.settingSubLabel}>
+              Poll ends at a specific time
+            </Text>
+          </View>
+          <Switch
+            trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
+            thumbColor={"#FFFFFF"}
+            ios_backgroundColor="#E5E7EB"
+            onValueChange={toggleExpiry}
+            value={hasExpiry}
+            disabled={disabled}
+          />
+        </View>
+
+        {hasExpiry && (
+          <View style={styles.expiryExpand}>
+            <View style={styles.expiryChips}>
+              {/* Date chip */}
+              <TouchableOpacity
+                style={styles.expiryChip}
+                onPress={() => !disabled && setShowDatePicker(true)}
+                activeOpacity={0.8}
+              >
+                <View>
+                  <Text style={styles.expiryChipLabel}>Date</Text>
+                  <Text style={styles.expiryChipValue}>
+                    {expiresAt
+                      ? new Date(expiresAt).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })
+                      : ""}
+                  </Text>
+                </View>
+                <Pencil size={12} color={COLORS.primary} strokeWidth={2.5} />
+              </TouchableOpacity>
+
+              {/* Time chip */}
+              <TouchableOpacity
+                style={styles.expiryChip}
+                onPress={() => !disabled && setShowTimePicker(true)}
+                activeOpacity={0.8}
+              >
+                <View>
+                  <Text style={styles.expiryChipLabel}>Time</Text>
+                  <Text style={styles.expiryChipValue}>
+                    {expiresAt
+                      ? new Date(expiresAt).toLocaleTimeString("en-IN", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })
+                      : ""}
+                  </Text>
+                </View>
+                <Pencil size={12} color={COLORS.primary} strokeWidth={2.5} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         <CustomDatePicker
           visible={showDatePicker}
@@ -293,6 +360,12 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
           onConfirm={handleDateConfirm}
           minDate={new Date()}
           singleMode={true}
+        />
+        <CustomTimePicker
+          visible={showTimePicker}
+          onClose={() => setShowTimePicker(false)}
+          time={expiresAt || new Date()}
+          onChange={handleTimeChange}
         />
       </View>
     </View>
@@ -451,6 +524,42 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-Medium",
     fontSize: 15,
     color: COLORS.textPrimary,
+  },
+  expiryExpand: {
+    marginTop: 0,
+    marginBottom: 8,
+  },
+  expiryChips: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  expiryChip: {
+    flex: 1,
+    backgroundColor: "#F8F9FB",
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  expiryChipLabel: {
+    fontSize: 11,
+    fontFamily: "Manrope-Medium",
+    color: "#9CA3AF",
+    textTransform: "uppercase",
+    marginBottom: 3,
+  },
+  expiryChipValue: {
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.textPrimary,
+  },
+  expiryClear: {
+    padding: 8,
+    marginLeft: 4,
   },
 });
 

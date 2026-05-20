@@ -34,6 +34,7 @@ import {
   Images,
 } from "lucide-react-native";
 import CustomDatePicker from "../ui/CustomDatePicker";
+import CustomTimePicker from "../ui/CustomTimePicker";
 import {
   COLORS,
   SPACING,
@@ -90,6 +91,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
   const [hasDeadline, setHasDeadline] = useState(false);
   const [deadline, setDeadline] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -189,10 +191,10 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setHasDeadline(val);
     if (val && !deadline) {
-      const defaultDeadline = new Date();
-      defaultDeadline.setDate(defaultDeadline.getDate() + 7);
-      defaultDeadline.setHours(20, 0, 0, 0);
-      setDeadline(defaultDeadline);
+      const d = new Date();
+      d.setDate(d.getDate() + 7);
+      d.setHours(23, 59, 0, 0);
+      setDeadline(d);
     }
   };
 
@@ -229,7 +231,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
             value={title}
             onChangeText={setTitle}
             maxLength={100}
-            selectionColor="#FF9500"
+            selectionColor={COLORS.primary}
             multiline
           />
           <Text style={styles.charCount}>{title.length}/100</Text>
@@ -245,7 +247,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
             onChangeText={setDescription}
             multiline
             maxLength={500}
-            selectionColor="#FF9500"
+            selectionColor={COLORS.primary}
           />
           <Text style={styles.helperText}>
             Tell participants what success looks like.
@@ -271,7 +273,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
               >
                 <type.icon
                   size={20}
-                  color={isSelected ? "#FF9500" : COLORS.textSecondary}
+                  color={isSelected ? COLORS.primary : COLORS.textSecondary}
                   strokeWidth={2.5}
                 />
                 <Text
@@ -312,7 +314,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
               >
                 <type.icon
                   size={22}
-                  color={isSelected ? "#FF9500" : COLORS.textSecondary}
+                  color={isSelected ? COLORS.primary : COLORS.textSecondary}
                   strokeWidth={2.5}
                 />
                 <Text
@@ -470,7 +472,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
           <Switch
             value={requireApproval}
             onValueChange={setRequireApproval}
-            trackColor={{ false: "#E5E7EB", true: "#FF9500" }}
+            trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
             thumbColor={"#FFFFFF"}
             ios_backgroundColor="#E5E7EB"
           />
@@ -494,7 +496,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
           <Switch
             value={showProofsImmediately}
             onValueChange={setShowProofsImmediately}
-            trackColor={{ false: "#E5E7EB", true: "#FF9500" }}
+            trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
             thumbColor={"#FFFFFF"}
             ios_backgroundColor="#E5E7EB"
           />
@@ -516,7 +518,7 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
           <Switch
             value={hasDeadline}
             onValueChange={toggleDeadline}
-            trackColor={{ false: "#E5E7EB", true: "#FF9500" }}
+            trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
             thumbColor={"#FFFFFF"}
             ios_backgroundColor="#E5E7EB"
           />
@@ -525,19 +527,33 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
         {/* Dynamic Deadline Expansion */}
         {hasDeadline && (
           <View style={styles.deadlineExpand}>
-            <TouchableOpacity
-              style={styles.datePreviewCard}
-              onPress={() => setShowDatePicker(true)}
-              activeOpacity={0.8}
-            >
-              <View>
-                <Text style={styles.dateLabel}>Ends on</Text>
-                <Text style={styles.dateValue}>
-                  {formatDeadline(deadline)} · {formatDeadlineTime(deadline)}
-                </Text>
-              </View>
-              <Pencil size={16} color="#FF9500" strokeWidth={2.5} />
-            </TouchableOpacity>
+            <View style={styles.deadlineChips}>
+              {/* Date chip */}
+              <TouchableOpacity
+                style={styles.deadlineChip}
+                onPress={() => setShowDatePicker(true)}
+                activeOpacity={0.8}
+              >
+                <View>
+                  <Text style={styles.dateLabel}>Date</Text>
+                  <Text style={styles.dateValue}>{formatDeadline(deadline)}</Text>
+                </View>
+                <Pencil size={14} color={COLORS.primary} strokeWidth={2.5} />
+              </TouchableOpacity>
+
+              {/* Time chip */}
+              <TouchableOpacity
+                style={styles.deadlineChip}
+                onPress={() => setShowTimePicker(true)}
+                activeOpacity={0.8}
+              >
+                <View>
+                  <Text style={styles.dateLabel}>Time</Text>
+                  <Text style={styles.dateValue}>{formatDeadlineTime(deadline)}</Text>
+                </View>
+                <Pencil size={14} color={COLORS.primary} strokeWidth={2.5} />
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </View>
@@ -550,13 +566,24 @@ const ChallengeCreateForm = ({ onSubmit, isSubmitting }) => {
         onConfirm={({ startDate }) => {
           setShowDatePicker(false);
           if (startDate) {
-            const date = new Date(startDate);
-            date.setHours(20, 0, 0, 0);
-            setDeadline(date);
+            // Preserve the existing time on the new date
+            const d = new Date(startDate);
+            if (deadline) {
+              d.setHours(deadline.getHours(), deadline.getMinutes(), 0, 0);
+            } else {
+              d.setHours(23, 59, 0, 0);
+            }
+            setDeadline(d);
           }
         }}
         minDate={new Date()}
         singleMode={true}
+      />
+      <CustomTimePicker
+        visible={showTimePicker}
+        onClose={() => setShowTimePicker(false)}
+        time={deadline || new Date()}
+        onChange={(newTime) => setDeadline(newTime)}
       />
     </ScrollView>
   );
@@ -663,9 +690,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   featureCardSelected: {
-    backgroundColor: "#FFF8F0", // Very light orange
+    backgroundColor: "#F0F6FF", // Very light blue
     borderWidth: 1,
-    borderColor: "#FF9500",
+    borderColor: COLORS.primary,
   },
   featureCardTitle: {
     fontSize: 13,
@@ -674,7 +701,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   featureCardTitleSelected: {
-    color: "#FF9500",
+    color: COLORS.primary,
   },
   featureCardSubtitle: {
     fontSize: 10,
@@ -696,9 +723,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   miniFeatureCardSelected: {
-    backgroundColor: "#FFF8F0",
+    backgroundColor: "#F0F6FF",
     borderWidth: 1,
-    borderColor: "#FF9500",
+    borderColor: COLORS.primary,
   },
   miniFeatureCardTitle: {
     fontSize: 13,
@@ -706,7 +733,7 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   miniFeatureCardTitleSelected: {
-    color: "#FF9500",
+    color: COLORS.primary,
   },
   settingsCard: {
     backgroundColor: "#FFFFFF",
@@ -815,9 +842,13 @@ const styles = StyleSheet.create({
   deadlineExpand: {
     marginTop: -8,
     marginBottom: 8,
-    paddingLeft: 32,
   },
-  datePreviewCard: {
+  deadlineChips: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  deadlineChip: {
+    flex: 1,
     backgroundColor: "#F8F9FB",
     borderRadius: 16,
     padding: 14,
@@ -828,7 +859,7 @@ const styles = StyleSheet.create({
   dateLabel: {
     fontSize: 11,
     fontFamily: "Manrope-Medium",
-    color: "#9CA3AF", // Light grey
+    color: "#9CA3AF",
     marginBottom: 2,
     textTransform: "uppercase",
   },

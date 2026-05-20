@@ -449,16 +449,18 @@ const PollPostCard = ({
               onPress={() => setShowMenu(false)}
             >
               <View style={[styles.menuContainerModal, { top: menuPosition.y, right: menuPosition.x }]}>
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    setShowMenu(false);
-                    setShowEditModal(true);
-                  }}
-                >
-                  <Ionicons name="create-outline" size={18} color="#1D1D1F" />
-                  <Text style={styles.menuItemText}>Edit Post</Text>
-                </TouchableOpacity>
+                {!isExpired && (
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setShowMenu(false);
+                      setShowEditModal(true);
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={18} color="#1D1D1F" />
+                    <Text style={styles.menuItemText}>Edit Post</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={styles.menuItem}
                   onPress={() => {

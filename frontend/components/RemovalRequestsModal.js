@@ -4,8 +4,24 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, Modal, TouchableOpacity, StyleSheet, FlatList, Image, Alert } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  View,
+  Text,
+  Modal,
+  TouchableOpacity,
+  StyleSheet,
+  FlatList,
+  Image,
+  Alert,
+} from "react-native";
+import {
+  X,
+  CheckCircle,
+  XCircle,
+  User,
+  MessageCircle,
+  CheckCircle2,
+} from "lucide-react-native";
 import { apiGet, apiPatch } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import { COLORS, SPACING, FONTS } from "../constants/theme";
@@ -16,6 +32,7 @@ const RemovalRequestsModal = ({
   onClose,
   postId,
   onRequestReviewed,
+  onContactUser, // (submissionLike) => void — opens DM sheet in parent
 }) => {
   const [requests, setRequests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -70,7 +87,6 @@ const RemovalRequestsModal = ({
                 15000,
                 token,
               );
-              // Remove from list
               setRequests((prev) => prev.filter((r) => r.id !== requestId));
               if (onRequestReviewed) {
                 onRequestReviewed(requestId, status);
@@ -94,7 +110,7 @@ const RemovalRequestsModal = ({
 
     return (
       <View style={styles.requestCard}>
-        {/* Requester Info */}
+        {/* Requester Info row */}
         <View style={styles.requesterRow}>
           {item.requester_photo ? (
             <Image
@@ -103,9 +119,10 @@ const RemovalRequestsModal = ({
             />
           ) : (
             <View style={[styles.requesterAvatar, styles.avatarPlaceholder]}>
-              <Ionicons name="person" size={18} color="#999" />
+              <User size={18} color="#999" />
             </View>
           )}
+
           <View style={styles.requesterInfo}>
             <Text style={styles.requesterName}>
               {item.requester_name || "User"}
@@ -114,10 +131,32 @@ const RemovalRequestsModal = ({
               {new Date(item.created_at).toLocaleDateString()}
             </Text>
           </View>
+
+          {/* Contact User — opens DM sheet */}
+          {onContactUser && (
+            <TouchableOpacity
+              style={styles.contactButton}
+              onPress={() => {
+                onClose(); // close modal first so DM sheet can open behind
+                onContactUser({
+                  participant_id: item.requester_id,
+                  participant_type: item.requester_type,
+                  participant_name: item.requester_name || "User",
+                  participant_photo_url: item.requester_photo || null,
+                });
+              }}
+              activeOpacity={0.7}
+            >
+              <MessageCircle size={15} color="#2962FF" />
+              <Text style={styles.contactButtonText}>Message</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Reason */}
-        {item.reason && <Text style={styles.reasonText}>"{item.reason}"</Text>}
+        {item.reason && (
+          <Text style={styles.reasonText}>"{item.reason}"</Text>
+        )}
 
         {/* Submission Preview */}
         <View style={styles.submissionPreview}>
@@ -145,8 +184,10 @@ const RemovalRequestsModal = ({
               <SnooLoader size="small" color="#FF3B30" />
             ) : (
               <>
-                <Ionicons name="close" size={18} color="#FF3B30" />
-                <Text style={[styles.rejectButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Reject</Text>
+                <XCircle size={18} color="#FF3B30" />
+                <Text style={[styles.rejectButtonText, { fontFamily: "Manrope-SemiBold" }]}>
+                  Reject
+                </Text>
               </>
             )}
           </TouchableOpacity>
@@ -159,8 +200,10 @@ const RemovalRequestsModal = ({
               <SnooLoader size="small" color="#FFFFFF" />
             ) : (
               <>
-                <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                <Text style={[styles.approveButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Approve</Text>
+                <CheckCircle2 size={18} color="#FFFFFF" />
+                <Text style={[styles.approveButtonText, { fontFamily: "Manrope-SemiBold" }]}>
+                  Approve
+                </Text>
               </>
             )}
           </TouchableOpacity>
@@ -171,7 +214,7 @@ const RemovalRequestsModal = ({
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="checkmark-circle-outline" size={48} color="#34C759" />
+      <CheckCircle size={48} color="#34C759" />
       <Text style={styles.emptyTitle}>All caught up!</Text>
       <Text style={styles.emptySubtitle}>No pending removal requests</Text>
     </View>
@@ -192,7 +235,7 @@ const RemovalRequestsModal = ({
             <View style={styles.headerRow}>
               <Text style={styles.headerTitle}>Removal Requests</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+                <X size={24} color={COLORS.textPrimary} />
               </TouchableOpacity>
             </View>
             <Text style={styles.headerSubtitle}>
@@ -257,11 +300,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "700",
+    fontFamily: "Manrope-Bold",
     color: COLORS.textPrimary,
   },
   headerSubtitle: {
     fontSize: 13,
+    fontFamily: "Manrope-Regular",
     color: "#999",
     marginTop: 4,
     textAlign: "center",
@@ -308,16 +352,35 @@ const styles = StyleSheet.create({
   },
   requesterName: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: COLORS.textPrimary,
   },
   requestDate: {
     fontSize: 12,
+    fontFamily: "Manrope-Regular",
     color: "#999",
     marginTop: 2,
   },
+  // Contact User button
+  contactButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#EEF4FF",
+    borderWidth: 1,
+    borderColor: "#C7D9FF",
+  },
+  contactButtonText: {
+    fontSize: 12,
+    fontFamily: "Manrope-SemiBold",
+    color: "#2962FF",
+  },
   reasonText: {
     fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: "#666",
     fontStyle: "italic",
     marginBottom: 12,
@@ -333,18 +396,20 @@ const styles = StyleSheet.create({
   },
   submissionPreviewLabel: {
     fontSize: 11,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: "#999",
     textTransform: "uppercase",
     marginBottom: 4,
   },
   submissionPreviewText: {
     fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textPrimary,
     lineHeight: 20,
   },
   submissionType: {
     fontSize: 12,
+    fontFamily: "Manrope-Regular",
     color: "#999",
     marginTop: 4,
   },
@@ -367,7 +432,6 @@ const styles = StyleSheet.create({
   },
   rejectButtonText: {
     fontSize: 14,
-    fontWeight: "600",
     color: "#FF3B30",
   },
   approveButton: {
@@ -382,7 +446,6 @@ const styles = StyleSheet.create({
   },
   approveButtonText: {
     fontSize: 14,
-    fontWeight: "600",
     color: "#FFFFFF",
   },
   // Empty
@@ -393,12 +456,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: COLORS.textPrimary,
     marginTop: 12,
   },
   emptySubtitle: {
     fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: "#999",
     marginTop: 4,
   },

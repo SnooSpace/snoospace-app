@@ -939,18 +939,23 @@ const getFeed = async (req, res) => {
               parsedPost.has_joined = joinedResult.rows.length > 0;
               parsedPost.user_participation = joinedResult.rows[0] || null;
 
-              // Get user's active (non-rejected) submission count for this challenge
+              // Get user's active (non-rejected) submission count + status for this challenge
               if (parsedPost.has_joined && joinedResult.rows[0]?.id) {
-                const userSubCountResult = await pool.query(
-                  `SELECT COUNT(*) as count FROM challenge_submissions 
-                   WHERE participant_id = $1 AND status != 'rejected'`,
+                const userSubResult = await pool.query(
+                  `SELECT COUNT(*) as count,
+                          MAX(CASE WHEN is_featured THEN 'featured' ELSE status END) as top_status
+                   FROM challenge_submissions
+                   WHERE participant_id = $1 AND status NOT IN ('rejected', 'withdrawn')`,
                   [joinedResult.rows[0].id],
                 );
                 parsedPost.user_submission_count = parseInt(
-                  userSubCountResult.rows[0]?.count || 0,
+                  userSubResult.rows[0]?.count || 0,
                 );
+                parsedPost.user_submission_status =
+                  userSubResult.rows[0]?.top_status || null;
               } else {
                 parsedPost.user_submission_count = 0;
+                parsedPost.user_submission_status = null;
               }
             }
 
