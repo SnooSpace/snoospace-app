@@ -151,19 +151,28 @@ const createPost = async (req, res) => {
       console.log("[createPost] No cropMetadata received — cropMetadata value:", typeof cropMetadata, cropMetadata === null ? "null" : cropMetadata === undefined ? "undefined" : JSON.stringify(cropMetadata));
     }
 
-    // Generate video thumbnails using Cloudinary transformation (with crop applied)
+    // Generate video thumbnails and LQIP using Cloudinary transformation (with crop applied)
     let videoThumbnails = null;
+    let videoLqips = null;
     if (validatedMediaTypes && validatedMediaTypes.includes("video")) {
-      const { toThumbnailUrl, cropMetadataToCloudinary, buildCropTransform } = require("../utils/cloudinaryVideo");
+      const { toThumbnailUrl, toLqipUrl, cropMetadataToCloudinary, buildCropTransform } = require("../utils/cloudinaryVideo");
       videoThumbnails = imageUrls.map((url, index) => {
         if (validatedMediaTypes[index] === "video") {
-          // Apply crop transform to thumbnail if crop metadata exists for this video
           const vidCropMeta = validatedCropMetadata?.[index] || null;
           const crop = cropMetadataToCloudinary(vidCropMeta);
           const cropTransform = buildCropTransform(crop);
           const thumbnail = toThumbnailUrl(url, { width: 800, cropTransform });
           console.log(`[createPost] Generated thumbnail for video ${index}:`, { hasCrop: !!crop, thumbnail });
           return thumbnail;
+        }
+        return null;
+      });
+      videoLqips = imageUrls.map((url, index) => {
+        if (validatedMediaTypes[index] === "video") {
+          const vidCropMeta = validatedCropMetadata?.[index] || null;
+          const crop = cropMetadataToCloudinary(vidCropMeta);
+          const cropTransform = buildCropTransform(crop);
+          return toLqipUrl(url, cropTransform);
         }
         return null;
       });
@@ -188,8 +197,8 @@ const createPost = async (req, res) => {
     }
 
     const query = `
-      INSERT INTO posts (author_id, author_type, caption, image_urls, tagged_entities, aspect_ratios, media_types, crop_metadata, video_thumbnail, linked_challenge_id, duration_seconds)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO posts (author_id, author_type, caption, image_urls, tagged_entities, aspect_ratios, media_types, crop_metadata, video_thumbnail, video_lqip, linked_challenge_id, duration_seconds)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       RETURNING id, created_at
     `;
 
@@ -203,6 +212,7 @@ const createPost = async (req, res) => {
       validatedMediaTypes ? JSON.stringify(validatedMediaTypes) : null,
       validatedCropMetadata ? JSON.stringify(validatedCropMetadata) : null,
       videoThumbnails ? JSON.stringify(videoThumbnails) : null,
+      videoLqips ? videoLqips[0] : null,
       linkedChallengeId,
       durationSeconds,
     ];
@@ -723,6 +733,7 @@ const getFeed = async (req, res) => {
           parsedPost.video_url = videoMeta.video_url;
           parsedPost.video_hls_url = videoMeta.video_hls_url;
           parsedPost.video_thumbnail = videoMeta.video_thumbnail;
+          parsedPost.video_lqip = videoMeta.video_lqip;
           parsedPost.video_aspect_ratio = videoMeta.video_aspect_ratio;
           parsedPost.video_crop_transform = videoMeta.video_crop_transform;
 
@@ -1142,6 +1153,7 @@ const getExplore = async (req, res) => {
         parsedPost.video_url = videoMeta.video_url;
         parsedPost.video_hls_url = videoMeta.video_hls_url;
         parsedPost.video_thumbnail = videoMeta.video_thumbnail;
+        parsedPost.video_lqip = videoMeta.video_lqip;
         parsedPost.video_aspect_ratio = videoMeta.video_aspect_ratio;
         parsedPost.video_crop_transform = videoMeta.video_crop_transform;
       }
@@ -1485,6 +1497,7 @@ const getPost = async (req, res) => {
       post.video_url = videoMeta.video_url;
       post.video_hls_url = videoMeta.video_hls_url;
       post.video_thumbnail = videoMeta.video_thumbnail;
+      post.video_lqip = videoMeta.video_lqip;
       post.video_aspect_ratio = videoMeta.video_aspect_ratio;
       post.video_crop_transform = videoMeta.video_crop_transform;
     }
@@ -1682,6 +1695,7 @@ const getUserPosts = async (req, res) => {
         parsedPost.video_url = videoMeta.video_url;
         parsedPost.video_hls_url = videoMeta.video_hls_url;
         parsedPost.video_thumbnail = videoMeta.video_thumbnail;
+        parsedPost.video_lqip = videoMeta.video_lqip;
         parsedPost.video_aspect_ratio = videoMeta.video_aspect_ratio;
         parsedPost.video_crop_transform = videoMeta.video_crop_transform;
       }

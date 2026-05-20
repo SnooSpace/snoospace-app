@@ -141,6 +141,7 @@ const EditorialPostCard = ({
   currentUserId,
   currentUserType,
   isVideoPlaying = false,
+  shouldPreload = false,
   isScreenFocused = true,
   isInViewport = true,
   showFollowButton = true,
@@ -842,6 +843,10 @@ const EditorialPostCard = ({
               <VideoPlayer
                 source={post.video_url || firstMediaUrl}
                 thumbnailUrl={post.video_thumbnail}
+                lqipUrl={post.video_lqip}
+                hlsUrl={post.video_hls_url || null}
+                durationSeconds={post.duration_seconds || null}
+                shouldPreload={shouldPreload}
                 aspectRatio={clampedVideoAR}
                 containerWidth={CONTENT_WIDTH}
                 postId={post.id} // For VideoContext registration

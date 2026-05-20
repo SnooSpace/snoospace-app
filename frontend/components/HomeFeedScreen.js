@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { getMaxPreloadDistance, getMaxPreloadDistanceSync } from "../utils/preloadConfig";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import {
   StyleSheet,
@@ -223,7 +224,14 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
   // Auto-play state (for video: requires 60% viewport coverage)
   const [visiblePostId, setVisiblePostId] = useState(null);
+  const [visibleIndex, setVisibleIndex] = useState(-1); // Track index for preload distance
   const lastVisiblePostIdRef = useRef(null); // Track last visible post to restore on focus
+
+  // Memory-aware preload distance (initialized async on mount)
+  const [maxPreloadDistance, setMaxPreloadDistance] = useState(1); // safe default
+  useEffect(() => {
+    getMaxPreloadDistance().then(setMaxPreloadDistance);
+  }, []);
 
   // Screen focus detection for pausing videos on navigation
   const isFocused = useIsFocused();
@@ -1097,6 +1105,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         currentUserId={currentUserId}
         currentUserType={currentUserType}
         isVideoPlaying={item.id === visiblePostId}
+        shouldPreload={shouldPreloadItem(feedItems.indexOf(item))}
         isInViewport={isFocused}
         isScreenFocused={isFocused}
         navigation={navigation}
@@ -1189,24 +1198,37 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
         console.log("[HomeFeed] Video viewable (60% coverage):", {
           postId: targetVideo.item.id,
+          index: targetVideo.index,
           totalViewableVideos: videoItems.length,
         });
 
         setVisiblePostId(targetVideo.item.id);
+        setVisibleIndex(targetVideo.index);
       } else {
         // No videos meet the 60% threshold
         const firstViewable = viewableItems.find((item) => item.isViewable);
         if (firstViewable && firstViewable.item && firstViewable.item.id) {
           setVisiblePostId(firstViewable.item.id);
+          setVisibleIndex(firstViewable.index);
         } else {
           setVisiblePostId(null);
+          setVisibleIndex(-1);
         }
       }
     } else {
       // Nothing visible - pause all videos
       setVisiblePostId(null);
+      setVisibleIndex(-1);
     }
   }, []);
+
+  // Compute preload status for a feed item based on its index distance from the visible video
+  const shouldPreloadItem = useCallback((itemIndex) => {
+    if (visibleIndex < 0 || maxPreloadDistance === 0) return false;
+    const distance = Math.abs(itemIndex - visibleIndex);
+    // distance 0 = currently visible (playing), 1-N = preload candidates
+    return distance > 0 && distance <= maxPreloadDistance;
+  }, [visibleIndex, maxPreloadDistance]);
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>

@@ -46,6 +46,10 @@ const VideoPlayer = ({
   onFullscreen,
   postId,
   thumbnailUrl: propThumbnailUrl,
+  lqipUrl = null,          // Low-Quality Image Placeholder (tiny blurred JPEG)
+  hlsUrl = null,           // HLS streaming URL (for long videos, feature-flagged)
+  durationSeconds = null,  // Video duration from DB (used for HLS threshold)
+  shouldPreload = false,   // If true: load+buffer but don't play (feed preloading)
   cropMetadata = null,
   onPositionChange,
   onDoubleTap,
@@ -74,9 +78,15 @@ const VideoPlayer = ({
   useEffect(() => { isVisibleRef.current = isVisible; }, [isVisible]);
   useEffect(() => { videoFinishedRef.current = videoFinished; }, [videoFinished]);
 
+  // ── HLS preference for long videos ─────────────────────────────────────
+  // Use HLS for videos >15s when the backend provides an HLS URL (feature-flagged).
+  // Falls back to raw MP4 if HLS isn’t available.
+  const effectiveSource = (hlsUrl && durationSeconds > 15) ? hlsUrl : source;
+
   // expo-video player
+  const shouldCreatePlayer = shouldLoad || shouldPreload;
   const player = useVideoPlayer(
-    shouldLoad && source ? (typeof source === "string" ? { uri: source } : source) : null,
+    shouldCreatePlayer && effectiveSource ? (typeof effectiveSource === "string" ? { uri: effectiveSource } : effectiveSource) : null,
     (p) => {
       p.muted = isMuted;
       p.loop = false; // manual loop
@@ -208,6 +218,12 @@ const VideoPlayer = ({
         setShowWatchAgainOverlay(true);
       }
       // If videoFinished and overlay already visible, do nothing.
+    } else if (shouldPreload && !isVisible) {
+      // ── Preloading: player is created and buffering, but don’t play.
+      // The player will pre-download the first few seconds so playback
+      // starts instantly when the user scrolls to this post.
+      // Don’t unload — the preloadConfig memory cap already limits how
+      // many videos are in this state.
     } else if (!isVisible) {
       player.pause();
 
@@ -329,7 +345,7 @@ const VideoPlayer = ({
   const getThumbnailUrl = (videoSource) => {
     if (typeof videoSource !== "string") return null;
     if (videoSource.includes("cloudinary.com")) {
-      return videoSource.replace("/upload", "/upload/so_0,f_jpg,q_auto");
+      return videoSource.replace("/upload", "/upload/so_auto,f_jpg,q_auto");
     }
     return videoSource;
   };
@@ -443,6 +459,16 @@ const VideoPlayer = ({
           setIsLoading(false);
         }}
       />
+
+      {/* LQIP: ultra-low-res blurred placeholder — loads instantly (~2KB) */}
+      {shouldLoad && lqipUrl && !hasFirstFrameRendered && (
+        <Image
+          source={{ uri: lqipUrl }}
+          style={styles.lqipImage}
+          blurRadius={20}
+          resizeMode="cover"
+        />
+      )}
 
       {/* Thumbnail overlay until first frame renders */}
       {shouldLoad && thumbnailUrl && !hasFirstFrameRendered && (
@@ -568,6 +594,14 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   thumbnailOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 2,
+  },
+  lqipImage: {
     position: "absolute",
     top: 0,
     left: 0,

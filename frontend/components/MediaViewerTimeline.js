@@ -5,6 +5,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSpring, run
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
+import { getOptimalVideoWidth } from "../utils/networkAwareVideo";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
@@ -86,7 +87,7 @@ function ImageItem({ item, onPress }) {
 // ── Cloudinary video optimization helpers ──────────────────────────────────
 /**
  * Optimizes a Cloudinary video URL for streaming in the fullscreen viewer.
- * - Caps resolution at 720p width (saves bandwidth on 4K source videos)
+ * - Resolution adapts to network quality (WiFi=720p, 4G=480p, 3G=360p)
  * - Uses auto quality (q_auto) — Cloudinary picks the best bitrate
  * - Forces H.264 codec (vc_h264) — hardware-decoded on all devices
  * - Forces MP4 container (f_mp4) — progressive download, no HLS overhead
@@ -94,21 +95,32 @@ function ImageItem({ item, onPress }) {
  *
  * A 1080p 30s video at ~8Mbps (~30MB) becomes ~2Mbps (~7.5MB) → 4× faster.
  */
-function getOptimizedVideoUrl(rawUrl, muted = false) {
+function getOptimizedVideoUrl(rawUrl, muted = false, width = 720) {
   if (!rawUrl || !rawUrl.includes("cloudinary.com")) return rawUrl;
   const audioFlag = muted ? ",ac_none" : "";
-  const transforms = `w_720,q_auto,vc_h264,f_mp4${audioFlag}`;
+  const transforms = `w_${width},q_auto,vc_h264,f_mp4${audioFlag}`;
   return rawUrl.replace("/video/upload/", `/video/upload/${transforms}/`);
 }
 
 /**
- * Generates a first-frame JPEG thumbnail from a Cloudinary video URL.
+ * Generates a best-frame JPEG thumbnail from a Cloudinary video URL.
  * Shown as poster behind the VideoView to eliminate perceived loading time.
  */
 function getVideoThumbnail(rawUrl) {
   if (!rawUrl || !rawUrl.includes("cloudinary.com")) return null;
   return rawUrl
-    .replace("/video/upload/", "/video/upload/so_0,w_720,q_auto:good,f_jpg/")
+    .replace("/video/upload/", "/video/upload/so_auto,w_720,q_auto:good,f_jpg/")
+    .replace(/\.[^./?#]+($|\?)/, ".jpg$1");
+}
+
+/**
+ * Generates a tiny blurred JPEG (LQIP) from a Cloudinary video URL.
+ * ~2KB, loads in <50ms even on 3G. Used as instant placeholder.
+ */
+function getLqipUrl(rawUrl) {
+  if (!rawUrl || !rawUrl.includes("cloudinary.com")) return null;
+  return rawUrl
+    .replace("/video/upload/", "/video/upload/so_auto,w_40,q_30,e_blur:300,f_jpg/")
     .replace(/\.[^./?#]+($|\?)/, ".jpg$1");
 }
 
@@ -127,8 +139,16 @@ function VideoItem({ item, isActive, onPress }) {
   const scrubberWidth = useRef(0);
 
   const isMuted = item.muteAudio ?? item.mute_audio ?? false;
-  const optimizedUrl = getOptimizedVideoUrl(item.uri, isMuted);
   const thumbnailUrl = getVideoThumbnail(item.uri);
+  const lqipUrl = getLqipUrl(item.uri);
+
+  // Network-aware resolution: fetch optimal width on mount
+  const [videoWidth, setVideoWidth] = useState(720); // default WiFi
+  useEffect(() => {
+    getOptimalVideoWidth().then(setVideoWidth);
+  }, []);
+
+  const optimizedUrl = getOptimizedVideoUrl(item.uri, isMuted, videoWidth);
 
   const player = useVideoPlayer(optimizedUrl, p => {
     p.loop = false;
@@ -254,11 +274,21 @@ function VideoItem({ item, isActive, onPress }) {
     <View style={styles.mediaContainer}>
       {/* Video card — dynamic height based on video dimensions */}
       <View style={[styles.mediaCard, { width: CARD_W, height: CARD_MAX_H }]}>
+        {/* LQIP: ultra-low-res blurred placeholder — loads instantly (~2KB) */}
+        {lqipUrl && !hasFirstFrame && (
+          <Image
+            source={{ uri: lqipUrl }}
+            style={StyleSheet.absoluteFill}
+            blurRadius={20}
+            resizeMode="cover"
+          />
+        )}
+
         {/* Thumbnail poster behind video — eliminates perceived load time */}
         {thumbnailUrl && !hasFirstFrame && (
           <Image
             source={{ uri: thumbnailUrl }}
-            style={StyleSheet.absoluteFill}
+            style={[StyleSheet.absoluteFill, { zIndex: 0 }]}
             resizeMode="cover"
           />
         )}

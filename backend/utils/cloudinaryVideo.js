@@ -173,12 +173,40 @@ const toThumbnailUrl = (url, options = {}) => {
 
   const { width = 400, cropTransform = "" } = options;
 
-  // so_0: Start offset 0 (first frame)
+  // so_auto: Cloudinary picks the most visually interesting frame
   // f_jpg: Force JPEG format
   // q_auto: Auto quality
   // w_X: Width (height auto-calculated to maintain aspect ratio)
   // Crop is applied first, then thumbnail extraction
-  const baseTransforms = `so_0,f_jpg,q_auto,w_${width}`;
+  const baseTransforms = `so_auto,f_jpg,q_auto,w_${width}`;
+  const transforms = cropTransform
+    ? `${cropTransform}/${baseTransforms}`
+    : baseTransforms;
+
+  return url
+    .replace("/upload/", `/upload/${transforms}/`)
+    .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+};
+
+/**
+ * Generate a Low-Quality Image Placeholder (LQIP) URL from a Cloudinary video URL.
+ * Produces a tiny (~2KB), heavily blurred JPEG that loads in <50ms even on 3G.
+ * Used as an instant "content is there" placeholder while the real thumbnail loads.
+ *
+ * @param {string} url - Raw Cloudinary video URL
+ * @param {string} cropTransform - Optional Cloudinary crop transform string
+ * @returns {string|null} - LQIP URL (.jpg) or null if not valid
+ */
+const toLqipUrl = (url, cropTransform = "") => {
+  if (!url || typeof url !== "string") return null;
+  if (!url.includes("cloudinary.com")) return null;
+
+  // w_40: 40px wide (tiny)
+  // q_30: aggressive compression
+  // e_blur:300: heavy Gaussian blur
+  // so_auto: best frame (matches thumbnail)
+  // f_jpg: force JPEG
+  const baseTransforms = `so_auto,f_jpg,q_30,w_40,e_blur:300`;
   const transforms = cropTransform
     ? `${cropTransform}/${baseTransforms}`
     : baseTransforms;
@@ -190,7 +218,7 @@ const toThumbnailUrl = (url, options = {}) => {
 
 /**
  * Generate all video metadata from a raw Cloudinary URL
- * Returns HLS URL, thumbnail, and preserves original URL as fallback.
+ * Returns HLS URL, thumbnail, LQIP, and preserves original URL as fallback.
  * If cropMetadata is provided, applies server-side crop to the URLs
  * so the delivered stream is already cropped — no client-side transforms needed.
  *
@@ -205,6 +233,7 @@ const generateVideoMetadata = (rawUrl, aspectRatio = null, cropMetadata = null) 
       video_url: rawUrl,
       video_hls_url: null,
       video_thumbnail: null,
+      video_lqip: null,
       video_aspect_ratio: aspectRatio,
     };
   }
@@ -230,13 +259,19 @@ const generateVideoMetadata = (rawUrl, aspectRatio = null, cropMetadata = null) 
   // crop transforms, but CANNOT re-encode videos on-the-fly. So:
   //   - video_url = raw MP4 (always playable)
   //   - video_thumbnail = Cloudinary cropped JPEG (works!)
+  //   - video_lqip = tiny blurred JPEG placeholder (~2KB, instant load)
   //   - video_crop_transform = crop metadata for client-side rendering
   // The frontend applies the crop visually via CSS transforms (scale + translate + overflow hidden).
 
+  // HLS is gated behind an env flag — flip CLOUDINARY_HLS_ENABLED=true when
+  // the Cloudinary plan supports sp_auto streaming profiles.
+  const hlsEnabled = process.env.CLOUDINARY_HLS_ENABLED === 'true';
+
   const result = {
     video_url: rawUrl,                                      // ← raw MP4, always playable
-    video_hls_url: null,                                    // ← disabled (needs paid add-on)
+    video_hls_url: hlsEnabled ? toHlsUrl(rawUrl, cropTransform) : null,
     video_thumbnail: toThumbnailUrl(rawUrl, { cropTransform }),
+    video_lqip: toLqipUrl(rawUrl, cropTransform),
     video_aspect_ratio: finalAspectRatio,
     video_crop_transform: cropMetadata || null,             // ← passed to frontend for client-side crop
   };
@@ -247,6 +282,7 @@ const generateVideoMetadata = (rawUrl, aspectRatio = null, cropMetadata = null) 
       translateX: cropMetadata?.translateX,
       translateY: cropMetadata?.translateY,
       thumb: result.video_thumbnail?.substring(0, 120) + "...",
+      lqip: result.video_lqip?.substring(0, 120) + "...",
       finalAR: finalAspectRatio?.toFixed(3),
     });
   }
@@ -268,6 +304,7 @@ const findVideoIndex = (mediaTypes) => {
 module.exports = {
   toHlsUrl,
   toThumbnailUrl,
+  toLqipUrl,
   generateVideoMetadata,
   findVideoIndex,
   cropMetadataToCloudinary,

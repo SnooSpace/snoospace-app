@@ -2,6 +2,8 @@
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
 const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
+import { compressVideo } from '../utils/videoCompressor';
+
 /**
  * Upload event banner to Cloudinary (direct upload)
  * @param {string} imageUri - Local image URI
@@ -157,14 +159,22 @@ export async function uploadChatMedia(uri, type = 'image', { onProgress } = {}) 
     ? `chat-video-${Date.now()}.mp4`
     : `chat-image-${Date.now()}.${rawExt && imageMimeMap[rawExt] ? rawExt : 'jpg'}`;
 
+  console.log('[uploadChatMedia] Starting upload:', { type, resourceType, mimeType, fileName, uri: uri.substring(0, 80) });
+
+  // ── Pre-upload compression for videos ────────────────────────────────────
+  // Transcode to 1080p / CRF 28 on-device before hitting Cloudinary.
+  // Combined progress: compression = 0-40%, upload = 40-100%
+  let fileUri = uri;
+  if (type === 'video') {
+    fileUri = await compressVideo(uri, (p) => {
+      onProgress?.(p * 0.4); // 0-40%
+    });
+  }
+
   const formData = new FormData();
-  formData.append('file', { uri, type: mimeType, name: fileName });
+  formData.append('file', { uri: fileUri, type: mimeType, name: fileName });
   formData.append('upload_preset', UPLOAD_PRESET);
   formData.append('folder', folder);
-  // NOTE: Do NOT append `eager` here unless your Cloudinary upload preset
-  // explicitly has "eager transformations" enabled — unsigned presets reject it with 400.
-
-  console.log('[uploadChatMedia] Starting upload:', { type, resourceType, mimeType, fileName, uri: uri.substring(0, 80) });
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -172,7 +182,10 @@ export async function uploadChatMedia(uri, type = 'image', { onProgress } = {}) 
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) {
-        onProgress(e.loaded / e.total);
+        // For videos: compression was 0-40%, upload is 40-100%
+        // For images: full 0-100% from upload
+        const uploadProgress = e.loaded / e.total;
+        onProgress(type === 'video' ? 0.4 + uploadProgress * 0.6 : uploadProgress);
       }
     };
 
