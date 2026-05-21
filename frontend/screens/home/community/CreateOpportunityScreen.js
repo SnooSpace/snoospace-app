@@ -17,6 +17,7 @@ import {
   Platform,
   Modal,
   Animated,
+  Keyboard,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -61,6 +62,7 @@ import {
   GraduationCap,
   Star,
   ListChecks,
+  Pencil,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
@@ -200,6 +202,7 @@ const TOTAL_STEPS = 11;
 export default function CreateOpportunityScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const [currentStep, setCurrentStep] = useState(1);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const totalSteps = 11;
   const progressPercent = useRef(new Animated.Value(0)).current;
   const [hasReachedReview, setHasReachedReview] = useState(false);
@@ -210,6 +213,22 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   const [maxBudget, setMaxBudget] = useState("");
 
   const scrollViewRef = useRef(null);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => setIsKeyboardVisible(true)
+    );
+    const hideSubscription = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setIsKeyboardVisible(false)
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   // Sync budgetRange string whenever currency, minBudget, or maxBudget changes
   useEffect(() => {
@@ -275,6 +294,8 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   const [responsibilities, setResponsibilities] = useState([]);
   const [newResponsibility, setNewResponsibility] = useState("");
   const [showResponsibilityInput, setShowResponsibilityInput] = useState(false);
+  const [editingResponsibilityIndex, setEditingResponsibilityIndex] = useState(null);
+  const [editingResponsibilityText, setEditingResponsibilityText] = useState("");
 
   // Step 3: Core Requirements
   const [experienceLevel, setExperienceLevel] = useState("any");
@@ -581,6 +602,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
       setSelectedTypes([...selectedTypes, customType.trim()]);
       setCustomType("");
       setShowCustomInput(false);
+      Keyboard.dismiss();
     }
   };
 
@@ -610,6 +632,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     updateSkillGroup(role, "tools", newTools);
     setCustomTool("");
     setShowCustomToolInput({ ...showCustomToolInput, [role]: false });
+    Keyboard.dismiss();
   };
 
   const addCustomSampleType = (role) => {
@@ -617,6 +640,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     updateSkillGroup(role, "sample_type", customSampleType.trim());
     setCustomSampleType("");
     setShowCustomSampleInput({ ...showCustomSampleInput, [role]: false });
+    Keyboard.dismiss();
   };
 
   const addQuestion = () => {
@@ -737,11 +761,13 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
+      Keyboard.dismiss();
       setCurrentStep(currentStep + 1);
     }
   };
 
   const handleBack = () => {
+    Keyboard.dismiss();
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     } else {
@@ -953,6 +979,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
               onPress={() => {
                 setShowCustomInput(false);
                 setCustomType("");
+                Keyboard.dismiss();
               }}
               activeOpacity={0.7}
             >
@@ -1102,13 +1129,15 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
   // ─── NEW STEP 3: About the Role ──────────────────────────────────────────
   const renderStep3 = () => (
-    <KeyboardAwareScrollView
+    <ScrollView
       ref={scrollViewRef}
       style={styles.stepContent}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ paddingBottom: 220, paddingTop: 12 }}
-      bottomOffset={15}
+      contentContainerStyle={{
+        paddingBottom: isKeyboardVisible ? 400 : 180,
+        paddingTop: 12,
+      }}
     >
       <BlurView intensity={50} tint="light" style={styles.glassCard}>
         <View style={styles.sectionHeaderNew}>
@@ -1136,7 +1165,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           onFocus={() => {
             setTimeout(() => {
               scrollViewRef.current?.scrollToEnd({ animated: true });
-            }, 300);
+            }, 250);
           }}
         />
         <Text style={styles.charCount}>{aboutRole.length}/500</Text>
@@ -1146,19 +1175,81 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           <Text style={styles.hint}> ({responsibilities.length}/10)</Text>
         </Text>
 
-        {responsibilities.map((item, index) => (
-          <View key={index} style={styles.listItemRow}>
-            <View style={styles.listBullet} />
-            <Text style={styles.listItemText} numberOfLines={2}>{item}</Text>
-            <TouchableOpacity
-              style={styles.listItemDelete}
-              onPress={() => setResponsibilities(responsibilities.filter((_, i) => i !== index))}
-              activeOpacity={0.7}
-            >
-              <X size={16} color="#EF4444" strokeWidth={2} />
-            </TouchableOpacity>
-          </View>
-        ))}
+        {responsibilities.map((item, index) =>
+          editingResponsibilityIndex === index ? (() => {
+            const hasEdits =
+              editingResponsibilityText.trim() !== "" &&
+              editingResponsibilityText.trim() !== item;
+            return (
+            // ── Inline edit row ──
+            <View key={index} style={styles.customInputRowNew}>
+              <TextInput
+                style={[styles.inputNew, { flex: 1, marginBottom: 0 }]}
+                value={editingResponsibilityText}
+                onChangeText={setEditingResponsibilityText}
+                placeholder="Edit responsibility…"
+                placeholderTextColor={MODAL_TOKENS.textMuted}
+                autoFocus
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollToEnd({ animated: true });
+                  }, 250);
+                }}
+              />
+              <TouchableOpacity
+                style={[styles.addButton, !hasEdits && { opacity: 0.35 }]}
+                onPress={() => {
+                  if (!hasEdits) return;
+                  const updated = [...responsibilities];
+                  updated[index] = editingResponsibilityText.trim();
+                  setResponsibilities(updated);
+                  setEditingResponsibilityIndex(null);
+                  setEditingResponsibilityText("");
+                }}
+                activeOpacity={hasEdits ? 0.7 : 1}
+                disabled={!hasEdits}
+              >
+                <Check size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.rowCancelButton}
+                onPress={() => {
+                  setEditingResponsibilityIndex(null);
+                  setEditingResponsibilityText("");
+                  Keyboard.dismiss();
+                }}
+                activeOpacity={0.7}
+              >
+                <X size={20} color={MODAL_TOKENS.textMuted} />
+              </TouchableOpacity>
+            </View>
+            );
+          })() : (
+            // ── Static display row ──
+            <View key={index} style={styles.listItemRow}>
+              <View style={styles.listBullet} />
+              <Text style={styles.listItemText} numberOfLines={2}>{item}</Text>
+              <TouchableOpacity
+                style={styles.listItemEditButton}
+                onPress={() => {
+                  setEditingResponsibilityIndex(index);
+                  setEditingResponsibilityText(item);
+                  setShowResponsibilityInput(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Pencil size={15} color={MODAL_TOKENS.primary} strokeWidth={2} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.listItemDelete}
+                onPress={() => setResponsibilities(responsibilities.filter((_, i) => i !== index))}
+                activeOpacity={0.7}
+              >
+                <X size={16} color="#EF4444" strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+          )
+        )}
 
         {showResponsibilityInput ? (
           <View style={styles.customInputRowNew}>
@@ -1172,7 +1263,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
               onFocus={() => {
                 setTimeout(() => {
                   scrollViewRef.current?.scrollToEnd({ animated: true });
-                }, 300);
+                }, 250);
               }}
             />
             <TouchableOpacity
@@ -1182,6 +1273,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                   setResponsibilities([...responsibilities, newResponsibility.trim()]);
                   setNewResponsibility("");
                   setShowResponsibilityInput(false);
+                  Keyboard.dismiss();
                 }
               }}
               activeOpacity={0.7}
@@ -1193,6 +1285,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
               onPress={() => {
                 setShowResponsibilityInput(false);
                 setNewResponsibility("");
+                Keyboard.dismiss();
               }}
               activeOpacity={0.7}
             >
@@ -1212,7 +1305,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           </TouchableOpacity>
         )}
       </BlurView>
-    </KeyboardAwareScrollView>
+    </ScrollView>
   );
 
   // ─── STEP 4: Core Requirements (was Step 3) ───────────────────────────────
@@ -1430,7 +1523,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                 {group.role}
               </Text>
 
-              <Text style={styles.skillGroupLabel}>Tools Required</Text>
+              <Text style={styles.skillGroupLabel}>Tools/Skills Required</Text>
               <View style={styles.toolsContainer}>
                 {(TOOL_PRESETS[group.role] || []).map((tool) => {
                   const isSelected = group.tools.includes(tool);
@@ -1521,6 +1614,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                         [group.role]: false,
                       });
                       setCustomTool("");
+                      Keyboard.dismiss();
                     }}
                     activeOpacity={0.7}
                   >
@@ -1624,6 +1718,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                         [group.role]: false,
                       });
                       setCustomSampleType("");
+                      Keyboard.dismiss();
                     }}
                     activeOpacity={0.7}
                   >
@@ -1963,6 +2058,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                     setWhoCanApply([...whoCanApply, customWhoCanApply.trim()]);
                     setCustomWhoCanApply("");
                     setShowWhoCanApplyInput(false);
+                    Keyboard.dismiss();
                   }
                 }}
                 activeOpacity={0.7}
@@ -1974,6 +2070,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                 onPress={() => {
                   setShowWhoCanApplyInput(false);
                   setCustomWhoCanApply("");
+                  Keyboard.dismiss();
                 }}
                 activeOpacity={0.7}
               >
@@ -2104,6 +2201,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                     setGains([...gains, newGain.trim()]);
                     setNewGain("");
                     setShowGainInput(false);
+                    Keyboard.dismiss();
                   }
                 }}
                 activeOpacity={0.7}
@@ -2115,6 +2213,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                 onPress={() => {
                   setShowGainInput(false);
                   setNewGain("");
+                  Keyboard.dismiss();
                 }}
                 activeOpacity={0.7}
               >
@@ -2647,67 +2746,69 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         </View>
 
         {/* Footer */}
-        <View style={styles.stickyFooter}>
-          <View style={[
-            styles.footer,
-            { paddingBottom: insets.bottom + 24 },
-            currentStep === TOTAL_STEPS && { justifyContent: "center" }
-          ]}>
-            {currentStep === TOTAL_STEPS ? (
-              <TouchableOpacity
-                style={styles.publishButton}
-                onPress={() => handlePublish(false)}
-                disabled={saving}
-                activeOpacity={0.7}
-              >
-                <LinearGradient
-                  colors={MODAL_TOKENS.primaryGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.publishGradient}
+        {!isKeyboardVisible && (
+          <View style={styles.stickyFooter}>
+            <View style={[
+              styles.footer,
+              { paddingBottom: insets.bottom + 24 },
+              currentStep === TOTAL_STEPS && { justifyContent: "center" }
+            ]}>
+              {currentStep === TOTAL_STEPS ? (
+                <TouchableOpacity
+                  style={styles.publishButton}
+                  onPress={() => handlePublish(false)}
+                  disabled={saving}
+                  activeOpacity={0.7}
                 >
-                  {saving ? (
-                    <SnooLoader color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Zap size={18} color="#FFFFFF" strokeWidth={2} />
-                      <Text style={styles.publishButtonText}>
-                        {isEditing ? "Update" : "Publish"}
-                      </Text>
-                    </>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[
-                  styles.nextButton,
-                  !isStepFormComplete(currentStep) && styles.nextButtonDisabled,
-                ]}
-                onPress={handleNext}
-                disabled={!isStepFormComplete(currentStep)}
-                activeOpacity={0.7}
-              >
-                {isStepFormComplete(currentStep) ? (
                   <LinearGradient
                     colors={MODAL_TOKENS.primaryGradient}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
-                    style={styles.nextGradient}
+                    style={styles.publishGradient}
                   >
-                    <Text style={styles.nextButtonText}>Next</Text>
-                    <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.5} />
+                    {saving ? (
+                      <SnooLoader color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Zap size={18} color="#FFFFFF" strokeWidth={2} />
+                        <Text style={styles.publishButtonText}>
+                          {isEditing ? "Update" : "Publish"}
+                        </Text>
+                      </>
+                    )}
                   </LinearGradient>
-                ) : (
-                  <View style={[styles.nextGradient, { backgroundColor: "rgba(41, 98, 255, 0.2)" }]}>
-                    <Text style={[styles.nextButtonText, { color: "rgba(41, 98, 255, 0.45)" }]}>Next</Text>
-                    <ArrowRight size={18} color="rgba(41, 98, 255, 0.4)" strokeWidth={2.5} />
-                  </View>
-                )}
-              </TouchableOpacity>
-            )}
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={[
+                    styles.nextButton,
+                    !isStepFormComplete(currentStep) && styles.nextButtonDisabled,
+                  ]}
+                  onPress={handleNext}
+                  disabled={!isStepFormComplete(currentStep)}
+                  activeOpacity={0.7}
+                >
+                  {isStepFormComplete(currentStep) ? (
+                    <LinearGradient
+                      colors={MODAL_TOKENS.primaryGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.nextGradient}
+                    >
+                      <Text style={styles.nextButtonText}>Next</Text>
+                      <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.5} />
+                    </LinearGradient>
+                  ) : (
+                    <View style={[styles.nextGradient, { backgroundColor: "rgba(41, 98, 255, 0.2)" }]}>
+                      <Text style={[styles.nextButtonText, { color: "rgba(41, 98, 255, 0.45)" }]}>Next</Text>
+                      <ArrowRight size={18} color="rgba(41, 98, 255, 0.4)" strokeWidth={2.5} />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Draft Resume Modal */}
         <Modal
@@ -3864,6 +3965,15 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     backgroundColor: "rgba(239, 68, 68, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  listItemEditButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
     justifyContent: "center",
     alignItems: "center",
     flexShrink: 0,
