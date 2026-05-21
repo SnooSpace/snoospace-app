@@ -251,13 +251,20 @@ const getParticipants = async (req, res) => {
     const { page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
+    const postResult = await pool.query(
+      `SELECT type_data FROM posts WHERE id = $1`,
+      [postId],
+    );
+    const typeData = postResult.rows[0]?.type_data || {};
+    const targetCount = parseInt(typeData.target_count) || 1;
+    const isProgressChallenge = typeData.challenge_type === "progress";
+
     const result = await pool.query(
       `SELECT 
         cp.id,
         cp.participant_id,
         cp.participant_type,
         cp.status,
-        cp.progress,
         cp.is_highlighted,
         cp.created_at as joined_at,
         cp.completed_at,
@@ -271,7 +278,8 @@ const getParticipants = async (req, res) => {
         END as participant_photo_url,
         (SELECT COUNT(*) FROM challenge_submissions cs WHERE cs.participant_id = cp.id) as submission_count,
         (SELECT COUNT(*) FROM challenge_submissions cs WHERE cs.participant_id = cp.id AND cs.status = 'pending') as pending_count,
-        (SELECT COUNT(*) FROM challenge_submissions cs WHERE cs.participant_id = cp.id AND cs.status = 'approved') as approved_count
+        (SELECT COUNT(*) FROM challenge_submissions cs WHERE cs.participant_id = cp.id AND cs.status = 'approved') as approved_count,
+        (SELECT COUNT(*) FROM challenge_submissions cs WHERE cs.participant_id = cp.id AND cs.status NOT IN ('withdrawn', 'rejected')) as active_submission_count
        FROM challenge_participations cp
        LEFT JOIN members m ON cp.participant_type = 'member' AND cp.participant_id = m.id
        LEFT JOIN communities c ON cp.participant_type = 'community' AND cp.participant_id = c.id
@@ -281,6 +289,16 @@ const getParticipants = async (req, res) => {
       [postId, parseInt(limit), offset],
     );
 
+    // Compute live progress for progress-type challenges so stale stored values
+    // are never surfaced (e.g. after a withdrawal before the recalculation fix)
+    const participants = result.rows.map((row) => {
+      const liveProgress = isProgressChallenge
+        ? Math.min(100, Math.round((parseInt(row.active_submission_count) / targetCount) * 100))
+        : (row.progress || 0);
+      return { ...row, progress: liveProgress };
+    });
+
+
     // Get total count
     const countResult = await pool.query(
       `SELECT COUNT(*) as total FROM challenge_participations WHERE post_id = $1`,
@@ -289,7 +307,7 @@ const getParticipants = async (req, res) => {
 
     res.json({
       success: true,
-      participants: result.rows,
+      participants,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -607,6 +625,9 @@ const getSubmissions = async (req, res) => {
       filterClause = "AND cs.status = 'pending'";
     } else if (filter === "featured") {
       filterClause = "AND cs.is_featured = true AND cs.status = 'approved'";
+    } else if (isAuthor) {
+      // Host sees approved + withdrawn (shown as placeholder) in the All tab
+      filterClause = "AND cs.status IN ('approved', 'withdrawn')";
     } else if (userParticipationId) {
       // Show approved + user's own pending/rejected
       filterClause = `AND (cs.status = 'approved' OR cs.participant_id = ${userParticipationId})`;
@@ -958,13 +979,49 @@ const withdrawSubmission = async (req, res) => {
 
     // Mark as withdrawn
     await pool.query(
-      `UPDATE challenge_submissions SET status = 'withdrawn', updated_at = NOW() WHERE id = $1`,
+      `UPDATE challenge_submissions SET status = 'withdrawn' WHERE id = $1`,
       [id],
     );
 
     // If user also wants to delete the linked post
     if (delete_source_post && sub.source_post_id) {
       await pool.query(`DELETE FROM posts WHERE id = $1`, [sub.source_post_id]);
+    }
+
+    // Recalculate participant progress for progress-based challenges
+    const postDataResult = await pool.query(
+      `SELECT type_data FROM posts WHERE id = $1`,
+      [sub.post_id],
+    );
+    const typeData = postDataResult.rows[0]?.type_data || {};
+    if (typeData.challenge_type === "progress") {
+      const targetCount = typeData.target_count || 1;
+
+      // Count remaining non-withdrawn approved submissions for this participant
+      const remainingResult = await pool.query(
+        `SELECT COUNT(*) as count FROM challenge_submissions
+         WHERE participant_id = $1 AND status NOT IN ('withdrawn', 'rejected')`,
+        [sub.participant_id],
+      );
+      const remainingCount = parseInt(remainingResult.rows[0].count);
+      const newProgress = Math.min(100, Math.round((remainingCount / targetCount) * 100));
+
+      await pool.query(
+        `UPDATE challenge_participations
+         SET progress = $1,
+             status = CASE
+               WHEN $1 >= 100 THEN 'completed'
+               WHEN $1 > 0    THEN 'in_progress'
+               ELSE 'joined'
+             END,
+             completed_at = CASE WHEN $1 < 100 THEN NULL ELSE completed_at END
+         WHERE id = $2`,
+        [newProgress, sub.participant_id],
+      );
+
+      console.log(
+        `[Challenge] Progress recalculated for participant ${sub.participant_id}: ${newProgress}% (${remainingCount}/${targetCount} submissions remaining)`,
+      );
     }
 
     console.log(

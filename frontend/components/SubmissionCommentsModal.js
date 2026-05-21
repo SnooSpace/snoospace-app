@@ -25,8 +25,7 @@ import {
   Alert,
   Animated,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { X, Send, CornerUpLeft } from "lucide-react-native";
+import { X, Send, CornerUpLeft, Trash2 } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete } from "../api/client";
 import { getAuthToken, getAuthEmail } from "../api/auth";
 import EventBus from "../utils/EventBus";
@@ -242,7 +241,7 @@ const SubmissionCommentsModal = ({
                 onPress={() => handleDeleteComment(item.id)}
                 style={styles.deleteButton}
               >
-                <Ionicons name="trash-outline" size={16} color={COLORS.textSecondary} />
+                <Trash2 size={16} color={COLORS.textSecondary} />
               </TouchableOpacity>
             )}
           </View>

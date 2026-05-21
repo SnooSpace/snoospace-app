@@ -964,10 +964,31 @@ const getFeed = async (req, res) => {
                 );
                 parsedPost.user_submission_status =
                   userSubResult.rows[0]?.top_status || null;
+
+                // For progress challenges, recompute progress live from actual
+                // active submissions so stale stored values are never shown
+                if (
+                  parsedPost.type_data?.challenge_type === "progress" &&
+                  parsedPost.user_participation
+                ) {
+                  const targetCount =
+                    parseInt(parsedPost.type_data.target_count) || 1;
+                  const liveProgress = Math.min(
+                    100,
+                    Math.round(
+                      (parsedPost.user_submission_count / targetCount) * 100,
+                    ),
+                  );
+                  parsedPost.user_participation = {
+                    ...parsedPost.user_participation,
+                    progress: liveProgress,
+                  };
+                }
               } else {
                 parsedPost.user_submission_count = 0;
                 parsedPost.user_submission_status = null;
               }
+
             }
 
             // Get featured submission preview

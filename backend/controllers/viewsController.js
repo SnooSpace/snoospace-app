@@ -61,6 +61,14 @@ async function submitViewsBatch(req, res) {
 
       if (!postId) continue;
 
+      // Skip submission-prefixed IDs (e.g. "sub_8") that are not real post IDs.
+      // The ChallengeSubmissionsScreen reuses the view tracking service with
+      // synthetic "sub_<id>" keys for viewport tracking — these must not be
+      // forwarded to the posts view tables which expect plain integer post IDs.
+      const numericPostId = parseInt(postId, 10);
+      if (isNaN(numericPostId) || String(numericPostId) !== String(postId)) continue;
+
+
       if (type === "qualified") {
         // Try to insert unique view (will fail on duplicate due to UNIQUE constraint)
         // Use SAVEPOINT to prevent one failure from aborting the entire transaction

@@ -25,6 +25,7 @@ import {
   MessageCircle,
   Send,
   ChartNoAxesCombined,
+  Check,
   CheckCircle2,
   XCircle,
   User,
@@ -200,22 +201,22 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
       message,
       primaryAction: actionBtn
         ? {
-            text: actionBtn.text,
-            style: actionBtn.style,
-            onPress: () => {
-              setAlertVisible(false);
-              actionBtn.onPress?.();
-            },
-          }
+          text: actionBtn.text,
+          style: actionBtn.style,
+          onPress: () => {
+            setAlertVisible(false);
+            actionBtn.onPress?.();
+          },
+        }
         : null,
       secondaryAction: cancelBtn
         ? {
-            text: cancelBtn.text,
-            onPress: () => {
-              setAlertVisible(false);
-              cancelBtn.onPress?.();
-            },
-          }
+          text: cancelBtn.text,
+          onPress: () => {
+            setAlertVisible(false);
+            cancelBtn.onPress?.();
+          },
+        }
         : null,
       icon: icon || (actionBtn?.style === "destructive" ? Trash2 : Info),
       iconColor: iconColor || (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
@@ -258,7 +259,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         setCurrentUserId(account.id);
         setCurrentUserType(account.type);
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   // Normalize a submission into an EditorialPostCard-compatible post shape
@@ -464,13 +465,6 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         10000,
         token,
       );
-
-      showAlert(
-        "Success",
-        !currentlyFeatured
-          ? "Submission featured! ⭐"
-          : "Submission unfeatured.",
-      );
     } catch (error) {
       console.error("Error featuring submission:", error);
       // Revert optimistic updates on failure
@@ -550,10 +544,10 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
       prev.map((s) =>
         String(s.id) === rawId
           ? {
-              ...s,
-              like_count: typeof newLikeCount === "number" ? newLikeCount : (isNowLiked ? s.like_count + 1 : Math.max(0, s.like_count - 1)),
-              has_liked: isNowLiked,
-            }
+            ...s,
+            like_count: typeof newLikeCount === "number" ? newLikeCount : (isNowLiked ? s.like_count + 1 : Math.max(0, s.like_count - 1)),
+            has_liked: isNowLiked,
+          }
           : s,
       ),
     );
@@ -714,6 +708,17 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
   }, [replyDMState, post.id]);
 
   const renderSubmission = ({ item, index }) => {
+    // Withdrawn submissions: host-only slim placeholder, no card rendered
+    if (item.status === "withdrawn") {
+      return (
+        <View style={styles.withdrawnRow}>
+          <Text style={styles.withdrawnRowText}>
+            {item.participant_name || "A participant"} removed their submission
+          </Text>
+        </View>
+      );
+    }
+
     const normalizedPost = normalizeSubmissionToPost(item);
     return (
       <View style={{ position: "relative" }}>
@@ -745,9 +750,23 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
 
         {/* Top Right Action & Info Buttons */}
         <View style={styles.topRightActions}>
-          {item.is_featured && (
-            <Star size={18} color="#FFD700" fill="#FFD700" />
-          )}
+          {isHost && item.status === "approved" ? (
+            <TouchableOpacity
+              style={styles.starTouchTarget}
+              onPress={() => handleFeature(item.id, item.is_featured)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Star
+                size={20}
+                color={item.is_featured ? "#FFD700" : "#5B6B7C"}
+                fill={item.is_featured ? "#FFD700" : "transparent"}
+              />
+            </TouchableOpacity>
+          ) : item.is_featured ? (
+            <View style={styles.starTouchTarget}>
+              <Star size={20} color="#FFD700" fill="#FFD700" />
+            </View>
+          ) : null}
           {(isHost || item.is_own_submission) && (
             <TouchableOpacity
               style={styles.submissionOptionsBtn}
@@ -793,15 +812,15 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
               style={styles.approveButton}
               onPress={() => handleModerate(item.id, "approved")}
             >
-              <CheckCircle2 size={16} color="#FFFFFF" />
+              <Check size={16} color="#FFFFFF" />
               <Text style={styles.moderateButtonText}>Approve</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.rejectButton}
               onPress={() => handleModerate(item.id, "rejected")}
             >
-              <XCircle size={16} color="#FFFFFF" />
-              <Text style={styles.moderateButtonText}>Reject</Text>
+              <X size={16} color={COLORS.error} />
+              <Text style={styles.rejectButtonText}>Reject</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -1073,13 +1092,18 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         const mySubmission = submissions.find((s) => s.is_own_submission);
         if (!mySubmission) return null;
         const statusConfig = {
-          featured:  { icon: "star",    color: "#B8860B", bg: "#FFF8E1", border: "#FFD700", label: "Your submission is Featured ⭐" },
-          approved:  { icon: "check",   color: "#2E7D32", bg: "#F0FFF4", border: "#34C759", label: "Your submission is Approved" },
-          pending:   { icon: "clock",   color: "#B45309", bg: "#FFFBEB", border: "#FF9500", label: "Your submission is Pending review" },
-          withdrawn: { icon: "minus",   color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", label: "Your submission was Withdrawn" },
-          rejected:  { icon: "x",       color: "#DC2626", bg: "#FFF0F0", border: "#FF3B30", label: "Your submission was Not approved" },
+          featured: { icon: "star", color: "#B8860B", bg: "#FFF8E1", border: "#FFD700", label: "Your submission is Featured ⭐" },
+          approved: { icon: "check", color: "#2E7D32", bg: "#F0FFF4", border: "#34C759", label: "Your submission is Approved" },
+          pending: { icon: "clock", color: "#B45309", bg: "#FFFBEB", border: "#FF9500", label: "Your submission is Pending review" },
+          withdrawn: { icon: "minus", color: "#6B7280", bg: "#F9FAFB", border: "#E5E7EB", label: "Your submission was Withdrawn" },
+          rejected: { icon: "x", color: "#DC2626", bg: "#FFF0F0", border: "#FF3B30", label: "Your submission was Not approved" },
         };
         const cfg = statusConfig[mySubmission.status] || statusConfig.pending;
+        const isHiddenFromOthers = visibilityInfo && !visibilityInfo.proofs_visible;
+        let label = cfg.label;
+        if (isHiddenFromOthers && (mySubmission.status === "approved" || mySubmission.status === "featured")) {
+          label = `${cfg.label} (visible to others after challenge ends)`;
+        }
         return (
           <TouchableOpacity
             style={[styles.mySubmissionBanner, { backgroundColor: cfg.bg, borderColor: cfg.border }]}
@@ -1091,16 +1115,16 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
             {mySubmission.status === "featured" ? (
               <Star size={16} color={cfg.color} fill={cfg.color} />
             ) : mySubmission.status === "approved" ? (
-              <CheckCircle2 size={16} color={cfg.color} />
+              <Check size={16} color={cfg.color} />
             ) : mySubmission.status === "rejected" ? (
-              <XCircle size={16} color={cfg.color} />
+              <X size={16} color={cfg.color} />
             ) : mySubmission.status === "withdrawn" ? (
               <MinusCircle size={16} color={cfg.color} />
             ) : (
               <Clock size={16} color={cfg.color} />
             )}
             <Text style={[styles.mySubmissionBannerText, { color: cfg.color }]}>
-              {cfg.label}
+              {label}
             </Text>
           </TouchableOpacity>
         );
@@ -1133,24 +1157,24 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
       {(activeTab !== "submissions" ||
         !visibilityInfo ||
         visibilityInfo.proofs_visible) && (
-        <>
-          {activeTab === "submissions" ? (
-            <ImageOff size={48} color={COLORS.textSecondary} strokeWidth={1.5} />
-          ) : (
-            <Users size={48} color={COLORS.textSecondary} strokeWidth={1.5} />
-          )}
-          <Text style={styles.emptyTitle}>
-            {activeTab === "submissions"
-              ? "No submissions yet"
-              : "No participants yet"}
-          </Text>
-          <Text style={styles.emptySubtitle}>
-            {activeTab === "submissions"
-              ? "Be the first to submit proof!"
-              : "Join the challenge to get started"}
-          </Text>
-        </>
-      )}
+          <>
+            {activeTab === "submissions" ? (
+              <ImageOff size={48} color={COLORS.textSecondary} strokeWidth={1.5} />
+            ) : (
+              <Users size={48} color={COLORS.textSecondary} strokeWidth={1.5} />
+            )}
+            <Text style={styles.emptyTitle}>
+              {activeTab === "submissions"
+                ? "No submissions yet"
+                : "No participants yet"}
+            </Text>
+            <Text style={styles.emptySubtitle}>
+              {activeTab === "submissions"
+                ? "Be the first to submit proof!"
+                : "Join the challenge to get started"}
+            </Text>
+          </>
+        )}
     </View>
   );
 
@@ -1233,7 +1257,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
 
       {/* FAB for Submit */}
       {(post.has_joined && !post.expires_at) ||
-      (post.expires_at && new Date(post.expires_at) > new Date()) ? (
+        (post.expires_at && new Date(post.expires_at) > new Date()) ? (
         <TouchableOpacity
           style={styles.fab}
           onPress={() => navigation.navigate("ChallengeSubmit", { post })}
@@ -1259,8 +1283,8 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
             <>
               {/* Header */}
               <View style={styles.detailHeader}>
-                <TouchableOpacity 
-                  style={styles.detailAuthorInfo} 
+                <TouchableOpacity
+                  style={styles.detailAuthorInfo}
                   onPress={() => {
                     setFullscreenImage(null);
                     if (fullscreenImage.participant_type === "community") {
@@ -1315,7 +1339,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
                 {/* Action Bar */}
                 <View style={styles.detailActionBar}>
                   <View style={styles.detailActionGroup}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.detailActionBtn}
                       onPress={() => handleLike(fullscreenImage.id, fullscreenImage.has_liked)}
                     >
@@ -1388,29 +1412,6 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         >
           <View style={styles.actionSheetContainer}>
             <Text style={styles.actionSheetTitle}>Submission Options</Text>
-            {/* Feature/Unfeature option for host on approved submissions */}
-            {isHost && actionSheet?.submission?.status === "approved" && (
-              <TouchableOpacity
-                style={styles.actionSheetButton}
-                onPress={() =>
-                  handleFeature(
-                    actionSheet.submission.id,
-                    actionSheet.submission.is_featured,
-                  )
-                }
-              >
-                <Star
-                  size={20}
-                  color="#FFD700"
-                  fill={actionSheet.submission.is_featured ? "transparent" : "#FFD700"}
-                />
-                <Text style={styles.actionSheetButtonText}>
-                  {actionSheet.submission.is_featured
-                    ? "Unfeature Submission"
-                    : "Feature Submission ⭐"}
-                </Text>
-              </TouchableOpacity>
-            )}
             {/* ── ENDED CHALLENGE: Request Removal ── */}
             {challengeEnded && actionSheet?.submission?.is_own_submission && (
               <TouchableOpacity
@@ -1428,25 +1429,25 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
             {!challengeEnded &&
               actionSheet?.submission?.is_own_submission &&
               actionSheet?.submission?.status === "rejected" && (
-              <TouchableOpacity
-                style={styles.actionSheetButton}
-                onPress={() => {
-                  setActionSheet(null);
-                  navigation.navigate("ChallengeSubmit", {
-                    post,
-                    participation: null,
-                    prefillContent: actionSheet.submission.content || "",
-                    prefillMediaUrls: actionSheet.submission.media_urls || [],
-                    onSubmitSuccess: () => fetchSubmissions(false),
-                  });
-                }}
-              >
-                <Edit2 size={20} color="#2962FF" />
-                <Text style={[styles.actionSheetButtonText, { color: "#2962FF" }]}>
-                  Edit & Resubmit
-                </Text>
-              </TouchableOpacity>
-            )}
+                <TouchableOpacity
+                  style={styles.actionSheetButton}
+                  onPress={() => {
+                    setActionSheet(null);
+                    navigation.navigate("ChallengeSubmit", {
+                      post,
+                      participation: null,
+                      prefillContent: actionSheet.submission.content || "",
+                      prefillMediaUrls: actionSheet.submission.media_urls || [],
+                      onSubmitSuccess: () => fetchSubmissions(false),
+                    });
+                  }}
+                >
+                  <Edit2 size={20} color="#2962FF" />
+                  <Text style={[styles.actionSheetButtonText, { color: "#2962FF" }]}>
+                    Edit & Resubmit
+                  </Text>
+                </TouchableOpacity>
+              )}
 
             {/* ── ACTIVE CHALLENGE: Withdraw options ── */}
             {!challengeEnded && actionSheet?.submission?.is_own_submission && (
@@ -1991,7 +1992,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#34C759",
+    backgroundColor: COLORS.success,
     paddingVertical: 6,
     borderRadius: BORDER_RADIUS.s,
     gap: 4,
@@ -2001,7 +2002,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FF3B30",
+    backgroundColor: "rgba(229, 62, 62, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(229, 62, 62, 0.2)",
     paddingVertical: 6,
     borderRadius: BORDER_RADIUS.s,
     gap: 4,
@@ -2010,6 +2013,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
+  },
+  rejectButtonText: {
+    fontSize: 12,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.error,
   },
   // Participant Card
   participantCard: {
@@ -2423,7 +2431,14 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   submissionOptionsBtn: {
-    padding: 4,
+    padding: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  starTouchTarget: {
+    padding: 8,
+    justifyContent: "center",
+    alignItems: "center",
   },
   pendingBadgeInline: {
     flexDirection: "row",
@@ -2456,6 +2471,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: FONTS.semiBold,
     color: "#991B1B",
+  },
+  withdrawnRow: {
+    marginHorizontal: SPACING.m,
+    marginVertical: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: BORDER_RADIUS.m,
+    backgroundColor: "rgba(107, 114, 128, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(107, 114, 128, 0.12)",
+    borderStyle: "dashed",
+    alignItems: "center",
+  },
+  withdrawnRowText: {
+    fontSize: 13,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    fontStyle: "italic",
   },
 
   // ── Comments & DM Sheet ──────────────────────────────────────────────────

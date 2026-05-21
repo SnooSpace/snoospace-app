@@ -19,8 +19,9 @@ import {
   XCircle,
   User,
   MessageCircle,
-  CheckCircle2,
   AlertTriangle,
+  Check,
+  Info,
 } from "lucide-react-native";
 import { apiGet, apiPatch } from "../api/client";
 import { getAuthToken } from "../api/auth";
@@ -62,7 +63,7 @@ const RemovalRequestsModal = ({
           onPress: () => setAlertVisible(false),
         },
         secondaryAction: null,
-        icon: icon || (isSuccess ? CheckCircle2 : isError ? XCircle : Info),
+        icon: icon || (isSuccess ? CheckCircle : isError ? XCircle : Info),
         iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
       });
       setAlertVisible(true);
@@ -243,11 +244,11 @@ const RemovalRequestsModal = ({
             disabled={isReviewing}
           >
             {isReviewing ? (
-              <SnooLoader size="small" color="#FF3B30" />
+              <SnooLoader size="small" color={COLORS.error} />
             ) : (
               <>
-                <XCircle size={18} color="#FF3B30" />
-                <Text style={[styles.rejectButtonText, { fontFamily: "Manrope-SemiBold" }]}>
+                <X size={18} color={COLORS.error} />
+                <Text style={styles.rejectButtonText}>
                   Reject
                 </Text>
               </>
@@ -262,8 +263,8 @@ const RemovalRequestsModal = ({
               <SnooLoader size="small" color="#FFFFFF" />
             ) : (
               <>
-                <CheckCircle2 size={18} color="#FFFFFF" />
-                <Text style={[styles.approveButtonText, { fontFamily: "Manrope-SemiBold" }]}>
+                <Check size={18} color="#FFFFFF" />
+                <Text style={styles.approveButtonText}>
                   Approve
                 </Text>
               </>
@@ -373,12 +374,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontFamily: "Manrope-Bold",
+    fontFamily: FONTS.primary,
     color: COLORS.textPrimary,
   },
   headerSubtitle: {
     fontSize: 13,
-    fontFamily: "Manrope-Regular",
+    fontFamily: FONTS.regular,
     color: "#999",
     marginTop: 4,
     textAlign: "center",
@@ -425,12 +426,12 @@ const styles = StyleSheet.create({
   },
   requesterName: {
     fontSize: 15,
-    fontFamily: "Manrope-SemiBold",
+    fontFamily: FONTS.semiBold,
     color: COLORS.textPrimary,
   },
   requestDate: {
     fontSize: 12,
-    fontFamily: "Manrope-Regular",
+    fontFamily: FONTS.medium,
     color: "#999",
     marginTop: 2,
   },
@@ -448,12 +449,12 @@ const styles = StyleSheet.create({
   },
   contactButtonText: {
     fontSize: 12,
-    fontFamily: "Manrope-SemiBold",
+    fontFamily: FONTS.semiBold,
     color: "#2962FF",
   },
   reasonText: {
     fontSize: 14,
-    fontFamily: "Manrope-Regular",
+    fontFamily: FONTS.regular,
     color: "#666",
     fontStyle: "italic",
     marginBottom: 12,
@@ -469,20 +470,20 @@ const styles = StyleSheet.create({
   },
   submissionPreviewLabel: {
     fontSize: 11,
-    fontFamily: "Manrope-SemiBold",
+    fontFamily: FONTS.semiBold,
     color: "#999",
     textTransform: "uppercase",
     marginBottom: 4,
   },
   submissionPreviewText: {
     fontSize: 14,
-    fontFamily: "Manrope-Regular",
+    fontFamily: FONTS.regular,
     color: COLORS.textPrimary,
     lineHeight: 20,
   },
   submissionType: {
     fontSize: 12,
-    fontFamily: "Manrope-Regular",
+    fontFamily: FONTS.medium,
     color: "#999",
     marginTop: 4,
   },
@@ -498,14 +499,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: "#FFF",
-    borderWidth: 1.5,
-    borderColor: "#FF3B30",
+    backgroundColor: "rgba(229, 62, 62, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(229, 62, 62, 0.2)",
     gap: 6,
   },
   rejectButtonText: {
     fontSize: 14,
-    color: "#FF3B30",
+    fontFamily: FONTS.semiBold,
+    color: COLORS.error,
   },
   approveButton: {
     flex: 1,
@@ -514,11 +516,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 10,
     borderRadius: 10,
-    backgroundColor: "#34C759",
+    backgroundColor: COLORS.success,
     gap: 6,
   },
   approveButtonText: {
     fontSize: 14,
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
   },
   // Empty
@@ -529,13 +532,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontFamily: "Manrope-SemiBold",
+    fontFamily: FONTS.primary,
     color: COLORS.textPrimary,
     marginTop: 12,
   },
   emptySubtitle: {
     fontSize: 14,
-    fontFamily: "Manrope-Regular",
+    fontFamily: FONTS.regular,
     color: "#999",
     marginTop: 4,
   },
