@@ -269,7 +269,9 @@ const getParticipants = async (req, res) => {
           WHEN cp.participant_type = 'member' THEN m.profile_photo_url
           WHEN cp.participant_type = 'community' THEN c.logo_url
         END as participant_photo_url,
-        (SELECT COUNT(*) FROM challenge_submissions cs WHERE cs.participant_id = cp.id) as submission_count
+        (SELECT COUNT(*) FROM challenge_submissions cs WHERE cs.participant_id = cp.id) as submission_count,
+        (SELECT COUNT(*) FROM challenge_submissions cs WHERE cs.participant_id = cp.id AND cs.status = 'pending') as pending_count,
+        (SELECT COUNT(*) FROM challenge_submissions cs WHERE cs.participant_id = cp.id AND cs.status = 'approved') as approved_count
        FROM challenge_participations cp
        LEFT JOIN members m ON cp.participant_type = 'member' AND cp.participant_id = m.id
        LEFT JOIN communities c ON cp.participant_type = 'community' AND cp.participant_id = c.id

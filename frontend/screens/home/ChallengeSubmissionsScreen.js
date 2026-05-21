@@ -90,6 +90,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
   const [replyDMState, setReplyDMState] = useState({
     visible: false, submission: null, message: "", sending: false,
   });
+  const [statusExplanationVisible, setStatusExplanationVisible] = useState(false);
   const lastTapRef = useRef({});
 
   // ── Video viewport tracking (mirrors HomeFeedScreen) ──────────────────────
@@ -393,6 +394,11 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
       console.error("Error fetching participants:", error);
     }
   }, [post.id]);
+
+  // Fetch participants on mount so the count badge is shown immediately even on submissions tab
+  useEffect(() => {
+    fetchParticipants();
+  }, [fetchParticipants]);
 
   useEffect(() => {
     if (activeTab === "submissions") {
@@ -806,7 +812,36 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
     );
   };
 
+  const getStatusLightConfig = (item) => {
+    const pending = parseInt(item.pending_count || 0);
+    const approved = parseInt(item.approved_count || 0);
+
+    if (pending > 0) {
+      return {
+        dotColor: "#FF9500", // Orange
+        textColor: "#B45309",
+        bgColor: "rgba(255, 149, 0, 0.08)",
+        label: "Reviewing",
+      };
+    } else if (approved > 0) {
+      return {
+        dotColor: "#34C759", // Green
+        textColor: "#047857",
+        bgColor: "rgba(52, 199, 89, 0.08)",
+        label: "Approved",
+      };
+    } else {
+      return {
+        dotColor: "#9CA3AF", // Grey
+        textColor: "#4B5563",
+        bgColor: "rgba(156, 163, 175, 0.08)",
+        label: "Joined",
+      };
+    }
+  };
+
   const renderParticipant = ({ item }) => {
+    const statusCfg = getStatusLightConfig(item);
 
     return (
       <View style={styles.participantCard}>
@@ -853,23 +888,20 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           </View>
         )}
 
-        {/* Status Badge */}
-        <View
+        {/* Status Light (Tappable) */}
+        <TouchableOpacity
           style={[
-            styles.statusBadge,
-            { backgroundColor: getStatusColor(item.status) + "20" },
+            styles.statusLightContainer,
+            { backgroundColor: statusCfg.bgColor },
           ]}
+          onPress={() => setStatusExplanationVisible(true)}
+          activeOpacity={0.8}
         >
-          <Text
-            style={[styles.statusText, { color: getStatusColor(item.status) }]}
-          >
-            {item.status === "completed"
-              ? "Completed"
-              : item.status === "in_progress"
-                ? "In Progress"
-                : "Joined"}
+          <View style={[styles.statusLightDot, { backgroundColor: statusCfg.dotColor }]} />
+          <Text style={[styles.statusLightLabel, { color: statusCfg.textColor }]}>
+            {statusCfg.label}
           </Text>
-        </View>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -914,6 +946,23 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           >
             Participants
           </Text>
+          {participants.length > 0 && (
+            <View
+              style={[
+                styles.tabCountBadge,
+                activeTab === "participants" && styles.tabCountBadgeActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tabCountBadgeText,
+                  activeTab === "participants" && styles.tabCountBadgeTextActive,
+                ]}
+              >
+                {participants.length}
+              </Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -1142,13 +1191,6 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
                 </View>
               )}
             </TouchableOpacity>
-          )}
-          {activeTab === "participants" && (
-            <View style={styles.countBadge}>
-              <Text style={styles.countBadgeText}>
-                {participants.length}
-              </Text>
-            </View>
           )}
         </View>
       </View>
@@ -1574,6 +1616,67 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         icon={alertConfig.icon}
         iconColor={alertConfig.iconColor}
       />
+
+      {/* Status Explanation Modal */}
+      <Modal
+        visible={statusExplanationVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setStatusExplanationVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setStatusExplanationVisible(false)}
+        >
+          <View style={styles.explanationModalContent}>
+            <Text style={styles.explanationModalTitle}>Submission Progress</Text>
+            <Text style={styles.explanationModalSubtitle}>
+              Progress status is represented by the following colors:
+            </Text>
+
+            {/* Grey Status Row */}
+            <View style={styles.explanationRow}>
+              <View style={[styles.explanationDot, { backgroundColor: "#9CA3AF" }]} />
+              <View style={styles.explanationTextContainer}>
+                <Text style={styles.explanationItemTitle}>Joined</Text>
+                <Text style={styles.explanationItemDesc}>
+                  You have successfully joined the challenge and are ready to submit proof.
+                </Text>
+              </View>
+            </View>
+
+            {/* Orange Status Row */}
+            <View style={styles.explanationRow}>
+              <View style={[styles.explanationDot, { backgroundColor: "#FF9500" }]} />
+              <View style={styles.explanationTextContainer}>
+                <Text style={styles.explanationItemTitle}>Reviewing</Text>
+                <Text style={styles.explanationItemDesc}>
+                  Your submission has been uploaded and is under review by the challenge creator.
+                </Text>
+              </View>
+            </View>
+
+            {/* Green Status Row */}
+            <View style={styles.explanationRow}>
+              <View style={[styles.explanationDot, { backgroundColor: "#34C759" }]} />
+              <View style={styles.explanationTextContainer}>
+                <Text style={styles.explanationItemTitle}>Approved</Text>
+                <Text style={styles.explanationItemDesc}>
+                  Your submission was approved! It is now visible to the community.
+                </Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={styles.explanationCloseBtn}
+              onPress={() => setStatusExplanationVisible(false)}
+            >
+              <Text style={styles.explanationCloseBtnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -1689,6 +1792,27 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: "#2962FF",
   },
+  tabCountBadge: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+    marginLeft: 6,
+  },
+  tabCountBadgeActive: {
+    backgroundColor: "#2962FF15",
+  },
+  tabCountBadgeText: {
+    fontSize: 11,
+    fontFamily: FONTS.medium,
+    color: COLORS.textSecondary,
+  },
+  tabCountBadgeTextActive: {
+    color: "#2962FF",
+  },
   filterRow: {
     flexDirection: "row",
     marginTop: SPACING.m,
@@ -1734,7 +1858,7 @@ const styles = StyleSheet.create({
   },
   innerBadgeText: {
     fontSize: 11,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.medium,
     color: "#4B5563",
   },
   innerBadgeTextActive: {
@@ -1793,7 +1917,7 @@ const styles = StyleSheet.create({
   },
   pendingBadgeText: {
     fontSize: 9,
-    fontWeight: "700",
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
   },
   rejectedBadge: {
@@ -1810,7 +1934,7 @@ const styles = StyleSheet.create({
   },
   rejectedBadgeText: {
     fontSize: 9,
-    fontWeight: "700",
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
   },
   submissionFooter: {
@@ -1887,14 +2011,14 @@ const styles = StyleSheet.create({
   },
   moderateButtonText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
   },
   // Participant Card
   participantCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.surface,
+    backgroundColor: "transparent",
     paddingHorizontal: SPACING.m,
     paddingVertical: 12,
   },
@@ -1928,6 +2052,7 @@ const styles = StyleSheet.create({
   },
   participantJoined: {
     fontSize: 12,
+    fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
   },
   highlightBadge: {
@@ -1957,17 +2082,25 @@ const styles = StyleSheet.create({
   },
   progressPercentText: {
     fontSize: 11,
-    fontWeight: "600",
+    fontFamily: FONTS.medium,
     color: "#2962FF",
   },
-  statusBadge: {
-    paddingHorizontal: SPACING.s,
+  statusLightContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.s,
+    borderRadius: 12,
+    gap: 6,
   },
-  statusText: {
+  statusLightDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusLightLabel: {
     fontSize: 11,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
   },
   // Empty State
   emptyContainer: {
@@ -1978,7 +2111,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.primary,
     color: COLORS.textPrimary,
     marginTop: SPACING.l,
   },
@@ -1999,7 +2132,7 @@ const styles = StyleSheet.create({
   },
   visibilityInfoTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: "#2962FF",
     marginTop: SPACING.s,
     textAlign: "center",
@@ -2014,7 +2147,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textSecondary,
     marginTop: SPACING.xs,
-    fontWeight: "500",
+    fontFamily: FONTS.medium,
   },
   // FAB
   fab: {
@@ -2064,7 +2197,7 @@ const styles = StyleSheet.create({
   },
   detailAuthorName: {
     fontSize: 15,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.primary,
     color: COLORS.textPrimary,
   },
   detailTimeAgo: {
@@ -2117,7 +2250,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   detailCaptionName: {
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.primary,
   },
   detailReplyBar: {
     flexDirection: "row",
@@ -2164,7 +2297,7 @@ const styles = StyleSheet.create({
   },
   deletedText: {
     fontSize: 10,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: "#999",
   },
   // Action Sheet
@@ -2183,7 +2316,7 @@ const styles = StyleSheet.create({
   },
   actionSheetTitle: {
     fontSize: 18,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.primary,
     color: COLORS.textPrimary,
     marginBottom: 16,
     textAlign: "center",
@@ -2224,7 +2357,7 @@ const styles = StyleSheet.create({
   },
   actionSheetCancelText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: COLORS.textSecondary,
   },
   actionSheetDivider: {
@@ -2315,7 +2448,7 @@ const styles = StyleSheet.create({
   },
   featuredBadgeInlineText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: "#B8860B",
   },
   pendingBadgeInline: {
@@ -2331,7 +2464,7 @@ const styles = StyleSheet.create({
   },
   pendingBadgeInlineText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: "#3730A3",
   },
   rejectedBadgeInline: {
@@ -2347,7 +2480,7 @@ const styles = StyleSheet.create({
   },
   rejectedBadgeInlineText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: "#991B1B",
   },
 
@@ -2376,7 +2509,7 @@ const styles = StyleSheet.create({
   },
   commentsTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: FONTS.primary,
     color: COLORS.textPrimary,
     marginBottom: 12,
   },
@@ -2423,7 +2556,7 @@ const styles = StyleSheet.create({
   },
   commentAuthor: {
     fontSize: 12,
-    fontWeight: "700",
+    fontFamily: FONTS.semiBold,
     color: COLORS.textPrimary,
     marginBottom: 2,
   },
@@ -2492,13 +2625,83 @@ const styles = StyleSheet.create({
   },
   dmTitle: {
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: FONTS.primary,
     color: COLORS.textPrimary,
   },
   dmSubtitle: {
     fontSize: 13,
     color: COLORS.textSecondary,
     marginTop: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  explanationModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 24,
+    width: "100%",
+    maxWidth: 340,
+    alignItems: "stretch",
+    ...SHADOWS.md,
+  },
+  explanationModalTitle: {
+    fontSize: 18,
+    fontFamily: FONTS.primary,
+    color: COLORS.textPrimary,
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  explanationModalSubtitle: {
+    fontSize: 13,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+  explanationRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 16,
+    gap: 12,
+  },
+  explanationDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 5,
+  },
+  explanationTextContainer: {
+    flex: 1,
+  },
+  explanationItemTitle: {
+    fontSize: 14,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.textPrimary,
+    marginBottom: 2,
+  },
+  explanationItemDesc: {
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    lineHeight: 16,
+  },
+  explanationCloseBtn: {
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  explanationCloseBtnText: {
+    fontSize: 14,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.textPrimary,
   },
 });
 
