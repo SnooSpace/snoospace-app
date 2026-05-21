@@ -54,8 +54,11 @@ import {
   Coins,
   ArrowRight,
   CheckCircle,
+  Clock,
+  Calendar,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
 import { COLORS, FONTS, SHADOWS } from "../../../constants/theme";
@@ -76,14 +79,14 @@ import EventBus from "../../../utils/EventBus";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 const MODAL_TOKENS = {
-  primary: "#3565F2",
-  primaryGradient: ["#3565F2", "#2F56D6"],
-  surface: "#F5F8FF",
-  background: "#F9F9F9",
-  border: "#E6ECF8",
-  textPrimary: "#1F2937",
-  textSecondary: "#6B7280",
-  textMuted: "#9CA3AF",
+  primary: "#2962FF",
+  primaryGradient: ["#448AFF", "#2962FF"],
+  surface: "#FFFFFF",
+  background: "#F8FAFC",
+  border: "rgba(255, 255, 255, 0.6)",
+  textPrimary: "#0F172A",
+  textSecondary: "#475569",
+  textMuted: "#94A3B8",
   error: "#EF4444",
   success: "#10B981",
   radius: {
@@ -671,958 +674,1114 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     <ScrollView
       style={styles.stepContent}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 40 }}
+      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
     >
-      <View style={styles.sectionHeaderNew}>
-        <View style={styles.sectionHeaderTitleRow}>
-          <View style={styles.sectionHeaderIconContainer}>
-            <Briefcase
-              size={24}
-              color={MODAL_TOKENS.primary}
-              strokeWidth={2}
-            />
+      <BlurView intensity={50} tint="light" style={styles.glassCard}>
+        <View style={styles.sectionHeaderNew}>
+          <View style={styles.sectionHeaderTitleRow}>
+            <View style={styles.sectionHeaderIconContainer}>
+              <Briefcase
+                size={22}
+                color={MODAL_TOKENS.primary}
+                strokeWidth={2}
+              />
+            </View>
+            <Text style={styles.sectionHeaderTitle}>Basics</Text>
           </View>
-          <Text style={styles.sectionHeaderTitle}>Basics</Text>
+          <Text style={styles.sectionHeaderHelper}>
+            What role are you looking to fill?
+          </Text>
         </View>
-      <Text style={styles.sectionHeaderHelper}>
-        What role are you looking to fill?
-      </Text>
-      </View>
 
-      <View style={styles.inputContainerNew}>
-        <Text style={styles.labelNew}>Opportunity Title *</Text>
-      <TextInput
-        style={styles.inputNew}
-        value={title}
-        onChangeText={setTitle}
-        placeholder='e.g., "Looking for a Video Editor"'
-        placeholderTextColor={MODAL_TOKENS.textMuted}
-        maxLength={80}
-      />
-      <Text style={styles.charCount}>{title.length}/80</Text>
-
-      <Text style={styles.labelNew}>
-        What roles are you hiring for? *
-        <Text style={styles.hint}> ({selectedTypes.length}/5)</Text>
-      </Text>
-      <View style={styles.chipsContainerNew}>
-        {OPPORTUNITY_TYPES.map((type) => (
-          <TouchableOpacity
-            key={type}
-            style={[
-              styles.chip,
-              selectedTypes.includes(type) && styles.chipSelectedNew,
-              selectedTypes.length >= 5 &&
-                !selectedTypes.includes(type) &&
-                styles.chipDisabledNew,
-            ]}
-            onPress={() => toggleType(type)}
-            disabled={
-              selectedTypes.length >= 5 && !selectedTypes.includes(type)
-            }
-          >
-            <Text
-              style={[
-                styles.chipTextNew,
-                selectedTypes.includes(type) && styles.chipTextSelectedNew,
-              ]}
-            >
-              {type}
-            </Text>
-            {selectedTypes.includes(type) && (
-              <Check
-
-                size={16}
-                color="#FFFFFF"
-                style={{ marginLeft: 4 }}
-              />
-            )}
-          </TouchableOpacity>
-        ))}
-
-        {/* Custom types added by user */}
-        {selectedTypes
-          .filter((t) => !OPPORTUNITY_TYPES.includes(t))
-          .map((type) => (
-            <TouchableOpacity
-              key={type}
-              style={[styles.chip, styles.chipSelectedNew]}
-              onPress={() => toggleType(type)}
-            >
-              <Text style={styles.chipTextSelectedNew}>{type}</Text>
-              <X
-
-                size={16}
-                color="#FFFFFF"
-                style={{ marginLeft: 4 }}
-              />
-            </TouchableOpacity>
-          ))}
-
-        {/* Add Custom */}
-        {!showCustomInput && selectedTypes.length <= 4 && (
-          <TouchableOpacity
-            style={[styles.chip, styles.chipAddNew]}
-            onPress={() => setShowCustomInput(true)}
-          >
-            <Plus size={16} color={MODAL_TOKENS.primary} />
-            <Text style={styles.chipAddTextNew}>Custom</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      </View>
-
-      {showCustomInput && (
-        <View style={styles.customInputRowNew}>
+        <View style={styles.inputContainerNew}>
+          <Text style={styles.labelNew}>Opportunity Title *</Text>
           <TextInput
-            style={[styles.inputNew, { flex: 1, marginBottom: 0 }]}
-            value={customType}
-            onChangeText={setCustomType}
-            placeholder="Enter custom role"
+            style={styles.inputNew}
+            value={title}
+            onChangeText={setTitle}
+            placeholder='e.g., "Looking for a Video Editor"'
             placeholderTextColor={MODAL_TOKENS.textMuted}
-            autoFocus
+            maxLength={80}
           />
-          <TouchableOpacity style={styles.addButton} onPress={addCustomType}>
-            <Check size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => {
-              setShowCustomInput(false);
-              setCustomType("");
-            }}
-          >
-            <X size={20} color={MODAL_TOKENS.textMuted} />
-          </TouchableOpacity>
-        </View>
-      )}
-    </ScrollView>
-  );
+          <Text style={styles.charCount}>{title.length}/80</Text>
 
-  const renderStep2 = () => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.sectionHeaderNew}>
-        <View style={styles.sectionHeaderTitleRow}>
-          <View style={styles.sectionHeaderIconContainer}>
-            <Zap size={24} color={MODAL_TOKENS.primary} strokeWidth={2} />
-          </View>
-          <Text style={styles.sectionHeaderTitle}>Work Details</Text>
-        </View>
-      <Text style={styles.sectionHeaderHelper}>
-        Define the scope and nature of work.
-      </Text>
-      </View>
-
-      <Text style={styles.labelNew}>Work Type</Text>
-      <View style={styles.optionsRow}>
-        {[
-          { value: "one_time", label: "One-time", Icon: Zap },
-          { value: "ongoing", label: "Ongoing", Icon: Repeat },
-        ].map((opt) => (
-          <TouchableOpacity
-            key={opt.value}
-            style={[
-              styles.optionCard,
-              workType === opt.value && styles.optionCardSelected,
-            ]}
-            onPress={() => setWorkType(opt.value)}
-          >
-            <opt.Icon
-              strokeWidth={2}
-              size={24}
-              color={workType === opt.value ? MODAL_TOKENS.primary : MODAL_TOKENS.textMuted}
-            />
-            <Text
-              style={[
-                styles.optionLabel,
-                workType === opt.value && styles.optionLabelSelected,
-              ]}
-            >
-              {opt.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <Text style={styles.labelNew}>Work Mode</Text>
-      <View style={styles.optionsRow}>
-        {[
-          { value: "remote", label: "Remote", Icon: Monitor },
-          { value: "on_site", label: "On-site", Icon: MapPin },
-        ].map((opt) => (
-          <TouchableOpacity
-            key={opt.value}
-            style={[
-              styles.optionCard,
-              workMode === opt.value && styles.optionCardSelected,
-            ]}
-            onPress={() => setWorkMode(opt.value)}
-          >
-            <opt.Icon
-              strokeWidth={2}
-              size={24}
-              color={workMode === opt.value ? MODAL_TOKENS.primary : MODAL_TOKENS.textMuted}
-            />
-            <Text
-              style={[
-                styles.optionLabel,
-                workMode === opt.value && styles.optionLabelSelected,
-              ]}
-            >
-              {opt.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </ScrollView>
-  );
-
-  const renderStep3 = () => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.sectionHeaderNew}>
-        <View style={styles.sectionHeaderTitleRow}>
-          <View style={styles.sectionHeaderIconContainer}>
-            <Target size={24} color={MODAL_TOKENS.primary} strokeWidth={2} />
-          </View>
-          <Text style={styles.sectionHeaderTitle}>Core Requirements</Text>
-        </View>
-      </View>
-      <View style={styles.infoBox}>
-        <Info size={20} color={MODAL_TOKENS.primary} />
-        <Text style={styles.infoText}>
-          These requirements apply to ALL applicants regardless of role.
-        </Text>
-      </View>
-
-      <Text style={styles.labelNew}>Experience Level</Text>
-      <View style={styles.dropdownContainer}>
-        {["any", "beginner", "intermediate", "advanced"].map((level) => (
-          <TouchableOpacity
-            key={level}
-            style={[
-              styles.dropdownItem,
-              experienceLevel === level && styles.dropdownItemSelected,
-            ]}
-            onPress={() => setExperienceLevel(level)}
-          >
-            <Text
-              style={[
-                styles.dropdownItemText,
-                experienceLevel === level && styles.dropdownItemTextSelected,
-              ]}
-            >
-              {level === "any"
-                ? "Any Level"
-                : level.charAt(0).toUpperCase() + level.slice(1)}
-            </Text>
-            {experienceLevel === level && (
-              <Check size={18} color={MODAL_TOKENS.primary} />
-            )}
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <Text style={styles.labelNew}>Availability *</Text>
-      <TextInput
-        style={styles.inputNew}
-        value={availability}
-        onChangeText={setAvailability}
-        placeholder="e.g., 10 hrs/week OR 3 videos/week"
-        placeholderTextColor={MODAL_TOKENS.textMuted}
-        maxLength={100}
-      />
-
-      <Text style={styles.labelNew}>Expected Turnaround *</Text>
-      <TextInput
-        style={styles.inputNew}
-        value={turnaround}
-        onChangeText={setTurnaround}
-        placeholder="e.g., 48 hours per video"
-        placeholderTextColor={MODAL_TOKENS.textMuted}
-        maxLength={100}
-      />
-
-      <Text style={styles.labelNew}>Timezone Preference (Optional)</Text>
-      <TextInput
-        style={styles.inputNew}
-        value={timezone}
-        onChangeText={setTimezone}
-        placeholder="e.g., IST, EST, or Any"
-        placeholderTextColor={MODAL_TOKENS.textMuted}
-      />
-
-      <Text style={styles.labelNew}>Application Deadline (Optional)</Text>
-      <TouchableOpacity
-        style={styles.inputNew}
-        onPress={() => setShowDatePicker(true)}
-      >
-        <Text style={{ color: expiresAt ? TEXT_COLOR : MODAL_TOKENS.textMuted }}>
-          {expiresAt
-            ? expiresAt.toLocaleDateString("en-US", {
-                weekday: "short",
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-              })
-            : "Select Deadline"}
-        </Text>
-      </TouchableOpacity>
-
-      {showDatePicker && (
-        <DateTimePicker
-          value={expiresAt || new Date()}
-          mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          minimumDate={new Date()}
-          onChange={(event, selectedDate) => {
-            setShowDatePicker(false);
-            if (selectedDate) {
-              setExpiresAt(selectedDate);
-            }
-          }}
-        />
-      )}
-    </ScrollView>
-  );
-
-  const renderStep4 = () => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.sectionHeaderNew}>
-        <View style={styles.sectionHeaderTitleRow}>
-          <View style={styles.sectionHeaderIconContainer}>
-            <Award size={24} color={MODAL_TOKENS.primary} strokeWidth={2} />
-          </View>
-          <Text style={styles.sectionHeaderTitle}>Skill Requirements</Text>
-        </View>
-      <Text style={styles.sectionHeaderHelper}>
-        Configure requirements for each role. Applicants can apply if they match
-        ANY ONE role.
-      </Text>
-      </View>
-
-      <View style={styles.eligibilityToggle}>
-        <TouchableOpacity
-          style={[
-            styles.eligibilityOption,
-            eligibilityMode === "any_one" && styles.eligibilityOptionSelected,
-          ]}
-          onPress={() => setEligibilityMode("any_one")}
-        >
-          <Text
-            style={[
-              styles.eligibilityText,
-              eligibilityMode === "any_one" && styles.eligibilityTextSelected,
-            ]}
-          >
-            Match ANY ONE skill
+          <Text style={styles.labelNew}>
+            What roles are you hiring for? *
+            <Text style={styles.hint}> ({selectedTypes.length}/5)</Text>
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.eligibilityOption,
-            eligibilityMode === "multiple" && styles.eligibilityOptionSelected,
-          ]}
-          onPress={() => setEligibilityMode("multiple")}
-        >
-          <Text
-            style={[
-              styles.eligibilityText,
-              eligibilityMode === "multiple" && styles.eligibilityTextSelected,
-            ]}
-          >
-            Match MULTIPLE
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {eligibilityMode === "multiple" && (
-        <View style={styles.warningBox}>
-          <AlertTriangle size={18} color="#FF9500" />
-          <Text style={styles.warningText}>
-            This will significantly reduce applications (~85% fewer).
-          </Text>
-        </View>
-      )}
-
-      {skillGroups.map((group) => (
-        <View key={group.role} style={styles.skillGroupCard}>
-          <Text style={styles.skillGroupTitle}>🎬 {group.role}</Text>
-
-          <Text style={styles.skillGroupLabel}>Tools Required</Text>
-          <View style={styles.toolsContainer}>
-            {/* Preset tools */}
-            {(TOOL_PRESETS[group.role] || []).map((tool) => (
-              <TouchableOpacity
-                key={tool}
-                style={[
-                  styles.toolChip,
-                  group.tools.includes(tool) && styles.toolChipSelected,
-                ]}
-                onPress={() => toggleTool(group.role, tool)}
-              >
-                <Text
-                  style={[
-                    styles.toolChipText,
-                    group.tools.includes(tool) && styles.toolChipTextSelected,
-                  ]}
-                >
-                  {tool}
-                </Text>
-              </TouchableOpacity>
-            ))}
-
-            {/* Custom tools added by user */}
-            {group.tools
-              .filter((t) => !(TOOL_PRESETS[group.role] || []).includes(t))
-              .map((tool) => (
+          <View style={styles.chipsContainerNew}>
+            {OPPORTUNITY_TYPES.map((type) => {
+              const isSelected = selectedTypes.includes(type);
+              const isDisabled = selectedTypes.length >= 5 && !isSelected;
+              return (
                 <TouchableOpacity
-                  key={tool}
-                  style={[styles.toolChip, styles.toolChipSelected]}
-                  onPress={() => toggleTool(group.role, tool)}
+                  key={type}
+                  style={[
+                    styles.chip,
+                    isSelected && styles.chipSelectedNew,
+                    isDisabled && styles.chipDisabledNew,
+                  ]}
+                  onPress={() => toggleType(type)}
+                  disabled={isDisabled}
+                  activeOpacity={0.7}
                 >
-                  <Text style={styles.toolChipTextSelected}>{tool}</Text>
-                  <X
+                  <Text
+                    style={[
+                      styles.chipTextNew,
+                      isSelected && styles.chipTextSelectedNew,
+                    ]}
+                  >
+                    {type}
+                  </Text>
+                  {isSelected && (
+                    <Check
+                      size={14}
+                      color="#FFFFFF"
+                      style={{ marginLeft: 6 }}
+                    />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
 
+            {/* Custom types added by user */}
+            {selectedTypes
+              .filter((t) => !OPPORTUNITY_TYPES.includes(t))
+              .map((type) => (
+                <TouchableOpacity
+                  key={type}
+                  style={[styles.chip, styles.chipSelectedNew]}
+                  onPress={() => toggleType(type)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.chipTextSelectedNew}>{type}</Text>
+                  <X
                     size={14}
                     color="#FFFFFF"
-                    style={{ marginLeft: 4 }}
+                    style={{ marginLeft: 6 }}
                   />
                 </TouchableOpacity>
               ))}
 
-            {/* Add Custom Tool Button */}
-            {!showCustomToolInput[group.role] && (
+            {/* Add Custom */}
+            {!showCustomInput && selectedTypes.length <= 4 && (
               <TouchableOpacity
-                style={[styles.toolChip, styles.chipAddNew]}
-                onPress={() =>
-                  setShowCustomToolInput({
-                    ...showCustomToolInput,
-                    [group.role]: true,
-                  })
-                }
+                style={[styles.chip, styles.chipAddNew]}
+                onPress={() => setShowCustomInput(true)}
+                activeOpacity={0.7}
               >
-                <Plus size={16} color={MODAL_TOKENS.primary} />
+                <Plus size={14} color={MODAL_TOKENS.primary} />
                 <Text style={styles.chipAddTextNew}>Custom</Text>
               </TouchableOpacity>
             )}
           </View>
+        </View>
 
-          {/* Custom Tool Input */}
-          {showCustomToolInput[group.role] && (
-            <View style={styles.customInputRowNew}>
-              <TextInput
-                style={[styles.inputNew, { flex: 1, marginBottom: 0 }]}
-                value={customTool}
-                onChangeText={setCustomTool}
-                placeholder="Enter custom tool"
-                placeholderTextColor={MODAL_TOKENS.textMuted}
-                autoFocus
-              />
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => addCustomTool(group.role)}
-              >
-                <Check size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => {
-                  setShowCustomToolInput({
-                    ...showCustomToolInput,
-                    [group.role]: false,
-                  });
-                  setCustomTool("");
-                }}
-              >
-                <X size={20} color={MODAL_TOKENS.textMuted} />
-              </TouchableOpacity>
+        {showCustomInput && (
+          <View style={styles.customInputRowNew}>
+            <TextInput
+              style={[styles.inputNew, { flex: 1, marginBottom: 0 }]}
+              value={customType}
+              onChangeText={setCustomType}
+              placeholder="Enter custom role"
+              placeholderTextColor={MODAL_TOKENS.textMuted}
+              autoFocus
+            />
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={addCustomType}
+              activeOpacity={0.7}
+            >
+              <Check size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => {
+                setShowCustomInput(false);
+                setCustomType("");
+              }}
+              activeOpacity={0.7}
+            >
+              <X size={20} color={MODAL_TOKENS.textMuted} />
+            </TouchableOpacity>
+          </View>
+        )}
+      </BlurView>
+    </ScrollView>
+  );
+
+  const renderStep2 = () => (
+    <ScrollView
+      style={styles.stepContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+    >
+      <BlurView intensity={50} tint="light" style={styles.glassCard}>
+        <View style={styles.sectionHeaderNew}>
+          <View style={styles.sectionHeaderTitleRow}>
+            <View style={styles.sectionHeaderIconContainer}>
+              <Zap size={22} color={MODAL_TOKENS.primary} strokeWidth={2} />
             </View>
-          )}
+            <Text style={styles.sectionHeaderTitle}>Work Details</Text>
+          </View>
+          <Text style={styles.sectionHeaderHelper}>
+            Define the scope and nature of work.
+          </Text>
+        </View>
 
-          {/* Sample Type Expected - Always show this section */}
-          <Text style={styles.skillGroupLabel}>Sample Type Expected</Text>
-          <View style={styles.sampleTypesContainer}>
-            {/* Preset sample types */}
-            {(SAMPLE_TYPES[group.role] || []).map((type) => (
+        <Text style={styles.labelNew}>Work Type</Text>
+        <View style={styles.optionsRow}>
+          {[
+            { value: "one_time", label: "One-time", Icon: Zap },
+            { value: "ongoing", label: "Ongoing", Icon: Repeat },
+          ].map((opt) => {
+            const isSelected = workType === opt.value;
+            return (
               <TouchableOpacity
-                key={type}
+                key={opt.value}
                 style={[
-                  styles.sampleTypeChip,
-                  group.sample_type === type && styles.sampleTypeChipSelected,
+                  styles.optionCard,
+                  isSelected && styles.optionCardSelected,
                 ]}
-                onPress={() =>
-                  updateSkillGroup(group.role, "sample_type", type)
-                }
+                onPress={() => setWorkType(opt.value)}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.optionIconContainer,
+                    isSelected && styles.optionIconContainerSelected,
+                  ]}
+                >
+                  <opt.Icon
+                    strokeWidth={2}
+                    size={20}
+                    color={isSelected ? MODAL_TOKENS.primary : MODAL_TOKENS.textSecondary}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.optionLabel,
+                    isSelected && styles.optionLabelSelected,
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+                {isSelected && (
+                  <View style={styles.cardCheckCircle}>
+                    <Check size={12} color="#FFFFFF" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={styles.labelNew}>Work Mode</Text>
+        <View style={styles.optionsRow}>
+          {[
+            { value: "remote", label: "Remote", Icon: Monitor },
+            { value: "on_site", label: "On-site", Icon: MapPin },
+          ].map((opt) => {
+            const isSelected = workMode === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={[
+                  styles.optionCard,
+                  isSelected && styles.optionCardSelected,
+                ]}
+                onPress={() => setWorkMode(opt.value)}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.optionIconContainer,
+                    isSelected && styles.optionIconContainerSelected,
+                  ]}
+                >
+                  <opt.Icon
+                    strokeWidth={2}
+                    size={20}
+                    color={isSelected ? MODAL_TOKENS.primary : MODAL_TOKENS.textSecondary}
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.optionLabel,
+                    isSelected && styles.optionLabelSelected,
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+                {isSelected && (
+                  <View style={styles.cardCheckCircle}>
+                    <Check size={12} color="#FFFFFF" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </BlurView>
+    </ScrollView>
+  );
+
+  const renderStep3 = () => (
+    <ScrollView
+      style={styles.stepContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+    >
+      <BlurView intensity={50} tint="light" style={styles.glassCard}>
+        <View style={styles.sectionHeaderNew}>
+          <View style={styles.sectionHeaderTitleRow}>
+            <View style={styles.sectionHeaderIconContainer}>
+              <Target size={22} color={MODAL_TOKENS.primary} strokeWidth={2} />
+            </View>
+            <Text style={styles.sectionHeaderTitle}>Core Requirements</Text>
+          </View>
+        </View>
+        <View style={styles.infoBox}>
+          <Info size={18} color={MODAL_TOKENS.primary} strokeWidth={2} />
+          <Text style={styles.infoText}>
+            These requirements apply to ALL applicants regardless of role.
+          </Text>
+        </View>
+
+        <Text style={styles.labelNew}>Experience Level</Text>
+        <View style={styles.dropdownContainer}>
+          {["any", "beginner", "intermediate", "advanced"].map((level) => {
+            const isSelected = experienceLevel === level;
+            return (
+              <TouchableOpacity
+                key={level}
+                style={[
+                  styles.dropdownItem,
+                  isSelected && styles.dropdownItemSelected,
+                ]}
+                onPress={() => setExperienceLevel(level)}
+                activeOpacity={0.7}
               >
                 <Text
                   style={[
-                    styles.sampleTypeText,
-                    group.sample_type === type && styles.sampleTypeTextSelected,
+                    styles.dropdownItemText,
+                    isSelected && styles.dropdownItemTextSelected,
                   ]}
                 >
-                  {type}
+                  {level === "any"
+                    ? "Any Level"
+                    : level.charAt(0).toUpperCase() + level.slice(1)}
                 </Text>
+                {isSelected && (
+                  <Check size={18} color={MODAL_TOKENS.primary} strokeWidth={2} />
+                )}
               </TouchableOpacity>
-            ))}
+            );
+          })}
+        </View>
 
-            {/* Custom sample type if not in presets */}
-            {group.sample_type &&
-              !(SAMPLE_TYPES[group.role] || []).includes(group.sample_type) && (
-                <TouchableOpacity
-                  style={[styles.sampleTypeChip, styles.sampleTypeChipSelected]}
-                  onPress={() =>
-                    updateSkillGroup(group.role, "sample_type", null)
-                  }
-                >
-                  <Text style={styles.sampleTypeTextSelected}>
-                    {group.sample_type}
-                  </Text>
-                  <X
+        <Text style={styles.labelNew}>Availability *</Text>
+        <TextInput
+          style={styles.inputNew}
+          value={availability}
+          onChangeText={setAvailability}
+          placeholder="e.g., 10 hrs/week OR 3 videos/week"
+          placeholderTextColor={MODAL_TOKENS.textMuted}
+          maxLength={100}
+        />
 
-                    size={14}
-                    color="#FFFFFF"
-                    style={{ marginLeft: 4 }}
+        <Text style={styles.labelNew}>Expected Turnaround *</Text>
+        <TextInput
+          style={styles.inputNew}
+          value={turnaround}
+          onChangeText={setTurnaround}
+          placeholder="e.g., 48 hours per video"
+          placeholderTextColor={MODAL_TOKENS.textMuted}
+          maxLength={100}
+        />
+
+        <Text style={styles.labelNew}>Timezone Preference (Optional)</Text>
+        <TextInput
+          style={styles.inputNew}
+          value={timezone}
+          onChangeText={setTimezone}
+          placeholder="e.g., IST, EST, or Any"
+          placeholderTextColor={MODAL_TOKENS.textMuted}
+        />
+
+        <Text style={styles.labelNew}>Application Deadline (Optional)</Text>
+        <TouchableOpacity
+          style={styles.datePickerTrigger}
+          onPress={() => setShowDatePicker(true)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.datePickerLeft}>
+            <Calendar size={18} color={MODAL_TOKENS.primary} strokeWidth={2} />
+            <Text style={styles.datePickerText}>
+              {expiresAt
+                ? expiresAt.toLocaleDateString("en-US", {
+                    weekday: "short",
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })
+                : "Select Deadline"}
+            </Text>
+          </View>
+          <ChevronRight size={18} color={MODAL_TOKENS.textMuted} strokeWidth={2} />
+        </TouchableOpacity>
+
+        {showDatePicker && (
+          <DateTimePicker
+            value={expiresAt || new Date()}
+            mode="date"
+            display={Platform.OS === "ios" ? "spinner" : "default"}
+            minimumDate={new Date()}
+            onChange={(event, selectedDate) => {
+              setShowDatePicker(false);
+              if (selectedDate) {
+                setExpiresAt(selectedDate);
+              }
+            }}
+          />
+        )}
+      </BlurView>
+    </ScrollView>
+  );
+
+  const renderStep4 = () => (
+    <ScrollView
+      style={styles.stepContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+    >
+      <BlurView intensity={50} tint="light" style={styles.glassCard}>
+        <View style={styles.sectionHeaderNew}>
+          <View style={styles.sectionHeaderTitleRow}>
+            <View style={styles.sectionHeaderIconContainer}>
+              <Award size={22} color={MODAL_TOKENS.primary} strokeWidth={2} />
+            </View>
+            <Text style={styles.sectionHeaderTitle}>Skill Requirements</Text>
+          </View>
+          <Text style={styles.sectionHeaderHelper}>
+            Configure requirements for each role. Applicants can apply if they match
+            ANY ONE role.
+          </Text>
+        </View>
+
+        <View style={styles.eligibilityToggle}>
+          <TouchableOpacity
+            style={[
+              styles.eligibilityOption,
+              eligibilityMode === "any_one" && styles.eligibilityOptionSelected,
+            ]}
+            onPress={() => setEligibilityMode("any_one")}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.eligibilityText,
+                eligibilityMode === "any_one" && styles.eligibilityTextSelected,
+              ]}
+            >
+              Match ANY ONE skill
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.eligibilityOption,
+              eligibilityMode === "multiple" && styles.eligibilityOptionSelected,
+            ]}
+            onPress={() => setEligibilityMode("multiple")}
+            activeOpacity={0.7}
+          >
+            <Text
+              style={[
+                styles.eligibilityText,
+                eligibilityMode === "multiple" && styles.eligibilityTextSelected,
+              ]}
+            >
+              Match MULTIPLE
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {eligibilityMode === "multiple" && (
+          <View style={styles.warningBox}>
+            <AlertTriangle size={18} color="#FF9500" strokeWidth={2} />
+            <Text style={styles.warningText}>
+              This will significantly reduce applications (~85% fewer).
+            </Text>
+          </View>
+        )}
+
+        {skillGroups.map((group) => {
+          let roleColor = MODAL_TOKENS.primary;
+          let roleBg = "rgba(41, 98, 255, 0.04)";
+          let roleBorder = "rgba(41, 98, 255, 0.15)";
+          
+          if (group.role.includes("Editor") || group.role.includes("Designer")) {
+            roleColor = "#8B5CF6"; 
+            roleBg = "rgba(139, 92, 246, 0.04)";
+            roleBorder = "rgba(139, 92, 246, 0.15)";
+          } else if (group.role.includes("Manager") || group.role.includes("Writer")) {
+            roleColor = "#10B981"; 
+            roleBg = "rgba(16, 185, 129, 0.04)";
+            roleBorder = "rgba(16, 185, 129, 0.15)";
+          }
+
+          return (
+            <View
+              key={group.role}
+              style={[
+                styles.skillGroupCard,
+                { backgroundColor: roleBg, borderColor: roleBorder }
+              ]}
+            >
+              <Text style={[styles.skillGroupTitle, { color: roleColor }]}>
+                {group.role}
+              </Text>
+
+              <Text style={styles.skillGroupLabel}>Tools Required</Text>
+              <View style={styles.toolsContainer}>
+                {(TOOL_PRESETS[group.role] || []).map((tool) => {
+                  const isSelected = group.tools.includes(tool);
+                  return (
+                    <TouchableOpacity
+                      key={tool}
+                      style={[
+                        styles.toolChip,
+                        isSelected && [styles.toolChipSelected, { backgroundColor: roleColor }],
+                      ]}
+                      onPress={() => toggleTool(group.role, tool)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.toolChipText,
+                          isSelected && styles.toolChipTextSelected,
+                        ]}
+                      >
+                        {tool}
+                      </Text>
+                      {isSelected && (
+                        <Check size={12} color="#FFFFFF" style={{ marginLeft: 4 }} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {group.tools
+                  .filter((t) => !(TOOL_PRESETS[group.role] || []).includes(t))
+                  .map((tool) => (
+                    <TouchableOpacity
+                      key={tool}
+                      style={[styles.toolChip, styles.toolChipSelected, { backgroundColor: roleColor }]}
+                      onPress={() => toggleTool(group.role, tool)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.toolChipTextSelected}>{tool}</Text>
+                      <X
+                        size={12}
+                        color="#FFFFFF"
+                        style={{ marginLeft: 4 }}
+                      />
+                    </TouchableOpacity>
+                  ))}
+
+                {!showCustomToolInput[group.role] && (
+                  <TouchableOpacity
+                    style={[styles.toolChip, styles.chipAddNew]}
+                    onPress={() =>
+                      setShowCustomToolInput({
+                        ...showCustomToolInput,
+                        [group.role]: true,
+                      })
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Plus size={14} color={roleColor} />
+                    <Text style={[styles.chipAddTextNew, { color: roleColor }]}>Custom</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {showCustomToolInput[group.role] && (
+                <View style={styles.customInputRowNew}>
+                  <TextInput
+                    style={[styles.inputNew, { flex: 1, marginBottom: 0 }]}
+                    value={customTool}
+                    onChangeText={setCustomTool}
+                    placeholder="Enter custom tool"
+                    placeholderTextColor={MODAL_TOKENS.textMuted}
+                    autoFocus
                   />
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.addButton, { backgroundColor: roleColor }]}
+                    onPress={() => addCustomTool(group.role)}
+                    activeOpacity={0.7}
+                  >
+                    <Check size={20} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => {
+                      setShowCustomToolInput({
+                        ...showCustomToolInput,
+                        [group.role]: false,
+                      });
+                      setCustomTool("");
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <X size={20} color={MODAL_TOKENS.textMuted} />
+                  </TouchableOpacity>
+                </View>
               )}
 
-            {/* Add Custom Sample Type Button */}
-            {!showCustomSampleInput[group.role] && (
-              <TouchableOpacity
-                style={[styles.sampleTypeChip, styles.chipAddNew]}
-                onPress={() =>
-                  setShowCustomSampleInput({
-                    ...showCustomSampleInput,
-                    [group.role]: true,
-                  })
-                }
-              >
-                <Plus size={16} color={MODAL_TOKENS.primary} />
-                <Text style={styles.chipAddTextNew}>Custom</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+              <Text style={styles.skillGroupLabel}>Sample Type Expected</Text>
+              <View style={styles.sampleTypesContainer}>
+                {(SAMPLE_TYPES[group.role] || []).map((type) => {
+                  const isSelected = group.sample_type === type;
+                  return (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.sampleTypeChip,
+                        isSelected && [styles.sampleTypeChipSelected, { borderColor: roleColor, backgroundColor: `${roleColor}10` }],
+                      ]}
+                      onPress={() =>
+                        updateSkillGroup(group.role, "sample_type", type)
+                      }
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.sampleTypeText,
+                          isSelected && [styles.sampleTypeTextSelected, { color: roleColor }],
+                        ]}
+                      >
+                        {type}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
 
-          {/* Custom Sample Type Input */}
-          {showCustomSampleInput[group.role] && (
-            <View style={styles.customInputRowNew}>
-              <TextInput
-                style={[styles.inputNew, { flex: 1, marginBottom: 0 }]}
-                value={customSampleType}
-                onChangeText={setCustomSampleType}
-                placeholder="Enter custom sample type"
-                placeholderTextColor={MODAL_TOKENS.textMuted}
-                autoFocus
-              />
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={() => addCustomSampleType(group.role)}
-              >
-                <Check size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={() => {
-                  setShowCustomSampleInput({
-                    ...showCustomSampleInput,
-                    [group.role]: false,
-                  });
-                  setCustomSampleType("");
-                }}
-              >
-                <X size={20} color={MODAL_TOKENS.textMuted} />
-              </TouchableOpacity>
+                {group.sample_type &&
+                  !(SAMPLE_TYPES[group.role] || []).includes(group.sample_type) && (
+                    <TouchableOpacity
+                      style={[styles.sampleTypeChip, styles.sampleTypeChipSelected, { borderColor: roleColor, backgroundColor: `${roleColor}10` }]}
+                      onPress={() =>
+                        updateSkillGroup(group.role, "sample_type", null)
+                      }
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[styles.sampleTypeTextSelected, { color: roleColor }]}>
+                        {group.sample_type}
+                      </Text>
+                      <X
+                        size={12}
+                        color={roleColor}
+                        style={{ marginLeft: 4 }}
+                      />
+                    </TouchableOpacity>
+                  )}
+
+                {!showCustomSampleInput[group.role] && (
+                  <TouchableOpacity
+                    style={[styles.sampleTypeChip, styles.chipAddNew]}
+                    onPress={() =>
+                      setShowCustomSampleInput({
+                        ...showCustomSampleInput,
+                        [group.role]: true,
+                      })
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Plus size={14} color={roleColor} />
+                    <Text style={[styles.chipAddTextNew, { color: roleColor }]}>Custom</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {showCustomSampleInput[group.role] && (
+                <View style={styles.customInputRowNew}>
+                  <TextInput
+                    style={[styles.inputNew, { flex: 1, marginBottom: 0 }]}
+                    value={customSampleType}
+                    onChangeText={setCustomSampleType}
+                    placeholder="Enter custom sample type"
+                    placeholderTextColor={MODAL_TOKENS.textMuted}
+                    autoFocus
+                  />
+                  <TouchableOpacity
+                    style={[styles.addButton, { backgroundColor: roleColor }]}
+                    onPress={() => addCustomSampleType(group.role)}
+                    activeOpacity={0.7}
+                  >
+                    <Check size={20} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={() => {
+                      setShowCustomSampleInput({
+                        ...showCustomSampleInput,
+                        [group.role]: false,
+                      });
+                      setCustomSampleType("");
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <X size={20} color={MODAL_TOKENS.textMuted} />
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
-          )}
-        </View>
-      ))}
+          );
+        })}
+      </BlurView>
     </ScrollView>
   );
 
   const renderStep5 = () => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.sectionHeaderNew}>
-        <View style={styles.sectionHeaderTitleRow}>
-          <View style={styles.sectionHeaderIconContainer}>
-            <Coins size={24} color={MODAL_TOKENS.primary} strokeWidth={2} />
+    <ScrollView
+      style={styles.stepContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+    >
+      <BlurView intensity={50} tint="light" style={styles.glassCard}>
+        <View style={styles.sectionHeaderNew}>
+          <View style={styles.sectionHeaderTitleRow}>
+            <View style={styles.sectionHeaderIconContainer}>
+              <Coins size={22} color={MODAL_TOKENS.primary} strokeWidth={2} />
+            </View>
+            <Text style={styles.sectionHeaderTitle}>Compensation</Text>
           </View>
-          <Text style={styles.sectionHeaderTitle}>Compensation</Text>
-        </View>
-      <Text style={styles.sectionHeaderHelper}>
-        How will you compensate the selected talent?
-      </Text>
-      </View>
-
-      <Text style={styles.labelNew}>Payment Type</Text>
-      <View style={styles.optionsRow}>
-        {[
-          { value: "fixed", label: "Fixed" },
-          { value: "monthly", label: "Monthly" },
-          { value: "per_deliverable", label: "Per Deliverable" },
-        ].map((opt) => (
-          <TouchableOpacity
-            key={opt.value}
-            style={[
-              styles.paymentTypeChip,
-              paymentType === opt.value && styles.paymentTypeChipSelected,
-            ]}
-            onPress={() => setPaymentType(opt.value)}
-          >
-            <Text
-              style={[
-                styles.paymentTypeText,
-                paymentType === opt.value && styles.paymentTypeTextSelected,
-              ]}
-            >
-              {opt.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <Text style={styles.labelNew}>Budget Range (Optional)</Text>
-      <TextInput
-        style={styles.inputNew}
-        value={budgetRange}
-        onChangeText={setBudgetRange}
-        placeholder="e.g., ₹5,000 - ₹10,000"
-        placeholderTextColor={MODAL_TOKENS.textMuted}
-      />
-
-      <Text style={styles.labelNew}>Payment Nature</Text>
-      <View style={styles.paymentNatureContainer}>
-        {[
-          { value: "paid", label: "Paid", Icon: Coins },
-          { value: "trial", label: "Trial-based", Icon: Clock },
-          {
-            value: "revenue_share",
-            label: "Revenue Share",
-            Icon: PieChart,
-          },
-        ].map((opt) => (
-          <TouchableOpacity
-            key={opt.value}
-            style={[
-              styles.paymentNatureCard,
-              paymentNature === opt.value && styles.paymentNatureCardSelected,
-            ]}
-            onPress={() => setPaymentNature(opt.value)}
-          >
-            <opt.Icon
-
-              size={20}
-              color={
-                paymentNature === opt.value ? MODAL_TOKENS.primary : MODAL_TOKENS.textMuted
-              }
-              strokeWidth={2}
-            />
-            <Text
-              style={[
-                styles.paymentNatureLabel,
-                paymentNature === opt.value &&
-                  styles.paymentNatureLabelSelected,
-              ]}
-            >
-              {opt.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {paymentNature === "trial" && (
-        <View style={styles.infoBox}>
-          <Lightbulb size={18} color="#FF9500" />
-          <Text style={styles.infoText}>
-            Consider offering a small stipend for trial work.
+          <Text style={styles.sectionHeaderHelper}>
+            How will you compensate the selected talent?
           </Text>
         </View>
-      )}
+
+        <Text style={styles.labelNew}>Payment Type</Text>
+        <View style={styles.optionsRow}>
+          {[
+            { value: "fixed", label: "Fixed" },
+            { value: "monthly", label: "Monthly" },
+            { value: "per_deliverable", label: "Per Deliverable" },
+          ].map((opt) => {
+            const isSelected = paymentType === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={[
+                  styles.paymentTypeChip,
+                  isSelected && styles.paymentTypeChipSelected,
+                ]}
+                onPress={() => setPaymentType(opt.value)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.paymentTypeText,
+                    isSelected && styles.paymentTypeTextSelected,
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={styles.labelNew}>Budget Range (Optional)</Text>
+        <TextInput
+          style={styles.inputNew}
+          value={budgetRange}
+          onChangeText={setBudgetRange}
+          placeholder="e.g., ₹5,000 - ₹10,000"
+          placeholderTextColor={MODAL_TOKENS.textMuted}
+        />
+
+        <Text style={styles.labelNew}>Payment Nature</Text>
+        <View style={styles.paymentNatureContainer}>
+          {[
+            { value: "paid", label: "Paid", Icon: Coins },
+            { value: "trial", label: "Trial-based", Icon: Clock },
+            {
+              value: "revenue_share",
+              label: "Revenue Share",
+              Icon: PieChart,
+            },
+          ].map((opt) => {
+            const isSelected = paymentNature === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={[
+                  styles.paymentNatureCard,
+                  isSelected && styles.paymentNatureCardSelected,
+                ]}
+                onPress={() => setPaymentNature(opt.value)}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.optionIconContainer,
+                    isSelected && styles.optionIconContainerSelected,
+                  ]}
+                >
+                  <opt.Icon
+                    size={20}
+                    color={isSelected ? MODAL_TOKENS.primary : MODAL_TOKENS.textSecondary}
+                    strokeWidth={2}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.paymentNatureLabel,
+                      isSelected && styles.paymentNatureLabelSelected,
+                    ]}
+                  >
+                    {opt.label}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.radioOuter,
+                    isSelected && styles.radioOuterSelected,
+                  ]}
+                >
+                  {isSelected && <View style={styles.radioInner} />}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {paymentNature === "trial" && (
+          <View style={styles.infoBox}>
+            <Lightbulb size={18} color="#FF9500" strokeWidth={2} />
+            <Text style={[styles.infoText, { color: "#B45309" }]}>
+              Consider offering a small stipend for trial work.
+            </Text>
+          </View>
+        )}
+      </BlurView>
     </ScrollView>
   );
 
   const renderStep6 = () => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.sectionHeaderNew}>
-        <View style={styles.sectionHeaderTitleRow}>
-          <View style={styles.sectionHeaderIconContainer}>
-            <HelpCircle size={24} color={MODAL_TOKENS.primary} strokeWidth={2} />
+    <ScrollView
+      style={styles.stepContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+    >
+      <BlurView intensity={50} tint="light" style={styles.glassCard}>
+        <View style={styles.sectionHeaderNew}>
+          <View style={styles.sectionHeaderTitleRow}>
+            <View style={styles.sectionHeaderIconContainer}>
+              <HelpCircle size={22} color={MODAL_TOKENS.primary} strokeWidth={2} />
+            </View>
+            <Text style={styles.sectionHeaderTitle}>Application Questions</Text>
           </View>
-          <Text style={styles.sectionHeaderTitle}>Application Questions</Text>
         </View>
-      </View>
 
-      <View style={styles.infoBox}>
-        <Lightbulb size={18} color={MODAL_TOKENS.primary} />
-        <Text style={styles.infoText}>
-          Keep this short. Fewer questions = better quality applicants.
-        </Text>
-      </View>
-
-      <View style={styles.autoIncludedBox}>
-        <Text style={styles.autoIncludedTitle}>
-          Auto-Included (Not editable)
-        </Text>
-        <View style={styles.autoItem}>
-          <CheckCircle2 size={16} color="#34C759" />
-          <Text style={styles.autoItemText}>Applicant Profile</Text>
+        <View style={styles.infoBox}>
+          <Lightbulb size={18} color={MODAL_TOKENS.primary} strokeWidth={2} />
+          <Text style={styles.infoText}>
+            Keep this short. Fewer questions = better quality applicants.
+          </Text>
         </View>
-        <View style={styles.autoItem}>
-          <CheckCircle2 size={16} color="#34C759" />
-          <Text style={styles.autoItemText}>Skill Applied For</Text>
-        </View>
-        <View style={styles.autoItem}>
-          <CheckCircle2 size={16} color="#34C759" />
-          <Text style={styles.autoItemText}>Portfolio Samples</Text>
-        </View>
-      </View>
 
-      <Text style={styles.labelNew}>Your Questions (max 4)</Text>
-
-      {questions.map((q, index) => (
-        <View key={index} style={styles.questionCard}>
-          <View style={styles.questionHeader}>
-            <Text style={styles.questionNumber}>Question {index + 1}</Text>
-            <TouchableOpacity onPress={() => removeQuestion(index)}>
-              <Trash2 size={18} color="#FF3B30" />
-            </TouchableOpacity>
+        <View style={styles.autoIncludedBox}>
+          <Text style={styles.autoIncludedTitle}>
+            Auto-Included (Not editable)
+          </Text>
+          <View style={styles.autoItem}>
+            <CheckCircle2 size={16} color="#16A34A" strokeWidth={2} />
+            <Text style={styles.autoItemText}>Applicant Profile</Text>
           </View>
-          <TextInput
-            style={styles.questionInput}
-            value={q.prompt}
-            onChangeText={(text) => updateQuestion(index, "prompt", text)}
-            placeholder="Enter your question"
-            placeholderTextColor={MODAL_TOKENS.textMuted}
-            multiline
-          />
-          <View style={styles.requiredRow}>
-            <Text style={styles.requiredLabel}>Required</Text>
-            <Switch
-              value={q.required}
-              onValueChange={(val) => updateQuestion(index, "required", val)}
-              trackColor={{ false: "#E5E7EB", true: `${MODAL_TOKENS.primary}50` }}
-              thumbColor={q.required ? MODAL_TOKENS.primary : "#FFFFFF"}
+          <View style={styles.autoItem}>
+            <CheckCircle2 size={16} color="#16A34A" strokeWidth={2} />
+            <Text style={styles.autoItemText}>Skill Applied For</Text>
+          </View>
+          <View style={styles.autoItem}>
+            <CheckCircle2 size={16} color="#16A34A" strokeWidth={2} />
+            <Text style={styles.autoItemText}>Portfolio Samples</Text>
+          </View>
+        </View>
+
+        <Text style={styles.labelNew}>Your Questions (max 4)</Text>
+
+        {questions.map((q, index) => (
+          <View key={index} style={styles.questionCard}>
+            <View style={styles.questionHeader}>
+              <Text style={styles.questionNumber}>Question {index + 1}</Text>
+              <TouchableOpacity
+                onPress={() => removeQuestion(index)}
+                activeOpacity={0.7}
+                style={styles.trashIconContainer}
+              >
+                <Trash2 size={18} color="#EF4444" strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={styles.questionInput}
+              value={q.prompt}
+              onChangeText={(text) => updateQuestion(index, "prompt", text)}
+              placeholder="Enter your question"
+              placeholderTextColor={MODAL_TOKENS.textMuted}
+              multiline
             />
+            <View style={styles.requiredRow}>
+              <Text style={styles.requiredLabel}>Required</Text>
+              <Switch
+                value={q.required}
+                onValueChange={(val) => updateQuestion(index, "required", val)}
+                trackColor={{ false: "#E2E8F0", true: "#BFDBFE" }}
+                thumbColor={q.required ? MODAL_TOKENS.primary : "#FFFFFF"}
+              />
+            </View>
           </View>
-        </View>
-      ))}
+        ))}
 
-      {questions.length <= 3 && (
-        <TouchableOpacity
-          style={styles.addQuestionButton}
-          onPress={addQuestion}
-        >
-          <Plus size={20} color={MODAL_TOKENS.primary} />
-          <Text style={styles.addQuestionText}>
-            Add Question ({4 - questions.length} remaining)
-          </Text>
-        </TouchableOpacity>
-      )}
+        {questions.length <= 3 && (
+          <TouchableOpacity
+            style={styles.addQuestionButton}
+            onPress={addQuestion}
+            activeOpacity={0.7}
+          >
+            <Plus size={18} color={MODAL_TOKENS.primary} strokeWidth={2} />
+            <Text style={styles.addQuestionText}>
+              Add Question ({4 - questions.length} remaining)
+            </Text>
+          </TouchableOpacity>
+        )}
 
-      {questions.length > 2 && (
-        <View style={styles.warningBox}>
-          <AlertTriangle size={18} color="#FF9500" />
-          <Text style={styles.warningText}>
-            Each additional question reduces completion rate by ~15%.
-          </Text>
-
-        </View>
-      )}
+        {questions.length > 2 && (
+          <View style={styles.warningBox}>
+            <AlertTriangle size={18} color="#FF9500" strokeWidth={2} />
+            <Text style={styles.warningText}>
+              Each additional question reduces completion rate by ~15%.
+            </Text>
+          </View>
+        )}
+      </BlurView>
     </ScrollView>
   );
 
   const renderStep7 = () => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.sectionHeaderNew}>
-        <View style={styles.sectionHeaderTitleRow}>
-          <View style={styles.sectionHeaderIconContainer}>
-            <Eye size={24} color={MODAL_TOKENS.primary} strokeWidth={2} />
+    <ScrollView
+      style={styles.stepContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+    >
+      <BlurView intensity={50} tint="light" style={styles.glassCard}>
+        <View style={styles.sectionHeaderNew}>
+          <View style={styles.sectionHeaderTitleRow}>
+            <View style={styles.sectionHeaderIconContainer}>
+              <Eye size={22} color={MODAL_TOKENS.primary} strokeWidth={2} />
+            </View>
+            <Text style={styles.sectionHeaderTitle}>Visibility</Text>
           </View>
-          <Text style={styles.sectionHeaderTitle}>Visibility</Text>
-        </View>
-      <Text style={styles.sectionHeaderHelper}>
-        Who should see this opportunity?
-      </Text>
-      </View>
-
-      <View style={styles.visibilityOptions}>
-        {[
-          {
-            value: "public",
-            title: "Public",
-            description: "Anyone on SnooSpace can discover",
-            Icon: Globe,
-          },
-          {
-            value: "community",
-            title: "Community Only",
-            description: "Only members of your community",
-            Icon: Users,
-          },
-          {
-            value: "invite",
-            title: "Invite Only",
-            description: "Share link manually",
-            Icon: Link,
-          },
-        ].map((opt) => (
-          <TouchableOpacity
-            key={opt.value}
-            style={[
-              styles.visibilityCard,
-              visibility === opt.value && styles.visibilityCardSelected,
-            ]}
-            onPress={() => setVisibility(opt.value)}
-          >
-            <View style={styles.visibilityRadio}>
-              <View
-                style={[
-                  styles.radioOuter,
-                  visibility === opt.value && styles.radioOuterSelected,
-                ]}
-              >
-                {visibility === opt.value && <View style={styles.radioInner} />}
-              </View>
-            </View>
-            <opt.Icon
-
-              size={24}
-              color={
-                visibility === opt.value ? MODAL_TOKENS.primary : MODAL_TOKENS.textMuted
-              }
-              strokeWidth={2}
-            />
-            <View style={styles.visibilityText}>
-              <Text
-                style={[
-                  styles.visibilityTitle,
-                  visibility === opt.value && styles.visibilityTitleSelected,
-                ]}
-              >
-                {opt.title}
-              </Text>
-              <Text style={styles.visibilityDescription}>
-                {opt.description}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={styles.notifyRow}>
-        <View style={styles.notifyInfo}>
-          <Text style={styles.notifyTitle}>Notify relevant talent</Text>
-          <Text style={styles.notifyDescription}>
-            Push notification to matching profiles
+          <Text style={styles.sectionHeaderHelper}>
+            Who should see this opportunity?
           </Text>
         </View>
-        <Switch
-          value={notifyTalent}
-          onValueChange={setNotifyTalent}
-          trackColor={{ false: "#E5E7EB", true: `${MODAL_TOKENS.primary}50` }}
-          thumbColor={notifyTalent ? MODAL_TOKENS.primary : "#FFFFFF"}
-        />
-      </View>
+
+        <View style={styles.visibilityOptions}>
+          {[
+            {
+              value: "public",
+              title: "Public",
+              description: "Anyone on SnooSpace can discover",
+              Icon: Globe,
+            },
+            {
+              value: "community",
+              title: "Community Only",
+              description: "Only members of your community",
+              Icon: Users,
+            },
+            {
+              value: "invite",
+              title: "Invite Only",
+              description: "Share link manually",
+              Icon: Link,
+            },
+          ].map((opt) => {
+            const isSelected = visibility === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={[
+                  styles.visibilityCard,
+                  isSelected && styles.visibilityCardSelected,
+                ]}
+                onPress={() => setVisibility(opt.value)}
+                activeOpacity={0.7}
+              >
+                <View
+                  style={[
+                    styles.optionIconContainer,
+                    isSelected && styles.optionIconContainerSelected,
+                  ]}
+                >
+                  <opt.Icon
+                    size={20}
+                    color={isSelected ? MODAL_TOKENS.primary : MODAL_TOKENS.textSecondary}
+                    strokeWidth={2}
+                  />
+                </View>
+                <View style={styles.visibilityText}>
+                  <Text
+                    style={[
+                      styles.visibilityTitle,
+                      isSelected && styles.visibilityTitleSelected,
+                    ]}
+                  >
+                    {opt.title}
+                  </Text>
+                  <Text style={styles.visibilityDescription}>
+                    {opt.description}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.radioOuter,
+                    isSelected && styles.radioOuterSelected,
+                  ]}
+                >
+                  {isSelected && <View style={styles.radioInner} />}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={styles.notifyRow}>
+          <View style={styles.notifyInfo}>
+            <Text style={styles.notifyTitle}>Notify relevant talent</Text>
+            <Text style={styles.notifyDescription}>
+              Push notification to matching profiles
+            </Text>
+          </View>
+          <Switch
+            value={notifyTalent}
+            onValueChange={setNotifyTalent}
+            trackColor={{ false: "#E2E8F0", true: "#BFDBFE" }}
+            thumbColor={notifyTalent ? MODAL_TOKENS.primary : "#FFFFFF"}
+          />
+        </View>
+      </BlurView>
     </ScrollView>
   );
 
   const renderStep8 = () => (
-    <ScrollView style={styles.stepContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.sectionHeaderNew}>
-        <View style={styles.sectionHeaderTitleRow}>
-          <View style={styles.sectionHeaderIconContainer}>
-            <CheckCircle size={24} color={MODAL_TOKENS.primary} strokeWidth={2} />
-          </View>
-          <Text style={styles.sectionHeaderTitle}>Review & Publish</Text>
-        </View>
-      </View>
-
-      <View style={styles.reviewCard}>
-        <Text style={styles.reviewTitle}>
-          {title || "Untitled Opportunity"}
-        </Text>
-
-        <View style={styles.reviewRoles}>
-          {selectedTypes.map((type, i) => (
-            <View key={i} style={styles.reviewRoleChip}>
-              <Text style={styles.reviewRoleText}>{type}</Text>
+    <ScrollView
+      style={styles.stepContent}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+    >
+      <BlurView intensity={50} tint="light" style={styles.glassCard}>
+        <View style={styles.sectionHeaderNew}>
+          <View style={styles.sectionHeaderTitleRow}>
+            <View style={styles.sectionHeaderIconContainer}>
+              <CheckCircle size={22} color={MODAL_TOKENS.primary} strokeWidth={2} />
             </View>
-          ))}
+            <Text style={styles.sectionHeaderTitle}>Review & Publish</Text>
+          </View>
         </View>
 
-        <View style={styles.reviewRow}>
-          <Briefcase
-            strokeWidth={2}
-            size={18}
-            color={MODAL_TOKENS.textMuted}
-          />
-          <Text style={styles.reviewText}>
-            {workType === "one_time" ? "One-time" : "Ongoing"} ·{" "}
-            {workMode === "remote" ? "Remote" : "On-site"}
+        <View style={styles.reviewCard}>
+          <Text style={styles.reviewTitle}>
+            {title || "Untitled Opportunity"}
           </Text>
-        </View>
 
-        <View style={styles.reviewRow}>
-          <Banknote size={18} color={MODAL_TOKENS.textMuted} />
-          <Text style={styles.reviewText}>
-            {paymentType.replace("_", " ")} ·{" "}
-            {paymentNature === "paid" ? "Paid" : paymentNature}
-            {budgetRange ? ` · ${budgetRange}` : ""}
-          </Text>
-        </View>
+          <View style={styles.reviewRoles}>
+            {selectedTypes.map((type, i) => (
+              <View key={i} style={styles.reviewRoleChip}>
+                <Text style={styles.reviewRoleText}>{type}</Text>
+              </View>
+            ))}
+          </View>
 
-        <View style={styles.reviewRow}>
-          <Eye size={18} color={MODAL_TOKENS.textMuted} strokeWidth={2} />
-          <Text style={styles.reviewText}>
-            {visibility === "public"
-              ? "Public"
-              : visibility === "community"
-                ? "Community Only"
-                : "Invite Only"}
-          </Text>
-        </View>
+          <View style={styles.reviewRow}>
+            <Briefcase
+              strokeWidth={2}
+              size={18}
+              color={MODAL_TOKENS.textSecondary}
+            />
+            <Text style={styles.reviewText}>
+              {workType === "one_time" ? "One-time" : "Ongoing"} ·{" "}
+              {workMode === "remote" ? "Remote" : "On-site"}
+            </Text>
+          </View>
 
-        <View style={styles.reviewDivider} />
+          <View style={styles.reviewRow}>
+            <Banknote size={18} color={MODAL_TOKENS.textSecondary} strokeWidth={2} />
+            <Text style={styles.reviewText}>
+              {paymentType.replace("_", " ")} ·{" "}
+              {paymentNature === "paid" ? "Paid" : paymentNature}
+              {budgetRange ? ` · ${budgetRange}` : ""}
+            </Text>
+          </View>
 
-        <Text style={styles.reviewSectionTitle}>Core Requirements</Text>
-        <Text style={styles.reviewBullet}>
-          • {experienceLevel === "any" ? "Any" : experienceLevel} experience
-          level
-        </Text>
-        <Text style={styles.reviewBullet}>• {availability}</Text>
-        <Text style={styles.reviewBullet}>• {turnaround}</Text>
-        {expiresAt && (
+          <View style={styles.reviewRow}>
+            <Eye size={18} color={MODAL_TOKENS.textSecondary} strokeWidth={2} />
+            <Text style={styles.reviewText}>
+              {visibility === "public"
+                ? "Public"
+                : visibility === "community"
+                  ? "Community Only"
+                  : "Invite Only"}
+            </Text>
+          </View>
+
+          <View style={styles.reviewDivider} />
+
+          <Text style={styles.reviewSectionTitle}>Core Requirements</Text>
           <Text style={styles.reviewBullet}>
-            • Deadline:{" "}
-            {expiresAt.toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            })}
+            • {experienceLevel === "any" ? "Any" : experienceLevel} experience
+            level
           </Text>
-        )}
+          <Text style={styles.reviewBullet}>• {availability}</Text>
+          <Text style={styles.reviewBullet}>• {turnaround}</Text>
+          {expiresAt && (
+            <Text style={styles.reviewBullet}>
+              • Deadline:{" "}
+              {expiresAt.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </Text>
+          )}
 
-        <View style={styles.reviewDivider} />
+          <View style={styles.reviewDivider} />
 
-        <Text style={styles.reviewSectionTitle}>Application Eligibility</Text>
-        <Text style={styles.reviewBullet}>
-          ✓ Match {eligibilityMode === "any_one" ? "ANY ONE" : "MULTIPLE"} skill
-          group{eligibilityMode !== "any_one" ? "s" : ""}
-        </Text>
-
-        <Text style={styles.reviewSectionTitle}>
-          Questions ({questions.length})
-        </Text>
-        {questions.map((q, i) => (
-          <Text key={i} style={styles.reviewBullet}>
-            • {q.prompt || "(Empty question)"}
+          <Text style={styles.reviewSectionTitle}>Application Eligibility</Text>
+          <Text style={styles.reviewBullet}>
+            ✓ Match {eligibilityMode === "any_one" ? "ANY ONE" : "MULTIPLE"} skill
+            group{eligibilityMode !== "any_one" ? "s" : ""}
           </Text>
-        ))}
-        {questions.length === 0 && (
-          <Text style={styles.reviewBullet}>• No custom questions</Text>
-        )}
-      </View>
 
-      <Text style={styles.editHint}>Tap any section above to edit</Text>
+          <Text style={styles.reviewSectionTitle}>
+            Questions ({questions.length})
+          </Text>
+          {questions.map((q, i) => (
+            <Text key={i} style={styles.reviewBullet}>
+              • {q.prompt || "(Empty question)"}
+            </Text>
+          ))}
+          {questions.length === 0 && (
+            <Text style={styles.reviewBullet}>• No custom questions</Text>
+          )}
+        </View>
+
+        <Text style={styles.editHint}>Tap any section above to edit</Text>
+      </BlurView>
     </ScrollView>
   );
 
@@ -1650,207 +1809,172 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <ArrowLeft size={24} color={MODAL_TOKENS.textPrimary} strokeWidth={2} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            {isEditing ? "Edit Opportunity" : "Create Opportunity"}
-          </Text>
-          {isEditing ? (
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => setCurrentStep(TOTAL_STEPS)}
-            >
-              <Text
-                style={[
-                  styles.cancelText,
-                  { color: MODAL_TOKENS.primary, fontWeight: "600" },
-                ]}
-              >
-                Review
-              </Text>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={["#F8FAFC", "#EEF2F6", "#E2E8F0"]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <SafeAreaView style={styles.safeArea} edges={["top"]}>
+        <KeyboardAvoidingView
+          style={styles.keyboardView}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
+              <ArrowLeft size={24} color={MODAL_TOKENS.textPrimary} strokeWidth={2} />
             </TouchableOpacity>
-          ) : (
-            <TouchableOpacity style={styles.cancelButton} onPress={handleClose}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Progress Indicator */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
-            <Animated.View
-              style={[
-                styles.progressFill,
-                { width: progressPercent.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) },
-              ]} />
-
-          </View>
-        </View>
-
-        {/* Step Content */}
-        {renderCurrentStep()}
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          {currentStep === TOTAL_STEPS ? (
-            <View style={styles.publishButtons}>
-              {!isEditing && (
-                <TouchableOpacity
-                  style={styles.draftButton}
-                  onPress={() => handlePublish(true)}
-                  disabled={saving}
-                >
-                  <Text style={styles.draftButtonText}>Save as Draft</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={styles.publishButton}
-                onPress={() => handlePublish(false)}
-                disabled={saving}
-              >
-                <LinearGradient
-                  colors={["#00C6FF", "#007AFF"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.publishGradient}
-                >
-                  {saving ? (
-                    <SnooLoader color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Zap size={20} color="#FFFFFF" />
-                      <Text style={[styles.publishButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
-                        {isEditing ? "Update Opportunity" : "Publish"}
-                      </Text>
-                    </>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-              <LinearGradient
-                colors={["#00C6FF", "#007AFF"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.nextGradient}
-              >
-                <Text style={styles.nextButtonText}>Continue</Text>
-                <ArrowRight size={20} color="#FFFFFF" />
-              </LinearGradient>
-            </TouchableOpacity>
-          )}
-        </View>
-      </KeyboardAvoidingView>
-
-      {/* Draft Resume Modal */}
-      <Modal
-        visible={showDraftPrompt}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowDraftPrompt(false)}
-        statusBarTranslucent={true}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.draftPromptCard}>
-            <View style={styles.draftPromptIcon}>
-              <FileCheck size={32} color={MODAL_TOKENS.primary} strokeWidth={2} />
-            </View>
-            <Text style={styles.draftPromptTitle}>Resume Draft?</Text>
-            <Text style={styles.draftPromptMessage}>
-              You have an unsaved opportunity draft
-              {draftLastSaved ? ` from ${formatLastSaved(draftLastSaved)}` : ""}
-              .
+            <Text style={styles.headerTitle}>
+              {isEditing ? "Edit Opportunity" : "Create Opportunity"}
             </Text>
-            <View style={styles.draftPromptButtons}>
+            {isEditing ? (
               <TouchableOpacity
-                style={styles.draftPromptSecondary}
-                onPress={deleteDraftAndStartFresh}
+                style={styles.cancelButton}
+                onPress={() => setCurrentStep(TOTAL_STEPS)}
+                activeOpacity={0.7}
               >
-                <Text style={styles.draftPromptSecondaryText}>Start Fresh</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.draftPromptPrimary}
-                onPress={loadDraftData}
-              >
-                <LinearGradient
-                  colors={["#00C6FF", "#007AFF"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.draftPromptPrimaryGradient}
+                <Text
+                  style={[
+                    styles.cancelText,
+                    { color: MODAL_TOKENS.primary },
+                  ]}
                 >
-                  <Text style={styles.draftPromptPrimaryText}>Resume</Text>
-                </LinearGradient>
+                  Review
+                </Text>
               </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={styles.cancelButton} onPress={handleClose} activeOpacity={0.7}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Progress Indicator */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressBar}>
+              <Animated.View
+                style={[
+                  styles.progressFill,
+                  { width: progressPercent.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] }) },
+                ]} />
             </View>
           </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+
+          {/* Step Content */}
+          {renderCurrentStep()}
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            {currentStep === TOTAL_STEPS ? (
+              <View style={styles.publishButtons}>
+                {!isEditing && (
+                  <TouchableOpacity
+                    style={styles.draftButton}
+                    onPress={() => handlePublish(true)}
+                    disabled={saving}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.draftButtonText}>Save as Draft</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  style={styles.publishButton}
+                  onPress={() => handlePublish(false)}
+                  disabled={saving}
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={MODAL_TOKENS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.publishGradient}
+                  >
+                    {saving ? (
+                      <SnooLoader color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Zap size={20} color="#FFFFFF" strokeWidth={2} />
+                        <Text style={styles.publishButtonText}>
+                          {isEditing ? "Update Opportunity" : "Publish"}
+                        </Text>
+                      </>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.nextButton} onPress={handleNext} activeOpacity={0.7}>
+                <LinearGradient
+                  colors={MODAL_TOKENS.primaryGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.nextGradient}
+                >
+                  <Text style={styles.nextButtonText}>Continue</Text>
+                  <ArrowRight size={20} color="#FFFFFF" strokeWidth={2} />
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+
+        {/* Draft Resume Modal */}
+        <Modal
+          visible={showDraftPrompt}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowDraftPrompt(false)}
+          statusBarTranslucent={true}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.draftPromptCard}>
+              <View style={styles.draftPromptIcon}>
+                <FileCheck size={32} color={MODAL_TOKENS.primary} strokeWidth={2} />
+              </View>
+              <Text style={styles.draftPromptTitle}>Resume Draft?</Text>
+              <Text style={styles.draftPromptMessage}>
+                You have an unsaved opportunity draft
+                {draftLastSaved ? ` from ${formatLastSaved(draftLastSaved)}` : ""}
+                .
+              </Text>
+              <View style={styles.draftPromptButtons}>
+                <TouchableOpacity
+                  style={styles.draftPromptSecondary}
+                  onPress={deleteDraftAndStartFresh}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.draftPromptSecondaryText}>Start Fresh</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.draftPromptPrimary}
+                  onPress={loadDraftData}
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={MODAL_TOKENS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.draftPromptPrimaryGradient}
+                  >
+                    <Text style={styles.draftPromptPrimaryText}>Resume</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  // New Premium Section Header
-  sectionHeaderNew: {
-    marginBottom: 24,
-  },
-  sectionHeaderTitleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-  },
-  sectionHeaderIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: `${MODAL_TOKENS.primary}10`,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  // New Premium Input Container
-  inputContainerNew: {
-    marginBottom: 20,
-  },
-  charCountRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 6,
-  },
-  charCountText: {
-    fontSize: 12,
-    fontFamily: "Manrope-Medium",
-    color: MODAL_TOKENS.textMuted,
-  },
-  labelHint: {
-    fontFamily: "Manrope-Medium",
-    color: MODAL_TOKENS.textMuted,
-    fontSize: 12,
-  },
-  actionButtonNew: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: MODAL_TOKENS.primary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  actionButtonCancelNew: {
-    backgroundColor: "#F3F4F6",
-  },
   container: {
     flex: 1,
-    backgroundColor: MODAL_TOKENS.background,
+    backgroundColor: "transparent",
+  },
+  safeArea: {
+    flex: 1,
   },
   keyboardView: {
     flex: 1,
@@ -1859,10 +1983,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: MODAL_TOKENS.border,
+    borderBottomColor: "rgba(0, 0, 0, 0.05)",
   },
   backButton: {
     width: 40,
@@ -1874,7 +1998,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontFamily: "BasicCommercial-Black",
-    color: MODAL_TOKENS.textPrimary,
+    color: "#0F172A",
     textAlign: "center",
   },
   cancelButton: {
@@ -1885,117 +2009,154 @@ const styles = StyleSheet.create({
   cancelText: {
     fontSize: 15,
     fontFamily: "Manrope-SemiBold",
-    color: "#FF3B30",
+    color: "#EF4444",
   },
   progressContainer: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 12,
   },
   progressBar: {
-    height: 4,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 2,
+    height: 6,
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
+    borderRadius: 3,
     overflow: "hidden",
   },
   progressFill: {
     height: "100%",
-    backgroundColor: MODAL_TOKENS.primary,
-    borderRadius: 2,
+    backgroundColor: "#2962FF",
+    borderRadius: 3,
+    shadowColor: "#2962FF",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 2,
   },
   stepContent: {
     flex: 1,
     paddingHorizontal: 20,
   },
-  stepTitle: {
-    fontSize: 24,
+  glassCard: {
+    borderRadius: 24,
+    padding: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+    overflow: "hidden",
+    marginBottom: 20,
+  },
+  sectionHeaderNew: {
+    marginBottom: 20,
+  },
+  sectionHeaderTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  sectionHeaderIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  sectionHeaderTitle: {
+    fontSize: 20,
     fontFamily: "BasicCommercial-Bold",
-    color: MODAL_TOKENS.textPrimary,
-    marginBottom: 8,
-    marginTop: 8,
+    color: "#0F172A",
   },
-  stepDescription: {
-    fontSize: 15,
-    color: MODAL_TOKENS.textMuted,
-    marginBottom: 24,
-    lineHeight: 22,
+  sectionHeaderHelper: {
+    fontSize: 14,
+    fontFamily: "Manrope-Regular",
+    color: "#475569",
   },
-  label: {
+  inputContainerNew: {
+    marginBottom: 10,
+  },
+  labelNew: {
     fontSize: 14,
     fontFamily: "Manrope-SemiBold",
-    color: MODAL_TOKENS.textPrimary,
+    color: "#0F172A",
     marginBottom: 8,
     marginTop: 16,
   },
-  hint: {
-    fontFamily: "Manrope-Regular",
-    color: MODAL_TOKENS.textMuted,
-  },
-  input: {
-    backgroundColor: "#F9FAFB",
+  inputNew: {
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
     borderWidth: 1,
-    borderColor: MODAL_TOKENS.border,
-    borderRadius: 12,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+    borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
-    color: MODAL_TOKENS.textPrimary,
+    fontFamily: "Manrope-Medium",
+    color: "#0F172A",
     marginBottom: 8,
   },
   charCount: {
     fontSize: 12,
-    color: MODAL_TOKENS.textMuted,
+    fontFamily: "Manrope-Medium",
+    color: "#94A3B8",
     textAlign: "right",
     marginBottom: 8,
   },
-  chipsContainer: {
+  hint: {
+    fontFamily: "Manrope-Regular",
+    color: "#94A3B8",
+  },
+  chipsContainerNew: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 8,
     marginBottom: 16,
   },
   chip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.6)",
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: MODAL_TOKENS.border,
+    height: 40,
   },
-  chipSelected: {
-    backgroundColor: MODAL_TOKENS.primary,
-    borderColor: MODAL_TOKENS.primary,
+  chipSelectedNew: {
+    backgroundColor: "#2962FF",
+    borderColor: "#2962FF",
   },
-  chipDisabled: {
-    opacity: 0.4,
+  chipDisabledNew: {
+    opacity: 0.35,
   },
-  chipText: {
+  chipTextNew: {
     fontSize: 14,
-    color: MODAL_TOKENS.textPrimary,
-  },
-  chipTextSelected: {
-    color: "#FFFFFF",
     fontFamily: "Manrope-Medium",
+    color: "#475569",
   },
-  chipAdd: {
-    backgroundColor: "#FFFFFF",
-    borderColor: MODAL_TOKENS.primary,
+  chipTextSelectedNew: {
+    color: "#FFFFFF",
+    fontFamily: "Manrope-SemiBold",
+  },
+  chipAddNew: {
+    backgroundColor: "transparent",
+    borderColor: "#2962FF",
     borderStyle: "dashed",
   },
-  chipAddText: {
+  chipAddTextNew: {
     fontSize: 14,
-    color: MODAL_TOKENS.primary,
+    fontFamily: "Manrope-SemiBold",
+    color: "#2962FF",
     marginLeft: 4,
   },
-  customInputRow: {
+  customInputRowNew: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     marginBottom: 16,
+    marginTop: 8,
   },
   addButton: {
-    backgroundColor: MODAL_TOKENS.primary,
+    backgroundColor: "#2962FF",
     width: 44,
     height: 44,
     borderRadius: 12,
@@ -2015,47 +2176,74 @@ const styles = StyleSheet.create({
   },
   optionCard: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
     borderWidth: 1,
-    borderColor: MODAL_TOKENS.border,
-    borderRadius: 12,
-    paddingVertical: 20,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+    borderRadius: 16,
+    paddingVertical: 18,
     alignItems: "center",
-    gap: 8,
+    gap: 10,
+    position: "relative",
   },
   optionCardSelected: {
-    borderColor: MODAL_TOKENS.primary,
-    backgroundColor: `${MODAL_TOKENS.primary}08`,
+    borderColor: "rgba(41, 98, 255, 0.4)",
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+  },
+  optionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  optionIconContainerSelected: {
+    backgroundColor: "rgba(41, 98, 255, 0.12)",
   },
   optionLabel: {
     fontSize: 14,
-    color: MODAL_TOKENS.textMuted,
     fontFamily: "Manrope-Medium",
+    color: "#6B7280",
   },
   optionLabelSelected: {
-    color: MODAL_TOKENS.primary,
+    color: "#2962FF",
+    fontFamily: "Manrope-SemiBold",
+  },
+  cardCheckCircle: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#2962FF",
+    justifyContent: "center",
+    alignItems: "center",
   },
   infoBox: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: `${MODAL_TOKENS.primary}10`,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     gap: 10,
     marginBottom: 16,
   },
   infoText: {
     flex: 1,
     fontSize: 13,
-    color: MODAL_TOKENS.textPrimary,
+    fontFamily: "Manrope-Regular",
+    color: "#1E3A8A",
     lineHeight: 18,
   },
   warningBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFF8E6",
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
     padding: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     gap: 10,
     marginTop: 12,
     marginBottom: 16,
@@ -2063,14 +2251,15 @@ const styles = StyleSheet.create({
   warningText: {
     flex: 1,
     fontSize: 13,
-    color: "#996600",
+    fontFamily: "Manrope-Regular",
+    color: "#B45309",
     lineHeight: 18,
   },
   dropdownContainer: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: MODAL_TOKENS.border,
+    borderColor: "rgba(255, 255, 255, 0.6)",
     overflow: "hidden",
     marginBottom: 16,
   },
@@ -2081,66 +2270,88 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: BORDER_COLOR,
+    borderBottomColor: "rgba(0, 0, 0, 0.04)",
   },
   dropdownItemSelected: {
-    backgroundColor: `${MODAL_TOKENS.primary}10`,
+    backgroundColor: "rgba(41, 98, 255, 0.06)",
   },
   dropdownItemText: {
     fontSize: 15,
-    color: MODAL_TOKENS.textPrimary,
+    fontFamily: "Manrope-Medium",
+    color: "#475569",
   },
   dropdownItemTextSelected: {
-    color: MODAL_TOKENS.primary,
+    color: "#2962FF",
+    fontFamily: "Manrope-SemiBold",
+  },
+  datePickerTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    marginBottom: 16,
+  },
+  datePickerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  datePickerText: {
+    fontSize: 15,
     fontFamily: "Manrope-Medium",
+    color: "#0F172A",
   },
   eligibilityToggle: {
     flexDirection: "row",
-    backgroundColor: "#F3F4F6",
-    borderRadius: 10,
+    backgroundColor: "rgba(0, 0, 0, 0.04)",
+    borderRadius: 24,
     padding: 4,
+    height: 48,
     marginBottom: 16,
   },
   eligibilityOption: {
     flex: 1,
-    paddingVertical: 10,
+    justifyContent: "center",
     alignItems: "center",
-    borderRadius: 8,
+    borderRadius: 20,
   },
   eligibilityOptionSelected: {
     backgroundColor: "#FFFFFF",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 2,
     elevation: 2,
   },
   eligibilityText: {
-    fontSize: 13,
+    fontSize: 14,
     fontFamily: "Manrope-Medium",
-    color: MODAL_TOKENS.textMuted,
+    color: "#67758A",
   },
   eligibilityTextSelected: {
-    color: MODAL_TOKENS.primary,
+    color: "#2962FF",
+    fontFamily: "Manrope-SemiBold",
   },
   skillGroupCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: MODAL_TOKENS.border,
   },
   skillGroupTitle: {
     fontSize: 16,
     fontFamily: "BasicCommercial-Bold",
-    color: MODAL_TOKENS.textPrimary,
     marginBottom: 12,
   },
   skillGroupLabel: {
     fontSize: 13,
     fontFamily: "Manrope-SemiBold",
-    color: MODAL_TOKENS.textMuted,
+    color: "#64748B",
     marginBottom: 8,
     marginTop: 12,
   },
@@ -2150,21 +2361,25 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   toolChip: {
-    backgroundColor: "#F3F4F6",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 10,
+    height: 36,
   },
   toolChipSelected: {
-    backgroundColor: MODAL_TOKENS.primary,
+    // dynamically styled
   },
   toolChipText: {
     fontSize: 13,
-    color: MODAL_TOKENS.textPrimary,
+    fontFamily: "Manrope-Medium",
+    color: "#475569",
   },
   toolChipTextSelected: {
     color: "#FFFFFF",
-    fontFamily: "Manrope-Medium",
+    fontFamily: "Manrope-SemiBold",
   },
   sampleTypesContainer: {
     flexDirection: "row",
@@ -2172,42 +2387,50 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sampleTypeChip: {
-    backgroundColor: "#F3F4F6",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: "transparent",
+    height: 36,
   },
   sampleTypeChipSelected: {
-    borderColor: MODAL_TOKENS.primary,
-    backgroundColor: `${MODAL_TOKENS.primary}10`,
+    // dynamically styled
   },
   sampleTypeText: {
     fontSize: 13,
-    color: MODAL_TOKENS.textPrimary,
+    fontFamily: "Manrope-Medium",
+    color: "#475569",
   },
   sampleTypeTextSelected: {
-    color: MODAL_TOKENS.primary,
-    fontFamily: "Manrope-Medium",
+    fontFamily: "Manrope-SemiBold",
   },
   paymentTypeChip: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.6)",
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: "center",
+    height: 44,
+    justifyContent: "center",
   },
   paymentTypeChipSelected: {
-    backgroundColor: MODAL_TOKENS.primary,
+    backgroundColor: "#2962FF",
+    borderColor: "#2962FF",
   },
   paymentTypeText: {
     fontSize: 13,
     fontFamily: "Manrope-Medium",
-    color: MODAL_TOKENS.textPrimary,
+    color: "#475569",
   },
   paymentTypeTextSelected: {
     color: "#FFFFFF",
+    fontFamily: "Manrope-SemiBold",
   },
   paymentNatureContainer: {
     gap: 10,
@@ -2216,28 +2439,31 @@ const styles = StyleSheet.create({
   paymentNatureCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
     borderWidth: 1,
-    borderColor: MODAL_TOKENS.border,
-    borderRadius: 12,
-    padding: 16,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+    borderRadius: 16,
+    padding: 14,
     gap: 12,
   },
   paymentNatureCardSelected: {
-    borderColor: MODAL_TOKENS.primary,
-    backgroundColor: `${MODAL_TOKENS.primary}08`,
+    borderColor: "rgba(41, 98, 255, 0.4)",
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
   },
   paymentNatureLabel: {
     fontSize: 15,
-    color: MODAL_TOKENS.textPrimary,
+    fontFamily: "Manrope-Medium",
+    color: "#475569",
   },
   paymentNatureLabelSelected: {
-    color: MODAL_TOKENS.primary,
-    fontFamily: "Manrope-Medium",
+    color: "#2962FF",
+    fontFamily: "Manrope-SemiBold",
   },
   autoIncludedBox: {
-    backgroundColor: "#F0FDF4",
-    borderRadius: 12,
+    backgroundColor: "rgba(22, 163, 74, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(22, 163, 74, 0.15)",
+    borderRadius: 14,
     padding: 16,
     marginBottom: 20,
   },
@@ -2245,7 +2471,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Manrope-SemiBold",
     color: "#166534",
-    marginBottom: 12,
+    marginBottom: 10,
   },
   autoItem: {
     flexDirection: "row",
@@ -2255,15 +2481,16 @@ const styles = StyleSheet.create({
   },
   autoItemText: {
     fontSize: 14,
-    color: "#166534",
+    fontFamily: "Manrope-Regular",
+    color: "#15803D",
   },
   questionCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: MODAL_TOKENS.border,
   },
   questionHeader: {
     flexDirection: "row",
@@ -2274,14 +2501,25 @@ const styles = StyleSheet.create({
   questionNumber: {
     fontSize: 14,
     fontFamily: "Manrope-SemiBold",
-    color: MODAL_TOKENS.textPrimary,
+    color: "#0F172A",
+  },
+  trashIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   questionInput: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.6)",
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.04)",
+    borderRadius: 10,
     padding: 12,
     fontSize: 14,
-    color: MODAL_TOKENS.textPrimary,
+    fontFamily: "Manrope-Medium",
+    color: "#0F172A",
     minHeight: 60,
     textAlignVertical: "top",
   },
@@ -2293,22 +2531,23 @@ const styles = StyleSheet.create({
   },
   requiredLabel: {
     fontSize: 14,
-    color: MODAL_TOKENS.textMuted,
+    fontFamily: "Manrope-Medium",
+    color: "#475569",
   },
   addQuestionButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: `${MODAL_TOKENS.primary}10`,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 14,
     gap: 8,
     marginBottom: 16,
   },
   addQuestionText: {
     fontSize: 15,
-    fontFamily: "Manrope-Medium",
-    color: MODAL_TOKENS.primary,
+    fontFamily: "Manrope-SemiBold",
+    color: "#2962FF",
   },
   visibilityOptions: {
     gap: 12,
@@ -2317,60 +2556,60 @@ const styles = StyleSheet.create({
   visibilityCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
     borderWidth: 1,
-    borderColor: MODAL_TOKENS.border,
-    borderRadius: 12,
-    padding: 16,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+    borderRadius: 16,
+    padding: 14,
     gap: 12,
   },
   visibilityCardSelected: {
-    borderColor: MODAL_TOKENS.primary,
-    backgroundColor: `${MODAL_TOKENS.primary}08`,
-  },
-  visibilityRadio: {
-    width: 24,
-  },
-  radioOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: MODAL_TOKENS.border,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  radioOuterSelected: {
-    borderColor: MODAL_TOKENS.primary,
-  },
-  radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: MODAL_TOKENS.primary,
+    borderColor: "rgba(41, 98, 255, 0.4)",
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
   },
   visibilityText: {
     flex: 1,
   },
   visibilityTitle: {
     fontSize: 15,
-    fontFamily: "Manrope-Medium",
-    color: MODAL_TOKENS.textPrimary,
+    fontFamily: "Manrope-SemiBold",
+    color: "#475569",
   },
   visibilityTitleSelected: {
-    color: MODAL_TOKENS.primary,
+    color: "#2962FF",
   },
   visibilityDescription: {
     fontSize: 13,
-    color: MODAL_TOKENS.textMuted,
+    fontFamily: "Manrope-Regular",
+    color: "#64748B",
     marginTop: 2,
+  },
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#CBD5E1",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  radioOuterSelected: {
+    borderColor: "#2962FF",
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#2962FF",
   },
   notifyRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+    borderRadius: 16,
     padding: 16,
   },
   notifyInfo: {
@@ -2378,26 +2617,27 @@ const styles = StyleSheet.create({
   },
   notifyTitle: {
     fontSize: 15,
-    fontFamily: "Manrope-Medium",
-    color: MODAL_TOKENS.textPrimary,
+    fontFamily: "Manrope-SemiBold",
+    color: "#0F172A",
   },
   notifyDescription: {
     fontSize: 13,
-    color: MODAL_TOKENS.textMuted,
+    fontFamily: "Manrope-Regular",
+    color: "#64748B",
     marginTop: 2,
   },
   reviewCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    borderRadius: 20,
     padding: 20,
     borderWidth: 1,
-    borderColor: MODAL_TOKENS.border,
+    borderColor: "rgba(255, 255, 255, 0.6)",
     marginBottom: 16,
   },
   reviewTitle: {
     fontSize: 20,
     fontFamily: "BasicCommercial-Bold",
-    color: MODAL_TOKENS.textPrimary,
+    color: "#0F172A",
     marginBottom: 12,
   },
   reviewRoles: {
@@ -2407,15 +2647,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   reviewRoleChip: {
-    backgroundColor: `${MODAL_TOKENS.primary}15`,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
   },
   reviewRoleText: {
     fontSize: 13,
-    fontFamily: "Manrope-Medium",
-    color: MODAL_TOKENS.primary,
+    fontFamily: "Manrope-SemiBold",
+    color: "#2962FF",
   },
   reviewRow: {
     flexDirection: "row",
@@ -2425,28 +2665,31 @@ const styles = StyleSheet.create({
   },
   reviewText: {
     fontSize: 14,
-    color: MODAL_TOKENS.textPrimary,
+    fontFamily: "Manrope-Medium",
+    color: "#334155",
   },
   reviewDivider: {
     height: 1,
-    backgroundColor: BORDER_COLOR,
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
     marginVertical: 16,
   },
   reviewSectionTitle: {
     fontSize: 14,
     fontFamily: "Manrope-SemiBold",
-    color: MODAL_TOKENS.textPrimary,
+    color: "#0F172A",
     marginBottom: 8,
     marginTop: 8,
   },
   reviewBullet: {
     fontSize: 14,
-    color: MODAL_TOKENS.textMuted,
+    fontFamily: "Manrope-Regular",
+    color: "#475569",
     marginBottom: 4,
   },
   editHint: {
     fontSize: 13,
-    color: MODAL_TOKENS.textMuted,
+    fontFamily: "Manrope-Medium",
+    color: "#64748B",
     textAlign: "center",
     marginBottom: 20,
   },
@@ -2454,24 +2697,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: BORDER_COLOR,
-    backgroundColor: MODAL_TOKENS.background,
+    borderTopColor: "rgba(0, 0, 0, 0.05)",
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
   },
   nextButton: {
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: "hidden",
+    height: 52,
   },
   nextGradient: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
+    height: 52,
     gap: 8,
   },
   nextButtonText: {
     fontSize: 16,
     color: "#FFFFFF",
-  
     fontFamily: "Manrope-SemiBold",
   },
   publishButtons: {
@@ -2480,31 +2723,35 @@ const styles = StyleSheet.create({
   },
   draftButton: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.7)",
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.08)",
+    borderRadius: 14,
+    height: 52,
+    justifyContent: "center",
     alignItems: "center",
   },
   draftButtonText: {
     fontSize: 16,
     fontFamily: "Manrope-SemiBold",
-    color: MODAL_TOKENS.textPrimary,
+    color: "#1F2937",
   },
   publishButton: {
     flex: 2,
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: "hidden",
+    height: 52,
   },
   publishGradient: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
+    height: 52,
     gap: 8,
   },
   publishButtonText: {
     fontSize: 16,
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: "Manrope-SemiBold",
     color: "#FFFFFF",
   },
   modalOverlay: {
@@ -2526,7 +2773,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: `${MODAL_TOKENS.primary}15`,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
@@ -2534,12 +2781,13 @@ const styles = StyleSheet.create({
   draftPromptTitle: {
     fontSize: 20,
     fontFamily: "BasicCommercial-Bold",
-    color: MODAL_TOKENS.textPrimary,
+    color: "#0F172A",
     marginBottom: 8,
   },
   draftPromptMessage: {
     fontSize: 15,
-    color: MODAL_TOKENS.textMuted,
+    fontFamily: "Manrope-Regular",
+    color: "#64748B",
     textAlign: "center",
     lineHeight: 22,
     marginBottom: 24,
@@ -2551,7 +2799,7 @@ const styles = StyleSheet.create({
   },
   draftPromptSecondary: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#F1F5F9",
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: "center",
@@ -2559,7 +2807,7 @@ const styles = StyleSheet.create({
   draftPromptSecondaryText: {
     fontSize: 15,
     fontFamily: "Manrope-SemiBold",
-    color: MODAL_TOKENS.textPrimary,
+    color: "#475569",
   },
   draftPromptPrimary: {
     flex: 1,
@@ -2575,5 +2823,4 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-SemiBold",
     color: "#FFFFFF",
   },
-});  
-
+});

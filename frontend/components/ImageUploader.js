@@ -187,6 +187,7 @@ const ImageUploader = forwardRef(
       horizontal = false, // Support horizontal media tray
       hingeStyle = false, // Enable Hinge-style 2x3 grid
       allowVideos = false, // Enable video picking
+      allowImages = true,  // When false, only videos shown (forwarded to CustomImagePicker)
       containerPadding = 48, // Optional: Horizontal padding subtracted from width
     },
     ref,
@@ -1634,6 +1635,7 @@ const ImageUploader = forwardRef(
           onDone={handlePickerDone}
           selectionLimit={pickerConfig.selectionLimit}
           allowVideos={allowVideos && !pickerConfig.specificMediaType}
+          allowImages={allowImages}
         />
       </View>
     );

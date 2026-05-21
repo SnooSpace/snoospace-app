@@ -1,17 +1,49 @@
 import { useFocusEffect } from "@react-navigation/native";
 /**
  * ChallengeSubmitScreen
- * Allows users to submit proof for a challenge (text, image, or video)
+ * Allows users to submit proof for a challenge (image or video)
+ *
+ * Validation rules:
+ *  - submission_type = "image"  → must have ≥1 photo, no video picker shown
+ *  - submission_type = "video"  → must have 1 video, no image/camera picker shown
+ *  - submission_type = "text"   → must have description, no media pickers shown
+ *  - Description is always optional (unless type=text)
  */
 
 import React, { useCallback, useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Image, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Image,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { Image as ImageIcon, Camera as CameraIcon } from "lucide-react-native";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
+import {
+  ArrowLeft,
+  Trophy,
+  Image as ImageIcon,
+  Camera,
+  Video,
+  Circle,
+  CheckCircle,
+  XCircle,
+  Layers,
+  Clock,
+  FileText,
+  CircleAlert,
+  X,
+} from "lucide-react-native";
 import { apiGet, apiPost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { uploadMultipleImages } from "../../api/cloudinary";
@@ -22,11 +54,14 @@ import CustomImagePicker from "../../components/CustomImagePicker";
 import { useToast } from "../../context/ToastContext";
 
 const ChallengeSubmitScreen = ({ route, navigation }) => {
-
   const { post, participation, onSubmitSuccess } = route.params;
   const typeData = post.type_data || {};
+  // Only "image", "video", or "text" — "any" is not supported
   const submissionType = typeData.submission_type || "image";
-  const maxImagesPerSubmission = Math.min(10, Math.max(1, parseInt(typeData.max_images_per_submission) || 5));
+  const maxImagesPerSubmission = Math.min(
+    10,
+    Math.max(1, parseInt(typeData.max_images_per_submission) || 5),
+  );
   const { showToast } = useToast();
 
   const [content, setContent] = useState("");
@@ -43,14 +78,13 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
     (p) => {
       p.muted = true;
       p.loop = false;
-    }
+    },
   );
 
   // Submission status
   const [statusLoading, setStatusLoading] = useState(true);
   const [submissionStatus, setSubmissionStatus] = useState(null);
 
-  // Fetch submission status on mount
   useEffect(() => {
     const fetchStatus = async () => {
       try {
@@ -74,9 +108,13 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
 
   const canSubmitMore = submissionStatus?.can_submit !== false;
 
+  // ── Image picking ────────────────────────────────────────────────────────
   const pickImage = async () => {
+    if (submissionType !== "image") return; // Guard: image-only picker
     try {
-      const { status } = await MediaLibrary.requestPermissionsAsync(false, ["photo"]);
+      const { status } = await MediaLibrary.requestPermissionsAsync(false, [
+        "photo",
+      ]);
       if (status !== "granted") {
         Alert.alert(
           "Permission Required",
@@ -100,18 +138,21 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
         setSelectedVideo(assets[0].uri);
       } else {
         const newImages = assets.map((asset) => asset.uri);
-        setSelectedImages((prev) => [...prev, ...newImages].slice(0, maxImagesPerSubmission));
+        setSelectedImages((prev) =>
+          [...prev, ...newImages].slice(0, maxImagesPerSubmission),
+        );
       }
     }
   };
 
   const takePhoto = async () => {
-    // Guard: don't launch camera if the slot limit is already reached
+    if (submissionType !== "image") return; // Guard: camera is image-only
+
     if (selectedImages.length >= maxImagesPerSubmission) {
       showToast(
         "Photo limit reached",
         `You can only add up to ${maxImagesPerSubmission} photo${maxImagesPerSubmission !== 1 ? "s" : ""} per submission.`,
-        "error"
+        "error",
       );
       return;
     }
@@ -126,14 +167,12 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
         return;
       }
 
-      const result = await ImagePicker.launchCameraAsync({
-        quality: 0.8,
-      });
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
 
       if (!result.canceled && result.assets && result.assets[0]) {
         setSelectedImages((prev) => {
           const remaining = maxImagesPerSubmission - prev.length;
-          if (remaining <= 0) return prev; // safety net
+          if (remaining <= 0) return prev;
           return [...prev, result.assets[0].uri];
         });
       }
@@ -143,9 +182,14 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
     }
   };
 
+  // ── Video picking ────────────────────────────────────────────────────────
   const pickVideo = async () => {
+    if (submissionType !== "video") return; // Guard: video-only picker
     try {
-      const { status } = await MediaLibrary.requestPermissionsAsync(false, ["photo", "video"]);
+      const { status } = await MediaLibrary.requestPermissionsAsync(false, [
+        "photo",
+        "video",
+      ]);
       if (status !== "granted") {
         Alert.alert(
           "Permission Required",
@@ -163,6 +207,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
   };
 
   const recordVideo = () => {
+    if (submissionType !== "video") return; // Guard
     navigation.navigate("ChallengeVideoRecorder", {
       onVideoRecorded: (uri) => {
         setSelectedVideo(uri);
@@ -179,6 +224,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
     setVideoThumbnail(null);
   };
 
+  // ── Submit ───────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!canSubmitMore) {
       Alert.alert(
@@ -188,6 +234,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
       return;
     }
 
+    // Per-type media validation
     if (submissionType === "text" && !content.trim()) {
       Alert.alert("Required", "Please add a description of your progress");
       return;
@@ -198,6 +245,16 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
     }
     if (submissionType === "video" && !selectedVideo) {
       Alert.alert("Required", "Please add a video");
+      return;
+    }
+
+    // Extra guard: image challenge must not carry a video, and vice versa
+    if (submissionType === "image" && selectedVideo) {
+      Alert.alert("Invalid submission", "This challenge requires photos only.");
+      return;
+    }
+    if (submissionType === "video" && selectedImages.length > 0) {
+      Alert.alert("Invalid submission", "This challenge requires a video only.");
       return;
     }
 
@@ -231,7 +288,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
           typeData.require_approval
             ? "Your submission is pending review by the host."
             : "Your submission has been posted!",
-          "success"
+          "success",
         );
         if (onSubmitSuccess) onSubmitSuccess();
         navigation.goBack();
@@ -251,75 +308,125 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
 
   const canSubmit = () => {
     if (!canSubmitMore) return false;
-    if (submissionType === "text") {
-      return content.trim().length > 0;
-    }
-    if (submissionType === "image") {
-      return selectedImages.length > 0;
-    }
-    if (submissionType === "video") {
-      return selectedVideo !== null;
-    }
+    if (submissionType === "text") return content.trim().length > 0;
+    if (submissionType === "image") return selectedImages.length > 0;
+    if (submissionType === "video") return selectedVideo !== null;
     return false;
   };
 
-  const getSubmissionTypeLabel = () => {
+  // ── Submission type banner config ────────────────────────────────────────
+  const getTypeBanner = () => {
     switch (submissionType) {
       case "video":
-        return "Video";
-      case "image":
-        return "Photo";
+        return {
+          icon: <Video size={20} color="#7C3AED" strokeWidth={2} />,
+          label: "Video Submission",
+          description: `Record or upload a video (max 60s) as your proof. A description is optional but encouraged.`,
+          bg: "rgba(245, 243, 255, 0.55)",
+          border: "rgba(221, 214, 254, 0.7)",
+          iconBg: "rgba(237, 233, 254, 0.7)",
+          labelColor: "#7C3AED",
+        };
       case "text":
-        return "Text";
-      default:
-        return "Any";
+        return {
+          icon: <FileText size={20} color="#0891B2" strokeWidth={2} />,
+          label: "Text Submission",
+          description: `Describe your progress in words. No media required.`,
+          bg: "rgba(236, 254, 255, 0.55)",
+          border: "rgba(165, 243, 252, 0.7)",
+          iconBg: "rgba(207, 250, 254, 0.7)",
+          labelColor: "#0891B2",
+        };
+      default: // "image"
+        return {
+          icon: <ImageIcon size={20} color="#D97706" strokeWidth={2} />,
+          label: "Photo Submission",
+          description: `Upload up to ${maxImagesPerSubmission} photo${maxImagesPerSubmission !== 1 ? "s" : ""} as your proof. A description is optional but encouraged.`,
+          bg: "rgba(255, 251, 235, 0.55)",
+          border: "rgba(253, 230, 138, 0.7)",
+          iconBg: "rgba(254, 243, 199, 0.7)",
+          labelColor: "#D97706",
+        };
     }
   };
 
+  // ── Render pickers ───────────────────────────────────────────────────────
   const renderImagePicker = () => (
     <View style={styles.mediaPicker}>
-      <Text style={styles.sectionLabel}>Add Photos</Text>
-      <View style={styles.imagesGrid}>
-        {selectedImages.map((uri, index) => (
-          <View key={`img-${index}`} style={styles.imageWrapper}>
-            <Image source={{ uri }} style={styles.selectedImage} />
-            <TouchableOpacity
-              style={styles.removeButton}
-              onPress={() => removeImage(index)}
-            >
-              <Ionicons name="close-circle" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        ))}
-        {selectedImages.length < maxImagesPerSubmission && (
-          <View style={styles.addButtonsRow}>
-            <TouchableOpacity
-              style={styles.addImageButton}
-              onPress={() => {
-                HapticsService.triggerImpactLight();
-                pickImage();
-              }}
-            >
-              <ImageIcon size={30} color="#2962FF" strokeWidth={2} />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.addImageButton}
-              onPress={() => {
-                HapticsService.triggerImpactLight();
-                takePhoto();
-              }}
-            >
-              <CameraIcon size={30} color="#2962FF" strokeWidth={2} />
-            </TouchableOpacity>
-          </View>
-        )}
+      <View style={styles.sectionLabelRow}>
+        <Text style={styles.sectionLabel}>Photos</Text>
+        <Text style={styles.sectionLabelCount}>
+          {selectedImages.length} / {maxImagesPerSubmission}
+        </Text>
       </View>
+      
+      {selectedImages.length > 0 && (
+        <View style={styles.imagesGrid}>
+          {selectedImages.map((uri, index) => (
+            <View key={`img-${index}`} style={styles.imageWrapper}>
+              <Image source={{ uri }} style={styles.selectedImage} />
+              <TouchableOpacity
+                style={styles.removeButton}
+                onPress={() => removeImage(index)}
+              >
+                <X size={14} color="#FFFFFF" strokeWidth={2.5} />
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {selectedImages.length < maxImagesPerSubmission && (
+        <View style={[
+          styles.photoButtonsRow,
+          selectedImages.length > 0 && { marginTop: 16 }
+        ]}>
+          <TouchableOpacity
+            style={[
+              styles.photoButton,
+              {
+                borderColor: "rgba(245, 158, 11, 0.25)",
+                backgroundColor: "rgba(254, 243, 199, 0.55)",
+              },
+            ]}
+            onPress={() => {
+              HapticsService.triggerImpactLight();
+              pickImage();
+            }}
+          >
+            <ImageIcon size={26} color="#D97706" strokeWidth={2} />
+            <Text style={[styles.photoButtonText, { color: "#D97706" }]}>
+              Choose Photo
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.photoButton,
+              {
+                borderColor: "rgba(217, 119, 6, 0.25)",
+                backgroundColor: "rgba(254, 243, 199, 0.35)",
+              },
+            ]}
+            onPress={() => {
+              HapticsService.triggerImpactLight();
+              takePhoto();
+            }}
+          >
+            <Camera size={26} color="#B45309" strokeWidth={2} />
+            <Text style={[styles.photoButtonText, { color: "#B45309" }]}>
+              Take Photo
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 
   const renderVideoPicker = () => (
     <View style={styles.mediaPicker}>
-      <Text style={styles.sectionLabel}>Add Video</Text>
+      <View style={styles.sectionLabelRow}>
+        <Text style={styles.sectionLabel}>Video</Text>
+      </View>
       {selectedVideo ? (
         <View style={styles.videoWrapper}>
           <VideoView
@@ -334,18 +441,40 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
             style={styles.removeVideoButton}
             onPress={removeVideo}
           >
-            <Ionicons name="close-circle" size={28} color="#FFFFFF" />
+            <X size={18} color="#FFFFFF" strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.videoButtonsRow}>
-          <TouchableOpacity style={styles.videoButton} onPress={pickVideo}>
-            <Ionicons name="videocam" size={28} color="#2962FF" />
-            <Text style={styles.videoButtonText}>Choose Video</Text>
+          <TouchableOpacity
+            style={[
+              styles.videoButton,
+              {
+                borderColor: "rgba(124, 58, 237, 0.2)",
+                backgroundColor: "rgba(245, 243, 255, 0.55)",
+              },
+            ]}
+            onPress={pickVideo}
+          >
+            <Video size={26} color="#7C3AED" strokeWidth={2} />
+            <Text style={[styles.videoButtonText, { color: "#7C3AED" }]}>
+              Choose Video
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.videoButton} onPress={recordVideo}>
-            <Ionicons name="radio-button-on" size={28} color={COLORS.error} />
-            <Text style={styles.videoButtonText}>Record Video</Text>
+          <TouchableOpacity
+            style={[
+              styles.videoButton,
+              {
+                borderColor: "rgba(239, 68, 68, 0.2)",
+                backgroundColor: "rgba(254, 242, 242, 0.55)",
+              },
+            ]}
+            onPress={recordVideo}
+          >
+            <Circle size={26} color="#EF4444" strokeWidth={2} fill="#EF4444" />
+            <Text style={[styles.videoButtonText, { color: "#EF4444" }]}>
+              Record Video
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -353,6 +482,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
     </View>
   );
 
+  // ── Loading ──────────────────────────────────────────────────────────────
   if (statusLoading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
@@ -363,6 +493,8 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
     );
   }
 
+  const typeBanner = getTypeBanner();
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
@@ -371,7 +503,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
           style={styles.closeButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer} pointerEvents="none">
           <Text style={styles.headerTitle}>Submit Proof</Text>
@@ -396,19 +528,19 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+        <LinearGradient
+          colors={["#F9FAFB", "#F1F3F5"]}
+          style={StyleSheet.absoluteFill}
+        />
         <ScrollView
           style={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
           {/* Challenge Info */}
-          <View style={styles.heroCard}>
+          <BlurView intensity={50} tint="light" style={styles.heroCard}>
             <View style={styles.heroIconContainer}>
-              <MaterialCommunityIcons
-                name="trophy-outline"
-                size={28}
-                color="#2962FF"
-              />
+              <Trophy size={28} color="#D97706" strokeWidth={1.8} />
             </View>
             <View style={styles.heroTextContainer}>
               <Text style={styles.heroSubtitle}>Challenge</Text>
@@ -421,12 +553,46 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
                 </Text>
               ) : null}
             </View>
-          </View>
+          </BlurView>
+
+          {/* ── Submission Type Banner ── */}
+          <BlurView
+            intensity={40}
+            tint="light"
+            style={[
+              styles.typeBanner,
+              { backgroundColor: typeBanner.bg, borderColor: typeBanner.border },
+            ]}
+          >
+            <View
+              style={[
+                styles.typeBannerIconWrap,
+                { backgroundColor: typeBanner.iconBg },
+              ]}
+            >
+              {typeBanner.icon}
+            </View>
+            <View style={styles.typeBannerText}>
+              <Text
+                style={[styles.typeBannerLabel, { color: typeBanner.labelColor }]}
+              >
+                {typeBanner.label}
+              </Text>
+              <Text style={styles.typeBannerDesc}>{typeBanner.description}</Text>
+            </View>
+          </BlurView>
 
           {/* Submission Limit Reached Banner */}
           {!canSubmitMore && (
-            <View style={styles.limitReachedBanner}>
-              <Ionicons name="warning" size={20} color="#FF3B30" />
+            <BlurView
+              intensity={40}
+              tint="light"
+              style={[
+                styles.limitReachedBanner,
+                { backgroundColor: "rgba(254, 226, 226, 0.45)", borderColor: "rgba(254, 202, 202, 0.7)" }
+              ]}
+            >
+              <CircleAlert size={20} color="#EF4444" strokeWidth={2} />
               <View style={styles.limitReachedContent}>
                 <Text style={styles.limitReachedTitle}>
                   Submission Limit Reached
@@ -439,35 +605,16 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
                     : ""}
                 </Text>
               </View>
-            </View>
+            </BlurView>
           )}
 
           {/* Guidelines Card */}
-          <View style={styles.guidelinesCard}>
+          <BlurView intensity={50} tint="light" style={styles.guidelinesCard}>
             <Text style={styles.guidelinesTitle}>Submission Guidelines</Text>
-
-            {/* Submission Type */}
-            <View style={styles.guidelineRow}>
-              <Ionicons
-                name="document-text-outline"
-                size={16}
-                color={COLORS.textSecondary}
-              />
-              <Text style={styles.guidelineText}>
-                Submission type:{" "}
-                <Text style={styles.guidelineHighlight}>
-                  {getSubmissionTypeLabel()}
-                </Text>
-              </Text>
-            </View>
 
             {/* Submissions Allowed */}
             <View style={styles.guidelineRow}>
-              <Ionicons
-                name="layers-outline"
-                size={16}
-                color={COLORS.textSecondary}
-              />
+              <Layers size={16} color={COLORS.textSecondary} strokeWidth={2} />
               <Text style={styles.guidelineText}>
                 Submissions allowed:{" "}
                 <Text style={styles.guidelineHighlight}>
@@ -476,22 +623,22 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
               </Text>
             </View>
 
-            {/* Remaining with dots */}
+            {/* Remaining dots */}
             {submissionStatus && (
               <View style={styles.guidelineRow}>
-                <Ionicons
-                  name={
-                    canSubmitMore
-                      ? "checkmark-circle-outline"
-                      : "close-circle-outline"
-                  }
-                  size={16}
-                  color={canSubmitMore ? "#34C759" : "#FF3B30"}
-                />
+                {canSubmitMore ? (
+                  <CheckCircle
+                    size={16}
+                    color="#22C55E"
+                    strokeWidth={2}
+                  />
+                ) : (
+                  <XCircle size={16} color="#EF4444" strokeWidth={2} />
+                )}
                 <Text
                   style={[
                     styles.guidelineText,
-                    !canSubmitMore && { color: "#FF3B30" },
+                    !canSubmitMore && { color: "#EF4444" },
                   ]}
                 >
                   Remaining:{" "}
@@ -500,19 +647,22 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
                   </Text>
                 </Text>
                 <View style={styles.limitDots}>
-                  {Array.from({ length: submissionStatus.max || 1 }).map((_, i) => {
-                    const usedCount =
-                      (submissionStatus.max || 1) - (submissionStatus.remaining || 0);
-                    return (
-                      <View
-                        key={i}
-                        style={[
-                          styles.limitDot,
-                          i < usedCount && styles.limitDotFilled,
-                        ]}
-                      />
-                    );
-                  })}
+                  {Array.from({ length: submissionStatus.max || 1 }).map(
+                    (_, i) => {
+                      const usedCount =
+                        (submissionStatus.max || 1) -
+                        (submissionStatus.remaining || 0);
+                      return (
+                        <View
+                          key={i}
+                          style={[
+                            styles.limitDot,
+                            i < usedCount && styles.limitDotFilled,
+                          ]}
+                        />
+                      );
+                    },
+                  )}
                 </View>
               </View>
             )}
@@ -520,71 +670,87 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
             {/* Requires Approval */}
             {typeData.require_approval && (
               <View style={styles.guidelineRow}>
-                <Ionicons name="time-outline" size={16} color="#2962FF" />
+                <Clock size={16} color="#2962FF" strokeWidth={2} />
                 <Text style={styles.guidelineText}>
                   Submissions require{" "}
                   <Text style={styles.guidelineHighlight}>host approval</Text>
                 </Text>
               </View>
             )}
-          </View>
+          </BlurView>
 
-          {/* Only show input fields if user can still submit */}
+          {/* Input fields — only if user can still submit */}
           {canSubmitMore && (
             <>
-              {/* Description Input */}
+              {/* Media Picker — LOCKED to submission type */}
+              {submissionType === "image" && renderImagePicker()}
+              {submissionType === "video" && renderVideoPicker()}
+
+              {/* Description (optional for image/video, required for text) */}
               <View style={styles.inputSection}>
-                <Text style={styles.sectionLabel}>Description</Text>
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="Share how you completed this challenge..."
-                  placeholderTextColor={COLORS.textSecondary}
-                  multiline
-                  maxLength={500}
-                  value={content}
-                  onChangeText={setContent}
-                />
+                <View style={styles.sectionLabelRow}>
+                  <Text style={styles.sectionLabel}>Description</Text>
+                  {submissionType !== "text" && (
+                    <Text style={styles.optionalLabel}>(optional)</Text>
+                  )}
+                </View>
+                <BlurView intensity={50} tint="light" style={styles.textInputContainer}>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder={
+                      submissionType === "text"
+                        ? "Describe your progress in detail..."
+                        : "Tell us more about your submission... (optional)"
+                    }
+                    placeholderTextColor={COLORS.textSecondary}
+                    multiline
+                    maxLength={500}
+                    value={content}
+                    onChangeText={setContent}
+                  />
+                </BlurView>
                 <Text style={styles.charCount}>{content.length}/500</Text>
               </View>
 
-              {/* Media Picker based on submission type */}
-              {(submissionType === "image" || submissionType === "any") &&
-                renderImagePicker()}
-              {(submissionType === "video" || submissionType === "any") &&
-                renderVideoPicker()}
-
               {/* Tips */}
-              <View style={styles.tipsSection}>
-                <Text style={styles.tipsTitle}>
-                  Tips for a great submission:
-                </Text>
+              <BlurView intensity={30} tint="light" style={styles.tipsSection}>
+                <Text style={styles.tipsTitle}>Tips for a great submission:</Text>
                 <View style={styles.tipRow}>
-                  <Ionicons name="checkmark-circle" size={16} color="#34C759" />
+                  <CheckCircle size={16} color="#22C55E" strokeWidth={2} />
+                  <Text style={styles.tipText}>Show clear proof of completion</Text>
+                </View>
+                {submissionType !== "text" && (
+                  <View style={styles.tipRow}>
+                    <CheckCircle size={16} color="#22C55E" strokeWidth={2} />
+                    <Text style={styles.tipText}>
+                      Add a description to give context
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.tipRow}>
+                  <CheckCircle size={16} color="#22C55E" strokeWidth={2} />
                   <Text style={styles.tipText}>
-                    Show clear proof of completion
+                    {submissionType === "video"
+                      ? "Keep it under 60 seconds"
+                      : "First photo is primary"}
                   </Text>
                 </View>
-                <View style={styles.tipRow}>
-                  <Ionicons name="checkmark-circle" size={16} color="#34C759" />
-                  <Text style={styles.tipText}>Add a brief description</Text>
-                </View>
-                <View style={styles.tipRow}>
-                  <Ionicons name="checkmark-circle" size={16} color="#34C759" />
-                  <Text style={styles.tipText}>Good lighting helps!</Text>
-                </View>
-              </View>
+              </BlurView>
             </>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+
       <CustomImagePicker
         visible={isCustomPickerVisible}
         onClose={() => setIsCustomPickerVisible(false)}
         onDone={handleCustomPickerDone}
-        selectionLimit={pickerMode === "video" ? 1 : maxImagesPerSubmission - selectedImages.length}
-        allowImages={pickerMode !== "video"}
+        selectionLimit={
+          pickerMode === "video"
+            ? 1
+            : maxImagesPerSubmission - selectedImages.length
+        }
         allowVideos={pickerMode === "video"}
-        videoMaxDuration={pickerMode === "video" ? 60 : null}
       />
     </SafeAreaView>
   );
@@ -634,13 +800,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     minWidth: 70,
     alignItems: "center",
-    // Soft glow shadow
     shadowColor: "#2962FF",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 8,
     elevation: 4,
-    // Glowing border styling
     borderWidth: 1.5,
     borderColor: "rgba(255, 200, 100, 0.4)",
   },
@@ -657,33 +821,39 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     flex: 1,
-    backgroundColor: "#F8F9FB",
+    backgroundColor: "transparent",
   },
   content: {
     flex: 1,
     padding: 20,
   },
+  // ── Hero card ──────────────────────────────────────────────────────────
   heroCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 255, 255, 0.45)",
     padding: 20,
     borderRadius: 24,
-    marginBottom: 24,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.7)",
+    overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.03,
+    shadowRadius: 16,
+    elevation: 0,
   },
   heroIconContainer: {
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: "#FFF8F0",
+    backgroundColor: "rgba(217, 119, 6, 0.08)",
     alignItems: "center",
     justifyContent: "center",
     marginRight: 16,
+    borderWidth: 1,
+    borderColor: "rgba(217, 119, 6, 0.15)",
   },
   heroTextContainer: {
     flex: 1,
@@ -706,17 +876,51 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 19,
   },
-  // Submission limit reached banner
+  // ── Submission type banner ─────────────────────────────────────────────
+  typeBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    borderRadius: BORDER_RADIUS.m,
+    borderWidth: 1,
+    padding: 14,
+    marginBottom: 16,
+    gap: 12,
+    overflow: "hidden",
+  },
+  typeBannerIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  typeBannerText: {
+    flex: 1,
+  },
+  typeBannerLabel: {
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+    marginBottom: 3,
+  },
+  typeBannerDesc: {
+    fontSize: 13,
+    fontFamily: "Manrope-Regular",
+    color: "#4B5563",
+    lineHeight: 18,
+  },
+  // ── Limit reached ─────────────────────────────────────────────────────
   limitReachedBanner: {
     flexDirection: "row",
     alignItems: "flex-start",
-    backgroundColor: "#FFF0F0",
+    backgroundColor: "rgba(254, 226, 226, 0.45)",
     padding: SPACING.m,
     borderRadius: BORDER_RADIUS.m,
     marginBottom: SPACING.m,
     gap: SPACING.s,
     borderWidth: 1,
-    borderColor: "#FF3B3020",
+    borderColor: "rgba(254, 202, 202, 0.7)",
+    overflow: "hidden",
   },
   limitReachedContent: {
     flex: 1,
@@ -724,26 +928,29 @@ const styles = StyleSheet.create({
   limitReachedTitle: {
     fontSize: 15,
     fontFamily: "Manrope-Bold",
-    color: "#FF3B30",
+    color: "#EF4444",
     marginBottom: 4,
   },
   limitReachedText: {
     fontSize: 13,
     fontFamily: "Manrope-Regular",
-    color: "#CC2D26",
+    color: "#DC2626",
     lineHeight: 18,
   },
-  // Guidelines card
+  // ── Guidelines card ────────────────────────────────────────────────────
   guidelinesCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 255, 255, 0.45)",
     padding: 20,
     borderRadius: 24,
     marginBottom: 24,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.7)",
+    overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.03,
+    shadowRadius: 16,
+    elevation: 0,
   },
   guidelinesTitle: {
     fontSize: 15,
@@ -764,10 +971,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   guidelineHighlight: {
-    fontFamily: "Manrope-SemiBold",
+    fontFamily: "Manrope-Bold",
     color: "#111827",
   },
-  // Limit dots (Q&A style)
   limitDots: {
     flexDirection: "row",
     gap: 6,
@@ -780,31 +986,52 @@ const styles = StyleSheet.create({
     backgroundColor: "#E5E7EB",
   },
   limitDotFilled: {
-    backgroundColor: "#34C759",
+    backgroundColor: "#22C55E",
   },
+  // ── Inputs ────────────────────────────────────────────────────────────
   inputSection: {
     marginBottom: 24,
+  },
+  sectionLabelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    marginBottom: 12,
   },
   sectionLabel: {
     fontSize: 15,
     fontFamily: "BasicCommercial-Bold",
     color: "#111827",
-    marginBottom: 12,
+  },
+  sectionLabelCount: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 13,
+    color: "#6B7280",
+  },
+  optionalLabel: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 13,
+    color: "#9CA3AF",
+  },
+  textInputContainer: {
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.7)",
+    backgroundColor: "rgba(255, 255, 255, 0.45)",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.03,
+    shadowRadius: 16,
+    elevation: 0,
   },
   textInput: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
     padding: 20,
     fontSize: 15,
     fontFamily: "Manrope-Regular",
     color: "#111827",
-    minHeight: 140,
+    minHeight: 120,
     textAlignVertical: "top",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
   },
   charCount: {
     fontSize: 12,
@@ -814,6 +1041,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginRight: 8,
   },
+  // ── Media pickers ──────────────────────────────────────────────────────
   mediaPicker: {
     marginBottom: 24,
   },
@@ -834,35 +1062,29 @@ const styles = StyleSheet.create({
   },
   removeButton: {
     position: "absolute",
-    top: 4,
-    right: 4,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    borderRadius: 12,
-  },
-  addButtonsRow: {
-    flexDirection: "row",
-    width: "100%",
-    gap: 20,
-  },
-  addImageButton: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: "#FFFFFF",
+    top: 6,
+    right: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#FFEEDD",
-    shadowColor: "#2962FF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 3,
   },
-  addImageText: {
-    fontSize: 14,
-    fontFamily: "Manrope-Medium",
-    color: "#2962FF",
+  photoButtonsRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  photoButton: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 20,
+    borderRadius: 20,
+    borderWidth: 1.5,
+  },
+  photoButtonText: {
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
     marginTop: 8,
   },
   videoWrapper: {
@@ -877,18 +1099,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  videoSelectedText: {
-    color: "#6B7280",
-    fontSize: 14,
-    fontFamily: "Manrope-Regular",
-    marginTop: 8,
-  },
   removeVideoButton: {
     position: "absolute",
     top: SPACING.s,
     right: SPACING.s,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   videoButtonsRow: {
     flexDirection: "row",
@@ -899,12 +1119,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 20,
     borderRadius: 20,
-    backgroundColor: "#FFF8F0",
+    borderWidth: 1.5,
   },
   videoButtonText: {
-    fontSize: 14,
-    fontFamily: "Manrope-Medium",
-    color: "#2962FF",
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
     marginTop: 8,
   },
   helperText: {
@@ -914,11 +1133,15 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 8,
   },
+  // ── Tips ──────────────────────────────────────────────────────────────
   tipsSection: {
-    backgroundColor: "#F4F6F9",
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
     padding: 20,
     borderRadius: 24,
     marginBottom: 40,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.5)",
+    overflow: "hidden",
   },
   tipsTitle: {
     fontSize: 15,
@@ -930,12 +1153,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 12,
+    gap: 12,
   },
   tipText: {
     fontSize: 14,
     fontFamily: "Manrope-Regular",
     color: "#4B5563",
-    marginLeft: 12,
   },
 });
 

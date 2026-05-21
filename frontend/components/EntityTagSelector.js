@@ -1,7 +1,24 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert, Image, FlatList } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { Trophy } from "lucide-react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Image,
+  FlatList,
+} from "react-native";
+import {
+  Trophy,
+  ChevronRight,
+  Search,
+  CircleX,
+  ArrowLeft,
+  Users,
+  Image as ImageIcon,
+  Video,
+} from "lucide-react-native";
 import { apiGet } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import { COLORS, FONTS } from "../constants/theme";
@@ -21,6 +38,8 @@ const LOCAL_COLORS = {
  *   Step 2: Pick an active challenge from that community
  *
  * Only one challenge can be tagged per post.
+ * The selected entity now includes `submission_type` so CreatePostScreen
+ * can lock the media picker to the correct type.
  */
 const EntityTagSelector = ({
   onEntitiesChange,
@@ -30,8 +49,6 @@ const EntityTagSelector = ({
   onInteractionEnd,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
-  // ... (lines 40-209 unchanged)
-
   const [searchResults, setSearchResults] = useState([]);
   const [selectedEntities, setSelectedEntities] = useState(initialEntities);
   const [isSearching, setIsSearching] = useState(false);
@@ -144,6 +161,8 @@ const EntityTagSelector = ({
       communityId: selectedCommunity?.id,
       expires_at: challenge.expires_at,
       is_joined: challenge.is_joined,
+      // Pass through submission_type so CreatePostScreen can lock the media picker
+      submission_type: challenge.type_data?.submission_type || "image",
     };
 
     const newSelected = [...selectedEntities, challengeEntity];
@@ -177,7 +196,9 @@ const EntityTagSelector = ({
       ? challenges.filter(
           (c) =>
             (c.title || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (c.caption || "").toLowerCase().includes(searchQuery.toLowerCase()),
+            (c.caption || "")
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase()),
         )
       : challenges;
 
@@ -194,7 +215,9 @@ const EntityTagSelector = ({
     if (searchResults.length === 0 && searchQuery.length > 0) {
       return (
         <View style={styles.resultsContainer}>
-          <Text style={[styles.noResults, { fontFamily: 'Manrope-Medium' }]}>No communities found</Text>
+          <Text style={[styles.noResults, { fontFamily: "Manrope-Medium" }]}>
+            No communities found
+          </Text>
         </View>
       );
     }
@@ -223,16 +246,18 @@ const EntityTagSelector = ({
                 />
               ) : (
                 <View style={[styles.resultAvatar, styles.avatarPlaceholder]}>
-                  <Ionicons name="people" size={18} color="#999" />
+                  <Users size={18} color="#999" strokeWidth={2} />
                 </View>
               )}
               <View style={styles.resultInfo}>
                 <Text style={styles.resultName}>{community.name}</Text>
                 {community.username && (
-                  <Text style={styles.resultHandle}>@{community.username}</Text>
+                  <Text style={styles.resultHandle}>
+                    @{community.username}
+                  </Text>
                 )}
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#CCC" />
+              <ChevronRight size={18} color="#CCC" strokeWidth={2} />
             </TouchableOpacity>
           )}
         />
@@ -253,8 +278,8 @@ const EntityTagSelector = ({
       return (
         <View style={styles.resultsContainer}>
           <View style={styles.emptyState}>
-            <Ionicons name="trophy-outline" size={32} color="#CCC" />
-            <Text style={[styles.noResults, { fontFamily: 'Manrope-Medium' }]}>
+            <Trophy size={32} color="#CCC" strokeWidth={1.5} />
+            <Text style={[styles.noResults, { fontFamily: "Manrope-Medium" }]}>
               {challenges.length === 0
                 ? "No active challenges in this community"
                 : "No matching challenges"}
@@ -276,37 +301,62 @@ const EntityTagSelector = ({
           keyExtractor={(item) => item.id.toString()}
           nestedScrollEnabled={true}
           keyboardShouldPersistTaps="handled"
-          renderItem={({ item: challenge }) => (
-            <TouchableOpacity
-              style={styles.challengeItem}
-              onPress={() => selectChallenge(challenge)}
-            >
-              <View style={styles.challengeIcon}>
-                <Trophy
-                  size={20}
-                  color={LOCAL_COLORS.challenge}
-                  strokeWidth={2}
-                />
-              </View>
-              <View style={styles.challengeInfo}>
-                <Text style={styles.challengeTitle} numberOfLines={1}>
-                  {challenge.title ||
-                    challenge.caption?.substring(0, 50) ||
-                    "Challenge"}
-                </Text>
-                {challenge.expires_at && (
-                  <Text style={styles.challengeExpiry}>
-                    Ends {new Date(challenge.expires_at).toLocaleDateString()}
-                  </Text>
-                )}
-              </View>
-              {challenge.is_joined && (
-                <View style={styles.joinedBadge}>
-                  <Text style={styles.joinedText}>Joined</Text>
+          renderItem={({ item: challenge }) => {
+            const subType = challenge.type_data?.submission_type || "image";
+            return (
+              <TouchableOpacity
+                style={styles.challengeItem}
+                onPress={() => selectChallenge(challenge)}
+              >
+                <View style={styles.challengeIcon}>
+                  <Trophy
+                    size={20}
+                    color={LOCAL_COLORS.challenge}
+                    strokeWidth={2}
+                  />
                 </View>
-              )}
-            </TouchableOpacity>
-          )}
+                <View style={styles.challengeInfo}>
+                  <Text style={styles.challengeTitle} numberOfLines={1}>
+                    {challenge.title ||
+                      challenge.caption?.substring(0, 50) ||
+                      "Challenge"}
+                  </Text>
+                  <View style={styles.challengeMeta}>
+                    {/* Submission type pill */}
+                    <View style={styles.subTypePill}>
+                      {subType === "video" ? (
+                        <Video size={10} color="#7C3AED" strokeWidth={2} />
+                      ) : (
+                        <ImageIcon size={10} color="#D97706" strokeWidth={2} />
+                      )}
+                      <Text
+                        style={[
+                          styles.subTypePillText,
+                          {
+                            color:
+                              subType === "video" ? "#7C3AED" : "#D97706",
+                          },
+                        ]}
+                      >
+                        {subType === "video" ? "Video" : "Photo"}
+                      </Text>
+                    </View>
+                    {challenge.expires_at && (
+                      <Text style={styles.challengeExpiry}>
+                        Ends{" "}
+                        {new Date(challenge.expires_at).toLocaleDateString()}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                {challenge.is_joined && (
+                  <View style={styles.joinedBadge}>
+                    <Text style={styles.joinedText}>Joined</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          }}
         />
       </View>
     );
@@ -326,11 +376,7 @@ const EntityTagSelector = ({
             style={styles.backButton}
             onPress={goBackToCommunities}
           >
-            <Ionicons
-              name="arrow-back"
-              size={18}
-              color={LOCAL_COLORS.challenge}
-            />
+            <ArrowLeft size={18} color={LOCAL_COLORS.challenge} strokeWidth={2} />
           </TouchableOpacity>
         )}
         <View style={styles.stepBadge}>
@@ -345,7 +391,7 @@ const EntityTagSelector = ({
 
       {/* Search Input */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={18} color="#999" />
+        <Search size={18} color="#999" strokeWidth={2} />
         <TextInput
           style={styles.searchInput}
           placeholder={
@@ -353,7 +399,7 @@ const EntityTagSelector = ({
               ? "Search communities..."
               : "Search challenges..."
           }
-          placeholderTextColor="rgba(0,0,0,0.4)" // ~60% opacity look on dark text
+          placeholderTextColor="rgba(0,0,0,0.4)"
           value={searchQuery}
           onChangeText={handleSearchChange}
           autoCapitalize="none"
@@ -366,7 +412,7 @@ const EntityTagSelector = ({
               setShowResults(false);
             }}
           >
-            <Ionicons name="close-circle" size={18} color="#CCC" />
+            <CircleX size={18} color="#CCC" strokeWidth={2} />
           </TouchableOpacity>
         )}
       </View>
@@ -400,7 +446,7 @@ const styles = StyleSheet.create({
   stepText: {
     fontSize: 15,
     fontFamily: FONTS.medium,
-    color: "#333", // Dark grey
+    color: "#333",
   },
   // Search
   searchContainer: {
@@ -496,16 +542,34 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   challengeTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: FONTS.semiBold,
     color: COLORS.textDark,
   },
+  challengeMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  subTypePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  subTypePillText: {
+    fontSize: 11,
+    fontFamily: FONTS.medium,
+  },
   challengeExpiry: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: FONTS.regular,
     color: COLORS.textDark,
-    opacity: 0.6,
-    marginTop: 2,
+    opacity: 0.5,
   },
   joinedBadge: {
     backgroundColor: "#E8F5E9",
@@ -516,7 +580,7 @@ const styles = StyleSheet.create({
   joinedText: {
     fontSize: 12,
     fontFamily: FONTS.medium,
-    color: "#5DB075", // Softer green
+    color: "#5DB075",
     letterSpacing: 0.3,
   },
 });

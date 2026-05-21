@@ -49,6 +49,10 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [mutedVideoIndices, setMutedVideoIndices] = useState(new Set()); // NEW: Track muted video indices
   const [taggedEntities, setTaggedEntities] = useState([]);
   const [entityTags, setEntityTags] = useState([]); // From EntityTagSelector (challenges, etc.)
+
+  // Derive the tagged challenge's submission_type to lock the media picker
+  const taggedChallenge = entityTags.find((e) => e.type === "challenge");
+  const challengeSubmissionType = taggedChallenge?.submission_type || null; // null = no restriction
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [showGuidelines, setShowGuidelines] = useState(false);
@@ -60,7 +64,17 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const scrollViewRef = useRef(null);
   // ...
 
-  // Auto-scroll when entity tagger opens
+  // Auto-close the tagger the moment a challenge is selected
+  // (EntityTagSelector returns null at that point, but showEntityTagger
+  //  would stay true — causing scrollToEnd to fire every time the
+  //  keyboard opens, which scrolls the caption off-screen)
+  useEffect(() => {
+    if (entityTags.some((e) => e.type === "challenge")) {
+      setShowEntityTagger(false);
+    }
+  }, [entityTags]);
+
+  // Auto-scroll when entity tagger opens (only while no challenge tagged)
   useEffect(() => {
     if (showEntityTagger) {
       // Scroll once immediately after layout update
@@ -75,12 +89,14 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
     }
   }, [showEntityTagger]);
 
-  // Handle keyboard show to ensure visibility
+  // Handle keyboard show to ensure entity tagger search is visible
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
       "keyboardDidShow",
       () => {
-        if (showEntityTagger) {
+        // Only scroll to end when the tagger panel is actively open
+        // (not when a challenge is tagged — that causes caption to scroll off-screen)
+        if (showEntityTagger && !entityTags.some((e) => e.type === "challenge")) {
           scrollViewRef.current?.scrollToEnd({ animated: true });
         }
       },
@@ -259,13 +275,41 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
 
   const handleSubmit = async () => {
     if (images.length === 0) {
-      Alert.alert("No Images", "Please add at least one image to your post");
+      Alert.alert("No Media", "Please add at least one photo or video to your post");
       return;
     }
 
     if (!caption.trim() && taggedEntities.length === 0) {
       Alert.alert("Empty Post", "Please add a caption or tag someone");
       return;
+    }
+
+    // Validate media type matches tagged challenge requirement
+    if (challengeSubmissionType) {
+      const hasVideo = mediaTypes.some((t) => t === "video");
+      const hasImage = mediaTypes.some((t) => t === "image" || !t);
+
+      if (challengeSubmissionType === "video" && !hasVideo) {
+        Alert.alert(
+          "Wrong Media Type",
+          "This challenge requires a video submission. Please add a video.",
+        );
+        return;
+      }
+      if (challengeSubmissionType === "video" && hasImage) {
+        Alert.alert(
+          "Wrong Media Type",
+          "This challenge only accepts videos. Please remove any photos.",
+        );
+        return;
+      }
+      if (challengeSubmissionType === "image" && hasVideo) {
+        Alert.alert(
+          "Wrong Media Type",
+          "This challenge only accepts photos. Please remove the video.",
+        );
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -618,7 +662,11 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               onChangeText={setCaption}
               onTaggedEntitiesChange={setTaggedEntities}
               placeholder={
-                "Share something with your network...\nUse @ to mention"
+                taggedChallenge
+                  ? challengeSubmissionType === "video"
+                    ? "Describe what you did in this video...\nUse @ to mention"
+                    : "Describe how you completed this challenge...\nUse @ to mention"
+                  : "Share something with your network...\nUse @ to mention"
               }
               placeholderTextColor="#9CA3AF"
               maxLength={2000}
@@ -657,7 +705,9 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               caption={caption}
               currentUser={currentUser}
               horizontal={true}
-              allowVideos={true}
+              // Lock to challenge submission type when a challenge is tagged
+              allowVideos={challengeSubmissionType !== "image"}
+              allowImages={challengeSubmissionType !== "video"}
             />
           </View>
 
@@ -677,14 +727,24 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           {entityTags.some((e) => e.type === "challenge") && (
             <View style={styles.challengeBanner}>
               <Trophy size={16} color="#FF6B35" strokeWidth={2.5} />
-              <Text style={styles.challengeBannerText}>
-                {entityTags.find((e) => e.type === "challenge")?.name}
-              </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.challengeBannerText} numberOfLines={1}>
+                  {entityTags.find((e) => e.type === "challenge")?.name}
+                </Text>
+                {challengeSubmissionType && (
+                  <Text style={styles.challengeBannerHint}>
+                    {challengeSubmissionType === "video"
+                      ? "📹 Video required for this challenge"
+                      : "🖼 Photo required for this challenge"}
+                  </Text>
+                )}
+              </View>
               <TouchableOpacity
                 onPress={() => {
                   setEntityTags(
                     entityTags.filter((e) => e.type !== "challenge"),
                   );
+                  setShowEntityTagger(false);
                 }}
                 style={styles.closeButtonContainer}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -717,14 +777,22 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           <TouchableOpacity
             onPress={() => {
               HapticsService.triggerImpactLight();
-              setShowEntityTagger(!showEntityTagger);
+              if (entityTags.some((e) => e.type === "challenge")) {
+                // Already tagged — clear the challenge and close the tagger
+                setEntityTags(entityTags.filter((e) => e.type !== "challenge"));
+                setShowEntityTagger(false);
+              } else {
+                setShowEntityTagger(!showEntityTagger);
+              }
             }}
             style={styles.toolbarButton}
           >
             <Trophy
               size={32}
               color={
-                showEntityTagger ? "#FF6B35" : COLORS.editorial.textSecondary
+                showEntityTagger || entityTags.some((e) => e.type === "challenge")
+                  ? "#FF6B35"
+                  : COLORS.editorial.textSecondary
               }
               strokeWidth={2}
             />
@@ -908,21 +976,27 @@ const styles = StyleSheet.create({
   },
   challengeBanner: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     backgroundColor: "#FFF3ED",
     marginHorizontal: 20,
-    alignSelf: "flex-start", // Left-aligned pill
+    alignSelf: "flex-start",
     marginTop: 12,
     paddingHorizontal: 14,
-    height: 36,
+    paddingVertical: 10,
     borderRadius: 18,
     gap: 8,
+    maxWidth: "85%",
   },
   challengeBannerText: {
     fontSize: 14,
-    fontFamily: "Manrope-Medium",
+    fontFamily: "Manrope-SemiBold",
     color: "#1F2937",
-    marginRight: 4,
+  },
+  challengeBannerHint: {
+    fontSize: 12,
+    fontFamily: "Manrope-Regular",
+    color: "#6B7280",
+    marginTop: 2,
   },
   closeButtonContainer: {
     width: 24,

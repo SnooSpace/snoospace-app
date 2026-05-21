@@ -433,24 +433,66 @@ const submitProof = async (req, res) => {
       });
     }
 
-    // Determine submission type and validate
-    let submissionType = "text";
-    if (video_url) {
-      submissionType = "video";
-    } else if (media_urls && media_urls.length > 0) {
-      submissionType = "image";
-    }
+    // ── Strict submission-type enforcement ──────────────────────────────
+    const requiredType = typeData.submission_type || "image";
+    const hasVideo = !!video_url;
+    const hasImages = Array.isArray(media_urls) && media_urls.length > 0;
+    const hasText = !!(content && content.trim());
 
-    // Check if submission type matches challenge requirement
-    if (
-      typeData.submission_type &&
-      submissionType !== typeData.submission_type &&
-      typeData.submission_type !== "any"
-    ) {
+    // Reject simultaneous video + images — choose one
+    if (hasVideo && hasImages) {
       return res.status(400).json({
-        error: `This challenge requires ${typeData.submission_type} submissions`,
+        error: "Please submit either a video or photos, not both",
       });
     }
+
+    // Determine what the user actually submitted
+    let submissionType = "text";
+    if (hasVideo) submissionType = "video";
+    else if (hasImages) submissionType = "image";
+
+    // text challenge: reject any media
+    if (requiredType === "text") {
+      if (hasVideo || hasImages) {
+        return res.status(400).json({
+          error: "This challenge accepts text descriptions only — no media allowed",
+        });
+      }
+      if (!hasText) {
+        return res.status(400).json({
+          error: "Please provide a description for your submission",
+        });
+      }
+    }
+
+    // image challenge: must have images, must not have video
+    if (requiredType === "image") {
+      if (hasVideo) {
+        return res.status(400).json({
+          error: "This challenge requires photo submissions — videos are not accepted",
+        });
+      }
+      if (!hasImages) {
+        return res.status(400).json({
+          error: "Please add at least one photo to your submission",
+        });
+      }
+    }
+
+    // video challenge: must have video, must not have images
+    if (requiredType === "video") {
+      if (hasImages) {
+        return res.status(400).json({
+          error: "This challenge requires a video submission — photos are not accepted",
+        });
+      }
+      if (!hasVideo) {
+        return res.status(400).json({
+          error: "Please add a video to your submission",
+        });
+      }
+    }
+
 
     // Determine initial status
     const initialStatus = typeData.require_approval ? "pending" : "approved";
