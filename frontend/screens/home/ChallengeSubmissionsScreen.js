@@ -743,18 +743,21 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           onDelete={null}
         />
 
-        {/* ⋯ Options button — host sees it on all submissions; owners see it on their own */}
-        {(isHost || item.is_own_submission) && (
-          <TouchableOpacity
-            style={styles.submissionOptionsBtn}
-            onPress={() => setActionSheet({ submission: item })}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <View style={styles.submissionOptionsBtnInner}>
-              <MoreHorizontal size={18} color="#5B6B7C" />
-            </View>
-          </TouchableOpacity>
-        )}
+        {/* Top Right Action & Info Buttons */}
+        <View style={styles.topRightActions}>
+          {item.is_featured && (
+            <Star size={18} color="#FFD700" fill="#FFD700" />
+          )}
+          {(isHost || item.is_own_submission) && (
+            <TouchableOpacity
+              style={styles.submissionOptionsBtn}
+              onPress={() => setActionSheet({ submission: item })}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            >
+              <MoreHorizontal size={20} color="#5B6B7C" />
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Gap 3: source_post_deleted — warn own submitter their post was deleted */}
         {item.is_own_submission && item.source_post_deleted && (
@@ -767,14 +770,8 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         )}
 
         {/* Status badges */}
-        {(item.is_featured || (item.is_own_submission && item.status !== "approved")) && (
+        {(item.is_own_submission && item.status !== "approved") && (
           <View style={styles.submissionBadgeRow}>
-            {item.is_featured && (
-              <View style={styles.featuredBadgeInline}>
-                <Star size={11} color="#FFD700" fill="#FFD700" />
-                <Text style={styles.featuredBadgeInlineText}>Featured</Text>
-              </View>
-            )}
             {item.is_own_submission && item.status === "pending" && (
               <View style={styles.pendingBadgeInline}>
                 <Clock size={11} color={COLORS.primary} />
@@ -2416,40 +2413,17 @@ const styles = StyleSheet.create({
     paddingTop: 6,
     paddingBottom: 10,
   },
-  featuredBadgeInline: {
+  topRightActions: {
+    position: "absolute",
+    top: 18,
+    right: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "#FFF8E1",
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: "#FFD700",
-  },
-  submissionOptionsBtn: {
-    position: "absolute",
-    top: 12,
-    right: 12,
+    gap: 12,
     zIndex: 10,
   },
-  submissionOptionsBtnInner: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.92)",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  featuredBadgeInlineText: {
-    fontSize: 12,
-    fontFamily: FONTS.semiBold,
-    color: "#B8860B",
+  submissionOptionsBtn: {
+    padding: 4,
   },
   pendingBadgeInline: {
     flexDirection: "row",
