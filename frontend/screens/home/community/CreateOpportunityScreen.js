@@ -230,8 +230,15 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     };
   }, []);
 
-  // Sync budgetRange string whenever currency, minBudget, or maxBudget changes
+  // Sync budgetRange string whenever currency, minBudget, maxBudget, paymentNature, or trialType changes
   useEffect(() => {
+    if (
+      paymentNature === "exposure" ||
+      (paymentNature === "trial" && trialType === "free_trial")
+    ) {
+      setBudgetRange("");
+      return;
+    }
     if (minBudget || maxBudget) {
       const minStr = minBudget ? `${currency}${minBudget}` : "";
       const maxStr = maxBudget ? `${currency}${maxBudget}` : "";
@@ -243,7 +250,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     } else {
       setBudgetRange("");
     }
-  }, [currency, minBudget, maxBudget]);
+  }, [currency, minBudget, maxBudget, paymentNature, trialType]);
 
   useEffect(() => {
     Animated.timing(progressPercent, {
@@ -318,6 +325,11 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   const [budgetRange, setBudgetRange] = useState("");
   const [paymentNature, setPaymentNature] = useState("paid");
   const [trialType, setTrialType] = useState("paid_trial"); // "paid_trial" | "free_trial"
+
+  const isBudgetRequired =
+    paymentNature === "paid" ||
+    (paymentNature === "trial" && trialType === "paid_trial") ||
+    paymentNature === "revenue_share";
 
   // Step 6 (new): Who Can Apply
   const [whoCanApply, setWhoCanApply] = useState([]);
@@ -404,7 +416,13 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     setWorkType(data.work_type || "one_time");
     // Handle both legacy string and new array format for work_mode
     const rawMode = data.work_mode || "remote";
-    setWorkModes(Array.isArray(rawMode) ? rawMode : rawMode.split(",").map(m => m.trim()));
+    if (Array.isArray(rawMode)) {
+      setWorkModes(rawMode);
+    } else if (rawMode === "hybrid") {
+      setWorkModes(["remote", "on_site"]);
+    } else {
+      setWorkModes(rawMode.split(",").map(m => m.trim()));
+    }
     setEventId(data.event_id || null);
     setAboutRole(data.about_role || "");
     setResponsibilities(data.responsibilities || []);
@@ -724,6 +742,13 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           );
           return false;
         }
+      case 8: // Compensation
+        if (isBudgetRequired) {
+          if (!minBudget.trim() || !maxBudget.trim()) {
+            Alert.alert("Required", "Please specify both the minimum and maximum budget.");
+            return false;
+          }
+        }
         return true;
       default:
         return true;
@@ -747,7 +772,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
       case 7:
         return true; // What You'll Gain — optional
       case 8:
-        return true; // Compensation
+        return !isBudgetRequired || (minBudget.trim() !== "" && maxBudget.trim() !== "");
       case 9:
         return questions.every((q) => q.prompt.trim() !== "");
       case 10:
@@ -783,7 +808,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         title: title.trim(),
         opportunity_types: selectedTypes,
         work_type: workType,
-        work_mode: workModes.join(","),
+        work_mode: workModes.includes("remote") && workModes.includes("on_site") ? "hybrid" : workModes[0],
         event_id: eventId,
         about_role: aboutRole.trim() || null,
         responsibilities,
@@ -793,7 +818,11 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         timezone: timezone.trim() || null,
         expires_at: expiresAt ? expiresAt.toISOString() : null,
         payment_type: paymentNature === "exposure" ? null : paymentType,
-        budget_range: paymentNature === "exposure" ? null : (budgetRange.trim() || null),
+        budget_range:
+          paymentNature === "exposure" ||
+          (paymentNature === "trial" && trialType === "free_trial")
+            ? null
+            : (budgetRange.trim() || null),
         payment_nature: paymentNature,
         trial_type: paymentNature === "trial" ? trialType : null,
         eligibility_mode: eligibilityMode,
@@ -1788,59 +1817,65 @@ export default function CreateOpportunityScreen({ navigation, route }) {
               })}
             </View>
 
-            <Text style={styles.labelNew}>Budget Range (Optional)</Text>
-            <View style={styles.budgetRowContainer}>
-              <View style={styles.currencyToggleContainer}>
-                {["₹", "$"].map((symbol) => {
-                  const isSelected = currency === symbol;
-                  return (
-                    <TouchableOpacity
-                      key={symbol}
-                      style={[
-                        styles.currencyTogglePill,
-                        isSelected && styles.currencyTogglePillSelected,
-                      ]}
-                      onPress={() => setCurrency(symbol)}
-                      activeOpacity={0.7}
-                    >
-                      <Text
-                        style={[
-                          styles.currencyToggleText,
-                          isSelected && styles.currencyToggleTextSelected,
-                        ]}
-                      >
-                        {symbol}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              <View style={styles.budgetInputsRow}>
-                <View style={styles.budgetInputWrapper}>
-                  <TextInput
-                    style={styles.budgetInput}
-                    value={minBudget}
-                    onChangeText={setMinBudget}
-                    placeholder="Min"
-                    placeholderTextColor={MODAL_TOKENS.textMuted}
-                    keyboardType="number-pad"
-                    maxLength={10}
-                  />
+            {!(paymentNature === "trial" && trialType === "free_trial") && (
+              <>
+                <Text style={styles.labelNew}>
+                  Budget Range{isBudgetRequired ? "" : " (Optional)"}
+                </Text>
+                <View style={styles.budgetRowContainer}>
+                  <View style={styles.currencyToggleContainer}>
+                    {["₹", "$"].map((symbol) => {
+                      const isSelected = currency === symbol;
+                      return (
+                        <TouchableOpacity
+                          key={symbol}
+                          style={[
+                            styles.currencyTogglePill,
+                            isSelected && styles.currencyTogglePillSelected,
+                          ]}
+                          onPress={() => setCurrency(symbol)}
+                          activeOpacity={0.7}
+                        >
+                          <Text
+                            style={[
+                              styles.currencyToggleText,
+                              isSelected && styles.currencyToggleTextSelected,
+                            ]}
+                          >
+                            {symbol}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <View style={styles.budgetInputsRow}>
+                    <View style={styles.budgetInputWrapper}>
+                      <TextInput
+                        style={styles.budgetInput}
+                        value={minBudget}
+                        onChangeText={setMinBudget}
+                        placeholder="Min"
+                        placeholderTextColor={MODAL_TOKENS.textMuted}
+                        keyboardType="number-pad"
+                        maxLength={10}
+                      />
+                    </View>
+                    <Text style={styles.budgetRangeDash}>-</Text>
+                    <View style={styles.budgetInputWrapper}>
+                      <TextInput
+                        style={styles.budgetInput}
+                        value={maxBudget}
+                        onChangeText={setMaxBudget}
+                        placeholder="Max"
+                        placeholderTextColor={MODAL_TOKENS.textMuted}
+                        keyboardType="number-pad"
+                        maxLength={10}
+                      />
+                    </View>
+                  </View>
                 </View>
-                <Text style={styles.budgetRangeDash}>-</Text>
-                <View style={styles.budgetInputWrapper}>
-                  <TextInput
-                    style={styles.budgetInput}
-                    value={maxBudget}
-                    onChangeText={setMaxBudget}
-                    placeholder="Max"
-                    placeholderTextColor={MODAL_TOKENS.textMuted}
-                    keyboardType="number-pad"
-                    maxLength={10}
-                  />
-                </View>
-              </View>
-            </View>
+              </>
+            )}
           </>
         )}
 
@@ -2257,13 +2292,6 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           </View>
         </View>
 
-        <View style={styles.infoBox}>
-          <Lightbulb size={18} color={MODAL_TOKENS.primary} strokeWidth={2} />
-          <Text style={styles.infoText}>
-            Keep this short. Fewer questions = better quality applicants.
-          </Text>
-        </View>
-
         <View style={styles.autoIncludedBox}>
           <Text style={styles.autoIncludedTitle}>
             Auto-Included (Not editable)
@@ -2494,7 +2522,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             <Briefcase strokeWidth={2} size={18} color={MODAL_TOKENS.textSecondary} />
             <Text style={styles.reviewText}>
               {workType === "one_time" ? "One-time" : "Ongoing"} ·{" "}
-              {workModes.map(m => m === "remote" ? "Remote" : "On-site").join(" + ")}
+              {workModes.includes("remote") && workModes.includes("on_site") ? "Hybrid" : workModes.map(m => m === "remote" ? "Remote" : "On-site").join(", ")}
             </Text>
           </TouchableOpacity>
 
