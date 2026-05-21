@@ -1962,7 +1962,7 @@ const updatePost = async (req, res) => {
         break;
 
       case "challenge":
-        // Challenge: title, description, deadline, target_count
+        // Challenge: title, description, deadline, target_count, show_proofs_immediately
         if (updates.title !== undefined) {
           if (
             typeof updates.title !== "string" ||
@@ -1991,10 +1991,27 @@ const updatePost = async (req, res) => {
           }
           updatedTypeData.target_count = newTarget;
         }
+        // show_proofs_immediately: only meaningful when a deadline is set
+        if (updates.show_proofs_immediately !== undefined) {
+          if (typeof updates.show_proofs_immediately !== "boolean") {
+            return res.status(400).json({ error: "show_proofs_immediately must be a boolean" });
+          }
+          // If toggling to false but no deadline exists (and none being added now), reject
+          const willHaveDeadline =
+            updates.expires_at !== null &&
+            (updates.expires_at !== undefined || post.expires_at);
+          if (!updates.show_proofs_immediately && !willHaveDeadline) {
+            return res.status(400).json({
+              error: "A deadline is required to hide proofs until the challenge ends",
+            });
+          }
+          updatedTypeData.show_proofs_immediately = updates.show_proofs_immediately;
+        }
         if (updates.expires_at !== undefined) {
           if (updates.expires_at === null) {
-            // Allow clearing the deadline
+            // Clearing the deadline — also reset show_proofs_immediately to true
             allowedUpdates.expires_at = null;
+            updatedTypeData.show_proofs_immediately = true;
           } else {
             const newExpiry = new Date(updates.expires_at);
             const currentExpiry = post.expires_at
@@ -2032,8 +2049,8 @@ const updatePost = async (req, res) => {
     queryParams.push(JSON.stringify(updatedTypeData));
     paramCount++;
 
-    // Add expires_at if it was updated
-    if (allowedUpdates.expires_at) {
+    // Add expires_at if it was explicitly set (including null to clear the deadline)
+    if (allowedUpdates.expires_at !== undefined) {
       setClauses.push(`expires_at = $${paramCount}`);
       queryParams.push(allowedUpdates.expires_at);
       paramCount++;

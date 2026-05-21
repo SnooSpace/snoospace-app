@@ -533,67 +533,59 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
     ]);
   };
 
-  const handleLike = async (submissionId, hasLiked) => {
+  // EditorialPostCard calls onLike(postId, isNowLiked, newLikeCount) AFTER it has
+  // already done its own optimistic flip internally. We just sync that outcome to
+  // submissions state and fire the API — we do NOT re-derive the toggle direction.
+  const handleLike = async (submissionId, isNowLiked, newLikeCount) => {
+    const rawId = String(submissionId).replace(/^sub_/, "");
+
+    // Sync the card's already-resolved state into submissions
+    setSubmissions((prev) =>
+      prev.map((s) =>
+        String(s.id) === rawId
+          ? {
+              ...s,
+              like_count: typeof newLikeCount === "number" ? newLikeCount : (isNowLiked ? s.like_count + 1 : Math.max(0, s.like_count - 1)),
+              has_liked: isNowLiked,
+            }
+          : s,
+      ),
+    );
+
+    // Sync into fullscreen image detail view if open
+    setFullscreenImage((prev) => {
+      if (prev && String(prev.id) === rawId) {
+        return {
+          ...prev,
+          like_count: typeof newLikeCount === "number" ? newLikeCount : (isNowLiked ? prev.like_count + 1 : Math.max(0, prev.like_count - 1)),
+          has_liked: isNowLiked,
+        };
+      }
+      return prev;
+    });
+
+    // Notify the challenge card teaser row instantly
+    EventBus.emit("submission-liked", { postId: post.id, liked: isNowLiked });
+
+    // Fire the API
     try {
       const token = await getAuthToken();
-
-      // Optimistic update
-      setSubmissions((prev) =>
-        prev.map((s) =>
-          s.id === submissionId
-            ? {
-                ...s,
-                like_count: hasLiked ? Math.max(0, s.like_count - 1) : s.like_count + 1,
-                has_liked: !hasLiked,
-              }
-            : s,
-        ),
-      );
-      
-      setFullscreenImage((prev) => {
-        if (prev && prev.id === submissionId) {
-          return {
-            ...prev,
-            like_count: hasLiked ? Math.max(0, prev.like_count - 1) : prev.like_count + 1,
-            has_liked: !hasLiked,
-          };
-        }
-        return prev;
-      });
-
-      // Notify the challenge card teaser row instantly
-      EventBus.emit("submission-liked", { postId: post.id, liked: !hasLiked });
-
-      if (hasLiked) {
-        await apiDelete(
-          `/challenge-submissions/${submissionId}/like`,
-          {},
-          10000,
-          token,
-        );
+      if (isNowLiked) {
+        await apiPost(`/challenge-submissions/${rawId}/like`, {}, 10000, token);
       } else {
-        await apiPost(
-          `/challenge-submissions/${submissionId}/like`,
-          {},
-          10000,
-          token,
-        );
+        await apiDelete(`/challenge-submissions/${rawId}/like`, {}, 10000, token);
       }
     } catch (error) {
-      console.error("Error toggling like:", error);
-      // Revert optimistic updates on error
+      console.error("[ChallengeSubmissions] Like API error, reverting:", error);
+      // Revert on failure
       setSubmissions((prev) =>
         prev.map((s) =>
-          s.id === submissionId
-            ? {
-                ...s,
-                like_count: hasLiked ? s.like_count + 1 : Math.max(0, s.like_count - 1),
-                has_liked: hasLiked,
-              }
+          String(s.id) === rawId
+            ? { ...s, like_count: isNowLiked ? Math.max(0, s.like_count - 1) : s.like_count + 1, has_liked: !isNowLiked }
             : s,
         ),
       );
-      EventBus.emit("submission-liked", { postId: post.id, liked: hasLiked });
+      EventBus.emit("submission-liked", { postId: post.id, liked: !isNowLiked });
     }
   };
 
@@ -737,7 +729,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
               navigation.push("MemberPublicProfile", { memberId: item.participant_id });
             }
           }}
-          onLike={() => handleLike(item.id, item.has_liked)}
+          onLike={(postId, isNowLiked, newLikeCount) => handleLike(postId, isNowLiked, newLikeCount)}
           onComment={() => openSubmissionComments(item)}
           onShare={() => handleShareSubmission(item)}
           hideSave

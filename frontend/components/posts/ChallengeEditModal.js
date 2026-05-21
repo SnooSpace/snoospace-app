@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, TouchableWithoutFeedback, Platform, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, TouchableWithoutFeedback, Platform, ScrollView, Switch } from "react-native";
 import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
 import CustomDatePicker from "../ui/CustomDatePicker";
 import { Ionicons } from "@expo/vector-icons";
+import { Eye } from "lucide-react-native";
 import SnooLoader from "../ui/SnooLoader";
 
 const ChallengeEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
@@ -10,6 +11,7 @@ const ChallengeEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
   const [description, setDescription] = useState("");
   const [targetCount, setTargetCount] = useState("");
   const [deadline, setDeadline] = useState(null);
+  const [showProofsImmediately, setShowProofsImmediately] = useState(true);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Initialize form with post data
@@ -20,6 +22,8 @@ const ChallengeEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
       setTargetCount(String(post.type_data?.target_count || ""));
       // Deadline lives on post.expires_at, not inside type_data
       setDeadline(post.expires_at ? new Date(post.expires_at) : null);
+      // show_proofs_immediately defaults to true if not set
+      setShowProofsImmediately(post.type_data?.show_proofs_immediately !== false);
     }
   }, [post, visible]);
 
@@ -52,6 +56,12 @@ const ChallengeEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
       updates.expires_at = deadline ? deadline.toISOString() : null;
     }
 
+    // Send show_proofs_immediately only if it changed
+    const originalShowProofs = post.type_data?.show_proofs_immediately !== false;
+    if (showProofsImmediately !== originalShowProofs) {
+      updates.show_proofs_immediately = showProofsImmediately;
+    }
+
     onSave(updates);
   };
 
@@ -64,6 +74,8 @@ const ChallengeEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
 
   const clearDate = () => {
     setDeadline(null);
+    // Clearing deadline resets proofs to immediately visible (same as create form)
+    setShowProofsImmediately(true);
   };
 
   const formatDate = (date) => {
@@ -81,6 +93,9 @@ const ChallengeEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
   const isValidTargetCount =
     !targetCount || parseInt(targetCount, 10) >= currentTargetCount;
   const isValid = title.trim().length > 0 && isValidTargetCount;
+
+  // Toggle is only interactive when a deadline is set
+  const hasDeadline = !!deadline;
 
   return (
     <Modal
@@ -187,6 +202,39 @@ const ChallengeEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
                   )}
                 </View>
 
+                {/* Show Proofs Immediately toggle — only enabled when deadline exists */}
+                <View style={[styles.toggleRow, !hasDeadline && styles.toggleRowDisabled]}>
+                  <View style={styles.toggleLeft}>
+                    <View style={styles.toggleIconBox}>
+                      <Eye
+                        size={18}
+                        color={hasDeadline ? "#1D1D1F" : "#B0B8C1"}
+                        strokeWidth={2}
+                      />
+                    </View>
+                    <View style={styles.toggleTextBlock}>
+                      <Text style={[styles.toggleTitle, !hasDeadline && styles.toggleTitleDisabled]}>
+                        Show proofs immediately
+                      </Text>
+                      <Text style={styles.toggleSubtitle}>
+                        {hasDeadline
+                          ? showProofsImmediately
+                            ? "Submissions visible as they're approved"
+                            : "Hidden from others until challenge ends"
+                          : "Set a deadline to hide proofs until it ends"}
+                      </Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={showProofsImmediately}
+                    onValueChange={hasDeadline ? setShowProofsImmediately : undefined}
+                    disabled={!hasDeadline}
+                    trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
+                    thumbColor="#FFFFFF"
+                    ios_backgroundColor="#E5E7EB"
+                  />
+                </View>
+
                 <CustomDatePicker
                   visible={showDatePicker}
                   onClose={() => setShowDatePicker(false)}
@@ -242,7 +290,7 @@ const styles = StyleSheet.create({
     maxWidth: 500,
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    maxHeight: "80%",
+    maxHeight: "85%",
     ...SHADOWS.large,
   },
   header: {
@@ -335,6 +383,58 @@ const styles = StyleSheet.create({
     color: "#DC2626",
     fontWeight: "600",
   },
+  // ── Show Proofs toggle ──────────────────────────────────────────────────────
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    backgroundColor: "#F8F9FB",
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+  },
+  toggleRowDisabled: {
+    opacity: 0.45,
+  },
+  toggleLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+    marginRight: 12,
+  },
+  toggleIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+  },
+  toggleTextBlock: {
+    flex: 1,
+  },
+  toggleTitle: {
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+    color: "#1D1D1F",
+    marginBottom: 2,
+  },
+  toggleTitleDisabled: {
+    color: "#8E8E93",
+  },
+  toggleSubtitle: {
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    color: "#8E8E93",
+    lineHeight: 16,
+  },
+  // ── Action buttons ──────────────────────────────────────────────────────────
   actions: {
     flexDirection: "row",
     gap: 12,
