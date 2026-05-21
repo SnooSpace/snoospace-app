@@ -59,6 +59,13 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [showEntityTagger, setShowEntityTagger] = useState(false);
   const [parentScrollEnabled, setParentScrollEnabled] = useState(true);
+  // Media-challenge conflict modal
+  const [conflictModal, setConflictModal] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    onProceed: null,
+  });
 
   const imageUploaderRef = useRef(null);
   const scrollViewRef = useRef(null);
@@ -461,6 +468,70 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
     }
   };
 
+  /**
+   * handleBeforeChallengeSelect
+   * Intercepts challenge selection from EntityTagSelector.
+   * If the already-loaded media conflicts with the challenge's submission_type,
+   * shows a modal explaining what will be selectively removed, then calls proceed().
+   * Selective removal: only the incompatible media type is cleared; compatible media stays.
+   */
+  const handleBeforeChallengeSelect = (challenge, proceed) => {
+    const subType = challenge.type_data?.submission_type || "image";
+    const hasVideos = mediaTypes.some((t) => t === "video");
+    const hasPhotos = mediaTypes.some((t) => t !== "video") && images.length > 0;
+    const hasAnyMedia = images.length > 0;
+
+    if (!hasAnyMedia) {
+      // No media attached — no conflict, proceed immediately
+      proceed();
+      return;
+    }
+
+    let title = "";
+    let message = "";
+    let typeToRemove = null;
+
+    if (subType === "video" && hasPhotos) {
+      typeToRemove = "image";
+      if (hasVideos) {
+        // Mixed: photos + video — only photos will go, video stays
+        title = "Photos Will Be Removed";
+        message = `“${challenge.title}” only accepts video submissions. Your selected photos will be removed, but your video will stay. Tap Continue to proceed.`;
+      } else {
+        // Only photos — all cleared
+        title = "Photos Will Be Removed";
+        message = `“${challenge.title}” only accepts video submissions. Your selected photos will be removed. You’ll need to add a video before submitting.`;
+      }
+    } else if (subType === "image" && hasVideos) {
+      typeToRemove = "video";
+      if (hasPhotos) {
+        // Mixed: photos + video — only video will go, photos stay
+        title = "Video Will Be Removed";
+        message = `“${challenge.title}” only accepts photo submissions. Your video will be removed, but your selected photos will stay.`;
+      } else {
+        // Only video — all cleared
+        title = "Video Will Be Removed";
+        message = `“${challenge.title}” only accepts photo submissions. Your selected video will be removed. You’ll need to add photos before submitting.`;
+      }
+    } else {
+      // No conflict (photos → photo challenge, or video → video challenge)
+      proceed();
+      return;
+    }
+
+    setConflictModal({
+      visible: true,
+      title,
+      message,
+      onProceed: () => {
+        if (typeToRemove) {
+          imageUploaderRef.current?.removeItemsOfType(typeToRemove);
+        }
+        proceed();
+      },
+    });
+  };
+
   const renderDiscardModal = () => (
     <CustomAlertModal
       visible={showDiscardModal}
@@ -482,6 +553,28 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
       secondaryAction={{
         text: "Keep Editing",
         onPress: () => setShowDiscardModal(false),
+      }}
+    />
+  );
+
+  const renderConflictModal = () => (
+    <CustomAlertModal
+      visible={conflictModal.visible}
+      onClose={() => setConflictModal((prev) => ({ ...prev, visible: false }))}
+      title={conflictModal.title}
+      message={conflictModal.message}
+      icon={AlertTriangle}
+      iconColor="#F59E0B"
+      primaryAction={{
+        text: "Continue",
+        onPress: () => {
+          setConflictModal((prev) => ({ ...prev, visible: false }));
+          conflictModal.onProceed?.();
+        },
+      }}
+      secondaryAction={{
+        text: "Cancel",
+        onPress: () => setConflictModal((prev) => ({ ...prev, visible: false })),
       }}
     />
   );
@@ -719,6 +812,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
                 initialEntities={entityTags}
                 onInteractionStart={() => setParentScrollEnabled(false)}
                 onInteractionEnd={() => setParentScrollEnabled(true)}
+                onBeforeChallengeSelect={handleBeforeChallengeSelect}
               />
             </View>
           )}
@@ -816,6 +910,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
       </KeyboardAwareToolbar>
       {renderGuidelinesModal()}
       {renderDiscardModal()}
+      {renderConflictModal()}
     </View>
   );
 };

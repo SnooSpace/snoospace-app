@@ -47,6 +47,9 @@ const EntityTagSelector = ({
   style,
   onInteractionStart,
   onInteractionEnd,
+  // Optional: parent can intercept challenge selection to show a conflict modal.
+  // Called as onBeforeChallengeSelect(challenge, proceed) — call proceed() to confirm.
+  onBeforeChallengeSelect,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -165,15 +168,23 @@ const EntityTagSelector = ({
       submission_type: challenge.type_data?.submission_type || "image",
     };
 
-    const newSelected = [...selectedEntities, challengeEntity];
-    setSelectedEntities(newSelected);
+    const commitSelection = () => {
+      const newSelected = [...selectedEntities, challengeEntity];
+      setSelectedEntities(newSelected);
+      // Reset flow
+      setSearchQuery("");
+      setShowResults(false);
+      setStep("community");
+      setSelectedCommunity(null);
+      setChallenges([]);
+    };
 
-    // Reset flow
-    setSearchQuery("");
-    setShowResults(false);
-    setStep("community");
-    setSelectedCommunity(null);
-    setChallenges([]);
+    if (onBeforeChallengeSelect) {
+      // Let parent validate (e.g. conflict with existing media) before committing
+      onBeforeChallengeSelect(challenge, commitSelection);
+    } else {
+      commitSelection();
+    }
   };
 
   const removeEntity = (entityId) => {

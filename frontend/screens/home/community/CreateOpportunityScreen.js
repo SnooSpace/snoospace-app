@@ -14,11 +14,11 @@ import {
   ScrollView,
   Alert,
   Switch,
-  KeyboardAvoidingView,
   Platform,
   Modal,
   Animated,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Check,
@@ -56,10 +56,15 @@ import {
   CheckCircle,
   Clock,
   Calendar,
+  FileText,
+  Gift,
+  GraduationCap,
+  Star,
+  ListChecks,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import CustomDatePicker from "../../../components/ui/CustomDatePicker";
 
 import { COLORS, FONTS, SHADOWS } from "../../../constants/theme";
 import {
@@ -165,13 +170,61 @@ const SAMPLE_TYPES = {
   ],
 };
 
-const TOTAL_STEPS = 8;
+const parseBudgetRange = (str) => {
+  if (!str) return { currency: "₹", min: "", max: "" };
+  const clean = str.trim();
+  let currencySymbol = "₹";
+  if (clean.includes("$")) {
+    currencySymbol = "$";
+  } else if (clean.includes("₹")) {
+    currencySymbol = "₹";
+  }
+  
+  // Remove currency symbols
+  const numbersOnly = clean.replace(/[₹$]/g, "");
+  // Split by range delimiter (dash, to, etc.)
+  const parts = numbersOnly.split("-");
+  let minVal = "";
+  let maxVal = "";
+  if (parts.length > 0) {
+    minVal = parts[0].replace(/,/g, "").trim();
+  }
+  if (parts.length > 1) {
+    maxVal = parts[1].replace(/,/g, "").trim();
+  }
+  return { currency: currencySymbol, min: minVal, max: maxVal };
+};
+
+const TOTAL_STEPS = 11;
 
 export default function CreateOpportunityScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 8;
+  const totalSteps = 11;
   const progressPercent = useRef(new Animated.Value(0)).current;
+  const [hasReachedReview, setHasReachedReview] = useState(false);
+
+  const [showSaveDraftModal, setShowSaveDraftModal] = useState(false);
+  const [currency, setCurrency] = useState("₹");
+  const [minBudget, setMinBudget] = useState("");
+  const [maxBudget, setMaxBudget] = useState("");
+
+  const scrollViewRef = useRef(null);
+
+  // Sync budgetRange string whenever currency, minBudget, or maxBudget changes
+  useEffect(() => {
+    if (minBudget || maxBudget) {
+      const minStr = minBudget ? `${currency}${minBudget}` : "";
+      const maxStr = maxBudget ? `${currency}${maxBudget}` : "";
+      if (minStr && maxStr) {
+        setBudgetRange(`${minStr} - ${maxStr}`);
+      } else {
+        setBudgetRange(minStr || maxStr);
+      }
+    } else {
+      setBudgetRange("");
+    }
+  }, [currency, minBudget, maxBudget]);
 
   useEffect(() => {
     Animated.timing(progressPercent, {
@@ -179,6 +232,10 @@ export default function CreateOpportunityScreen({ navigation, route }) {
       duration: 300,
       useNativeDriver: false,
     }).start();
+
+    if (currentStep === TOTAL_STEPS) {
+      setHasReachedReview(true);
+    }
   }, [currentStep]);
   const [saving, setSaving] = useState(false);
   const opportunityToEdit = route.params?.opportunityToEdit;
@@ -210,8 +267,14 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
   // Step 2: Intent & Scope
   const [workType, setWorkType] = useState("one_time");
-  const [workMode, setWorkMode] = useState("remote");
+  const [workModes, setWorkModes] = useState(["remote"]); // multi-select
   const [eventId, setEventId] = useState(null);
+
+  // Step 3 (NEW): About the Role
+  const [aboutRole, setAboutRole] = useState("");
+  const [responsibilities, setResponsibilities] = useState([]);
+  const [newResponsibility, setNewResponsibility] = useState("");
+  const [showResponsibilityInput, setShowResponsibilityInput] = useState(false);
 
   // Step 3: Core Requirements
   const [experienceLevel, setExperienceLevel] = useState("any");
@@ -229,17 +292,55 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   const [customSampleType, setCustomSampleType] = useState("");
   const [showCustomSampleInput, setShowCustomSampleInput] = useState({});
 
-  // Step 5: Compensation
+  // Step 5 (new): Compensation
   const [paymentType, setPaymentType] = useState("fixed");
   const [budgetRange, setBudgetRange] = useState("");
   const [paymentNature, setPaymentNature] = useState("paid");
+  const [trialType, setTrialType] = useState("paid_trial"); // "paid_trial" | "free_trial"
 
-  // Step 6: Questions
+  // Step 6 (new): Who Can Apply
+  const [whoCanApply, setWhoCanApply] = useState([]);
+  const [customWhoCanApply, setCustomWhoCanApply] = useState("");
+  const [showWhoCanApplyInput, setShowWhoCanApplyInput] = useState(false);
+
+  // Step 7 (new): What You'll Gain
+  const [gains, setGains] = useState([]);
+  const [newGain, setNewGain] = useState("");
+  const [showGainInput, setShowGainInput] = useState(false);
+
+  // Step 9: Questions
   const [questions, setQuestions] = useState([]);
 
-  // Step 7: Visibility
+  // Step 10: Visibility
   const [visibility, setVisibility] = useState("public");
   const [notifyTalent, setNotifyTalent] = useState(true);
+
+  // Auto-scroll when keyboard inputs appear at the bottom
+  useEffect(() => {
+    if (showCustomInput && scrollViewRef.current) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 300);
+    }
+  }, [showCustomInput]);
+
+  useEffect(() => {
+    const isAnyToolOpen = Object.values(showCustomToolInput).some((v) => v);
+    const isAnySampleOpen = Object.values(showCustomSampleInput).some((v) => v);
+    if ((isAnyToolOpen || isAnySampleOpen) && scrollViewRef.current) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 300);
+    }
+  }, [showCustomToolInput, showCustomSampleInput]);
+
+  useEffect(() => {
+    if (questions.length > 0 && scrollViewRef.current) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 300);
+    }
+  }, [questions.length]);
 
   // Check for draft on mount (only if NOT editing)
   useEffect(() => {
@@ -280,17 +381,28 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     setTitle(data.title || "");
     setSelectedTypes(data.opportunity_types || data.roles || []);
     setWorkType(data.work_type || "one_time");
-    setWorkMode(data.work_mode || "remote");
+    // Handle both legacy string and new array format for work_mode
+    const rawMode = data.work_mode || "remote";
+    setWorkModes(Array.isArray(rawMode) ? rawMode : rawMode.split(",").map(m => m.trim()));
     setEventId(data.event_id || null);
+    setAboutRole(data.about_role || "");
+    setResponsibilities(data.responsibilities || []);
     setExperienceLevel(data.experience_level || "any");
     setAvailability(data.availability || "");
     setTurnaround(data.turnaround || "");
     setTimezone(data.timezone || "");
     setSkillGroups(data.skill_groups || []);
     setEligibilityMode(data.eligibility_mode || "any_one");
+    setWhoCanApply(data.who_can_apply || []);
+    setGains(data.gains || []);
     setPaymentType(data.payment_type || "fixed");
+    const { currency: curr, min: minVal, max: maxVal } = parseBudgetRange(data.budget_range || "");
+    setCurrency(curr);
+    setMinBudget(minVal);
+    setMaxBudget(maxVal);
     setBudgetRange(data.budget_range || "");
     setPaymentNature(data.payment_nature || "paid");
+    setTrialType(data.trial_type || "paid_trial");
     setQuestions(data.questions || []);
     setVisibility(data.visibility || "public");
     setNotifyTalent(data.notify_talent !== false);
@@ -330,8 +442,10 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     title,
     selectedTypes,
     workType,
-    workMode,
+    workModes,
     eventId,
+    aboutRole,
+    responsibilities,
     experienceLevel,
     availability,
     turnaround,
@@ -339,9 +453,12 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     expiresAt: expiresAt ? expiresAt.toISOString() : null,
     skillGroups,
     eligibilityMode,
+    whoCanApply,
+    gains,
     paymentType,
     budgetRange,
     paymentNature,
+    trialType,
     questions,
     visibility,
     notifyTalent,
@@ -372,8 +489,10 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         setTitle(draft.data.title || "");
         setSelectedTypes(draft.data.selectedTypes || []);
         setWorkType(draft.data.workType || "one_time");
-        setWorkMode(draft.data.workMode || "remote");
+        setWorkModes(draft.data.workModes || ["remote"]);
         setEventId(draft.data.eventId || null);
+        setAboutRole(draft.data.aboutRole || "");
+        setResponsibilities(draft.data.responsibilities || []);
         setExperienceLevel(draft.data.experienceLevel || "any");
         setAvailability(draft.data.availability || "");
         setTurnaround(draft.data.turnaround || "");
@@ -383,9 +502,16 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         );
         setSkillGroups(draft.data.skillGroups || []);
         setEligibilityMode(draft.data.eligibilityMode || "any_one");
+        setWhoCanApply(draft.data.whoCanApply || []);
+        setGains(draft.data.gains || []);
         setPaymentType(draft.data.paymentType || "fixed");
+        const { currency: curr, min: minVal, max: maxVal } = parseBudgetRange(draft.data.budgetRange || "");
+        setCurrency(curr);
+        setMinBudget(minVal);
+        setMaxBudget(maxVal);
         setBudgetRange(draft.data.budgetRange || "");
         setPaymentNature(draft.data.paymentNature || "paid");
+        setTrialType(draft.data.trialType || "paid_trial");
         setQuestions(draft.data.questions || []);
         setVisibility(draft.data.visibility || "public");
         setNotifyTalent(draft.data.notifyTalent !== false);
@@ -417,24 +543,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
       navigation.goBack();
       return;
     }
-    Alert.alert("Save Draft?", "Would you like to save your progress?", [
-      {
-        text: "Discard",
-        style: "destructive",
-        onPress: async () => {
-          if (userId) await deleteOpportunityDraft(userId);
-          navigation.goBack();
-        },
-      },
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Save Draft",
-        onPress: async () => {
-          await saveDraft(true);
-          navigation.goBack();
-        },
-      },
-    ]);
+    setShowSaveDraftModal(true);
   };
 
   // Initialize skill groups when types change
@@ -560,7 +669,17 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           return false;
         }
         return true;
-      case 3:
+      case 3: // About the Role — description AND at least one responsibility required
+        if (!aboutRole.trim()) {
+          Alert.alert("Required", "Please describe the role before continuing.");
+          return false;
+        }
+        if (responsibilities.length === 0) {
+          Alert.alert("Required", "Add at least one key responsibility.");
+          return false;
+        }
+        return true;
+      case 4: // Core Requirements
         if (!availability.trim()) {
           Alert.alert("Required", "Please specify availability requirements.");
           return false;
@@ -570,7 +689,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           return false;
         }
         return true;
-      case 4:
+      case 5: // Skill Requirements (was step 4)
         const hasAnySelection = skillGroups.some(
           (g) => g.tools.length > 0 || g.sample_type,
         );
@@ -582,6 +701,35 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           return false;
         }
         return true;
+      default:
+        return true;
+    }
+  };
+
+  const isStepFormComplete = (step) => {
+    switch (step) {
+      case 1:
+        return title.trim() !== "" && selectedTypes.length > 0;
+      case 2:
+        return workModes.length > 0;
+      case 3:
+        return aboutRole.trim() !== "" && responsibilities.length > 0;
+      case 4:
+        return availability.trim() !== "" && turnaround.trim() !== "";
+      case 5:
+        return skillGroups.some((g) => g.tools.length > 0 || g.sample_type);
+      case 6:
+        return true; // Who Can Apply — optional
+      case 7:
+        return true; // What You'll Gain — optional
+      case 8:
+        return true; // Compensation
+      case 9:
+        return questions.every((q) => q.prompt.trim() !== "");
+      case 10:
+        return true; // Visibility
+      case 11:
+        return true; // Review
       default:
         return true;
     }
@@ -609,17 +757,22 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         title: title.trim(),
         opportunity_types: selectedTypes,
         work_type: workType,
-        work_mode: workMode,
+        work_mode: workModes.join(","),
         event_id: eventId,
+        about_role: aboutRole.trim() || null,
+        responsibilities,
         experience_level: experienceLevel,
         availability: availability.trim(),
         turnaround: turnaround.trim(),
         timezone: timezone.trim() || null,
         expires_at: expiresAt ? expiresAt.toISOString() : null,
-        payment_type: paymentType,
-        budget_range: budgetRange.trim() || null,
+        payment_type: paymentNature === "exposure" ? null : paymentType,
+        budget_range: paymentNature === "exposure" ? null : (budgetRange.trim() || null),
         payment_nature: paymentNature,
+        trial_type: paymentNature === "trial" ? trialType : null,
         eligibility_mode: eligibilityMode,
+        who_can_apply: whoCanApply,
+        gains,
         visibility,
         notify_talent: notifyTalent,
         skill_groups: skillGroups,
@@ -671,10 +824,13 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
   // Render step content
   const renderStep1 = () => (
-    <ScrollView
+    <KeyboardAwareScrollView
+      ref={scrollViewRef}
       style={styles.stepContent}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 220, paddingTop: 12 }}
+      bottomOffset={15}
     >
       <BlurView intensity={50} tint="light" style={styles.glassCard}>
         <View style={styles.sectionHeaderNew}>
@@ -733,13 +889,6 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                   >
                     {type}
                   </Text>
-                  {isSelected && (
-                    <Check
-                      size={14}
-                      color="#FFFFFF"
-                      style={{ marginLeft: 6 }}
-                    />
-                  )}
                 </TouchableOpacity>
               );
             })}
@@ -786,6 +935,11 @@ export default function CreateOpportunityScreen({ navigation, route }) {
               placeholder="Enter custom role"
               placeholderTextColor={MODAL_TOKENS.textMuted}
               autoFocus
+              onFocus={() => {
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 300);
+              }}
             />
             <TouchableOpacity
               style={styles.addButton}
@@ -795,7 +949,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
               <Check size={20} color="#FFFFFF" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.cancelButton}
+              style={styles.rowCancelButton}
               onPress={() => {
                 setShowCustomInput(false);
                 setCustomType("");
@@ -807,14 +961,16 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           </View>
         )}
       </BlurView>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 
   const renderStep2 = () => (
-    <ScrollView
+    <KeyboardAwareScrollView
       style={styles.stepContent}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 220, paddingTop: 12 }}
+      bottomOffset={15}
     >
       <BlurView intensity={50} tint="light" style={styles.glassCard}>
         <View style={styles.sectionHeaderNew}>
@@ -877,12 +1033,13 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         </View>
 
         <Text style={styles.labelNew}>Work Mode</Text>
+        <Text style={styles.multiSelectHint}>Select all that apply</Text>
         <View style={styles.optionsRow}>
           {[
             { value: "remote", label: "Remote", Icon: Monitor },
             { value: "on_site", label: "On-site", Icon: MapPin },
           ].map((opt) => {
-            const isSelected = workMode === opt.value;
+            const isSelected = workModes.includes(opt.value);
             return (
               <TouchableOpacity
                 key={opt.value}
@@ -890,7 +1047,16 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                   styles.optionCard,
                   isSelected && styles.optionCardSelected,
                 ]}
-                onPress={() => setWorkMode(opt.value)}
+                onPress={() => {
+                  if (isSelected) {
+                    // Prevent deselecting the last option
+                    if (workModes.length > 1) {
+                      setWorkModes(workModes.filter((m) => m !== opt.value));
+                    }
+                  } else {
+                    setWorkModes([...workModes, opt.value]);
+                  }
+                }}
                 activeOpacity={0.7}
               >
                 <View
@@ -922,15 +1088,142 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             );
           })}
         </View>
+        {workModes.includes("remote") && workModes.includes("on_site") && (
+          <View style={styles.infoBox}>
+            <Info size={18} color={MODAL_TOKENS.primary} strokeWidth={2} />
+            <Text style={styles.infoText}>
+              Hybrid mode — applicants can work both remotely and on-site.
+            </Text>
+          </View>
+        )}
       </BlurView>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 
+  // ─── NEW STEP 3: About the Role ──────────────────────────────────────────
   const renderStep3 = () => (
-    <ScrollView
+    <KeyboardAwareScrollView
+      ref={scrollViewRef}
       style={styles.stepContent}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 220, paddingTop: 12 }}
+      bottomOffset={15}
+    >
+      <BlurView intensity={50} tint="light" style={styles.glassCard}>
+        <View style={styles.sectionHeaderNew}>
+          <View style={styles.sectionHeaderTitleRow}>
+            <View style={styles.sectionHeaderIconContainer}>
+              <FileText size={22} color={MODAL_TOKENS.primary} strokeWidth={2} />
+            </View>
+            <Text style={styles.sectionHeaderTitle}>About the Role</Text>
+          </View>
+          <Text style={styles.sectionHeaderHelper}>
+            Help applicants understand what this role is about.
+          </Text>
+        </View>
+
+        <Text style={styles.labelNew}>Role Description</Text>
+        <TextInput
+          style={[styles.inputNew, styles.textareaNew]}
+          value={aboutRole}
+          onChangeText={setAboutRole}
+          placeholder="Describe what this role involves, who you're looking for, and what they'll be working on..."
+          placeholderTextColor={MODAL_TOKENS.textMuted}
+          multiline
+          maxLength={500}
+          textAlignVertical="top"
+          onFocus={() => {
+            setTimeout(() => {
+              scrollViewRef.current?.scrollToEnd({ animated: true });
+            }, 300);
+          }}
+        />
+        <Text style={styles.charCount}>{aboutRole.length}/500</Text>
+
+        <Text style={styles.labelNew}>
+          Key Responsibilities
+          <Text style={styles.hint}> ({responsibilities.length}/10)</Text>
+        </Text>
+
+        {responsibilities.map((item, index) => (
+          <View key={index} style={styles.listItemRow}>
+            <View style={styles.listBullet} />
+            <Text style={styles.listItemText} numberOfLines={2}>{item}</Text>
+            <TouchableOpacity
+              style={styles.listItemDelete}
+              onPress={() => setResponsibilities(responsibilities.filter((_, i) => i !== index))}
+              activeOpacity={0.7}
+            >
+              <X size={16} color="#EF4444" strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
+        ))}
+
+        {showResponsibilityInput ? (
+          <View style={styles.customInputRowNew}>
+            <TextInput
+              style={[styles.inputNew, { flex: 1, marginBottom: 0 }]}
+              value={newResponsibility}
+              onChangeText={setNewResponsibility}
+              placeholder="e.g., Edit 3 short-form videos per week"
+              placeholderTextColor={MODAL_TOKENS.textMuted}
+              autoFocus
+              onFocus={() => {
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 300);
+              }}
+            />
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => {
+                if (newResponsibility.trim() && responsibilities.length < 10) {
+                  setResponsibilities([...responsibilities, newResponsibility.trim()]);
+                  setNewResponsibility("");
+                  setShowResponsibilityInput(false);
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Check size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.rowCancelButton}
+              onPress={() => {
+                setShowResponsibilityInput(false);
+                setNewResponsibility("");
+              }}
+              activeOpacity={0.7}
+            >
+              <X size={20} color={MODAL_TOKENS.textMuted} />
+            </TouchableOpacity>
+          </View>
+        ) : responsibilities.length < 10 && (
+          <TouchableOpacity
+            style={styles.addListItemButton}
+            onPress={() => setShowResponsibilityInput(true)}
+            activeOpacity={0.7}
+          >
+            <Plus size={18} color={MODAL_TOKENS.primary} strokeWidth={2} />
+            <Text style={styles.addListItemText}>
+              Add Responsibility ({10 - responsibilities.length} remaining)
+            </Text>
+          </TouchableOpacity>
+        )}
+      </BlurView>
+    </KeyboardAwareScrollView>
+  );
+
+  // ─── STEP 4: Core Requirements (was Step 3) ───────────────────────────────
+  const renderStep4 = () => (
+    <KeyboardAwareScrollView
+      ref={scrollViewRef}
+      style={styles.stepContent}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 220, paddingTop: 12 }}
+      bottomOffset={15}
     >
       <BlurView intensity={50} tint="light" style={styles.glassCard}>
         <View style={styles.sectionHeaderNew}>
@@ -1028,32 +1321,46 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                 : "Select Deadline"}
             </Text>
           </View>
-          <ChevronRight size={18} color={MODAL_TOKENS.textMuted} strokeWidth={2} />
+          {expiresAt ? (
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation();
+                setExpiresAt(null);
+              }}
+              style={styles.clearDateButton}
+              activeOpacity={0.7}
+            >
+              <X size={16} color={MODAL_TOKENS.textMuted} strokeWidth={2} />
+            </TouchableOpacity>
+          ) : (
+            <ChevronRight size={18} color={MODAL_TOKENS.textMuted} strokeWidth={2} />
+          )}
         </TouchableOpacity>
 
-        {showDatePicker && (
-          <DateTimePicker
-            value={expiresAt || new Date()}
-            mode="date"
-            display={Platform.OS === "ios" ? "spinner" : "default"}
-            minimumDate={new Date()}
-            onChange={(event, selectedDate) => {
-              setShowDatePicker(false);
-              if (selectedDate) {
-                setExpiresAt(selectedDate);
-              }
-            }}
-          />
-        )}
+        <CustomDatePicker
+          visible={showDatePicker}
+          onClose={() => setShowDatePicker(false)}
+          startDate={expiresAt}
+          endDate={null}
+          singleMode={true}
+          minDate={new Date()}
+          onConfirm={({ startDate: newStart }) => {
+            setExpiresAt(newStart);
+            setShowDatePicker(false);
+          }}
+        />
       </BlurView>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 
-  const renderStep4 = () => (
-    <ScrollView
+  const renderStep5 = () => (
+    <KeyboardAwareScrollView
+      ref={scrollViewRef}
       style={styles.stepContent}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 220, paddingTop: 12 }}
+      bottomOffset={15}
     >
       <BlurView intensity={50} tint="light" style={styles.glassCard}>
         <View style={styles.sectionHeaderNew}>
@@ -1106,29 +1413,10 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
 
-        {eligibilityMode === "multiple" && (
-          <View style={styles.warningBox}>
-            <AlertTriangle size={18} color="#FF9500" strokeWidth={2} />
-            <Text style={styles.warningText}>
-              This will significantly reduce applications (~85% fewer).
-            </Text>
-          </View>
-        )}
-
         {skillGroups.map((group) => {
-          let roleColor = MODAL_TOKENS.primary;
-          let roleBg = "rgba(41, 98, 255, 0.04)";
-          let roleBorder = "rgba(41, 98, 255, 0.15)";
-          
-          if (group.role.includes("Editor") || group.role.includes("Designer")) {
-            roleColor = "#8B5CF6"; 
-            roleBg = "rgba(139, 92, 246, 0.04)";
-            roleBorder = "rgba(139, 92, 246, 0.15)";
-          } else if (group.role.includes("Manager") || group.role.includes("Writer")) {
-            roleColor = "#10B981"; 
-            roleBg = "rgba(16, 185, 129, 0.04)";
-            roleBorder = "rgba(16, 185, 129, 0.15)";
-          }
+          const roleColor = MODAL_TOKENS.primary;
+          const roleBg = "rgba(41, 98, 255, 0.04)";
+          const roleBorder = "rgba(41, 98, 255, 0.15)";
 
           return (
             <View
@@ -1164,9 +1452,6 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                       >
                         {tool}
                       </Text>
-                      {isSelected && (
-                        <Check size={12} color="#FFFFFF" style={{ marginLeft: 4 }} />
-                      )}
                     </TouchableOpacity>
                   );
                 })}
@@ -1215,6 +1500,11 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                     placeholder="Enter custom tool"
                     placeholderTextColor={MODAL_TOKENS.textMuted}
                     autoFocus
+                    onFocus={() => {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollToEnd({ animated: true });
+                      }, 300);
+                    }}
                   />
                   <TouchableOpacity
                     style={[styles.addButton, { backgroundColor: roleColor }]}
@@ -1224,7 +1514,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                     <Check size={20} color="#FFFFFF" />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.cancelButton}
+                    style={styles.rowCancelButton}
                     onPress={() => {
                       setShowCustomToolInput({
                         ...showCustomToolInput,
@@ -1313,6 +1603,11 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                     placeholder="Enter custom sample type"
                     placeholderTextColor={MODAL_TOKENS.textMuted}
                     autoFocus
+                    onFocus={() => {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollToEnd({ animated: true });
+                      }, 300);
+                    }}
                   />
                   <TouchableOpacity
                     style={[styles.addButton, { backgroundColor: roleColor }]}
@@ -1322,7 +1617,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                     <Check size={20} color="#FFFFFF" />
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.cancelButton}
+                    style={styles.rowCancelButton}
                     onPress={() => {
                       setShowCustomSampleInput({
                         ...showCustomSampleInput,
@@ -1340,14 +1635,17 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           );
         })}
       </BlurView>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 
-  const renderStep5 = () => (
-    <ScrollView
+  const renderStep8 = () => (
+    <KeyboardAwareScrollView
+      ref={scrollViewRef}
       style={styles.stepContent}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 220, paddingTop: 12 }}
+      bottomOffset={15}
     >
       <BlurView intensity={50} tint="light" style={styles.glassCard}>
         <View style={styles.sectionHeaderNew}>
@@ -1362,56 +1660,102 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           </Text>
         </View>
 
-        <Text style={styles.labelNew}>Payment Type</Text>
-        <View style={styles.optionsRow}>
-          {[
-            { value: "fixed", label: "Fixed" },
-            { value: "monthly", label: "Monthly" },
-            { value: "per_deliverable", label: "Per Deliverable" },
-          ].map((opt) => {
-            const isSelected = paymentType === opt.value;
-            return (
-              <TouchableOpacity
-                key={opt.value}
-                style={[
-                  styles.paymentTypeChip,
-                  isSelected && styles.paymentTypeChipSelected,
-                ]}
-                onPress={() => setPaymentType(opt.value)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.paymentTypeText,
-                    isSelected && styles.paymentTypeTextSelected,
-                  ]}
-                >
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        {paymentNature !== "exposure" && (
+          <>
+            <Text style={styles.labelNew}>Payment Type</Text>
+            <View style={styles.optionsRow}>
+              {[
+                { value: "fixed", label: "Fixed" },
+                { value: "monthly", label: "Monthly" },
+                { value: "per_deliverable", label: "Per Deliverable" },
+              ].map((opt) => {
+                const isSelected = paymentType === opt.value;
+                return (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.paymentTypeChip,
+                      isSelected && styles.paymentTypeChipSelected,
+                    ]}
+                    onPress={() => setPaymentType(opt.value)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.paymentTypeText,
+                        isSelected && styles.paymentTypeTextSelected,
+                      ]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-        <Text style={styles.labelNew}>Budget Range (Optional)</Text>
-        <TextInput
-          style={styles.inputNew}
-          value={budgetRange}
-          onChangeText={setBudgetRange}
-          placeholder="e.g., ₹5,000 - ₹10,000"
-          placeholderTextColor={MODAL_TOKENS.textMuted}
-        />
+            <Text style={styles.labelNew}>Budget Range (Optional)</Text>
+            <View style={styles.budgetRowContainer}>
+              <View style={styles.currencyToggleContainer}>
+                {["₹", "$"].map((symbol) => {
+                  const isSelected = currency === symbol;
+                  return (
+                    <TouchableOpacity
+                      key={symbol}
+                      style={[
+                        styles.currencyTogglePill,
+                        isSelected && styles.currencyTogglePillSelected,
+                      ]}
+                      onPress={() => setCurrency(symbol)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.currencyToggleText,
+                          isSelected && styles.currencyToggleTextSelected,
+                        ]}
+                      >
+                        {symbol}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <View style={styles.budgetInputsRow}>
+                <View style={styles.budgetInputWrapper}>
+                  <TextInput
+                    style={styles.budgetInput}
+                    value={minBudget}
+                    onChangeText={setMinBudget}
+                    placeholder="Min"
+                    placeholderTextColor={MODAL_TOKENS.textMuted}
+                    keyboardType="number-pad"
+                    maxLength={10}
+                  />
+                </View>
+                <Text style={styles.budgetRangeDash}>-</Text>
+                <View style={styles.budgetInputWrapper}>
+                  <TextInput
+                    style={styles.budgetInput}
+                    value={maxBudget}
+                    onChangeText={setMaxBudget}
+                    placeholder="Max"
+                    placeholderTextColor={MODAL_TOKENS.textMuted}
+                    keyboardType="number-pad"
+                    maxLength={10}
+                  />
+                </View>
+              </View>
+            </View>
+          </>
+        )}
 
         <Text style={styles.labelNew}>Payment Nature</Text>
         <View style={styles.paymentNatureContainer}>
           {[
             { value: "paid", label: "Paid", Icon: Coins },
             { value: "trial", label: "Trial-based", Icon: Clock },
-            {
-              value: "revenue_share",
-              label: "Revenue Share",
-              Icon: PieChart,
-            },
+            { value: "exposure", label: "Exposure / Unpaid", Icon: Eye },
+            { value: "revenue_share", label: "Revenue Share", Icon: PieChart },
           ].map((opt) => {
             const isSelected = paymentNature === opt.value;
             return (
@@ -1460,22 +1804,349 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         </View>
 
         {paymentNature === "trial" && (
+          <View style={styles.trialSubTypeContainer}>
+            <Text style={styles.labelNew}>Trial Task Type</Text>
+            <View style={styles.optionsRow}>
+              {[
+                { value: "paid_trial", label: "Paid Trial Task", Icon: Coins },
+                { value: "free_trial", label: "Free Trial Task", Icon: Clock },
+              ].map((opt) => {
+                const isSel = trialType === opt.value;
+                return (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[
+                      styles.optionCard,
+                      isSel && styles.optionCardSelected,
+                    ]}
+                    onPress={() => setTrialType(opt.value)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[
+                      styles.optionIconContainer,
+                      isSel && styles.optionIconContainerSelected,
+                    ]}>
+                      <opt.Icon
+                        size={20}
+                        color={isSel ? MODAL_TOKENS.primary : MODAL_TOKENS.textSecondary}
+                        strokeWidth={2}
+                      />
+                    </View>
+                    <Text style={[
+                      styles.optionLabel,
+                      isSel && styles.optionLabelSelected,
+                    ]}>{opt.label}</Text>
+                    {isSel && (
+                      <View style={styles.cardCheckCircle}>
+                        <Check size={12} color="#FFFFFF" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
+        {paymentNature === "exposure" && (
           <View style={styles.infoBox}>
-            <Lightbulb size={18} color="#FF9500" strokeWidth={2} />
-            <Text style={[styles.infoText, { color: "#B45309" }]}>
-              Consider offering a small stipend for trial work.
+            <Info size={18} color={MODAL_TOKENS.primary} strokeWidth={2} />
+            <Text style={styles.infoText}>
+              This opportunity offers experience and recognition in place of monetary compensation.
             </Text>
           </View>
         )}
       </BlurView>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 
-  const renderStep6 = () => (
-    <ScrollView
+  // ─── NEW STEP 6: Who Can Apply ───────────────────────────────────────
+  const renderStep6 = () => {
+    const WHO_PRESETS = [
+      "Students",
+      "Freshers",
+      "Working Professionals",
+      "Freelancers",
+      "Anyone",
+    ];
+    const toggleWho = (item) => {
+      if (whoCanApply.includes(item)) {
+        setWhoCanApply(whoCanApply.filter((w) => w !== item));
+      } else {
+        setWhoCanApply([...whoCanApply, item]);
+      }
+    };
+    return (
+      <KeyboardAwareScrollView
+        ref={scrollViewRef}
+        style={styles.stepContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 220, paddingTop: 12 }}
+        bottomOffset={15}
+      >
+        <BlurView intensity={50} tint="light" style={styles.glassCard}>
+          <View style={styles.sectionHeaderNew}>
+            <View style={styles.sectionHeaderTitleRow}>
+              <View style={styles.sectionHeaderIconContainer}>
+                <Users size={22} color={MODAL_TOKENS.primary} strokeWidth={2} />
+              </View>
+              <Text style={styles.sectionHeaderTitle}>Who Can Apply</Text>
+            </View>
+            <Text style={styles.sectionHeaderHelper}>
+              Define your ideal applicant profile. This section is optional.
+            </Text>
+          </View>
+
+          <Text style={styles.labelNew}>Eligible Applicants</Text>
+          <Text style={styles.multiSelectHint}>Select all that apply</Text>
+          <View style={styles.chipsContainerNew}>
+            {WHO_PRESETS.map((item) => {
+              const isSelected = whoCanApply.includes(item);
+              return (
+                <TouchableOpacity
+                  key={item}
+                  style={[
+                    styles.chip,
+                    isSelected && styles.chipSelectedNew,
+                  ]}
+                  onPress={() => toggleWho(item)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.chipTextNew,
+                    isSelected && styles.chipTextSelectedNew,
+                  ]}>
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+            {whoCanApply
+              .filter((w) => !WHO_PRESETS.includes(w))
+              .map((item) => (
+                <TouchableOpacity
+                  key={item}
+                  style={[styles.chip, styles.chipSelectedNew]}
+                  onPress={() => toggleWho(item)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.chipTextSelectedNew}>{item}</Text>
+                  <X size={14} color="#FFFFFF" style={{ marginLeft: 6 }} />
+                </TouchableOpacity>
+              ))}
+            {!showWhoCanApplyInput && (
+              <TouchableOpacity
+                style={[styles.chip, styles.chipAddNew]}
+                onPress={() => setShowWhoCanApplyInput(true)}
+                activeOpacity={0.7}
+              >
+                <Plus size={14} color={MODAL_TOKENS.primary} />
+                <Text style={styles.chipAddTextNew}>Custom</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {showWhoCanApplyInput && (
+            <View style={styles.customInputRowNew}>
+              <TextInput
+                style={[styles.inputNew, { flex: 1, marginBottom: 0 }]}
+                value={customWhoCanApply}
+                onChangeText={setCustomWhoCanApply}
+                placeholder="e.g., Design students"
+                placeholderTextColor={MODAL_TOKENS.textMuted}
+                autoFocus
+              />
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => {
+                  if (customWhoCanApply.trim()) {
+                    setWhoCanApply([...whoCanApply, customWhoCanApply.trim()]);
+                    setCustomWhoCanApply("");
+                    setShowWhoCanApplyInput(false);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <Check size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.rowCancelButton}
+                onPress={() => {
+                  setShowWhoCanApplyInput(false);
+                  setCustomWhoCanApply("");
+                }}
+                activeOpacity={0.7}
+              >
+                <X size={20} color={MODAL_TOKENS.textMuted} />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {whoCanApply.length === 0 && (
+            <View style={styles.infoBox}>
+              <Info size={18} color={MODAL_TOKENS.primary} strokeWidth={2} />
+              <Text style={styles.infoText}>
+                Skip this step to allow anyone to apply, or select specific groups to narrow the pool.
+              </Text>
+            </View>
+          )}
+        </BlurView>
+      </KeyboardAwareScrollView>
+    );
+  };
+
+  // ─── NEW STEP 7: What You'll Gain ─────────────────────────────────────
+  const renderStep7 = () => {
+    const GAIN_PRESETS = [
+      "Certificate",
+      "Real-world Experience",
+      "Letter of Recommendation",
+      "Full-time Opportunity",
+      "Mentorship",
+      "Portfolio Work",
+    ];
+    return (
+      <KeyboardAwareScrollView
+        ref={scrollViewRef}
+        style={styles.stepContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: 220, paddingTop: 12 }}
+        bottomOffset={15}
+      >
+        <BlurView intensity={50} tint="light" style={styles.glassCard}>
+          <View style={styles.sectionHeaderNew}>
+            <View style={styles.sectionHeaderTitleRow}>
+              <View style={styles.sectionHeaderIconContainer}>
+                <Gift size={22} color={MODAL_TOKENS.primary} strokeWidth={2} />
+              </View>
+              <Text style={styles.sectionHeaderTitle}>What You'll Gain</Text>
+            </View>
+            <Text style={styles.sectionHeaderHelper}>
+              Optional. Tell applicants what they'll get from this opportunity.
+            </Text>
+          </View>
+
+          <View style={[styles.infoBox, { marginBottom: 16 }]}>
+            <Star size={18} color="#F59E0B" strokeWidth={2} />
+            <Text style={[styles.infoText, { color: "#92400E" }]}>
+              Opportunities with clear benefits get significantly more quality applicants.
+            </Text>
+          </View>
+
+          <Text style={styles.labelNew}>Quick Add</Text>
+          <View style={styles.chipsContainerNew}>
+            {GAIN_PRESETS.map((preset) => {
+              const isAdded = gains.includes(preset);
+              return (
+                <TouchableOpacity
+                  key={preset}
+                  style={[
+                    styles.chip,
+                    isAdded && styles.chipSelectedNew,
+                  ]}
+                  onPress={() => {
+                    if (isAdded) {
+                      setGains(gains.filter((g) => g !== preset));
+                    } else if (gains.length < 8) {
+                      setGains([...gains, preset]);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.chipTextNew,
+                    isAdded && styles.chipTextSelectedNew,
+                  ]}>{preset}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <Text style={styles.labelNew}>
+            Your List
+            <Text style={styles.hint}> ({gains.length}/8)</Text>
+          </Text>
+
+          {gains.map((item, index) => (
+            <View key={index} style={styles.listItemRow}>
+              <View style={[styles.listBullet, { backgroundColor: "#F59E0B" }]} />
+              <Text style={styles.listItemText} numberOfLines={2}>{item}</Text>
+              <TouchableOpacity
+                style={styles.listItemDelete}
+                onPress={() => setGains(gains.filter((_, i) => i !== index))}
+                activeOpacity={0.7}
+              >
+                <X size={16} color="#EF4444" strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+          ))}
+
+          {showGainInput ? (
+            <View style={styles.customInputRowNew}>
+              <TextInput
+                style={[styles.inputNew, { flex: 1, marginBottom: 0 }]}
+                value={newGain}
+                onChangeText={setNewGain}
+                placeholder="e.g., Paid internship after completion"
+                placeholderTextColor={MODAL_TOKENS.textMuted}
+                autoFocus
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollToEnd({ animated: true });
+                  }, 300);
+                }}
+              />
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => {
+                  if (newGain.trim() && gains.length < 8) {
+                    setGains([...gains, newGain.trim()]);
+                    setNewGain("");
+                    setShowGainInput(false);
+                  }
+                }}
+                activeOpacity={0.7}
+              >
+                <Check size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.rowCancelButton}
+                onPress={() => {
+                  setShowGainInput(false);
+                  setNewGain("");
+                }}
+                activeOpacity={0.7}
+              >
+                <X size={20} color={MODAL_TOKENS.textMuted} />
+              </TouchableOpacity>
+            </View>
+          ) : gains.length < 8 && (
+            <TouchableOpacity
+              style={styles.addListItemButton}
+              onPress={() => setShowGainInput(true)}
+              activeOpacity={0.7}
+            >
+              <Plus size={18} color={MODAL_TOKENS.primary} strokeWidth={2} />
+              <Text style={styles.addListItemText}>
+                Add Custom Benefit ({8 - gains.length} remaining)
+              </Text>
+            </TouchableOpacity>
+          )}
+        </BlurView>
+      </KeyboardAwareScrollView>
+    );
+  };
+
+  // ─── STEP 8: Compensation (was Step 5) ────────────────────────────────
+  const renderStep9 = () => (
+    <KeyboardAwareScrollView
+      ref={scrollViewRef}
       style={styles.stepContent}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 220, paddingTop: 12 }}
+      bottomOffset={15}
     >
       <BlurView intensity={50} tint="light" style={styles.glassCard}>
         <View style={styles.sectionHeaderNew}>
@@ -1533,6 +2204,11 @@ export default function CreateOpportunityScreen({ navigation, route }) {
               placeholder="Enter your question"
               placeholderTextColor={MODAL_TOKENS.textMuted}
               multiline
+              onFocus={() => {
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 300);
+              }}
             />
             <View style={styles.requiredRow}>
               <Text style={styles.requiredLabel}>Required</Text>
@@ -1558,24 +2234,18 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             </Text>
           </TouchableOpacity>
         )}
-
-        {questions.length > 2 && (
-          <View style={styles.warningBox}>
-            <AlertTriangle size={18} color="#FF9500" strokeWidth={2} />
-            <Text style={styles.warningText}>
-              Each additional question reduces completion rate by ~15%.
-            </Text>
-          </View>
-        )}
       </BlurView>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 
-  const renderStep7 = () => (
-    <ScrollView
+  const renderStep10 = () => (
+    <KeyboardAwareScrollView
+      ref={scrollViewRef}
       style={styles.stepContent}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 220, paddingTop: 12 }}
+      bottomOffset={15}
     >
       <BlurView intensity={50} tint="light" style={styles.glassCard}>
         <View style={styles.sectionHeaderNew}>
@@ -1675,14 +2345,17 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           />
         </View>
       </BlurView>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 
-  const renderStep8 = () => (
-    <ScrollView
+  const renderStep11 = () => (
+    <KeyboardAwareScrollView
+      ref={scrollViewRef}
       style={styles.stepContent}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 40, paddingTop: 12 }}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ paddingBottom: 220, paddingTop: 12 }}
+      bottomOffset={15}
     >
       <BlurView intensity={50} tint="light" style={styles.glassCard}>
         <View style={styles.sectionHeaderNew}>
@@ -1695,94 +2368,196 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         </View>
 
         <View style={styles.reviewCard}>
-          <Text style={styles.reviewTitle}>
-            {title || "Untitled Opportunity"}
-          </Text>
+          {/* Basics -> Step 1 */}
+          <TouchableOpacity
+            onPress={() => setCurrentStep(1)}
+            activeOpacity={0.7}
+            style={{ marginBottom: 14 }}
+          >
+            <Text style={styles.reviewTitle}>
+              {title || "Untitled Opportunity"}
+            </Text>
+            <View style={styles.reviewRoles}>
+              {selectedTypes.map((type, i) => (
+                <View key={i} style={styles.reviewRoleChip}>
+                  <Text style={styles.reviewRoleText}>{type}</Text>
+                </View>
+              ))}
+            </View>
+          </TouchableOpacity>
 
-          <View style={styles.reviewRoles}>
-            {selectedTypes.map((type, i) => (
-              <View key={i} style={styles.reviewRoleChip}>
-                <Text style={styles.reviewRoleText}>{type}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.reviewRow}>
-            <Briefcase
-              strokeWidth={2}
-              size={18}
-              color={MODAL_TOKENS.textSecondary}
-            />
+          {/* Work Details -> Step 2 */}
+          <TouchableOpacity
+            style={styles.reviewRow}
+            onPress={() => setCurrentStep(2)}
+            activeOpacity={0.7}
+          >
+            <Briefcase strokeWidth={2} size={18} color={MODAL_TOKENS.textSecondary} />
             <Text style={styles.reviewText}>
               {workType === "one_time" ? "One-time" : "Ongoing"} ·{" "}
-              {workMode === "remote" ? "Remote" : "On-site"}
+              {workModes.map(m => m === "remote" ? "Remote" : "On-site").join(" + ")}
             </Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.reviewRow}>
+          {/* Compensation -> Step 8 */}
+          <TouchableOpacity
+            style={styles.reviewRow}
+            onPress={() => setCurrentStep(8)}
+            activeOpacity={0.7}
+          >
             <Banknote size={18} color={MODAL_TOKENS.textSecondary} strokeWidth={2} />
             <Text style={styles.reviewText}>
-              {paymentType.replace("_", " ")} ·{" "}
-              {paymentNature === "paid" ? "Paid" : paymentNature}
-              {budgetRange ? ` · ${budgetRange}` : ""}
+              {paymentNature === "exposure"
+                ? "Exposure / Unpaid"
+                : paymentNature === "trial"
+                  ? `Trial-based · ${trialType === "paid_trial" ? "Paid Task" : "Free Task"}`
+                  : paymentNature === "revenue_share"
+                    ? "Revenue Share"
+                    : `${paymentType.replace("_", " ")} · Paid`}
+              {budgetRange && paymentNature !== "exposure" ? ` · ${budgetRange}` : ""}
             </Text>
-          </View>
+          </TouchableOpacity>
 
-          <View style={styles.reviewRow}>
+          {/* Visibility -> Step 10 */}
+          <TouchableOpacity
+            style={styles.reviewRow}
+            onPress={() => setCurrentStep(10)}
+            activeOpacity={0.7}
+          >
             <Eye size={18} color={MODAL_TOKENS.textSecondary} strokeWidth={2} />
             <Text style={styles.reviewText}>
-              {visibility === "public"
-                ? "Public"
-                : visibility === "community"
-                  ? "Community Only"
-                  : "Invite Only"}
+              {visibility === "public" ? "Public" : visibility === "community" ? "Community Only" : "Invite Only"}
             </Text>
-          </View>
+          </TouchableOpacity>
 
           <View style={styles.reviewDivider} />
 
-          <Text style={styles.reviewSectionTitle}>Core Requirements</Text>
-          <Text style={styles.reviewBullet}>
-            • {experienceLevel === "any" ? "Any" : experienceLevel} experience
-            level
-          </Text>
-          <Text style={styles.reviewBullet}>• {availability}</Text>
-          <Text style={styles.reviewBullet}>• {turnaround}</Text>
-          {expiresAt && (
+          {/* About the Role -> Step 3 */}
+          {(aboutRole.trim() || responsibilities.length > 0) && (
+            <TouchableOpacity
+              onPress={() => setCurrentStep(3)}
+              activeOpacity={0.7}
+              style={{ marginBottom: 12 }}
+            >
+              <Text style={styles.reviewSectionTitle}>About the Role</Text>
+              {aboutRole.trim() ? (
+                <Text style={styles.reviewBullet} numberOfLines={2}>
+                  {aboutRole.trim()}
+                </Text>
+              ) : null}
+              {responsibilities.slice(0, 3).map((r, i) => (
+                <Text key={i} style={styles.reviewBullet}>• {r}</Text>
+              ))}
+              {responsibilities.length > 3 && (
+                <Text style={styles.reviewBullet}>
+                  + {responsibilities.length - 3} more responsibilities
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
+
+          <View style={styles.reviewDivider} />
+
+          {/* Core Requirements -> Step 4 */}
+          <TouchableOpacity
+            onPress={() => setCurrentStep(4)}
+            activeOpacity={0.7}
+            style={{ marginBottom: 12 }}
+          >
+            <Text style={styles.reviewSectionTitle}>Core Requirements</Text>
             <Text style={styles.reviewBullet}>
-              • Deadline:{" "}
-              {expiresAt.toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}
+              • {experienceLevel === "any" ? "Any" : experienceLevel} experience level
             </Text>
+            <Text style={styles.reviewBullet}>• {availability}</Text>
+            <Text style={styles.reviewBullet}>• {turnaround}</Text>
+            {expiresAt && (
+              <Text style={styles.reviewBullet}>
+                • Deadline:{" "}
+                {expiresAt.toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.reviewDivider} />
+
+          {/* Application Eligibility -> Step 5 */}
+          <TouchableOpacity
+            onPress={() => setCurrentStep(5)}
+            activeOpacity={0.7}
+            style={{ marginBottom: 12 }}
+          >
+            <Text style={styles.reviewSectionTitle}>Application Eligibility</Text>
+            <Text style={styles.reviewBullet}>
+              ✓ Match {eligibilityMode === "any_one" ? "ANY ONE" : "MULTIPLE"} skill
+              group{eligibilityMode !== "any_one" ? "s" : ""}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Who Can Apply -> Step 6 */}
+          {whoCanApply.length > 0 && (
+            <>
+              <View style={styles.reviewDivider} />
+              <TouchableOpacity
+                onPress={() => setCurrentStep(6)}
+                activeOpacity={0.7}
+                style={{ marginBottom: 12 }}
+              >
+                <Text style={styles.reviewSectionTitle}>Who Can Apply</Text>
+                <Text style={styles.reviewBullet}>
+                  {whoCanApply.join(", ")}
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
+
+          {/* What You'll Gain -> Step 7 */}
+          {gains.length > 0 && (
+            <>
+              <View style={styles.reviewDivider} />
+              <TouchableOpacity
+                onPress={() => setCurrentStep(7)}
+                activeOpacity={0.7}
+                style={{ marginBottom: 12 }}
+              >
+                <Text style={styles.reviewSectionTitle}>What You'll Gain</Text>
+                {gains.slice(0, 4).map((g, i) => (
+                  <Text key={i} style={styles.reviewBullet}>• {g}</Text>
+                ))}
+                {gains.length > 4 && (
+                  <Text style={styles.reviewBullet}>+ {gains.length - 4} more</Text>
+                )}
+              </TouchableOpacity>
+            </>
           )}
 
           <View style={styles.reviewDivider} />
 
-          <Text style={styles.reviewSectionTitle}>Application Eligibility</Text>
-          <Text style={styles.reviewBullet}>
-            ✓ Match {eligibilityMode === "any_one" ? "ANY ONE" : "MULTIPLE"} skill
-            group{eligibilityMode !== "any_one" ? "s" : ""}
-          </Text>
-
-          <Text style={styles.reviewSectionTitle}>
-            Questions ({questions.length})
-          </Text>
-          {questions.map((q, i) => (
-            <Text key={i} style={styles.reviewBullet}>
-              • {q.prompt || "(Empty question)"}
+          {/* Questions -> Step 9 */}
+          <TouchableOpacity
+            onPress={() => setCurrentStep(9)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.reviewSectionTitle}>
+              Questions ({questions.length})
             </Text>
-          ))}
-          {questions.length === 0 && (
-            <Text style={styles.reviewBullet}>• No custom questions</Text>
-          )}
+            {questions.map((q, i) => (
+              <Text key={i} style={styles.reviewBullet}>
+                • {q.prompt || "(Empty question)"}
+              </Text>
+            ))}
+            {questions.length === 0 && (
+              <Text style={styles.reviewBullet}>• No custom questions</Text>
+            )}
+          </TouchableOpacity>
         </View>
 
         <Text style={styles.editHint}>Tap any section above to edit</Text>
       </BlurView>
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 
   const renderCurrentStep = () => {
@@ -1803,6 +2578,12 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         return renderStep7();
       case 8:
         return renderStep8();
+      case 9:
+        return renderStep9();
+      case 10:
+        return renderStep10();
+      case 11:
+        return renderStep11();
       default:
         return null;
     }
@@ -1815,21 +2596,22 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         style={StyleSheet.absoluteFillObject}
       />
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
-        <KeyboardAvoidingView
-          style={styles.keyboardView}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
+        <View style={styles.keyboardView}>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.headerBackButton} onPress={handleBack} activeOpacity={0.7}>
               <ArrowLeft size={24} color={MODAL_TOKENS.textPrimary} strokeWidth={2} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>
               {isEditing ? "Edit Opportunity" : "Create Opportunity"}
             </Text>
-            {isEditing ? (
+            {currentStep === TOTAL_STEPS ? (
+              <TouchableOpacity style={styles.headerCancelButton} onPress={handleClose} activeOpacity={0.7}>
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+            ) : isEditing || hasReachedReview ? (
               <TouchableOpacity
-                style={styles.cancelButton}
+                style={styles.headerCancelButton}
                 onPress={() => setCurrentStep(TOTAL_STEPS)}
                 activeOpacity={0.7}
               >
@@ -1843,7 +2625,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                 </Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity style={styles.cancelButton} onPress={handleClose} activeOpacity={0.7}>
+              <TouchableOpacity style={styles.headerCancelButton} onPress={handleClose} activeOpacity={0.7}>
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
             )}
@@ -1862,61 +2644,70 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
           {/* Step Content */}
           {renderCurrentStep()}
+        </View>
 
-          {/* Footer */}
-          <View style={styles.footer}>
+        {/* Footer */}
+        <View style={styles.stickyFooter}>
+          <View style={[
+            styles.footer,
+            { paddingBottom: insets.bottom + 24 },
+            currentStep === TOTAL_STEPS && { justifyContent: "center" }
+          ]}>
             {currentStep === TOTAL_STEPS ? (
-              <View style={styles.publishButtons}>
-                {!isEditing && (
-                  <TouchableOpacity
-                    style={styles.draftButton}
-                    onPress={() => handlePublish(true)}
-                    disabled={saving}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.draftButtonText}>Save as Draft</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity
-                  style={styles.publishButton}
-                  onPress={() => handlePublish(false)}
-                  disabled={saving}
-                  activeOpacity={0.7}
-                >
-                  <LinearGradient
-                    colors={MODAL_TOKENS.primaryGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.publishGradient}
-                  >
-                    {saving ? (
-                      <SnooLoader color="#FFFFFF" />
-                    ) : (
-                      <>
-                        <Zap size={20} color="#FFFFFF" strokeWidth={2} />
-                        <Text style={styles.publishButtonText}>
-                          {isEditing ? "Update Opportunity" : "Publish"}
-                        </Text>
-                      </>
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.nextButton} onPress={handleNext} activeOpacity={0.7}>
+              <TouchableOpacity
+                style={styles.publishButton}
+                onPress={() => handlePublish(false)}
+                disabled={saving}
+                activeOpacity={0.7}
+              >
                 <LinearGradient
                   colors={MODAL_TOKENS.primaryGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  style={styles.nextGradient}
+                  style={styles.publishGradient}
                 >
-                  <Text style={styles.nextButtonText}>Continue</Text>
-                  <ArrowRight size={20} color="#FFFFFF" strokeWidth={2} />
+                  {saving ? (
+                    <SnooLoader color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Zap size={18} color="#FFFFFF" strokeWidth={2} />
+                      <Text style={styles.publishButtonText}>
+                        {isEditing ? "Update" : "Publish"}
+                      </Text>
+                    </>
+                  )}
                 </LinearGradient>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.nextButton,
+                  !isStepFormComplete(currentStep) && styles.nextButtonDisabled,
+                ]}
+                onPress={handleNext}
+                disabled={!isStepFormComplete(currentStep)}
+                activeOpacity={0.7}
+              >
+                {isStepFormComplete(currentStep) ? (
+                  <LinearGradient
+                    colors={MODAL_TOKENS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextGradient}
+                  >
+                    <Text style={styles.nextButtonText}>Next</Text>
+                    <ArrowRight size={18} color="#FFFFFF" strokeWidth={2.5} />
+                  </LinearGradient>
+                ) : (
+                  <View style={[styles.nextGradient, { backgroundColor: "rgba(41, 98, 255, 0.2)" }]}>
+                    <Text style={[styles.nextButtonText, { color: "rgba(41, 98, 255, 0.45)" }]}>Next</Text>
+                    <ArrowRight size={18} color="rgba(41, 98, 255, 0.4)" strokeWidth={2.5} />
+                  </View>
+                )}
               </TouchableOpacity>
             )}
           </View>
-        </KeyboardAvoidingView>
+        </View>
 
         {/* Draft Resume Modal */}
         <Modal
@@ -1963,6 +2754,72 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             </View>
           </View>
         </Modal>
+
+        {/* Save Draft Confirmation Modal */}
+        <Modal
+          visible={showSaveDraftModal}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowSaveDraftModal(false)}
+          statusBarTranslucent={true}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.draftPromptCard}>
+              <View style={styles.draftPromptIcon}>
+                <FileCheck size={32} color={MODAL_TOKENS.primary} strokeWidth={2} />
+              </View>
+              <Text style={styles.draftPromptTitle}>Save Draft?</Text>
+              <Text style={styles.draftPromptMessage}>
+                Would you like to save your progress?
+              </Text>
+              <View style={styles.modalButtonsColumn}>
+                <TouchableOpacity
+                  style={styles.modalPrimaryButton}
+                  onPress={async () => {
+                    setShowSaveDraftModal(false);
+                    await saveDraft(true);
+                    navigation.goBack();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={MODAL_TOKENS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.modalPrimaryButtonGradient}
+                  >
+                    <Text style={styles.modalPrimaryButtonText}>Save Draft</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalSecondaryButton}
+                  onPress={async () => {
+                    setShowSaveDraftModal(false);
+                    // Delete the draft so Resume prompt doesn't appear next time
+                    try {
+                      if (userId) await deleteOpportunityDraft(userId);
+                    } catch (e) {
+                      console.warn("Failed to delete draft on discard:", e);
+                    }
+                    navigation.goBack();
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalSecondaryButtonText}>Discard Changes</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.modalTertiaryButton}
+                  onPress={() => setShowSaveDraftModal(false)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalTertiaryButtonText}>Keep Editing</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </View>
   );
@@ -1975,36 +2832,42 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
+    backgroundColor: "transparent",
   },
   keyboardView: {
     flex: 1,
+    backgroundColor: "transparent",
   },
   header: {
+    height: 56,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    justifyContent: "center",
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0, 0, 0, 0.05)",
+    backgroundColor: "transparent",
   },
-  backButton: {
+  headerBackButton: {
+    position: "absolute",
+    left: 16,
     width: 40,
     height: 40,
     justifyContent: "center",
-    alignItems: "flex-start",
+    alignItems: "center",
   },
   headerTitle: {
-    flex: 1,
     fontSize: 18,
     fontFamily: "BasicCommercial-Black",
     color: "#0F172A",
     textAlign: "center",
+    maxWidth: "60%",
   },
-  cancelButton: {
-    minWidth: 60,
-    alignItems: "flex-end",
+  headerCancelButton: {
+    position: "absolute",
+    right: 16,
+    height: 40,
     justifyContent: "center",
+    alignItems: "center",
   },
   cancelText: {
     fontSize: 15,
@@ -2130,7 +2993,7 @@ const styles = StyleSheet.create({
   },
   chipTextNew: {
     fontSize: 14,
-    fontFamily: "Manrope-Medium",
+    fontFamily: "Manrope-SemiBold",
     color: "#475569",
   },
   chipTextSelectedNew: {
@@ -2138,9 +3001,10 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-SemiBold",
   },
   chipAddNew: {
-    backgroundColor: "transparent",
-    borderColor: "#2962FF",
-    borderStyle: "dashed",
+    backgroundColor: "rgba(41, 98, 255, 0.05)",
+    borderColor: "rgba(41, 98, 255, 0.12)",
+    borderWidth: 1,
+    borderStyle: "solid",
   },
   chipAddTextNew: {
     fontSize: 14,
@@ -2374,7 +3238,7 @@ const styles = StyleSheet.create({
   },
   toolChipText: {
     fontSize: 13,
-    fontFamily: "Manrope-Medium",
+    fontFamily: "Manrope-SemiBold",
     color: "#475569",
   },
   toolChipTextSelected: {
@@ -2402,7 +3266,7 @@ const styles = StyleSheet.create({
   },
   sampleTypeText: {
     fontSize: 13,
-    fontFamily: "Manrope-Medium",
+    fontFamily: "Manrope-SemiBold",
     color: "#475569",
   },
   sampleTypeTextSelected: {
@@ -2425,7 +3289,7 @@ const styles = StyleSheet.create({
   },
   paymentTypeText: {
     fontSize: 13,
-    fontFamily: "Manrope-Medium",
+    fontFamily: "Manrope-SemiBold",
     color: "#475569",
   },
   paymentTypeTextSelected: {
@@ -2585,22 +3449,24 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   radioOuter: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 2,
     borderColor: "#CBD5E1",
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "transparent",
   },
   radioOuterSelected: {
     borderColor: "#2962FF",
+    backgroundColor: "#2962FF",
   },
   radioInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#2962FF",
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#FFFFFF",
   },
   notifyRow: {
     flexDirection: "row",
@@ -2693,54 +3559,59 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 20,
   },
+  stickyFooter: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    backgroundColor: "transparent",
+  },
   footer: {
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(0, 0, 0, 0.05)",
-    backgroundColor: "rgba(255, 255, 255, 0.85)",
+    borderTopWidth: 0,
+    backgroundColor: "transparent",
+    flexDirection: "row",
+    justifyContent: "flex-end",
   },
   nextButton: {
-    borderRadius: 14,
-    overflow: "hidden",
-    height: 52,
+    borderRadius: 24,
+    height: 48,
+    width: 120,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  nextButtonDisabled: {
+    opacity: 0.5,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   nextGradient: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    height: 52,
+    height: 48,
     gap: 8,
+    borderRadius: 24,
   },
   nextButtonText: {
     fontSize: 16,
     color: "#FFFFFF",
     fontFamily: "Manrope-SemiBold",
   },
-  publishButtons: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  draftButton: {
-    flex: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.7)",
-    borderWidth: 1,
-    borderColor: "rgba(0, 0, 0, 0.08)",
-    borderRadius: 14,
-    height: 52,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  draftButtonText: {
-    fontSize: 16,
-    fontFamily: "Manrope-SemiBold",
-    color: "#1F2937",
-  },
   publishButton: {
-    flex: 2,
-    borderRadius: 14,
-    overflow: "hidden",
+    borderRadius: 26,
     height: 52,
+    width: 220,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
   },
   publishGradient: {
     flexDirection: "row",
@@ -2748,6 +3619,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     height: 52,
     gap: 8,
+    borderRadius: 26,
   },
   publishButtonText: {
     fontSize: 16,
@@ -2822,5 +3694,198 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: "Manrope-SemiBold",
     color: "#FFFFFF",
+  },
+  // Save Draft modal columns & buttons
+  modalButtonsColumn: {
+    width: "100%",
+    gap: 10,
+  },
+  modalPrimaryButton: {
+    width: "100%",
+    borderRadius: 12,
+    overflow: "hidden",
+    height: 48,
+  },
+  modalPrimaryButtonGradient: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalPrimaryButtonText: {
+    fontSize: 15,
+    fontFamily: "Manrope-SemiBold",
+    color: "#FFFFFF",
+  },
+  modalSecondaryButton: {
+    width: "100%",
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalSecondaryButtonText: {
+    fontSize: 15,
+    fontFamily: "Manrope-SemiBold",
+    color: "#EF4444",
+  },
+  modalTertiaryButton: {
+    width: "100%",
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalTertiaryButtonText: {
+    fontSize: 15,
+    fontFamily: "Manrope-SemiBold",
+    color: "#64748B",
+  },
+  // Budget range styles
+  budgetRowContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  currencyToggleContainer: {
+    flexDirection: "row",
+    backgroundColor: "rgba(0, 0, 0, 0.04)",
+    borderRadius: 14,
+    padding: 3,
+    height: 48,
+    alignItems: "center",
+  },
+  currencyTogglePill: {
+    width: 38,
+    height: 42,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 11,
+  },
+  currencyTogglePillSelected: {
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  currencyToggleText: {
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
+    color: "#64748B",
+  },
+  currencyToggleTextSelected: {
+    color: "#2962FF",
+  },
+  budgetInputsRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  budgetInputWrapper: {
+    flex: 1,
+    height: 48,
+  },
+  budgetInput: {
+    flex: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    fontSize: 15,
+    fontFamily: "Manrope-Medium",
+    color: "#0F172A",
+  },
+  budgetRangeDash: {
+    fontSize: 16,
+    fontFamily: "Manrope-Medium",
+    color: "#94A3B8",
+  },
+  // Date picker and custom row cancellation
+  clearDateButton: {
+    width: 32,
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
+    borderRadius: 16,
+  },
+  rowCancelButton: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  // New styles for enhanced steps
+  textareaNew: {
+    minHeight: 100,
+    textAlignVertical: "top",
+    paddingTop: 14,
+  },
+  multiSelectHint: {
+    fontSize: 12,
+    fontFamily: "Manrope-Regular",
+    color: "#94A3B8",
+    marginBottom: 10,
+    marginTop: -4,
+  },
+  listItemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+    gap: 10,
+  },
+  listBullet: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "#2962FF",
+    flexShrink: 0,
+  },
+  listItemText: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Manrope-Medium",
+    color: "#0F172A",
+    lineHeight: 20,
+  },
+  listItemDelete: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  addListItemButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    paddingVertical: 14,
+    borderRadius: 14,
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  addListItemText: {
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+    color: "#2962FF",
+  },
+  trialSubTypeContainer: {
+    marginTop: 4,
+    marginBottom: 8,
   },
 });

@@ -1735,7 +1735,7 @@ const styles = StyleSheet.create({
   },
   mailBadgeText: {
     fontSize: 9,
-    fontFamily: "Manrope-Bold",
+    fontFamily: FONTS.medium,
     color: "#FFFFFF",
     lineHeight: 11,
   },
@@ -1747,7 +1747,7 @@ const styles = StyleSheet.create({
   },
   countBadgeText: {
     fontSize: 12,
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.medium,
     color: "#2962FF",
   },
   loadingContainer: {
@@ -2202,7 +2202,7 @@ const styles = StyleSheet.create({
   },
   detailAuthorName: {
     fontSize: 15,
-    fontFamily: FONTS.primary,
+    fontFamily: FONTS.semiBold,
     color: COLORS.textPrimary,
   },
   detailTimeAgo: {
@@ -2255,7 +2255,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   detailCaptionName: {
-    fontFamily: FONTS.primary,
+    fontFamily: FONTS.semiBold,
   },
   detailReplyBar: {
     flexDirection: "row",
@@ -2385,7 +2385,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   mySubmissionBannerText: {
-    fontFamily: "Manrope-SemiBold",
+    fontFamily: FONTS.semiBold,
     fontSize: 13,
     flex: 1,
   },
@@ -2394,7 +2394,7 @@ const styles = StyleSheet.create({
   sourceDeletedBanner: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 6,
+    gap: 8,
     marginHorizontal: 16,
     marginTop: 6,
     paddingHorizontal: 12,
@@ -2405,7 +2405,7 @@ const styles = StyleSheet.create({
     borderColor: "#FCD34D",
   },
   sourceDeletedBannerText: {
-    fontFamily: "Manrope-Regular",
+    fontFamily: FONTS.regular,
     fontSize: 12,
     color: "#92400E",
     flex: 1,
@@ -2443,7 +2443,7 @@ const styles = StyleSheet.create({
   pendingBadgeInline: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 8,
     backgroundColor: "#EEF2FF",
     borderRadius: 20,
     paddingHorizontal: 10,
@@ -2459,7 +2459,7 @@ const styles = StyleSheet.create({
   rejectedBadgeInline: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 8,
     backgroundColor: "#FEF2F2",
     borderRadius: 20,
     paddingHorizontal: 10,

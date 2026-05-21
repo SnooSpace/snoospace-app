@@ -200,6 +200,50 @@ const ImageUploader = forwardRef(
         // Direct camera logic can be added here if needed
         handleAddImages(); // Fallback to library for now or implement camera specifically
       },
+      /**
+       * removeItemsOfType('image' | 'video')
+       * Selectively removes all media of the given type, keeping the rest.
+       * Updates all parallel arrays and fires all onChange callbacks.
+       */
+      removeItemsOfType: (typeToRemove) => {
+        // Build keep-mask: true = keep, false = remove
+        const keepMask = images.map((_, i) => {
+          const t = mediaTypes[i] || "image";
+          return t !== typeToRemove;
+        });
+
+        const newImages       = images.filter((_, i) => keepMask[i]);
+        const newOriginalUris = originalUris.filter((_, i) => keepMask[i]);
+        const newAspectRatios = aspectRatios.filter((_, i) => keepMask[i]);
+        const newPresetKeys   = presetKeys.filter((_, i) => keepMask[i]);
+        const newCropMetadata = cropMetadata.filter((_, i) => keepMask[i]);
+        const newMediaTypes   = mediaTypes.filter((_, i) => keepMask[i]);
+
+        // Remap muted video indices to new positions
+        const newMutedSet = new Set();
+        let newIdx = 0;
+        keepMask.forEach((keep, oldIdx) => {
+          if (keep) {
+            if (mutedVideoIndices.has(oldIdx)) newMutedSet.add(newIdx);
+            newIdx++;
+          }
+        });
+
+        setImages(newImages);
+        setOriginalUris(newOriginalUris);
+        setAspectRatios(newAspectRatios);
+        setPresetKeys(newPresetKeys);
+        setCropMetadata(newCropMetadata);
+        setMediaTypes(newMediaTypes);
+        setMutedVideoIndices(newMutedSet);
+
+        // Fire all parent callbacks
+        if (onImagesChange)      onImagesChange(newImages);
+        if (onAspectRatiosChange) onAspectRatiosChange(newAspectRatios);
+        if (onMediaTypesChange)   onMediaTypesChange(newMediaTypes);
+        if (onCropMetadataChange) onCropMetadataChange(newCropMetadata);
+        if (onMutedIndicesChange) onMutedIndicesChange(newMutedSet);
+      },
     }));
 
     // Initialize state with fixed-size arrays for Hinge mode (sparse), or dense for normal mode
