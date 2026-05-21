@@ -16,8 +16,10 @@
       "icon": "./assets/ios-icon.png",
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "SnooSpace uses your location to personalize events near you and improve recommendations while the app is open."
-      }
+        "NSLocationWhenInUseUsageDescription": "SnooSpace uses your location to personalize events near you and improve recommendations while the app is open.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.anonymous.snoospace"
     },
     "android": {
       "adaptiveIcon": {

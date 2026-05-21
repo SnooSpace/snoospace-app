@@ -249,7 +249,8 @@ const BottomTabNavigator = ({ navigation, route }) => {
               "PromptSubmissions",
               "ChallengeSubmissions",
               "ChallengeSubmit",
-              "QnAQuestions"
+              "QnAQuestions",
+              "ChallengeVideoRecorder"
             ];
             if (hiddenRoutes.includes(routeName)) {
               return { display: "none" };

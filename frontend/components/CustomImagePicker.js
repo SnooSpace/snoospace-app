@@ -49,6 +49,7 @@ export default function CustomImagePicker({
   onDone,
   selectionLimit = 10,
   allowVideos = false,
+  allowImages = true,    // when false, only videos are shown (video-only mode)
   videoMaxDuration = null, // seconds; videos longer than this are greyed out
 }) {
   const insets = useSafeAreaInsets();
@@ -108,9 +109,12 @@ export default function CustomImagePicker({
       setLoading(true);
 
       try {
-        // Determine media type based on album selection
+        // Determine media type based on album selection and allowed types
         let mediaType;
-        if (selectedAlbum.id === VIDEOS_ID) {
+        if (!allowImages) {
+          // Video-only mode: always load videos regardless of album
+          mediaType = [MediaLibrary.MediaType.video];
+        } else if (selectedAlbum.id === VIDEOS_ID) {
           mediaType = [MediaLibrary.MediaType.video];
         } else if (allowVideos) {
           mediaType = [MediaLibrary.MediaType.photo, MediaLibrary.MediaType.video];
@@ -142,7 +146,7 @@ export default function CustomImagePicker({
         isFetchingRef.current = false;
       }
     },
-    [hasNextPage, assets.length, allowVideos, selectedAlbum]
+    [hasNextPage, assets.length, allowVideos, allowImages, selectedAlbum]
   );
 
   const isVideoTooLong = useCallback(
@@ -357,8 +361,9 @@ export default function CustomImagePicker({
   // Build the full album list for the dropdown
   const buildAlbumList = () => {
     const special = [
-      { id: RECENTS_ID, title: "Recents", assetCount: null },
-      ...(allowVideos ? [{ id: VIDEOS_ID, title: "Videos", assetCount: null }] : []),
+      { id: RECENTS_ID, title: !allowImages ? "Videos" : "Recents", assetCount: null },
+      // Show a Videos shortcut only when mixed mode (images + videos)
+      ...(allowVideos && allowImages ? [{ id: VIDEOS_ID, title: "Videos", assetCount: null }] : []),
     ];
     return [...special, ...albums];
   };

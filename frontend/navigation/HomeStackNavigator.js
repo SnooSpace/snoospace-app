@@ -17,6 +17,7 @@ import PromptRepliesScreen from "../screens/home/PromptRepliesScreen";
 import QnAQuestionsScreen from "../screens/home/QnAQuestionsScreen";
 import ChallengeSubmissionsScreen from "../screens/home/ChallengeSubmissionsScreen";
 import ChallengeSubmitScreen from "../screens/home/ChallengeSubmitScreen";
+import ChallengeVideoRecorderScreen from "../screens/home/ChallengeVideoRecorderScreen";
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
 import CreateGroupScreen from "../screens/messages/CreateGroupScreen";
@@ -142,6 +143,14 @@ export default function HomeStackNavigator() {
         options={{
           headerShown: false,
           presentation: "modal",
+        }}
+      />
+      <Stack.Screen
+        name="ChallengeVideoRecorder"
+        component={ChallengeVideoRecorderScreen}
+        options={{
+          headerShown: false,
+          presentation: "fullScreenModal",
         }}
       />
       <Stack.Screen name="OpportunityView" component={OpportunityViewScreen} />

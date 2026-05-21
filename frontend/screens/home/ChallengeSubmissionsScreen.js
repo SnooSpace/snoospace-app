@@ -1,4 +1,4 @@
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 /**
  * ChallengeSubmissionsScreen
  * Gallery view of all submissions for a challenge
@@ -61,6 +61,8 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
   const { post } = route.params;
   const typeData = post.type_data || {};
 
+  const isFocused = useIsFocused();
+
   const [submissions, setSubmissions] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,7 +70,6 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
   const [activeTab, setActiveTab] = useState("submissions");
   const [filter, setFilter] = useState("approved");
   const [visibilityInfo, setVisibilityInfo] = useState(null);
-  const [fullscreenVideo, setFullscreenVideo] = useState(null);
   const [fullscreenImage, setFullscreenImage] = useState(null);
   const [actionSheet, setActionSheet] = useState(null);
   const [showRemovalRequests, setShowRemovalRequests] = useState(false);
@@ -90,6 +91,75 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
     visible: false, submission: null, message: "", sending: false,
   });
   const lastTapRef = useRef({});
+
+  // ── Video viewport tracking (mirrors HomeFeedScreen) ──────────────────────
+  // Tracks the normalized post ID of whichever submission card is ≥60% in view.
+  const [visiblePostId, setVisiblePostId] = useState(null);
+  const [visibleIndex, setVisibleIndex] = useState(-1);
+  const lastVisiblePostIdRef = useRef(null);
+
+  // Pause videos when screen loses focus, restore on return (same as HomeFeed)
+  useEffect(() => {
+    if (!isFocused) {
+      if (visiblePostId) {
+        lastVisiblePostIdRef.current = visiblePostId;
+        setVisiblePostId(null);
+      }
+    } else if (isFocused && lastVisiblePostIdRef.current && !visiblePostId) {
+      setVisiblePostId(lastVisiblePostIdRef.current);
+      lastVisiblePostIdRef.current = null;
+    }
+  }, [isFocused, visiblePostId]);
+
+  // 60% viewport coverage threshold — same as HomeFeedScreen
+  const viewabilityConfig = useRef({
+    viewAreaCoveragePercentThreshold: 60,
+    waitForInteraction: false,
+    minimumViewTime: 100,
+  }).current;
+
+  // Stable ref for recordSubmissionView so onViewableItemsChanged stays stable
+  // (same ref-wrapper pattern used by HomeFeedScreen for handleDeleteRef).
+  const recordSubmissionViewRef = useRef(null);
+
+  // Empty dep array keeps this callback stable — it only touches state setters
+  // (always-stable) and the ref above (not a reactive dep).
+  const onViewableItemsChanged = useCallback(({ viewableItems }) => {
+    if (!viewableItems || viewableItems.length === 0) {
+      setVisiblePostId(null);
+      setVisibleIndex(-1);
+      return;
+    }
+
+    // Record dwell views via the stable ref (fire-and-forget)
+    viewableItems.forEach(({ item, isViewable }) => {
+      if (isViewable && item?.id) {
+        setTimeout(() => recordSubmissionViewRef.current?.(item.id), 2000);
+      }
+    });
+
+    // Video autoplay — prefer video submissions, fall back to any visible item
+    const videoItems = viewableItems.filter(
+      (vi) => vi.isViewable && vi.item?.video_url,
+    );
+    const target = videoItems.length > 0
+      ? videoItems[0]
+      : viewableItems.find((vi) => vi.isViewable);
+
+    if (target?.item) {
+      setVisiblePostId(`sub_${target.item.id}`);
+      setVisibleIndex(target.index);
+    } else {
+      setVisiblePostId(null);
+      setVisibleIndex(-1);
+    }
+  }, []);
+
+  // Preload the card immediately adjacent to the currently-playing one
+  const shouldPreloadItem = useCallback((itemIndex) => {
+    if (visibleIndex < 0) return false;
+    return Math.abs(itemIndex - visibleIndex) === 1; // preload ±1
+  }, [visibleIndex]);
 
   // Custom Alert Modal State
   const [alertVisible, setAlertVisible] = useState(false);
@@ -193,6 +263,16 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
   // Normalize a submission into an EditorialPostCard-compatible post shape
   const normalizeSubmissionToPost = useCallback((submission) => {
     const mediaUrls = Array.isArray(submission.media_urls) ? submission.media_urls : [];
+
+    // When there's only a video and no photo attachments, populate image_urls with
+    // the video URI so EditorialPostCard's `hasMedia` guard passes and the VideoPlayer
+    // branch renders. The card reads `post.video_url` for the actual source, so this
+    // just satisfies the hasMedia check without duplicating the payload.
+    const imageUrlsForCard =
+      mediaUrls.length === 0 && submission.video_url
+        ? [submission.video_url]
+        : mediaUrls;
+
     return {
       id: `sub_${submission.id}`,
       _submissionId: submission.id,
@@ -202,8 +282,15 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
       author_name: submission.participant_name,
       author_username: submission.participant_name,
       author_photo_url: submission.participant_photo_url,
+      // EditorialPostCard renders post.caption for the description text
+      caption: submission.content || "",
       content: submission.content || "",
-      image_urls: mediaUrls,
+      image_urls: imageUrlsForCard,
+      // Explicitly tag the media type so EditorialPostCard's video branch fires
+      // even for CDN URLs that don't have a file extension in the path.
+      media_types: imageUrlsForCard.length > 0 && submission.video_url && mediaUrls.length === 0
+        ? ["video"]
+        : undefined,
       video_url: submission.video_url || null,
       video_thumbnail: submission.video_thumbnail || null,
       like_count: submission.like_count || 0,
@@ -603,6 +690,9 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
     }
   }, []);
 
+  // Keep ref in sync with the latest stable instance of recordSubmissionView
+  recordSubmissionViewRef.current = recordSubmissionView;
+
   // ── Reply in DMs ──────────────────────────────────────────────────────────
   const sendReplyDM = useCallback(async () => {
     const { submission, message } = replyDMState;
@@ -625,7 +715,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
     }
   }, [replyDMState, post.id]);
 
-  const renderSubmission = ({ item }) => {
+  const renderSubmission = ({ item, index }) => {
     const normalizedPost = normalizeSubmissionToPost(item);
     return (
       <View style={{ position: "relative" }}>
@@ -635,7 +725,11 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           currentUserType={currentUserType}
           showFollowButton={false}
           navigation={navigation}
-          isInViewport={true}
+          // ── Video playback props — mirrors HomeFeedScreen ──
+          isVideoPlaying={normalizedPost.id === visiblePostId}
+          shouldPreload={shouldPreloadItem(index)}
+          isInViewport={isFocused}
+          isScreenFocused={isFocused}
           onUserPress={() => {
             if (item.participant_type === "community") {
               navigation.push("CommunityPublicProfile", { communityId: item.participant_id });
@@ -1093,16 +1187,14 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
               tintColor="#2962FF"
             />
           }
-          onViewableItemsChanged={({ viewableItems }) => {
-            if (activeTab !== "submissions") return;
-            viewableItems.forEach(({ item, isViewable }) => {
-              if (isViewable && item?.id) {
-                // 2-second dwell before counting as a view
-                setTimeout(() => recordSubmissionView(item.id), 2000);
-              }
-            });
-          }}
-          viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+          // ── Video optimisation — mirrors HomeFeedScreen ──────────────────
+          removeClippedSubviews={false}
+          windowSize={8}
+          maxToRenderPerBatch={3}
+          initialNumToRender={3}
+          updateCellsBatchingPeriod={50}
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
         />
 
       )}
@@ -1120,16 +1212,9 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
         </TouchableOpacity>
       ) : null}
 
-      {/* Fullscreen Video Modal */}
-      {fullscreenVideo && (
-        <FullscreenVideoModal
-          visible={!!fullscreenVideo}
-          source={{ uri: fullscreenVideo.uri }}
-          onClose={() => setFullscreenVideo(null)}
-          initialMuted={false}
-          aspectRatio={9 / 16}
-        />
-      )}
+      {/* FullscreenVideoModal is rendered inside EditorialPostCard itself —
+           tapping the fullscreen button on any video card opens it automatically.
+           No screen-level modal is needed here. */}
 
       {/* Fullscreen Image Modal (Rich Detail View) */}
       <Modal

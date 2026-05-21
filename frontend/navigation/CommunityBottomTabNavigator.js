@@ -117,6 +117,7 @@ const CommunityBottomTabNavigator = ({ navigation, route }) => {
               "ChallengeSubmissions",
               "ChallengeSubmit",
               "QnAQuestions",
+              "ChallengeVideoRecorder",
               // [VIDEO INSIGHTS - DEFERRED] "VideoInsights" removed — screen not registered in this build
             ];
             if (hiddenRoutes.includes(routeName)) {

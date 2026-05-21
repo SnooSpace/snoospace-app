@@ -11,6 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image as ImageIcon, Camera as CameraIcon } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
+import * as MediaLibrary from "expo-media-library";
 import { apiGet, apiPost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { uploadMultipleImages } from "../../api/cloudinary";
@@ -34,6 +35,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
   const [videoThumbnail, setVideoThumbnail] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCustomPickerVisible, setIsCustomPickerVisible] = useState(false);
+  const [pickerMode, setPickerMode] = useState("image");
 
   // expo-video player for video preview
   const videoPreviewPlayer = useVideoPlayer(
@@ -72,19 +74,48 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
 
   const canSubmitMore = submissionStatus?.can_submit !== false;
 
-  const pickImage = () => {
-    setIsCustomPickerVisible(true);
+  const pickImage = async () => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync(false, ["photo"]);
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please allow access to your photo library in Settings.",
+        );
+        return;
+      }
+      setPickerMode("image");
+      setIsCustomPickerVisible(true);
+    } catch (error) {
+      console.error("Error checking permissions for image picking:", error);
+      setPickerMode("image");
+      setIsCustomPickerVisible(true);
+    }
   };
 
   const handleCustomPickerDone = (assets) => {
     setIsCustomPickerVisible(false);
     if (assets && assets.length > 0) {
-      const newImages = assets.map((asset) => asset.uri);
-      setSelectedImages((prev) => [...prev, ...newImages].slice(0, maxImagesPerSubmission));
+      if (pickerMode === "video") {
+        setSelectedVideo(assets[0].uri);
+      } else {
+        const newImages = assets.map((asset) => asset.uri);
+        setSelectedImages((prev) => [...prev, ...newImages].slice(0, maxImagesPerSubmission));
+      }
     }
   };
 
   const takePhoto = async () => {
+    // Guard: don't launch camera if the slot limit is already reached
+    if (selectedImages.length >= maxImagesPerSubmission) {
+      showToast(
+        "Photo limit reached",
+        `You can only add up to ${maxImagesPerSubmission} photo${maxImagesPerSubmission !== 1 ? "s" : ""} per submission.`,
+        "error"
+      );
+      return;
+    }
+
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== "granted") {
@@ -100,9 +131,11 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
-        setSelectedImages((prev) =>
-          [...prev, result.assets[0].uri].slice(0, maxImagesPerSubmission),
-        );
+        setSelectedImages((prev) => {
+          const remaining = maxImagesPerSubmission - prev.length;
+          if (remaining <= 0) return prev; // safety net
+          return [...prev, result.assets[0].uri];
+        });
       }
     } catch (error) {
       console.error("Error taking photo:", error);
@@ -112,45 +145,29 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
 
   const pickVideo = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-        quality: 0.8,
-        videoMaxDuration: 60,
-      });
-
-      if (!result.canceled && result.assets && result.assets[0]) {
-        setSelectedVideo(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error("Error picking video:", error);
-      Alert.alert("Error", "Failed to select video");
-    }
-  };
-
-  const recordVideo = async () => {
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      const { status } = await MediaLibrary.requestPermissionsAsync(false, ["photo", "video"]);
       if (status !== "granted") {
         Alert.alert(
-          "Permission needed",
-          "Please grant camera access to record video",
+          "Permission Required",
+          "Please allow access to your media library in Settings.",
         );
         return;
       }
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-        quality: 0.7,
-        videoMaxDuration: 60,
-      });
-
-      if (!result.canceled && result.assets && result.assets[0]) {
-        setSelectedVideo(result.assets[0].uri);
-      }
+      setPickerMode("video");
+      setIsCustomPickerVisible(true);
     } catch (error) {
-      console.error("Error recording video:", error);
-      Alert.alert("Error", "Failed to record video");
+      console.error("Error checking permissions for video picking:", error);
+      setPickerMode("video");
+      setIsCustomPickerVisible(true);
     }
+  };
+
+  const recordVideo = () => {
+    navigation.navigate("ChallengeVideoRecorder", {
+      onVideoRecorded: (uri) => {
+        setSelectedVideo(uri);
+      },
+    });
   };
 
   const removeImage = (index) => {
@@ -194,15 +211,7 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
         uploadedUrls = await uploadMultipleImages(selectedImages);
       }
 
-      let videoUrl = null;
-      if (selectedVideo) {
-        Alert.alert(
-          "Video Upload",
-          "Video uploading will be available after AWS S3 migration. Your submission has been saved with the description only.",
-          [{ text: "OK" }],
-        );
-        videoUrl = selectedVideo;
-      }
+      const videoUrl = selectedVideo ?? null;
 
       const response = await apiPost(
         `/posts/${post.id}/challenge-submissions`,
@@ -572,7 +581,10 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
         visible={isCustomPickerVisible}
         onClose={() => setIsCustomPickerVisible(false)}
         onDone={handleCustomPickerDone}
-        selectionLimit={maxImagesPerSubmission - selectedImages.length}
+        selectionLimit={pickerMode === "video" ? 1 : maxImagesPerSubmission - selectedImages.length}
+        allowImages={pickerMode !== "video"}
+        allowVideos={pickerMode === "video"}
+        videoMaxDuration={pickerMode === "video" ? 60 : null}
       />
     </SafeAreaView>
   );
