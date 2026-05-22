@@ -67,6 +67,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import CustomDatePicker from "../../../components/ui/CustomDatePicker";
+import OpportunitySuccessModal from "../../../components/modals/OpportunitySuccessModal";
 
 import { COLORS, FONTS, SHADOWS } from "../../../constants/theme";
 import {
@@ -208,6 +209,13 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   const [hasReachedReview, setHasReachedReview] = useState(false);
 
   const [showSaveDraftModal, setShowSaveDraftModal] = useState(false);
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
+  const [successModalData, setSuccessModalData] = useState({
+    title: "",
+    message: "",
+    isDraft: false,
+    opportunity: null,
+  });
   const [currency, setCurrency] = useState("₹");
   const [minBudget, setMinBudget] = useState("");
   const [maxBudget, setMaxBudget] = useState("");
@@ -843,29 +851,21 @@ export default function CreateOpportunityScreen({ navigation, route }) {
       }
 
       if (response?.success) {
-        Alert.alert(
-          asDraft
+        setSuccessModalData({
+          title: asDraft
             ? "Draft Saved"
             : isEditing
               ? "Opportunity Updated"
               : "Opportunity Published",
-          asDraft
+          message: asDraft
             ? "Your opportunity draft has been saved."
             : isEditing
               ? "Your opportunity has been successfully updated."
               : "Your opportunity is now live!",
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                if (response.opportunity) {
-                  EventBus.emit("opportunityUpdated", response.opportunity);
-                }
-                navigation.goBack();
-              },
-            },
-          ],
-        );
+          isDraft: asDraft,
+          opportunity: response.opportunity,
+        });
+        setSuccessModalVisible(true);
       }
     } catch (error) {
       console.error("Error creating opportunity:", error);
@@ -2949,6 +2949,21 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             </View>
           </View>
         </Modal>
+
+        {/* Opportunity Creation Outcome Success Modal */}
+        <OpportunitySuccessModal
+          visible={successModalVisible}
+          title={successModalData.title}
+          message={successModalData.message}
+          isDraft={successModalData.isDraft}
+          onClose={() => {
+            setSuccessModalVisible(false);
+            if (successModalData.opportunity) {
+              EventBus.emit("opportunityUpdated", successModalData.opportunity);
+            }
+            navigation.goBack();
+          }}
+        />
       </SafeAreaView>
     </View>
   );

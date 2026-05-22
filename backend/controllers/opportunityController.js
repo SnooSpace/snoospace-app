@@ -31,12 +31,17 @@ const createOpportunity = async (req, res) => {
       payment_type,
       budget_range,
       payment_nature,
+      trial_type,
       eligibility_mode,
       visibility,
       notify_talent,
       skill_groups,
       questions,
       status, // 'draft' or 'active'
+      about_role,
+      responsibilities,
+      who_can_apply,
+      gains,
     } = req.body;
 
     // Validation
@@ -72,10 +77,11 @@ const createOpportunity = async (req, res) => {
         title, creator_id, creator_type, status,
         opportunity_types, work_type, work_mode, event_id,
         experience_level, availability, turnaround, timezone, expires_at,
-        payment_type, budget_range, payment_nature,
-        eligibility_mode, visibility, notify_talent
+        payment_type, budget_range, payment_nature, trial_type,
+        eligibility_mode, visibility, notify_talent,
+        about_role, responsibilities, who_can_apply, gains
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
       RETURNING *
     `;
 
@@ -96,9 +102,14 @@ const createOpportunity = async (req, res) => {
       payment_type || "fixed",
       budget_range || null,
       payment_nature || "paid",
+      payment_nature === "trial" ? (trial_type || "paid_trial") : null,
       eligibility_mode || "any_one",
       visibility || "public",
       notify_talent !== false,
+      about_role || null,
+      responsibilities || [],
+      who_can_apply || [],
+      gains || [],
     ];
 
     const result = await pool.query(query, values);
@@ -209,6 +220,7 @@ const getOpportunities = async (req, res) => {
         o.work_mode,
         o.payment_type,
         o.payment_nature,
+        o.trial_type,
         o.budget_range,
         o.visibility,
         o.applicant_count,
@@ -347,12 +359,17 @@ const updateOpportunity = async (req, res) => {
       payment_type,
       budget_range,
       payment_nature,
+      trial_type,
       eligibility_mode,
       visibility,
       notify_talent,
       skill_groups,
       questions,
       status,
+      about_role,
+      responsibilities,
+      who_can_apply,
+      gains,
     } = req.body;
 
     // Build update query dynamically
@@ -385,6 +402,11 @@ const updateOpportunity = async (req, res) => {
     addUpdate("visibility", visibility);
     addUpdate("notify_talent", notify_talent);
     addUpdate("status", status);
+    addUpdate("about_role", about_role);
+    addUpdate("responsibilities", responsibilities);
+    addUpdate("who_can_apply", who_can_apply);
+    addUpdate("gains", gains);
+    addUpdate("trial_type", trial_type);
 
     if (updates.length > 0) {
       values.push(id);
@@ -551,6 +573,7 @@ const discoverOpportunities = async (req, res) => {
         o.work_mode,
         o.payment_type,
         o.payment_nature,
+        o.trial_type,
         o.budget_range,
         o.experience_level,
         o.created_at,
@@ -995,6 +1018,7 @@ const getFollowedOpportunities = async (req, res) => {
         o.work_mode,
         o.payment_type,
         o.payment_nature,
+        o.trial_type,
         o.budget_range,
         o.applicant_count,
         o.created_at,

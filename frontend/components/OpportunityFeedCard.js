@@ -9,7 +9,6 @@ import {
   Alert,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
 import { getAuthToken, getActiveAccount } from "../api/auth";
 import {
@@ -26,6 +25,12 @@ import {
   ChartNoAxesCombined,
   Send,
   Bookmark,
+  MoreHorizontal,
+  Briefcase,
+  Globe,
+  Coins,
+  ArrowRight,
+  Clock,
 } from "lucide-react-native";
 import { apiPost, apiDelete, savePost, unsavePost } from "../api/client";
 import EventBus from "../utils/EventBus";
@@ -67,20 +72,55 @@ const OpportunityFeedCard = ({
     });
   };
 
+  const getWorkModeText = () => {
+    if (opportunity.work_mode === "hybrid") return "Hybrid";
+    if (opportunity.work_mode === "remote") return "Remote";
+    if (opportunity.work_mode === "on_site") return "On-site";
+    return opportunity.work_mode || "Remote";
+  };
+
+  const getWorkTypeText = () => {
+    const type = opportunity.work_type === "one_time" ? "One-time" : "Ongoing";
+    return opportunity.availability ? `${type} (${opportunity.availability})` : type;
+  };
+
   const getCompensationText = () => {
-    if (opportunity.payment_nature === "paid") return "Paid";
-    if (opportunity.payment_nature === "unpaid") return "Unpaid";
-    return opportunity.payment_nature || "Negotiable";
+    if (opportunity.payment_nature === "exposure") return "Exposure";
+    if (opportunity.payment_nature === "revenue_share") return "Rev Share";
+    if (opportunity.payment_nature === "trial") {
+      const trialPrefix = opportunity.trial_type === "free_trial" ? "Free Trial" : "Paid Trial";
+      return opportunity.budget_range ? `${trialPrefix} (${opportunity.budget_range})` : trialPrefix;
+    }
+    // paid nature
+    if (opportunity.payment_nature === "paid") {
+      const payType = opportunity.payment_type 
+        ? ` (${opportunity.payment_type === "per_deliverable" ? "Task" : opportunity.payment_type === "monthly" ? "Mo" : "Fixed"})`
+        : "";
+      return opportunity.budget_range ? `${opportunity.budget_range}${payType}` : `Paid${payType}`;
+    }
+    return opportunity.budget_range || opportunity.payment_nature || "Negotiable";
+  };
+
+  const getTags = () => {
+    const roles = opportunity.opportunity_types || opportunity.roles || [];
+    const tools = [];
+    if (opportunity.skill_groups && Array.isArray(opportunity.skill_groups)) {
+      opportunity.skill_groups.forEach(group => {
+        if (group.tools && Array.isArray(group.tools)) {
+          group.tools.forEach(tool => {
+            if (!tools.includes(tool)) tools.push(tool);
+          });
+        }
+      });
+    }
+    return [...roles, ...tools].slice(0, 5);
   };
 
   const username = opportunity.creator_name
     ? `@${opportunity.creator_name.replace(/\s+/g, "").toLowerCase()}`
     : "@anonymous";
 
-  const tags = (opportunity.opportunity_types || opportunity.roles || []).slice(
-    0,
-    5,
-  );
+  const tags = getTags();
 
   // Engagement State
   const initialIsLiked = opportunity.is_liked === true;
@@ -221,15 +261,15 @@ const OpportunityFeedCard = ({
                   })
                 }
               >
-                <Ionicons
-                  name="ellipsis-horizontal"
+                <MoreHorizontal
                   size={20}
                   color="#5B6B7C"
+                  strokeWidth={2}
                 />
               </TouchableOpacity>
             )}
             <View style={styles.iconContainer}>
-              <Ionicons name="briefcase" size={24} color="#2D3748" />
+              <Briefcase size={20} color="#2962FF" strokeWidth={2} />
             </View>
           </View>
         </View>
@@ -277,14 +317,21 @@ const OpportunityFeedCard = ({
         {/* Details Row */}
         <View style={styles.detailsRow}>
           <View style={styles.detailItem}>
-            <Ionicons name="globe-outline" size={16} color="#5e8d9b" />
-            <Text style={styles.detailText}>
-              {opportunity.work_mode === "remote" ? "Remote" : "On-site"}
-            </Text>
+            <Globe size={15} color="#5e8d9b" strokeWidth={2} />
+            <Text style={styles.detailText}>{getWorkModeText()}</Text>
           </View>
+          
           <Text style={styles.detailSeparator}>•</Text>
+          
           <View style={styles.detailItem}>
-            <Ionicons name="cash-outline" size={16} color="#5e8d9b" />
+            <Clock size={15} color="#5e8d9b" strokeWidth={2} />
+            <Text style={styles.detailText}>{getWorkTypeText()}</Text>
+          </View>
+          
+          <Text style={styles.detailSeparator}>•</Text>
+          
+          <View style={styles.detailItem}>
+            <Coins size={15} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.detailText}>{getCompensationText()}</Text>
           </View>
         </View>
@@ -396,11 +443,11 @@ const OpportunityFeedCard = ({
                 (opportunity.expires_at &&
                   new Date(opportunity.expires_at) < new Date())
               ) && (
-                <Ionicons
-                  name="arrow-forward"
+                <ArrowRight
                   size={18}
                   color="#FFFFFF"
                   style={{ marginLeft: 6 }}
+                  strokeWidth={2.5}
                 />
               )}
             </LinearGradient>
@@ -496,18 +543,17 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   typeBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
+    fontSize: 10,
+    fontFamily: FONTS.semiBold,
     color: "#4A5568",
     letterSpacing: 0.5,
   },
   iconContainer: {
-    backgroundColor: "#FFFFFF",
-    padding: 10,
-    borderRadius: 12, // Match ChallengeCard trophy container radius
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
-    width: 44, // Fixed size like ChallengeCard
+    width: 44,
     height: 44,
   },
   rightHeaderContent: {
@@ -517,8 +563,6 @@ const styles = StyleSheet.create({
   },
   editButton: {
     padding: 8,
-    // Removed background color to match ChallengeCard style if desired, or keep it
-    // ChallengeCard uses simple opacity/icon
   },
   authorRow: {
     flexDirection: "row",
@@ -532,9 +576,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   authorUsername: {
-    fontSize: 16,
+    fontSize: 15,
     color: "#1D1D1F",
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: FONTS.semiBold,
     maxWidth: 160,
   },
   separator: {
@@ -573,7 +617,7 @@ const styles = StyleSheet.create({
   tagText: {
     fontSize: 12,
     color: "#3B82F6",
-    fontWeight: "500",
+    fontFamily: FONTS.medium,
   },
   countdownContainer: {
     flexDirection: "row",
@@ -616,6 +660,7 @@ const styles = StyleSheet.create({
   detailsRow: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     marginBottom: 20,
     gap: 12,
   },
@@ -625,12 +670,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   detailText: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#1D1D1F",
-    fontWeight: "500",
+    fontFamily: FONTS.medium,
   },
   detailSeparator: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#5e8d9b",
   },
   footerRow: {
@@ -652,19 +697,18 @@ const styles = StyleSheet.create({
   },
   applicantCount: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: "#3B82F6",
     marginLeft: 6,
   },
   applicantCountText: {
     fontSize: 13,
     color: "#5e8d9b",
-    fontWeight: "500",
+    fontFamily: FONTS.medium,
   },
   applyButton: {
     borderRadius: 16,
     overflow: "hidden",
-    // Shadow for elevation
     shadowColor: "#2962FF",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -692,7 +736,7 @@ const styles = StyleSheet.create({
   },
   activeBadgeText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: FONTS.semiBold,
     color: COLORS.textSecondary,
   },
   endedBadge: {
@@ -703,7 +747,7 @@ const styles = StyleSheet.create({
   },
   endedBadgeText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontFamily: FONTS.semiBold,
     color: "#DC2626",
   },
   applyButtonGradient: {
@@ -715,10 +759,8 @@ const styles = StyleSheet.create({
   applyButtonText: {
     color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: "700",
+    fontFamily: FONTS.semiBold,
   },
-
-  // Engagement Row
   engagementRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -737,7 +779,7 @@ const styles = StyleSheet.create({
   },
   engagementCount: {
     fontSize: 13,
-    fontWeight: "500",
+    fontFamily: FONTS.medium,
     color: "#5e8d9b",
     marginLeft: 6,
   },
