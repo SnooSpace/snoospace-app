@@ -198,6 +198,19 @@ const parseBudgetRange = (str) => {
   return { currency: currencySymbol, min: minVal, max: maxVal };
 };
 
+const getPaymentTypeDisplayText = (type) => {
+  switch (type) {
+    case "fixed":
+      return "Fixed";
+    case "monthly":
+      return "Monthly";
+    case "per_deliverable":
+      return "Per Deliverable";
+    default:
+      return type ? (type.charAt(0).toUpperCase() + type.slice(1).replace("_", " ")) : "";
+  }
+};
+
 const TOTAL_STEPS = 11;
 
 export default function CreateOpportunityScreen({ navigation, route }) {
@@ -434,11 +447,20 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     setEventId(data.event_id || null);
     setAboutRole(data.about_role || "");
     setResponsibilities(data.responsibilities || []);
+    // Parse legacy string or existing array into sample_types on each skill group
+    const parsedSkillGroups = (data.skill_groups || []).map((g) => ({
+      ...g,
+      sample_types: g.sample_types
+        ? (Array.isArray(g.sample_types) ? g.sample_types : g.sample_types.split(",").map((s) => s.trim()).filter(Boolean))
+        : g.sample_type
+          ? g.sample_type.split(",").map((s) => s.trim()).filter(Boolean)
+          : [],
+    }));
     setExperienceLevel(data.experience_level || "any");
     setAvailability(data.availability || "");
     setTurnaround(data.turnaround || "");
     setTimezone(data.timezone || "");
-    setSkillGroups(data.skill_groups || []);
+    setSkillGroups(parsedSkillGroups);
     setEligibilityMode(data.eligibility_mode || "any_one");
     setWhoCanApply(data.who_can_apply || []);
     setGains(data.gains || []);
@@ -601,7 +623,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
       .map((type) => ({
         role: type,
         tools: [],
-        sample_type: null,
+        sample_types: [],
       }));
 
     const updatedGroups = skillGroups.filter((g) =>
@@ -663,10 +685,33 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
   const addCustomSampleType = (role) => {
     if (!customSampleType.trim()) return;
-    updateSkillGroup(role, "sample_type", customSampleType.trim());
+    const group = skillGroups.find((g) => g.role === role);
+    if (!group) return;
+    const trimmed = customSampleType.trim();
+    const current = group.sample_types || [];
+    if (!current.includes(trimmed)) {
+      updateSkillGroup(role, "sample_types", [...current, trimmed]);
+    }
     setCustomSampleType("");
     setShowCustomSampleInput({ ...showCustomSampleInput, [role]: false });
     Keyboard.dismiss();
+  };
+
+  const toggleSampleType = (role, type) => {
+    const group = skillGroups.find((g) => g.role === role);
+    if (!group) return;
+    const current = group.sample_types || [];
+    const updated = current.includes(type)
+      ? current.filter((t) => t !== type)
+      : [...current, type];
+    updateSkillGroup(role, "sample_types", updated);
+  };
+
+  const removeSampleType = (role, type) => {
+    const group = skillGroups.find((g) => g.role === role);
+    if (!group) return;
+    const updated = (group.sample_types || []).filter((t) => t !== type);
+    updateSkillGroup(role, "sample_types", updated);
   };
 
   const addQuestion = () => {
@@ -741,7 +786,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         return true;
       case 5: // Skill Requirements (was step 4)
         const hasAnySelection = skillGroups.some(
-          (g) => g.tools.length > 0 || g.sample_type,
+          (g) => g.tools.length > 0 || (g.sample_types && g.sample_types.length > 0),
         );
         if (!hasAnySelection) {
           Alert.alert(
@@ -750,6 +795,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           );
           return false;
         }
+        return true;
       case 8: // Compensation
         if (isBudgetRequired) {
           if (!minBudget.trim() || !maxBudget.trim()) {
@@ -774,7 +820,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
       case 4:
         return availability.trim() !== "" && turnaround.trim() !== "";
       case 5:
-        return skillGroups.some((g) => g.tools.length > 0 || g.sample_type);
+        return skillGroups.some((g) => g.tools.length > 0 || (g.sample_types && g.sample_types.length > 0));
       case 6:
         return true; // Who Can Apply — optional
       case 7:
@@ -810,6 +856,16 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   };
 
   const handlePublish = async (asDraft = false) => {
+    if (!asDraft) {
+      // Validate all steps from 1 to TOTAL_STEPS - 1
+      for (let s = 1; s < TOTAL_STEPS; s++) {
+        if (!validateStep(s)) {
+          setCurrentStep(s);
+          return;
+        }
+      }
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -825,7 +881,12 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         turnaround: turnaround.trim(),
         timezone: timezone.trim() || null,
         expires_at: expiresAt ? expiresAt.toISOString() : null,
-        payment_type: paymentNature === "exposure" ? null : paymentType,
+        payment_type:
+          paymentNature === "exposure" ||
+          paymentNature === "revenue_share" ||
+          (paymentNature === "trial" && trialType === "free_trial")
+            ? null
+            : paymentType,
         budget_range:
           paymentNature === "exposure" ||
           (paymentNature === "trial" && trialType === "free_trial")
@@ -838,7 +899,13 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         gains,
         visibility,
         notify_talent: notifyTalent,
-        skill_groups: skillGroups,
+        skill_groups: skillGroups.map((g) => ({
+          ...g,
+          // Serialize the sample_types array back to the string the backend stores
+          sample_type: (g.sample_types && g.sample_types.length > 0)
+            ? g.sample_types.join(",")
+            : null,
+        })),
         questions,
         status: asDraft ? "draft" : "active",
       };
@@ -851,6 +918,10 @@ export default function CreateOpportunityScreen({ navigation, route }) {
       }
 
       if (response?.success) {
+        // Clear the local draft when successfully publishing (not saving as draft)
+        if (!asDraft && userId) {
+          try { await deleteOpportunityDraft(userId); } catch (_) {}
+        }
         setSuccessModalData({
           title: asDraft
             ? "Draft Saved"
@@ -1189,7 +1260,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           placeholder="Describe what this role involves, who you're looking for, and what they'll be working on..."
           placeholderTextColor={MODAL_TOKENS.textMuted}
           multiline
-          maxLength={500}
+          maxLength={1000}
           textAlignVertical="top"
           onFocus={() => {
             setTimeout(() => {
@@ -1197,7 +1268,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             }, 250);
           }}
         />
-        <Text style={styles.charCount}>{aboutRole.length}/500</Text>
+        <Text style={styles.charCount}>{aboutRole.length}/1000</Text>
 
         <Text style={styles.labelNew}>
           Key Responsibilities
@@ -1652,10 +1723,11 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                 </View>
               )}
 
-              <Text style={styles.skillGroupLabel}>Sample Type Expected</Text>
+              <Text style={styles.skillGroupLabel}>Work Sample Expected</Text>
               <View style={styles.sampleTypesContainer}>
                 {(SAMPLE_TYPES[group.role] || []).map((type) => {
-                  const isSelected = group.sample_type === type;
+                  const currentTypes = group.sample_types || [];
+                  const isSelected = currentTypes.includes(type);
                   return (
                     <TouchableOpacity
                       key={type}
@@ -1663,9 +1735,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                         styles.sampleTypeChip,
                         isSelected && [styles.sampleTypeChipSelected, { borderColor: roleColor, backgroundColor: `${roleColor}10` }],
                       ]}
-                      onPress={() =>
-                        updateSkillGroup(group.role, "sample_type", type)
-                      }
+                      onPress={() => toggleSampleType(group.role, type)}
                       activeOpacity={0.7}
                     >
                       <Text
@@ -1676,29 +1746,29 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                       >
                         {type}
                       </Text>
+                      {isSelected && (
+                        <X size={11} color={roleColor} style={{ marginLeft: 4 }} />
+                      )}
                     </TouchableOpacity>
                   );
                 })}
 
-                {group.sample_type &&
-                  !(SAMPLE_TYPES[group.role] || []).includes(group.sample_type) && (
+                {/* Custom sample types added by the user */}
+                {(group.sample_types || [])
+                  .filter((t) => !(SAMPLE_TYPES[group.role] || []).includes(t))
+                  .map((customType) => (
                     <TouchableOpacity
+                      key={customType}
                       style={[styles.sampleTypeChip, styles.sampleTypeChipSelected, { borderColor: roleColor, backgroundColor: `${roleColor}10` }]}
-                      onPress={() =>
-                        updateSkillGroup(group.role, "sample_type", null)
-                      }
+                      onPress={() => removeSampleType(group.role, customType)}
                       activeOpacity={0.7}
                     >
                       <Text style={[styles.sampleTypeTextSelected, { color: roleColor }]}>
-                        {group.sample_type}
+                        {customType}
                       </Text>
-                      <X
-                        size={12}
-                        color={roleColor}
-                        style={{ marginLeft: 4 }}
-                      />
+                      <X size={11} color={roleColor} style={{ marginLeft: 4 }} />
                     </TouchableOpacity>
-                  )}
+                  ))}
 
                 {!showCustomSampleInput[group.role] && (
                   <TouchableOpacity
@@ -1784,7 +1854,8 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           </Text>
         </View>
 
-        {paymentNature !== "exposure" && (
+        {/* Payment Type is only shown for paid opportunities or paid trials */}
+        {(paymentNature === "paid" || (paymentNature === "trial" && trialType === "paid_trial")) && (
           <>
             <Text style={styles.labelNew}>Payment Type</Text>
             <View style={styles.optionsRow}>
@@ -1816,66 +1887,69 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                 );
               })}
             </View>
+          </>
+        )}
 
-            {!(paymentNature === "trial" && trialType === "free_trial") && (
-              <>
-                <Text style={styles.labelNew}>
-                  Budget Range{isBudgetRequired ? "" : " (Optional)"}
-                </Text>
-                <View style={styles.budgetRowContainer}>
-                  <View style={styles.currencyToggleContainer}>
-                    {["₹", "$"].map((symbol) => {
-                      const isSelected = currency === symbol;
-                      return (
-                        <TouchableOpacity
-                          key={symbol}
-                          style={[
-                            styles.currencyTogglePill,
-                            isSelected && styles.currencyTogglePillSelected,
-                          ]}
-                          onPress={() => setCurrency(symbol)}
-                          activeOpacity={0.7}
-                        >
-                          <Text
-                            style={[
-                              styles.currencyToggleText,
-                              isSelected && styles.currencyToggleTextSelected,
-                            ]}
-                          >
-                            {symbol}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                  <View style={styles.budgetInputsRow}>
-                    <View style={styles.budgetInputWrapper}>
-                      <TextInput
-                        style={styles.budgetInput}
-                        value={minBudget}
-                        onChangeText={setMinBudget}
-                        placeholder="Min"
-                        placeholderTextColor={MODAL_TOKENS.textMuted}
-                        keyboardType="number-pad"
-                        maxLength={10}
-                      />
-                    </View>
-                    <Text style={styles.budgetRangeDash}>-</Text>
-                    <View style={styles.budgetInputWrapper}>
-                      <TextInput
-                        style={styles.budgetInput}
-                        value={maxBudget}
-                        onChangeText={setMaxBudget}
-                        placeholder="Max"
-                        placeholderTextColor={MODAL_TOKENS.textMuted}
-                        keyboardType="number-pad"
-                        maxLength={10}
-                      />
-                    </View>
-                  </View>
+        {/* Budget range is shown for paid, paid trial, or revenue share */}
+        {(paymentNature === "paid" || 
+          (paymentNature === "trial" && trialType === "paid_trial") || 
+          paymentNature === "revenue_share") && (
+          <>
+            <Text style={styles.labelNew}>
+              Budget Range{isBudgetRequired ? "" : " (Optional)"}
+            </Text>
+            <View style={styles.budgetRowContainer}>
+              <View style={styles.currencyToggleContainer}>
+                {["₹", "$"].map((symbol) => {
+                  const isSelected = currency === symbol;
+                  return (
+                    <TouchableOpacity
+                      key={symbol}
+                      style={[
+                        styles.currencyTogglePill,
+                        isSelected && styles.currencyTogglePillSelected,
+                      ]}
+                      onPress={() => setCurrency(symbol)}
+                      activeOpacity={0.7}
+                    >
+                      <Text
+                        style={[
+                          styles.currencyToggleText,
+                          isSelected && styles.currencyToggleTextSelected,
+                        ]}
+                      >
+                        {symbol}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <View style={styles.budgetInputsRow}>
+                <View style={styles.budgetInputWrapper}>
+                  <TextInput
+                    style={styles.budgetInput}
+                    value={minBudget}
+                    onChangeText={setMinBudget}
+                    placeholder="Min"
+                    placeholderTextColor={MODAL_TOKENS.textMuted}
+                    keyboardType="number-pad"
+                    maxLength={10}
+                  />
                 </View>
-              </>
-            )}
+                <Text style={styles.budgetRangeDash}>-</Text>
+                <View style={styles.budgetInputWrapper}>
+                  <TextInput
+                    style={styles.budgetInput}
+                    value={maxBudget}
+                    onChangeText={setMaxBudget}
+                    placeholder="Max"
+                    placeholderTextColor={MODAL_TOKENS.textMuted}
+                    keyboardType="number-pad"
+                    maxLength={10}
+                  />
+                </View>
+              </View>
+            </View>
           </>
         )}
 
@@ -2537,11 +2611,11 @@ export default function CreateOpportunityScreen({ navigation, route }) {
               {paymentNature === "exposure"
                 ? "Exposure / Unpaid"
                 : paymentNature === "trial"
-                  ? `Trial-based · ${trialType === "paid_trial" ? "Paid Task" : "Free Task"}`
+                  ? `Trial-based · ${trialType === "paid_trial" ? `Paid Task · ${getPaymentTypeDisplayText(paymentType)}` : "Free Task"}`
                   : paymentNature === "revenue_share"
                     ? "Revenue Share"
-                    : `${paymentType.replace("_", " ")} · Paid`}
-              {budgetRange && paymentNature !== "exposure" ? ` · ${budgetRange}` : ""}
+                    : `${getPaymentTypeDisplayText(paymentType)} · Paid`}
+              {budgetRange && paymentNature !== "exposure" && !(paymentNature === "trial" && trialType === "free_trial") ? ` · ${budgetRange}` : ""}
             </Text>
           </TouchableOpacity>
 
@@ -2738,16 +2812,11 @@ export default function CreateOpportunityScreen({ navigation, route }) {
               </TouchableOpacity>
             ) : isEditing || hasReachedReview ? (
               <TouchableOpacity
-                style={styles.headerCancelButton}
+                style={styles.headerReviewButton}
                 onPress={() => setCurrentStep(TOTAL_STEPS)}
                 activeOpacity={0.7}
               >
-                <Text
-                  style={[
-                    styles.cancelText,
-                    { color: MODAL_TOKENS.primary },
-                  ]}
-                >
+                <Text style={styles.reviewButtonText}>
                   Review
                 </Text>
               </TouchableOpacity>
@@ -3009,12 +3078,30 @@ const styles = StyleSheet.create({
   headerCancelButton: {
     position: "absolute",
     right: 16,
-    height: 40,
+    height: 32,
+    paddingHorizontal: 16,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    borderRadius: 16,
+  },
+  headerReviewButton: {
+    position: "absolute",
+    right: 16,
+    height: 32,
+    paddingHorizontal: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(41, 98, 255, 0.1)",
+    borderRadius: 16,
+  },
+  reviewButtonText: {
+    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+    color: "#2962FF",
   },
   cancelText: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: "Manrope-SemiBold",
     color: "#EF4444",
   },

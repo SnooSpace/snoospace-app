@@ -35,6 +35,8 @@ import {
   ChevronRight,
   FileText,
   Star,
+  MoveRight,
+  Coins,
 } from "lucide-react-native";
 import { getOpportunityDetail } from "../../../api/opportunities";
 import SnooLoader from "../../../components/ui/SnooLoader";
@@ -109,6 +111,55 @@ const getPaymentNatureConfig = (nature, trialType) => {
   return { label: "Paid", bg: "rgba(52, 199, 89, 0.06)", border: "rgba(52, 199, 89, 0.15)", text: COLORS.success };
 };
 
+const formatDeadline = (dateStr) => {
+  if (!dateStr) return null;
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch (e) {
+    return null;
+  }
+};
+
+const getPaymentTypeLabel = (paymentType, paymentNature, trialType) => {
+  if (paymentNature === "exposure") return "Compensation Mode";
+  if (paymentNature === "trial" && trialType === "free_trial") return "Compensation Mode";
+  
+  switch (paymentType) {
+    case "fixed":
+      return "Fixed Budget";
+    case "monthly":
+      return "Monthly Rate";
+    case "per_deliverable":
+      return "Per Deliverable";
+    default:
+      return "Budget";
+  }
+};
+
+const getPaymentAmountText = (budgetRange, paymentNature, trialType) => {
+  if (paymentNature === "exposure") return "Exposure (Unpaid)";
+  if (paymentNature === "trial" && trialType === "free_trial") return "Free Trial (Unpaid)";
+  return budgetRange || "Not specified";
+};
+
+const getPaymentTypeDisplayText = (type) => {
+  switch (type) {
+    case "fixed":
+      return "Fixed Budget";
+    case "monthly":
+      return "Monthly Rate";
+    case "per_deliverable":
+      return "Per Deliverable";
+    default:
+      return type ? (type.charAt(0).toUpperCase() + type.slice(1)) : "Not specified";
+  }
+};
+
 export default function OpportunityViewScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { opportunityId, opportunity: passedOpportunity } = route.params || {};
@@ -116,11 +167,13 @@ export default function OpportunityViewScreen({ route, navigation }) {
   const [loading, setLoading] = useState(!passedOpportunity);
   const [error, setError] = useState(null);
 
+  const targetId = opportunityId || passedOpportunity?.id;
+
   useEffect(() => {
-    if (!passedOpportunity && opportunityId) {
+    if (targetId) {
       fetchOpportunity();
     }
-  }, [opportunityId]);
+  }, [targetId]);
 
   // Hide bottom tab bar
   useLayoutEffect(() => {
@@ -132,8 +185,10 @@ export default function OpportunityViewScreen({ route, navigation }) {
 
   const fetchOpportunity = async () => {
     try {
-      setLoading(true);
-      const response = await getOpportunityDetail(opportunityId);
+      if (!passedOpportunity) {
+        setLoading(true);
+      }
+      const response = await getOpportunityDetail(targetId);
       if (response?.success && response?.opportunity) {
         setOpportunity(response.opportunity);
       } else {
@@ -203,6 +258,7 @@ export default function OpportunityViewScreen({ route, navigation }) {
   const initialLetter = creatorDisplayName.charAt(0).toUpperCase();
 
   const showSplitFooter = !!opportunity.budget_range;
+  const deadlineDate = formatDeadline(opportunity.expires_at);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -246,7 +302,17 @@ export default function OpportunityViewScreen({ route, navigation }) {
 
           <Text style={styles.title}>{opportunity.title}</Text>
           
-          <TouchableOpacity style={styles.hostRow} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.hostRow}
+            activeOpacity={0.7}
+            onPress={() => {
+              if (opportunity.creator_id) {
+                navigation.navigate("CommunityPublicProfile", {
+                  communityId: opportunity.creator_id,
+                });
+              }
+            }}
+          >
             <View style={styles.hostAvatarContainer}>
               {opportunity.creator_photo ? (
                 <Image 
@@ -263,7 +329,7 @@ export default function OpportunityViewScreen({ route, navigation }) {
                 <Text style={styles.hostUsername}>@{creatorUsernameVal}</Text>
               )}
             </View>
-            <ChevronRight size={16} color={COLORS.textMuted} />
+            <MoveRight size={18} color={COLORS.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -341,7 +407,7 @@ export default function OpportunityViewScreen({ route, navigation }) {
             {opportunity.availability && (
               <View style={styles.flatListRow}>
                 <View style={[styles.flatListIconContainer, { backgroundColor: "rgba(41, 98, 255, 0.04)" }]}>
-                  <Calendar size={18} color={COLORS.primary} />
+                  <Clock size={18} color={COLORS.primary} />
                 </View>
                 <View style={styles.flatListTextContainer}>
                   <Text style={styles.flatListLabel}>Availability</Text>
@@ -371,6 +437,17 @@ export default function OpportunityViewScreen({ route, navigation }) {
                 </View>
               </View>
             )}
+            {deadlineDate && (
+              <View style={styles.flatListRow}>
+                <View style={[styles.flatListIconContainer, { backgroundColor: "rgba(41, 98, 255, 0.04)" }]}>
+                  <Calendar size={18} color={COLORS.primary} />
+                </View>
+                <View style={styles.flatListTextContainer}>
+                  <Text style={styles.flatListLabel}>Application Deadline</Text>
+                  <Text style={styles.flatListValue}>{deadlineDate}</Text>
+                </View>
+              </View>
+            )}
           </View>
         </View>
 
@@ -397,7 +474,12 @@ export default function OpportunityViewScreen({ route, navigation }) {
                     <View style={styles.sampleTypeRow}>
                       <FileText size={14} color={COLORS.textSecondary} style={{ marginRight: 6 }} />
                       <Text style={styles.sampleTypeText}>
-                        Portfolio sample: {group.sample_type}
+                        Work Sample:{" "}
+                        {group.sample_type
+                          .split(",")
+                          .map((s) => s.trim())
+                          .filter(Boolean)
+                          .join(", ")}
                       </Text>
                     </View>
                   )}
@@ -453,20 +535,52 @@ export default function OpportunityViewScreen({ route, navigation }) {
         {/* Compensation */}
         <View style={styles.section}>
           <Text style={styles.sectionHeader}>Compensation</Text>
-          <View style={styles.flatCompensationContainer}>
-            <View style={styles.compRateGroup}>
-              <Text style={styles.compRateLabel}>
-                {opportunity.payment_type === "fixed" ? "Fixed Budget" : "Hourly Rate"}
-              </Text>
-              <Text style={styles.compRateAmount}>
-                {opportunity.budget_range || "Not specified"}
-              </Text>
+          <View style={styles.flatListContainer}>
+            {/* Payment Nature */}
+            <View style={styles.flatListRow}>
+              <View style={[styles.flatListIconContainer, { backgroundColor: "rgba(52, 199, 89, 0.04)" }]}>
+                <Coins size={18} color={COLORS.success} />
+              </View>
+              <View style={styles.flatListTextContainer}>
+                <Text style={styles.flatListLabel}>Payment Nature</Text>
+                <Text style={[styles.flatListValue, { fontFamily: FONTS.semiBold, color: natureConfig.text }]}>
+                  {natureConfig.label}
+                </Text>
+              </View>
             </View>
-            <View style={[styles.natureBadge, { backgroundColor: natureConfig.bg }]}>
-              <Text style={[styles.natureBadgeText, { color: natureConfig.text }]}>
-                {natureConfig.label}
-              </Text>
-            </View>
+
+            {/* Payment Type */}
+            {opportunity.payment_nature !== "exposure" && 
+             opportunity.payment_nature !== "revenue_share" && 
+             !(opportunity.payment_nature === "trial" && opportunity.trial_type === "free_trial") && 
+             opportunity.payment_type && (
+              <View style={styles.flatListRow}>
+                <View style={[styles.flatListIconContainer, { backgroundColor: "rgba(41, 98, 255, 0.04)" }]}>
+                  <Repeat size={18} color={COLORS.primary} />
+                </View>
+                <View style={styles.flatListTextContainer}>
+                  <Text style={styles.flatListLabel}>Payment Type</Text>
+                  <Text style={styles.flatListValue}>
+                    {getPaymentTypeDisplayText(opportunity.payment_type)}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Budget / Rate */}
+            {opportunity.payment_nature !== "exposure" && !(opportunity.payment_nature === "trial" && opportunity.trial_type === "free_trial") && (
+              <View style={styles.flatListRow}>
+                <View style={[styles.flatListIconContainer, { backgroundColor: "rgba(41, 98, 255, 0.04)" }]}>
+                  <Banknote size={18} color={COLORS.primary} />
+                </View>
+                <View style={styles.flatListTextContainer}>
+                  <Text style={styles.flatListLabel}>Budget / Rate</Text>
+                  <Text style={styles.flatListValue}>
+                    {opportunity.budget_range || "Not specified"}
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
         </View>
 
@@ -515,7 +629,7 @@ export default function OpportunityViewScreen({ route, navigation }) {
           {showSplitFooter ? (
             <View style={styles.footerLeft}>
               <Text style={styles.footerRateLabel}>
-                {opportunity.payment_type === "fixed" ? "Fixed Budget" : "Hourly Rate"}
+                {getPaymentTypeLabel(opportunity.payment_type, opportunity.payment_nature, opportunity.trial_type)}
               </Text>
               <Text style={styles.footerRateValue} numberOfLines={1}>
                 {opportunity.budget_range}
@@ -851,40 +965,7 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     flex: 1,
   },
-  flatCompensationContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "rgba(243, 244, 246, 0.4)",
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 0,
-  },
-  compRateGroup: {
-    flex: 1,
-  },
-  compRateLabel: {
-    fontFamily: FONTS.medium,
-    fontSize: 10,
-    color: COLORS.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
-  compRateAmount: {
-    fontFamily: FONTS.primary,
-    fontSize: 20,
-    color: COLORS.textPrimary,
-    marginTop: 2,
-  },
-  natureBadge: {
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-  },
-  natureBadgeText: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-  },
+
   questionsCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -948,7 +1029,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
   },
   footerRateValue: {
-    fontFamily: FONTS.primary,
+    fontFamily: FONTS.semiBold,
     fontSize: 16,
     color: COLORS.textPrimary,
     marginTop: 2,

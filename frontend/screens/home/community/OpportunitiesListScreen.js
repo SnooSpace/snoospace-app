@@ -1,23 +1,63 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, RefreshControl, Alert } from "react-native";
+import React, { useState, useCallback } from "react";
+import {
+  StyleSheet,
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  RefreshControl,
+  Alert,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
+import {
+  ArrowLeft,
+  Plus,
+  Briefcase,
+  Users,
+  Banknote,
+  Pencil,
+  Trash2,
+  ChevronRight,
+} from "lucide-react-native";
 
-import { COLORS } from "../../../constants/theme";
+import { COLORS, FONTS, BORDER_RADIUS } from "../../../constants/theme";
 import { getOpportunities, closeOpportunity } from "../../../api/opportunities";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
-const PRIMARY_COLOR = "#007AFF";
-const TEXT_COLOR = "#1D1D1F";
-const LIGHT_TEXT_COLOR = "#8E8E93";
+const TABS = [
+  { key: "active", label: "Active" },
+  { key: "closed", label: "Closed" },
+  { key: "draft", label: "Drafts" },
+];
+
+const getStatusConfig = (status) => {
+  switch (status) {
+    case "active":
+      return { label: "Accepting", color: COLORS.success, bg: "rgba(52, 199, 89, 0.08)" };
+    case "closed":
+      return { label: "Closed", color: COLORS.textMuted, bg: "rgba(107, 114, 128, 0.08)" };
+    case "draft":
+      return { label: "Draft", color: "#F59E0B", bg: "rgba(245, 158, 11, 0.08)" };
+    default:
+      return { label: status, color: COLORS.textMuted, bg: "rgba(107, 114, 128, 0.08)" };
+  }
+};
+
+const getNatureLabel = (nature, trialType) => {
+  if (nature === "paid") return "Paid";
+  if (nature === "trial") return trialType === "paid_trial" ? "Paid Trial" : "Free Trial";
+  if (nature === "revenue_share") return "Rev Share";
+  if (nature === "exposure") return "Exposure";
+  return nature || "Paid";
+};
 
 export default function OpportunitiesListScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [opportunities, setOpportunities] = useState([]);
-  const [activeTab, setActiveTab] = useState("active"); // 'active', 'closed', 'draft'
+  const [activeTab, setActiveTab] = useState("active");
 
   useFocusEffect(
     useCallback(() => {
@@ -46,18 +86,22 @@ export default function OpportunitiesListScreen({ navigation }) {
     loadOpportunities();
   };
 
-  const handleCreateOpportunity = () => {
+  const handleCreate = () => {
     navigation.navigate("CreateOpportunity");
   };
 
-  const handleViewOpportunity = (opportunity) => {
+  const handleEdit = (opportunity) => {
+    navigation.navigate("CreateOpportunity", { opportunityToEdit: opportunity });
+  };
+
+  const handleViewApplicants = (opportunity) => {
     navigation.navigate("ApplicantsList", {
       opportunityId: opportunity.id,
       opportunityTitle: opportunity.title,
     });
   };
 
-  const handleDeleteOpportunity = (opportunity) => {
+  const handleDelete = (opportunity) => {
     Alert.alert(
       "Delete Opportunity",
       `Are you sure you want to delete "${opportunity.title}"?`,
@@ -69,10 +113,7 @@ export default function OpportunitiesListScreen({ navigation }) {
           onPress: async () => {
             try {
               await closeOpportunity(opportunity.id, "delete");
-              // Remove from local state
-              setOpportunities((prev) =>
-                prev.filter((o) => o.id !== opportunity.id),
-              );
+              setOpportunities((prev) => prev.filter((o) => o.id !== opportunity.id));
             } catch (error) {
               console.error("Error deleting opportunity:", error);
               Alert.alert("Error", "Failed to delete opportunity");
@@ -83,114 +124,118 @@ export default function OpportunitiesListScreen({ navigation }) {
     );
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "active":
-        return "#34C759";
-      case "closed":
-        return "#8E8E93";
-      case "draft":
-        return "#FF9500";
-      default:
-        return LIGHT_TEXT_COLOR;
-    }
+  const renderCard = ({ item }) => {
+    const statusConfig = getStatusConfig(item.status);
+    const natureLabel = getNatureLabel(item.payment_nature, item.trial_type);
+
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => handleViewApplicants(item)}
+        activeOpacity={0.85}
+      >
+        {/* Title + Status row */}
+        <View style={styles.cardTop}>
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+          <View style={[styles.statusBadge, { backgroundColor: statusConfig.bg }]}>
+            <Text style={[styles.statusText, { color: statusConfig.color }]}>
+              {statusConfig.label}
+            </Text>
+          </View>
+        </View>
+
+        {/* Role chips */}
+        {item.opportunity_types?.length > 0 && (
+          <View style={styles.chipsRow}>
+            {item.opportunity_types.slice(0, 3).map((type, idx) => (
+              <View key={idx} style={styles.roleChip}>
+                <Text style={styles.roleChipText}>{type}</Text>
+              </View>
+            ))}
+            {item.opportunity_types.length > 3 && (
+              <Text style={styles.moreChips}>+{item.opportunity_types.length - 3}</Text>
+            )}
+          </View>
+        )}
+
+        {/* Meta row */}
+        <View style={styles.metaRow}>
+          <View style={styles.metaItem}>
+            <Banknote size={13} color={COLORS.textSecondary} strokeWidth={2} />
+            <Text style={styles.metaText}>
+              {natureLabel}
+              {item.budget_range ? ` · ${item.budget_range}` : ""}
+            </Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Users size={13} color={COLORS.primary} strokeWidth={2} />
+            <Text style={[styles.metaText, { color: COLORS.primary }]}>
+              {item.applicant_count || 0} applicant{item.applicant_count !== 1 ? "s" : ""}
+            </Text>
+          </View>
+        </View>
+
+        {/* Actions */}
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => handleEdit(item)}
+            activeOpacity={0.7}
+          >
+            <Pencil size={14} color={COLORS.primary} strokeWidth={2} />
+            <Text style={styles.editButtonText}>Edit</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => handleDelete(item)}
+            activeOpacity={0.7}
+          >
+            <Trash2 size={14} color={COLORS.error} strokeWidth={2} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.viewButton}
+            onPress={() => handleViewApplicants(item)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.viewButtonText}>View Applicants</Text>
+            <ChevronRight size={14} color={COLORS.primary} strokeWidth={2} />
+          </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    );
   };
 
-  const renderOpportunityCard = ({ item }) => (
-    <TouchableOpacity
-      style={styles.opportunityCard}
-      onPress={() => handleViewOpportunity(item)}
-      onLongPress={() => handleDeleteOpportunity(item)}
-      delayLongPress={500}
-      activeOpacity={0.7}
-    >
-      <View style={styles.cardHeader}>
-        <Text style={styles.opportunityTitle} numberOfLines={1}>
-          {item.title}
-        </Text>
-        <View
-          style={[
-            styles.statusBadge,
-            { backgroundColor: `${getStatusColor(item.status)}20` },
-          ]}
-        >
-          <View
-            style={[
-              styles.statusDot,
-              { backgroundColor: getStatusColor(item.status) },
-            ]}
-          />
-          <Text
-            style={[styles.statusText, { color: getStatusColor(item.status) }]}
-          >
-            {item.status === "active" ? "Accepting" : item.status}
-          </Text>
-        </View>
-      </View>
-
-      {/* Role Tags */}
-      <View style={styles.tagsContainer}>
-        {item.opportunity_types?.slice(0, 3).map((type, index) => (
-          <View key={index} style={styles.roleTag}>
-            <Text style={styles.roleTagText}>{type}</Text>
-          </View>
-        ))}
-        {item.opportunity_types?.length > 3 && (
-          <Text style={styles.moreRoles}>
-            +{item.opportunity_types.length - 3}
-          </Text>
-        )}
-      </View>
-
-      {/* Payment & Stats */}
-      <View style={styles.cardFooter}>
-        <View style={styles.paymentInfo}>
-          <Ionicons name="cash-outline" size={14} color={LIGHT_TEXT_COLOR} />
-          <Text style={styles.paymentText}>
-            {item.payment_nature === "paid" ? "Paid" : item.payment_nature}
-            {item.budget_range ? ` · ${item.budget_range}` : ""}
-          </Text>
-        </View>
-        <View style={styles.applicantsInfo}>
-          <Ionicons name="people-outline" size={14} color={PRIMARY_COLOR} />
-          <Text style={styles.applicantsText}>
-            {item.applicant_count || 0} applicants
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-
-  const renderEmptyState = () => (
+  const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <View style={styles.emptyIconContainer}>
-        <Ionicons name="briefcase-outline" size={64} color={LIGHT_TEXT_COLOR} />
+      <View style={styles.emptyIconWrap}>
+        <Briefcase size={32} color={COLORS.textMuted} strokeWidth={1.5} />
       </View>
       <Text style={styles.emptyTitle}>
         {activeTab === "draft"
           ? "No drafts yet"
           : activeTab === "closed"
             ? "No closed opportunities"
-            : "Create your first opportunity"}
+            : "No opportunities yet"}
       </Text>
-      <Text style={styles.emptySubtitle}>
+      <Text style={styles.emptyBody}>
         {activeTab === "active"
-          ? "Stop using Google Forms. Get structured applications with portfolio samples you can compare."
+          ? "Create your first opportunity and start receiving structured applications."
           : "Opportunities you create will appear here."}
       </Text>
       {activeTab === "active" && (
-        <TouchableOpacity
-          style={styles.emptyButton}
-          onPress={handleCreateOpportunity}
-        >
+        <TouchableOpacity style={styles.emptyCtaWrap} onPress={handleCreate} activeOpacity={0.85}>
           <LinearGradient
-            colors={["#00C6FF", "#007AFF"]}
+            colors={COLORS.primaryGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={styles.emptyButtonGradient}
+            style={styles.emptyCtaGradient}
           >
-            <Ionicons name="add" size={20} color="#FFFFFF" />
-            <Text style={styles.emptyButtonText}>Create Opportunity</Text>
+            <Plus size={16} color="#FFFFFF" strokeWidth={2.5} />
+            <Text style={styles.emptyCtaText}>Create Opportunity</Text>
           </LinearGradient>
         </TouchableOpacity>
       )}
@@ -202,65 +247,66 @@ export default function OpportunitiesListScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          style={styles.backButton}
+          style={styles.headerBack}
           onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          <ArrowLeft size={22} color={COLORS.textPrimary} strokeWidth={2} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Opportunities</Text>
         <TouchableOpacity
-          style={styles.addButton}
-          onPress={handleCreateOpportunity}
+          style={styles.headerAdd}
+          onPress={handleCreate}
+          activeOpacity={0.8}
         >
           <LinearGradient
-            colors={["#00C6FF", "#007AFF"]}
+            colors={COLORS.primaryGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={styles.addButtonGradient}
+            style={styles.headerAddGradient}
           >
-            <Ionicons name="add" size={20} color="#FFFFFF" />
+            <Plus size={18} color="#FFFFFF" strokeWidth={2.5} />
           </LinearGradient>
         </TouchableOpacity>
       </View>
 
       {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        {["active", "closed", "draft"].map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.activeTab]}
-            onPress={() => setActiveTab(tab)}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === tab && styles.activeTabText,
-              ]}
+      <View style={styles.tabsRow}>
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.tab, isActive && styles.tabActive]}
+              onPress={() => setActiveTab(tab.key)}
+              activeOpacity={0.7}
             >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Content */}
       {loading && !refreshing ? (
         <View style={styles.loadingContainer}>
-          <SnooLoader size="large" color={PRIMARY_COLOR} />
+          <SnooLoader size="large" color={COLORS.primary} />
         </View>
       ) : (
         <FlatList
           data={opportunities}
-          renderItem={renderOpportunityCard}
+          renderItem={renderCard}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          ListEmptyComponent={renderEmptyState}
+          ListEmptyComponent={renderEmpty}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={PRIMARY_COLOR}
+              tintColor={COLORS.primary}
             />
           }
         />
@@ -272,203 +318,258 @@ export default function OpportunitiesListScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.screenBackground,
   },
+
+  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingVertical: 12,
   },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: TEXT_COLOR,
-  },
-  addButton: {
-    borderRadius: 20,
-    overflow: "hidden",
-  },
-  addButtonGradient: {
+  headerBack: {
     width: 36,
     height: 36,
     borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
   },
-  tabsContainer: {
+  headerTitle: {
+    fontFamily: "BasicCommercial-Black",
+    fontSize: 18,
+    color: COLORS.textPrimary,
+    letterSpacing: -0.3,
+  },
+  headerAdd: {
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  headerAddGradient: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  // Tabs
+  tabsRow: {
     flexDirection: "row",
-    paddingHorizontal: 16,
-    marginBottom: 16,
+    paddingHorizontal: 20,
     gap: 8,
+    marginBottom: 16,
   },
   tab: {
-    paddingVertical: 8,
+    paddingVertical: 7,
     paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: "#F2F2F7",
+    borderRadius: 999,
+    backgroundColor: "#F3F4F6",
   },
-  activeTab: {
-    backgroundColor: PRIMARY_COLOR,
+  tabActive: {
+    backgroundColor: COLORS.primary,
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: LIGHT_TEXT_COLOR,
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.textMuted,
   },
-  activeTabText: {
+  tabTextActive: {
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
   },
+
+  // Loading
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
+
+  // List
   listContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 100,
     flexGrow: 1,
   },
-  opportunityCard: {
-    backgroundColor: "#FFFFFF",
+
+  // Card
+  card: {
+    backgroundColor: COLORS.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    shadowColor: "#000",
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 8,
     elevation: 2,
   },
-  cardHeader: {
+  cardTop: {
     flexDirection: "row",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
+    gap: 10,
+    marginBottom: 10,
   },
-  opportunityTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: TEXT_COLOR,
+  cardTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
     flex: 1,
-    marginRight: 12,
+    lineHeight: 21,
   },
   statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
-    gap: 6,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    borderRadius: 20,
+    flexShrink: 0,
   },
   statusText: {
-    fontSize: 12,
-    fontWeight: "600",
-    textTransform: "capitalize",
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    letterSpacing: 0.2,
   },
-  tagsContainer: {
+
+  // Role chips
+  chipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 6,
     marginBottom: 12,
   },
-  roleTag: {
-    backgroundColor: `${PRIMARY_COLOR}10`,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+  roleChip: {
+    backgroundColor: "rgba(41, 98, 255, 0.06)",
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 6,
   },
-  roleTagText: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: PRIMARY_COLOR,
+  roleChipText: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: COLORS.primary,
   },
-  moreRoles: {
-    fontSize: 12,
-    fontWeight: "500",
-    color: LIGHT_TEXT_COLOR,
+  moreChips: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: COLORS.textMuted,
     alignSelf: "center",
   },
-  cardFooter: {
+
+  // Meta
+  metaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F2F2F7",
+    marginBottom: 14,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
-  paymentInfo: {
+  metaItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
   },
-  paymentText: {
-    fontSize: 13,
-    color: LIGHT_TEXT_COLOR,
+  metaText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textSecondary,
   },
-  applicantsInfo: {
+
+  // Card actions
+  actionsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 8,
   },
-  applicantsText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: PRIMARY_COLOR,
+  editButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(41, 98, 255, 0.2)",
+    backgroundColor: "rgba(41, 98, 255, 0.04)",
   },
+  editButtonText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.primary,
+  },
+  deleteButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(229, 62, 62, 0.2)",
+    backgroundColor: "rgba(229, 62, 62, 0.04)",
+  },
+  viewButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 3,
+  },
+  viewButtonText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.primary,
+  },
+
+  // Empty state
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 40,
-    paddingTop: 60,
+    paddingTop: 80,
   },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: "#F2F2F7",
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#F3F4F6",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   emptyTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: TEXT_COLOR,
+    fontFamily: FONTS.semiBold,
+    fontSize: 17,
+    color: COLORS.textPrimary,
     textAlign: "center",
     marginBottom: 8,
   },
-  emptySubtitle: {
-    fontSize: 15,
-    color: LIGHT_TEXT_COLOR,
+  emptyBody: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.textSecondary,
     textAlign: "center",
-    lineHeight: 22,
+    lineHeight: 21,
     marginBottom: 24,
   },
-  emptyButton: {
+  emptyCtaWrap: {
     borderRadius: 12,
     overflow: "hidden",
   },
-  emptyButtonGradient: {
+  emptyCtaGradient: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 14,
+    paddingVertical: 13,
     paddingHorizontal: 24,
     gap: 8,
   },
-  emptyButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
+  emptyCtaText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
     color: "#FFFFFF",
   },
 });
