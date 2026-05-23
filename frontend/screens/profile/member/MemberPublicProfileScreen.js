@@ -8,7 +8,7 @@ import React, {
 import { useFocusEffect } from "@react-navigation/native";
 import {
   View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Alert } from "react-native";
-import { ArrowLeft, Play } from "lucide-react-native";
+import { ArrowLeft, Play, Pin } from "lucide-react-native";
 import {
   getPublicMemberProfile,
   getMemberPosts,
@@ -392,6 +392,28 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           </>
         ) : (
           <View style={{ flex: 1, backgroundColor: "#F2F2F7" }} />
+        )}
+
+        {/* Pinned indicator on grid tile */}
+        {item?.is_pinned && (
+          <View
+            style={{
+              position: "absolute",
+              top: 6,
+              left: 6,
+              zIndex: 10,
+              backgroundColor: "rgba(255, 255, 255, 0.22)",
+              borderRadius: 10,
+              padding: 5,
+              borderWidth: 0.6,
+              borderColor: "rgba(255, 255, 255, 0.5)",
+              overflow: "visible",
+            }}
+          >
+            <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+              <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+            </View>
+          </View>
         )}
       </TouchableOpacity>
     );
