@@ -1,4 +1,4 @@
-import React, { useState, useLayoutEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -39,14 +39,6 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
   const [isUrlFocused, setIsUrlFocused] = useState(false);
   const [isNoteFocused, setIsNoteFocused] = useState(false);
   const [focusedQuestion, setFocusedQuestion] = useState(null);
-
-  // Hide tab bar
-  useLayoutEffect(() => {
-    navigation.getParent()?.setOptions({ tabBarStyle: { display: "none" } });
-    return () => {
-      navigation.getParent()?.setOptions({ tabBarStyle: undefined });
-    };
-  }, [navigation]);
 
   const hasQuestions = opportunity?.questions?.length > 0;
   const TOTAL_STEPS = hasQuestions ? 3 : 2;

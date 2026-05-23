@@ -702,6 +702,32 @@ router.get(
   authMiddleware,
   OpportunityController.getFollowedOpportunities,
 );
+// Opportunity engagement — like / save / view (UUID-safe endpoints)
+router.post(
+  "/opportunities/:id/like",
+  authMiddleware,
+  OpportunityController.likeOpportunity,
+);
+router.delete(
+  "/opportunities/:id/like",
+  authMiddleware,
+  OpportunityController.unlikeOpportunity,
+);
+router.post(
+  "/opportunities/:id/save",
+  authMiddleware,
+  OpportunityController.saveOpportunity,
+);
+router.delete(
+  "/opportunities/:id/save",
+  authMiddleware,
+  OpportunityController.unsaveOpportunity,
+);
+router.post(
+  "/opportunities/:id/view",
+  authMiddleware,
+  OpportunityController.viewOpportunity,
+);
 router.get(
   "/opportunities/:id",
   authMiddleware,

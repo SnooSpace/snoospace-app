@@ -37,14 +37,11 @@ import {
   Pin,
   Pencil,
   Trash2,
-  X,
 } from "lucide-react-native";
-import { apiPost, apiDelete, savePost, unsavePost } from "../api/client";
+import { apiPost, apiDelete } from "../api/client";
 import { closeOpportunity } from "../api/opportunities";
-import EventBus from "../utils/EventBus";
 import CountdownTimer from "./CountdownTimer";
-import { getCardState } from "../utils/cardTiming";
-import { viewQueueService } from "../services/ViewQueueService";
+
 
 // ── Auto-scrolling Marquee Chips Component ─────────────────────────────────
 const MarqueeChips = ({ chips, chipType, styles }) => {
@@ -242,9 +239,15 @@ const OpportunityFeedCard = ({
     const tools = [];
     if (opportunity.skill_groups && Array.isArray(opportunity.skill_groups)) {
       opportunity.skill_groups.forEach((group) => {
-        if (group.tools && Array.isArray(group.tools)) {
-          group.tools.forEach((tool) => {
-            if (!tools.includes(tool)) tools.push(tool);
+        // tools can come back as a JS array, a stringified JSON array, or null
+        let groupTools = group.tools;
+        if (!groupTools) return;
+        if (typeof groupTools === "string") {
+          try { groupTools = JSON.parse(groupTools); } catch { groupTools = [groupTools]; }
+        }
+        if (Array.isArray(groupTools)) {
+          groupTools.forEach((tool) => {
+            if (tool && !tools.includes(tool)) tools.push(tool);
           });
         }
       });
@@ -262,43 +265,40 @@ const OpportunityFeedCard = ({
   const [isLiking, setIsLiking] = useState(false);
   const [isSaved, setIsSaved] = useState(opportunity.is_saved || false);
 
-  // ── View Tracking ──────────────────────────────────────────────────────────
+  // ── View Tracking (opportunity-specific endpoint) ─────────────────────────
   const [viewCount, setViewCount] = useState(
-    opportunity.public_view_count || opportunity.view_count || 0,
+    opportunity.view_count || opportunity.public_view_count || 0,
   );
   const dwellTimerRef = useRef(null);
+  const hasTrackedView = useRef(false);
 
   useEffect(() => {
+    hasTrackedView.current = false;
     const DWELL_THRESHOLD = 2500;
-    const alreadyViewed = viewQueueService.hasViewed(opportunity.id);
-    if (!alreadyViewed) {
-      dwellTimerRef.current = setTimeout(() => {
-        viewQueueService.addQualifiedView(opportunity.id, {
-          postType: "opportunity",
-          trigger: "dwell",
-        });
-      }, DWELL_THRESHOLD);
-    } else {
-      dwellTimerRef.current = setTimeout(() => {
-        viewQueueService.addRepeatView(opportunity.id, "revisit");
-      }, DWELL_THRESHOLD);
-    }
+    dwellTimerRef.current = setTimeout(async () => {
+      if (hasTrackedView.current) return;
+      hasTrackedView.current = true;
+      try {
+        const token = await getAuthToken();
+        const res = await apiPost(
+          `/opportunities/${opportunity.id}/view`,
+          {},
+          10000,
+          token,
+        );
+        if (res?.is_new) {
+          setViewCount((prev) => prev + 1);
+        }
+      } catch (_e) {
+        // non-fatal
+      }
+    }, DWELL_THRESHOLD);
     return () => {
       if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
     };
   }, [opportunity.id]);
 
-  useEffect(() => {
-    const unsubscribe = EventBus.on("post-view-updated", (payload) => {
-      if (payload?.postId === opportunity.id)
-        setViewCount((prev) => prev + 1);
-    });
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [opportunity.id]);
-
-  // ── Like handler ───────────────────────────────────────────────────────────
+  // ── Like handler (opportunity-specific endpoint) ──────────────────────────
   const handleLike = async () => {
     if (isLiking) return;
 
@@ -316,15 +316,10 @@ const OpportunityFeedCard = ({
     try {
       const token = await getAuthToken();
       if (nextLiked) {
-        await apiPost(`/posts/${opportunity.id}/like`, {}, 15000, token);
+        await apiPost(`/opportunities/${opportunity.id}/like`, {}, 15000, token);
       } else {
-        await apiDelete(`/posts/${opportunity.id}/like`, null, 15000, token);
+        await apiDelete(`/opportunities/${opportunity.id}/like`, null, 15000, token);
       }
-      EventBus.emit("post-like-updated", {
-        postId: opportunity.id,
-        isLiked: nextLiked,
-        likeCount: nextLikes,
-      });
     } catch (error) {
       console.error("Error liking opportunity:", error);
       setIsLiked(prevLiked);
@@ -335,16 +330,16 @@ const OpportunityFeedCard = ({
     }
   };
 
-  // ── Save handler ───────────────────────────────────────────────────────────
+  // ── Save handler (opportunity-specific endpoint) ──────────────────────────
   const handleSave = async () => {
     const newSaveState = !isSaved;
     setIsSaved(newSaveState);
     try {
       const token = await getAuthToken();
       if (newSaveState) {
-        await savePost(opportunity.id, token);
+        await apiPost(`/opportunities/${opportunity.id}/save`, {}, 15000, token);
       } else {
-        await unsavePost(opportunity.id, token);
+        await apiDelete(`/opportunities/${opportunity.id}/save`, null, 15000, token);
       }
     } catch (error) {
       console.error("Failed to save/unsave opportunity:", error);
@@ -387,7 +382,8 @@ const OpportunityFeedCard = ({
     }
   };
 
-  const handleCommentPress = () => {
+
+  const handleComment = () => {
     if (onComment) onComment(opportunity.id);
   };
 
@@ -622,9 +618,10 @@ const OpportunityFeedCard = ({
             disabled={isLiking}
           >
             <Heart
-              size={22}
+              size={20}
               color={isLiked ? COLORS.error : "#5e8d9b"}
               fill={isLiked ? COLORS.error : "transparent"}
+              strokeWidth={2}
             />
             <Text style={[styles.engagementCount, isLiked && styles.likedCount]}>
               {formatCount(likeCount)}
@@ -632,38 +629,34 @@ const OpportunityFeedCard = ({
           </TouchableOpacity>
 
           {/* Comment */}
-          <TouchableOpacity
-            style={styles.engagementButton}
-            onPress={handleCommentPress}
-          >
-            <MessageCircle size={22} color="#5e8d9b" />
+          <TouchableOpacity style={styles.engagementButton} onPress={handleComment}>
+            <MessageCircle size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engagementCount}>
               {formatCount(opportunity.comment_count || 0)}
             </Text>
           </TouchableOpacity>
 
           {/* Views */}
-          <View style={styles.engagementButton}>
-            <ChartNoAxesCombined size={22} color="#5e8d9b" />
+          <TouchableOpacity style={styles.engagementButton} activeOpacity={1} onPress={() => {}}>
+            <ChartNoAxesCombined size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
-          </View>
+          </TouchableOpacity>
 
           {/* Share */}
           <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>
-            <Send size={22} color="#5e8d9b" />
-            {(opportunity.share_count || 0) > 0 && (
-              <Text style={styles.engagementCount}>
-                {formatCount(opportunity.share_count)}
-              </Text>
-            )}
+            <Send size={20} color="#5e8d9b" strokeWidth={2} />
+            <Text style={styles.engagementCount}>
+              {formatCount(opportunity.share_count || 0)}
+            </Text>
           </TouchableOpacity>
 
           {/* Bookmark */}
           <TouchableOpacity style={styles.engagementButton} onPress={handleSave}>
             <Bookmark
-              size={22}
-              color="#5e8d9b"
+              size={20}
+              color={isSaved ? "#5e8d9b" : "#5e8d9b"}
               fill={isSaved ? "#5e8d9b" : "transparent"}
+              strokeWidth={2}
             />
           </TouchableOpacity>
         </View>
@@ -985,7 +978,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
   },
 
-  // ── Engagement ────────────────────────────────────────────────────────────
   engagementRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -993,12 +985,16 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: "rgba(0,0,0,0.05)",
+    borderTopColor: "rgba(0,0,0,0.07)",
   },
   engagementButton: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 40,
+    gap: 5,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    minHeight: 36,
     minWidth: 40,
     justifyContent: "center",
   },
@@ -1006,7 +1002,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: FONTS.medium,
     color: "#5e8d9b",
-    marginLeft: 6,
   },
   likedCount: {
     color: COLORS.error,

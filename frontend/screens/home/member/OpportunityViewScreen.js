@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -174,14 +174,6 @@ export default function OpportunityViewScreen({ route, navigation }) {
       fetchOpportunity();
     }
   }, [targetId]);
-
-  // Hide bottom tab bar
-  useLayoutEffect(() => {
-    navigation.getParent()?.setOptions({ tabBarStyle: { display: "none" } });
-    return () => {
-      navigation.getParent()?.setOptions({ tabBarStyle: undefined });
-    };
-  }, [navigation]);
 
   const fetchOpportunity = async () => {
     try {

@@ -1046,19 +1046,26 @@ const getFollowedOpportunities = async (req, res) => {
       result.rows.length,
     );
 
-    // Fetch skill groups for each opportunity
+    // Fetch skill groups for each opportunity (include tools so frontend can show skill chips)
     const opportunities = await Promise.all(
       result.rows.map(async (opp) => {
         const sgResult = await pool.query(
-          `SELECT role FROM opportunity_skill_groups 
-           WHERE opportunity_id = $1 ORDER BY display_order LIMIT 3`,
+          `SELECT role, tools, sample_type FROM opportunity_skill_groups 
+           WHERE opportunity_id = $1 ORDER BY display_order`,
           [opp.id],
         );
         return {
           ...opp,
+          skill_groups: sgResult.rows,
+          // Keep legacy 'roles' field for backward compatibility
           roles: sgResult.rows.map((r) => r.role),
         };
       }),
+    );
+
+    console.log(
+      "[getFollowedOpportunities] skill_groups sample:",
+      JSON.stringify(opportunities[0]?.skill_groups?.slice(0, 2)),
     );
 
     res.json({
@@ -1208,6 +1215,196 @@ const unpinOpportunity = async (req, res) => {
   }
 };
 
+// ============================================
+// OPPORTUNITY ENGAGEMENT — Like / Save / View
+// These act directly on the opportunities table (UUID ids),
+// bypassing the posts table which only accepts integer ids.
+// ============================================
+
+/**
+ * POST /opportunities/:id/like
+ * Toggle like on an opportunity (idempotent — 400 if already liked).
+ */
+const likeOpportunity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId || !userType) return res.status(401).json({ error: 'Authentication required' });
+
+    // Ensure columns exist (safe to run repeatedly)
+    await pool.query(`ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS like_count INTEGER DEFAULT 0`);
+
+    // Use a dedicated table for opportunity likes
+    await pool.query(`CREATE TABLE IF NOT EXISTS opportunity_likes (
+      id SERIAL PRIMARY KEY,
+      opportunity_id UUID NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+      liker_id INTEGER NOT NULL,
+      liker_type TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(opportunity_id, liker_id, liker_type)
+    )`);
+
+    const existing = await pool.query(
+      `SELECT id FROM opportunity_likes WHERE opportunity_id = $1 AND liker_id = $2 AND liker_type = $3`,
+      [id, userId, userType]
+    );
+    if (existing.rows.length > 0) return res.status(400).json({ error: 'Already liked' });
+
+    await pool.query(
+      `INSERT INTO opportunity_likes (opportunity_id, liker_id, liker_type) VALUES ($1, $2, $3)`,
+      [id, userId, userType]
+    );
+    const updated = await pool.query(
+      `UPDATE opportunities SET like_count = COALESCE(like_count, 0) + 1 WHERE id = $1 RETURNING like_count`,
+      [id]
+    );
+    res.json({ success: true, like_count: updated.rows[0]?.like_count || 0 });
+  } catch (e) {
+    console.error('Error liking opportunity:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * DELETE /opportunities/:id/like
+ * Remove a like from an opportunity.
+ */
+const unlikeOpportunity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId || !userType) return res.status(401).json({ error: 'Authentication required' });
+
+    const result = await pool.query(
+      `DELETE FROM opportunity_likes WHERE opportunity_id = $1 AND liker_id = $2 AND liker_type = $3 RETURNING id`,
+      [id, userId, userType]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Like not found' });
+
+    const updated = await pool.query(
+      `UPDATE opportunities SET like_count = GREATEST(0, COALESCE(like_count, 1) - 1) WHERE id = $1 RETURNING like_count`,
+      [id]
+    );
+    res.json({ success: true, like_count: updated.rows[0]?.like_count || 0 });
+  } catch (e) {
+    console.error('Error unliking opportunity:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * POST /opportunities/:id/save
+ * Save an opportunity for later.
+ */
+const saveOpportunity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId || !userType) return res.status(401).json({ error: 'Authentication required' });
+
+    await pool.query(`CREATE TABLE IF NOT EXISTS opportunity_saves (
+      id SERIAL PRIMARY KEY,
+      opportunity_id UUID NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+      saver_id INTEGER NOT NULL,
+      saver_type TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(opportunity_id, saver_id, saver_type)
+    )`);
+
+    const existing = await pool.query(
+      `SELECT id FROM opportunity_saves WHERE opportunity_id = $1 AND saver_id = $2 AND saver_type = $3`,
+      [id, userId, userType]
+    );
+    if (existing.rows.length > 0) return res.status(400).json({ error: 'Already saved' });
+
+    await pool.query(
+      `INSERT INTO opportunity_saves (opportunity_id, saver_id, saver_type) VALUES ($1, $2, $3)`,
+      [id, userId, userType]
+    );
+    res.json({ success: true, is_saved: true });
+  } catch (e) {
+    console.error('Error saving opportunity:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * DELETE /opportunities/:id/save
+ * Remove a saved opportunity.
+ */
+const unsaveOpportunity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId || !userType) return res.status(401).json({ error: 'Authentication required' });
+
+    const result = await pool.query(
+      `DELETE FROM opportunity_saves WHERE opportunity_id = $1 AND saver_id = $2 AND saver_type = $3 RETURNING id`,
+      [id, userId, userType]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Save not found' });
+    res.json({ success: true, is_saved: false });
+  } catch (e) {
+    console.error('Error unsaving opportunity:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * POST /opportunities/:id/view
+ * Record a qualified view on an opportunity (once per user, lifetime).
+ */
+const viewOpportunity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId || !userType) return res.status(401).json({ error: 'Authentication required' });
+
+    await pool.query(`ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS opportunity_views (
+      id SERIAL PRIMARY KEY,
+      opportunity_id UUID NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+      viewer_id INTEGER NOT NULL,
+      viewer_type TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(opportunity_id, viewer_id, viewer_type)
+    )`);
+
+    const existing = await pool.query(
+      `SELECT id FROM opportunity_views WHERE opportunity_id = $1 AND viewer_id = $2 AND viewer_type = $3`,
+      [id, userId, userType]
+    );
+
+    let isNew = false;
+    if (existing.rows.length === 0) {
+      try {
+        await pool.query(
+          `INSERT INTO opportunity_views (opportunity_id, viewer_id, viewer_type) VALUES ($1, $2, $3)`,
+          [id, userId, userType]
+        );
+        await pool.query(
+          `UPDATE opportunities SET view_count = COALESCE(view_count, 0) + 1 WHERE id = $1`,
+          [id]
+        );
+        isNew = true;
+      } catch (dupErr) {
+        if (dupErr.code !== '23505') throw dupErr; // ignore unique constraint
+      }
+    }
+
+    const row = await pool.query(`SELECT view_count FROM opportunities WHERE id = $1`, [id]);
+    res.json({ success: true, is_new: isNew, view_count: row.rows[0]?.view_count || 0 });
+  } catch (e) {
+    console.error('Error recording opportunity view:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   createOpportunity,
   getOpportunities,
@@ -1223,4 +1420,9 @@ module.exports = {
   getCommunityOpportunities,
   pinOpportunity,
   unpinOpportunity,
+  likeOpportunity,
+  unlikeOpportunity,
+  saveOpportunity,
+  unsaveOpportunity,
+  viewOpportunity,
 };

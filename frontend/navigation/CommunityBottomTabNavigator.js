@@ -97,6 +97,10 @@ const getTabBarStyle = (route, customHiddenRoutes = []) => {
     "CommunityFollowingList",
     "MemberPublicProfile",
     "CommunityPublicProfile",
+    "OpportunityView",
+    "ApplyToOpportunity",
+    "CreateOpportunity",
+    "CreateOpportunityScreen",
   ];
   const allHiddenRoutes = [...baseHiddenRoutes, ...customHiddenRoutes];
   

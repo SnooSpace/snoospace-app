@@ -2,7 +2,6 @@ import React, {
   useState,
   useEffect,
   useCallback,
-  useLayoutEffect,
   useRef,
 } from "react";
 import {
@@ -292,19 +291,6 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
   const [draftLastSaved, setDraftLastSaved] = useState(null);
   const [userId, setUserId] = useState(null);
-
-  // Hide tab bar when this screen is open
-  useLayoutEffect(() => {
-    const parent = navigation.getParent();
-    if (parent) {
-      parent.setOptions({ tabBarStyle: { display: "none" } });
-    }
-    return () => {
-      if (parent) {
-        parent.setOptions({ tabBarStyle: undefined });
-      }
-    };
-  }, [navigation]);
 
   // Step 1: Basics
   const [title, setTitle] = useState("");
