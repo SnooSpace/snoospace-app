@@ -31,6 +31,7 @@ import {
   Coins,
   ArrowRight,
   Clock,
+  Pin,
 } from "lucide-react-native";
 import { apiPost, apiDelete, savePost, unsavePost } from "../api/client";
 import EventBus from "../utils/EventBus";
@@ -44,6 +45,7 @@ const OpportunityFeedCard = ({
   onLike,
   onComment,
   onShare,
+  onPinToggle, // Optional: shown only for owner view
 }) => {
   const navigation = useNavigation();
   const [currentUserId, setCurrentUserId] = useState(null);
@@ -250,8 +252,28 @@ const OpportunityFeedCard = ({
             <Text style={styles.typeBadgeText}>OPPORTUNITY</Text>
           </View>
 
-          <View style={styles.rightHeaderContent}>
-            {/* Use loose equality for safety if IDs are mixed string/number */}
+        <View style={styles.rightHeaderContent}>
+            {/* Pin button — shown when owner provides onPinToggle */}
+            {onPinToggle && (
+              <TouchableOpacity
+                style={[
+                  styles.pinButton,
+                  opportunity.is_pinned && styles.pinButtonActive,
+                ]}
+                onPress={onPinToggle}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <View style={styles.pinIconWrapper}>
+                  <Pin
+                    size={18}
+                    color={opportunity.is_pinned ? "#10B981" : "#5B6B7C"}
+                    fill={opportunity.is_pinned ? "#10B981" : "none"}
+                    strokeWidth={2}
+                  />
+                </View>
+              </TouchableOpacity>
+            )}
+            {/* Edit button — shown only to creator */}
             {opportunity.creator_id == currentUserId && (
               <TouchableOpacity
                 style={styles.editButton}
@@ -563,6 +585,21 @@ const styles = StyleSheet.create({
   },
   editButton: {
     padding: 8,
+  },
+  pinButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "visible",
+  },
+  pinButtonActive: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+  },
+  pinIconWrapper: {
+    transform: [{ rotate: "27deg" }],
+    overflow: "visible",
   },
   authorRow: {
     flexDirection: "row",

@@ -39,6 +39,7 @@ import {
   Mail,
   Phone,
   User,
+  Pin,
 } from "lucide-react-native";
 import DynamicStatusBar from "../../../components/DynamicStatusBar";
 import GradientSafeArea from "../../../components/GradientSafeArea";
@@ -1014,6 +1015,28 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             <LucideImage size={30} color="#999" />
           </View>
         )}
+
+        {/* Pinned indicator on grid tile */}
+        {item.is_pinned && (
+          <View
+            style={{
+              position: "absolute",
+              top: 6,
+              left: 6,
+              zIndex: 10,
+              backgroundColor: "rgba(255, 255, 255, 0.22)",
+              borderRadius: 10,
+              padding: 5,
+              borderWidth: 0.6,
+              borderColor: "rgba(255, 255, 255, 0.5)",
+              overflow: "visible",
+            }}
+          >
+            <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+              <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+            </View>
+          </View>
+        )}
       </TouchableOpacity>
     );
   };
@@ -1635,15 +1658,18 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                               paddingTop: 2,
                             }}
                           >
+                            <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+                              <Pin size={12} color="#10B981" strokeWidth={2} fill="#10B981" />
+                            </View>
                             <Text
                               style={{
                                 fontFamily: FONTS.medium,
                                 fontSize: 11,
-                                color: COLORS.primary,
+                                color: "#10B981",
                                 letterSpacing: 0.2,
                               }}
                             >
-                              📌 Pinned
+                              Pinned
                             </Text>
                           </View>
                         )}

@@ -1856,6 +1856,7 @@ export default function CommunityProfileScreen({ navigation }) {
                             }}
                             onComment={(postId) => openCommentsModal(postId)}
                             onShare={() => {}}
+                            onPinToggle={() => handlePinToggle(post)}
                           />
                         ) : (
                           <EditorialPostCard
@@ -1876,7 +1877,18 @@ export default function CommunityProfileScreen({ navigation }) {
                             currentUserId={currentUserId}
                             currentUserType={currentUserType}
                             onUserPress={(userId, userType) => {}}
-                            onRequestDelete={() => handlePinToggle(post)}
+                            onDelete={async (postId) => {
+                              try {
+                                const token = await getAuthToken();
+                                if (!token) return;
+                                await apiDelete(`/posts/${postId}`, null, 15000, token);
+                                setPosts((prevPosts) => prevPosts.filter((p) => p.id !== postId));
+                                EventBus.emit("post-deleted", { postId });
+                              } catch (error) {
+                                console.error("Error deleting post:", error);
+                                Alert.alert("Error", "Failed to delete post");
+                              }
+                            }}
                             onPinToggle={handlePinToggle}
                             onPostUpdate={(updatedPost) => {
                               setPosts((prevPosts) =>
