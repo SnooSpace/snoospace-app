@@ -873,6 +873,9 @@ router.post("/posts/:postId/like", authMiddleware, PostController.likePost);
 router.delete("/posts/:postId/like", authMiddleware, PostController.unlikePost);
 router.put("/posts/:postId", authMiddleware, PostController.updatePost);
 router.delete("/posts/:postId", authMiddleware, PostController.deletePost);
+router.post("/posts/:postId/pin", authMiddleware, PostController.pinPost);
+router.delete("/posts/:postId/pin", authMiddleware, PostController.unpinPost);
+
 
 // Post Views (Qualified View System)
 router.post(

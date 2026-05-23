@@ -46,6 +46,7 @@ import {
   COLORS,
   BORDER_RADIUS,
   SHADOWS,
+  FONTS,
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
 import {
@@ -742,29 +743,38 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
                   ) : memberResults.length === 0 && memberQuery.trim().length >= 2 ? (
                     <Text style={styles.sheetEmpty}>No members found</Text>
                   ) : (
-                    <FlatList
-                      data={memberResults}
-                      keyExtractor={(m) => String(m.id)}
-                      style={styles.sheetList}
-                      keyboardShouldPersistTaps="handled"
-                      renderItem={({ item }) => (
-                        <TouchableOpacity style={styles.sheetItem} onPress={() => handleSelectMember(item)} activeOpacity={0.7}>
-                          {item.profile_photo_url ? (
-                            <Image source={{ uri: item.profile_photo_url }} style={styles.sheetAvatar} />
-                          ) : (
-                            <View style={[styles.sheetAvatar, styles.sheetAvatarPlaceholder]}>
-                              <User size={18} color="#9CA3AF" />
+                    <View style={styles.resultsContainer}>
+                      <FlatList
+                        data={memberResults}
+                        keyExtractor={(m) => String(m.id)}
+                        style={styles.sheetList}
+                        keyboardShouldPersistTaps="handled"
+                        renderItem={({ item }) => (
+                          <TouchableOpacity style={styles.sheetItem} onPress={() => handleSelectMember(item)} activeOpacity={0.7}>
+                            {item.profile_photo_url ? (
+                              <Image source={{ uri: item.profile_photo_url }} style={styles.sheetAvatar} />
+                            ) : (
+                              <View style={[styles.sheetAvatar, styles.sheetAvatarPlaceholder]}>
+                                <User size={18} color="#9CA3AF" />
+                              </View>
+                            )}
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.sheetItemName} numberOfLines={1}>{item.full_name || item.name || "Member"}</Text>
+                              <Text style={styles.sheetItemUsername} numberOfLines={1}>@{item.username || "user"}</Text>
                             </View>
-                          )}
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.sheetItemName} numberOfLines={1}>{item.full_name || item.name || "Member"}</Text>
-                            <Text style={styles.sheetItemUsername} numberOfLines={1}>@{item.username || "user"}</Text>
-                          </View>
-                          <ChevronRight size={18} color="#9CA3AF" />
-                        </TouchableOpacity>
+                            <ChevronRight size={18} color="#9CA3AF" />
+                          </TouchableOpacity>
+                        )}
+                        ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "rgba(0,0,0,0.04)" }} />}
+                      />
+                      {memberResults.length > 2 && (
+                        <LinearGradient
+                          colors={["rgba(255, 255, 255, 0)", "#FFFFFF"]}
+                          style={styles.bottomFade}
+                          pointerEvents="none"
+                        />
                       )}
-                      ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "rgba(0,0,0,0.04)" }} />}
-                    />
+                    </View>
                   )}
                 </View>
               </Pressable>
@@ -1039,11 +1049,11 @@ const styles = StyleSheet.create({
   sheet: {
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 32,
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 24,
     maxHeight: "90%",
-    minHeight: 280,
+    minHeight: 240,
     width: "100%",
     ...SHADOWS.xl,
   },
@@ -1064,7 +1074,7 @@ const styles = StyleSheet.create({
   },
   sheetTitle: {
     fontSize: 17,
-    fontFamily: "Manrope-Bold",
+    fontFamily: FONTS.primary,
     color: "#1a2d4a",
   },
   sheetHint: {
@@ -1075,14 +1085,14 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   sheetInput: {
-    height: 48,
+    height: 44,
     backgroundColor: "#F3F4F6",
     borderRadius: 12,
     paddingHorizontal: 14,
     fontSize: 15,
     fontFamily: "Manrope-Medium",
     color: "#1a2d4a",
-    marginBottom: 12,
+    marginBottom: 4,
   },
   sheetLoader: {
     paddingVertical: 24,
@@ -1095,17 +1105,21 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-Regular",
     color: "#9CA3AF",
   },
-  sheetList: { maxHeight: 280 },
+  resultsContainer: {
+    position: "relative",
+    marginTop: 8,
+  },
+  sheetList: { maxHeight: 145 },
   sheetItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 8,
     gap: 12,
   },
   sheetAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
   sheetAvatarPlaceholder: {
     backgroundColor: "#F3F4F6",
@@ -1113,14 +1127,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sheetItemName: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: "Manrope-SemiBold",
     color: "#1a2d4a",
   },
   sheetItemUsername: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Manrope-Regular",
     color: "#6B7A8D",
+  },
+  bottomFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 32,
   },
 });
 

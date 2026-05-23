@@ -1633,7 +1633,7 @@ const getUserPosts = async (req, res) => {
       LEFT JOIN venues v ON p.author_type = 'venue' AND p.author_id = v.id
       WHERE p.author_id = $1 AND p.author_type = $2
       ${cursorCondition}
-      ORDER BY p.created_at DESC
+      ORDER BY COALESCE(p.is_pinned, FALSE) DESC, p.created_at DESC
       LIMIT ${parsedLimit + 1}
     `;
 
@@ -2324,6 +2324,98 @@ const getPollVoters = async (req, res) => {
   }
 };
 
+// Pin a post (community profile owner only)
+const pinPost = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Verify the post belongs to the requesting user
+    const checkResult = await pool.query(
+      "SELECT id, author_id, author_type FROM posts WHERE id = $1",
+      [postId],
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    const post = checkResult.rows[0];
+    if (String(post.author_id) !== String(userId) || post.author_type !== userType) {
+      return res.status(403).json({ error: "Not authorized to pin this post" });
+    }
+
+    // Add is_pinned column if not exists (idempotent migration)
+    try {
+      await pool.query(
+        `ALTER TABLE posts ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE`,
+      );
+    } catch (e) {
+      // Ignore - column likely already exists
+    }
+
+    // Unpin any existing pinned post for this author first (one pin at a time)
+    await pool.query(
+      `UPDATE posts SET is_pinned = FALSE WHERE author_id = $1 AND author_type = $2 AND is_pinned = TRUE`,
+      [userId, userType],
+    );
+
+    // Pin the requested post
+    await pool.query(
+      `UPDATE posts SET is_pinned = TRUE WHERE id = $1`,
+      [postId],
+    );
+
+    res.json({ success: true, pinned: true });
+  } catch (error) {
+    console.error("Error pinning post:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Unpin a post
+const unpinPost = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Verify ownership
+    const checkResult = await pool.query(
+      "SELECT id, author_id, author_type FROM posts WHERE id = $1",
+      [postId],
+    );
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    const post = checkResult.rows[0];
+    if (String(post.author_id) !== String(userId) || post.author_type !== userType) {
+      return res.status(403).json({ error: "Not authorized to unpin this post" });
+    }
+
+    await pool.query(
+      `UPDATE posts SET is_pinned = FALSE WHERE id = $1`,
+      [postId],
+    );
+
+    res.json({ success: true, pinned: false });
+  } catch (error) {
+    console.error("Error unpinning post:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   createPost,
   getFeed,
@@ -2335,4 +2427,6 @@ module.exports = {
   updatePost,
   deletePost,
   getPollVoters,
+  pinPost,
+  unpinPost,
 };

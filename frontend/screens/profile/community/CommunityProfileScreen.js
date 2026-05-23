@@ -15,6 +15,7 @@ import {
   Platform,
   RefreshControl,
   Animated,
+  Linking,
 } from "react-native";
 import {
   SafeAreaView,
@@ -44,6 +45,11 @@ import {
   MoreHorizontal,
   EyeOff,
   Eye,
+  Pin,
+  PinOff,
+  Mail,
+  Phone,
+  User,
 } from "lucide-react-native";
 import { CommonActions, useFocusEffect } from "@react-navigation/native";
 import {
@@ -62,7 +68,7 @@ import {
   deleteDraft as deleteDraftUtil,
   formatLastSaved,
 } from "../../../utils/draftStorage";
-import { apiGet, apiPost, apiDelete } from "../../../api/client";
+import { apiGet, apiPost, apiDelete, pinPost, unpinPost } from "../../../api/client";
 import {
   getCommunityProfile,
   updateCommunityProfile,
@@ -83,9 +89,8 @@ import { useCrop } from "../../../components/MediaCrop";
 import PostCard from "../../../components/PostCard";
 import ProfilePostFeed from "../../../components/ProfilePostFeed";
 import EditorialPostCard from "../../../components/EditorialPostCard";
+import OpportunityFeedCard from "../../../components/OpportunityFeedCard";
 import VideoPlayer from "../../../components/VideoPlayer";
-import { mockData } from "../../../data/mockData";
-import HeadsEditorModal from "../../../components/modals/HeadsEditorModal";
 import CommentsModal from "../../../components/CommentsModal";
 import SettingsModal from "../../../components/modals/SettingsModal";
 import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModal";
@@ -163,7 +168,6 @@ export default function CommunityProfileScreen({ navigation }) {
   // Standard Animated Value for Scroll (Native Driver)
   const scrollY = useRef(new Animated.Value(0)).current;
 
-  const [headsModalVisible, setHeadsModalVisible] = useState(false);
   const [bannerUploading, setBannerUploading] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [postModalVisible, setPostModalVisible] = useState(false);
@@ -185,6 +189,10 @@ export default function CommunityProfileScreen({ navigation }) {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
+  const [contactModalVisible, setContactModalVisible] = useState(false);
+  const [selectedHeadForContact, setSelectedHeadForContact] = useState(null);
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [postForPinToggle, setPostForPinToggle] = useState(null);
 
   // Event Creation
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
@@ -213,7 +221,6 @@ export default function CommunityProfileScreen({ navigation }) {
     showAddAccountModal ||
     showLogoutModal ||
     showDeleteModal ||
-    headsModalVisible ||
     showHeadsMenu ||
     showBannerActionSheet ||
     commentsModalState.visible;
@@ -238,6 +245,47 @@ export default function CommunityProfileScreen({ navigation }) {
   const handleToggleHaptics = async (value) => {
     setHapticsEnabled(value);
     await HapticsService.setEnabled(value);
+  };
+
+  const handlePinToggle = (post) => {
+    HapticsService.triggerImpactLight();
+    setPostForPinToggle(post);
+    setPinModalVisible(true);
+  };
+
+  const handlePinToggleConfirm = async (post) => {
+    try {
+      const token = await getAuthToken();
+      if (!token) return;
+
+      if (post.is_pinned) {
+        await unpinPost(post.id, token);
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === post.id ? { ...p, is_pinned: false } : p,
+          ),
+        );
+        if (selectedPost?.id === post.id) {
+          setSelectedPost((prev) => prev ? { ...prev, is_pinned: false } : null);
+        }
+        showToast("Post unpinned", "info");
+      } else {
+        await pinPost(post.id, token);
+        setPosts((prev) =>
+          prev.map((p) =>
+            p.id === post.id
+              ? { ...p, is_pinned: true }
+              : { ...p, is_pinned: false },
+          ),
+        );
+        if (selectedPost?.id === post.id) {
+          setSelectedPost((prev) => prev ? { ...prev, is_pinned: true } : null);
+        }
+        showToast("Post pinned to top", "success");
+      }
+    } catch (e) {
+      showToast("Failed to update pin", "error");
+    }
   };
 
   useEffect(() => {
@@ -914,41 +962,31 @@ export default function CommunityProfileScreen({ navigation }) {
     }
   };
 
-  const handleHeadsSave = async (nextHeads) => {
-    try {
-      await updateCommunityHeads(nextHeads);
-      await loadProfile();
-      setHeadsModalVisible(false);
-    } catch (e) {
-      Alert.alert("Update failed", e?.message || "Could not update heads");
-    }
-  };
 
   const handleHeadPress = (head) => {
-    if (head?.member_id) {
-      // Check if it's the current user's own profile
-      const isOwnProfile = currentUserId && head.member_id === currentUserId;
-      if (isOwnProfile) {
-        // Navigate to own profile screen
-        const root = navigation.getParent()?.getParent();
-        if (root) {
-          root.navigate("MemberHome", {
-            screen: "Profile",
-            params: {
-              screen: "MemberProfile",
-            },
-          });
-        } else {
-          // Fallback navigation
-          navigation.navigate("MemberProfile");
-        }
-      } else {
-        // Navigate to MemberPublicProfile within Community's Profile stack
-        navigation.navigate("MemberPublicProfile", {
-          memberId: head.member_id,
-        });
-      }
+    if (!head) return;
+    const hasProfile = !!head.member_id;
+    const hasEmail = !!head.email;
+    const hasPhone = !!head.phone;
+
+    if (!hasProfile && !hasEmail && !hasPhone) return;
+
+    HapticsService.triggerImpactLight();
+
+    const navigateToProfile = (memberId) => {
+      navigation.navigate("MemberPublicProfile", {
+        memberId: memberId,
+      });
+    };
+
+    // If ONLY profile is available and no other details, directly navigate
+    if (hasProfile && !hasEmail && !hasPhone) {
+      navigateToProfile(head.member_id);
+      return;
     }
+
+    setSelectedHeadForContact(head);
+    setContactModalVisible(true);
   };
 
   const postsCount =
@@ -1353,7 +1391,13 @@ export default function CommunityProfileScreen({ navigation }) {
               </Text>
 
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <TouchableOpacity onPress={() => setHeadsModalVisible(true)}>
+                <TouchableOpacity onPress={() => {
+                  HapticsService.triggerImpactLight();
+                  navigation.navigate("CommunityHosts", {
+                    initialHeads: profile?.heads || [],
+                    maxHeads: 5,
+                  });
+                }}>
                   <Pencil size={20} color={PRIMARY_COLOR} />
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1367,15 +1411,15 @@ export default function CommunityProfileScreen({ navigation }) {
             {profile.heads && profile.heads.length > 0 ? (
               <View style={{ paddingVertical: 4 }}>
                 {profile.heads.map((head, index) => {
-                  const canNavigate = !!head.member_id;
+                  const isClickable = !!head.member_id || !!head.email || !!head.phone;
                   return (
                     <TouchableOpacity
                       key={head.id || index}
                       onPress={() => handleHeadPress(head)}
-                      disabled={!canNavigate}
+                      disabled={!isClickable}
                       style={[
                         styles.headRow,
-                        !canNavigate && { opacity: 0.85 },
+                        !isClickable && { opacity: 0.85 },
                       ]}
                     >
                       {head.profile_pic_url ? (
@@ -1408,13 +1452,13 @@ export default function CommunityProfileScreen({ navigation }) {
                       )}
                       <View style={{ flex: 1, gap: 2 }}>
                         <Text style={styles.headName}>{head.name}</Text>
-                        {/* Primary star removed as per user request */}
-                        {/* Hide contacts in premium card view for cleaner look, usually click to see details? 
-                            Ref image only shows Name + Role. 
-                            I'll hide phone/email to match "Premium" minimalist look unless space permits.
-                            But user said "Match the Ref". Ref has Name + Role. */}
+                        {(head.email || head.phone) ? (
+                          <Text style={styles.headSub} numberOfLines={1}>
+                            {[head.email, head.phone].filter(Boolean).join("  •  ")}
+                          </Text>
+                        ) : null}
                       </View>
-                      {canNavigate && (
+                      {isClickable && (
                         <ChevronRight size={20} color={LIGHT_TEXT_COLOR} />
                       )}
                     </TouchableOpacity>
@@ -1436,7 +1480,13 @@ export default function CommunityProfileScreen({ navigation }) {
                   : "Meet the Host"}
               </Text>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <TouchableOpacity onPress={() => setHeadsModalVisible(true)}>
+                <TouchableOpacity onPress={() => {
+                  HapticsService.triggerImpactLight();
+                  navigation.navigate("CommunityHosts", {
+                    initialHeads: profile?.heads || [],
+                    maxHeads: 5,
+                  });
+                }}>
                   <Pencil size={20} color={PRIMARY_COLOR} />
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1572,11 +1622,31 @@ export default function CommunityProfileScreen({ navigation }) {
                             overflow: "hidden",
                           }}
                           onPress={() => openPostModal(item)}
+                          onLongPress={() => handlePinToggle(item)}
+                          delayLongPress={400}
                         >
+                          {/* Pinned indicator on grid tile */}
+                          {item.is_pinned && (
+                            <View
+                              style={{
+                                position: "absolute",
+                                top: 6,
+                                left: 6,
+                                zIndex: 10,
+                                backgroundColor: "rgba(41, 98, 255, 0.85)",
+                                borderRadius: 10,
+                                padding: 3,
+                              }}
+                            >
+                              <Pin size={10} color="#FFF" strokeWidth={2.5} />
+                            </View>
+                            )}
+
                           {(() => {
                             let firstImageUrl = null;
                             if (item?.image_urls) {
                               if (Array.isArray(item.image_urls)) {
+
                                 const flatUrls = item.image_urls.flat();
                                 firstImageUrl = flatUrls.find(
                                   (u) =>
@@ -1722,38 +1792,99 @@ export default function CommunityProfileScreen({ navigation }) {
                 ].includes(postType);
               });
 
-              return interactivePosts.length > 0 ? (
+              // Sort: pinned first, then by created_at
+              const sortedPosts = [...interactivePosts].sort((a, b) => {
+                if (a.is_pinned && !b.is_pinned) return -1;
+                if (!a.is_pinned && b.is_pinned) return 1;
+                return new Date(b.created_at) - new Date(a.created_at);
+              });
+
+              return sortedPosts.length > 0 ? (
                 <View style={styles.communityPostsList}>
-                  {interactivePosts.map((post) => (
-                    <View key={post.id} style={styles.communityPostItem}>
-                      <EditorialPostCard
-                        post={post}
-                        onLike={(postId, isLiked, count) => {
-                          setPosts((prevPosts) =>
-                            prevPosts.map((p) =>
-                              p.id === postId
-                                ? { ...p, is_liked: isLiked, like_count: count }
-                                : p,
-                            ),
-                          );
-                        }}
-                        onComment={(postId) => openCommentsModal(postId)}
-                        onShare={() => {}}
-                        onFollow={() => {}}
-                        showFollowButton={false}
-                        currentUserId={currentUserId}
-                        currentUserType={currentUserType}
-                        onUserPress={(userId, userType) => {}}
-                        onPostUpdate={(updatedPost) => {
-                          setPosts((prevPosts) =>
-                            prevPosts.map((p) =>
-                              p.id === updatedPost.id ? updatedPost : p,
-                            ),
-                          );
-                        }}
-                      />
-                    </View>
-                  ))}
+                  {sortedPosts.map((post) => {
+                    const postType = post.post_type || post.type;
+                    const isOpportunity = postType === "opportunity";
+                    return (
+                      <View key={post.id} style={styles.communityPostItem}>
+                        {/* Pinned badge */}
+                        {post.is_pinned && (
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 5,
+                              paddingHorizontal: 16,
+                              paddingBottom: 4,
+                              paddingTop: 2,
+                            }}
+                          >
+                            <Pin size={12} color={COLORS.primary} strokeWidth={2} />
+                            <Text
+                              style={{
+                                fontFamily: FONTS.medium,
+                                fontSize: 11,
+                                color: COLORS.primary,
+                                letterSpacing: 0.2,
+                              }}
+                            >
+                              Pinned
+                            </Text>
+                          </View>
+                        )}
+                        {isOpportunity ? (
+                          <OpportunityFeedCard
+                            opportunity={post}
+                            onPress={(opp) =>
+                              navigation.navigate("OpportunityView", {
+                                opportunityId: opp.id,
+                                opportunity: opp,
+                              })
+                            }
+                            onLike={(postId, isLiked, count) => {
+                              setPosts((prevPosts) =>
+                                prevPosts.map((p) =>
+                                  p.id === postId
+                                    ? { ...p, is_liked: isLiked, like_count: count }
+                                    : p,
+                                ),
+                              );
+                            }}
+                            onComment={(postId) => openCommentsModal(postId)}
+                            onShare={() => {}}
+                          />
+                        ) : (
+                          <EditorialPostCard
+                            post={post}
+                            onLike={(postId, isLiked, count) => {
+                              setPosts((prevPosts) =>
+                                prevPosts.map((p) =>
+                                  p.id === postId
+                                    ? { ...p, is_liked: isLiked, like_count: count }
+                                    : p,
+                                ),
+                              );
+                            }}
+                            onComment={(postId) => openCommentsModal(postId)}
+                            onShare={() => {}}
+                            onFollow={() => {}}
+                            showFollowButton={false}
+                            currentUserId={currentUserId}
+                            currentUserType={currentUserType}
+                            onUserPress={(userId, userType) => {}}
+                            onRequestDelete={() => handlePinToggle(post)}
+                            onPinToggle={handlePinToggle}
+                            onPostUpdate={(updatedPost) => {
+                              setPosts((prevPosts) =>
+                                prevPosts.map((p) =>
+                                  p.id === updatedPost.id ? updatedPost : p,
+                                ),
+                              );
+                            }}
+                          />
+                        )}
+                      </View>
+                    );
+                  })}
                 </View>
               ) : (
                 <EmptyCommunityState
@@ -2173,14 +2304,6 @@ export default function CommunityProfileScreen({ navigation }) {
 
       {/* Old Delete Account Modal removed */}
 
-      <HeadsEditorModal
-        visible={headsModalVisible}
-        initialHeads={profile.heads || []}
-        onCancel={() => setHeadsModalVisible(false)}
-        onSave={handleHeadsSave}
-        maxHeads={5}
-      />
-
       {/* Meet the Host — Hide/Show action modal */}
       <Modal
         visible={showHeadsMenu}
@@ -2301,6 +2424,7 @@ export default function CommunityProfileScreen({ navigation }) {
       {selectedPost && (
         <ProfilePostFeed
           visible={postModalVisible}
+          onPinToggle={handlePinToggle}
           posts={posts.filter((p) => {
             // Only show media posts in modal (exclude Community tab content)
             const postType = p.post_type || p.type;
@@ -2641,6 +2765,151 @@ export default function CommunityProfileScreen({ navigation }) {
         ]}
         onClose={() => setShowDraftPrompt(false)}
       />
+
+      <ActionModal
+        visible={pinModalVisible}
+        title={postForPinToggle?.is_pinned ? "Unpin Post" : "Pin Post"}
+        message={
+          postForPinToggle?.is_pinned
+            ? "Remove this post from pinned?"
+            : "Pin this post to the top of your Posts tab?"
+        }
+        actions={[
+          {
+            text: postForPinToggle?.is_pinned ? "Unpin" : "Pin to Top",
+            onPress: async () => {
+              setPinModalVisible(false);
+              if (postForPinToggle) {
+                await handlePinToggleConfirm(postForPinToggle);
+              }
+            },
+            style: "primary",
+          },
+          {
+            text: "Cancel",
+            onPress: () => setPinModalVisible(false),
+            style: "cancel",
+          },
+        ]}
+        onClose={() => setPinModalVisible(false)}
+      />
+
+      {/* Premium Contact Info Modal */}
+      <Modal
+        visible={contactModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setContactModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <TouchableOpacity
+          style={styles.contactModalOverlay}
+          activeOpacity={1}
+          onPress={() => setContactModalVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.contactModalContent}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <View style={styles.contactModalHeader}>
+              <Text style={styles.contactModalTitle}>
+                {selectedHeadForContact ? `${selectedHeadForContact.name}'s Contact Info` : "Contact Info"}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setContactModalVisible(false)}
+                style={styles.contactModalCloseBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color="#0F172A" strokeWidth={2.2} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Options Body */}
+            <View style={styles.contactModalBody}>
+              {selectedHeadForContact?.member_id && (
+                <TouchableOpacity
+                  style={styles.contactModalOption}
+                  onPress={() => {
+                    setContactModalVisible(false);
+                    const memberId = selectedHeadForContact.member_id;
+                    const isOwnProfile = currentUserId && memberId === currentUserId;
+                    if (isOwnProfile) {
+                      const root = navigation.getParent()?.getParent();
+                      if (root) {
+                        root.navigate("MemberHome", {
+                          screen: "Profile",
+                          params: {
+                            screen: "MemberProfile",
+                          },
+                        });
+                      } else {
+                        navigation.navigate("MemberProfile");
+                      }
+                    } else {
+                      navigation.navigate("MemberPublicProfile", {
+                        memberId: memberId,
+                      });
+                    }
+                  }}
+                >
+                  <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(41, 98, 255, 0.08)" }]}>
+                    <User size={20} color="#2962FF" strokeWidth={2.2} />
+                  </View>
+                  <View style={styles.contactOptionTextContainer}>
+                    <Text style={styles.contactOptionTitle}>Visit Profile</Text>
+                    <Text style={styles.contactOptionSubtitle}>Go to user profile</Text>
+                  </View>
+                  <ChevronRight size={16} color="#8E8E93" />
+                </TouchableOpacity>
+              )}
+
+              {selectedHeadForContact?.email && (
+                <TouchableOpacity
+                  style={styles.contactModalOption}
+                  onPress={() => {
+                    setContactModalVisible(false);
+                    Linking.openURL(`mailto:${selectedHeadForContact.email}`).catch(() => {
+                      Alert.alert("Error", "Could not open mail app");
+                    });
+                  }}
+                >
+                  <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(16, 185, 129, 0.08)" }]}>
+                    <Mail size={20} color="#10B981" strokeWidth={2.2} />
+                  </View>
+                  <View style={styles.contactOptionTextContainer}>
+                    <Text style={styles.contactOptionTitle}>Email</Text>
+                    <Text style={styles.contactOptionSubtitle}>{selectedHeadForContact.email}</Text>
+                  </View>
+                  <ChevronRight size={16} color="#8E8E93" />
+                </TouchableOpacity>
+              )}
+
+              {selectedHeadForContact?.phone && (
+                <TouchableOpacity
+                  style={styles.contactModalOption}
+                  onPress={() => {
+                    setContactModalVisible(false);
+                    Linking.openURL(`tel:${selectedHeadForContact.phone}`).catch(() => {
+                      Alert.alert("Error", "Could not initiate call");
+                    });
+                  }}
+                >
+                  <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(245, 158, 11, 0.08)" }]}>
+                    <Phone size={20} color="#F59E0B" strokeWidth={2.2} />
+                  </View>
+                  <View style={styles.contactOptionTextContainer}>
+                    <Text style={styles.contactOptionTitle}>Call / Message</Text>
+                    <Text style={styles.contactOptionSubtitle}>{formatPhoneNumber(selectedHeadForContact.phone)}</Text>
+                  </View>
+                  <ChevronRight size={16} color="#8E8E93" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -2990,5 +3259,77 @@ const styles = StyleSheet.create({
   emptyPostsText: {
     color: LIGHT_TEXT_COLOR,
     fontSize: 14,
+  },
+  contactModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  contactModalContent: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  contactModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  contactModalTitle: {
+    fontSize: 18,
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    color: "#0F172A",
+  },
+  contactModalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  contactModalBody: {
+    gap: 12,
+  },
+  contactModalOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+    gap: 12,
+  },
+  contactIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  contactOptionTextContainer: {
+    flex: 1,
+    gap: 2,
+  },
+  contactOptionTitle: {
+    fontSize: 15,
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
+    color: "#0F172A",
+  },
+  contactOptionSubtitle: {
+    fontSize: 12,
+    fontFamily: FONTS.regular, // Manrope-Regular
+    color: "#64748B",
   },
 });

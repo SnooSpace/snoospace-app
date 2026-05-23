@@ -790,3 +790,19 @@ export async function resolveQnA(postId, questionId, bestAnswerId, token) {
     token,
   );
 }
+
+/**
+ * Pin a post on a community profile
+ * @param {string} postId - Post ID to pin
+ */
+export async function pinPost(postId, token) {
+  return apiPost(`/posts/${postId}/pin`, {}, 10000, token);
+}
+
+/**
+ * Unpin a post on a community profile
+ * @param {string} postId - Post ID to unpin
+ */
+export async function unpinPost(postId, token) {
+  return apiDelete(`/posts/${postId}/pin`, null, 10000, token);
+}

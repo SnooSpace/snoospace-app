@@ -88,6 +88,35 @@ const ProfileTabButton = (props) => {
   return <Pressable onPress={handlePress} {...rest} />;
 };
 
+const getTabBarStyle = (route, customHiddenRoutes = []) => {
+  const routeName = getFocusedRouteNameFromRoute(route) ?? "";
+  const baseHiddenRoutes = [
+    "FollowersList",
+    "FollowingList",
+    "CommunityFollowersList",
+    "CommunityFollowingList",
+  ];
+  const allHiddenRoutes = [...baseHiddenRoutes, ...customHiddenRoutes];
+  
+  if (routeName && allHiddenRoutes.includes(routeName)) {
+    return { display: "none" };
+  }
+  
+  return {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: Platform.OS === "ios" ? "transparent" : "#FFFFFF",
+    borderTopWidth: 0,
+    elevation: 0,
+    shadowOpacity: 0,
+    height: Platform.OS === "ios" ? 95 : 80,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === "ios" ? 20 : 10,
+  };
+};
+
 const CommunityBottomTabNavigator = ({ navigation, route }) => {
   // Handle programmatic tab switching via route params
   React.useEffect(() => {
@@ -104,70 +133,35 @@ const CommunityBottomTabNavigator = ({ navigation, route }) => {
         component={CommunityHomeStackNavigator}
         options={({ route }) => ({
           tabBarLabel: "Home",
-          tabBarStyle: (() => {
-            const routeName = getFocusedRouteNameFromRoute(route) ?? "HomeFeed";
-            const hiddenRoutes = [
-              "ConversationsList",
-              "Chat",
-              "Notifications",
-              "PromptReplies",
-              "CreateGroupChat",
-              "GroupInfo",
-              "PromptSubmissions",
-              "ChallengeSubmissions",
-              "ChallengeSubmit",
-              "QnAQuestions",
-              "ChallengeVideoRecorder",
-              // [VIDEO INSIGHTS - DEFERRED] "VideoInsights" removed — screen not registered in this build
-            ];
-            if (hiddenRoutes.includes(routeName)) {
-              return { display: "none" };
-            }
-            return {
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              backgroundColor: Platform.OS === "ios" ? "transparent" : "#FFFFFF",
-              borderTopWidth: 0,
-              elevation: 0,
-              shadowOpacity: 0,
-              height: Platform.OS === "ios" ? 95 : 80,
-              paddingTop: 12,
-              paddingBottom: Platform.OS === "ios" ? 20 : 10,
-            };
-          })(),
+          tabBarStyle: getTabBarStyle(route, [
+            "ConversationsList",
+            "Chat",
+            "Notifications",
+            "PromptReplies",
+            "CreateGroupChat",
+            "GroupInfo",
+            "PromptSubmissions",
+            "ChallengeSubmissions",
+            "ChallengeSubmit",
+            "QnAQuestions",
+            "ChallengeVideoRecorder",
+          ]),
         })}
       />
       <Tab.Screen
         name="Search"
         component={CommunitySearchStackNavigator}
-        options={{ tabBarLabel: "Search" }}
+        options={({ route }) => ({
+          tabBarLabel: "Search",
+          tabBarStyle: getTabBarStyle(route),
+        })}
       />
       <Tab.Screen
         name="Dashboard"
         component={CommunityDashboardStackNavigator}
         options={({ route }) => ({
           tabBarLabel: "Dashboard",
-          tabBarStyle: (() => {
-            const routeName = getFocusedRouteNameFromRoute(route) ?? "DashboardHome";
-            if (routeName === "AudienceIntelligence") {
-              return { display: "none" };
-            }
-            return {
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              backgroundColor: Platform.OS === "ios" ? "transparent" : "#FFFFFF",
-              borderTopWidth: 0,
-              elevation: 0,
-              shadowOpacity: 0,
-              height: Platform.OS === "ios" ? 95 : 80,
-              paddingTop: 12,
-              paddingBottom: Platform.OS === "ios" ? 20 : 10,
-            };
-          })(),
+          tabBarStyle: getTabBarStyle(route, ["AudienceIntelligence"]),
         })}
       />
       <Tab.Screen
@@ -181,26 +175,11 @@ const CommunityBottomTabNavigator = ({ navigation, route }) => {
         options={({ route }) => ({
           tabBarLabel: "Profile",
           tabBarButton: (props) => <ProfileTabButton {...props} />,
-          tabBarStyle: (() => {
-            const routeName = getFocusedRouteNameFromRoute(route) ?? "Profile";
-            const hiddenRoutes = ["EditProfile"];
-            if (hiddenRoutes.includes(routeName)) {
-              return { display: "none" };
-            }
-            return {
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              backgroundColor: Platform.OS === "ios" ? "transparent" : "#FFFFFF",
-              borderTopWidth: 0,
-              elevation: 0,
-              shadowOpacity: 0,
-              height: Platform.OS === "ios" ? 95 : 80,
-              paddingTop: 12,
-              paddingBottom: Platform.OS === "ios" ? 20 : 10,
-            };
-          })(),
+          tabBarStyle: getTabBarStyle(route, [
+            "EditProfile",
+            "EditCommunityProfile",
+            "CommunityHosts"
+          ]),
         })}
       />
     </Tab.Navigator>

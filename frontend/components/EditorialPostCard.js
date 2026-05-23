@@ -36,6 +36,7 @@ import {
   Send,
   Bookmark,
   Ellipsis,
+  Pin,
   Trash2,
   Users,
   RefreshCw,
@@ -138,6 +139,7 @@ const EditorialPostCard = ({
   onDelete,
   onRequestDelete,
   onPostUpdate,
+  onPinToggle,
   currentUserId,
   currentUserType,
   isVideoPlaying = false,
@@ -162,6 +164,7 @@ const EditorialPostCard = ({
         onShare={onShare}
         onDelete={onDelete}
         onPostUpdate={onPostUpdate}
+        onPinToggle={onPinToggle}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />
@@ -179,6 +182,7 @@ const EditorialPostCard = ({
         onShare={onShare}
         onDelete={onDelete}
         onPostUpdate={onPostUpdate}
+        onPinToggle={onPinToggle}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />
@@ -196,6 +200,7 @@ const EditorialPostCard = ({
         onShare={onShare}
         onDelete={onDelete}
         onPostUpdate={onPostUpdate}
+        onPinToggle={onPinToggle}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />
@@ -213,6 +218,7 @@ const EditorialPostCard = ({
         onShare={onShare}
         onDelete={onDelete}
         onPostUpdate={onPostUpdate}
+        onPinToggle={onPinToggle}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
       />
@@ -791,6 +797,21 @@ const EditorialPostCard = ({
           />
         )}
 
+        {/* Pin Button for Own Posts */}
+        {isOwnPost && onPinToggle && (
+          <TouchableOpacity
+            style={styles.pinButton}
+            onPress={() => onPinToggle(post)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Pin
+              size={20}
+              color={post.is_pinned ? COLORS.primary : COLORS.editorial.textSecondary}
+              fill={post.is_pinned ? COLORS.primary : "none"}
+            />
+          </TouchableOpacity>
+        )}
+
         {/* Ellipsis Menu for Own Posts */}
         {isOwnPost && onDelete && (
           <TouchableOpacity
@@ -1203,6 +1224,10 @@ const styles = StyleSheet.create({
     ...EDITORIAL_TYPOGRAPHY.followButton,
   },
   ellipsisButton: {
+    padding: 8,
+    marginLeft: 4,
+  },
+  pinButton: {
     padding: 8,
     marginLeft: 4,
   },

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
-import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, Image, Alert, Dimensions, Platform, Animated, Easing, TouchableWithoutFeedback, ImageBackground, Pressable } from "react-native";
+import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, Image, Alert, Dimensions, Platform, Animated, Easing, TouchableWithoutFeedback, ImageBackground, Pressable, KeyboardAvoidingView } from "react-native";
 import { BlurView } from "expo-blur";
 import wave from "../../assets/wave.png";
 import {
@@ -11,6 +11,7 @@ import {
   PlusCircle,
   ChevronRight,
   Star,
+  ArrowLeft,
 } from "lucide-react-native";
 import { useCrop } from "../MediaCrop";
 import { LinearGradient } from "expo-linear-gradient";
@@ -287,7 +288,7 @@ export default function HeadsEditorModal({
           title: "Import Profile Photo",
           message: `Use ${
             member.full_name || member.name || member.username || "this member"
-          }'s profile photo as this head's avatar?`,
+          }'s profile photo as this host's avatar?`,
           data: { index: idx, photoUrl: member.profile_photo_url },
         });
       }
@@ -350,13 +351,13 @@ export default function HeadsEditorModal({
   }, []);
 
   const validate = (list) => {
-    if (!list || list.length === 0) return "Add at least one head";
+    if (!list || list.length === 0) return "Add at least one host";
     if (list.filter((h) => h.is_primary).length !== 1)
-      return "Exactly one head must be primary";
+      return "Exactly one host must be primary";
     for (const h of list) {
-      if (!h.name || !h.name.trim()) return "Head name is required";
+      if (!h.name || !h.name.trim()) return "Host name is required";
       if (h.phone && !/^\d{10}$/.test(h.phone))
-        return "Head phone numbers must be 10 digits";
+        return "Host phone numbers must be 10 digits";
     }
     return null;
   };
@@ -467,7 +468,7 @@ export default function HeadsEditorModal({
             <TextInput
               value={item.name}
               onChangeText={(t) => updateField(index, "name", t)}
-              placeholder="Head Name"
+              placeholder="Host Name"
               placeholderTextColor={LIGHT_TEXT}
               style={styles.inputName}
             />
@@ -557,26 +558,27 @@ export default function HeadsEditorModal({
       >
         <Pressable style={styles.overlay} onPress={onCancel}>
           <Pressable onPress={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 500 }}>
-            <ImageBackground 
-              source={wave} 
-              style={styles.modalContainer}
-              imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
-              blurRadius={10}
-            >
-              <View style={styles.header}>
-                <Text style={styles.title}>Edit Community Heads</Text>
-                <TouchableOpacity onPress={onCancel} style={{ padding: 4 }}>
-                  <X size={24} color={TEXT_COLOR} />
-                </TouchableOpacity>
-              </View>
+            {linkingIndex === -1 ? (
+              <ImageBackground 
+                source={wave} 
+                style={styles.modalContainer}
+                imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
+                blurRadius={10}
+              >
+                <View style={styles.header}>
+                  <Text style={styles.title}>Edit Community Hosts</Text>
+                  <TouchableOpacity onPress={onCancel} style={{ padding: 4 }}>
+                    <X size={24} color={TEXT_COLOR} />
+                  </TouchableOpacity>
+                </View>
 
-              <FlatList
-                data={heads}
-                keyExtractor={(_, i) => String(i)}
-                renderItem={renderItem}
-                contentContainerStyle={styles.listContent}
-                style={styles.list}
-              />
+                <FlatList
+                  data={heads}
+                  keyExtractor={(_, i) => String(i)}
+                  renderItem={renderItem}
+                  contentContainerStyle={styles.listContent}
+                  style={styles.list}
+                />
 
                 <View style={styles.footerContainer}>
                   <TouchableOpacity
@@ -589,10 +591,10 @@ export default function HeadsEditorModal({
                     <View style={styles.addIconContainer}>
                       <PlusCircle size={18} color="#6366F1" />
                     </View>
-                    <Text style={styles.addText}>Add Community Head</Text>
+                    <Text style={styles.addText}>Add Community Host</Text>
                   </TouchableOpacity>
                   <Text style={styles.limitText}>
-                    {heads.length}/{maxHeads} heads used
+                    {heads.length}/{maxHeads} hosts used
                   </Text>
                 </View>
 
@@ -613,97 +615,107 @@ export default function HeadsEditorModal({
                   </TouchableOpacity>
                 </View>
               </ImageBackground>
-            </Pressable>
-        </Pressable>
-      </Modal>
-
-      <Modal
-        visible={linkingIndex !== -1}
-        transparent
-        animationType="slide"
-        onRequestClose={closeLinkModal}
-        statusBarTranslucent={true}
-      >
-        <Pressable style={styles.linkOverlay} onPress={closeLinkModal}>
-          <Pressable onPress={(e) => e.stopPropagation()}>
-            <View style={[styles.linkSheet, SHADOWS.md]}>
-                <View style={styles.linkHeader}>
-                  <Text style={styles.linkTitle}>Link Member Profile</Text>
-                  <TouchableOpacity
-                    onPress={closeLinkModal}
-                    style={{ padding: 4 }}
-                  >
-                    <X size={22} color={TEXT_COLOR} />
-                  </TouchableOpacity>
-                </View>
-                <TextInput
-                  value={memberQuery}
-                  onChangeText={setMemberQuery}
-                  placeholder="Search members by name or username"
-                  placeholderTextColor={LIGHT_TEXT}
-                  style={styles.linkSearchInput}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                {memberQuery.trim().length < 2 ? (
-                  <Text style={[styles.linkHint, { fontFamily: 'Manrope-Medium' }]}>
-                    Type at least 2 characters to search
-                  </Text>
-                ) : memberLoading ? (
-                  <View style={styles.linkLoading}>
-                    <SnooLoader size="small" color={PRIMARY} />
+            ) : (
+              <View style={[styles.modalContainer, { backgroundColor: BG }]}>
+                <KeyboardAvoidingView
+                  behavior={Platform.OS === "ios" ? "padding" : undefined}
+                  style={{ width: "100%" }}
+                >
+                  <View style={styles.linkHeaderInline}>
+                    <TouchableOpacity
+                      onPress={closeLinkModal}
+                      style={styles.backButtonInline}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <ArrowLeft size={22} color={TEXT_COLOR} />
+                    </TouchableOpacity>
+                    <Text style={styles.linkTitleInline}>Link Member Profile</Text>
+                    <View style={{ width: 22 }} />
                   </View>
-                ) : memberResults.length === 0 ? (
-                  <Text style={styles.linkHint}>
-                    {memberSearchError || "No members found"}
-                  </Text>
-                ) : (
-                  <FlatList
-                    data={memberResults}
-                    keyExtractor={(item) => String(item.id)}
-                    renderItem={({ item }) => (
-                      <TouchableOpacity
-                        style={styles.linkResultItem}
-                        onPress={() => handleSelectMember(item)}
-                      >
-                        {item.profile_photo_url ? (
-                          <Image
-                            source={{ uri: item.profile_photo_url }}
-                            style={styles.linkResultAvatar}
+
+                  <View style={{ paddingHorizontal: 20, paddingBottom: 24 }}>
+                    <TextInput
+                      value={memberQuery}
+                      onChangeText={setMemberQuery}
+                      placeholder="Search members by name or username"
+                      placeholderTextColor={LIGHT_TEXT}
+                      style={styles.linkSearchInput}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      autoFocus={true}
+                    />
+
+                    {memberQuery.trim().length < 2 ? (
+                      <Text style={[styles.linkHint, { fontFamily: 'Manrope-Medium', marginTop: 24 }]}>
+                        Type at least 2 characters to search
+                      </Text>
+                    ) : memberLoading ? (
+                      <View style={styles.linkLoading}>
+                        <SnooLoader size="small" color={PRIMARY} />
+                      </View>
+                    ) : memberResults.length === 0 ? (
+                      <Text style={[styles.linkHint, { marginTop: 24 }]}>
+                        {memberSearchError || "No members found"}
+                      </Text>
+                    ) : (
+                      <View style={styles.resultsContainer}>
+                        <FlatList
+                          data={memberResults}
+                          keyExtractor={(item) => String(item.id)}
+                          renderItem={({ item }) => (
+                            <TouchableOpacity
+                              style={styles.linkResultItem}
+                              onPress={() => handleSelectMember(item)}
+                            >
+                              {item.profile_photo_url ? (
+                                <Image
+                                  source={{ uri: item.profile_photo_url }}
+                                  style={styles.linkResultAvatar}
+                                />
+                              ) : (
+                                <View
+                                  style={[
+                                    styles.linkResultAvatar,
+                                    styles.linkResultAvatarPlaceholder,
+                                  ]}
+                                >
+                                  <User size={18} color={LIGHT_TEXT} />
+                                </View>
+                              )}
+                              <View style={styles.linkResultMeta}>
+                                <Text style={styles.linkResultName} numberOfLines={1}>
+                                  {item.full_name || item.name || "Member"}
+                                </Text>
+                                <Text
+                                  style={styles.linkResultUsername}
+                                  numberOfLines={1}
+                                >
+                                  @{item.username || "user"}
+                                </Text>
+                              </View>
+                              <ChevronRight size={18} color={LIGHT_TEXT} />
+                            </TouchableOpacity>
+                          )}
+                          ItemSeparatorComponent={() => (
+                            <View style={styles.linkSeparator} />
+                          )}
+                          style={[styles.linkResults, { maxHeight: 220 }]}
+                          keyboardShouldPersistTaps="handled"
+                        />
+                        {memberResults.length > 3 && (
+                          <LinearGradient
+                            colors={["rgba(255, 255, 255, 0)", BG]}
+                            style={styles.bottomFade}
+                            pointerEvents="none"
                           />
-                        ) : (
-                          <View
-                            style={[
-                              styles.linkResultAvatar,
-                              styles.linkResultAvatarPlaceholder,
-                            ]}
-                          >
-                            <User size={18} color={LIGHT_TEXT} />
-                          </View>
                         )}
-                        <View style={styles.linkResultMeta}>
-                          <Text style={styles.linkResultName} numberOfLines={1}>
-                            {item.full_name || item.name || "Member"}
-                          </Text>
-                          <Text
-                            style={styles.linkResultUsername}
-                            numberOfLines={1}
-                          >
-                            @{item.username || "user"}
-                          </Text>
-                        </View>
-                        <ChevronRight size={18} color={LIGHT_TEXT} />
-                      </TouchableOpacity>
+                      </View>
                     )}
-                    ItemSeparatorComponent={() => (
-                      <View style={styles.linkSeparator} />
-                    )}
-                    style={styles.linkResults}
-                    keyboardShouldPersistTaps="handled"
-                  />
-                )}
+                  </View>
+                </KeyboardAvoidingView>
               </View>
-            </Pressable>
+            )}
+          </Pressable>
         </Pressable>
       </Modal>
 
@@ -852,9 +864,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: "bold",
     color: TEXT_COLOR,
-    fontFamily: FONTS.primary, // BasicCommercial Bold
+    fontFamily: FONTS.black,
   },
   list: {
     maxHeight: height * 0.5,
@@ -1011,7 +1022,7 @@ const styles = StyleSheet.create({
   linkButtonText: {
     fontSize: 14,
     color: TEXT_COLOR,
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: FONTS.semiBold,
     marginLeft: 6,
   },
   footerRow: {
@@ -1052,9 +1063,8 @@ const styles = StyleSheet.create({
   },
   addText: {
     color: "#475569", // Slate 600
-    fontWeight: "600",
     fontSize: 15,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.semiBold,
   },
   limitText: {
     fontSize: 12,
@@ -1083,8 +1093,7 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: "#fff",
     fontSize: 16,
-    fontFamily: FONTS.medium,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
   },
   discardButton: {
     alignItems: "center",
@@ -1096,29 +1105,41 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
   },
   // Link Modal Styles
+  linkHeaderInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  backButtonInline: {
+    padding: 4,
+  },
+  linkTitleInline: {
+    fontSize: 20,
+    color: TEXT_COLOR,
+    fontFamily: FONTS.black,
+  },
   linkOverlay: {
+    flex: 1,
     backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center",
+    alignItems: "center",
     padding: 20,
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 1000,
   },
   linkSheet: {
     backgroundColor: BG,
     borderRadius: 20,
-    padding: 20,
+    padding: 16,
     maxHeight: "80%",
+    minHeight: 240,
     width: "100%",
   },
   linkHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   linkTitle: {
     fontSize: 18,
@@ -1130,10 +1151,11 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     borderRadius: BORDER_RADIUS.m,
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingVertical: 10,
     color: TEXT_COLOR,
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: FONTS.medium,
+    marginBottom: 4,
   },
   linkHint: {
     fontSize: 14,
@@ -1146,18 +1168,22 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     alignItems: "center",
   },
+  resultsContainer: {
+    position: "relative",
+    marginTop: 8,
+  },
   linkResults: {
-    maxHeight: height * 0.4,
+    maxHeight: 145,
   },
   linkResultItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
   linkResultAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "#F2F2F7",
   },
   linkResultAvatarPlaceholder: {
@@ -1166,23 +1192,30 @@ const styles = StyleSheet.create({
   },
   linkResultMeta: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 10,
     marginRight: 8,
   },
   linkResultName: {
-    fontSize: 15,
+    fontSize: 14,
     color: TEXT_COLOR,
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: FONTS.semiBold,
     marginBottom: 2,
   },
   linkResultUsername: {
-    fontSize: 13,
+    fontSize: 12,
     color: LIGHT_TEXT,
     fontFamily: "Manrope-Medium",
   },
   linkSeparator: {
     height: 1,
     backgroundColor: "#F2F2F7",
+  },
+  bottomFade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 32,
   },
 
   // Alert Modal Styles
@@ -1209,7 +1242,6 @@ const styles = StyleSheet.create({
     color: "#000",
     textAlign: "center",
     marginBottom: 8,
-    fontWeight: "700",
   },
   alertMessage: {
     fontSize: 15,

@@ -33,7 +33,8 @@ const MemoizedPostCard = React.memo(EditorialPostCard, (prev, next) => {
     prev.post.public_view_count === next.post.public_view_count &&
     prev.post.save_count === next.post.save_count &&
     prev.post.saves_count === next.post.saves_count &&
-    prev.post.is_saved === next.post.is_saved
+    prev.post.is_saved === next.post.is_saved &&
+    prev.post.is_pinned === next.post.is_pinned
   );
 });
 
@@ -54,6 +55,7 @@ const ProfilePostFeed = ({
   onUserPress,
   onDelete,
   onPostUpdate, // New prop
+  onPinToggle, // NEW prop
   navigation, // Add navigation prop for CommentsModal
 }) => {
   // Initialize with the initial post ID so video starts playing immediately
@@ -161,11 +163,12 @@ const ProfilePostFeed = ({
         onDelete={onDelete}
         onPostUpdate={onPostUpdate}
         onRequestDelete={handleRequestDelete}
+        onPinToggle={onPinToggle} // NEW prop
         showFollowButton={true} // Allow following if not same user
         navigation={navigation}
       />
     );
-  }, [visiblePostId, currentUserId, currentUserType, onLikeUpdate, handleCommentPress, handleSharePress, onSave, onFollow, onUserPress, onDelete, onPostUpdate, handleRequestDelete, navigation]);
+  }, [visiblePostId, currentUserId, currentUserType, onLikeUpdate, handleCommentPress, handleSharePress, onSave, onFollow, onUserPress, onDelete, onPostUpdate, handleRequestDelete, onPinToggle, navigation]);
 
   if (!visible) return null;
 

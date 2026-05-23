@@ -5,9 +5,11 @@ import CommunityFollowersListScreen from "../screens/profile/community/Community
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import EditCommunityProfileScreen from "../screens/profile/community/EditCommunityProfileScreen";
+import CommunityHostsScreen from "../screens/profile/community/CommunityHostsScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import FollowersListScreen from "../screens/profile/member/FollowersListScreen";
 import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
+import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
 
 import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
 
@@ -45,11 +47,16 @@ export default function CommunityProfileStackNavigator() {
         component={EditCommunityProfileScreen}
       />
       <Stack.Screen
+        name="CommunityHosts"
+        component={CommunityHostsScreen}
+      />
+      <Stack.Screen
         name="MemberPublicProfile"
         component={MemberPublicProfileScreen}
       />
       <Stack.Screen name="FollowersList" component={FollowersListScreen} />
       <Stack.Screen name="FollowingList" component={FollowingListScreen} />
+      <Stack.Screen name="OpportunityView" component={OpportunityViewScreen} />
     </Stack.Navigator>
   );
 }

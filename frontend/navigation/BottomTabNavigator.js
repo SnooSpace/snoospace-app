@@ -122,6 +122,35 @@ const ProfileTabButton = (props) => {
   return <Pressable onPress={handlePress} {...rest} />;
 };
 
+const getTabBarStyle = (route, customHiddenRoutes = []) => {
+  const routeName = getFocusedRouteNameFromRoute(route) ?? "";
+  const baseHiddenRoutes = [
+    "FollowersList",
+    "FollowingList",
+    "CommunityFollowersList",
+    "CommunityFollowingList",
+  ];
+  const allHiddenRoutes = [...baseHiddenRoutes, ...customHiddenRoutes];
+  
+  if (routeName && allHiddenRoutes.includes(routeName)) {
+    return { display: "none" };
+  }
+  
+  return {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: Platform.OS === "ios" ? "transparent" : "#FFFFFF",
+    borderTopWidth: 0,
+    elevation: 0,
+    shadowOpacity: 0,
+    height: Platform.OS === "ios" ? 95 : 80,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === "ios" ? 20 : 10,
+  };
+};
+
 const BottomTabNavigator = ({ navigation, route }) => {
   // Handle programmatic tab switching via route params
   React.useEffect(() => {
@@ -237,85 +266,50 @@ const BottomTabNavigator = ({ navigation, route }) => {
         component={HomeStackNavigator}
         options={({ route }) => ({
           tabBarLabel: "Home",
-          tabBarStyle: (() => {
-            const routeName = getFocusedRouteNameFromRoute(route) ?? "HomeFeed";
-            const hiddenRoutes = [
-              "ConversationsList",
-              "Chat",
-              "CreatePost",
-              "PromptReplies",
-              "CreateGroupChat",
-              "GroupInfo",
-              "PromptSubmissions",
-              "ChallengeSubmissions",
-              "ChallengeSubmit",
-              "QnAQuestions",
-              "ChallengeVideoRecorder"
-            ];
-            if (hiddenRoutes.includes(routeName)) {
-              return { display: "none" };
-            }
-            return {
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              backgroundColor:
-                Platform.OS === "ios" ? "transparent" : "#FFFFFF",
-              borderTopWidth: 0,
-              elevation: 0,
-              shadowOpacity: 0,
-              height: Platform.OS === "ios" ? 95 : 80,
-              paddingTop: 12,
-              paddingBottom: Platform.OS === "ios" ? 20 : 10,
-            };
-          })(),
+          tabBarStyle: getTabBarStyle(route, [
+            "ConversationsList",
+            "Chat",
+            "CreatePost",
+            "PromptReplies",
+            "CreateGroupChat",
+            "GroupInfo",
+            "PromptSubmissions",
+            "ChallengeSubmissions",
+            "ChallengeSubmit",
+            "QnAQuestions",
+            "ChallengeVideoRecorder"
+          ]),
         })}
       />
       <Tab.Screen
         name="Search"
         component={SearchStackNavigator}
-        options={{ tabBarLabel: "Search" }}
+        options={({ route }) => ({
+          tabBarLabel: "Search",
+          tabBarStyle: getTabBarStyle(route),
+        })}
       />
       <Tab.Screen
         name="Discover"
         component={DiscoverStackNavigator}
         options={({ route }) => ({
           tabBarLabel: "Discover",
-          tabBarStyle: (() => {
-            const routeName =
-              getFocusedRouteNameFromRoute(route) ?? "DiscoverHome";
-            const hiddenRoutes = [
-              "ProfileFeed",
-              "NetworkingProfile",
-              "Chat",
-              "EditDiscoverProfile",
-              "OpenerSelection",
-            ];
-            if (hiddenRoutes.includes(routeName)) {
-              return { display: "none" };
-            }
-            return {
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              backgroundColor:
-                Platform.OS === "ios" ? "transparent" : "#FFFFFF",
-              borderTopWidth: 0,
-              elevation: 0,
-              shadowOpacity: 0,
-              height: Platform.OS === "ios" ? 95 : 80,
-              paddingTop: 12,
-              paddingBottom: Platform.OS === "ios" ? 20 : 10,
-            };
-          })(),
+          tabBarStyle: getTabBarStyle(route, [
+            "ProfileFeed",
+            "NetworkingProfile",
+            "Chat",
+            "EditDiscoverProfile",
+            "OpenerSelection",
+          ]),
         })}
       />
       <Tab.Screen
         name="YourEvents"
         component={EventsStackNavigator}
-        options={{ tabBarLabel: "Your Events" }}
+        options={({ route }) => ({
+          tabBarLabel: "Your Events",
+          tabBarStyle: getTabBarStyle(route),
+        })}
       />
       <Tab.Screen
         name="Profile"
@@ -323,27 +317,11 @@ const BottomTabNavigator = ({ navigation, route }) => {
         options={({ route }) => ({
           tabBarLabel: "Profile",
           tabBarButton: (props) => <ProfileTabButton {...props} />,
-          tabBarStyle: (() => {
-            const routeName = getFocusedRouteNameFromRoute(route) ?? "Profile";
-            const hiddenRoutes = ["CreatePost", "EditProfile"];
-            if (hiddenRoutes.includes(routeName)) {
-              return { display: "none" };
-            }
-            return {
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              backgroundColor:
-                Platform.OS === "ios" ? "transparent" : "#FFFFFF",
-              borderTopWidth: 0,
-              elevation: 0,
-              shadowOpacity: 0,
-              height: Platform.OS === "ios" ? 95 : 80,
-              paddingTop: 12,
-              paddingBottom: Platform.OS === "ios" ? 20 : 10,
-            };
-          })(),
+          tabBarStyle: getTabBarStyle(route, [
+            "CreatePost",
+            "EditProfile",
+            "CommunityHosts"
+          ]),
         })}
       />
     </Tab.Navigator>

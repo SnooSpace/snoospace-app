@@ -14,6 +14,7 @@ import {
   Platform,
   Alert,
   StatusBar,
+  Linking,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
@@ -35,6 +36,9 @@ import {
   Clock,
   Video,
   AlertCircle,
+  Mail,
+  Phone,
+  User,
 } from "lucide-react-native";
 import DynamicStatusBar from "../../../components/DynamicStatusBar";
 import GradientSafeArea from "../../../components/GradientSafeArea";
@@ -74,6 +78,7 @@ import ThemeChip from "../../../components/ThemeChip";
 import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
 import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
 import EditorialPostCard from "../../../components/EditorialPostCard";
+import OpportunityFeedCard from "../../../components/OpportunityFeedCard";
 import ProfilePostFeed from "../../../components/ProfilePostFeed";
 import EmptyPostsState from "../../../components/EmptyPostsState";
 import EmptyCommunityState from "../../../components/EmptyCommunityState";
@@ -356,6 +361,78 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 1000,
   },
+  contactModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  contactModalContent: {
+    width: "100%",
+    maxWidth: 340,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 20,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  contactModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  contactModalTitle: {
+    fontSize: 18,
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    color: "#0F172A",
+  },
+  contactModalCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  contactModalBody: {
+    gap: 12,
+  },
+  contactModalOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#EEF2F6",
+    gap: 12,
+  },
+  contactIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  contactOptionTextContainer: {
+    flex: 1,
+    gap: 2,
+  },
+  contactOptionTitle: {
+    fontSize: 15,
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
+    color: "#0F172A",
+  },
+  contactOptionSubtitle: {
+    fontSize: 12,
+    fontFamily: FONTS.regular, // Manrope-Regular
+    color: "#64748B",
+  },
 });
 
 export default function CommunityPublicProfileScreen({ route, navigation }) {
@@ -383,6 +460,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const pendingPostUpdateRef = useRef(null);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [showCollegeHub, setShowCollegeHub] = useState(false);
+  const [contactModalVisible, setContactModalVisible] = useState(false);
+  const [selectedHeadForContact, setSelectedHeadForContact] = useState(null);
 
   const postsCount = profile?.posts_count ?? profile?.post_count ?? 0;
   const followersCount =
@@ -940,11 +1019,18 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   };
 
   const handleHeadPress = (head) => {
-    if (head?.member_id) {
-      // Check if it's the current user's own profile
-      const isOwnProfile = currentUserId && head.member_id === currentUserId;
+    if (!head) return;
+    const hasProfile = !!head.member_id;
+    const hasEmail = !!head.email;
+    const hasPhone = !!head.phone;
+
+    if (!hasProfile && !hasEmail && !hasPhone) return;
+
+    HapticsService.triggerImpactLight();
+
+    const navigateToProfile = (memberId) => {
+      const isOwnProfile = currentUserId && memberId === currentUserId;
       if (isOwnProfile) {
-        // Navigate to own profile screen
         const root = navigation.getParent()?.getParent();
         if (root) {
           root.navigate("MemberHome", {
@@ -954,15 +1040,23 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             },
           });
         } else {
-          // Fallback navigation
           navigation.navigate("MemberProfile");
         }
       } else {
         navigation.navigate("MemberPublicProfile", {
-          memberId: head.member_id,
+          memberId: memberId,
         });
       }
+    };
+
+    // If ONLY profile is available and no other details, directly navigate
+    if (hasProfile && !hasEmail && !hasPhone) {
+      navigateToProfile(head.member_id);
+      return;
     }
+
+    setSelectedHeadForContact(head);
+    setContactModalVisible(true);
   };
 
   if (loading) {
@@ -1353,16 +1447,16 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             {profile?.heads && profile.heads.length > 0 ? (
               <View style={{ paddingVertical: 4 }}>
                 {profile.heads.map((head, idx) => {
-                  const canNavigate = !!head.member_id;
+                  const isClickable = !!head.member_id || !!head.email || !!head.phone;
                   return (
                     <TouchableOpacity
                       key={head.id || idx}
                       style={[
                         styles.headRow,
-                        !canNavigate && { opacity: 0.85 },
+                        !isClickable && { opacity: 0.85 },
                       ]}
                       onPress={() => handleHeadPress(head)}
-                      disabled={!canNavigate}
+                      disabled={!isClickable}
                     >
                       {head.profile_pic_url ? (
                         <Image
@@ -1394,12 +1488,13 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                       )}
                       <View style={{ flex: 1, gap: 2 }}>
                         <Text style={styles.headName}>{head.name}</Text>
-                        {/* Primary star removed as per user request */}
-                        {head.email && (
-                          <Text style={styles.headSub}>{head.email}</Text>
-                        )}
+                        {(head.email || head.phone) ? (
+                          <Text style={styles.headSub} numberOfLines={1}>
+                            {[head.email, head.phone].filter(Boolean).join("  •  ")}
+                          </Text>
+                        ) : null}
                       </View>
-                      {canNavigate && (
+                      {isClickable && (
                         <ChevronRight size={20} color="#8E8E93" />
                       )}
                     </TouchableOpacity>
@@ -1514,38 +1609,96 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 ].includes(postType);
               });
 
-              return interactivePosts.length > 0 ? (
+              // Sort: pinned first, then by created_at
+              const sortedPosts = [...interactivePosts].sort((a, b) => {
+                if (a.is_pinned && !b.is_pinned) return -1;
+                if (!a.is_pinned && b.is_pinned) return 1;
+                return new Date(b.created_at) - new Date(a.created_at);
+              });
+
+              return sortedPosts.length > 0 ? (
                 <View style={styles.communityPostsList}>
-                  {interactivePosts.map((post) => (
-                    <View key={post.id} style={styles.communityPostItem}>
-                      <EditorialPostCard
-                        post={post}
-                        onLike={(postId, isLiked, count) => {
-                          setPosts((prevPosts) =>
-                            prevPosts.map((p) =>
-                              p.id === postId
-                                ? { ...p, is_liked: isLiked, like_count: count }
-                                : p,
-                            ),
-                          );
-                        }}
-                        onComment={(postId) => openCommentsModal(postId)}
-                        onShare={() => {}}
-                        onFollow={() => {}}
-                        showFollowButton={false}
-                        currentUserId={currentUserId}
-                        currentUserType="member" // Viewing as member
-                        onUserPress={(userId, userType) => {}}
-                        onPostUpdate={(updatedPost) => {
-                          setPosts((prevPosts) =>
-                            prevPosts.map((p) =>
-                              p.id === updatedPost.id ? updatedPost : p,
-                            ),
-                          );
-                        }}
-                      />
-                    </View>
-                  ))}
+                  {sortedPosts.map((post) => {
+                    const postType = post.post_type || post.type;
+                    const isOpportunity = postType === "opportunity";
+                    return (
+                      <View key={post.id} style={styles.communityPostItem}>
+                        {/* Pinned badge */}
+                        {post.is_pinned && (
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: 5,
+                              paddingHorizontal: 16,
+                              paddingBottom: 4,
+                              paddingTop: 2,
+                            }}
+                          >
+                            <Text
+                              style={{
+                                fontFamily: FONTS.medium,
+                                fontSize: 11,
+                                color: COLORS.primary,
+                                letterSpacing: 0.2,
+                              }}
+                            >
+                              📌 Pinned
+                            </Text>
+                          </View>
+                        )}
+                        {isOpportunity ? (
+                          <OpportunityFeedCard
+                            opportunity={post}
+                            onPress={(opp) =>
+                              navigation.navigate("OpportunityView", {
+                                opportunityId: opp.id,
+                                opportunity: opp,
+                              })
+                            }
+                            onLike={(postId, isLiked, count) => {
+                              setPosts((prevPosts) =>
+                                prevPosts.map((p) =>
+                                  p.id === postId
+                                    ? { ...p, is_liked: isLiked, like_count: count }
+                                    : p,
+                                ),
+                              );
+                            }}
+                            onComment={(postId) => openCommentsModal(postId)}
+                            onShare={() => {}}
+                          />
+                        ) : (
+                          <EditorialPostCard
+                            post={post}
+                            onLike={(postId, isLiked, count) => {
+                              setPosts((prevPosts) =>
+                                prevPosts.map((p) =>
+                                  p.id === postId
+                                    ? { ...p, is_liked: isLiked, like_count: count }
+                                    : p,
+                                ),
+                              );
+                            }}
+                            onComment={(postId) => openCommentsModal(postId)}
+                            onShare={() => {}}
+                            onFollow={() => {}}
+                            showFollowButton={false}
+                            currentUserId={currentUserId}
+                            currentUserType="member" // Viewing as member
+                            onUserPress={(userId, userType) => {}}
+                            onPostUpdate={(updatedPost) => {
+                              setPosts((prevPosts) =>
+                                prevPosts.map((p) =>
+                                  p.id === updatedPost.id ? updatedPost : p,
+                                ),
+                              );
+                            }}
+                          />
+                        )}
+                      </View>
+                    );
+                  })}
                 </View>
               ) : (
                 <EmptyCommunityState isOwnProfile={false} />
@@ -2014,6 +2167,123 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           }
         }}
       />
+
+      {/* Premium Contact Info Modal */}
+      <Modal
+        visible={contactModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setContactModalVisible(false)}
+        statusBarTranslucent={true}
+      >
+        <TouchableOpacity
+          style={styles.contactModalOverlay}
+          activeOpacity={1}
+          onPress={() => setContactModalVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.contactModalContent}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <View style={styles.contactModalHeader}>
+              <Text style={styles.contactModalTitle}>
+                {selectedHeadForContact ? `${selectedHeadForContact.name}'s Contact Info` : "Contact Info"}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setContactModalVisible(false)}
+                style={styles.contactModalCloseBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={20} color="#0F172A" strokeWidth={2.2} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Options Body */}
+            <View style={styles.contactModalBody}>
+              {selectedHeadForContact?.member_id && (
+                <TouchableOpacity
+                  style={styles.contactModalOption}
+                  onPress={() => {
+                    setContactModalVisible(false);
+                    const memberId = selectedHeadForContact.member_id;
+                    const isOwnProfile = currentUserId && memberId === currentUserId;
+                    if (isOwnProfile) {
+                      const root = navigation.getParent()?.getParent();
+                      if (root) {
+                        root.navigate("MemberHome", {
+                          screen: "Profile",
+                          params: {
+                            screen: "MemberProfile",
+                          },
+                        });
+                      } else {
+                        navigation.navigate("MemberProfile");
+                      }
+                    } else {
+                      navigation.navigate("MemberPublicProfile", {
+                        memberId: memberId,
+                      });
+                    }
+                  }}
+                >
+                  <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(41, 98, 255, 0.08)" }]}>
+                    <User size={20} color="#2962FF" strokeWidth={2.2} />
+                  </View>
+                  <View style={styles.contactOptionTextContainer}>
+                    <Text style={styles.contactOptionTitle}>Visit Profile</Text>
+                    <Text style={styles.contactOptionSubtitle}>Go to user profile</Text>
+                  </View>
+                  <ChevronRight size={16} color="#8E8E93" />
+                </TouchableOpacity>
+              )}
+
+              {selectedHeadForContact?.email && (
+                <TouchableOpacity
+                  style={styles.contactModalOption}
+                  onPress={() => {
+                    setContactModalVisible(false);
+                    Linking.openURL(`mailto:${selectedHeadForContact.email}`).catch(() => {
+                      Alert.alert("Error", "Could not open mail app");
+                    });
+                  }}
+                >
+                  <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(16, 185, 129, 0.08)" }]}>
+                    <Mail size={20} color="#10B981" strokeWidth={2.2} />
+                  </View>
+                  <View style={styles.contactOptionTextContainer}>
+                    <Text style={styles.contactOptionTitle}>Email</Text>
+                    <Text style={styles.contactOptionSubtitle}>{selectedHeadForContact.email}</Text>
+                  </View>
+                  <ChevronRight size={16} color="#8E8E93" />
+                </TouchableOpacity>
+              )}
+
+              {selectedHeadForContact?.phone && (
+                <TouchableOpacity
+                  style={styles.contactModalOption}
+                  onPress={() => {
+                    setContactModalVisible(false);
+                    Linking.openURL(`tel:${selectedHeadForContact.phone}`).catch(() => {
+                      Alert.alert("Error", "Could not initiate call");
+                    });
+                  }}
+                >
+                  <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(245, 158, 11, 0.08)" }]}>
+                    <Phone size={20} color="#F59E0B" strokeWidth={2.2} />
+                  </View>
+                  <View style={styles.contactOptionTextContainer}>
+                    <Text style={styles.contactOptionTitle}>Call / Message</Text>
+                    <Text style={styles.contactOptionSubtitle}>{formatPhoneNumber(selectedHeadForContact.phone)}</Text>
+                  </View>
+                  <ChevronRight size={16} color="#8E8E93" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }

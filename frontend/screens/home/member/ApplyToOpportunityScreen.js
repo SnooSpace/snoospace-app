@@ -1,21 +1,27 @@
 import React, { useState, useLayoutEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  FileText,
+  Lightbulb,
+} from "lucide-react-native";
 import { applyToOpportunity } from "../../../api/opportunities";
 import SnooLoader from "../../../components/ui/SnooLoader";
-
-const COLORS = {
-  background: "#FAFAFA",
-  card: "#FFFFFF",
-  primary: "#007AFF",
-  text: "#1A1A2E",
-  textLight: "#6B7280",
-  border: "#E5E7EB",
-  success: "#10B981",
-  error: "#EF4444",
-};
+import { COLORS, FONTS, BORDER_RADIUS, SPACING } from "../../../constants/theme";
 
 export default function ApplyToOpportunityScreen({ route, navigation }) {
   const { opportunity } = route.params || {};
@@ -24,9 +30,15 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
 
   // Application data
   const [selectedRole, setSelectedRole] = useState(null);
+  const [selectedSkills, setSelectedSkills] = useState([]);
   const [portfolioLink, setPortfolioLink] = useState("");
   const [portfolioNote, setPortfolioNote] = useState("");
   const [answers, setAnswers] = useState({});
+
+  // Input focus states for active border animations
+  const [isUrlFocused, setIsUrlFocused] = useState(false);
+  const [isNoteFocused, setIsNoteFocused] = useState(false);
+  const [focusedQuestion, setFocusedQuestion] = useState(null);
 
   // Hide tab bar
   useLayoutEffect(() => {
@@ -61,12 +73,10 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
         }
         return true;
       case 2:
-        // Portfolio is optional but encouraged
         return true;
       case 3:
-        // Check required questions
         const requiredUnanswered = (opportunity.questions || []).find(
-          (q) => q.required && (!answers[q.id] || !answers[q.id].trim()),
+          (q) => q.required && (!answers[q.id] || !answers[q.id].trim())
         );
         if (requiredUnanswered) {
           Alert.alert("Required", "Please answer all required questions.");
@@ -99,11 +109,20 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
+      // Incorporate selected skills into the portfolio note field cleanly for DB storage
+      let finalPortfolioNote = portfolioNote.trim();
+      if (selectedSkills.length > 0) {
+        const skillsHeader = `Applied with skills: ${selectedSkills.join(", ")}`;
+        finalPortfolioNote = finalPortfolioNote
+          ? `${skillsHeader}\n\n${finalPortfolioNote}`
+          : skillsHeader;
+      }
+
       const applicationData = {
         opportunity_id: opportunity.id,
         applied_role: selectedRole,
         portfolio_link: portfolioLink.trim() || null,
-        portfolio_note: portfolioNote.trim() || null,
+        portfolio_note: finalPortfolioNote || null,
         responses: Object.entries(answers).map(([questionId, answer]) => ({
           question_id: questionId,
           answer: answer,
@@ -115,20 +134,50 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
       Alert.alert(
         "Application Submitted!",
         "Your application has been sent. The creator will review it soon.",
-        [{ text: "OK", onPress: () => navigation.popToTop() }],
+        [{ text: "OK", onPress: () => navigation.popToTop() }]
       );
     } catch (error) {
       console.error("Error submitting application:", error);
       Alert.alert(
         "Error",
-        error.message || "Failed to submit application. Please try again.",
+        error.message || "Failed to submit application. Please try again."
       );
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Step 1: Role Selection
+  // Step 1: Role Selection & Individual Chip Selection Logic
+  const handleToggleSkill = (role, skill) => {
+    if (selectedRole !== role) {
+      // Switched role completely: set role, and select only this specific skill
+      setSelectedRole(role);
+      setSelectedSkills([skill]);
+    } else {
+      // Toggle skill inside active role
+      if (selectedSkills.includes(skill)) {
+        setSelectedSkills(selectedSkills.filter((s) => s !== skill));
+      } else {
+        setSelectedSkills([...selectedSkills, skill]);
+      }
+    }
+  };
+
+  const handleSelectRoleHeader = (role, allSkills) => {
+    if (selectedRole === role) {
+      // Toggle selection of all skills
+      const allSelected = allSkills.every((s) => selectedSkills.includes(s));
+      if (allSelected) {
+        setSelectedSkills([]);
+      } else {
+        setSelectedSkills([...allSkills]);
+      }
+    } else {
+      setSelectedRole(role);
+      setSelectedSkills([...allSkills]); // Select all by default when clicking header
+    }
+  };
+
   const renderStep1 = () => {
     const roles = opportunity?.opportunity_types || [];
     const eligibilityMode = opportunity?.eligibility_mode || "any_one";
@@ -137,6 +186,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
       <ScrollView
         style={styles.stepContent}
         contentContainerStyle={styles.stepContentInner}
+        showsVerticalScrollIndicator={false}
       >
         <Text style={styles.stepTitle}>Which role are you applying for?</Text>
         <Text style={styles.stepSubtitle}>
@@ -148,17 +198,26 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
         <View style={styles.rolesContainer}>
           {roles.map((role, index) => {
             const skillGroup = opportunity.skill_groups?.find(
-              (g) => g.role === role,
+              (g) => g.role === role
             );
             const isSelected = selectedRole === role;
+            const tools = skillGroup?.tools || [];
+            const sampleType = skillGroup?.sample_type;
 
             return (
-              <TouchableOpacity
+              <View
                 key={index}
-                style={[styles.roleCard, isSelected && styles.roleCardSelected]}
-                onPress={() => setSelectedRole(role)}
+                style={[
+                  styles.roleCard,
+                  isSelected && styles.roleCardActive,
+                ]}
               >
-                <View style={styles.roleCardHeader}>
+                {/* Header Row: Radio Button & Job Title */}
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.roleCardHeader}
+                  onPress={() => handleSelectRoleHeader(role, tools)}
+                >
                   <View
                     style={[
                       styles.radioOuter,
@@ -167,44 +226,50 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
                   >
                     {isSelected && <View style={styles.radioInner} />}
                   </View>
-                  <Text
-                    style={[
-                      styles.roleCardTitle,
-                      isSelected && styles.roleCardTitleSelected,
-                    ]}
-                  >
-                    {role}
-                  </Text>
-                </View>
+                  <Text style={styles.roleCardTitle}>{role}</Text>
+                </TouchableOpacity>
 
-                {skillGroup?.tools?.length > 0 && (
+                {/* Sub-Chips: Individually Selectable tools */}
+                {tools.length > 0 && (
                   <View style={styles.roleToolsRow}>
-                    {skillGroup.tools.slice(0, 4).map((tool, i) => (
-                      <View key={i} style={styles.roleToolChip}>
-                        <Text style={styles.roleToolText}>{tool}</Text>
-                      </View>
-                    ))}
-                    {skillGroup.tools.length > 4 && (
-                      <Text style={styles.moreTools}>
-                        +{skillGroup.tools.length - 4} more
-                      </Text>
-                    )}
+                    {tools.map((tool, i) => {
+                      const isSkillSelected = isSelected && selectedSkills.includes(tool);
+                      return (
+                        <TouchableOpacity
+                          key={i}
+                          activeOpacity={0.8}
+                          onPress={() => handleToggleSkill(role, tool)}
+                          style={[
+                            styles.roleToolChip,
+                            isSkillSelected && styles.roleToolChipSelected,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.roleToolText,
+                              isSkillSelected && styles.roleToolTextSelected,
+                            ]}
+                          >
+                            {tool}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
                 )}
 
-                {skillGroup?.sample_type && (
+                {/* Expected Sample Information */}
+                {sampleType && (
                   <View style={styles.sampleTypeInfo}>
-                    <Ionicons
-                      name="document-outline"
-                      size={14}
-                      color={COLORS.textLight}
-                    />
+                    <View style={styles.iconMiniContainer}>
+                      <FileText size={14} color={COLORS.textSecondary} />
+                    </View>
                     <Text style={styles.sampleTypeText}>
-                      Sample needed: {skillGroup.sample_type}
+                      Work Sample Expected: {sampleType}
                     </Text>
                   </View>
                 )}
-              </TouchableOpacity>
+              </View>
             );
           })}
         </View>
@@ -212,10 +277,10 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
     );
   };
 
-  // Step 2: Portfolio
+  // Step 2: Portfolio & Sample Submission Details
   const renderStep2 = () => {
     const skillGroup = opportunity?.skill_groups?.find(
-      (g) => g.role === selectedRole,
+      (g) => g.role === selectedRole
     );
     const sampleType = skillGroup?.sample_type;
 
@@ -223,6 +288,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
       <ScrollView
         style={styles.stepContent}
         contentContainerStyle={styles.stepContentInner}
+        showsVerticalScrollIndicator={false}
       >
         <Text style={styles.stepTitle}>Share your portfolio</Text>
         <Text style={styles.stepSubtitle}>
@@ -234,32 +300,46 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>Portfolio / Sample Link</Text>
           <TextInput
-            style={styles.textInput}
+            style={[
+              styles.textInput,
+              isUrlFocused && styles.textInputFocused,
+            ]}
             placeholder="https://yourportfolio.com or drive link"
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={COLORS.textMuted}
             value={portfolioLink}
             onChangeText={setPortfolioLink}
             autoCapitalize="none"
             keyboardType="url"
+            onFocus={() => setIsUrlFocused(true)}
+            onBlur={() => setIsUrlFocused(false)}
           />
         </View>
 
         <View style={styles.inputGroup}>
           <Text style={styles.inputLabel}>Additional Notes (optional)</Text>
           <TextInput
-            style={[styles.textInput, styles.textArea]}
+            style={[
+              styles.textInput,
+              styles.textArea,
+              isNoteFocused && styles.textInputFocused,
+            ]}
             placeholder="Tell them about your experience, relevant projects, or why you'd be a great fit..."
-            placeholderTextColor="#9CA3AF"
+            placeholderTextColor={COLORS.textMuted}
             value={portfolioNote}
             onChangeText={setPortfolioNote}
             multiline
             numberOfLines={4}
             textAlignVertical="top"
+            onFocus={() => setIsNoteFocused(true)}
+            onBlur={() => setIsNoteFocused(false)}
           />
         </View>
 
+        {/* Tip Box */}
         <View style={styles.tipBox}>
-          <Ionicons name="bulb-outline" size={18} color="#F59E0B" />
+          <View style={styles.tipIconContainer}>
+            <Lightbulb size={20} color="#EF6C00" />
+          </View>
           <Text style={styles.tipText}>
             Tip: Applications with portfolio links get 3x more responses!
           </Text>
@@ -268,7 +348,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
     );
   };
 
-  // Step 3: Questions
+  // Step 3: Custom Questions from Creator
   const renderStep3 = () => {
     const questions = opportunity?.questions || [];
 
@@ -276,6 +356,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
       <ScrollView
         style={styles.stepContent}
         contentContainerStyle={styles.stepContentInner}
+        showsVerticalScrollIndicator={false}
       >
         <Text style={styles.stepTitle}>Answer a few questions</Text>
         <Text style={styles.stepSubtitle}>
@@ -283,36 +364,42 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
         </Text>
 
         <View style={styles.questionsContainer}>
-          {questions.map((question, index) => (
-            <View key={question.id || index} style={styles.questionCard}>
-              <View style={styles.questionHeader}>
-                <Text style={styles.questionNumber}>Q{index + 1}</Text>
-                {question.required && (
-                  <View style={styles.requiredBadge}>
-                    <Text style={styles.requiredText}>Required</Text>
-                  </View>
-                )}
+          {questions.map((question, index) => {
+            const isLongText = question.question_type === "long_text";
+            const isFocused = focusedQuestion === question.id;
+
+            return (
+              <View key={question.id || index} style={styles.questionCard}>
+                <View style={styles.questionHeader}>
+                  <Text style={styles.questionNumber}>Q{index + 1}</Text>
+                  {question.required && (
+                    <View style={styles.requiredBadge}>
+                      <Text style={styles.requiredText}>Required</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.questionPrompt}>{question.prompt}</Text>
+                <TextInput
+                  style={[
+                    styles.textInput,
+                    isLongText && styles.textArea,
+                    isFocused && styles.textInputFocused,
+                  ]}
+                  placeholder="Your answer..."
+                  placeholderTextColor={COLORS.textMuted}
+                  value={answers[question.id] || ""}
+                  onChangeText={(text) =>
+                    setAnswers({ ...answers, [question.id]: text })
+                  }
+                  multiline={isLongText}
+                  numberOfLines={isLongText ? 4 : 1}
+                  textAlignVertical={isLongText ? "top" : "center"}
+                  onFocus={() => setFocusedQuestion(question.id)}
+                  onBlur={() => setFocusedQuestion(null)}
+                />
               </View>
-              <Text style={styles.questionPrompt}>{question.prompt}</Text>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  question.question_type === "long_text" && styles.textArea,
-                ]}
-                placeholder="Your answer..."
-                placeholderTextColor="#9CA3AF"
-                value={answers[question.id] || ""}
-                onChangeText={(text) =>
-                  setAnswers({ ...answers, [question.id]: text })
-                }
-                multiline={question.question_type === "long_text"}
-                numberOfLines={question.question_type === "long_text" ? 4 : 1}
-                textAlignVertical={
-                  question.question_type === "long_text" ? "top" : "center"
-                }
-              />
-            </View>
-          ))}
+            );
+          })}
         </View>
       </ScrollView>
     );
@@ -350,10 +437,14 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
         style={styles.keyboardView}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {/* Header */}
+        {/* Header Navigation */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBack}
+            activeOpacity={0.7}
+          >
+            <ArrowLeft size={22} color={COLORS.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{getStepTitle()}</Text>
           <View style={styles.stepIndicator}>
@@ -363,7 +454,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Progress Bar */}
+        {/* Flat Segmented Progress Bar */}
         <View style={styles.progressContainer}>
           <View style={styles.progressBar}>
             <View
@@ -378,15 +469,16 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
         {/* Step Content */}
         {renderCurrentStep()}
 
-        {/* Footer */}
+        {/* Floating Premium CTA Footer */}
         <View style={styles.footer}>
           <TouchableOpacity
             style={styles.nextButton}
             onPress={handleNext}
             disabled={submitting}
+            activeOpacity={0.8}
           >
             <LinearGradient
-              colors={["#00C6FF", "#007AFF"]}
+              colors={COLORS.primaryGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.nextGradient}
@@ -395,20 +487,16 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
                 <SnooLoader color="#FFFFFF" />
               ) : (
                 <>
-                  <Text style={[styles.nextButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
+                  <Text style={styles.nextButtonText}>
                     {currentStep === TOTAL_STEPS
                       ? "Submit Application"
                       : "Continue"}
                   </Text>
-                  <Ionicons
-                    name={
-                      currentStep === TOTAL_STEPS
-                        ? "checkmark"
-                        : "arrow-forward"
-                    }
-                    size={20}
-                    color="#FFFFFF"
-                  />
+                  {currentStep === TOTAL_STEPS ? (
+                    <Check size={20} color="#FFFFFF" />
+                  ) : (
+                    <ArrowRight size={20} color="#FFFFFF" />
+                  )}
                 </>
               )}
             </LinearGradient>
@@ -422,7 +510,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.screenBackground,
   },
   keyboardView: {
     flex: 1,
@@ -434,51 +522,57 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   errorText: {
+    fontFamily: FONTS.regular,
     fontSize: 16,
-    color: COLORS.textLight,
+    color: COLORS.textSecondary,
   },
   goBackText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 15,
-    fontWeight: "600",
     color: COLORS.primary,
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
-    backgroundColor: COLORS.card,
+    backgroundColor: COLORS.surface,
   },
   backButton: {
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
   },
   headerTitle: {
-    fontSize: 17,
-    fontWeight: "600",
-    color: COLORS.text,
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: COLORS.textPrimary,
   },
   stepIndicator: {
-    backgroundColor: COLORS.primary + "15",
-    paddingHorizontal: 10,
+    backgroundColor: "rgba(41, 98, 255, 0.06)",
+    paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.pill,
   },
   stepText: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontFamily: FONTS.medium,
+    fontSize: 12,
     color: COLORS.primary,
   },
   progressContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: COLORS.card,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: COLORS.surface,
   },
   progressBar: {
     height: 4,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: COLORS.border,
     borderRadius: 2,
     overflow: "hidden",
   },
@@ -491,47 +585,47 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   stepContentInner: {
-    padding: 20,
-    paddingBottom: 100,
+    padding: 24,
+    paddingBottom: 110,
   },
   stepTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: COLORS.text,
+    fontFamily: FONTS.black,
+    fontSize: 24,
+    color: COLORS.textPrimary,
     marginBottom: 8,
   },
   stepSubtitle: {
-    fontSize: 15,
-    color: COLORS.textLight,
-    lineHeight: 22,
-    marginBottom: 24,
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
+    marginBottom: 28,
   },
   rolesContainer: {
-    gap: 12,
+    gap: 16,
   },
   roleCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 2,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.l,
+    padding: 20,
+    borderWidth: 1,
     borderColor: COLORS.border,
   },
-  roleCardSelected: {
+  roleCardActive: {
     borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + "08",
   },
   roleCardHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginBottom: 8,
+    marginBottom: 16,
   },
   radioOuter: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    borderWidth: 2,
-    borderColor: COLORS.border,
+    borderWidth: 1.5,
+    borderColor: COLORS.textMuted,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -545,89 +639,115 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
   roleCardTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.text,
-  },
-  roleCardTitleSelected: {
-    color: COLORS.primary,
+    fontFamily: FONTS.primary,
+    fontSize: 17,
+    color: COLORS.textPrimary,
   },
   roleToolsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
+    gap: 8,
     marginLeft: 34,
-    marginBottom: 8,
+    marginBottom: 16,
   },
   roleToolChip: {
-    backgroundColor: COLORS.background,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.m,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  roleToolChipSelected: {
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    borderColor: COLORS.primary,
   },
   roleToolText: {
-    fontSize: 12,
-    color: COLORS.textLight,
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: "#4B5563",
   },
-  moreTools: {
-    fontSize: 12,
-    color: COLORS.textLight,
-    alignSelf: "center",
+  roleToolTextSelected: {
+    fontFamily: FONTS.semiBold,
+    color: COLORS.primary,
   },
   sampleTypeInfo: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
     marginLeft: 34,
   },
+  iconMiniContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(107, 114, 128, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   sampleTypeText: {
+    fontFamily: FONTS.medium,
     fontSize: 13,
-    color: COLORS.textLight,
+    color: COLORS.textSecondary,
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   inputLabel: {
+    fontFamily: FONTS.semiBold,
     fontSize: 14,
-    fontWeight: "600",
-    color: COLORS.text,
+    color: COLORS.textPrimary,
     marginBottom: 8,
   },
   textInput: {
-    backgroundColor: COLORS.card,
-    borderRadius: 12,
-    padding: 14,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.m,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     fontSize: 15,
-    color: COLORS.text,
+    fontFamily: FONTS.regular,
+    color: COLORS.textPrimary,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  textInputFocused: {
+    borderColor: COLORS.primary,
+  },
   textArea: {
-    minHeight: 100,
+    minHeight: 120,
     paddingTop: 14,
   },
   tipBox: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    backgroundColor: "#FEF3C7",
-    padding: 14,
-    borderRadius: 12,
-    marginTop: 8,
+    gap: 12,
+    backgroundColor: "#FFF3E0",
+    padding: 16,
+    borderRadius: BORDER_RADIUS.l,
+    marginTop: 10,
+  },
+  tipIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(239, 108, 0, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   tipText: {
     flex: 1,
+    fontFamily: FONTS.regular,
     fontSize: 13,
-    color: "#92400E",
+    color: "#D84315",
     lineHeight: 18,
   },
   questionsContainer: {
-    gap: 20,
+    gap: 24,
   },
   questionCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 14,
-    padding: 16,
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.l,
+    padding: 20,
     borderWidth: 1,
     borderColor: COLORS.border,
   },
@@ -635,44 +755,45 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   questionNumber: {
+    fontFamily: FONTS.medium,
     fontSize: 12,
-    fontWeight: "700",
     color: COLORS.primary,
-    backgroundColor: COLORS.primary + "15",
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: BORDER_RADIUS.s,
   },
   requiredBadge: {
-    backgroundColor: COLORS.error + "15",
+    backgroundColor: "rgba(229, 62, 62, 0.08)",
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: BORDER_RADIUS.s,
   },
   requiredText: {
+    fontFamily: FONTS.medium,
     fontSize: 11,
-    fontWeight: "600",
     color: COLORS.error,
   },
   questionPrompt: {
+    fontFamily: FONTS.medium,
     fontSize: 15,
-    fontWeight: "500",
-    color: COLORS.text,
+    color: COLORS.textPrimary,
     lineHeight: 22,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   footer: {
-    padding: 16,
-    paddingBottom: 32,
-    backgroundColor: COLORS.card,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    paddingBottom: 36,
+    backgroundColor: COLORS.surface,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
   },
   nextButton: {
-    borderRadius: 14,
+    borderRadius: BORDER_RADIUS.pill,
     overflow: "hidden",
   },
   nextGradient: {
@@ -683,9 +804,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   nextButtonText: {
-    fontSize: 17,
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
     color: "#FFFFFF",
-  
-    fontFamily: "Manrope-SemiBold",
   },
 });
