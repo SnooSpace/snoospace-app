@@ -2359,13 +2359,7 @@ const pinPost = async (req, res) => {
       // Ignore - column likely already exists
     }
 
-    // Unpin any existing pinned post for this author first (one pin at a time)
-    await pool.query(
-      `UPDATE posts SET is_pinned = FALSE WHERE author_id = $1 AND author_type = $2 AND is_pinned = TRUE`,
-      [userId, userType],
-    );
-
-    // Pin the requested post
+    // Pin the requested post (frontend manages the 3-pin cap and unpins the oldest before calling here)
     await pool.query(
       `UPDATE posts SET is_pinned = TRUE WHERE id = $1`,
       [postId],

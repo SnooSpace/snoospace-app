@@ -228,6 +228,7 @@ const getOpportunities = async (req, res) => {
         o.closed_at,
         o.created_at,
         o.updated_at,
+        COALESCE(o.is_pinned, FALSE) as is_pinned,
         COALESCE(
           (SELECT COUNT(*) FROM opportunity_applications oa 
            WHERE oa.opportunity_id = o.id AND oa.status = 'shortlisted'),
@@ -236,7 +237,7 @@ const getOpportunities = async (req, res) => {
       FROM opportunities o
       WHERE o.creator_id = $1 AND o.creator_type = $2
       ${statusFilter}
-      ORDER BY o.created_at DESC
+      ORDER BY COALESCE(o.is_pinned, FALSE) DESC, o.created_at DESC
     `;
 
     const result = await pool.query(query, params);
@@ -1070,6 +1071,143 @@ const getFollowedOpportunities = async (req, res) => {
   }
 };
 
+// ============================================
+// GET COMMUNITY'S PUBLIC OPPORTUNITIES
+// Used by CommunityPublicProfileScreen to show opportunity cards
+// ============================================
+const getCommunityOpportunities = async (req, res) => {
+  try {
+    const { communityId } = req.params;
+
+    const query = `
+      SELECT 
+        o.id,
+        o.title,
+        o.status,
+        o.opportunity_types,
+        o.work_type,
+        o.work_mode,
+        o.payment_type,
+        o.payment_nature,
+        o.trial_type,
+        o.budget_range,
+        o.availability,
+        o.experience_level,
+        o.expires_at,
+        o.closed_at,
+        o.created_at,
+        o.creator_id,
+        o.creator_type,
+        o.applicant_count,
+        o.is_pinned,
+        c.name as creator_name,
+        c.logo_url as creator_photo,
+        c.username as creator_username
+      FROM opportunities o
+      LEFT JOIN communities c ON o.creator_id::integer = c.id
+      WHERE o.creator_id = $1
+        AND o.creator_type = 'community'
+        AND o.status IN ('active', 'draft')
+        AND o.visibility = 'public'
+      ORDER BY COALESCE(o.is_pinned, FALSE) DESC, o.created_at DESC
+    `;
+
+    const result = await pool.query(query, [communityId]);
+
+    const opportunities = await Promise.all(
+      result.rows.map(async (opp) => {
+        const sgResult = await pool.query(
+          `SELECT role, tools FROM opportunity_skill_groups 
+           WHERE opportunity_id = $1 ORDER BY display_order`,
+          [opp.id],
+        );
+        return {
+          ...opp,
+          skill_groups: sgResult.rows,
+        };
+      }),
+    );
+
+    res.json({ success: true, opportunities });
+  } catch (error) {
+    console.error("Error getting community opportunities:", error);
+    res.status(500).json({ error: "Failed to get opportunities" });
+  }
+};
+
+// ============================================
+// PIN / UNPIN OPPORTUNITY
+// ============================================
+const pinOpportunity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Verify ownership
+    const check = await pool.query(
+      `SELECT id FROM opportunities WHERE id = $1 AND creator_id = $2 AND creator_type = $3`,
+      [id, userId, userType],
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: "Opportunity not found or access denied" });
+    }
+
+    // Add is_pinned column if not exists (idempotent)
+    try {
+      await pool.query(
+        `ALTER TABLE opportunities ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE`,
+      );
+    } catch (e) { /* already exists */ }
+
+    // Pin the requested opportunity (frontend manages the 3-pin cap)
+    await pool.query(
+      `UPDATE opportunities SET is_pinned = TRUE WHERE id = $1`,
+      [id],
+    );
+
+    res.json({ success: true, pinned: true });
+  } catch (error) {
+    console.error("Error pinning opportunity:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const unpinOpportunity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Verify ownership
+    const check = await pool.query(
+      `SELECT id FROM opportunities WHERE id = $1 AND creator_id = $2 AND creator_type = $3`,
+      [id, userId, userType],
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: "Opportunity not found or access denied" });
+    }
+
+    await pool.query(
+      `UPDATE opportunities SET is_pinned = FALSE WHERE id = $1`,
+      [id],
+    );
+
+    res.json({ success: true, pinned: false });
+  } catch (error) {
+    console.error("Error unpinning opportunity:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   createOpportunity,
   getOpportunities,
@@ -1082,4 +1220,7 @@ module.exports = {
   getApplicationDetail,
   updateApplicationStatus,
   getFollowedOpportunities,
+  getCommunityOpportunities,
+  pinOpportunity,
+  unpinOpportunity,
 };

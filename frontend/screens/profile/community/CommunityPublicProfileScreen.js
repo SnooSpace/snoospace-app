@@ -573,26 +573,6 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           ? data?.posts || data || []
           : [...posts, ...(data?.posts || data || [])];
 
-        // DEBUG: Log raw post data to understand structure
-        if (rawPosts.length > 0) {
-          console.log(
-            "[CommunityPublicProfile] DEBUG - First 3 posts raw data:",
-            rawPosts.slice(0, 3).map((p) => ({
-              id: p.id,
-              post_type: p.post_type,
-              type: p.type,
-              has_image_urls: !!p.image_urls,
-              image_urls_type: typeof p.image_urls,
-              image_urls_length: Array.isArray(p.image_urls)
-                ? p.image_urls.length
-                : "not array",
-              image_urls_value: p.image_urls,
-              has_video_url: !!p.video_url,
-              video_url: p.video_url,
-            })),
-          );
-        }
-
         // Normalize is_liked field for all posts - ensure it's explicitly true or false
         const normalizedPosts = rawPosts.map((post) => ({
           ...post,
@@ -601,30 +581,37 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         }));
 
         // Merge with cached like states to fix backend returning stale is_liked data
-        const mergedPosts =
-          await LikeStateManager.mergeLikeStates(normalizedPosts);
+        let mergedPosts = await LikeStateManager.mergeLikeStates(normalizedPosts);
 
-        // DEBUG: Log filter results
-        const dbgInteractive = [
-          "poll",
-          "prompt",
-          "qna",
-          "challenge",
-          "opportunity",
-        ];
-        const dbgMedia = mergedPosts.filter(
-          (p) => !dbgInteractive.includes(p.post_type || p.type),
-        );
-        console.log("[CommunityPublicProfile] DEBUG - Filter results:", {
-          totalPosts: mergedPosts.length,
-          mediaPostsCount: dbgMedia.length,
-          interactiveCount: mergedPosts.length - dbgMedia.length,
-          firstPostFields: mergedPosts[0]
-            ? Object.keys(mergedPosts[0]).join(",")
-            : "none",
-          firstPostType:
-            mergedPosts[0]?.post_type || mergedPosts[0]?.type || "undefined",
-        });
+        // On initial/reset load, also fetch & merge community's public opportunities
+        // (opportunities live in a separate table, not returned by getCommunityPosts)
+        if (reset) {
+          try {
+            const token = await getAuthToken();
+            const oppsRes = await apiGet(
+              `/communities/${communityId}/opportunities`,
+              15000,
+              token,
+            );
+            const rawOpps = Array.isArray(oppsRes?.opportunities)
+              ? oppsRes.opportunities
+              : [];
+            const normalizedOpps = rawOpps.map((o) => ({
+              ...o,
+              post_type: "opportunity",
+              is_liked: false,
+              like_count: o.like_count || 0,
+              comment_count: o.comment_count || 0,
+              is_pinned: o.is_pinned || false,
+            }));
+            mergedPosts = [...mergedPosts, ...normalizedOpps];
+            console.log(
+              `[CommunityPublicProfile] Merged ${normalizedOpps.length} opportunities. Total: ${mergedPosts.length}`,
+            );
+          } catch (oppErr) {
+            console.log("[CommunityPublicProfile] Could not load opportunities:", oppErr?.message);
+          }
+        }
 
         setPosts(mergedPosts);
         const received = (data?.posts || data || []).length;
@@ -1693,6 +1680,16 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                             }}
                             onComment={(postId) => openCommentsModal(postId)}
                             onShare={() => {}}
+                            onUserPress={(userId, userType) => {
+                              if (userType === "community") {
+                                navigation.navigate("CommunityPublicProfile", {
+                                  communityId: userId,
+                                  viewerRole: viewerRole || "member",
+                                });
+                              } else {
+                                navigation.navigate("MemberPublicProfile", { memberId: userId });
+                              }
+                            }}
                           />
                         ) : (
                           <EditorialPostCard

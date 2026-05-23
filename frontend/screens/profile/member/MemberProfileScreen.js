@@ -17,7 +17,7 @@ import {
   getAllAccounts,
   getActiveAccount,
 } from "../../../api/auth";
-import { apiGet, apiPost, apiDelete } from "../../../api/client";
+import { apiGet, apiPost, apiDelete, pinPost, unpinPost } from "../../../api/client";
 import { deleteAccount as apiDeleteAccount } from "../../../api/account";
 import {
   launchImageLibraryAsync,
@@ -55,6 +55,7 @@ import UnexpectedLogoutBanner from "../../../components/UnexpectedLogoutBanner";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import EmptyPostsState from "../../../components/EmptyPostsState";
 import { useToast } from "../../../context/ToastContext";
+import ActionModal from "../../../components/modals/ActionModal";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -97,6 +98,9 @@ export default function MemberProfileScreen({ navigation }) {
   });
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
   const [activeEmail, setActiveEmail] = useState("");
+  const [pinModalVisible, setPinModalVisible] = useState(false);
+  const [postForPinToggle, setPostForPinToggle] = useState(null);
+  const [oldestPinnedPost, setOldestPinnedPost] = useState(null);
 
   // Cursor-based pagination state for posts
   const [postCursor, setPostCursor] = useState(null);
@@ -132,6 +136,66 @@ export default function MemberProfileScreen({ navigation }) {
   const handleToggleHaptics = async (value) => {
     setHapticsEnabled(value);
     await HapticsService.setEnabled(value);
+  };
+
+  const MAX_PINS = 3;
+
+  const handlePinToggle = (post) => {
+    HapticsService.triggerImpactLight();
+    if (post.is_pinned) {
+      setOldestPinnedPost(null);
+      setPostForPinToggle(post);
+      setPinModalVisible(true);
+      return;
+    }
+    const currentlyPinned = posts.filter((p) => p.is_pinned);
+    if (currentlyPinned.length >= MAX_PINS) {
+      const oldest = [...currentlyPinned].sort(
+        (a, b) => new Date(a.created_at) - new Date(b.created_at),
+      )[0];
+      setOldestPinnedPost(oldest);
+    } else {
+      setOldestPinnedPost(null);
+    }
+    setPostForPinToggle(post);
+    setPinModalVisible(true);
+  };
+
+  const handlePinToggleConfirm = async (post) => {
+    try {
+      const token = await getAuthToken();
+      if (!token) return;
+      if (post.is_pinned) {
+        await unpinPost(post.id, token);
+        setPosts((prev) => prev.map((p) => p.id === post.id ? { ...p, is_pinned: false } : p));
+        if (selectedPost?.id === post.id) {
+          setSelectedPost((prev) => prev ? { ...prev, is_pinned: false } : null);
+        }
+      } else {
+        const currentlyPinned = posts.filter((p) => p.is_pinned);
+        if (currentlyPinned.length >= MAX_PINS) {
+          const oldest = [...currentlyPinned].sort(
+            (a, b) => new Date(a.created_at) - new Date(b.created_at),
+          )[0];
+          if (oldest) await unpinPost(oldest.id, token);
+          await pinPost(post.id, token);
+          setPosts((prev) => prev.map((p) => {
+            if (p.id === post.id) return { ...p, is_pinned: true };
+            if (oldest && p.id === oldest.id) return { ...p, is_pinned: false };
+            return p;
+          }));
+        } else {
+          await pinPost(post.id, token);
+          setPosts((prev) => prev.map((p) => p.id === post.id ? { ...p, is_pinned: true } : p));
+        }
+        if (selectedPost?.id === post.id) {
+          setSelectedPost((prev) => prev ? { ...prev, is_pinned: true } : null);
+        }
+      }
+      setOldestPinnedPost(null);
+    } catch (e) {
+      showToast("Failed to update pin", "error");
+    }
   };
 
   // Real-time sync: view, share, save counts from EventBus
@@ -1265,6 +1329,7 @@ export default function MemberProfileScreen({ navigation }) {
             );
           }
         }}
+        onPinToggle={handlePinToggle}
         onDelete={async (postId) => {
           try {
             const token = await getAuthToken();
@@ -1293,6 +1358,44 @@ export default function MemberProfileScreen({ navigation }) {
             Alert.alert("Error", "Failed to delete post");
           }
         }}
+      />
+
+      <ActionModal
+        visible={pinModalVisible}
+        title={
+          postForPinToggle?.is_pinned
+            ? "Unpin Post"
+            : oldestPinnedPost
+            ? "Pin Limit Reached"
+            : "Pin Post"
+        }
+        message={
+          postForPinToggle?.is_pinned
+            ? "Remove this post from your pinned posts?"
+            : oldestPinnedPost
+            ? `You already have ${MAX_PINS} pinned posts. Pinning this will replace your oldest pin.`
+            : "Pin this post to the top of your Posts tab?"
+        }
+        actions={[
+          {
+            text: postForPinToggle?.is_pinned
+              ? "Unpin"
+              : oldestPinnedPost
+              ? "Replace Oldest Pin"
+              : "Pin to Top",
+            onPress: async () => {
+              setPinModalVisible(false);
+              if (postForPinToggle) await handlePinToggleConfirm(postForPinToggle);
+            },
+            style: oldestPinnedPost ? "warning" : "success",
+          },
+          {
+            text: "Cancel",
+            onPress: () => { setPinModalVisible(false); setOldestPinnedPost(null); },
+            style: "cancel",
+          },
+        ]}
+        onClose={() => { setPinModalVisible(false); setOldestPinnedPost(null); }}
       />
 
       {/* Comments Modal - Render after PostModal to ensure proper z-index */}

@@ -535,6 +535,21 @@ router.get(
   authMiddleware,
   CommunityController.getPublicCommunity,
 );
+router.get(
+  "/communities/:communityId/opportunities",
+  authMiddleware,
+  OpportunityController.getCommunityOpportunities,
+);
+router.post(
+  "/opportunities/:id/pin",
+  authMiddleware,
+  OpportunityController.pinOpportunity,
+);
+router.delete(
+  "/opportunities/:id/pin",
+  authMiddleware,
+  OpportunityController.unpinOpportunity,
+);
 router.patch(
   "/communities/heads",
   authMiddleware,

@@ -48,6 +48,9 @@ import {
   CheckCircle2,
   XCircle,
   Info,
+  Pin,
+  Pencil,
+  Trash2,
 } from "lucide-react-native";
 import { savePost, unsavePost } from "../../api/client";
 import { uploadMultipleImages } from "../../api/cloudinary";
@@ -68,9 +71,10 @@ const PromptPostCard = ({
   onComment,
   onSave,
   onShare,
-  onDelete, // Now optionally used for callback
-  onEdit, // Now optionally used for callback
-  onPostUpdate, // New prop
+  onDelete,
+  onEdit,
+  onPostUpdate,
+  onPinToggle,
   currentUserId,
   currentUserType,
 }) => {
@@ -516,16 +520,29 @@ const PromptPostCard = ({
           <View style={styles.nudgeBadge}>
             <Text style={styles.nudgeBadgeText}>NUDGE</Text>
           </View>
-          {/* Ever green indicator for prompts > 72h old */}
-          {(() => {
-            const ageHours =
-              (new Date() - new Date(post.created_at)) / (1000 * 60 * 60);
-            if (ageHours >= 72) {
-            }
-            return null;
-          })()}
         </View>
         <View style={styles.rightHeaderContent}>
+          {isOwnPost && onPinToggle && (
+            <View style={{ overflow: "visible" }}>
+              <TouchableOpacity
+                style={[
+                  styles.pinButton,
+                  post.is_pinned && styles.pinButtonPinned,
+                ]}
+                onPress={() => onPinToggle(post)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+                  <Pin
+                    size={14}
+                    color={post.is_pinned ? "#10B981" : "#9CA3AF"}
+                    strokeWidth={2}
+                    fill={post.is_pinned ? "#10B981" : "none"}
+                  />
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
           {isOwnPost && (onEdit || onDelete) && (
             <TouchableOpacity
               style={styles.ellipsisButton}
@@ -571,12 +588,18 @@ const PromptPostCard = ({
                     setShowMenu(false);
                     setShowEditModal(true);
                   }}
+                  activeOpacity={0.7}
                 >
-                  <Ionicons name="create-outline" size={18} color="#1D1D1F" />
-                  <Text style={styles.menuItemText}>Edit Post</Text>
+                  <View style={styles.menuIconWrap}>
+                    <Pencil size={15} color="#2962FF" strokeWidth={2} />
+                  </View>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={styles.menuItemTitle}>Edit Post</Text>
+                    <Text style={styles.menuItemSub}>Update details or requirements</Text>
+                  </View>
                 </TouchableOpacity>
               )}
-
+              {!isExpired && (onDelete || isOwnPost) && <View style={styles.menuDivider} />}
               {(onDelete || isOwnPost) && (
                 <TouchableOpacity
                   style={styles.menuItem}
@@ -584,11 +607,17 @@ const PromptPostCard = ({
                     setShowMenu(false);
                     handleDelete();
                   }}
+                  activeOpacity={0.7}
                 >
-                  <Ionicons name="trash-outline" size={18} color="#DC2626" />
-                  <Text style={[styles.menuItemText, { color: "#DC2626" }]}>
-                    Delete Post
-                  </Text>
+                  <View style={[styles.menuIconWrap, styles.menuIconDestructive]}>
+                    <Trash2 size={15} color="#EF4444" strokeWidth={2} />
+                  </View>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={[styles.menuItemTitle, styles.menuItemDestructive]}>
+                      Delete Post
+                    </Text>
+                    <Text style={styles.menuItemSub}>This action cannot be undone</Text>
+                  </View>
                 </TouchableOpacity>
               )}
             </View>
@@ -963,6 +992,15 @@ const styles = StyleSheet.create({
   ellipsisButton: {
     padding: 8,
   },
+  pinButton: {
+    padding: 6,
+    borderRadius: 8,
+    overflow: "visible",
+  },
+  pinButtonPinned: {
+    backgroundColor: "rgba(16, 185, 129, 0.1)",
+    borderRadius: 8,
+  },
   menuContainer: {
     position: "absolute",
     top: 48,
@@ -977,14 +1015,8 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
     gap: 12,
-  },
-  menuItemText: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#1D1D1F",
   },
   evergreenBadge: {
     flexDirection: "row",
@@ -1297,16 +1329,49 @@ const styles = StyleSheet.create({
   menuContainerModal: {
     position: "absolute",
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 8,
-    ...SHADOWS.medium,
-    zIndex: 10,
-    minWidth: 150,
+    borderRadius: 16,
+    padding: 10,
+    width: 270,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowRadius: 16,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+  },
+  menuItemTextContainer: {
+    flex: 1,
+  },
+  menuIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  menuIconDestructive: {
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+  },
+  menuItemTitle: {
+    fontSize: 14,
+    fontFamily: FONTS.semiBold || "System",
+    color: "#1D1D1F",
+  },
+  menuItemDestructive: {
+    color: "#EF4444",
+  },
+  menuItemSub: {
+    fontSize: 11,
+    fontFamily: FONTS.regular || "System",
+    color: "#6B7280",
+    marginTop: 1,
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    marginVertical: 4,
   },
 });
 

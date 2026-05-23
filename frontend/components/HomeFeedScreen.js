@@ -1079,12 +1079,56 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           onLike={handleLikeUpdate}
           onComment={handleCommentPress}
           onShare={handleSharePress}
-          // Opportunity might not support onSave/onFollow same way yet, or handled internally
           onSave={(id, saved) => {
-            // Optional: update local state if needed
             setOpportunities((prev) =>
               prev.map((o) => (o.id === id ? { ...o, is_saved: saved } : o)),
             );
+          }}
+          onDelete={(opportunityId) => {
+            setOpportunities((prev) => prev.filter((o) => o.id !== opportunityId));
+            setFeedItems((prev) => prev.filter((fi) => fi.id !== opportunityId));
+          }}
+          onUserPress={(userId, userType) => {
+            const actualUserType = userType || item?.creator_type;
+            const actualUserId = userId || item?.creator_id;
+
+            if (actualUserType === "community") {
+              const isOwnCommunity =
+                currentUserId && String(actualUserId) === String(currentUserId);
+              if (isOwnCommunity && role === "community") {
+                const root = navigation.getParent()?.getParent();
+                if (root) {
+                  root.navigate(getNavigationStack(), {
+                    screen: "Profile",
+                    params: { screen: "CommunityProfile" },
+                  });
+                }
+              } else {
+                navigation.navigate("CommunityPublicProfile", {
+                  communityId: actualUserId,
+                  viewerRole: "member",
+                });
+              }
+              return;
+            }
+
+            if (actualUserType === "member") {
+              const isOwnProfile =
+                currentUserId && actualUserId === currentUserId;
+              if (!isOwnProfile) {
+                navigation.navigate("MemberPublicProfile", {
+                  memberId: actualUserId,
+                });
+              } else {
+                const root = navigation.getParent()?.getParent();
+                if (root) {
+                  root.navigate(getNavigationStack(), {
+                    screen: "Profile",
+                    params: { screen: "MemberProfile" },
+                  });
+                }
+              }
+            }
           }}
           onPostUpdate={handlePostUpdate}
         />

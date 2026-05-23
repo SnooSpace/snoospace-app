@@ -68,7 +68,7 @@ import {
   deleteDraft as deleteDraftUtil,
   formatLastSaved,
 } from "../../../utils/draftStorage";
-import { apiGet, apiPost, apiDelete, pinPost, unpinPost } from "../../../api/client";
+import { apiGet, apiPost, apiDelete, pinPost, unpinPost, pinOpportunity, unpinOpportunity } from "../../../api/client";
 import {
   getCommunityProfile,
   updateCommunityProfile,
@@ -193,6 +193,7 @@ export default function CommunityProfileScreen({ navigation }) {
   const [selectedHeadForContact, setSelectedHeadForContact] = useState(null);
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [postForPinToggle, setPostForPinToggle] = useState(null);
+  const [oldestPinnedPost, setOldestPinnedPost] = useState(null); // Set when at 3-pin limit
 
   // Event Creation
   const [showCreateEventModal, setShowCreateEventModal] = useState(false);
@@ -247,8 +248,32 @@ export default function CommunityProfileScreen({ navigation }) {
     await HapticsService.setEnabled(value);
   };
 
+  const MAX_PINS = 3;
+
   const handlePinToggle = (post) => {
     HapticsService.triggerImpactLight();
+
+    // If unpinning, no limit check needed
+    if (post.is_pinned) {
+      setOldestPinnedPost(null);
+      setPostForPinToggle(post);
+      setPinModalVisible(true);
+      return;
+    }
+
+    // Count current pins across all post types
+    const currentlyPinned = posts.filter((p) => p.is_pinned);
+
+    if (currentlyPinned.length >= MAX_PINS) {
+      // Find the oldest pinned post (by created_at) to be replaced
+      const oldest = [...currentlyPinned].sort(
+        (a, b) => new Date(a.created_at) - new Date(b.created_at),
+      )[0];
+      setOldestPinnedPost(oldest);
+    } else {
+      setOldestPinnedPost(null);
+    }
+
     setPostForPinToggle(post);
     setPinModalVisible(true);
   };
@@ -258,8 +283,15 @@ export default function CommunityProfileScreen({ navigation }) {
       const token = await getAuthToken();
       if (!token) return;
 
+      const isOpportunity = post.post_type === "opportunity";
+
       if (post.is_pinned) {
-        await unpinPost(post.id, token);
+        // Unpinning
+        if (isOpportunity) {
+          await unpinOpportunity(post.id, token);
+        } else {
+          await unpinPost(post.id, token);
+        }
         setPosts((prev) =>
           prev.map((p) =>
             p.id === post.id ? { ...p, is_pinned: false } : p,
@@ -269,18 +301,51 @@ export default function CommunityProfileScreen({ navigation }) {
           setSelectedPost((prev) => prev ? { ...prev, is_pinned: false } : null);
         }
       } else {
-        await pinPost(post.id, token);
-        setPosts((prev) =>
-          prev.map((p) =>
-            p.id === post.id
-              ? { ...p, is_pinned: true }
-              : { ...p, is_pinned: false },
-          ),
-        );
+        // Pinning — check if we need to replace the oldest pin first
+        const currentlyPinned = posts.filter((p) => p.is_pinned);
+        if (currentlyPinned.length >= MAX_PINS) {
+          const oldest = [...currentlyPinned].sort(
+            (a, b) => new Date(a.created_at) - new Date(b.created_at),
+          )[0];
+          if (oldest) {
+            // Unpin the oldest first
+            if (oldest.post_type === "opportunity") {
+              await unpinOpportunity(oldest.id, token);
+            } else {
+              await unpinPost(oldest.id, token);
+            }
+          }
+          // Pin the new one, unpin the replaced oldest in state
+          if (isOpportunity) {
+            await pinOpportunity(post.id, token);
+          } else {
+            await pinPost(post.id, token);
+          }
+          setPosts((prev) =>
+            prev.map((p) => {
+              if (p.id === post.id) return { ...p, is_pinned: true };
+              if (oldest && p.id === oldest.id) return { ...p, is_pinned: false };
+              return p;
+            }),
+          );
+        } else {
+          // Under the limit — just pin
+          if (isOpportunity) {
+            await pinOpportunity(post.id, token);
+          } else {
+            await pinPost(post.id, token);
+          }
+          setPosts((prev) =>
+            prev.map((p) =>
+              p.id === post.id ? { ...p, is_pinned: true } : p,
+            ),
+          );
+        }
         if (selectedPost?.id === post.id) {
           setSelectedPost((prev) => prev ? { ...prev, is_pinned: true } : null);
         }
       }
+      setOldestPinnedPost(null);
     } catch (e) {
       showToast("Failed to update pin", "error");
     }
@@ -649,6 +714,34 @@ export default function CommunityProfileScreen({ navigation }) {
           });
         }
       } catch {}
+
+      // Fetch community's own opportunities (separate table, not in posts)
+      // and merge them into the combined posts list with post_type: "opportunity"
+      try {
+        const oppsRes = await apiGet("/opportunities", 15000, token);
+        const rawOpps = Array.isArray(oppsRes?.opportunities)
+          ? oppsRes.opportunities
+          : [];
+        const normalizedOpps = rawOpps
+          .filter((o) => o.status === "active" || o.status === "draft")
+          .map((o) => ({
+            ...o,
+            post_type: "opportunity",
+            // Map opportunity fields to post-compatible shape where needed
+            creator_id: o.creator_id || userId,
+            creator_type: o.creator_type || userType,
+            is_liked: false,
+            like_count: o.like_count || 0,
+            comment_count: o.comment_count || 0,
+            is_pinned: o.is_pinned || false,
+          }));
+        userPosts = [...userPosts, ...normalizedOpps];
+        console.log(
+          `[CommunityProfile] Merged ${normalizedOpps.length} opportunities into posts. Total: ${userPosts.length}`,
+        );
+      } catch (oppErr) {
+        console.log("[CommunityProfile] Failed to load opportunities:", oppErr);
+      }
 
       const normalizedCategories = (() => {
         if (Array.isArray(fullProfile?.categories))
@@ -1857,6 +1950,19 @@ export default function CommunityProfileScreen({ navigation }) {
                             onComment={(postId) => openCommentsModal(postId)}
                             onShare={() => {}}
                             onPinToggle={() => handlePinToggle(post)}
+                            onDelete={(opportunityId) => {
+                              setPosts((prev) => prev.filter((p) => p.id !== opportunityId));
+                            }}
+                            onUserPress={(userId, userType) => {
+                              if (userType === "community") {
+                                navigation.navigate("CommunityPublicProfile", {
+                                  communityId: userId,
+                                  viewerRole: "community",
+                                });
+                              } else {
+                                navigation.navigate("MemberPublicProfile", { memberId: userId });
+                              }
+                            }}
                           />
                         ) : (
                           <EditorialPostCard
@@ -2785,30 +2891,48 @@ export default function CommunityProfileScreen({ navigation }) {
 
       <ActionModal
         visible={pinModalVisible}
-        title={postForPinToggle?.is_pinned ? "Unpin Post" : "Pin Post"}
+        title={
+          postForPinToggle?.is_pinned
+            ? "Unpin Post"
+            : oldestPinnedPost
+            ? "Pin Limit Reached"
+            : "Pin Post"
+        }
         message={
           postForPinToggle?.is_pinned
-            ? "Remove this post from pinned?"
-            : "Pin this post to the top of your Posts tab?"
+            ? "Remove this post from your pinned posts?"
+            : oldestPinnedPost
+            ? `You already have ${MAX_PINS} pinned posts. Pinning this will replace your oldest pin.`
+            : "Pin this post to the top of your Community tab?"
         }
         actions={[
           {
-            text: postForPinToggle?.is_pinned ? "Unpin" : "Pin to Top",
+            text: postForPinToggle?.is_pinned
+              ? "Unpin"
+              : oldestPinnedPost
+              ? "Replace Oldest Pin"
+              : "Pin to Top",
             onPress: async () => {
               setPinModalVisible(false);
               if (postForPinToggle) {
                 await handlePinToggleConfirm(postForPinToggle);
               }
             },
-            style: "success",
+            style: oldestPinnedPost ? "warning" : "success",
           },
           {
             text: "Cancel",
-            onPress: () => setPinModalVisible(false),
+            onPress: () => {
+              setPinModalVisible(false);
+              setOldestPinnedPost(null);
+            },
             style: "cancel",
           },
         ]}
-        onClose={() => setPinModalVisible(false)}
+        onClose={() => {
+          setPinModalVisible(false);
+          setOldestPinnedPost(null);
+        }}
       />
 
       {/* Premium Contact Info Modal */}

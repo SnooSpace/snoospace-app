@@ -806,3 +806,19 @@ export async function pinPost(postId, token) {
 export async function unpinPost(postId, token) {
   return apiDelete(`/posts/${postId}/pin`, null, 10000, token);
 }
+
+/**
+ * Pin an opportunity (UUID-based, separate from posts)
+ * @param {string} opportunityId - Opportunity UUID to pin
+ */
+export async function pinOpportunity(opportunityId, token) {
+  return apiPost(`/opportunities/${opportunityId}/pin`, {}, 10000, token);
+}
+
+/**
+ * Unpin an opportunity (UUID-based, separate from posts)
+ * @param {string} opportunityId - Opportunity UUID to unpin
+ */
+export async function unpinOpportunity(opportunityId, token) {
+  return apiDelete(`/opportunities/${opportunityId}/pin`, null, 10000, token);
+}
