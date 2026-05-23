@@ -420,14 +420,15 @@ const OpportunityFeedCard = ({
           </View>
 
           <View style={styles.rightHeaderContent}>
-            {/* Pin button */}
-            {onPinToggle && (
+            {/* Pin button / read-only indicator */}
+            {(onPinToggle || opportunity.is_pinned) && (
               <TouchableOpacity
                 style={[
                   styles.pinButton,
                   opportunity.is_pinned && styles.pinButtonActive,
                 ]}
-                onPress={onPinToggle}
+                onPress={onPinToggle ? () => onPinToggle(opportunity) : undefined}
+                disabled={!onPinToggle}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <View style={styles.pinIconWrapper}>

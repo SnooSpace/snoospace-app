@@ -1633,33 +1633,6 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                     const isOpportunity = postType === "opportunity";
                     return (
                       <View key={post.id} style={styles.communityPostItem}>
-                        {/* Pinned badge */}
-                        {post.is_pinned && (
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              alignItems: "center",
-                              gap: 5,
-                              paddingHorizontal: 16,
-                              paddingBottom: 4,
-                              paddingTop: 2,
-                            }}
-                          >
-                            <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
-                              <Pin size={12} color="#10B981" strokeWidth={2} fill="#10B981" />
-                            </View>
-                            <Text
-                              style={{
-                                fontFamily: FONTS.medium,
-                                fontSize: 11,
-                                color: "#10B981",
-                                letterSpacing: 0.2,
-                              }}
-                            >
-                              Pinned
-                            </Text>
-                          </View>
-                        )}
                         {isOpportunity ? (
                           <OpportunityFeedCard
                             opportunity={post}

@@ -797,11 +797,12 @@ const EditorialPostCard = ({
           />
         )}
 
-        {/* Pin Button for Own Posts */}
-        {isOwnPost && onPinToggle && (
+        {/* Pin Button / Indicator */}
+        {(onPinToggle || post.is_pinned) && (
           <TouchableOpacity
             style={[styles.pinButton, post.is_pinned && styles.pinButtonPinned]}
-            onPress={() => onPinToggle(post)}
+            onPress={onPinToggle ? () => onPinToggle(post) : undefined}
+            disabled={!onPinToggle}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <View style={styles.pinIconWrapper}>

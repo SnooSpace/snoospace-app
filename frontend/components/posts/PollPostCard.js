@@ -483,14 +483,15 @@ const PollPostCard = ({
             <Text style={styles.pollBadgeText}>POLL</Text>
           </View>
           <View style={styles.rightHeaderContent}>
-            {isOwnPost && onPinToggle && (
+            {(onPinToggle || post.is_pinned) && (
               <View style={{ overflow: "visible" }}>
                 <TouchableOpacity
                   style={[
                     styles.pinButton,
                     post.is_pinned && styles.pinButtonPinned,
                   ]}
-                  onPress={() => onPinToggle(post)}
+                  onPress={onPinToggle ? () => onPinToggle(post) : undefined}
+                  disabled={!onPinToggle}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
                   <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
