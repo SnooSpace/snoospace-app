@@ -129,6 +129,8 @@ const getTabBarStyle = (route, customHiddenRoutes = []) => {
     "FollowingList",
     "CommunityFollowersList",
     "CommunityFollowingList",
+    "MemberPublicProfile",
+    "CommunityPublicProfile",
   ];
   const allHiddenRoutes = [...baseHiddenRoutes, ...customHiddenRoutes];
   

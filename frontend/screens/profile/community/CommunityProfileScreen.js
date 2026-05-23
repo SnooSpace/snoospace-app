@@ -268,7 +268,6 @@ export default function CommunityProfileScreen({ navigation }) {
         if (selectedPost?.id === post.id) {
           setSelectedPost((prev) => prev ? { ...prev, is_pinned: false } : null);
         }
-        showToast("Post unpinned", "info");
       } else {
         await pinPost(post.id, token);
         setPosts((prev) =>
@@ -281,7 +280,6 @@ export default function CommunityProfileScreen({ navigation }) {
         if (selectedPost?.id === post.id) {
           setSelectedPost((prev) => prev ? { ...prev, is_pinned: true } : null);
         }
-        showToast("Post pinned to top", "success");
       }
     } catch (e) {
       showToast("Failed to update pin", "error");
@@ -1633,12 +1631,17 @@ export default function CommunityProfileScreen({ navigation }) {
                                 top: 6,
                                 left: 6,
                                 zIndex: 10,
-                                backgroundColor: "rgba(41, 98, 255, 0.85)",
+                                backgroundColor: "rgba(255, 255, 255, 0.22)",
                                 borderRadius: 10,
-                                padding: 3,
+                                padding: 5,
+                                borderWidth: 0.6,
+                                borderColor: "rgba(255, 255, 255, 0.5)",
+                                overflow: "visible",
                               }}
                             >
-                              <Pin size={10} color="#FFF" strokeWidth={2.5} />
+                              <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+                                <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+                              </View>
                             </View>
                             )}
 
@@ -1818,12 +1821,14 @@ export default function CommunityProfileScreen({ navigation }) {
                               paddingTop: 2,
                             }}
                           >
-                            <Pin size={12} color={COLORS.primary} strokeWidth={2} />
+                            <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+                              <Pin size={12} color="#10B981" strokeWidth={2} fill="#10B981" />
+                            </View>
                             <Text
                               style={{
                                 fontFamily: FONTS.medium,
                                 fontSize: 11,
-                                color: COLORS.primary,
+                                color: "#10B981",
                                 letterSpacing: 0.2,
                               }}
                             >
@@ -2424,7 +2429,7 @@ export default function CommunityProfileScreen({ navigation }) {
       {selectedPost && (
         <ProfilePostFeed
           visible={postModalVisible}
-          onPinToggle={handlePinToggle}
+          onPinToggle={handlePinToggleConfirm}
           posts={posts.filter((p) => {
             // Only show media posts in modal (exclude Community tab content)
             const postType = p.post_type || p.type;
@@ -2783,7 +2788,7 @@ export default function CommunityProfileScreen({ navigation }) {
                 await handlePinToggleConfirm(postForPinToggle);
               }
             },
-            style: "primary",
+            style: "success",
           },
           {
             text: "Cancel",

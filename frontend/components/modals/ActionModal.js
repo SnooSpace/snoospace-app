@@ -92,6 +92,10 @@ export default function ActionModal({
                       buttonStyle = styles.primaryButton;
                       textStyle = styles.primaryText;
                       iconColor = "#FFFFFF";
+                    } else if (styleType === "success" || styleType === "green") {
+                      buttonStyle = styles.successButton;
+                      textStyle = styles.successText;
+                      iconColor = "#FFFFFF";
                     } else if (styleType === "warning") {
                       buttonStyle = styles.warningButton;
                       textStyle = styles.warningText;
@@ -216,6 +220,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#1D1D1F",
   },
   primaryText: {
+    color: "#FFFFFF",
+  },
+  successButton: {
+    backgroundColor: "#10B981", // rich emerald green
+  },
+  successText: {
     color: "#FFFFFF",
   },
   secondaryButton: {

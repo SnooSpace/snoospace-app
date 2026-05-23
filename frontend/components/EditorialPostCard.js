@@ -800,15 +800,17 @@ const EditorialPostCard = ({
         {/* Pin Button for Own Posts */}
         {isOwnPost && onPinToggle && (
           <TouchableOpacity
-            style={styles.pinButton}
+            style={[styles.pinButton, post.is_pinned && styles.pinButtonPinned]}
             onPress={() => onPinToggle(post)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Pin
-              size={20}
-              color={post.is_pinned ? COLORS.primary : COLORS.editorial.textSecondary}
-              fill={post.is_pinned ? COLORS.primary : "none"}
-            />
+            <View style={styles.pinIconWrapper}>
+              <Pin
+                size={18}
+                color={post.is_pinned ? "#10B981" : "#9CA3AF"}
+                fill={post.is_pinned ? "#10B981" : "none"}
+              />
+            </View>
           </TouchableOpacity>
         )}
 
@@ -1228,8 +1230,20 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   pinButton: {
-    padding: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     marginLeft: 4,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "visible",
+  },
+  pinButtonPinned: {
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+  },
+  pinIconWrapper: {
+    transform: [{ rotate: "27deg" }],
+    overflow: "visible",
   },
   insightsButton: {
     padding: 8,
