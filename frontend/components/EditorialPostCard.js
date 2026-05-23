@@ -149,6 +149,7 @@ const EditorialPostCard = ({
   showFollowButton = true,
   hideSave = false,
   navigation = null,
+  showManagementControls = false, // When false (HomeFeed), hides pin button on all card types
 }) => {
   // Route to type-specific card components for special post types
   const postType = post.post_type || "media";
@@ -167,6 +168,7 @@ const EditorialPostCard = ({
         onPinToggle={onPinToggle}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
+        showManagementControls={showManagementControls}
       />
     );
   }
@@ -185,6 +187,7 @@ const EditorialPostCard = ({
         onPinToggle={onPinToggle}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
+        showManagementControls={showManagementControls}
       />
     );
   }
@@ -203,6 +206,7 @@ const EditorialPostCard = ({
         onPinToggle={onPinToggle}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
+        showManagementControls={showManagementControls}
       />
     );
   }
@@ -221,6 +225,7 @@ const EditorialPostCard = ({
         onPinToggle={onPinToggle}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
+        showManagementControls={showManagementControls}
       />
     );
   }
@@ -797,12 +802,11 @@ const EditorialPostCard = ({
           />
         )}
 
-        {/* Pin Button / Indicator */}
-        {(onPinToggle || post.is_pinned) && (
+        {/* Pin Button — only shown in profile screens (showManagementControls=true) */}
+        {showManagementControls && onPinToggle && (
           <TouchableOpacity
             style={[styles.pinButton, post.is_pinned && styles.pinButtonPinned]}
-            onPress={onPinToggle ? () => onPinToggle(post) : undefined}
-            disabled={!onPinToggle}
+            onPress={() => onPinToggle(post, true)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <View style={styles.pinIconWrapper}>

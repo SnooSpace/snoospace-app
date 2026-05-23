@@ -56,6 +56,7 @@ const ProfilePostFeed = ({
   onDelete,
   onPostUpdate, // New prop
   onPinToggle, // NEW prop
+  showManagementControls = false, // Pass true in profile contexts so pin button appears
   navigation, // Add navigation prop for CommentsModal
 }) => {
   // Initialize with the initial post ID so video starts playing immediately
@@ -164,6 +165,7 @@ const ProfilePostFeed = ({
         onPostUpdate={onPostUpdate}
         onRequestDelete={handleRequestDelete}
         onPinToggle={onPinToggle} // NEW prop
+        showManagementControls={showManagementControls}
         showFollowButton={true} // Allow following if not same user
         navigation={navigation}
       />

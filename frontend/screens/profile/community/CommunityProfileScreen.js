@@ -250,8 +250,18 @@ export default function CommunityProfileScreen({ navigation }) {
 
   const MAX_PINS = 3;
 
-  const handlePinToggle = (post) => {
+  // Community-tab post types (Poll, Prompt, QnA, Challenge, Opportunity)
+  const COMMUNITY_TAB_TYPES = ["poll", "prompt", "qna", "challenge", "opportunity"];
+  const isCommunityTabPost = (p) =>
+    COMMUNITY_TAB_TYPES.includes(p.post_type || p.type);
+
+  const handlePinToggle = (post, isDirect = false) => {
     HapticsService.triggerImpactLight();
+
+    if (isDirect) {
+      handlePinToggleConfirm(post);
+      return;
+    }
 
     // If unpinning, no limit check needed
     if (post.is_pinned) {
@@ -261,11 +271,14 @@ export default function CommunityProfileScreen({ navigation }) {
       return;
     }
 
-    // Count current pins across all post types
-    const currentlyPinned = posts.filter((p) => p.is_pinned);
+    // Count pinned posts only within the SAME tab as this post
+    const isCommunity = isCommunityTabPost(post);
+    const currentlyPinned = posts.filter(
+      (p) => p.is_pinned && isCommunityTabPost(p) === isCommunity,
+    );
 
     if (currentlyPinned.length >= MAX_PINS) {
-      // Find the oldest pinned post (by created_at) to be replaced
+      // Find the oldest pinned post (by created_at) within the same tab
       const oldest = [...currentlyPinned].sort(
         (a, b) => new Date(a.created_at) - new Date(b.created_at),
       )[0];
@@ -301,8 +314,12 @@ export default function CommunityProfileScreen({ navigation }) {
           setSelectedPost((prev) => prev ? { ...prev, is_pinned: false } : null);
         }
       } else {
-        // Pinning — check if we need to replace the oldest pin first
-        const currentlyPinned = posts.filter((p) => p.is_pinned);
+        // Pinning — count only same-tab pins
+        const isCommunity = isCommunityTabPost(post);
+        const currentlyPinned = posts.filter(
+          (p) => p.is_pinned && isCommunityTabPost(p) === isCommunity,
+        );
+
         if (currentlyPinned.length >= MAX_PINS) {
           const oldest = [...currentlyPinned].sort(
             (a, b) => new Date(a.created_at) - new Date(b.created_at),
@@ -315,7 +332,7 @@ export default function CommunityProfileScreen({ navigation }) {
               await unpinPost(oldest.id, token);
             }
           }
-          // Pin the new one, unpin the replaced oldest in state
+          // Pin the new one, reflect both changes in state
           if (isOpportunity) {
             await pinOpportunity(post.id, token);
           } else {
@@ -350,6 +367,7 @@ export default function CommunityProfileScreen({ navigation }) {
       showToast("Failed to update pin", "error");
     }
   };
+
 
   useEffect(() => {
     // Underline sliding animation
@@ -1905,6 +1923,7 @@ export default function CommunityProfileScreen({ navigation }) {
                         {isOpportunity ? (
                           <OpportunityFeedCard
                             opportunity={post}
+                            showManagementControls={true}
                             onPress={(opp) =>
                               navigation.navigate("OpportunityView", {
                                 opportunityId: opp.id,
@@ -1969,6 +1988,7 @@ export default function CommunityProfileScreen({ navigation }) {
                               }
                             }}
                             onPinToggle={handlePinToggle}
+                            showManagementControls={true}
                             onPostUpdate={(updatedPost) => {
                               setPosts((prevPosts) =>
                                 prevPosts.map((p) =>

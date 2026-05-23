@@ -8,7 +8,7 @@ import {
   useRoute,
   useFocusEffect,
 } from "@react-navigation/native";
-import { Settings, Bookmark, ChevronDown, Play, AlertCircle, Image as LucideImage } from "lucide-react-native";
+import { Settings, Bookmark, ChevronDown, Play, AlertCircle, Image as LucideImage, Pin } from "lucide-react-native";
 import {
   clearAuthSession,
   getAuthToken,
@@ -140,8 +140,12 @@ export default function MemberProfileScreen({ navigation }) {
 
   const MAX_PINS = 3;
 
-  const handlePinToggle = (post) => {
+  const handlePinToggle = (post, isDirect = false) => {
     HapticsService.triggerImpactLight();
+    if (isDirect) {
+      handlePinToggleConfirm(post);
+      return;
+    }
     if (post.is_pinned) {
       setOldestPinnedPost(null);
       setPostForPinToggle(post);
@@ -801,6 +805,8 @@ export default function MemberProfileScreen({ navigation }) {
                 },
               ]}
               onPress={() => item && openPostModal(item)}
+              onLongPress={() => item && handlePinToggle(item)}
+              delayLongPress={400}
               disabled={!item}
             >
               {item ? (
@@ -888,7 +894,7 @@ export default function MemberProfileScreen({ navigation }) {
                             postId: item.id,
                             mediaUrl,
                             error: e.nativeEvent?.error || "Unknown error",
-                          });
+                            });
                         }}
                         onLoad={() => {
                           console.log(
@@ -909,6 +915,28 @@ export default function MemberProfileScreen({ navigation }) {
                           }}
                         >
                           <Play size={16} color="#FFF" />
+                        </View>
+                      )}
+
+                      {/* Pinned indicator on grid tile */}
+                      {item?.is_pinned && (
+                        <View
+                          style={{
+                            position: "absolute",
+                            top: 6,
+                            left: 6,
+                            zIndex: 10,
+                            backgroundColor: "rgba(255, 255, 255, 0.22)",
+                            borderRadius: 10,
+                            padding: 5,
+                            borderWidth: 0.6,
+                            borderColor: "rgba(255, 255, 255, 0.5)",
+                            overflow: "visible",
+                          }}
+                        >
+                          <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+                            <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+                          </View>
                         </View>
                       )}
                     </>
@@ -1330,6 +1358,7 @@ export default function MemberProfileScreen({ navigation }) {
           }
         }}
         onPinToggle={handlePinToggle}
+        showManagementControls={true}
         onDelete={async (postId) => {
           try {
             const token = await getAuthToken();

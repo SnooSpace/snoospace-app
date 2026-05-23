@@ -128,9 +128,12 @@ const OpportunityFeedCard = ({
   onLike,
   onComment,
   onShare,
-  onDelete,          // (opportunityId) => void — called after successful delete
-  onUserPress,       // (userId, userType) => void — navigate to profile
-  onPinToggle,       // Optional: shown only for owner view
+  onSave,
+  onDelete,                  // (opportunityId) => void — called after successful delete
+  onUserPress,               // (userId, userType) => void — navigate to profile
+  onPinToggle,               // Optional: shown only for owner view
+  onPostUpdate,              // Optional: called when post is updated
+  showManagementControls = false, // When true, shows pin + 3-dot menu for owners (Profile screens only)
 }) => {
   const navigation = useNavigation();
   const [currentUserId, setCurrentUserId] = useState(null);
@@ -420,15 +423,14 @@ const OpportunityFeedCard = ({
           </View>
 
           <View style={styles.rightHeaderContent}>
-            {/* Pin button / read-only indicator */}
-            {(onPinToggle || opportunity.is_pinned) && (
+            {/* Pin button — only shown in profile screens with management enabled */}
+            {showManagementControls && onPinToggle && (
               <TouchableOpacity
                 style={[
                   styles.pinButton,
                   opportunity.is_pinned && styles.pinButtonActive,
                 ]}
-                onPress={onPinToggle ? () => onPinToggle(opportunity) : undefined}
-                disabled={!onPinToggle}
+                onPress={() => onPinToggle(opportunity, true)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <View style={styles.pinIconWrapper}>
@@ -442,8 +444,8 @@ const OpportunityFeedCard = ({
               </TouchableOpacity>
             )}
 
-            {/* 3-dot menu — shown only to creator */}
-            {isCreator && (
+            {/* 3-dot menu — shown only to creator when management controls are enabled (profile screens) */}
+            {showManagementControls && isCreator && (
               <TouchableOpacity
                 style={styles.menuButton}
                 onPress={(e) => {

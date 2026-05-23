@@ -77,6 +77,7 @@ const PromptPostCard = ({
   onPinToggle,
   currentUserId,
   currentUserType,
+  showManagementControls = false,
 }) => {
   const navigation = useNavigation();
   const { showToast } = useToast();
@@ -522,15 +523,14 @@ const PromptPostCard = ({
           </View>
         </View>
         <View style={styles.rightHeaderContent}>
-          {(onPinToggle || post.is_pinned) && (
+          {showManagementControls && onPinToggle && (
             <View style={{ overflow: "visible" }}>
               <TouchableOpacity
                 style={[
                   styles.pinButton,
                   post.is_pinned && styles.pinButtonPinned,
                 ]}
-                onPress={onPinToggle ? () => onPinToggle(post) : undefined}
-                disabled={!onPinToggle}
+                onPress={() => onPinToggle(post, true)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
                 <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
