@@ -1939,7 +1939,6 @@ export default function CommunityProfileScreen({ navigation }) {
                                 ),
                               );
                             }}
-                            onComment={(postId) => openCommentsModal(postId)}
                             onShare={() => {}}
                             onPinToggle={() => handlePinToggle(post)}
                             onDelete={(opportunityId) => {

@@ -1405,6 +1405,282 @@ const viewOpportunity = async (req, res) => {
   }
 };
 
+// ============================================
+// OPPORTUNITY COMMENTS
+// ============================================
+
+/**
+ * Ensures the opportunity_comments table exists (UUID-keyed, created lazily).
+ */
+const ensureOpportunityCommentsTable = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS opportunity_comments (
+      id            SERIAL PRIMARY KEY,
+      opportunity_id UUID NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+      commenter_id   INTEGER NOT NULL,
+      commenter_type VARCHAR(20) NOT NULL CHECK (commenter_type IN ('member','community','sponsor','venue')),
+      comment_text   TEXT NOT NULL,
+      parent_comment_id INTEGER REFERENCES opportunity_comments(id) ON DELETE CASCADE,
+      tagged_entities   JSONB,
+      created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+};
+
+const getOpportunityComments = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+
+    await ensureOpportunityCommentsTable();
+
+    // Verify opportunity exists
+    const oppCheck = await pool.query('SELECT id, creator_id, creator_type FROM opportunities WHERE id = $1', [id]);
+    if (oppCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Opportunity not found' });
+    }
+    const opp = oppCheck.rows[0];
+
+    const query = `
+      SELECT
+        c.*,
+        CASE
+          WHEN c.commenter_type = 'member'    THEN m.name
+          WHEN c.commenter_type = 'community' THEN comm.name
+          WHEN c.commenter_type = 'sponsor'   THEN s.brand_name
+          WHEN c.commenter_type = 'venue'     THEN v.name
+        END as commenter_name,
+        CASE
+          WHEN c.commenter_type = 'member'    THEN m.username
+          WHEN c.commenter_type = 'community' THEN comm.username
+          WHEN c.commenter_type = 'sponsor'   THEN s.username
+          WHEN c.commenter_type = 'venue'     THEN v.username
+        END as commenter_username,
+        CASE
+          WHEN c.commenter_type = 'member'    THEN m.profile_photo_url
+          WHEN c.commenter_type = 'community' THEN comm.logo_url
+          WHEN c.commenter_type = 'sponsor'   THEN s.logo_url
+          WHEN c.commenter_type = 'venue'     THEN NULL
+        END as commenter_photo_url,
+        0 as like_count,
+        false AS is_liked
+      FROM opportunity_comments c
+      LEFT JOIN members     m    ON c.commenter_type = 'member'    AND c.commenter_id = m.id
+      LEFT JOIN communities comm ON c.commenter_type = 'community' AND c.commenter_id = comm.id
+      LEFT JOIN sponsors    s    ON c.commenter_type = 'sponsor'   AND c.commenter_id = s.id
+      LEFT JOIN venues      v    ON c.commenter_type = 'venue'     AND c.commenter_id = v.id
+      WHERE c.opportunity_id = $1 AND c.parent_comment_id IS NULL
+      ORDER BY c.created_at ASC
+      LIMIT $2 OFFSET $3
+    `;
+
+    const result = await pool.query(query, [id, limit, offset]);
+
+    const comments = await Promise.all(result.rows.map(async (comment) => {
+      // Parse tagged_entities
+      try {
+        comment.tagged_entities = comment.tagged_entities
+          ? (typeof comment.tagged_entities === 'string' ? JSON.parse(comment.tagged_entities) : comment.tagged_entities)
+          : null;
+      } catch { comment.tagged_entities = null; }
+
+      // Fetch replies (depth 1)
+      const repliesResult = await pool.query(`
+        SELECT
+          r.*,
+          CASE WHEN r.commenter_type='member' THEN m.name WHEN r.commenter_type='community' THEN comm.name WHEN r.commenter_type='sponsor' THEN s.brand_name WHEN r.commenter_type='venue' THEN v.name END as commenter_name,
+          CASE WHEN r.commenter_type='member' THEN m.username WHEN r.commenter_type='community' THEN comm.username WHEN r.commenter_type='sponsor' THEN s.username WHEN r.commenter_type='venue' THEN v.username END as commenter_username,
+          CASE WHEN r.commenter_type='member' THEN m.profile_photo_url WHEN r.commenter_type='community' THEN comm.logo_url WHEN r.commenter_type='sponsor' THEN s.logo_url WHEN r.commenter_type='venue' THEN NULL END as commenter_photo_url,
+          0 as like_count, false as is_liked
+        FROM opportunity_comments r
+        LEFT JOIN members m ON r.commenter_type='member' AND r.commenter_id=m.id
+        LEFT JOIN communities comm ON r.commenter_type='community' AND r.commenter_id=comm.id
+        LEFT JOIN sponsors s ON r.commenter_type='sponsor' AND r.commenter_id=s.id
+        LEFT JOIN venues v ON r.commenter_type='venue' AND r.commenter_id=v.id
+        WHERE r.parent_comment_id = $1
+        ORDER BY r.created_at ASC
+      `, [comment.id]);
+
+      comment.replies = repliesResult.rows.map(r => {
+        try { r.tagged_entities = r.tagged_entities ? (typeof r.tagged_entities==='string' ? JSON.parse(r.tagged_entities) : r.tagged_entities) : null; } catch { r.tagged_entities = null; }
+        return r;
+      });
+
+      return comment;
+    }));
+
+    res.json({
+      comments,
+      post_author_id:   opp.creator_id,
+      post_author_type: opp.creator_type,
+    });
+  } catch (error) {
+    console.error('Error getting opportunity comments:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const createOpportunityComment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { commentText, taggedEntities } = req.body;
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    if (!commentText || !commentText.trim()) {
+      return res.status(400).json({ error: 'Comment text is required' });
+    }
+
+    await ensureOpportunityCommentsTable();
+
+    // Verify opportunity exists
+    const oppCheck = await pool.query('SELECT id FROM opportunities WHERE id = $1', [id]);
+    if (oppCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Opportunity not found' });
+    }
+
+    const taggedEntitiesJson = taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0
+      ? JSON.stringify(taggedEntities)
+      : null;
+
+    const result = await pool.query(
+      `INSERT INTO opportunity_comments (opportunity_id, commenter_id, commenter_type, comment_text, tagged_entities)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, created_at`,
+      [id, userId, userType, commentText.trim(), taggedEntitiesJson]
+    );
+    const comment = result.rows[0];
+
+    // Increment comment_count on opportunities table
+    await pool.query(
+      `UPDATE opportunities SET comment_count = COALESCE(comment_count, 0) + 1 WHERE id = $1`,
+      [id]
+    ).catch(() => {}); // non-fatal if column doesn't exist yet
+
+    res.status(201).json({
+      success: true,
+      comment: {
+        id: comment.id,
+        opportunity_id: id,
+        commenter_id:   userId,
+        commenter_type: userType,
+        comment_text:   commentText.trim(),
+        parent_comment_id: null,
+        tagged_entities:   taggedEntities || null,
+        created_at:     comment.created_at,
+      },
+    });
+  } catch (error) {
+    console.error('Error creating opportunity comment:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const replyToOpportunityComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const { commentText, taggedEntities } = req.body;
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) return res.status(401).json({ error: 'Authentication required' });
+    if (!commentText || !commentText.trim()) return res.status(400).json({ error: 'Comment text is required' });
+
+    await ensureOpportunityCommentsTable();
+
+    const parentResult = await pool.query(
+      'SELECT opportunity_id FROM opportunity_comments WHERE id = $1',
+      [commentId]
+    );
+    if (parentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Parent comment not found' });
+    }
+    const opportunityId = parentResult.rows[0].opportunity_id;
+
+    const taggedEntitiesJson = taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0
+      ? JSON.stringify(taggedEntities)
+      : null;
+
+    const result = await pool.query(
+      `INSERT INTO opportunity_comments (opportunity_id, commenter_id, commenter_type, comment_text, parent_comment_id, tagged_entities)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, created_at`,
+      [opportunityId, userId, userType, commentText.trim(), commentId, taggedEntitiesJson]
+    );
+    const comment = result.rows[0];
+
+    await pool.query(
+      `UPDATE opportunities SET comment_count = COALESCE(comment_count, 0) + 1 WHERE id = $1`,
+      [opportunityId]
+    ).catch(() => {});
+
+    res.status(201).json({
+      success: true,
+      comment: {
+        id: comment.id,
+        opportunity_id: opportunityId,
+        commenter_id:   userId,
+        commenter_type: userType,
+        comment_text:   commentText.trim(),
+        parent_comment_id: parseInt(commentId),
+        tagged_entities:   taggedEntities || null,
+        created_at:     comment.created_at,
+      },
+    });
+  } catch (error) {
+    console.error('Error replying to opportunity comment:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const deleteOpportunityComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) return res.status(401).json({ error: 'Authentication required' });
+
+    await ensureOpportunityCommentsTable();
+
+    const commentResult = await pool.query(
+      `SELECT c.id, c.opportunity_id, c.commenter_id, c.commenter_type, o.creator_id, o.creator_type
+       FROM opportunity_comments c
+       JOIN opportunities o ON c.opportunity_id = o.id
+       WHERE c.id = $1`,
+      [commentId]
+    );
+    if (commentResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    const comment = commentResult.rows[0];
+    const isCommentAuthor = comment.commenter_id === userId && comment.commenter_type === userType;
+    const isOpportunityCreator = String(comment.creator_id) === String(userId) && comment.creator_type === userType;
+
+    if (!isCommentAuthor && !isOpportunityCreator) {
+      return res.status(403).json({ error: 'You can only delete your own comments' });
+    }
+
+    await pool.query('DELETE FROM opportunity_comments WHERE id = $1', [commentId]);
+    await pool.query(
+      `UPDATE opportunities SET comment_count = GREATEST(COALESCE(comment_count, 0) - 1, 0) WHERE id = $1`,
+      [comment.opportunity_id]
+    ).catch(() => {});
+
+    res.json({ success: true, message: 'Comment deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting opportunity comment:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   createOpportunity,
   getOpportunities,
@@ -1425,4 +1701,8 @@ module.exports = {
   saveOpportunity,
   unsaveOpportunity,
   viewOpportunity,
+  getOpportunityComments,
+  createOpportunityComment,
+  replyToOpportunityComment,
+  deleteOpportunityComment,
 };

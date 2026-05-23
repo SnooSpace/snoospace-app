@@ -1651,7 +1651,6 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                                 ),
                               );
                             }}
-                            onComment={(postId) => openCommentsModal(postId)}
                             onShare={() => {}}
                             onUserPress={(userId, userType) => {
                               if (userType === "community") {

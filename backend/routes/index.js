@@ -749,6 +749,28 @@ router.get(
   OpportunityController.discoverOpportunities,
 );
 
+// Opportunity Comments (UUID-safe — separate from post comments)
+router.get(
+  "/opportunities/:id/comments",
+  authMiddleware,
+  OpportunityController.getOpportunityComments,
+);
+router.post(
+  "/opportunities/:id/comments",
+  authMiddleware,
+  OpportunityController.createOpportunityComment,
+);
+router.post(
+  "/opportunity-comments/:commentId/reply",
+  authMiddleware,
+  OpportunityController.replyToOpportunityComment,
+);
+router.delete(
+  "/opportunity-comments/:commentId",
+  authMiddleware,
+  OpportunityController.deleteOpportunityComment,
+);
+
 // Applications
 router.post(
   "/opportunities/apply",

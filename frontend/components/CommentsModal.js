@@ -40,6 +40,9 @@ const CommentsModal = ({
   embedded = false,
   navigation,
   isNestedModal = false,
+  // Route customisation for non-post entities (e.g. opportunities)
+  baseRoute = '/posts',        // e.g. '/opportunities'
+  replyBaseRoute = '/comments', // e.g. '/opportunity-comments'
 }) => {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -159,7 +162,7 @@ const CommentsModal = ({
     try {
       setLoading(true);
       const token = await getAuthToken();
-      const data = await apiGet(`/posts/${postId}/comments`, 10000, token);
+      const data = await apiGet(`${baseRoute}/${postId}/comments`, 10000, token);
       const normalizedComments = Array.isArray(data?.comments)
         ? data.comments.map((comment) => {
             let taggedEntities = comment.tagged_entities || [];
@@ -272,7 +275,7 @@ const CommentsModal = ({
           onPress: async () => {
             try {
               const token = await getAuthToken();
-              await apiDelete(`/comments/${commentId}`, null, 15000, token);
+              await apiDelete(`${replyBaseRoute}/${commentId}`, null, 15000, token);
 
               setComments((prev) => prev.filter((c) => c.id !== commentId));
 
@@ -307,7 +310,7 @@ const CommentsModal = ({
     try {
       const token = await getAuthToken();
       const result = await apiPost(
-        `/posts/${postId}/comments`,
+        `${baseRoute}/${postId}/comments`,
         {
           commentText: commentInput.trim(),
           taggedEntities:
@@ -407,7 +410,7 @@ const CommentsModal = ({
       }
 
       const result = await apiPost(
-        `/comments/${replyingTo.id}/reply`,
+        `${replyBaseRoute}/${replyingTo.id}/reply`,
         {
           commentText: finalCommentText,
           taggedEntities:
@@ -753,7 +756,10 @@ const CommentsModal = ({
 
   const content = (
     <View style={embedded ? styles.embeddedContainer : styles.container}>
-      <View style={styles.modalContent}>
+      <View
+        style={styles.modalContent}
+        onStartShouldSetResponder={() => true}
+      >
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Comments</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -785,7 +791,11 @@ const CommentsModal = ({
 
       {/* Input bar using KeyboardAwareToolbar - placed OUTSIDE main content as sibling */}
       <KeyboardAwareToolbar style={styles.toolbarContainer}>
-        <View style={styles.inputContainer}>
+        <View
+          style={styles.inputContainer}
+          onStartShouldSetResponder={() => true}
+          onTouchStart={(e) => e.stopPropagation()}
+        >
           {/* Replying indicator */}
           {/* Replying indicator */}
           {replyingTo && (

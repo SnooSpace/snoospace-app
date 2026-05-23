@@ -41,6 +41,8 @@ import {
 import { apiPost, apiDelete } from "../api/client";
 import { closeOpportunity } from "../api/opportunities";
 import CountdownTimer from "./CountdownTimer";
+import CommentsModal from "./CommentsModal";
+import EventBus from "../utils/EventBus";
 
 
 // ── Auto-scrolling Marquee Chips Component ─────────────────────────────────
@@ -140,6 +142,10 @@ const OpportunityFeedCard = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const menuAnim = useRef(new Animated.Value(0)).current;
+
+  // ── Comments modal state ─────────────────────────────────────────────────────
+  const [commentsVisible, setCommentsVisible] = useState(false);
+  const [commentCount, setCommentCount] = useState(opportunity.comment_count || 0);
 
   const openMenu = () => {
     setMenuVisible(true);
@@ -259,11 +265,20 @@ const OpportunityFeedCard = ({
   const skillChips = getSkillChips();
 
   // ── Engagement state ───────────────────────────────────────────────────────
-  const initialIsLiked = opportunity.is_liked === true;
+  const initialIsLiked = opportunity.is_liked === true || opportunity.isLiked === true;
   const [isLiked, setIsLiked] = useState(initialIsLiked);
   const [likeCount, setLikeCount] = useState(opportunity.like_count || 0);
   const [isLiking, setIsLiking] = useState(false);
   const [isSaved, setIsSaved] = useState(opportunity.is_saved || false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Sync state when the opportunity prop changes (e.g. feed refresh or parent state update)
+  React.useEffect(() => {
+    setIsLiked(opportunity.is_liked === true || opportunity.isLiked === true);
+    setLikeCount(opportunity.like_count || 0);
+    setIsSaved(opportunity.is_saved || false);
+    setCommentCount(opportunity.comment_count || 0);
+  }, [opportunity.is_liked, opportunity.isLiked, opportunity.like_count, opportunity.is_saved, opportunity.comment_count]);
 
   // ── View Tracking (opportunity-specific endpoint) ─────────────────────────
   const [viewCount, setViewCount] = useState(
@@ -308,6 +323,7 @@ const OpportunityFeedCard = ({
     const delta = nextLiked ? 1 : -1;
     const nextLikes = Math.max(0, prevLikeCount + delta);
 
+    // Optimistic update
     setIsLiked(nextLiked);
     setLikeCount(nextLikes);
     if (onLike) onLike(opportunity.id, nextLiked, nextLikes);
@@ -320,11 +336,23 @@ const OpportunityFeedCard = ({
       } else {
         await apiDelete(`/opportunities/${opportunity.id}/like`, null, 15000, token);
       }
+      // Notify other screens to sync like state
+      EventBus.emit("post-like-updated", {
+        postId: opportunity.id,
+        isLiked: nextLiked,
+        likeCount: nextLikes,
+      });
     } catch (error) {
       console.error("Error liking opportunity:", error);
-      setIsLiked(prevLiked);
-      setLikeCount(prevLikeCount);
-      if (onLike) onLike(opportunity.id, prevLiked, prevLikeCount);
+      // If server says "already liked", correct local state
+      if (error?.message?.toLowerCase().includes("already liked")) {
+        setIsLiked(true);
+        setLikeCount(prevLikeCount);
+      } else {
+        setIsLiked(prevLiked);
+        setLikeCount(prevLikeCount);
+        if (onLike) onLike(opportunity.id, prevLiked, prevLikeCount);
+      }
     } finally {
       setIsLiking(false);
     }
@@ -332,8 +360,14 @@ const OpportunityFeedCard = ({
 
   // ── Save handler (opportunity-specific endpoint) ──────────────────────────
   const handleSave = async () => {
+    if (isSaving) return;
+
     const newSaveState = !isSaved;
+
+    // Optimistic update
     setIsSaved(newSaveState);
+    setIsSaving(true);
+
     try {
       const token = await getAuthToken();
       if (newSaveState) {
@@ -341,9 +375,22 @@ const OpportunityFeedCard = ({
       } else {
         await apiDelete(`/opportunities/${opportunity.id}/save`, null, 15000, token);
       }
+      // Notify other screens to sync save state
+      EventBus.emit("post-save-updated", {
+        postId: opportunity.id,
+        isSaved: newSaveState,
+      });
+      if (onSave) onSave(opportunity.id, newSaveState);
     } catch (error) {
       console.error("Failed to save/unsave opportunity:", error);
-      setIsSaved(!newSaveState);
+      // If server says "already saved", correct local state instead of reverting
+      if (error?.message?.toLowerCase().includes("already saved")) {
+        setIsSaved(true);
+      } else {
+        setIsSaved(!newSaveState);
+      }
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -384,7 +431,7 @@ const OpportunityFeedCard = ({
 
 
   const handleComment = () => {
-    if (onComment) onComment(opportunity.id);
+    setCommentsVisible(true);
   };
 
   const handleShare = () => {
@@ -405,6 +452,7 @@ const OpportunityFeedCard = ({
     (opportunity.expires_at && new Date(opportunity.expires_at) < new Date());
 
   return (
+    <>
     <TouchableOpacity activeOpacity={0.9} onPress={() => onPress?.(opportunity)}>
       <LinearGradient
         colors={["#C8E9EA", "#E8F7F8"]}
@@ -632,7 +680,7 @@ const OpportunityFeedCard = ({
           <TouchableOpacity style={styles.engagementButton} onPress={handleComment}>
             <MessageCircle size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engagementCount}>
-              {formatCount(opportunity.comment_count || 0)}
+              {formatCount(commentCount)}
             </Text>
           </TouchableOpacity>
 
@@ -651,7 +699,11 @@ const OpportunityFeedCard = ({
           </TouchableOpacity>
 
           {/* Bookmark */}
-          <TouchableOpacity style={styles.engagementButton} onPress={handleSave}>
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleSave}
+            disabled={isSaving}
+          >
             <Bookmark
               size={20}
               color={isSaved ? "#5e8d9b" : "#5e8d9b"}
@@ -723,6 +775,18 @@ const OpportunityFeedCard = ({
         </Pressable>
       </Modal>
     </TouchableOpacity>
+
+    {/* ── Opportunity Comments Modal ──────────────────────────────────────── */}
+    <CommentsModal
+      visible={commentsVisible}
+      postId={opportunity.id}
+      onClose={() => setCommentsVisible(false)}
+      onCommentCountChange={(newCount) => setCommentCount(newCount)}
+      baseRoute="/opportunities"
+      replyBaseRoute="/opportunity-comments"
+      navigation={navigation}
+    />
+    </>
   );
 };
 

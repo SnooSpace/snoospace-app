@@ -1077,7 +1077,6 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             });
           }}
           onLike={handleLikeUpdate}
-          onComment={handleCommentPress}
           onShare={handleSharePress}
           onSave={(id, saved) => {
             setOpportunities((prev) =>
