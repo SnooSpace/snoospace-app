@@ -267,15 +267,35 @@ export default function CommunityDashboardScreen({ navigation }) {
       setShowCreateEventModal(true);
     }
   };
-  const handleInviteMembers = () =>
-    Alert.alert("Invite Members", "Feature coming soon!");
+  const handleInviteMembers = () => {
+    setModalConfig({
+      visible: true,
+      title: "Invite Members",
+      message: "Feature coming soon!",
+      actions: [
+        {
+          text: "OK",
+          style: "primary",
+          onPress: () => setModalConfig((prev) => ({ ...prev, visible: false })),
+        },
+      ],
+    });
+  };
 
   const handleScanTickets = () => {
     if (upcomingEvents.length === 0) {
-      Alert.alert(
-        "No Events",
-        "Create an event first before scanning tickets.",
-      );
+      setModalConfig({
+        visible: true,
+        title: "No Events",
+        message: "Create an event first before scanning tickets.",
+        actions: [
+          {
+            text: "OK",
+            style: "primary",
+            onPress: () => setModalConfig((prev) => ({ ...prev, visible: false })),
+          },
+        ],
+      });
       return;
     }
     navigation.navigate("QRScanner", { event: upcomingEvents[0] });

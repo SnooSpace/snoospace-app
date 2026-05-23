@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, RefreshControl, Alert, Animated } from "react-native";
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, RefreshControl, Alert, Animated, Easing } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, MapPin, CalendarDays, MoreHorizontal, Ticket, Edit2, FileText, Trash2, PauseCircle } from "lucide-react-native";
+import Svg, { Circle, Rect, Path, Ellipse } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../../../constants/theme";
 import {
@@ -33,6 +34,27 @@ export default function CommunityEventsListScreen({ navigation, route }) {
     message: "",
     actions: [],
   });
+
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -10,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [floatAnim]);
 
   // Tab underline animation
   const tabUnderlineX = useRef(new Animated.Value(0)).current;
@@ -511,10 +533,10 @@ export default function CommunityEventsListScreen({ navigation, route }) {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <ArrowLeft size={24} color={TEXT_COLOR} strokeWidth={2} />
+          <ArrowLeft size={22} color="#333333" strokeWidth={2.5} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Events</Text>
-        <View style={{ width: 40 }} />
+        <View style={{ width: 54 }} />
       </View>
 
       {/* Tabs */}
@@ -570,7 +592,39 @@ export default function CommunityEventsListScreen({ navigation, route }) {
             }
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <CalendarDays size={64} color="#E5E5EA" strokeWidth={1.5} />
+                <View style={styles.illustrationContainer}>
+                  <Animated.View style={{ transform: [{ translateY: floatAnim }], zIndex: 2 }}>
+                    <Svg width="240" height="240" viewBox="0 0 240 240" fill="none">
+                      <Circle cx="120" cy="120" r="80" fill="#2563EB" fillOpacity="0.08" />
+                      
+                      {/* Ticket Shape */}
+                      <Rect x="60" y="80" width="120" height="70" rx="12" stroke="#0F172A" strokeWidth="4" fill="white" />
+                      <Path d="M60 115C68 115 68 105 60 105" stroke="#0F172A" strokeWidth="4" strokeLinecap="round" fill="#F8FAFC" />
+                      <Path d="M180 115C172 115 172 105 180 105" stroke="#0F172A" strokeWidth="4" strokeLinecap="round" fill="#F8FAFC" />
+                      
+                      {/* Ticket Stripes (Brand Blue) */}
+                      <Rect x="75" y="80" width="15" height="70" fill="#2563EB" fillOpacity="0.2" />
+                      <Path d="M90 80V150" stroke="#0F172A" strokeWidth="3" strokeDasharray="4 4" />
+                      
+                      {/* Spotlight Beam */}
+                      <Path d="M120 40L160 160H80L120 40Z" fill="#22D3EE" fillOpacity="0.1" />
+                      <Circle cx="120" cy="45" r="8" fill="white" stroke="#0F172A" strokeWidth="3" />
+                      
+                      {/* Calendar Icon element */}
+                      <Rect x="110" y="100" width="40" height="35" rx="4" stroke="#0F172A" strokeWidth="3" fill="white" />
+                      <Rect x="110" y="100" width="40" height="10" rx="2" fill="#2563EB" stroke="#0F172A" strokeWidth="3" />
+                      
+                      {/* Floating Stars */}
+                      <Path d="M185 70L187 75H192L188 78L189 83L185 80L181 83L182 78L178 75H183L185 70Z" fill="#22D3EE" stroke="#0F172A" strokeWidth="1.5" />
+                      <Circle cx="55" cy="90" r="4" fill="#2563EB" stroke="#0F172A" strokeWidth="1.5" />
+                    </Svg>
+                  </Animated.View>
+                  <View style={styles.shadowContainer}>
+                    <Svg width="128" height="8" viewBox="0 0 128 8" fill="none">
+                      <Ellipse cx="64" cy="4" rx="64" ry="4" fill="rgba(30, 58, 138, 0.05)" />
+                    </Svg>
+                  </View>
+                </View>
                 <Text style={styles.emptyText}>No {activeTab} events found</Text>
               </View>
             }
@@ -615,8 +669,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
   },
   backButton: {
-    padding: 8,
-    marginRight: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 10,
+    marginLeft: -10,
   },
   headerTitle: {
     fontSize: 20,
@@ -742,7 +801,19 @@ const styles = StyleSheet.create({
   },
   emptyContainer: {
     alignItems: "center",
-    paddingVertical: 60,
+    paddingVertical: 40,
+  },
+  illustrationContainer: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    marginBottom: 16,
+  },
+  shadowContainer: {
+    position: "absolute",
+    bottom: 0,
+    alignSelf: "center",
   },
   emptyText: {
     marginTop: 16,

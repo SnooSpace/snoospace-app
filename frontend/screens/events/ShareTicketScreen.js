@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, TextInput, Image, Switch, Alert, StatusBar } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, TextInput, Image, Switch, Alert, StatusBar, Animated, Easing } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { ArrowLeft } from "lucide-react-native";
+import Svg, { Circle, Rect, Path, Ellipse } from "react-native-svg";
 import { apiGet, apiPost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { COLORS } from "../../constants/theme";
@@ -30,6 +32,26 @@ const ShareTicketScreen = ({ navigation, route }) => {
   const [canReshare, setCanReshare] = useState(false);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: -10,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 2000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [floatAnim]);
 
   // Load ticket types when event is selected
   const handleEventSelect = async (event) => {
@@ -147,14 +169,42 @@ const ShareTicketScreen = ({ navigation, route }) => {
 
   const renderEventSelection = () => (
     <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-      <Text style={styles.stepTitle}>Select an Event</Text>
+      {events.length > 0 && <Text style={styles.stepTitle}>Select an Event</Text>}
       {events.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons
-            name="calendar-outline"
-            size={48}
-            color={LIGHT_TEXT_COLOR}
-          />
+          <View style={styles.illustrationContainer}>
+            <Animated.View style={{ transform: [{ translateY: floatAnim }], zIndex: 2 }}>
+              <Svg width="240" height="240" viewBox="0 0 240 240" fill="none">
+                <Circle cx="120" cy="120" r="80" fill="#2563EB" fillOpacity="0.08" />
+                
+                {/* Ticket Shape */}
+                <Rect x="60" y="80" width="120" height="70" rx="12" stroke="#0F172A" strokeWidth="4" fill="white" />
+                <Path d="M60 115C68 115 68 105 60 105" stroke="#0F172A" strokeWidth="4" strokeLinecap="round" fill="#F8FAFC" />
+                <Path d="M180 115C172 115 172 105 180 105" stroke="#0F172A" strokeWidth="4" strokeLinecap="round" fill="#F8FAFC" />
+                
+                {/* Ticket Stripes (Brand Blue) */}
+                <Rect x="75" y="80" width="15" height="70" fill="#2563EB" fillOpacity="0.2" />
+                <Path d="M90 80V150" stroke="#0F172A" strokeWidth="3" strokeDasharray="4 4" />
+                
+                {/* Spotlight Beam */}
+                <Path d="M120 40L160 160H80L120 40Z" fill="#22D3EE" fillOpacity="0.1" />
+                <Circle cx="120" cy="45" r="8" fill="white" stroke="#0F172A" strokeWidth="3" />
+                
+                {/* Calendar Icon element */}
+                <Rect x="110" y="100" width="40" height="35" rx="4" stroke="#0F172A" strokeWidth="3" fill="white" />
+                <Rect x="110" y="100" width="40" height="10" rx="2" fill="#2563EB" stroke="#0F172A" strokeWidth="3" />
+                
+                {/* Floating Stars */}
+                <Path d="M185 70L187 75H192L188 78L189 83L185 80L181 83L182 78L178 75H183L185 70Z" fill="#22D3EE" stroke="#0F172A" strokeWidth="1.5" />
+                <Circle cx="55" cy="90" r="4" fill="#2563EB" stroke="#0F172A" strokeWidth="1.5" />
+              </Svg>
+            </Animated.View>
+            <View style={styles.shadowContainer}>
+              <Svg width="128" height="8" viewBox="0 0 128 8" fill="none">
+                <Ellipse cx="64" cy="4" rx="64" ry="4" fill="rgba(30, 58, 138, 0.05)" />
+              </Svg>
+            </View>
+          </View>
           <Text style={styles.emptyText}>No upcoming events</Text>
           <Text style={styles.emptySubtext}>
             Create an event first to share tickets
@@ -431,14 +481,14 @@ const ShareTicketScreen = ({ navigation, route }) => {
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.headerButton}
+          style={styles.backButton}
         >
-          <Ionicons name="close" size={24} color={TEXT_COLOR} />
+          <ArrowLeft size={22} color="#333333" strokeWidth={2.5} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
           {step === 1 ? "Share Tickets" : "Gift Details"}
         </Text>
-        <View style={styles.headerButton} />
+        <View style={{ width: 54 }} />
       </View>
 
       {/* Content */}
@@ -468,8 +518,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 20,
+    fontFamily: "BasicCommercial-Black",
     color: TEXT_COLOR,
   },
   content: {
@@ -478,24 +528,37 @@ const styles = StyleSheet.create({
   },
   stepTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
     marginBottom: 16,
   },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 60,
+    paddingVertical: 40,
+  },
+  illustrationContainer: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    marginBottom: 16,
+  },
+  shadowContainer: {
+    position: "absolute",
+    bottom: 0,
+    alignSelf: "center",
   },
   emptyText: {
     fontSize: 16,
     color: TEXT_COLOR,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
     color: LIGHT_TEXT_COLOR,
+    fontFamily: "Manrope-Regular",
     marginTop: 8,
   },
   eventItem: {
@@ -515,19 +578,23 @@ const styles = StyleSheet.create({
   },
   eventTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
   },
   eventDate: {
     fontSize: 13,
+    fontFamily: "Manrope-Regular",
     color: LIGHT_TEXT_COLOR,
     marginTop: 4,
   },
   backButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 22,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    marginBottom: 20,
+    marginRight: 10,
+    marginLeft: -10,
   },
   backButtonText: {
     fontSize: 15,
@@ -552,13 +619,13 @@ const styles = StyleSheet.create({
   },
   selectedEventTitle: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
     flex: 1,
   },
   label: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
     marginBottom: 10,
     marginTop: 20,
@@ -571,6 +638,7 @@ const styles = StyleSheet.create({
   },
   noTicketsText: {
     fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: LIGHT_TEXT_COLOR,
     marginTop: 8,
   },
@@ -593,7 +661,7 @@ const styles = StyleSheet.create({
   },
   ticketTypeName: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: TEXT_COLOR,
   },
   ticketTypeNameSelected: {
@@ -601,6 +669,7 @@ const styles = StyleSheet.create({
   },
   ticketTypePrice: {
     fontSize: 13,
+    fontFamily: "Manrope-Medium",
     color: LIGHT_TEXT_COLOR,
     marginTop: 3,
   },
@@ -627,7 +696,7 @@ const styles = StyleSheet.create({
   },
   inviteOnlyText: {
     fontSize: 11,
-    fontWeight: "600",
+    fontFamily: "Manrope-Medium",
     color: "#FF6B6B",
   },
   searchInputContainer: {
@@ -644,6 +713,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 16,
+    fontFamily: "Manrope-Regular",
     color: TEXT_COLOR,
   },
   searchResults: {
@@ -669,11 +739,12 @@ const styles = StyleSheet.create({
   },
   searchResultName: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
   },
   searchResultUsername: {
     fontSize: 13,
+    fontFamily: "Manrope-Regular",
     color: LIGHT_TEXT_COLOR,
     marginTop: 2,
   },
@@ -694,11 +765,12 @@ const styles = StyleSheet.create({
   },
   recipientName: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
   },
   recipientUsername: {
     fontSize: 13,
+    fontFamily: "Manrope-Regular",
     color: LIGHT_TEXT_COLOR,
     marginTop: 2,
   },
@@ -719,7 +791,7 @@ const styles = StyleSheet.create({
   },
   quantityText: {
     fontSize: 22,
-    fontWeight: "700",
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
     minWidth: 36,
     textAlign: "center",
@@ -734,11 +806,12 @@ const styles = StyleSheet.create({
   },
   toggleLabel: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: TEXT_COLOR,
   },
   toggleSubtext: {
     fontSize: 13,
+    fontFamily: "Manrope-Regular",
     color: LIGHT_TEXT_COLOR,
     marginTop: 3,
   },
@@ -747,6 +820,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     fontSize: 16,
+    fontFamily: "Manrope-Regular",
     color: TEXT_COLOR,
     minHeight: 100,
     textAlignVertical: "top",
@@ -768,7 +842,7 @@ const styles = StyleSheet.create({
   },
   sendButtonText: {
     fontSize: 17,
-    fontWeight: "700",
+    fontFamily: "Manrope-SemiBold",
     color: "#FFFFFF",
   },
 });
