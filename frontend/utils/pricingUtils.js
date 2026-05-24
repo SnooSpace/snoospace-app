@@ -22,7 +22,7 @@ export function calculateEffectivePrice(ticket, pricingRules = []) {
   const applicableRules = pricingRules.filter((rule) => {
     if (!rule.is_active) return false;
     // Rule applies to all tickets (null) or specifically this ticket
-    return rule.ticket_type_id === null || rule.ticket_type_id === ticket.id;
+    return rule.ticket_type_id === null || String(rule.ticket_type_id) === String(ticket.id);
   });
 
   if (applicableRules.length === 0) {

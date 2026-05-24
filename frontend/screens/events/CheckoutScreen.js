@@ -3,8 +3,32 @@
  * Shows order summary, timer, promo codes, and confirmation
  */
 import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar, TextInput, Alert, Image } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  StatusBar,
+  TextInput,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+} from "react-native";
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  Hourglass,
+  Tag,
+  QrCode,
+  CheckCircle,
+  AlertTriangle,
+  ChevronRight,
+  Info,
+} from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants/theme";
@@ -19,14 +43,15 @@ import CelebrationModal from "../../components/CelebrationModal";
 import SnooLoader from "../../components/ui/SnooLoader";
 import { useToast } from "../../context/ToastContext";
 
-// White Theme Colors
-const BACKGROUND_COLOR = "#F9FAFB";
+// Premium Theme Colors
+const BACKGROUND_COLOR = "#F8F9FA";
 const CARD_BACKGROUND = "#FFFFFF";
-const TEXT_COLOR = "#1F2937";
-const MUTED_TEXT = "#6B7280";
-const BORDER_COLOR = "#E5E7EB";
+const TEXT_COLOR = "#1D1D1F";
+const MUTED_TEXT = "#86868B";
+const BORDER_COLOR = "#F2F2F7";
 const PRIMARY_COLOR = COLORS.primary;
 const SUCCESS_COLOR = "#34C759";
+const WARNING_COLOR = "#FF9500";
 
 export default function CheckoutScreen({ route, navigation }) {
   const { event, cartItems, totalAmount } = route.params;
@@ -34,7 +59,7 @@ export default function CheckoutScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
 
   // 10-minute countdown timer
-  const [timeLeft, setTimeLeft] = useState(10 * 60); // 10 minutes in seconds
+  const [timeLeft, setTimeLeft] = useState(10 * 60);
   const [promoCode, setPromoCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState(null);
   const [isConfirmed, setIsConfirmed] = useState(false);
@@ -45,6 +70,24 @@ export default function CheckoutScreen({ route, navigation }) {
   const [sessionId, setSessionId] = useState(null);
   const [reservationError, setReservationError] = useState(null);
   const [isReserving, setIsReserving] = useState(true);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  // Monitor keyboard state to hide floating CTA button dynamically when keyboard is active
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => setKeyboardVisible(true)
+    );
+    const hideSubscription = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardVisible(false)
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   // Reserve tickets on mount
   useEffect(() => {
@@ -87,14 +130,11 @@ export default function CheckoutScreen({ route, navigation }) {
 
     doReserve();
 
-    // Cleanup: release reservation if not completed
     return () => {
       isMounted = false;
-      // Note: We'll handle release in handleGoBack and timer expiry
     };
   }, []);
 
-  // Release reservation when leaving without completing
   const handleReleaseReservation = async () => {
     if (sessionId && !isConfirmed) {
       try {
@@ -112,7 +152,6 @@ export default function CheckoutScreen({ route, navigation }) {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          // Release reservation on timeout
           handleReleaseReservation();
           Alert.alert(
             "Session Expired",
@@ -165,8 +204,27 @@ export default function CheckoutScreen({ route, navigation }) {
     );
 
     if (discount) {
+      // Check if code is restricted to specific tickets and user has none in cart
+      if (discount.applies_to === "specific" && discount.selected_tickets) {
+        const hasEligibleTicket = cartItems.some((item) =>
+          discount.selected_tickets.some(
+            (ticketNameOrId) =>
+              ticketNameOrId?.toString() === item.ticket.id?.toString() ||
+              ticketNameOrId?.toString() === item.ticket.name
+          )
+        );
+
+        if (!hasEligibleTicket) {
+          Alert.alert(
+            "Promo Code Error",
+            `This code is only applicable to specific ticket types: ${discount.selected_tickets.join(", ")}.`
+          );
+          return;
+        }
+      }
+
       setAppliedDiscount(discount);
-      showToast("Success", `Promo code "${code}" applied!`);
+      showToast("Success", `Promo code "${code}" applied successfully!`);
     } else {
       Alert.alert(
         "Invalid Code",
@@ -182,28 +240,45 @@ export default function CheckoutScreen({ route, navigation }) {
         text: "Remove",
         style: "destructive",
         onPress: () => {
-          if (cartItems.length === 1) {
-            navigation.goBack();
-          } else {
-            // Would need to update cart, for MVP just go back
-            navigation.goBack();
-          }
+          navigation.goBack();
         },
       },
     ]);
   };
 
+  // CORRECT FIXED DISCOUNT CALCULATION: Only apply to eligible ticket types!
   const calculateDiscount = () => {
     if (!appliedDiscount) return 0;
 
-    if (appliedDiscount.discount_type === "percentage") {
-      return (totalAmount * appliedDiscount.discount_value) / 100;
+    if (appliedDiscount.applies_to === "specific" && appliedDiscount.selected_tickets) {
+      let discountableAmount = 0;
+      cartItems.forEach((item) => {
+        const isEligible = appliedDiscount.selected_tickets.some(
+          (ticketNameOrId) =>
+            ticketNameOrId?.toString() === item.ticket.id?.toString() ||
+            ticketNameOrId?.toString() === item.ticket.name
+        );
+        if (isEligible) {
+          const pricing = calculateEffectivePrice(item.ticket, event.pricing_rules);
+          discountableAmount += item.quantity * pricing.effectivePrice;
+        }
+      });
+
+      if (appliedDiscount.discount_type === "percentage") {
+        return (discountableAmount * parseFloat(appliedDiscount.discount_value)) / 100;
+      }
+      return Math.min(parseFloat(appliedDiscount.discount_value), discountableAmount);
     }
-    return Math.min(appliedDiscount.discount_value, totalAmount);
+
+    // Default: applies to whole cart
+    if (appliedDiscount.discount_type === "percentage") {
+      return (totalAmount * parseFloat(appliedDiscount.discount_value)) / 100;
+    }
+    return Math.min(parseFloat(appliedDiscount.discount_value), totalAmount);
   };
 
   const discountAmount = calculateDiscount();
-  const bookingFee = 0; // As requested, 0 for now
+  const bookingFee = 0; // Free as requested
   const finalAmount = totalAmount - discountAmount + bookingFee;
 
   const handleConfirmBooking = async () => {
@@ -222,7 +297,7 @@ export default function CheckoutScreen({ route, navigation }) {
         promoCode: appliedDiscount?.code || null,
         totalAmount: finalAmount,
         discountAmount: discountAmount,
-        sessionId: sessionId, // Pass reservation session for consumption
+        sessionId: sessionId,
       };
 
       const response = await registerForEvent(event.id, bookingData);
@@ -230,19 +305,16 @@ export default function CheckoutScreen({ route, navigation }) {
       if (response.success) {
         setIsConfirmed(true);
 
-        // Update other screens via EventBus
         EventBus.emit("event-registration-updated", {
           eventId: event.id,
           isRegistered: true,
         });
 
-        // Remove from interested list
         EventBus.emit("event-interest-updated", {
           eventId: event.id,
           isInterested: false,
         });
 
-        // Trigger group-chat join prompt for the event's community
         if (event.community_id || event.organizer_id) {
           EventBus.emit("event-registered", {
             communityId: event.community_id || event.organizer_id,
@@ -250,7 +322,6 @@ export default function CheckoutScreen({ route, navigation }) {
           });
         }
 
-        // PEAK MOMENT
         setShowCelebration(true);
       } else {
         throw new Error(response.error || "Booking failed");
@@ -271,254 +342,260 @@ export default function CheckoutScreen({ route, navigation }) {
     navigation.popToTop();
   };
 
-  // Handle back button - release reservation before going back
   const handleGoBack = async () => {
     await handleReleaseReservation();
     navigation.goBack();
   };
 
+  const displayDate = event.start_datetime || event.event_date;
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Reservation loading overlay */}
-      {isReserving && (
-        <View style={styles.reservingOverlay}>
-          <SnooLoader size="large" color={PRIMARY_COLOR} />
-          <Text style={[styles.reservingText, { fontFamily: 'Manrope-Medium' }]}>Reserving your tickets...</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={{ flex: 1 }}
+    >
+      <View style={styles.container}>
+        {/* Reservation loading overlay */}
+        {isReserving && (
+          <View style={styles.reservingOverlay}>
+            <SnooLoader size="large" color={PRIMARY_COLOR} />
+            <Text style={styles.reservingText}>Reserving your tickets...</Text>
+          </View>
+        )}
+
+        <CelebrationModal
+          visible={showCelebration}
+          onClose={handleCelebrationClose}
+          type="booking"
+          data={{ title: event?.title || "Event" }}
+        />
+        <StatusBar barStyle="dark-content" />
+
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
+          <TouchableOpacity onPress={handleGoBack} style={styles.backButton} activeOpacity={0.7}>
+            <ArrowLeft size={24} color={TEXT_COLOR} strokeWidth={2} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Review your booking</Text>
+          <View style={{ width: 36 }} />
         </View>
-      )}
 
-      <CelebrationModal
-        visible={showCelebration}
-        onClose={handleCelebrationClose}
-        type="booking"
-        data={{ title: event?.title || "Event" }}
-      />
-      <StatusBar barStyle="dark-content" />
+        {/* Timer Banner (Sleek Alerting Hue) */}
+        <View style={styles.timerBar}>
+          <Hourglass size={14} color={WARNING_COLOR} strokeWidth={2.5} style={{ marginRight: 6 }} />
+          <Text style={styles.timerText}>
+            Complete your booking in{" "}
+            <Text style={styles.timerHighlight}>{formatTime(timeLeft)}</Text> mins
+          </Text>
+        </View>
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Review your booking</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      {/* Timer Bar */}
-      <View style={styles.timerBar}>
-        <Text style={styles.timerText}>
-          Complete your booking in{" "}
-          <Text style={styles.timerHighlight}>{formatTime(timeLeft)}</Text> mins
-        </Text>
-      </View>
-
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Event Card */}
-        <View style={styles.eventCard}>
-          <View style={styles.eventRow}>
-            {event.banner_carousel?.[0]?.url ? (
-              <Image
-                source={{ uri: event.banner_carousel[0].url }}
-                style={styles.eventThumb}
-              />
-            ) : (
-              <View style={[styles.eventThumb, styles.eventThumbPlaceholder]}>
-                <Ionicons name="calendar" size={24} color={MUTED_TEXT} />
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          {/* Event Physical Stub Card */}
+          <View style={styles.eventCard}>
+            <View style={styles.eventRow}>
+              {event.banner_carousel?.[0]?.url ? (
+                <Image
+                  source={{ uri: event.banner_carousel[0].url }}
+                  style={styles.eventThumb}
+                />
+              ) : (
+                <View style={[styles.eventThumb, styles.eventThumbPlaceholder]}>
+                  <Calendar size={20} color={MUTED_TEXT} strokeWidth={2} />
+                </View>
+              )}
+              <View style={styles.eventInfo}>
+                <Text style={styles.eventTitle} numberOfLines={2}>
+                  {event.title}
+                </Text>
+                <Text style={styles.eventVenue} numberOfLines={1}>
+                  {event.location_url ? "Venue Event" : "Online Event"}
+                </Text>
               </View>
-            )}
-            <View style={styles.eventInfo}>
-              <Text style={styles.eventTitle} numberOfLines={2}>
-                {event.title}
+            </View>
+
+            <View style={styles.eventMeta}>
+              <Clock size={13} color={MUTED_TEXT} strokeWidth={2} style={{ marginRight: 6 }} />
+              <Text style={styles.eventMetaText}>
+                {formatDate(displayDate)}  •  {formatTimeOnly(displayDate)}
               </Text>
-              <Text style={styles.eventVenue} numberOfLines={1}>
-                {event.location_url ? "Venue" : "Online Event"}
+            </View>
+
+            {/* Cart Line Items */}
+            {cartItems.map((item, index) => {
+              const pricing = calculateEffectivePrice(
+                item.ticket,
+                event.pricing_rules
+              );
+              const itemTotal = item.quantity * pricing.effectivePrice;
+
+              return (
+                <View key={index} style={styles.lineItem}>
+                  <View style={styles.lineItemInfo}>
+                    <Text style={styles.lineItemText}>
+                      {item.quantity} x {item.ticket.name}
+                    </Text>
+                    {pricing.hasDiscount && (
+                      <View style={styles.earlyBirdRow}>
+                        <Tag size={10} color="#059669" strokeWidth={2.5} />
+                        <Text style={styles.lineItemDiscount}>
+                          {pricing.discountLabel} (Early Bird)
+                        </Text>
+                      </View>
+                    )}
+                    <TouchableOpacity onPress={() => handleRemoveItem(index)} activeOpacity={0.7}>
+                      <Text style={styles.removeText}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.lineItemPriceContainer}>
+                    <Text style={styles.lineItemPrice}>
+                      ₹{itemTotal.toLocaleString("en-IN")}
+                    </Text>
+                    {pricing.hasDiscount && (
+                      <Text style={styles.lineItemPriceOriginal}>
+                        ₹{(item.quantity * pricing.originalPrice).toLocaleString("en-IN")}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+
+            {/* M-Ticket Dotted Stub Note */}
+            <View style={styles.ticketNote}>
+              <QrCode size={18} color={MUTED_TEXT} strokeWidth={2} />
+              <Text style={styles.ticketNoteText}>
+                M-Ticket: Entry using the QR code in your app
               </Text>
             </View>
           </View>
 
-          <View style={styles.eventMeta}>
-            <Text style={styles.eventMetaText}>
-              {formatDate(event.start_datetime || event.event_date)} |{" "}
-              {formatTimeOnly(event.start_datetime || event.event_date)}
-            </Text>
+          {/* Offers Section */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionHeaderText}>OFFERS</Text>
           </View>
 
-          {/* Line Items */}
-          {cartItems.map((item, index) => {
-            const pricing = calculateEffectivePrice(
-              item.ticket,
-              event.pricing_rules
-            );
-            const itemTotal = item.quantity * pricing.effectivePrice;
+          <View style={styles.offersCard}>
+            {event.discount_codes?.some((dc) => dc.is_active) && (
+              <TouchableOpacity style={styles.offerRow} activeOpacity={0.7}>
+                <Tag size={18} color={TEXT_COLOR} strokeWidth={2} />
+                <Text style={styles.offerText}>View all event offers</Text>
+                <ChevronRight size={16} color={MUTED_TEXT} strokeWidth={2} />
+              </TouchableOpacity>
+            )}
 
-            return (
-              <View key={index} style={styles.lineItem}>
-                <View style={styles.lineItemInfo}>
-                  <Text style={styles.lineItemText}>
-                    {item.quantity} x {item.ticket.name}
-                  </Text>
-                  {pricing.hasDiscount && (
-                    <Text style={styles.lineItemDiscount}>
-                      {pricing.discountLabel} (Early Bird)
-                    </Text>
-                  )}
-                  <TouchableOpacity onPress={() => handleRemoveItem(index)}>
-                    <Text style={styles.removeText}>Remove</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.lineItemPriceContainer}>
-                  <Text style={styles.lineItemPrice}>
-                    ₹{itemTotal.toLocaleString("en-IN")}
-                  </Text>
-                  {pricing.hasDiscount && (
-                    <Text style={styles.lineItemPriceOriginal}>
-                      ₹
-                      {(item.quantity * pricing.originalPrice).toLocaleString(
-                        "en-IN"
-                      )}
-                    </Text>
-                  )}
-                </View>
+            {/* Promo Code Input Block */}
+            <View style={styles.promoRow}>
+              <TextInput
+                style={styles.promoInput}
+                placeholder="Enter promo code"
+                placeholderTextColor={MUTED_TEXT}
+                value={promoCode}
+                onChangeText={setPromoCode}
+                autoCapitalize="characters"
+              />
+              <TouchableOpacity
+                style={styles.applyButtonWrapper}
+                onPress={handleApplyPromo}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={["#2563EB", "#1D4ED8"]} // Slightly different shade of royal blue
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.applyButtonGradient}
+                >
+                  <Text style={styles.applyButtonText}>Apply</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+
+            {appliedDiscount && (
+              <View style={styles.appliedPromo}>
+                <CheckCircle size={14} color={SUCCESS_COLOR} strokeWidth={2.5} />
+                <Text style={styles.appliedPromoText}>
+                  Code "{appliedDiscount.code}" applied:
+                  {appliedDiscount.discount_type === "percentage"
+                    ? ` ${appliedDiscount.discount_value}% off`
+                    : ` ₹${parseFloat(appliedDiscount.discount_value).toLocaleString("en-IN")} off`}
+                </Text>
               </View>
-            );
-          })}
-
-          {/* M-Ticket Note */}
-          <View style={styles.ticketNote}>
-            <Ionicons name="qr-code-outline" size={20} color={MUTED_TEXT} />
-            <Text style={styles.ticketNoteText}>
-              M-Ticket: Entry using the QR code in your app
-            </Text>
+            )}
           </View>
-        </View>
 
-        {/* Offers Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionHeaderText}>OFFERS</Text>
-        </View>
+          {/* Payment Summary */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionHeaderText}>PAYMENT SUMMARY</Text>
+          </View>
 
-        <View style={styles.offersCard}>
-          {event.discount_codes?.some((dc) => dc.is_active) && (
-            <TouchableOpacity style={styles.offerRow}>
-              <Ionicons name="pricetag-outline" size={20} color={TEXT_COLOR} />
-              <Text style={styles.offerText}>View all event offers</Text>
-              <Ionicons name="chevron-forward" size={20} color={MUTED_TEXT} />
-            </TouchableOpacity>
-          )}
+          <View style={styles.summaryCard}>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Order amount</Text>
+              <Text style={styles.summaryValue}>
+                ₹{totalAmount.toLocaleString("en-IN")}
+              </Text>
+            </View>
 
-          {/* Promo Code Input */}
-          <View style={styles.promoRow}>
-            <TextInput
-              style={styles.promoInput}
-              placeholder="Enter promo code"
-              placeholderTextColor={MUTED_TEXT}
-              value={promoCode}
-              onChangeText={setPromoCode}
-              autoCapitalize="characters"
-            />
+            {discountAmount > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: SUCCESS_COLOR, fontFamily: 'Manrope-SemiBold' }]}>
+                  Promo Discount
+                </Text>
+                <Text style={[styles.summaryValue, { color: SUCCESS_COLOR, fontFamily: 'Manrope-Bold' }]}>
+                  -₹{discountAmount.toLocaleString("en-IN")}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Booking fee (inc. of GST)</Text>
+              <Text style={styles.summaryValue}>
+                {bookingFee === 0
+                  ? "Free"
+                  : `₹${bookingFee.toLocaleString("en-IN")}`}
+              </Text>
+            </View>
+
+            <View style={[styles.summaryRow, styles.totalRow]}>
+              <Text style={styles.totalLabel}>To pay now</Text>
+              <Text style={styles.totalValue}>
+                ₹{finalAmount.toLocaleString("en-IN")}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ height: 160 }} />
+        </ScrollView>
+
+        {/* Floating Bottom Panel CTA without solid background (hides when keyboard is active) */}
+        {!keyboardVisible && (
+          <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
             <TouchableOpacity
-              style={styles.applyButtonWrapper}
-              onPress={handleApplyPromo}
+              style={styles.confirmButtonWrapper}
+              onPress={handleConfirmBooking}
+              disabled={isConfirmed || isLoading}
+              activeOpacity={0.9}
             >
               <LinearGradient
-                colors={COLORS.primaryGradient}
+                colors={
+                  isConfirmed ? ["#34C759", "#2FB350"] : COLORS.primaryGradient
+                }
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
-                style={styles.applyButtonGradient}
+                style={styles.confirmButtonGradient}
               >
-                <Text style={styles.applyButtonText}>Apply</Text>
+                {isLoading ? (
+                  <SnooLoader color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>
+                    {isConfirmed ? "Booking Confirmed ✓" : "Confirm Booking"}
+                  </Text>
+                )}
               </LinearGradient>
             </TouchableOpacity>
           </View>
-
-          {appliedDiscount && (
-            <View style={styles.appliedPromo}>
-              <Ionicons
-                name="checkmark-circle"
-                size={16}
-                color={SUCCESS_COLOR}
-              />
-              <Text style={styles.appliedPromoText}>
-                {appliedDiscount.code} applied -
-                {appliedDiscount.discount_type === "percentage"
-                  ? ` ${appliedDiscount.discount_value}% off`
-                  : ` ₹${appliedDiscount.discount_value} off`}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Payment Summary */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionHeaderText}>PAYMENT SUMMARY</Text>
-        </View>
-
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Order amount</Text>
-            <Text style={styles.summaryValue}>
-              ₹{totalAmount.toLocaleString("en-IN")}
-            </Text>
-          </View>
-
-          {discountAmount > 0 && (
-            <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, { color: SUCCESS_COLOR }]}>
-                Discount
-              </Text>
-              <Text style={[styles.summaryValue, { color: SUCCESS_COLOR }]}>
-                -₹{discountAmount.toLocaleString("en-IN")}
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Booking fee (inc. of GST)</Text>
-            <Text style={styles.summaryValue}>
-              {bookingFee === 0
-                ? "Free"
-                : `₹${bookingFee.toLocaleString("en-IN")}`}
-            </Text>
-          </View>
-
-          <View style={[styles.summaryRow, styles.totalRow]}>
-            <Text style={styles.totalLabel}>To pay now</Text>
-            <Text style={styles.totalValue}>
-              ₹{finalAmount.toLocaleString("en-IN")}
-            </Text>
-          </View>
-        </View>
-
-        {/* Spacer for bottom bar */}
-        <View style={{ height: 120 }} />
-      </ScrollView>
-
-      {/* Bottom CTA */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10 }]}>
-        <TouchableOpacity
-          style={styles.confirmButtonWrapper}
-          onPress={handleConfirmBooking}
-          disabled={isConfirmed || isLoading}
-        >
-          <LinearGradient
-            colors={
-              isConfirmed ? ["#34C759", "#2FB350"] : COLORS.primaryGradient
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.confirmButtonGradient}
-          >
-            {isLoading ? (
-              <SnooLoader color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={[styles.confirmButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
-                {isConfirmed ? "Booking Confirmed ✓" : "Confirm Booking"}
-              </Text>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+        )}
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -527,59 +604,93 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BACKGROUND_COLOR,
   },
+  reservingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    zIndex: 1000,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 16,
+  },
+  reservingText: {
+    fontSize: 15,
+    fontFamily: "Manrope-Medium",
+    color: TEXT_COLOR,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    backgroundColor: CARD_BACKGROUND,
     borderBottomWidth: 1,
     borderBottomColor: BORDER_COLOR,
   },
   backButton: {
-    padding: 8,
+    padding: 6,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
   },
   timerBar: {
-    backgroundColor: "#E3F2FD",
+    backgroundColor: "#FFF9E6",
+    borderBottomWidth: 1,
+    borderBottomColor: "#FFEBB3",
     paddingVertical: 10,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
   },
   timerText: {
     fontSize: 13,
+    fontFamily: "Manrope-Medium",
     color: TEXT_COLOR,
   },
   timerHighlight: {
-    color: "#FF9500",
-    fontWeight: "700",
+    color: WARNING_COLOR,
+    fontFamily: "Manrope-SemiBold",
   },
   content: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   eventCard: {
     backgroundColor: CARD_BACKGROUND,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginTop: 16,
     borderWidth: 1,
     borderColor: BORDER_COLOR,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
   eventRow: {
     flexDirection: "row",
     alignItems: "center",
   },
   eventThumb: {
-    width: 60,
-    height: 60,
-    borderRadius: 8,
+    width: 54,
+    height: 54,
+    borderRadius: 10,
     marginRight: 12,
   },
   eventThumbPlaceholder: {
+    width: 54,
+    height: 54,
+    borderRadius: 10,
+    marginRight: 12,
     backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
@@ -588,31 +699,35 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   eventTitle: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
   },
   eventVenue: {
-    fontSize: 13,
+    fontSize: 12,
+    fontFamily: "Manrope-Medium",
     color: MUTED_TEXT,
-    marginTop: 4,
+    marginTop: 3,
   },
   eventMeta: {
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: 14,
+    paddingTop: 14,
     borderTopWidth: 1,
     borderTopColor: BORDER_COLOR,
+    flexDirection: "row",
+    alignItems: "center",
   },
   eventMetaText: {
-    fontSize: 14,
+    fontSize: 13,
+    fontFamily: "Manrope-Medium",
     color: TEXT_COLOR,
   },
   lineItem: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: 14,
+    paddingTop: 14,
     borderTopWidth: 1,
     borderTopColor: BORDER_COLOR,
   },
@@ -622,17 +737,25 @@ const styles = StyleSheet.create({
   },
   lineItemText: {
     fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
     color: TEXT_COLOR,
   },
+  earlyBirdRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 3,
+  },
   lineItemDiscount: {
-    fontSize: 12,
-    color: "#059669", // Green
-    marginTop: 2,
+    fontSize: 11,
+    fontFamily: "Manrope-SemiBold",
+    color: "#059669",
   },
   removeText: {
     fontSize: 12,
+    fontFamily: "Manrope-SemiBold",
     color: PRIMARY_COLOR,
-    marginTop: 4,
+    marginTop: 6,
     textDecorationLine: "underline",
   },
   lineItemPriceContainer: {
@@ -640,11 +763,12 @@ const styles = StyleSheet.create({
   },
   lineItemPrice: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: TEXT_COLOR,
   },
   lineItemPriceOriginal: {
-    fontSize: 12,
+    fontSize: 11,
+    fontFamily: "Manrope-Medium",
     color: MUTED_TEXT,
     textDecorationLine: "line-through",
     marginTop: 2,
@@ -652,14 +776,16 @@ const styles = StyleSheet.create({
   ticketNote: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: 14,
+    paddingTop: 14,
     borderTopWidth: 1,
     borderTopColor: BORDER_COLOR,
-    gap: 10,
+    borderStyle: "dashed",
+    gap: 8,
   },
   ticketNoteText: {
-    fontSize: 13,
+    fontSize: 12,
+    fontFamily: "Manrope-Regular",
     color: MUTED_TEXT,
     flex: 1,
   },
@@ -669,13 +795,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   sectionHeaderText: {
-    fontSize: 12,
+    fontSize: 11,
+    fontFamily: "BasicCommercial-Bold",
     color: MUTED_TEXT,
-    letterSpacing: 1,
+    letterSpacing: 1.5,
   },
   offersCard: {
     backgroundColor: CARD_BACKGROUND,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: BORDER_COLOR,
@@ -683,43 +810,50 @@ const styles = StyleSheet.create({
   offerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 8,
+    gap: 10,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER_COLOR,
+    paddingBottom: 12,
+    marginBottom: 6,
   },
   offerText: {
     flex: 1,
     fontSize: 14,
+    fontFamily: "Manrope-Medium",
     color: TEXT_COLOR,
   },
   promoRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 12,
-    gap: 8,
+    marginTop: 6,
+    gap: 10,
   },
   promoInput: {
     flex: 1,
     backgroundColor: "#F9FAFB",
     borderWidth: 1,
     borderColor: BORDER_COLOR,
-    borderRadius: 8,
-    paddingHorizontal: 12,
+    borderRadius: 10,
+    paddingHorizontal: 14,
     paddingVertical: 10,
     color: TEXT_COLOR,
     fontSize: 14,
+    fontFamily: "Manrope-Medium",
   },
   applyButtonWrapper: {
-    borderRadius: 8,
+    borderRadius: 10,
     overflow: "hidden",
   },
   applyButtonGradient: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 11,
+    borderRadius: 10,
   },
   applyButtonText: {
     color: "#FFFFFF",
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 14,
   },
   appliedPromo: {
     flexDirection: "row",
@@ -729,11 +863,12 @@ const styles = StyleSheet.create({
   },
   appliedPromoText: {
     fontSize: 13,
+    fontFamily: "Manrope-SemiBold",
     color: SUCCESS_COLOR,
   },
   summaryCard: {
     backgroundColor: CARD_BACKGROUND,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     borderWidth: 1,
     borderColor: BORDER_COLOR,
@@ -745,27 +880,29 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: MUTED_TEXT,
   },
   summaryValue: {
     fontSize: 14,
+    fontFamily: "Manrope-Medium",
     color: TEXT_COLOR,
   },
   totalRow: {
-    marginTop: 8,
-    paddingTop: 16,
+    marginTop: 6,
+    paddingTop: 14,
     borderTopWidth: 1,
     borderTopColor: BORDER_COLOR,
     marginBottom: 0,
   },
   totalLabel: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
     color: TEXT_COLOR,
   },
   totalValue: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 19,
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
   },
   bottomBar: {
@@ -773,38 +910,35 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: 16,
-    backgroundColor: CARD_BACKGROUND,
-    borderTopWidth: 1,
-    borderTopColor: BORDER_COLOR,
+    backgroundColor: "transparent",
+    borderTopWidth: 0,
   },
   confirmButtonWrapper: {
-    borderRadius: 30,
+    borderRadius: 24,
     overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: PRIMARY_COLOR,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   confirmButtonGradient: {
-    paddingVertical: 16,
-    borderRadius: 30,
+    paddingVertical: 14,
+    borderRadius: 24,
     alignItems: "center",
+    justifyContent: "center",
   },
   confirmButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
-  },
-  reservingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.95)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 100,
-  },
-  reservingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: TEXT_COLOR,
-    
     fontFamily: "Manrope-SemiBold",
   },
 });

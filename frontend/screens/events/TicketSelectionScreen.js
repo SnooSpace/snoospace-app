@@ -13,8 +13,25 @@ import {
   StyleSheet,
   StatusBar,
   ActivityIndicator,
+  Platform,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  Ticket,
+  User,
+  Users,
+  Minus,
+  Plus,
+  ChevronRight,
+  Info,
+  Lock,
+  Tag,
+  AlertCircle,
+  CheckCircle,
+  Sparkles,
+} from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { COLORS } from "../../constants/theme";
@@ -22,12 +39,12 @@ import { getActiveAccount, getAuthToken } from "../../api/auth";
 import { calculateEffectivePrice } from "../../utils/pricingUtils";
 import { apiGet } from "../../api/client";
 
-// White Theme Colors
-const BACKGROUND_COLOR = "#F9FAFB";
+// Premium Theme Colors
+const BACKGROUND_COLOR = "#F8F9FA";
 const CARD_BACKGROUND = "#FFFFFF";
-const TEXT_COLOR = "#1F2937";
-const MUTED_TEXT = "#6B7280";
-const BORDER_COLOR = "#E5E7EB";
+const TEXT_COLOR = "#1D1D1F";
+const MUTED_TEXT = "#86868B";
+const BORDER_COLOR = "#F2F2F7";
 const PRIMARY_COLOR = COLORS.primary;
 
 export default function TicketSelectionScreen({ route, navigation }) {
@@ -42,7 +59,6 @@ export default function TicketSelectionScreen({ route, navigation }) {
   const [genderLoading, setGenderLoading] = useState(true);
 
   // Load user's gender by calling the actual member profile API
-  // NOTE: accountManager never stores gender — we must fetch it from the backend
   useEffect(() => {
     const loadUserGender = async () => {
       try {
@@ -51,7 +67,6 @@ export default function TicketSelectionScreen({ route, navigation }) {
         setAccountType(type);
 
         if (type !== "member") {
-          // Community/sponsor/venue accounts have no gender — don't filter
           setGenderLoading(false);
           return;
         }
@@ -64,8 +79,6 @@ export default function TicketSelectionScreen({ route, navigation }) {
         setUserGender(gender);
       } catch (error) {
         console.log("[TicketSelection] Could not load user gender:", error);
-        // On error, show all non-restricted tickets (fail open for UX,
-        // backend will still enforce the restriction at purchase time)
         setUserGender(null);
       } finally {
         setGenderLoading(false);
@@ -74,29 +87,18 @@ export default function TicketSelectionScreen({ route, navigation }) {
     loadUserGender();
   }, []);
 
-  // Filter tickets by user's gender
-  // Rules:
-  //   - Non-member accounts (community etc.) → show only "all" tickets
-  //   - Member with gender loaded → show "all" + matching gender tickets
-  //   - Member gender still loading → return empty (avoid flash of wrong tickets)
+  // Filter tickets by user's gender (CASE-INSENSITIVE COMPARISON)
   const filteredTickets = useMemo(() => {
     if (!event.ticket_types) return [];
-
-    // Don't show any tickets while gender is loading — prevents flash
     if (genderLoading) return [];
 
     return event.ticket_types.filter((ticket) => {
-      const restriction = (ticket.gender_restriction || "all").trim();
-
-      // "all" / "general" tickets are always visible to everyone
+      const restriction = (ticket.gender_restriction || "all").toLowerCase().trim();
       if (restriction === "all") return true;
-
-      // Non-member accounts (community, sponsor, venue) can only see "all" tickets
       if (accountType && accountType !== "member") return false;
-
-      // Gender-restricted ticket: only show if user's gender matches
-      // Both sides are stored as "Male" | "Female" | "Non-binary" in the DB
-      return restriction === userGender;
+      
+      const memberGender = (userGender || "").toLowerCase().trim();
+      return restriction === memberGender;
     });
   }, [event.ticket_types, userGender, accountType, genderLoading]);
 
@@ -112,7 +114,6 @@ export default function TicketSelectionScreen({ route, navigation }) {
         );
         if (ticket) {
           items += qty;
-          // Use effective price (with early bird discount)
           const pricing = calculateEffectivePrice(ticket, event.pricing_rules);
           amount += qty * pricing.effectivePrice;
         }
@@ -133,7 +134,6 @@ export default function TicketSelectionScreen({ route, navigation }) {
     );
   };
 
-  // Check if add button should be disabled
   const isAddDisabled = (ticket) => {
     const qty = getQuantity(ticket);
     const available = getAvailable(ticket);
@@ -147,10 +147,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
     const available = getAvailable(ticket);
     const maxAllowed = Math.min(ticket.max_per_order || 10, available);
 
-    // Don't add if at limit
-    if (currentQty >= maxAllowed) {
-      return;
-    }
+    if (currentQty >= maxAllowed) return;
 
     setCart((prev) => ({
       ...prev,
@@ -176,7 +173,6 @@ export default function TicketSelectionScreen({ route, navigation }) {
   };
 
   const handleCheckout = () => {
-    // Build cart items with ticket details
     const cartItems = Object.entries(cart)
       .filter(([_, qty]) => qty > 0)
       .map(([ticketId, qty]) => {
@@ -192,6 +188,8 @@ export default function TicketSelectionScreen({ route, navigation }) {
       totalAmount,
     });
   };
+
+  const displayDate = event.start_datetime || event.event_date;
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "";
@@ -213,47 +211,93 @@ export default function TicketSelectionScreen({ route, navigation }) {
     });
   };
 
+  // Helper to resolve customizable ticket cards aesthetics INSPIRED BY THE WATERMARK TICKET SAMPLES
+  const getTicketTheme = (ticket) => {
+    const name = (ticket.name || "").toLowerCase();
+    const restriction = (ticket.gender_restriction || "all").toLowerCase();
+
+    if (name.includes("couple") || restriction === "couple") {
+      return {
+        color: "#D97706", // Amber/Gold
+        bgTint: "#FFFDF2", // Soft gold paper tint
+        badgeBg: "rgba(217, 119, 6, 0.12)",
+        watermark: "ADMIT ONE",
+        label: "VIP Admission • Couple",
+      };
+    }
+    if (restriction === "female" || name.includes("vixen") || name.includes("girls") || name.includes("female") || name.includes("ladies")) {
+      return {
+        color: "#E11D48", // Rose Red
+        bgTint: "#FFF5F6", // Soft rose pink paper tint
+        badgeBg: "rgba(225, 29, 72, 0.12)",
+        watermark: "ENTRY PASS",
+        label: "Ladies Special Event",
+      };
+    }
+    if (restriction === "male" || name.includes("stag") || name.includes("men") || name.includes("male")) {
+      return {
+        color: "#2563EB", // Royal Blue
+        bgTint: "#F0F6FF", // Soft gentlemen sky blue tint
+        badgeBg: "rgba(37, 99, 235, 0.12)",
+        watermark: "VIP PASS",
+        label: "Gentlemen's Evening",
+      };
+    }
+    return {
+      color: PRIMARY_COLOR,
+      bgTint: "#F9FAFB",
+      badgeBg: "rgba(98, 0, 238, 0.12)",
+      watermark: "ADMIT ONE",
+      label: "General Admission",
+    };
+  };
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Premium Navigation Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.backButton}
+          activeOpacity={0.7}
         >
-          <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          <ArrowLeft size={24} color={TEXT_COLOR} strokeWidth={2} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitle} numberOfLines={1}>
             {event.title}
           </Text>
-          <Text style={styles.headerSubtitle}>
-            {formatDate(event.event_date)} | {formatTime(event.event_date)}
-          </Text>
+          <View style={styles.headerMetaRow}>
+            <Calendar size={12} color={MUTED_TEXT} strokeWidth={2} />
+            <Text style={styles.headerSubtitle}>
+              {formatDate(displayDate)}  •  {formatTime(displayDate)}
+            </Text>
+          </View>
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>Choose tickets</Text>
 
-        {/* Loading state while we fetch the user's gender from backend */}
+        {/* Loading state */}
         {genderLoading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color={PRIMARY_COLOR} />
-            <Text style={styles.loadingText}>Loading tickets…</Text>
+            <Text style={styles.loadingText}>Loading available tickets…</Text>
           </View>
         )}
 
-        {/* No eligible tickets (all tickets are gender-restricted and user doesn't qualify) */}
+        {/* No eligible tickets */}
         {!genderLoading && filteredTickets.length === 0 && (
           <View style={styles.emptyContainer}>
+            <AlertCircle size={40} color={MUTED_TEXT} strokeWidth={2} />
             <Text style={styles.emptyTitle}>No tickets available</Text>
             <Text style={styles.emptySubtitle}>
               {accountType !== "member"
-                ? "Only members can purchase tickets for this event."
-                : "There are no tickets available for your gender eligibility."}
+                ? "Only member accounts can purchase tickets for this event."
+                : "There are no tickets available matching your profile restrictions."}
             </Text>
           </View>
         )}
@@ -264,6 +308,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
           const isSoldOut = ticket.total_quantity && available <= 0;
           const price = parseFloat(ticket.base_price) || 0;
           const addDisabled = isAddDisabled(ticket);
+          const theme = getTicketTheme(ticket);
 
           return (
             <View
@@ -271,11 +316,77 @@ export default function TicketSelectionScreen({ route, navigation }) {
               style={[
                 styles.ticketCard,
                 isSoldOut && styles.ticketCardDisabled,
+                {
+                  borderColor: theme.color,
+                  backgroundColor: theme.bgTint,
+                },
               ]}
             >
-              <View style={styles.ticketHeader}>
-                <View style={styles.ticketInfo}>
-                  <Text style={styles.ticketName}>{ticket.name}</Text>
+              {/* Left Edge Semicircular Notch */}
+              <View style={styles.notchLeft} />
+
+              {/* Left Stub - Content */}
+              <View style={styles.leftStub}>
+                {/* Header Tag / Category */}
+                <Text style={[styles.headerTag, { color: theme.color }]}>
+                  {theme.label.toUpperCase()}
+                </Text>
+
+                {/* Ticket Title (Empower Slate Blue Style) */}
+                <Text style={styles.ticketTitle} numberOfLines={1}>
+                  {ticket.name}
+                </Text>
+
+                {/* Date & Subtitle */}
+                <View style={styles.metaRow}>
+                  <Text style={styles.metaLabel}>Date: </Text>
+                  <Text style={styles.metaValue}>
+                    {formatDate(displayDate)}  {formatTime(displayDate)}
+                  </Text>
+                </View>
+
+                {/* Remaining alert */}
+                {ticket.total_quantity && available > 0 && available <= 10 && (
+                  <View style={styles.stockRow}>
+                    <Clock size={11} color="#D97706" strokeWidth={2.5} />
+                    <Text style={styles.remainingBadge}>
+                      Only {available} passes left
+                    </Text>
+                  </View>
+                )}
+
+                {/* Bullet Descriptions */}
+                {ticket.description && (
+                  <View style={styles.descBlock}>
+                    {ticket.description.split("\n").map((line, i) => (
+                      <View key={i} style={styles.descLineRow}>
+                        <View style={[styles.bulletPoint, { backgroundColor: theme.color }]} />
+                        <Text style={styles.descLine}>
+                          {line.replace(/^[-•]\s*/, "")}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              {/* Perforation Line Container */}
+              <View style={styles.perforationLineContainer}>
+                <View style={styles.dashedDivider} />
+              </View>
+
+              {/* Right Stub - Tear-off Scannable Coupon */}
+              <View style={styles.rightStub}>
+                {/* Vertical faint watermark text in background (Exactly like the Admit One watermarks) */}
+                <View style={styles.watermarkContainer}>
+                  <Text style={styles.watermarkText} numberOfLines={1}>
+                    {theme.watermark}
+                  </Text>
+                </View>
+
+                {/* Solid Foreground Content */}
+                <View style={styles.foregroundStub}>
+                  {/* Pricing */}
                   {(() => {
                     const pricing = calculateEffectivePrice(
                       ticket,
@@ -283,12 +394,12 @@ export default function TicketSelectionScreen({ route, navigation }) {
                     );
                     if (pricing.hasDiscount) {
                       return (
-                        <View style={styles.priceRow}>
+                        <View style={styles.priceCol}>
                           <Text style={styles.ticketPriceDiscounted}>
-                            ₹{pricing.effectivePrice.toLocaleString("en-IN")}
+                            ₹{pricing.effectivePrice}
                           </Text>
                           <Text style={styles.ticketPriceOriginal}>
-                            ₹{pricing.originalPrice.toLocaleString("en-IN")}
+                            ₹{pricing.originalPrice}
                           </Text>
                           <View style={styles.discountBadge}>
                             <Text style={styles.discountBadgeText}>
@@ -306,82 +417,69 @@ export default function TicketSelectionScreen({ route, navigation }) {
                       </Text>
                     );
                   })()}
-                  {/* Show remaining tickets when limited */}
-                  {ticket.total_quantity &&
-                    available > 0 &&
-                    available <= 10 && (
-                      <Text style={styles.remainingBadge}>
-                        {available} left
-                      </Text>
-                    )}
-                </View>
 
-                {!isSoldOut ? (
-                  qty === 0 ? (
-                    <TouchableOpacity
-                      style={styles.addButton}
-                      onPress={() => handleAdd(ticket)}
-                    >
-                      <Text style={styles.addButtonText}>Add</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <View style={styles.quantityControl}>
+                  <View style={{ height: 12 }} />
+
+                  {/* Quantity selector / Add CTA */}
+                  {!isSoldOut ? (
+                    qty === 0 ? (
                       <TouchableOpacity
-                        onPress={() => handleRemove(ticket)}
-                        style={styles.qtyButton}
-                      >
-                        <Text style={styles.qtyButtonText}>−</Text>
-                      </TouchableOpacity>
-                      <Text style={styles.qtyValue}>{qty}</Text>
-                      <TouchableOpacity
+                        style={[styles.addButton, { backgroundColor: theme.color }]}
                         onPress={() => handleAdd(ticket)}
-                        style={[
-                          styles.qtyButton,
-                          addDisabled && styles.qtyButtonDisabled,
-                        ]}
-                        disabled={addDisabled}
+                        activeOpacity={0.85}
                       >
-                        <Text
-                          style={[
-                            styles.qtyButtonText,
-                            addDisabled && styles.qtyButtonTextDisabled,
-                          ]}
-                        >
-                          +
-                        </Text>
+                        <Text style={styles.addButtonText}>Add</Text>
                       </TouchableOpacity>
+                    ) : (
+                      <View style={[styles.quantityControl, { borderColor: theme.color }]}>
+                        <TouchableOpacity
+                          onPress={() => handleRemove(ticket)}
+                          style={styles.qtyButton}
+                          activeOpacity={0.7}
+                        >
+                          <Minus size={12} color="#FFFFFF" strokeWidth={3} />
+                        </TouchableOpacity>
+                        <Text style={styles.qtyValue}>{qty}</Text>
+                        <TouchableOpacity
+                          onPress={() => handleAdd(ticket)}
+                          style={[
+                            styles.qtyButton,
+                            addDisabled && styles.qtyButtonDisabled,
+                          ]}
+                          disabled={addDisabled}
+                          activeOpacity={0.7}
+                        >
+                          <Plus
+                            size={12}
+                            color="#FFFFFF"
+                            strokeWidth={3}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    )
+                  ) : (
+                    <View style={styles.soldOutBadge}>
+                      <Text style={styles.soldOutText}>Sold Out</Text>
                     </View>
-                  )
-                ) : (
-                  <View style={styles.soldOutBadge}>
-                    <Text style={styles.soldOutText}>Sold Out</Text>
-                  </View>
-                )}
+                  )}
+                </View>
               </View>
 
-              {ticket.description && (
-                <View style={styles.ticketDesc}>
-                  {ticket.description.split("\n").map((line, i) => (
-                    <Text key={i} style={styles.descLine}>
-                      − {line.replace(/^[-•]\s*/, "")}
-                    </Text>
-                  ))}
-                </View>
-              )}
+              {/* Right Edge Semicircular Notch */}
+              <View style={styles.notchRight} />
             </View>
           );
         })}
 
-        {/* Spacer for bottom bar */}
-        <View style={{ height: 120 }} />
+        <View style={{ height: 140 }} />
       </ScrollView>
 
-      {/* Bottom Bar */}
+      {/* Dynamic Cinematic Bottom Panel */}
       {totalItems > 0 && (
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 10 }]}>
+        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 16 }]}>
           <View style={styles.cartInfo}>
             <Text style={styles.cartItems}>
-              {totalItems} ticket{totalItems > 1 ? "s" : ""}
+              {totalItems} Ticket{totalItems > 1 ? "s" : ""} Selected
             </Text>
             <Text style={styles.cartTotal}>
               ₹{totalAmount.toLocaleString("en-IN")}
@@ -390,6 +488,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
           <TouchableOpacity
             style={styles.checkoutButtonWrapper}
             onPress={handleCheckout}
+            activeOpacity={0.9}
           >
             <LinearGradient
               colors={COLORS.primaryGradient}
@@ -398,6 +497,7 @@ export default function TicketSelectionScreen({ route, navigation }) {
               style={styles.checkoutButtonGradient}
             >
               <Text style={styles.checkoutButtonText}>Checkout</Text>
+              <ChevronRight size={18} color="#FFFFFF" strokeWidth={2.5} />
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -414,170 +514,291 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    backgroundColor: CARD_BACKGROUND,
     borderBottomWidth: 1,
     borderBottomColor: BORDER_COLOR,
   },
   backButton: {
-    padding: 8,
-    marginRight: 8,
+    padding: 6,
+    marginRight: 10,
+    marginLeft: -6,
   },
   headerInfo: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 18,
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
   },
+  headerMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
   headerSubtitle: {
-    fontSize: 12,
+    fontSize: 13,
+    fontFamily: "Manrope-Medium",
     color: MUTED_TEXT,
-    marginTop: 2,
+    marginLeft: 6,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 22,
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
-    marginTop: 20,
+    marginTop: 24,
     marginBottom: 16,
+    letterSpacing: -0.3,
   },
   ticketCard: {
-    backgroundColor: CARD_BACKGROUND,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: PRIMARY_COLOR,
-    borderWidth: 1,
-    borderColor: BORDER_COLOR,
+    flexDirection: "row",
+    borderRadius: 16,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    overflow: "hidden",
+    minHeight: 140,
+    position: "relative",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000000",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.05,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
   },
   ticketCardDisabled: {
-    opacity: 0.5,
+    opacity: 0.65,
   },
-  ticketHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+  // Real notch bites on the far left and right edges
+  notchLeft: {
+    position: "absolute",
+    left: -10,
+    top: "50%",
+    marginTop: -10,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: BACKGROUND_COLOR, // blends with screen background to clip card border
+    zIndex: 10,
   },
-  ticketInfo: {
-    flex: 1,
-    marginRight: 16,
+  notchRight: {
+    position: "absolute",
+    right: -10,
+    top: "50%",
+    marginTop: -10,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: BACKGROUND_COLOR,
+    zIndex: 10,
   },
-  ticketName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: TEXT_COLOR,
+  leftStub: {
+    flex: 2.6,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    justifyContent: "center",
   },
-  ticketPrice: {
-    fontSize: 14,
-    color: MUTED_TEXT,
-    marginTop: 4,
+  headerTag: {
+    fontSize: 10,
+    fontFamily: "Manrope-SemiBold",
+    letterSpacing: 1.5,
+    marginBottom: 6,
   },
-  priceRow: {
+  ticketTitle: {
+    fontSize: 20,
+    fontFamily: "BasicCommercial-Bold", // Slate Blue Large Title
+    color: "#1A2D4A",
+    marginBottom: 8,
+  },
+  metaRow: {
     flexDirection: "row",
     alignItems: "center",
-    flexWrap: "wrap",
-    marginTop: 4,
-    gap: 8,
+    marginBottom: 4,
+  },
+  metaLabel: {
+    fontSize: 12.5,
+    fontFamily: "Manrope-Medium",
+    color: MUTED_TEXT,
+  },
+  metaValue: {
+    fontSize: 12.5,
+    fontFamily: "Manrope-Regular",
+    color: TEXT_COLOR,
+  },
+  // Perforation Divider
+  perforationLineContainer: {
+    width: 1,
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dashedDivider: {
+    flex: 1,
+    width: 1,
+    borderWidth: 1,
+    borderColor: "rgba(26, 45, 74, 0.08)",
+    borderStyle: "dashed",
+    marginVertical: 12,
+  },
+  // Right Stub - scannable admit coupon
+  rightStub: {
+    flex: 1.3,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+    padding: 10,
+  },
+  watermarkContainer: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+    opacity: 0.04,
+  },
+  watermarkText: {
+    fontSize: 24,
+    fontFamily: "BasicCommercial-Bold",
+    color: "#000000",
+    transform: [{ rotate: "-90deg" }],
+    textAlign: "center",
+    width: 130,
+  },
+  foregroundStub: {
+    zIndex: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  priceCol: {
+    alignItems: "center",
+  },
+  ticketPrice: {
+    fontSize: 20,
+    fontFamily: "BasicCommercial-Bold",
+    color: "#1A2D4A",
   },
   ticketPriceDiscounted: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#059669", // Green for discount price
+    fontSize: 20,
+    fontFamily: "BasicCommercial-Bold",
+    color: "#059669",
   },
   ticketPriceOriginal: {
-    fontSize: 13,
+    fontSize: 12,
+    fontFamily: "Manrope-Medium",
     color: MUTED_TEXT,
     textDecorationLine: "line-through",
+    marginTop: 1,
   },
   discountBadge: {
-    backgroundColor: "#D1FAE5", // Light green
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    backgroundColor: "#E6F4EA",
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
     borderRadius: 4,
+    marginTop: 2,
   },
   discountBadgeText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#059669", // Green
+    fontSize: 9,
+    fontFamily: "Manrope-SemiBold",
+    color: "#059669",
   },
   addButton: {
-    backgroundColor: CARD_BACKGROUND,
-    borderWidth: 2,
-    borderColor: PRIMARY_COLOR,
-    paddingHorizontal: 24,
-    paddingVertical: 8,
+    paddingHorizontal: 22,
+    paddingVertical: 7,
     borderRadius: 20,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   addButtonText: {
-    color: PRIMARY_COLOR,
-    fontWeight: "600",
-    fontSize: 14,
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 13,
+    color: "#FFFFFF",
   },
   quantityControl: {
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: BORDER_COLOR,
-    borderRadius: 8,
-    backgroundColor: "#F9FAFB",
+    borderRadius: 20,
+    backgroundColor: "#1A2D4A", // Premium slate dark counter control block
+    padding: 2,
   },
   qtyButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
   },
-  qtyButtonText: {
-    color: TEXT_COLOR,
-    fontSize: 18,
-    fontWeight: "600",
+  qtyButtonDisabled: {
+    opacity: 0.3,
   },
   qtyValue: {
-    color: TEXT_COLOR,
-    fontSize: 16,
-    fontWeight: "600",
-    paddingHorizontal: 8,
-    minWidth: 24,
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontFamily: "Manrope-SemiBold",
+    paddingHorizontal: 4,
+    minWidth: 16,
     textAlign: "center",
   },
   soldOutBadge: {
-    backgroundColor: "rgba(255,59,48,0.1)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    backgroundColor: "rgba(225,29,72,0.08)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
   },
   soldOutText: {
-    color: "#FF3B30",
-    fontWeight: "600",
-    fontSize: 12,
+    color: "#E11D48",
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 11,
+  },
+  stockRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 6,
+    gap: 4,
   },
   remainingBadge: {
-    fontSize: 12,
-    color: "#FF9500",
-    fontWeight: "500",
-    marginTop: 4,
+    fontSize: 11,
+    color: "#D97706",
+    fontFamily: "Manrope-SemiBold",
   },
-  qtyButtonDisabled: {
-    opacity: 0.4,
-  },
-  qtyButtonTextDisabled: {
-    color: MUTED_TEXT,
-  },
-  ticketDesc: {
-    marginTop: 12,
-    paddingTop: 12,
+  descBlock: {
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: BORDER_COLOR,
+    borderTopColor: "rgba(0,0,0,0.04)",
+    borderStyle: "dashed",
+  },
+  descLineRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  bulletPoint: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginRight: 8,
+    opacity: 0.8,
   },
   descLine: {
-    fontSize: 13,
+    fontSize: 12,
+    fontFamily: "Manrope-Regular",
     color: MUTED_TEXT,
-    marginBottom: 4,
+    flex: 1,
+    lineHeight: 16,
   },
   bottomBar: {
     position: "absolute",
@@ -587,66 +808,95 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingTop: 16,
     backgroundColor: CARD_BACKGROUND,
     borderTopWidth: 1,
     borderTopColor: BORDER_COLOR,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000000",
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 10,
+      },
+    }),
   },
   cartInfo: {
     flex: 1,
   },
   cartItems: {
-    fontSize: 13,
+    fontSize: 12,
+    fontFamily: "Manrope-Medium",
     color: MUTED_TEXT,
   },
   cartTotal: {
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 22,
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
+    marginTop: 2,
   },
   checkoutButtonWrapper: {
-    borderRadius: 30,
+    borderRadius: 24,
     overflow: "hidden",
+    ...Platform.select({
+      ios: {
+        shadowColor: PRIMARY_COLOR,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   checkoutButtonGradient: {
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 30,
+    paddingHorizontal: 28,
+    paddingVertical: 13,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   checkoutButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
   },
-  // Loading / empty state styles
   loadingContainer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 48,
-    gap: 10,
+    paddingVertical: 64,
+    gap: 12,
   },
   loadingText: {
     fontSize: 14,
+    fontFamily: "Manrope-Medium",
     color: MUTED_TEXT,
-    fontWeight: "500",
   },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 48,
+    paddingVertical: 64,
     paddingHorizontal: 24,
   },
   emptyTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 18,
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
+    marginTop: 16,
     marginBottom: 8,
     textAlign: "center",
   },
   emptySubtitle: {
     fontSize: 14,
+    fontFamily: "Manrope-Regular",
     color: MUTED_TEXT,
     textAlign: "center",
     lineHeight: 20,

@@ -3,25 +3,36 @@
  * Shows: QR code for entry, event details, ticket breakdown
  */
 import React, { useState, useEffect } from "react";
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking, Alert } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Linking, Alert, Image } from "react-native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  ArrowLeft,
+  Calendar,
+  MapPin,
+  ChevronRight,
+  Clock,
+  AlertCircle,
+  AlertTriangle,
+} from "lucide-react-native";
 import QRCode from "react-native-qrcode-svg";
+import { LinearGradient } from "expo-linear-gradient";
 import { getMyTicket } from "../../api/events";
 import { useLocationName } from "../../utils/locationNameCache";
 import SnooLoader from "../../components/ui/SnooLoader";
+import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
+import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 
-const BACKGROUND_COLOR = "#F5F5F5";
+const BACKGROUND_COLOR = "#F9FAFB";
 const CARD_BACKGROUND = "#FFFFFF";
-const TEXT_COLOR = "#1F2937";
+const TEXT_COLOR = "#1A2D4A";
 const MUTED_TEXT = "#6B7280";
-const PRIMARY_COLOR = "#6A0DAD";
+const PRIMARY_COLOR = "#2962FF";
 const SUCCESS_COLOR = "#16A34A";
-const WARNING_COLOR = "#F59E0B";
-const ERROR_COLOR = "#DC2626";
+const WARNING_COLOR = "#D97706";
+const ERROR_COLOR = "#EF4444";
 
 export default function TicketViewScreen({ route, navigation }) {
   const { eventId } = route.params || {};
@@ -30,8 +41,11 @@ export default function TicketViewScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Resolve location name
-  const locationName = useLocationName(ticket?.locationUrl);
+  // Resolve location name with fallback
+  const rawLocationName = useLocationName(ticket?.locationUrl, {
+    fallback: ticket?.eventType === "virtual" ? "Virtual Event" : "Location TBD",
+  });
+  const displayLocation = ticket?.locationName || rawLocationName;
 
   useEffect(() => {
     loadTicket();
@@ -100,7 +114,6 @@ export default function TicketViewScreen({ route, navigation }) {
       case "attended":
         return PRIMARY_COLOR;
       case "cancelled":
-        return ERROR_COLOR;
       case "revoked":
         return ERROR_COLOR;
       default:
@@ -108,16 +121,30 @@ export default function TicketViewScreen({ route, navigation }) {
     }
   };
 
+  const getStatusBgColor = (status) => {
+    switch (status) {
+      case "registered":
+        return "#E8F5E9"; // Soft green
+      case "attended":
+        return "#E0F2FE"; // Soft blue
+      case "cancelled":
+      case "revoked":
+        return "#FEE2E2"; // Soft red
+      default:
+        return "#F3F4F6";
+    }
+  };
+
   const getStatusLabel = (status) => {
     switch (status) {
       case "registered":
-        return "✓ Confirmed";
+        return "Confirmed";
       case "attended":
-        return "✓ Attended";
+        return "Attended";
       case "cancelled":
-        return "✗ Cancelled";
+        return "Cancelled";
       case "revoked":
-        return "⊘ Revoked";
+        return "Revoked";
       default:
         return status;
     }
@@ -131,8 +158,9 @@ export default function TicketViewScreen({ route, navigation }) {
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
             >
-              <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+              <ArrowLeft size={24} color={TEXT_COLOR} strokeWidth={2} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Your Ticket</Text>
             <View style={{ width: 40 }} />
@@ -140,7 +168,7 @@ export default function TicketViewScreen({ route, navigation }) {
         </View>
         <View style={styles.centerContainer}>
           <SnooLoader size="large" color={PRIMARY_COLOR} />
-          <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Loading ticket...</Text>
+          <Text style={styles.loadingText}>Loading ticket...</Text>
         </View>
       </SafeAreaView>
     );
@@ -154,18 +182,19 @@ export default function TicketViewScreen({ route, navigation }) {
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => navigation.goBack()}
+              activeOpacity={0.7}
             >
-              <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+              <ArrowLeft size={24} color={TEXT_COLOR} strokeWidth={2} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Your Ticket</Text>
             <View style={{ width: 40 }} />
           </View>
         </View>
         <View style={styles.centerContainer}>
-          <Ionicons name="alert-circle-outline" size={60} color={ERROR_COLOR} />
+          <AlertCircle size={60} color={ERROR_COLOR} strokeWidth={2} />
           <Text style={styles.errorTitle}>Error</Text>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadTicket}>
+          <TouchableOpacity style={styles.retryButton} onPress={loadTicket} activeOpacity={0.85}>
             <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
@@ -186,8 +215,9 @@ export default function TicketViewScreen({ route, navigation }) {
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
           >
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <ArrowLeft size={24} color={TEXT_COLOR} strokeWidth={2} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Your Ticket</Text>
           <View style={{ width: 40 }} />
@@ -230,12 +260,12 @@ export default function TicketViewScreen({ route, navigation }) {
           {/* Revoked Banner */}
           {isRevoked && ticket?.revokedReason && (
             <View style={styles.revokedBanner}>
-              <Ionicons name="warning" size={18} color={ERROR_COLOR} />
+              <AlertTriangle size={18} color={ERROR_COLOR} strokeWidth={2} />
               <Text style={styles.revokedText}>{ticket.revokedReason}</Text>
             </View>
           )}
 
-          {/* Dashed Divider */}
+          {/* Dashed Divider with Semicircular coupon bite notches */}
           <View style={styles.dashedDivider}>
             <View style={styles.circleLeft} />
             <View style={styles.dashedLine} />
@@ -247,35 +277,55 @@ export default function TicketViewScreen({ route, navigation }) {
             <Text style={styles.eventTitle} numberOfLines={2}>
               {ticket?.eventTitle}
             </Text>
-            <Text style={styles.communityName}>{ticket?.communityName}</Text>
+            
+            {/* Organizer/Community Row */}
+            <View style={styles.communityRow}>
+              {ticket?.communityLogo && /^https?:\/\//.test(ticket.communityLogo) ? (
+                <Image
+                  source={{ uri: ticket.communityLogo }}
+                  style={styles.communityAvatar}
+                />
+              ) : (
+                <LinearGradient
+                  colors={getGradientForName(ticket?.communityName || "Community")}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.communityAvatar, styles.communityAvatarGradient]}
+                >
+                  <Text style={styles.communityInitials}>
+                    {getInitials(ticket?.communityName || "C")}
+                  </Text>
+                </LinearGradient>
+              )}
+              <Text style={styles.communityName} numberOfLines={1}>
+                {ticket?.communityName}
+              </Text>
+            </View>
 
-            {/* Date & Time */}
+            {/* Date & Time Row */}
             <View style={styles.infoRow}>
-              <Ionicons
-                name="calendar-outline"
-                size={18}
-                color={PRIMARY_COLOR}
-              />
+              <View style={styles.iconContainer}>
+                <Calendar size={18} color={PRIMARY_COLOR} strokeWidth={2} />
+              </View>
               <Text style={styles.infoText}>
                 {formatDateTime(ticket?.eventDate)}
               </Text>
             </View>
 
-            {/* Location */}
+            {/* Location Row */}
             {ticket?.locationUrl && (
               <TouchableOpacity
                 style={styles.infoRow}
                 onPress={handleOpenLocation}
+                activeOpacity={0.7}
               >
-                <Ionicons
-                  name="location-outline"
-                  size={18}
-                  color={PRIMARY_COLOR}
-                />
+                <View style={styles.iconContainer}>
+                  <MapPin size={18} color={PRIMARY_COLOR} strokeWidth={2} />
+                </View>
                 <Text style={styles.infoText} numberOfLines={2}>
-                  {locationName || "View Location"}
+                  {displayLocation || "View Location"}
                 </Text>
-                <Ionicons name="chevron-forward" size={16} color={MUTED_TEXT} />
+                <ChevronRight size={16} color={MUTED_TEXT} strokeWidth={2.2} />
               </TouchableOpacity>
             )}
           </View>
@@ -343,14 +393,16 @@ export default function TicketViewScreen({ route, navigation }) {
 
           <View style={styles.bookingRow}>
             <Text style={styles.bookingLabel}>Status</Text>
-            <Text
-              style={[
-                styles.statusValue,
-                { color: getStatusColor(ticket?.status) },
-              ]}
-            >
-              {getStatusLabel(ticket?.status)}
-            </Text>
+            <View style={[styles.statusPill, { backgroundColor: getStatusBgColor(ticket?.status) }]}>
+              <Text
+                style={[
+                  styles.statusValue,
+                  { color: getStatusColor(ticket?.status) },
+                ]}
+              >
+                {getStatusLabel(ticket?.status)}
+              </Text>
+            </View>
           </View>
 
           {isCancelled && ticket?.refundAmount > 0 && (
@@ -366,7 +418,7 @@ export default function TicketViewScreen({ route, navigation }) {
         {/* Past Event Notice */}
         {isPast && !isCancelled && (
           <View style={styles.noticeCard}>
-            <Ionicons name="time-outline" size={20} color={WARNING_COLOR} />
+            <Clock size={18} color={WARNING_COLOR} strokeWidth={2} />
             <Text style={styles.noticeText}>
               This event has ended. This ticket is kept for your records.
             </Text>
@@ -396,14 +448,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: CARD_BACKGROUND,
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: "#F3F4F6",
   },
   backButton: {
     padding: 8,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontFamily: FONTS.black,
     color: TEXT_COLOR,
   },
   centerContainer: {
@@ -413,15 +465,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
   },
   loadingText: {
-    fontSize: 14,
+    fontSize: 15,
     color: MUTED_TEXT,
     marginTop: 12,
-  
-    fontFamily: "Manrope-Regular",
+    fontFamily: FONTS.semiBold,
   },
   errorTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: TEXT_COLOR,
     marginTop: 16,
   },
@@ -430,17 +481,18 @@ const styles = StyleSheet.create({
     color: MUTED_TEXT,
     textAlign: "center",
     marginTop: 8,
+    fontFamily: FONTS.semiBold,
   },
   retryButton: {
     marginTop: 20,
     backgroundColor: PRIMARY_COLOR,
     paddingHorizontal: 24,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 24,
   },
   retryButtonText: {
     color: "#FFFFFF",
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
   },
   scrollView: {
     flex: 1,
@@ -451,13 +503,15 @@ const styles = StyleSheet.create({
   },
   ticketCard: {
     backgroundColor: CARD_BACKGROUND,
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.03)",
   },
   qrSection: {
     alignItems: "center",
@@ -471,12 +525,14 @@ const styles = StyleSheet.create({
   qrContainer: {
     padding: 16,
     backgroundColor: CARD_BACKGROUND,
-    borderRadius: 12,
+    borderRadius: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   qrContainerCancelled: {
     opacity: 0.5,
@@ -485,24 +541,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: MUTED_TEXT,
     marginTop: 16,
+    fontFamily: FONTS.semiBold,
   },
   qrCancelledText: {
     fontSize: 14,
     color: ERROR_COLOR,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     marginTop: 16,
   },
   dashedDivider: {
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: 0,
+    position: "relative",
   },
   circleLeft: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: BACKGROUND_COLOR,
-    marginLeft: -12,
+    marginLeft: -10,
+    zIndex: 10,
   },
   dashedLine: {
     flex: 1,
@@ -512,56 +571,94 @@ const styles = StyleSheet.create({
     borderColor: "#E5E7EB",
   },
   circleRight: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: BACKGROUND_COLOR,
-    marginRight: -12,
+    marginRight: -10,
+    zIndex: 10,
   },
   eventSection: {
     padding: 20,
   },
   eventTitle: {
-    fontSize: 20,
-    fontWeight: "700",
+    fontSize: 22,
+    fontFamily: FONTS.primary,
     color: TEXT_COLOR,
-    marginBottom: 4,
+    marginBottom: 6,
+  },
+  communityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 18,
+  },
+  communityAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
+  communityAvatarGradient: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  communityInitials: {
+    fontSize: 10,
+    fontFamily: FONTS.semiBold,
+    color: "#FFFFFF",
   },
   communityName: {
     fontSize: 14,
-    color: MUTED_TEXT,
-    marginBottom: 16,
+    fontFamily: FONTS.semiBold,
+    color: "#5E8D9B",
+    flex: 1,
   },
   infoRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 10,
+    gap: 12,
+    marginBottom: 12,
   },
   infoText: {
     flex: 1,
     fontSize: 14,
+    fontFamily: FONTS.semiBold,
     color: TEXT_COLOR,
+  },
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   detailsCard: {
     backgroundColor: CARD_BACKGROUND,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 20,
+    padding: 20,
     marginTop: 16,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.03)",
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontFamily: FONTS.primary,
     color: MUTED_TEXT,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 12,
+    letterSpacing: 1,
+    marginBottom: 16,
   },
   ticketRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
@@ -570,70 +667,80 @@ const styles = StyleSheet.create({
   },
   ticketName: {
     fontSize: 15,
-    fontWeight: "500",
+    fontFamily: FONTS.semiBold,
     color: TEXT_COLOR,
   },
   ticketPrice: {
-    fontSize: 12,
+    fontSize: 12.5,
+    fontFamily: FONTS.semiBold,
     color: MUTED_TEXT,
     marginTop: 2,
   },
   ticketTotal: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: TEXT_COLOR,
   },
   discountLabel: {
     fontSize: 14,
     color: SUCCESS_COLOR,
+    fontFamily: FONTS.semiBold,
   },
   discountAmount: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: SUCCESS_COLOR,
   },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: 12,
-    marginTop: 4,
+    paddingTop: 16,
+    marginTop: 6,
   },
   totalLabel: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: TEXT_COLOR,
   },
   totalAmount: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 19,
+    fontFamily: FONTS.semiBold,
     color: PRIMARY_COLOR,
   },
   bookingRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 8,
+    paddingVertical: 10,
   },
   bookingLabel: {
     fontSize: 14,
+    fontFamily: FONTS.semiBold,
     color: MUTED_TEXT,
   },
   bookingValue: {
     fontSize: 14,
-    fontWeight: "500",
+    fontFamily: FONTS.semiBold,
     color: TEXT_COLOR,
   },
+  statusPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   statusValue: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontFamily: FONTS.semiBold,
   },
   noticeCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: 12,
     backgroundColor: "#FFFBEB",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginTop: 16,
     borderWidth: 1,
@@ -642,6 +749,7 @@ const styles = StyleSheet.create({
   noticeText: {
     flex: 1,
     fontSize: 13,
+    fontFamily: FONTS.semiBold,
     color: "#92400E",
   },
   revokedBanner: {
@@ -653,14 +761,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginHorizontal: 16,
     marginTop: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#FECACA",
   },
   revokedText: {
     flex: 1,
     fontSize: 13,
-    color: "#DC2626",
-    fontWeight: "500",
+    color: "#EF4444",
+    fontFamily: FONTS.semiBold,
   },
 });
