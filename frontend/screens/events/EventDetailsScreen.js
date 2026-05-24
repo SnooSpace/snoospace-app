@@ -1094,19 +1094,19 @@ const EventDetailsScreen = ({ route, navigation }) => {
                     <Text style={styles.stickyPriceValue}>
                       {(() => {
                         const hasTicketTypes = event.ticket_types?.length > 0;
-                        const lowestPrice =
-                          event.min_price !== null &&
-                          event.min_price !== undefined
-                            ? event.min_price
-                            : hasTicketTypes
-                              ? Math.min(
-                                  ...event.ticket_types.map(
-                                    (t) => parseFloat(t.base_price) || 0,
-                                  ),
-                                )
-                              : event.ticket_price
-                                ? parseFloat(event.ticket_price)
-                                : 0;
+                        let lowestPrice = 0;
+                        
+                        if (event.min_price !== null && event.min_price !== undefined) {
+                          lowestPrice = event.min_price;
+                        } else if (hasTicketTypes) {
+                          const prices = event.ticket_types
+                            .map((t) => parseFloat(t.base_price) || 0)
+                            .filter((p) => p > 0);
+                          lowestPrice = prices.length > 0 ? Math.min(...prices) : 0;
+                        } else if (event.ticket_price) {
+                          lowestPrice = parseFloat(event.ticket_price);
+                        }
+                        
                         return lowestPrice === 0
                           ? "Free"
                           : "₹" + lowestPrice.toLocaleString("en-IN");

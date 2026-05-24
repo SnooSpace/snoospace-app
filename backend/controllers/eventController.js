@@ -2494,17 +2494,16 @@ const getEventById = async (req, res) => {
       }
     }
 
-    // Calculate min_price from gender-eligible tickets only
-    // This ensures "Starting from" price is meaningful to the current user
-    const eligiblePrices = filteredTicketTypes.map(
-      (t) => parseFloat(t.base_price) || 0,
-    );
-    // Fall back to all tickets for non-member views and creator views
-    const fallbackPrices = ticketTypesResult.rows.map(
-      (t) => parseFloat(t.base_price) || 0,
-    );
-    const pricesForMin = eligiblePrices.length > 0 ? eligiblePrices : fallbackPrices;
-    const minPrice = pricesForMin.length > 0 ? Math.min(...pricesForMin) : null;
+    // Calculate min_price from all active ticket types to ensure consistency with feed onwards prices
+    const activePrices = ticketTypesResult.rows
+      .map((t) => parseFloat(t.base_price) || 0)
+      .filter((p) => p > 0);
+    
+    // If no paid ticket types exist but there are free ticket types, minPrice is 0
+    const hasFreeTickets = ticketTypesResult.rows.some((t) => (parseFloat(t.base_price) || 0) === 0);
+    const minPrice = activePrices.length > 0 
+      ? Math.min(...activePrices) 
+      : (hasFreeTickets ? 0 : null);
 
     // Check if there are tickets hidden from this user
     const hasHiddenTickets =
