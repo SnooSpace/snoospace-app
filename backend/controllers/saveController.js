@@ -114,8 +114,8 @@ const getSavedPosts = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = parseInt(req.query.offset) || 0;
 
-    // Get saved posts with full post details
-    const result = await pool.query(
+    // Get saved regular posts with full post details
+    const postsResult = await pool.query(
       `SELECT 
         p.*,
         ps.created_at as saved_at,
@@ -154,15 +154,78 @@ const getSavedPosts = async (req, res) => {
       [userId, userType, limit, offset],
     );
 
+    // Also get saved opportunities (stored in opportunity_saves, separate from post_saves)
+    let savedOpps = [];
+    try {
+      const oppsResult = await pool.query(
+        `SELECT
+          o.*,
+          os.created_at as saved_at,
+          TRUE as is_saved,
+          'opportunity' as post_type,
+          CASE
+            WHEN o.creator_type = 'community' THEN c.name
+            WHEN o.creator_type = 'member' THEN m.name
+          END as creator_name,
+          CASE
+            WHEN o.creator_type = 'community' THEN c.logo_url
+            WHEN o.creator_type = 'member' THEN m.profile_photo_url
+          END as creator_photo,
+          CASE
+            WHEN o.creator_type = 'community' THEN c.username
+            WHEN o.creator_type = 'member' THEN m.username
+          END as creator_username,
+          COALESCE(o.like_count, 0) as like_count,
+          COALESCE(o.view_count, 0) as view_count,
+          COALESCE(o.comment_count, 0) as comment_count,
+          EXISTS(
+            SELECT 1 FROM opportunity_likes ol
+            WHERE ol.opportunity_id = o.id AND ol.liker_id = $1 AND ol.liker_type = $2
+          ) AS is_liked
+        FROM opportunity_saves os
+        JOIN opportunities o ON os.opportunity_id = o.id
+        LEFT JOIN communities c ON o.creator_id::integer = c.id AND o.creator_type = 'community'
+        LEFT JOIN members m ON o.creator_id::integer = m.id AND o.creator_type = 'member'
+        WHERE os.saver_id = $1 AND os.saver_type = $2
+        ORDER BY os.created_at DESC`,
+        [userId, userType],
+      );
+
+      // Also fetch skill_groups for each saved opportunity
+      savedOpps = await Promise.all(
+        oppsResult.rows.map(async (opp) => {
+          try {
+            const sgResult = await pool.query(
+              `SELECT role, tools, sample_type FROM opportunity_skill_groups
+               WHERE opportunity_id = $1 ORDER BY display_order`,
+              [opp.id],
+            );
+            return { ...opp, skill_groups: sgResult.rows };
+          } catch (_) {
+            return { ...opp, skill_groups: [] };
+          }
+        }),
+      );
+    } catch (oppErr) {
+      // opportunity_saves table may not exist yet — non-fatal
+      console.warn("[getSavedPosts] Could not fetch saved opportunities:", oppErr.message);
+    }
+
+    // Merge and sort by saved_at descending
+    const allSaved = [...postsResult.rows, ...savedOpps].sort(
+      (a, b) => new Date(b.saved_at) - new Date(a.saved_at),
+    );
+
     res.json({
-      posts: result.rows,
-      hasMore: result.rows.length === limit,
+      posts: allSaved,
+      hasMore: postsResult.rows.length === limit,
     });
   } catch (error) {
     console.error("Get saved posts error:", error);
     res.status(500).json({ error: "Failed to get saved posts" });
   }
 };
+
 
 /**
  * Check save status for multiple posts (batch)

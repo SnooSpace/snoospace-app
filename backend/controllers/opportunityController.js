@@ -2,6 +2,22 @@ const { createPool } = require("../config/db");
 
 const pool = createPool();
 
+// Ensure all engagement columns exist on opportunities table (idempotent, runs once at startup)
+const ensureOpportunityColumns = async () => {
+  try {
+    await pool.query(`
+      ALTER TABLE opportunities
+        ADD COLUMN IF NOT EXISTS like_count INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS comment_count INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS share_count INTEGER DEFAULT 0
+    `);
+  } catch (e) {
+    console.warn("[opportunityController] ensureOpportunityColumns warning:", e.message);
+  }
+};
+ensureOpportunityColumns();
+
 // ============================================
 // CREATE OPPORTUNITY
 // ============================================
@@ -1021,13 +1037,24 @@ const getFollowedOpportunities = async (req, res) => {
         o.payment_nature,
         o.trial_type,
         o.budget_range,
-        o.applicant_count,
+        COALESCE(o.applicant_count, 0) as applicant_count,
+        COALESCE(o.like_count, 0) as like_count,
+        COALESCE(o.view_count, 0) as view_count,
+        COALESCE(o.comment_count, 0) as comment_count,
         o.created_at,
         o.creator_id,
         o.creator_type,
         c.name as creator_name,
         c.logo_url as creator_photo,
-        c.username as creator_username
+        c.username as creator_username,
+        EXISTS(
+          SELECT 1 FROM opportunity_likes ol
+          WHERE ol.opportunity_id = o.id AND ol.liker_id = $1 AND ol.liker_type = 'member'
+        ) AS is_liked,
+        EXISTS(
+          SELECT 1 FROM opportunity_saves os
+          WHERE os.opportunity_id = o.id AND os.saver_id = $1 AND os.saver_type = 'member'
+        ) AS is_saved
       FROM opportunities o
       JOIN follows f ON f.following_id = o.creator_id::integer AND f.following_type = 'community'
       JOIN communities c ON o.creator_id::integer = c.id
@@ -1085,6 +1112,8 @@ const getFollowedOpportunities = async (req, res) => {
 const getCommunityOpportunities = async (req, res) => {
   try {
     const { communityId } = req.params;
+    const viewerId = req.user?.id || null;
+    const viewerType = req.user?.type || null;
 
     const query = `
       SELECT 
@@ -1105,11 +1134,22 @@ const getCommunityOpportunities = async (req, res) => {
         o.created_at,
         o.creator_id,
         o.creator_type,
-        o.applicant_count,
+        COALESCE(o.applicant_count, 0) as applicant_count,
+        COALESCE(o.like_count, 0) as like_count,
+        COALESCE(o.view_count, 0) as view_count,
+        COALESCE(o.comment_count, 0) as comment_count,
         o.is_pinned,
         c.name as creator_name,
         c.logo_url as creator_photo,
-        c.username as creator_username
+        c.username as creator_username,
+        CASE WHEN $2::integer IS NOT NULL THEN EXISTS(
+          SELECT 1 FROM opportunity_likes ol
+          WHERE ol.opportunity_id = o.id AND ol.liker_id = $2 AND ol.liker_type = $3
+        ) ELSE false END AS is_liked,
+        CASE WHEN $2::integer IS NOT NULL THEN EXISTS(
+          SELECT 1 FROM opportunity_saves os
+          WHERE os.opportunity_id = o.id AND os.saver_id = $2 AND os.saver_type = $3
+        ) ELSE false END AS is_saved
       FROM opportunities o
       LEFT JOIN communities c ON o.creator_id::integer = c.id
       WHERE o.creator_id = $1
@@ -1119,7 +1159,8 @@ const getCommunityOpportunities = async (req, res) => {
       ORDER BY COALESCE(o.is_pinned, FALSE) DESC, o.created_at DESC
     `;
 
-    const result = await pool.query(query, [communityId]);
+    const result = await pool.query(query, [communityId, viewerId, viewerType]);
+
 
     const opportunities = await Promise.all(
       result.rows.map(async (opp) => {
@@ -1512,11 +1553,28 @@ const getOpportunityComments = async (req, res) => {
       return comment;
     }));
 
+    // Get the real total comment count (including replies)
+    const countResult = await pool.query(
+      'SELECT COUNT(*)::int AS total FROM opportunity_comments WHERE opportunity_id = $1',
+      [id]
+    );
+    const totalCommentCount = countResult.rows[0]?.total || 0;
+
+    // Repair stale comment_count column if needed
+    try {
+      await pool.query(
+        'UPDATE opportunities SET comment_count = $1 WHERE id = $2 AND COALESCE(comment_count, 0) != $1',
+        [totalCommentCount, id]
+      );
+    } catch (_) { /* non-fatal */ }
+
     res.json({
       comments,
       post_author_id:   opp.creator_id,
       post_author_type: opp.creator_type,
+      total_comment_count: totalCommentCount,
     });
+
   } catch (error) {
     console.error('Error getting opportunity comments:', error);
     res.status(500).json({ error: 'Internal server error' });

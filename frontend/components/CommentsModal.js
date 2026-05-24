@@ -193,6 +193,11 @@ const CommentsModal = ({
         setPostAuthorId(data.post_author_id);
         setPostAuthorType(data.post_author_type);
       }
+
+      // Update card's comment count with the authoritative total from the backend
+      if (typeof data?.total_comment_count === 'number' && onCommentCountChange) {
+        onCommentCountChange(data.total_comment_count);
+      }
     } catch (error) {
       console.error("Error loading comments:", error);
       Alert.alert("Error", "Failed to load comments");
@@ -200,6 +205,7 @@ const CommentsModal = ({
       setLoading(false);
     }
   };
+
 
   // Build flat list for display - supports 3 levels of nesting
   const flatComments = useMemo(() => {

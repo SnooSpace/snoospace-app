@@ -8,18 +8,69 @@ import {
   Dimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
-import { COLORS, BORDER_RADIUS, SHADOWS } from "../constants/theme";
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  Video,
+  Users,
+  Bookmark,
+  Star,
+  CheckCircle2,
+  Check,
+} from "lucide-react-native";
+import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../constants/theme";
 import { getGradientForName, getInitials } from "../utils/AvatarGenerator";
 import { useLocationName } from "../utils/locationNameCache";
 import { toggleEventInterest } from "../api/events";
+import { formatPrice } from "../utils/pricingUtils";
 import HapticsService from "../services/HapticsService";
 import EventBus from "../utils/EventBus";
 import { getActiveAccount } from "../api/auth";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 40; // 20px padding on each side
-const CARD_HEIGHT = 280;
+
+/**
+ * Parses a display date string into distinct Month and Day values
+ * @param {string} dateStr - e.g. "Sun, May 31" or "May 31"
+ * @returns {Object} { month: string, day: string }
+ */
+const parseDisplayDate = (dateStr) => {
+  if (!dateStr) return { month: "EVT", day: "•" };
+  const cleanStr = dateStr.replace(/,/g, "").trim();
+  const parts = cleanStr.split(/\s+/);
+
+  let month = "EVT";
+  let day = "•";
+
+  const monthNames = [
+    "jan", "feb", "mar", "apr", "may", "jun",
+    "jul", "aug", "sep", "oct", "nov", "dec"
+  ];
+
+  for (let part of parts) {
+    const lower = part.toLowerCase();
+    if (monthNames.some((m) => lower.startsWith(m))) {
+      month = part.substring(0, 3).toUpperCase();
+    } else if (/^\d+$/.test(part)) {
+      day = part;
+    }
+  }
+
+  // Fallback check for day with suffixes (e.g., 31st)
+  if (day === "•") {
+    for (let part of parts) {
+      const match = part.match(/^(\d+)(st|nd|rd|th)?$/i);
+      if (match) {
+        day = match[1];
+        break;
+      }
+    }
+  }
+
+  return { month, day };
+};
 
 /**
  * EventCard - Display event in feed (interspersed with posts)
@@ -194,6 +245,24 @@ export default function EventCard({
     onInterestedPress?.(event);
   };
 
+  const getLowestPrice = () => {
+    if (!event) return 0;
+    const prices = event.ticket_types
+      ?.map((t) => parseFloat(t.base_price) || 0) || [];
+    if (prices.length > 0) return Math.min(...prices);
+    if (event.min_price && parseFloat(event.min_price) > 0)
+      return parseFloat(event.min_price);
+    if (event.base_price && parseFloat(event.base_price) > 0)
+      return parseFloat(event.base_price);
+    return 0;
+  };
+
+  const lowestPrice = getLowestPrice();
+  const displayPrice = formatPrice(lowestPrice);
+  const isFree = lowestPrice === 0;
+
+  const { month, day } = parseDisplayDate(displayDate);
+
   return (
     <TouchableOpacity
       style={[styles.container, style]}
@@ -202,7 +271,7 @@ export default function EventCard({
     >
       {/* Event Label */}
       <View style={styles.eventLabel}>
-        <Ionicons name="calendar" size={12} color={COLORS.primary} />
+        <Calendar size={13} color={COLORS.primary} strokeWidth={2} />
         <Text style={styles.eventLabelText}>Event</Text>
       </View>
 
@@ -223,34 +292,51 @@ export default function EventCard({
               end={{ x: 1, y: 1 }}
               style={styles.placeholderBanner}
             >
-              <Ionicons
-                name="calendar-outline"
-                size={48}
-                color="rgba(255,255,255,0.7)"
-              />
+              <Calendar size={40} color="rgba(255,255,255,0.7)" strokeWidth={1.8} />
             </LinearGradient>
           )}
 
           {/* Date Badge */}
           <View style={styles.dateBadge}>
-            <Text style={styles.dateBadgeText}>{displayDate}</Text>
+            <Text style={styles.dateBadgeHeader}>{month}</Text>
+            <Text style={styles.dateBadgeNumber}>{day}</Text>
+          </View>
+
+          {/* Pricing Tag Overlay */}
+          <View
+            style={[
+              styles.priceBadge,
+              isFree
+                ? {
+                    backgroundColor: "rgba(232, 245, 233, 0.95)",
+                    borderColor: "rgba(52, 199, 89, 0.2)",
+                  }
+                : {
+                    backgroundColor: "rgba(227, 242, 253, 0.95)",
+                    borderColor: "rgba(41, 98, 255, 0.2)",
+                  },
+            ]}
+          >
+            <Text
+              style={[
+                styles.priceBadgeText,
+                { color: isFree ? "#2E7D32" : COLORS.primary },
+              ]}
+            >
+              {displayPrice}
+            </Text>
           </View>
 
           {/* Gradient Overlay */}
           <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.7)"]}
+            colors={["transparent", "rgba(0,0,0,0.4)"]}
             style={styles.imageOverlay}
           />
         </View>
 
         {/* Content */}
         <View style={styles.content}>
-          {/* Title */}
-          <Text style={styles.title} numberOfLines={2}>
-            {title}
-          </Text>
-
-          {/* Community Info */}
+          {/* Organizer/Community Row */}
           <TouchableOpacity
             style={styles.communityRow}
             onPress={() => {
@@ -284,28 +370,26 @@ export default function EventCard({
             )}
           </TouchableOpacity>
 
-          {/* Meta Row */}
-          <View style={styles.metaRow}>
+          {/* Title */}
+          <Text style={styles.title} numberOfLines={2}>
+            {title}
+          </Text>
+
+          {/* Metadata Grid */}
+          <View style={styles.metaGrid}>
+            {/* Combined Date & Time Row */}
             <View style={styles.metaItem}>
-              <Ionicons
-                name="time-outline"
-                size={14}
-                color={COLORS.textSecondary}
-              />
-              <Text style={styles.metaText}>{displayTime}</Text>
+              <Clock size={14} color={COLORS.textSecondary} strokeWidth={2} />
+              <Text style={styles.metaText}>{displayDate} • {displayTime}</Text>
             </View>
-            {/* Location - hidden for invite-only events with public visibility */}
+
             {locationName && (
               <View style={styles.metaItem}>
-                <Ionicons
-                  name={
-                    event_type === "virtual"
-                      ? "videocam-outline"
-                      : "location-outline"
-                  }
-                  size={14}
-                  color={COLORS.textSecondary}
-                />
+                {event_type === "virtual" ? (
+                  <Video size={14} color={COLORS.textSecondary} strokeWidth={2} />
+                ) : (
+                  <MapPin size={14} color={COLORS.textSecondary} strokeWidth={2} />
+                )}
                 <Text style={styles.metaText} numberOfLines={1}>
                   {locationName}
                 </Text>
@@ -313,36 +397,27 @@ export default function EventCard({
             )}
           </View>
 
-          {/* Bottom Row: Attendees + Interested Button */}
-          <View
-            style={[
-              styles.bottomRow,
-              userRole === "community" && { justifyContent: "flex-start" },
-            ]}
-          >
-            <View style={styles.attendeeInfo}>
-              <Ionicons
-                name="people-outline"
-                size={16}
-                color={COLORS.textSecondary}
-              />
-              <Text style={styles.attendeeText}>
-                {attendee_count > 0
-                  ? `${attendee_count} attending`
-                  : "Be the first!"}
+          {/* Bottom Row: Attendees Stack + RSVP CTA Button */}
+          <View style={styles.bottomRow}>
+            {/* Attendee Stack */}
+            <View style={styles.attendeesContainer}>
+              <View style={styles.avatarStack}>
+                <View style={[styles.avatar, { backgroundColor: "#E5E7EB", zIndex: 3 }]} />
+                <View style={[styles.avatar, { backgroundColor: "#D1D5DB", marginLeft: -8, zIndex: 2 }]} />
+                <View style={[styles.avatar, { backgroundColor: "#9CA3AF", marginLeft: -8, zIndex: 1 }]} />
+              </View>
+              <Text style={styles.attendeeCount}>
+                {attendee_count > 0 ? `+${attendee_count}` : "+0"}
               </Text>
             </View>
 
+            {/* Action CTA Button */}
             {userRole !== "community" && (
               <>
                 {isRegistered ? (
                   <View style={[styles.interestedButton, styles.goingButton]}>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={16}
-                      color="#16A34A"
-                    />
-                    <Text style={styles.goingText}>You are going</Text>
+                    <CheckCircle2 size={14} color="#16A34A" strokeWidth={2.2} />
+                    <Text style={styles.goingText}>Going</Text>
                   </View>
                 ) : (
                   <TouchableOpacity
@@ -356,12 +431,8 @@ export default function EventCard({
                   >
                     {isInterested === true ? (
                       <View style={styles.interestedActiveContent}>
-                        <Ionicons
-                          name="bookmark"
-                          size={16}
-                          color={COLORS.primary}
-                        />
-                        <Text style={styles.interestedActiveText}>Saved</Text>
+                        <Check size={14} color={COLORS.primary} strokeWidth={2.2} />
+                        <Text style={styles.interestedActiveText}>Marked as Interested</Text>
                       </View>
                     ) : (
                       <LinearGradient
@@ -370,7 +441,8 @@ export default function EventCard({
                         end={{ x: 1, y: 0 }}
                         style={styles.interestedGradient}
                       >
-                        <Text style={styles.interestedText}>Interested</Text>
+                        <Star size={14} color="#FFFFFF" strokeWidth={2.2} />
+                        <Text style={styles.interestedText}>Interest?</Text>
                       </LinearGradient>
                     )}
                   </TouchableOpacity>
@@ -392,24 +464,27 @@ const styles = StyleSheet.create({
   eventLabel: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 6,
     marginBottom: 8,
     paddingHorizontal: 4,
   },
   eventLabelText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: FONTS.medium,
     color: COLORS.primary,
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.l,
+    borderRadius: 20,
     overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.04)",
+    ...SHADOWS.sm,
   },
   imageContainer: {
-    height: 160,
+    height: 200,
     position: "relative",
   },
   bannerImage: {
@@ -426,15 +501,41 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 12,
     left: 12,
-    backgroundColor: "rgba(0,0,0,0.75)",
-    paddingHorizontal: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    paddingHorizontal: 8,
     paddingVertical: 6,
-    borderRadius: BORDER_RADIUS.s,
+    borderRadius: 10,
+    alignItems: "center",
+    minWidth: 44,
+    ...SHADOWS.sm,
   },
-  dateBadgeText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#FFFFFF",
+  dateBadgeHeader: {
+    fontSize: 10,
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
+    textTransform: "uppercase",
+    marginBottom: 2,
+  },
+  dateBadgeNumber: {
+    fontSize: 16,
+    fontFamily: FONTS.primary,
+    color: COLORS.textPrimary,
+  },
+  priceBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    ...SHADOWS.sm,
+  },
+  priceBadgeText: {
+    fontSize: 11,
+    fontFamily: FONTS.medium,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   imageOverlay: {
     position: "absolute",
@@ -444,39 +545,31 @@ const styles = StyleSheet.create({
     height: 60,
   },
   content: {
-    padding: 14,
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: COLORS.textPrimary,
-    lineHeight: 22,
-    marginBottom: 10,
+    padding: 16,
   },
   communityRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginBottom: 10,
+    gap: 6,
+    marginBottom: 8,
   },
   communityAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
   },
   communityAvatarGradient: {
     justifyContent: "center",
     alignItems: "center",
   },
   communityInitials: {
-    fontSize: 10,
-    fontWeight: "700",
+    fontSize: 9,
+    fontFamily: FONTS.medium,
     color: "#FFFFFF",
   },
   communityName: {
-    flex: 1,
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 12,
+    fontFamily: FONTS.medium,
     color: "#5e8d9b",
   },
   followingBadge: {
@@ -486,89 +579,114 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   followingText: {
-    fontSize: 10,
-    fontWeight: "600",
+    fontSize: 9,
+    fontFamily: FONTS.medium,
     color: COLORS.primary,
   },
-  metaRow: {
-    flexDirection: "row",
-    gap: 16,
-    marginBottom: 12,
+  title: {
+    fontSize: 18,
+    fontFamily: FONTS.primary,
+    color: COLORS.textPrimary,
+    lineHeight: 24,
+    marginBottom: 10,
+  },
+  metaGrid: {
+    gap: 6,
+    marginBottom: 14,
   },
   metaItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 8,
   },
   metaText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "#5e8d9b",
-    maxWidth: 120,
+    fontSize: 13,
+    fontFamily: FONTS.medium,
+    color: COLORS.textSecondary,
+    flex: 1,
   },
   bottomRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: 10,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: "#F3F4F6",
   },
-  attendeeInfo: {
+  attendeesContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
   },
-  attendeeText: {
+  avatarStack: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  avatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+  },
+  attendeeCount: {
     fontSize: 12,
-    fontWeight: "600",
-    color: "#5e8d9b",
+    fontFamily: FONTS.medium,
+    color: "#36454F",
+    marginLeft: 6,
   },
   interestedButton: {
-    borderRadius: BORDER_RADIUS.m,
+    borderRadius: 20,
     overflow: "hidden",
-    minWidth: 100,
-    minHeight: 36,
+    minWidth: 110,
+    minHeight: 38,
+    justifyContent: "center",
+    alignItems: "center",
   },
   interestedButtonActive: {
     borderWidth: 1,
-    borderColor: COLORS.primary,
+    borderColor: "rgba(41, 98, 255, 0.15)",
     backgroundColor: "#F0E6FF",
   },
   interestedActiveContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 16,
+    gap: 6,
+    paddingHorizontal: 14,
     paddingVertical: 8,
   },
   interestedActiveText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: FONTS.medium,
     color: COLORS.primary,
   },
   interestedGradient: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
   },
   interestedText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: FONTS.medium,
     color: "#FFFFFF",
   },
   goingButton: {
-    backgroundColor: "#DCFCE7",
+    backgroundColor: "#E8F5E9",
     borderWidth: 1,
-    borderColor: "#16A34A",
+    borderColor: "rgba(52, 199, 89, 0.2)",
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 12,
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 14,
     paddingVertical: 8,
   },
   goingText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontFamily: FONTS.medium,
     color: "#16A34A",
   },
 });

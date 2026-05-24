@@ -748,9 +748,16 @@ export default function CommunityProfileScreen({ navigation }) {
             // Map opportunity fields to post-compatible shape where needed
             creator_id: o.creator_id || userId,
             creator_type: o.creator_type || userType,
-            is_liked: false,
+            // Inject creator profile info (GET /opportunities doesn't return these)
+            creator_name: o.creator_name || fullProfile?.name || fullProfile?.full_name || "Community",
+            creator_photo: o.creator_photo || fullProfile?.logo_url || fullProfile?.profile_photo_url || null,
+            creator_username: o.creator_username || fullProfile?.username || "",
+            // Use API-returned is_liked/is_saved — do NOT hardcode false
+            is_liked: o.is_liked === true,
+            is_saved: o.is_saved === true,
             like_count: o.like_count || 0,
             comment_count: o.comment_count || 0,
+            view_count: o.view_count || 0,
             is_pinned: o.is_pinned || false,
           }));
         userPosts = [...userPosts, ...normalizedOpps];

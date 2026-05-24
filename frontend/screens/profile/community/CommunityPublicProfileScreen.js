@@ -599,9 +599,12 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             const normalizedOpps = rawOpps.map((o) => ({
               ...o,
               post_type: "opportunity",
-              is_liked: false,
+              // Use API-returned is_liked/is_saved — do NOT hardcode false
+              is_liked: o.is_liked === true,
+              is_saved: o.is_saved === true,
               like_count: o.like_count || 0,
               comment_count: o.comment_count || 0,
+              view_count: o.view_count || 0,
               is_pinned: o.is_pinned || false,
             }));
             mergedPosts = [...mergedPosts, ...normalizedOpps];

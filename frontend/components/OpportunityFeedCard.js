@@ -270,6 +270,7 @@ const OpportunityFeedCard = ({
   const [likeCount, setLikeCount] = useState(opportunity.like_count || 0);
   const [isLiking, setIsLiking] = useState(false);
   const [isSaved, setIsSaved] = useState(opportunity.is_saved || false);
+  const [saveCount, setSaveCount] = useState(opportunity.save_count || 0);
   const [isSaving, setIsSaving] = useState(false);
 
   // Sync state when the opportunity prop changes (e.g. feed refresh or parent state update)
@@ -277,8 +278,9 @@ const OpportunityFeedCard = ({
     setIsLiked(opportunity.is_liked === true || opportunity.isLiked === true);
     setLikeCount(opportunity.like_count || 0);
     setIsSaved(opportunity.is_saved || false);
+    setSaveCount(opportunity.save_count || 0);
     setCommentCount(opportunity.comment_count || 0);
-  }, [opportunity.is_liked, opportunity.isLiked, opportunity.like_count, opportunity.is_saved, opportunity.comment_count]);
+  }, [opportunity.is_liked, opportunity.isLiked, opportunity.like_count, opportunity.is_saved, opportunity.save_count, opportunity.comment_count]);
 
   // ── View Tracking (opportunity-specific endpoint) ─────────────────────────
   const [viewCount, setViewCount] = useState(
@@ -363,9 +365,11 @@ const OpportunityFeedCard = ({
     if (isSaving) return;
 
     const newSaveState = !isSaved;
+    const nextSaveCount = Math.max(0, saveCount + (newSaveState ? 1 : -1));
 
     // Optimistic update
     setIsSaved(newSaveState);
+    setSaveCount(nextSaveCount);
     setIsSaving(true);
 
     try {
@@ -379,6 +383,7 @@ const OpportunityFeedCard = ({
       EventBus.emit("post-save-updated", {
         postId: opportunity.id,
         isSaved: newSaveState,
+        saveCount: nextSaveCount,
       });
       if (onSave) onSave(opportunity.id, newSaveState);
     } catch (error) {
@@ -388,6 +393,7 @@ const OpportunityFeedCard = ({
         setIsSaved(true);
       } else {
         setIsSaved(!newSaveState);
+        setSaveCount(saveCount);
       }
     } finally {
       setIsSaving(false);
@@ -706,10 +712,13 @@ const OpportunityFeedCard = ({
           >
             <Bookmark
               size={20}
-              color={isSaved ? "#5e8d9b" : "#5e8d9b"}
-              fill={isSaved ? "#5e8d9b" : "transparent"}
+              color={isSaved ? "#2962FF" : "#5e8d9b"}
+              fill={isSaved ? "#2962FF" : "transparent"}
               strokeWidth={2}
             />
+            <Text style={[styles.engagementCount, isSaved && { color: "#2962FF" }]}>
+              {formatCount(saveCount)}
+            </Text>
           </TouchableOpacity>
         </View>
       </LinearGradient>
