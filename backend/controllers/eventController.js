@@ -1216,6 +1216,10 @@ const discoverEvents = async (req, res) => {
           e.created_at,
           e.access_type,
           e.invite_public_visibility,
+          COALESCE(
+            (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id AND is_active = true AND base_price > 0),
+            e.ticket_price
+          ) as ticket_price,
           c.id as community_id,
           c.name as community_name,
           c.username as community_username,

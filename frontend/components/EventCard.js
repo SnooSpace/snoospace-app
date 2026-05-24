@@ -18,6 +18,7 @@ import {
   Star,
   CheckCircle2,
   Check,
+  MoveRight,
 } from "lucide-react-native";
 import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../constants/theme";
 import { getGradientForName, getInitials } from "../utils/AvatarGenerator";
@@ -247,19 +248,49 @@ export default function EventCard({
 
   const getLowestPrice = () => {
     if (!event) return 0;
-    const prices = event.ticket_types
-      ?.map((t) => parseFloat(t.base_price) || 0) || [];
-    if (prices.length > 0) return Math.min(...prices);
-    if (event.min_price && parseFloat(event.min_price) > 0)
+
+    // 1. Try to parse ticket_types array (could be a stringified JSON array)
+    let parsedTickets = [];
+    if (event.ticket_types) {
+      if (typeof event.ticket_types === "string") {
+        try {
+          parsedTickets = JSON.parse(event.ticket_types);
+        } catch (err) {
+          parsedTickets = [];
+        }
+      } else if (Array.isArray(event.ticket_types)) {
+        parsedTickets = event.ticket_types;
+      }
+    }
+
+    if (parsedTickets && parsedTickets.length > 0) {
+      const prices = parsedTickets
+        .map((t) => parseFloat(t.base_price) || 0)
+        .filter((p) => p > 0);
+      if (prices.length > 0) return Math.min(...prices);
+    }
+
+    // 2. Fallback to ticket_price (calculated by backend discover feed queries)
+    if (event.ticket_price && parseFloat(event.ticket_price) > 0) {
+      return parseFloat(event.ticket_price);
+    }
+
+    // 3. Fallback to min_price
+    if (event.min_price && parseFloat(event.min_price) > 0) {
       return parseFloat(event.min_price);
-    if (event.base_price && parseFloat(event.base_price) > 0)
+    }
+
+    // 4. Fallback to base_price
+    if (event.base_price && parseFloat(event.base_price) > 0) {
       return parseFloat(event.base_price);
+    }
+
     return 0;
   };
 
   const lowestPrice = getLowestPrice();
-  const displayPrice = formatPrice(lowestPrice);
-  const isFree = lowestPrice === 0;
+  const isFree = lowestPrice <= 0;
+  const displayPrice = isFree ? "Free" : `₹${lowestPrice.toLocaleString("en-IN")} onwards`;
 
   const { month, day } = parseDisplayDate(displayDate);
 
@@ -302,30 +333,6 @@ export default function EventCard({
             <Text style={styles.dateBadgeNumber}>{day}</Text>
           </View>
 
-          {/* Pricing Tag Overlay */}
-          <View
-            style={[
-              styles.priceBadge,
-              isFree
-                ? {
-                    backgroundColor: "rgba(232, 245, 233, 0.95)",
-                    borderColor: "rgba(52, 199, 89, 0.2)",
-                  }
-                : {
-                    backgroundColor: "rgba(227, 242, 253, 0.95)",
-                    borderColor: "rgba(41, 98, 255, 0.2)",
-                  },
-            ]}
-          >
-            <Text
-              style={[
-                styles.priceBadgeText,
-                { color: isFree ? "#2E7D32" : COLORS.primary },
-              ]}
-            >
-              {displayPrice}
-            </Text>
-          </View>
 
           {/* Gradient Overlay */}
           <LinearGradient
@@ -395,20 +402,50 @@ export default function EventCard({
                 </Text>
               </View>
             )}
+
+            {/* Price & Explicit View Details CTA Row */}
+            <View style={styles.priceDetailsRow}>
+              <View style={styles.priceContainer}>
+                <Text style={[styles.priceText, isFree && styles.freePriceText]}>
+                  {displayPrice}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => onPress?.(event)}
+                style={styles.viewDetailsRow}
+              >
+                <Text style={styles.viewDetailsText}>View details</Text>
+                <MoveRight size={14} color={COLORS.primary} strokeWidth={2.2} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Bottom Row: Attendees Stack + RSVP CTA Button */}
           <View style={styles.bottomRow}>
             {/* Attendee Stack */}
             <View style={styles.attendeesContainer}>
-              <View style={styles.avatarStack}>
-                <View style={[styles.avatar, { backgroundColor: "#E5E7EB", zIndex: 3 }]} />
-                <View style={[styles.avatar, { backgroundColor: "#D1D5DB", marginLeft: -8, zIndex: 2 }]} />
-                <View style={[styles.avatar, { backgroundColor: "#9CA3AF", marginLeft: -8, zIndex: 1 }]} />
-              </View>
-              <Text style={styles.attendeeCount}>
-                {attendee_count > 0 ? `+${attendee_count}` : "+0"}
-              </Text>
+              {attendee_count > 0 ? (
+                <>
+                  <View style={styles.avatarStack}>
+                    {attendee_count >= 1 && (
+                      <View style={[styles.avatar, { backgroundColor: "#E5E7EB", zIndex: 3 }]} />
+                    )}
+                    {attendee_count >= 2 && (
+                      <View style={[styles.avatar, { backgroundColor: "#D1D5DB", marginLeft: -8, zIndex: 2 }]} />
+                    )}
+                    {attendee_count >= 3 && (
+                      <View style={[styles.avatar, { backgroundColor: "#9CA3AF", marginLeft: -8, zIndex: 1 }]} />
+                    )}
+                  </View>
+                  <Text style={styles.attendeeCount}>
+                    {`+${attendee_count}`}
+                  </Text>
+                </>
+              ) : (
+                <View style={{ height: 24 }} />
+              )}
             </View>
 
             {/* Action CTA Button */}
@@ -431,7 +468,7 @@ export default function EventCard({
                   >
                     {isInterested === true ? (
                       <View style={styles.interestedActiveContent}>
-                        <Check size={14} color={COLORS.primary} strokeWidth={2.2} />
+                        <Check size={14} color="#16A34A" strokeWidth={2.2} />
                         <Text style={styles.interestedActiveText}>Marked as Interested</Text>
                       </View>
                     ) : (
@@ -521,22 +558,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.primary,
     color: COLORS.textPrimary,
   },
-  priceBadge: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    ...SHADOWS.sm,
-  },
-  priceBadgeText: {
-    fontSize: 11,
-    fontFamily: FONTS.medium,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
   imageOverlay: {
     position: "absolute",
     bottom: 0,
@@ -573,15 +594,19 @@ const styles = StyleSheet.create({
     color: "#5e8d9b",
   },
   followingBadge: {
-    backgroundColor: "#E3F2FD",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    backgroundColor: "rgba(41, 98, 255, 0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(41, 98, 255, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginLeft: 6,
   },
   followingText: {
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: FONTS.medium,
     color: COLORS.primary,
+    letterSpacing: 0.2,
   },
   title: {
     fontSize: 18,
@@ -604,6 +629,36 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     color: COLORS.textSecondary,
     flex: 1,
+  },
+  priceDetailsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
+    paddingVertical: 2,
+  },
+  priceContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  priceText: {
+    fontSize: 16,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.textPrimary,
+  },
+  freePriceText: {
+    color: "#2E7D32",
+  },
+  viewDetailsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 4,
+  },
+  viewDetailsText: {
+    fontSize: 15,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.primary,
   },
   bottomRow: {
     flexDirection: "row",
@@ -644,8 +699,8 @@ const styles = StyleSheet.create({
   },
   interestedButtonActive: {
     borderWidth: 1,
-    borderColor: "rgba(41, 98, 255, 0.15)",
-    backgroundColor: "#F0E6FF",
+    borderColor: "rgba(22, 163, 74, 0.18)",
+    backgroundColor: "rgba(22, 163, 74, 0.08)",
   },
   interestedActiveContent: {
     flexDirection: "row",
@@ -657,7 +712,7 @@ const styles = StyleSheet.create({
   interestedActiveText: {
     fontSize: 13,
     fontFamily: FONTS.medium,
-    color: COLORS.primary,
+    color: "#16A34A",
   },
   interestedGradient: {
     flexDirection: "row",

@@ -101,6 +101,10 @@ const getDiscoverFeed = async (req, res) => {
           e.start_datetime as event_date,
           e.location_url,
           e.event_type,
+          COALESCE(
+            (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id AND is_active = true AND base_price > 0),
+            e.ticket_price
+          ) as ticket_price,
           COALESCE(e.community_id, e.creator_id) as community_id,
           c.name as community_name,
           c.username as community_username,
@@ -154,6 +158,7 @@ const getDiscoverFeed = async (req, res) => {
           ),
           location_url: event.location_url,
           event_type: event.event_type,
+          ticket_price: event.ticket_price,
           community_id: event.community_id,
           community_name: event.community_name,
           community_username: event.community_username,

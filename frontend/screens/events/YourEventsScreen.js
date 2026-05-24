@@ -19,6 +19,7 @@ import {
 import { getGradientForName } from "../../utils/AvatarGenerator";
 import { useLocationName } from "../../utils/locationNameCache";
 import SnooLoader from "../../components/ui/SnooLoader";
+import EventCard from "../../components/EventCard";
 
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
@@ -29,228 +30,16 @@ const BORDER_COLOR = COLORS.border;
 const EventListCard = ({
   item,
   onPress,
-  onRemoveInterest,
-  getLowestPrice,
-  formatDateBadge,
-  formatTime,
-  showRemoveButton,
   isPast,
 }) => {
-  const [isRemoving, setIsRemoving] = useState(false);
-  const scale = React.useRef(new Animated.Value(1)).current;
-  const opacity = React.useRef(new Animated.Value(0)).current;
-  const translateY = React.useRef(new Animated.Value(10)).current;
-
-  React.useEffect(() => {
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  const onPressIn = () => {
-    Animated.spring(scale, {
-      toValue: 0.98,
-      speed: 50,
-      bounciness: 0,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const onPressOut = () => {
-    Animated.spring(scale, {
-      toValue: 1,
-      speed: 50,
-      bounciness: 0,
-      useNativeDriver: true,
-    }).start();
-  };
-  const displayImage =
-    item.banner_carousel?.[0]?.image_url || item.banner_url || item.image_url;
-  const lowestPrice = getLowestPrice(item);
-  const isCancelled = item.is_cancelled;
-  const isGoing = item.registration_status === "registered";
-
-  const locationName = useLocationName(
-    item.event_type !== "virtual" ? item.location_url : null,
-    {
-      fallback: item.location_name || item.venue_name || "In-person",
-    },
-  );
-
-  const locationDisplay =
-    item.event_type === "virtual" ? "Virtual Event" : locationName;
-
-  // Split date for the badge
-  const dateObj = new Date(item.event_date || item.start_datetime);
-  const monthNames = [
-    "JAN",
-    "FEB",
-    "MAR",
-    "APR",
-    "MAY",
-    "JUN",
-    "JUL",
-    "AUG",
-    "SEP",
-    "OCT",
-    "NOV",
-    "DEC",
-  ];
-  const month = monthNames[dateObj.getMonth()];
-  const day = dateObj.getDate();
-
   return (
-    <Animated.View style={{ opacity, transform: [{ translateY }, { scale }] }}>
-      <Pressable
-        onPressIn={onPressIn}
-        onPressOut={onPressOut}
-        onPress={() => onPress(item)}
-        style={cardStyles.eventCard}
-      >
-        <View style={cardStyles.bannerContainer}>
-          {displayImage ? (
-            <Image
-              source={{ uri: displayImage }}
-              style={cardStyles.bannerImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <LinearGradient
-              colors={getGradientForName(item.title || "Event")}
-              style={cardStyles.bannerImage}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            />
-          )}
-
-          {/* Subtle Dark Overlay for Past Events to denote "archival" without fogginess */}
-          {isPast && <View style={cardStyles.pastOverlay} />}
-
-          <View style={cardStyles.dateBadge}>
-            <Text style={cardStyles.dateBadgeMonth}>{month}</Text>
-            <Text style={cardStyles.dateBadgeDay}>{day}</Text>
-          </View>
-
-          {isGoing && !isPast && (
-            <View style={cardStyles.statusPill}>
-              <Text style={cardStyles.statusPillText}>GOING</Text>
-            </View>
-          )}
-
-          {isCancelled && (
-            <View style={cardStyles.cancelledOverlay}>
-              <Text style={cardStyles.cancelledText}>CANCELLED</Text>
-            </View>
-          )}
-        </View>
-
-        <View style={cardStyles.contentContainer}>
-          <Text
-            style={[cardStyles.eventTitle, isPast && cardStyles.eventTitlePast]}
-            numberOfLines={1}
-          >
-            {item.title}
-          </Text>
-
-          <View style={cardStyles.metaRow}>
-            <Ionicons
-              name="time-outline"
-              size={14}
-              color={isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR}
-            />
-            <Text
-              style={[cardStyles.metaText, isPast && cardStyles.metaTextPast]}
-            >
-              {formatDateBadge(item.event_date)} • {formatTime(item.event_date)}
-            </Text>
-          </View>
-
-          <View style={cardStyles.metaRow}>
-            <Ionicons
-              name={
-                item.event_type === "virtual"
-                  ? "videocam-outline"
-                  : "location-outline"
-              }
-              size={14}
-              color={isPast ? "#9CA3AF" : LIGHT_TEXT_COLOR}
-            />
-            <Text
-              style={[cardStyles.metaText, isPast && cardStyles.metaTextPast]}
-              numberOfLines={1}
-            >
-              {locationDisplay}
-            </Text>
-          </View>
-
-          <View style={cardStyles.footer}>
-            <View style={cardStyles.attendeesContainer}>
-              <View
-                style={[cardStyles.avatarStack, isPast && { opacity: 0.6 }]}
-              >
-                <View
-                  style={[
-                    cardStyles.avatar,
-                    { backgroundColor: "#E5E7EB", zIndex: 3 },
-                  ]}
-                />
-                <View
-                  style={[
-                    cardStyles.avatar,
-                    { backgroundColor: "#D1D5DB", marginLeft: -8, zIndex: 2 },
-                  ]}
-                />
-                <View
-                  style={[
-                    cardStyles.avatar,
-                    { backgroundColor: "#9CA3AF", marginLeft: -8, zIndex: 1 },
-                  ]}
-                />
-              </View>
-              <Text
-                style={[
-                  cardStyles.attendeeCount,
-                  isPast && { color: "#9CA3AF" },
-                ]}
-              >
-                +12
-              </Text>
-            </View>
-
-            <View style={cardStyles.priceContainer}>
-              {lowestPrice ? (
-                <Text
-                  style={[
-                    cardStyles.priceText,
-                    isPast && cardStyles.priceTextPast,
-                  ]}
-                >
-                  ₹{lowestPrice}
-                </Text>
-              ) : (
-                <Text
-                  style={[
-                    cardStyles.freeText,
-                    isPast && cardStyles.freeTextPast,
-                  ]}
-                >
-                  Free
-                </Text>
-              )}
-            </View>
-          </View>
-        </View>
-      </Pressable>
-    </Animated.View>
+    <View style={isPast && { opacity: 0.65 }}>
+      <EventCard
+        event={item}
+        onPress={onPress}
+        style={{ marginBottom: 20 }}
+      />
+    </View>
   );
 };
 
@@ -546,9 +335,18 @@ export default function YourEventsScreen({ navigation }) {
 
   const getFilteredEvents = () => {
     const now = new Date();
+    // Create a Set of interested event IDs for quick lookup
+    const interestedIds = new Set(interestedEvents.map((e) => e.id));
+
+    // Map events to inject is_interested correctly based on interestedIds
+    const mappedEvents = events.map((e) => ({
+      ...e,
+      is_interested: interestedIds.has(e.id),
+    }));
+
     switch (activeTab) {
       case "Going":
-        return events.filter((e) => {
+        return mappedEvents.filter((e) => {
           const eventDate = new Date(e.start_datetime || e.event_date);
           return (
             (e.registration_status === "registered" && eventDate >= now) ||
@@ -556,10 +354,12 @@ export default function YourEventsScreen({ navigation }) {
           );
         });
       case "Interested":
-        // Return bookmarked events that aren't past
-        return interestedEvents.filter((e) => !e.is_past);
+        // Return bookmarked events that aren't past, making sure is_interested is explicitly true
+        return interestedEvents
+          .filter((e) => !e.is_past)
+          .map((e) => ({ ...e, is_interested: true }));
       case "Past":
-        return events.filter((e) => {
+        return mappedEvents.filter((e) => {
           const eventDate = new Date(e.start_datetime || e.event_date);
           return (
             e.is_past ||
@@ -716,7 +516,6 @@ export default function YourEventsScreen({ navigation }) {
                 style={[
                   styles.tabText,
                   activeTab === tab && styles.activeTabText,
-                  activeTab === tab && { fontWeight: "700" },
                 ]}
               >
                 {tab}
