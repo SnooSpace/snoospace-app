@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { getUnreadCount } from '../api/messages';
 
@@ -9,6 +9,10 @@ import { getUnreadCount } from '../api/messages';
  * - Exponential backoff when no new messages
  * - Stops when screen is off
  * - Adaptive polling (slower at night)
+ *
+ * FIX: currentInterval is now stored in a ref (not state) to prevent
+ * the main useEffect from re-running on every poll tick, which was
+ * causing interval thrash (clear + re-create every 3s).
  */
 export function useMessagePolling(onUpdate, options = {}) {
   const {
@@ -20,7 +24,8 @@ export function useMessagePolling(onUpdate, options = {}) {
   const appStateRef = useRef(AppState.currentState);
   const lastMessageCountRef = useRef(0);
   const lastChangeTimeRef = useRef(Date.now());
-  const [currentInterval, setCurrentInterval] = useState(baseInterval);
+  // Use ref so interval adjustments don't trigger useEffect restarts
+  const currentIntervalRef = useRef(baseInterval);
 
   useEffect(() => {
     if (!enabled) return;
@@ -48,6 +53,12 @@ export function useMessagePolling(onUpdate, options = {}) {
       }
     };
 
+    const restartInterval = (ms) => {
+      currentIntervalRef.current = ms;
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = setInterval(poll, ms);
+    };
+
     const poll = async () => {
       // Don't poll if app is in background or screen is off
       if (appStateRef.current !== 'active') {
@@ -64,17 +75,19 @@ export function useMessagePolling(onUpdate, options = {}) {
           lastMessageCountRef.current = newCount;
           
           // Reset to fast polling when change detected
-          setCurrentInterval(baseInterval);
+          if (currentIntervalRef.current !== baseInterval) {
+            restartInterval(baseInterval);
+          }
+        } else {
+          // Recalculate interval for next poll (may slow down if idle)
+          const newInterval = getAdaptiveInterval();
+          if (newInterval !== currentIntervalRef.current) {
+            restartInterval(newInterval);
+          }
         }
         
         if (onUpdate) {
           onUpdate(newCount);
-        }
-        
-        // Recalculate interval for next poll
-        const newInterval = getAdaptiveInterval();
-        if (newInterval !== currentInterval) {
-          setCurrentInterval(newInterval);
         }
       } catch (error) {
         console.error('Message polling error:', error);
@@ -84,8 +97,9 @@ export function useMessagePolling(onUpdate, options = {}) {
     // Poll immediately on mount
     poll();
 
-    // Set up interval with current interval
-    intervalRef.current = setInterval(poll, currentInterval);
+    // Set up interval
+    currentIntervalRef.current = baseInterval;
+    intervalRef.current = setInterval(poll, baseInterval);
 
     // Handle app state changes (foreground/background/screen off)
     const subscription = AppState.addEventListener('change', (nextAppState) => {
@@ -95,7 +109,7 @@ export function useMessagePolling(onUpdate, options = {}) {
       ) {
         // App came to foreground - poll immediately and reset to fast interval
         lastChangeTimeRef.current = Date.now();
-        setCurrentInterval(baseInterval);
+        restartInterval(baseInterval);
         poll();
       }
       appStateRef.current = nextAppState;
@@ -107,43 +121,6 @@ export function useMessagePolling(onUpdate, options = {}) {
       }
       subscription.remove();
     };
-  }, [enabled, baseInterval, currentInterval, onUpdate]);
-
-  // Restart interval when currentInterval changes
-  useEffect(() => {
-    if (!enabled || !intervalRef.current) return;
-    
-    // Clear old interval
-    clearInterval(intervalRef.current);
-    
-    // Create new interval with updated timing
-    const poll = async () => {
-      if (appStateRef.current !== 'active') return;
-      
-      try {
-        const response = await getUnreadCount();
-        const newCount = response.unreadCount || 0;
-        
-        if (newCount !== lastMessageCountRef.current) {
-          lastChangeTimeRef.current = Date.now();
-          lastMessageCountRef.current = newCount;
-          setCurrentInterval(baseInterval);
-        }
-        
-        if (onUpdate) {
-          onUpdate(newCount);
-        }
-      } catch (error) {
-        console.error('Message polling error:', error);
-      }
-    };
-    
-    intervalRef.current = setInterval(poll, currentInterval);
-    
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [currentInterval, enabled, baseInterval, onUpdate]);
+  // Only re-run if enabled or baseInterval changes — NOT on currentInterval
+  }, [enabled, baseInterval, onUpdate]);
 }

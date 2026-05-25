@@ -1,15 +1,16 @@
-import React, { useEffect, useRef } from "react";
-import { View, Text, Animated, StyleSheet } from "react-native";
+import React, { useEffect } from "react";
+import { View, Text, StyleSheet } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { COLORS } from "../constants/theme";
 
 // Module-level flag to track if animation has played this session
 let hasAnimatedThisSession = false;
 
-/**
- * Get time-based greeting based on current hour
- * @param {number} [testHour] - Optional hour for testing (0-23)
- * @returns {string} Greeting text without emoji
- */
 /**
  * Get time-based greeting based on current hour
  * @param {number} [testHour] - Optional hour for testing (0-23)
@@ -40,7 +41,7 @@ const getGreetingData = (testHour) => {
  * @param {number} [props.testHour] - Optional hour for testing time-based greeting
  */
 export default function HomeGreetingHeader({ name, testHour }) {
-  const waveAnim = useRef(new Animated.Value(0)).current;
+  const waveAnim = useSharedValue(0);
 
   useEffect(() => {
     // Only animate once per app session
@@ -50,38 +51,24 @@ export default function HomeGreetingHeader({ name, testHour }) {
 
     // Start animation after 300ms delay
     const timeout = setTimeout(() => {
-      Animated.sequence([
-        // Rotate to -8 degrees
-        Animated.timing(waveAnim, {
-          toValue: -8,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        // Rotate to +8 degrees
-        Animated.timing(waveAnim, {
-          toValue: 8,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        // Return to 0
-        Animated.timing(waveAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      waveAnim.value = withSequence(
+        withTiming(-8, { duration: 150 }),
+        withTiming(8, { duration: 150 }),
+        withTiming(0, { duration: 200 })
+      );
     }, 300);
 
     return () => clearTimeout(timeout);
-  }, [waveAnim]);
+  }, []);
 
   const { text: greetingText, emoji } = getGreetingData(testHour);
   const displayName = name || "User";
 
-  // Interpolate the rotation
-  const rotate = waveAnim.interpolate({
-    inputRange: [-8, 0, 8],
-    outputRange: ["-8deg", "0deg", "8deg"],
+  // Animated style for the emoji rotation
+  const animatedEmojiStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ rotate: `${waveAnim.value}deg` }],
+    };
   });
 
   return (
@@ -95,7 +82,7 @@ export default function HomeGreetingHeader({ name, testHour }) {
       <View style={styles.greetingLine}>
         <Text style={styles.greetingText}>{greetingText} </Text>
         <Animated.Text
-          style={[styles.emoji, { transform: [{ rotate }] }]}
+          style={[styles.emoji, animatedEmojiStyle]}
           accessibilityElementsHidden={true}
           importantForAccessibility="no-hide-descendants"
         >

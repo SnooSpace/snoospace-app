@@ -22,6 +22,10 @@ export function useProfileCountsPolling(options = {}) {
   
   const intervalRef = useRef(null);
   const appStateRef = useRef(AppState.currentState);
+  // Use a ref for previous counts comparison to avoid fetchCounts recreating
+  // every time counts state changes (which caused the main useEffect to restart
+  // the interval on every single poll tick)
+  const countsRef = useRef({ followers: 0, following: 0, posts: 0 });
   const [counts, setCounts] = useState({
     followers: 0,
     following: 0,
@@ -56,19 +60,11 @@ export function useProfileCountsPolling(options = {}) {
         return null;
       }
 
-      // Fetch follow counts
-      const countsResponse = await apiGet(
-        `/follow/counts/${userId}/${userType}`,
-        10000,
-        token
-      );
-
-      // Fetch post count (from user posts endpoint)
-      const postsResponse = await apiGet(
-        `/posts/user/${userId}/${userType}`,
-        10000,
-        token
-      );
+      // Parallelize both API calls to halve round-trip time
+      const [countsResponse, postsResponse] = await Promise.all([
+        apiGet(`/follow/counts/${userId}/${userType}`, 10000, token),
+        apiGet(`/posts/user/${userId}/${userType}`, 10000, token),
+      ]);
 
       const newCounts = {
         followers: typeof countsResponse?.followers_count === 'number'
@@ -82,17 +78,19 @@ export function useProfileCountsPolling(options = {}) {
           : 0,
       };
 
-      // Check if counts changed
-      const hasChanged = 
-        newCounts.followers !== counts.followers ||
-        newCounts.following !== counts.following ||
-        newCounts.posts !== counts.posts;
+      // Compare against ref (not state) to avoid recreating fetchCounts on every tick
+      const prev = countsRef.current;
+      const hasChanged =
+        newCounts.followers !== prev.followers ||
+        newCounts.following !== prev.following ||
+        newCounts.posts !== prev.posts;
 
       if (hasChanged) {
         console.log('[CountsPolling] Counts changed:', {
-          old: counts,
+          old: prev,
           new: newCounts,
         });
+        countsRef.current = newCounts;
         setCounts(newCounts);
         setLastUpdated(new Date());
       }
@@ -104,17 +102,20 @@ export function useProfileCountsPolling(options = {}) {
       setIsPolling(false);
       return null;
     }
-  }, [userId, userType, counts, paused]);
+  // Remove `counts` from deps — use countsRef.current for comparison instead
+  }, [userId, userType, paused]);
 
   // Initialize counts
   const initializeCounts = useCallback((initialCounts) => {
     if (initialCounts) {
       console.log('[CountsPolling] Initializing counts:', initialCounts);
-      setCounts({
+      const init = {
         followers: initialCounts.follower_count || initialCounts.followers || 0,
         following: initialCounts.following_count || initialCounts.following || 0,
         posts: initialCounts.post_count || initialCounts.posts || 0,
-      });
+      };
+      countsRef.current = init;
+      setCounts(init);
     }
   }, []);
 

@@ -5,7 +5,8 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import { View, Text, Modal, TouchableOpacity, FlatList, TextInput, Image, StyleSheet, Platform, Alert, Animated } from "react-native";
+import { View, Text, Modal, TouchableOpacity, FlatList, TextInput, Image, StyleSheet, Platform, Alert } from "react-native";
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { X, Send, Heart, CornerUpLeft } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete } from "../api/client";
@@ -61,19 +62,25 @@ const CommentsModal = ({
   const prevPostIdRef = useRef(null);
   const prevVisibleRef = useRef(false);
   const inputRef = useRef(null);
-  const replyAnim = useRef(new Animated.Value(0)).current;
+  const replyAnim = useSharedValue(0);
+
+  const animatedReplyStyle = useAnimatedStyle(() => {
+    return {
+      opacity: replyAnim.value,
+      transform: [
+        {
+          translateY: (1 - replyAnim.value) * 10,
+        },
+      ],
+    };
+  });
 
   // Animate reply indicator when replyingTo changes
   useEffect(() => {
     if (replyingTo) {
-      Animated.timing(replyAnim, {
-        toValue: 1,
-        duration: 180,
-        useNativeDriver: true,
-      }).start();
+      replyAnim.value = withTiming(1, { duration: 180 });
     } else {
-      // Reset immediately when null (handled by cancelReply for exit anim)
-      replyAnim.setValue(0);
+      replyAnim.value = 0;
     }
   }, [replyingTo]);
 
@@ -269,7 +276,7 @@ const CommentsModal = ({
     return result;
   }, [comments, collapsedThreads]);
 
-  const handleDeleteComment = async (commentId) => {
+  const handleDeleteComment = useCallback((commentId) => {
     Alert.alert(
       "Delete Comment",
       "Are you sure you want to delete this comment?",
@@ -303,7 +310,7 @@ const CommentsModal = ({
         },
       ],
     );
-  };
+  }, [comments, replyBaseRoute, onCommentCountChange, postId, loadComments]);
 
   const handleCommentInputChange = (text) => {
     setCommentInput(text);
@@ -466,16 +473,13 @@ const CommentsModal = ({
   };
 
   // Cancel replying mode with animation
-  const cancelReply = () => {
-    Animated.timing(replyAnim, {
-      toValue: 0,
-      duration: 150,
-      useNativeDriver: true,
-    }).start(() => {
+  const cancelReply = useCallback(() => {
+    replyAnim.value = withTiming(0, { duration: 150 });
+    setTimeout(() => {
       setReplyingTo(null);
       setCommentInput("");
-    });
-  };
+    }, 150);
+  }, []);
 
   // Toggle thread collapse - undefined/true means collapsed, false means expanded
   const toggleThreadCollapse = (commentId) => {
@@ -502,7 +506,7 @@ const CommentsModal = ({
     return `${Math.floor(diffInSeconds / 2592000)}mo`;
   };
 
-  const handleCommentLike = async (commentId, isLiked, currentLikeCount) => {
+  const handleCommentLike = useCallback(async (commentId, isLiked, currentLikeCount) => {
     const newIsLiked = !isLiked;
     const numLikeCount =
       typeof currentLikeCount === "string"
@@ -553,9 +557,9 @@ const CommentsModal = ({
       );
       Alert.alert("Error", error?.message || "Failed to update like");
     }
-  };
+  }, []);
 
-  const renderComment = ({ item }) => {
+  const renderComment = useCallback(({ item }) => {
     const depth = item.depth || 0;
     const hasReplies = item.hasReplies && item.replyCount > 0;
     const isLiked = item.is_liked === true || item.isLiked === true;
@@ -758,7 +762,16 @@ const CommentsModal = ({
         </TouchableOpacity>
       </View>
     );
-  };
+  }, [
+    comments,
+    collapsedThreads,
+    currentUserId,
+    postAuthorId,
+    postAuthorType,
+    handleDeleteComment,
+    handleCommentLike,
+    navigation,
+  ]);
 
   const content = (
     <View style={embedded ? styles.embeddedContainer : styles.container}>
@@ -782,6 +795,11 @@ const CommentsModal = ({
             data={flatComments}
             keyExtractor={(item) => item.id?.toString()}
             renderItem={renderComment}
+            initialNumToRender={8}
+            maxToRenderPerBatch={5}
+            windowSize={5}
+            removeClippedSubviews={Platform.OS === "android"}
+            updateCellsBatchingPeriod={50}
             style={styles.commentsList}
             contentContainerStyle={styles.commentsListContent}
             ListEmptyComponent={
@@ -808,17 +826,7 @@ const CommentsModal = ({
             <Animated.View
               style={[
                 styles.replyingIndicator,
-                {
-                  opacity: replyAnim,
-                  transform: [
-                    {
-                      translateY: replyAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [10, 0],
-                      }),
-                    },
-                  ],
-                },
+                animatedReplyStyle,
               ]}
             >
               <View style={styles.replyingContent}>

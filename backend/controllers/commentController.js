@@ -73,6 +73,53 @@ const createComment = async (req, res) => {
 
     // Create notification for post author (skip if user comments on their own post)
     try {
+      // Fetch actor info once and reuse for all notifications
+      let actorName = null;
+      let actorUsername = null;
+      let actorAvatar = null;
+
+      if (userType === "member") {
+        const actorResult = await pool.query(
+          "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
+          [userId]
+        );
+        if (actorResult.rows[0]) {
+          actorName = actorResult.rows[0].name;
+          actorUsername = actorResult.rows[0].username;
+          actorAvatar = actorResult.rows[0].profile_photo_url;
+        }
+      } else if (userType === "community") {
+        const actorResult = await pool.query(
+          "SELECT name, username, logo_url FROM communities WHERE id = $1",
+          [userId]
+        );
+        if (actorResult.rows[0]) {
+          actorName = actorResult.rows[0].name;
+          actorUsername = actorResult.rows[0].username;
+          actorAvatar = actorResult.rows[0].logo_url;
+        }
+      } else if (userType === "sponsor") {
+        const actorResult = await pool.query(
+          "SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1",
+          [userId]
+        );
+        if (actorResult.rows[0]) {
+          actorName = actorResult.rows[0].name;
+          actorUsername = actorResult.rows[0].username;
+          actorAvatar = actorResult.rows[0].logo_url;
+        }
+      } else if (userType === "venue") {
+        const actorResult = await pool.query(
+          "SELECT name, username FROM venues WHERE id = $1",
+          [userId]
+        );
+        if (actorResult.rows[0]) {
+          actorName = actorResult.rows[0].name;
+          actorUsername = actorResult.rows[0].username;
+          actorAvatar = null;
+        }
+      }
+
       const postResult = await pool.query(
         "SELECT author_id, author_type FROM posts WHERE id = $1",
         [postId]
@@ -83,53 +130,6 @@ const createComment = async (req, res) => {
         postAuthor &&
         (postAuthor.author_id !== userId || postAuthor.author_type !== userType)
       ) {
-        // Get actor info (commenter)
-        let actorName = null;
-        let actorUsername = null;
-        let actorAvatar = null;
-
-        if (userType === "member") {
-          const actorResult = await pool.query(
-            "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
-            [userId]
-          );
-          if (actorResult.rows[0]) {
-            actorName = actorResult.rows[0].name;
-            actorUsername = actorResult.rows[0].username;
-            actorAvatar = actorResult.rows[0].profile_photo_url;
-          }
-        } else if (userType === "community") {
-          const actorResult = await pool.query(
-            "SELECT name, username, logo_url FROM communities WHERE id = $1",
-            [userId]
-          );
-          if (actorResult.rows[0]) {
-            actorName = actorResult.rows[0].name;
-            actorUsername = actorResult.rows[0].username;
-            actorAvatar = actorResult.rows[0].logo_url;
-          }
-        } else if (userType === "sponsor") {
-          const actorResult = await pool.query(
-            "SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1",
-            [userId]
-          );
-          if (actorResult.rows[0]) {
-            actorName = actorResult.rows[0].name;
-            actorUsername = actorResult.rows[0].username;
-            actorAvatar = actorResult.rows[0].logo_url;
-          }
-        } else if (userType === "venue") {
-          const actorResult = await pool.query(
-            "SELECT name, username FROM venues WHERE id = $1",
-            [userId]
-          );
-          if (actorResult.rows[0]) {
-            actorName = actorResult.rows[0].name;
-            actorUsername = actorResult.rows[0].username;
-            actorAvatar = null; // venues don't have avatars
-          }
-        }
-
         await pool.query(
           `INSERT INTO notifications (recipient_id, recipient_type, actor_id, actor_type, type, payload)
            VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -163,66 +163,13 @@ const createComment = async (req, res) => {
           }
         );
       }
-    } catch (e) {
-      // Non-fatal: do not block comment creation if notification fails
-      console.error("Failed to create comment notification", e);
-    }
 
-    // Create notifications for tagged users
-    if (
-      taggedEntities &&
-      Array.isArray(taggedEntities) &&
-      taggedEntities.length > 0
-    ) {
-      try {
-        // Get actor info (commenter) - reuse from above if already fetched
-        let actorName = null;
-        let actorUsername = null;
-        let actorAvatar = null;
-
-        if (userType === "member") {
-          const actorResult = await pool.query(
-            "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
-            [userId]
-          );
-          if (actorResult.rows[0]) {
-            actorName = actorResult.rows[0].name;
-            actorUsername = actorResult.rows[0].username;
-            actorAvatar = actorResult.rows[0].profile_photo_url;
-          }
-        } else if (userType === "community") {
-          const actorResult = await pool.query(
-            "SELECT name, username, logo_url FROM communities WHERE id = $1",
-            [userId]
-          );
-          if (actorResult.rows[0]) {
-            actorName = actorResult.rows[0].name;
-            actorUsername = actorResult.rows[0].username;
-            actorAvatar = actorResult.rows[0].logo_url;
-          }
-        } else if (userType === "sponsor") {
-          const actorResult = await pool.query(
-            "SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1",
-            [userId]
-          );
-          if (actorResult.rows[0]) {
-            actorName = actorResult.rows[0].name;
-            actorUsername = actorResult.rows[0].username;
-            actorAvatar = actorResult.rows[0].logo_url;
-          }
-        } else if (userType === "venue") {
-          const actorResult = await pool.query(
-            "SELECT name, username FROM venues WHERE id = $1",
-            [userId]
-          );
-          if (actorResult.rows[0]) {
-            actorName = actorResult.rows[0].name;
-            actorUsername = actorResult.rows[0].username;
-            actorAvatar = null; // venues don't have avatars
-          }
-        }
-
-        // Create notification for each tagged entity (skip if tagging self)
+      // Create notifications for tagged users (reuse actorName/Username/Avatar from above)
+      if (
+        taggedEntities &&
+        Array.isArray(taggedEntities) &&
+        taggedEntities.length > 0
+      ) {
         for (const entity of taggedEntities) {
           if (entity.id !== userId || entity.type !== userType) {
             await pool.query(
@@ -259,10 +206,10 @@ const createComment = async (req, res) => {
             );
           }
         }
-      } catch (e) {
-        // Non-fatal: do not block comment creation if notification fails
-        console.error("Failed to create tag notifications", e);
       }
+    } catch (e) {
+      // Non-fatal: do not block comment creation if notification fails
+      console.error("Failed to create comment/tag notifications", e);
     }
 
     res.status(201).json({
@@ -629,10 +576,12 @@ const getPostComments = async (req, res) => {
       return comment;
     });
 
-    // Get replies for each comment
-    for (let comment of comments) {
-      const repliesQuery = `
-        SELECT 
+    // Batch-fetch ALL replies and sub-replies in a single query (eliminates N+1)
+    // Previously: 1 query per top-level comment + 1 query per reply = O(n*m) DB hits
+    let allDescendants = [];
+    if (comments.length > 0) {
+      const descendantsResult = await pool.query(
+        `SELECT 
           r.*,
           CASE 
             WHEN r.commenter_type = 'member' THEN m.name
@@ -657,37 +606,33 @@ const getPostComments = async (req, res) => {
         LEFT JOIN communities comm ON r.commenter_type = 'community' AND r.commenter_id = comm.id
         LEFT JOIN sponsors s ON r.commenter_type = 'sponsor' AND r.commenter_id = s.id
         LEFT JOIN venues v ON r.commenter_type = 'venue' AND r.commenter_id = v.id
-        WHERE r.parent_comment_id = $1
+        WHERE r.post_id = $1 AND r.parent_comment_id IS NOT NULL
         ORDER BY r.created_at ASC
-      `;
+        LIMIT 500`,
+        [postId]
+      );
+      allDescendants = descendantsResult.rows.map((r) => {
+        try { r.tagged_entities = r.tagged_entities ? JSON.parse(r.tagged_entities) : null; }
+        catch { r.tagged_entities = null; }
+        r.replies = [];
+        return r;
+      });
+    }
 
-      const repliesResult = await pool.query(repliesQuery, [comment.id]);
-      // Parse tagged_entities for replies
-      comment.replies = repliesResult.rows.map((reply) => {
-        try {
-          reply.tagged_entities = reply.tagged_entities
-            ? JSON.parse(reply.tagged_entities)
-            : null;
-        } catch {
-          reply.tagged_entities = null;
-        }
+    // Group descendants by parent_comment_id for O(1) lookup
+    const childrenByParent = {};
+    for (const d of allDescendants) {
+      const pid = d.parent_comment_id;
+      if (!childrenByParent[pid]) childrenByParent[pid] = [];
+      childrenByParent[pid].push(d);
+    }
+
+    // Attach replies tree to each top-level comment
+    for (const comment of comments) {
+      comment.replies = (childrenByParent[comment.id] || []).map((reply) => {
+        reply.replies = childrenByParent[reply.id] || [];
         return reply;
       });
-
-      // Fetch sub-replies for each reply (3rd level)
-      for (let reply of comment.replies) {
-        const subRepliesResult = await pool.query(repliesQuery, [reply.id]);
-        reply.replies = subRepliesResult.rows.map((subReply) => {
-          try {
-            subReply.tagged_entities = subReply.tagged_entities
-              ? JSON.parse(subReply.tagged_entities)
-              : null;
-          } catch {
-            subReply.tagged_entities = null;
-          }
-          return subReply;
-        });
-      }
     }
 
     res.json({

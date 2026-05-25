@@ -248,6 +248,12 @@ const SavedPostsScreen = ({ navigation }) => {
         return (
           <OpportunityFeedCard
             opportunity={item}
+            onPress={(opp) => {
+              const nav = navigation.getParent()?.getParent() || navigation;
+              nav.navigate("OpportunityView", {
+                opportunityId: opp.id,
+              });
+            }}
             onUserPress={handleUserPress}
             onLike={() => {}}
             onComment={() => {}}

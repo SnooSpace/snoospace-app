@@ -42,6 +42,7 @@ import EventBus from "../../utils/EventBus";
 import CelebrationModal from "../../components/CelebrationModal";
 import SnooLoader from "../../components/ui/SnooLoader";
 import { useToast } from "../../context/ToastContext";
+import DynamicStatusBar from "../../components/DynamicStatusBar";
 
 // Premium Theme Colors
 const BACKGROUND_COLOR = "#F8F9FA";
@@ -369,7 +370,7 @@ export default function CheckoutScreen({ route, navigation }) {
           type="booking"
           data={{ title: event?.title || "Event" }}
         />
-        <StatusBar barStyle="dark-content" />
+        <DynamicStatusBar style="dark-content" />
 
         {/* Header */}
         <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
@@ -540,7 +541,7 @@ export default function CheckoutScreen({ route, navigation }) {
                 <Text style={[styles.summaryLabel, { color: SUCCESS_COLOR, fontFamily: 'Manrope-SemiBold' }]}>
                   Promo Discount
                 </Text>
-                <Text style={[styles.summaryValue, { color: SUCCESS_COLOR, fontFamily: 'Manrope-Bold' }]}>
+                <Text style={[styles.summaryValue, { color: SUCCESS_COLOR, fontFamily: 'Manrope-SemiBold' }]}>
                   -₹{discountAmount.toLocaleString("en-IN")}
                 </Text>
               </View>
@@ -762,8 +763,8 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   lineItemPrice: {
-    fontSize: 14,
-    fontFamily: "Manrope-SemiBold",
+    fontSize: 16,
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
   },
   lineItemPriceOriginal: {

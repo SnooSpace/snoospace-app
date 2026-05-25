@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, Animated, Pressable } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, Animated, Pressable, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { ArrowLeft } from "lucide-react-native";
@@ -464,7 +464,7 @@ export default function YourEventsScreen({ navigation }) {
     }
   };
 
-  const renderEvent = ({ item }) => (
+  const renderEvent = useCallback(({ item }) => (
     <EventListCard
       item={item}
       onPress={handleEventPress}
@@ -475,7 +475,7 @@ export default function YourEventsScreen({ navigation }) {
       showRemoveButton={activeTab === "Interested"}
       isPast={activeTab === "Past"}
     />
-  );
+  ), [handleEventPress, handleRemoveInterest, activeTab]);
 
   const filteredEvents = getFilteredEvents();
 
@@ -552,6 +552,11 @@ export default function YourEventsScreen({ navigation }) {
             data={filteredEvents}
             keyExtractor={(item) => String(item.id)}
             renderItem={renderEvent}
+            initialNumToRender={8}
+            maxToRenderPerBatch={5}
+            windowSize={5}
+            removeClippedSubviews={Platform.OS === "android"}
+            updateCellsBatchingPeriod={50}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}

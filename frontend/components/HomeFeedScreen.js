@@ -1058,7 +1058,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }, 300);
   }, [onRefresh]);
 
-  const renderFeedItem = ({ item }) => {
+  const renderFeedItem = useCallback(({ item }) => {
     if (item.itemType === "event") {
       return (
         <EventCard
@@ -1217,7 +1217,27 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         }}
       />
     );
-  };
+  }, [
+    navigation,
+    currentUserId,
+    currentUserType,
+    visiblePostId,
+    visibleIndex,
+    shouldPreloadItem,
+    feedItems,
+    role,
+    getNavigationStack,
+    handleEventPress,
+    handleInterestedPress,
+    handleLikeUpdate,
+    handleSharePress,
+    handlePostUpdate,
+    handleCommentPress,
+    handleFollow,
+    handleDelete,
+    handleRequestDelete,
+    isFocused,
+  ]);
 
   const viewabilityConfig = useRef({
     // Using viewAreaCoveragePercentThreshold ensures the video must cover
@@ -1353,12 +1373,10 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         onScroll={scrollHandler}
         scrollEventThrottle={16}
         // Video optimization: prevent aggressive unmounting of video components
-        removeClippedSubviews={false}
-        // Increase window for better video preloading - especially for tall videos
-        // windowSize=8 means 4 screens above and 4 below are kept mounted
-        windowSize={8}
-        maxToRenderPerBatch={3}
-        initialNumToRender={3}
+        removeClippedSubviews={Platform.OS === "android"}
+        windowSize={5}
+        maxToRenderPerBatch={5}
+        initialNumToRender={8}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         // Memory efficiency: update items less frequently during fast scroll

@@ -34,6 +34,8 @@ import DeleteConfirmationScreen from "../screens/profile/DeleteConfirmationScree
 import SavedPostsScreen from "../screens/SavedPostsScreen";
 import ConsentScreen from "../screens/Privacy/ConsentScreen";
 import MyDataScreen from "../screens/Privacy/MyDataScreen";
+import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
+import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
 
 const Stack = createStackNavigator();
 
@@ -179,6 +181,16 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="MyDataScreen"
         component={MyDataScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="OpportunityView"
+        component={OpportunityViewScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="ApplyToOpportunity"
+        component={ApplyToOpportunityScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

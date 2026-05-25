@@ -1808,9 +1808,10 @@ const updatePost = async (req, res) => {
     }
 
     // Fetch the existing post
-    const postResult = await pool.query("SELECT * FROM posts WHERE id = $1", [
-      postId,
-    ]);
+    const postResult = await pool.query(
+      "SELECT id, author_id, author_type, post_type, type_data FROM posts WHERE id = $1",
+      [postId],
+    );
 
     if (postResult.rows.length === 0) {
       return res.status(404).json({ error: "Post not found" });

@@ -322,22 +322,29 @@ const getOpportunities = async (req, res) => {
       } catch (_) { /* table may not exist yet */ }
     }
 
-    // Fetch skill groups for each opportunity
-    const opportunities = await Promise.all(
-      result.rows.map(async (opp) => {
-        const skillGroupsResult = await pool.query(
-          `SELECT role, tools, sample_type FROM opportunity_skill_groups 
-           WHERE opportunity_id = $1 ORDER BY display_order`,
-          [opp.id],
-        );
-        return {
-          ...opp,
-          is_liked: likedSet.has(opp.id),
-          is_saved: savedSet.has(opp.id),
-          skill_groups: skillGroupsResult.rows,
-        };
-      }),
-    );
+    // Batch-fetch skill groups for all opportunities in a single query (eliminates N+1)
+    const oppIds = result.rows.map((r) => r.id);
+    let allSkillGroups = [];
+    if (oppIds.length > 0) {
+      const sgBatch = await pool.query(
+        `SELECT opportunity_id, role, tools, sample_type FROM opportunity_skill_groups 
+         WHERE opportunity_id = ANY($1) ORDER BY display_order`,
+        [oppIds],
+      );
+      allSkillGroups = sgBatch.rows;
+    }
+    const skillGroupsByOpp = {};
+    for (const sg of allSkillGroups) {
+      if (!skillGroupsByOpp[sg.opportunity_id]) skillGroupsByOpp[sg.opportunity_id] = [];
+      skillGroupsByOpp[sg.opportunity_id].push(sg);
+    }
+
+    const opportunities = result.rows.map((opp) => ({
+      ...opp,
+      is_liked: likedSet.has(opp.id),
+      is_saved: savedSet.has(opp.id),
+      skill_groups: skillGroupsByOpp[opp.id] || [],
+    }));
 
     res.json({
       success: true,
@@ -684,20 +691,27 @@ const discoverOpportunities = async (req, res) => {
 
     const result = await pool.query(query, params);
 
-    // Fetch skill groups for each
-    const opportunities = await Promise.all(
-      result.rows.map(async (opp) => {
-        const skillGroupsResult = await pool.query(
-          `SELECT role, tools, sample_type FROM opportunity_skill_groups 
-           WHERE opportunity_id = $1 ORDER BY display_order`,
-          [opp.id],
-        );
-        return {
-          ...opp,
-          skill_groups: skillGroupsResult.rows,
-        };
-      }),
-    );
+    // Batch-fetch skill groups for all opportunities in a single query (eliminates N+1)
+    const discoverOppIds = result.rows.map((r) => r.id);
+    let discoverSkillGroups = [];
+    if (discoverOppIds.length > 0) {
+      const sgBatch = await pool.query(
+        `SELECT opportunity_id, role, tools, sample_type FROM opportunity_skill_groups 
+         WHERE opportunity_id = ANY($1) ORDER BY display_order`,
+        [discoverOppIds],
+      );
+      discoverSkillGroups = sgBatch.rows;
+    }
+    const discoverSGByOpp = {};
+    for (const sg of discoverSkillGroups) {
+      if (!discoverSGByOpp[sg.opportunity_id]) discoverSGByOpp[sg.opportunity_id] = [];
+      discoverSGByOpp[sg.opportunity_id].push(sg);
+    }
+
+    const opportunities = result.rows.map((opp) => ({
+      ...opp,
+      skill_groups: discoverSGByOpp[opp.id] || [],
+    }));
 
     res.json({
       success: true,
@@ -1156,24 +1170,35 @@ const getFollowedOpportunities = async (req, res) => {
       } catch (_) { /* table may not exist yet */ }
     }
 
+    // Batch-fetch skill groups for all opportunities in a single query (eliminates N+1)
+    const followedOppIds = result.rows.map((r) => r.id);
+    let followedSkillGroups = [];
+    if (followedOppIds.length > 0) {
+      const sgBatch = await pool.query(
+        `SELECT opportunity_id, role, tools, sample_type FROM opportunity_skill_groups 
+         WHERE opportunity_id = ANY($1) ORDER BY display_order`,
+        [followedOppIds],
+      );
+      followedSkillGroups = sgBatch.rows;
+    }
+    const followedSGByOpp = {};
+    for (const sg of followedSkillGroups) {
+      if (!followedSGByOpp[sg.opportunity_id]) followedSGByOpp[sg.opportunity_id] = [];
+      followedSGByOpp[sg.opportunity_id].push(sg);
+    }
+
     // Fetch skill groups for each opportunity (include tools so frontend can show skill chips)
-    const opportunities = await Promise.all(
-      result.rows.map(async (opp) => {
-        const sgResult = await pool.query(
-          `SELECT role, tools, sample_type FROM opportunity_skill_groups 
-           WHERE opportunity_id = $1 ORDER BY display_order`,
-          [opp.id],
-        );
-        return {
-          ...opp,
-          is_liked: likedSet.has(opp.id),
-          is_saved: savedSet.has(opp.id),
-          skill_groups: sgResult.rows,
-          // Keep legacy 'roles' field for backward compatibility
-          roles: sgResult.rows.map((r) => r.role),
-        };
-      }),
-    );
+    const opportunities = result.rows.map((opp) => {
+      const skillGroups = followedSGByOpp[opp.id] || [];
+      return {
+        ...opp,
+        is_liked: likedSet.has(opp.id),
+        is_saved: savedSet.has(opp.id),
+        skill_groups: skillGroups,
+        // Keep legacy 'roles' field for backward compatibility
+        roles: skillGroups.map((r) => r.role),
+      };
+    });
 
     console.log(
       "[getFollowedOpportunities] skill_groups sample:",
@@ -1249,19 +1274,27 @@ const getCommunityOpportunities = async (req, res) => {
     const result = await pool.query(query, [communityId, viewerId, viewerType]);
 
 
-    const opportunities = await Promise.all(
-      result.rows.map(async (opp) => {
-        const sgResult = await pool.query(
-          `SELECT role, tools FROM opportunity_skill_groups 
-           WHERE opportunity_id = $1 ORDER BY display_order`,
-          [opp.id],
-        );
-        return {
-          ...opp,
-          skill_groups: sgResult.rows,
-        };
-      }),
-    );
+    // Batch-fetch skill groups (eliminates N+1)
+    const communityOppIds = result.rows.map((r) => r.id);
+    let communitySkillGroups = [];
+    if (communityOppIds.length > 0) {
+      const sgBatch = await pool.query(
+        `SELECT opportunity_id, role, tools FROM opportunity_skill_groups 
+         WHERE opportunity_id = ANY($1) ORDER BY display_order`,
+        [communityOppIds],
+      );
+      communitySkillGroups = sgBatch.rows;
+    }
+    const communitySGByOpp = {};
+    for (const sg of communitySkillGroups) {
+      if (!communitySGByOpp[sg.opportunity_id]) communitySGByOpp[sg.opportunity_id] = [];
+      communitySGByOpp[sg.opportunity_id].push(sg);
+    }
+
+    const opportunities = result.rows.map((opp) => ({
+      ...opp,
+      skill_groups: communitySGByOpp[opp.id] || [],
+    }));
 
     res.json({ success: true, opportunities });
   } catch (error) {

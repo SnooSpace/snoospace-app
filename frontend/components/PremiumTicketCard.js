@@ -1,5 +1,13 @@
-import React, { useEffect, useRef } from "react";
-import { StyleSheet, View, Text, Animated, Dimensions } from "react-native";
+import React, { useEffect } from "react";
+import { StyleSheet, View, Text, Dimensions } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+  withRepeat,
+  cancelAnimation,
+} from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
@@ -36,51 +44,54 @@ const PremiumTicketCard = ({
   giftedFrom = null,
   status = "active",
 }) => {
-  // Animated values for holographic shimmer effect
-  const shimmerAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  // Animated values for holographic shimmer and pulse effects using Reanimated
+  const shimmerProgress = useSharedValue(0);
+  const pulseScale = useSharedValue(1);
 
   useEffect(() => {
-    // Shimmer animation - moves across the card
-    const shimmerLoop = Animated.loop(
-      Animated.timing(shimmerAnim, {
-        toValue: 1,
-        duration: 3000,
-        useNativeDriver: true,
-      })
-    );
-
-    // Subtle pulse for active tickets
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.02,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
     if (status === "active") {
-      shimmerLoop.start();
-      pulseLoop.start();
+      // Loop shimmer: 0 to 1 repeatedly every 3000ms
+      shimmerProgress.value = withRepeat(
+        withTiming(1, { duration: 3000 }),
+        -1, // infinite loop
+        false // do not reverse
+      );
+
+      // Loop pulse scale up and down
+      pulseScale.value = withRepeat(
+        withSequence(
+          withTiming(1.02, { duration: 2000 }),
+          withTiming(1, { duration: 2000 })
+        ),
+        -1, // infinite loop
+        false // do not reverse
+      );
+    } else {
+      cancelAnimation(shimmerProgress);
+      cancelAnimation(pulseScale);
+      shimmerProgress.value = 0;
+      pulseScale.value = 1;
     }
 
     return () => {
-      shimmerLoop.stop();
-      pulseLoop.stop();
+      cancelAnimation(shimmerProgress);
+      cancelAnimation(pulseScale);
     };
-  }, [status, shimmerAnim, pulseAnim]);
+  }, [status]);
 
-  // Calculate shimmer position
-  const shimmerTranslate = shimmerAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-CARD_WIDTH, CARD_WIDTH],
+  // Reanimated style for card scale pulse
+  const animatedContainerStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: status === "active" ? pulseScale.value : 1 }],
+    };
+  });
+
+  // Reanimated style for holographic shimmer translation
+  const animatedShimmerStyle = useAnimatedStyle(() => {
+    const translateX = -CARD_WIDTH + shimmerProgress.value * (CARD_WIDTH * 2);
+    return {
+      transform: [{ translateX }],
+    };
   });
 
   // Status-based styling
@@ -116,8 +127,8 @@ const PremiumTicketCard = ({
     <Animated.View
       style={[
         styles.container,
+        animatedContainerStyle,
         {
-          transform: [{ scale: status === "active" ? pulseAnim : 1 }],
           opacity: statusStyles.opacity,
         },
       ]}
@@ -133,7 +144,7 @@ const PremiumTicketCard = ({
           <Animated.View
             style={[
               styles.shimmer,
-              { transform: [{ translateX: shimmerTranslate }] },
+              animatedShimmerStyle,
             ]}
           >
             <LinearGradient

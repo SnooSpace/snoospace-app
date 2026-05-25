@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,18 @@ import {
   Image,
   Modal,
   Pressable,
-  Animated,
   Dimensions,
 } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  withDelay,
+  withSequence,
+  withRepeat,
+  cancelAnimation,
+} from "react-native-reanimated";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { getAuthToken, getActiveAccount } from "../api/auth";
@@ -44,84 +52,87 @@ import CountdownTimer from "./CountdownTimer";
 import CommentsModal from "./CommentsModal";
 import EventBus from "../utils/EventBus";
 
-
-// ── Auto-scrolling Marquee Chips Component ─────────────────────────────────
-const MarqueeChips = ({ chips, chipType, styles }) => {
-  const scrollViewRef = useRef(null);
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const [contentWidth, setContentWidth] = useState(0);
-  const [containerWidth, setContainerWidth] = useState(0);
-  const animationRef = useRef(null);
-
-  useEffect(() => {
-    const listenerId = scrollX.addListener(({ value }) => {
-      scrollViewRef.current?.scrollTo({ x: value, animated: false });
-    });
-    return () => {
-      scrollX.removeListener(listenerId);
-      if (animationRef.current) {
-        animationRef.current.stop();
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (animationRef.current) {
-      animationRef.current.stop();
-    }
-    scrollX.setValue(0);
-
-    const maxScroll = contentWidth - containerWidth;
-    if (maxScroll > 0) {
-      const duration = maxScroll * 50; // 50ms per pixel
-      animationRef.current = Animated.loop(
-        Animated.sequence([
-          Animated.delay(1200),
-          Animated.timing(scrollX, {
-            toValue: maxScroll,
-            duration: duration,
-            useNativeDriver: false,
-          }),
-          Animated.delay(1500),
-          Animated.timing(scrollX, {
-            toValue: 0,
-            duration: duration,
-            useNativeDriver: false,
-          }),
-        ])
-      );
-      animationRef.current.start();
-    }
-  }, [contentWidth, containerWidth, chips]);
-
-  return (
-    <ScrollView
-      ref={scrollViewRef}
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      scrollEnabled={false}
-      style={styles.chipsRow}
-      contentContainerStyle={styles.chipsContent}
-      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
-      onContentSizeChange={(w) => setContentWidth(w)}
-    >
-      {chips.map((item, index) => (
-        <View
-          key={`${chipType}-${index}`}
-          style={chipType === "role" ? styles.roleChip : styles.skillChip}
-        >
-          <Text
-            style={chipType === "role" ? styles.roleChipText : styles.skillChipText}
-          >
-            {item}
-          </Text>
-        </View>
-      ))}
-    </ScrollView>
-  );
+// Static Helper Functions (Extracted outside the component scope)
+const formatTimeAgo = (dateStr) => {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diff = Math.floor((now - date) / 1000);
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 };
 
-const OpportunityFeedCard = ({
+const formatCount = (count) => {
+  if (!count || count === 0) return "0";
+  if (count < 1000) return count.toString();
+  if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
+  if (count < 1000000) return `${Math.floor(count / 1000)}k`;
+  return `${(count / 1000000).toFixed(1)}m`;
+};
+
+// ── Auto-scrolling Marquee Chips Component using Reanimated ───────────────────
+const MarqueeChips = React.memo(({ chips, chipType, styles }) => {
+  const [contentWidth, setContentWidth] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const translateX = useSharedValue(0);
+
+  useEffect(() => {
+    const maxScroll = contentWidth - containerWidth;
+    if (maxScroll > 0) {
+      translateX.value = 0;
+      translateX.value = withRepeat(
+        withSequence(
+          withDelay(1200, withTiming(-maxScroll, { duration: maxScroll * 50 })),
+          withDelay(1500, withTiming(0, { duration: maxScroll * 50 }))
+        ),
+        -1, // infinite loop
+        false // do not reverse automatically
+      );
+    } else {
+      cancelAnimation(translateX);
+      translateX.value = 0;
+    }
+    return () => {
+      cancelAnimation(translateX);
+    };
+  }, [contentWidth, containerWidth, chips]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: translateX.value }],
+    };
+  });
+
+  return (
+    <View
+      style={[styles.chipsRow, { overflow: "hidden" }]}
+      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+    >
+      <Animated.View
+        style={[{ flexDirection: "row", gap: 8 }, animatedStyle]}
+        onLayout={(e) => setContentWidth(e.nativeEvent.layout.width)}
+      >
+        {chips.map((item, index) => (
+          <View
+            key={`${chipType}-${index}`}
+            style={chipType === "role" ? styles.roleChip : styles.skillChip}
+          >
+            <Text
+              style={chipType === "role" ? styles.roleChipText : styles.skillChipText}
+            >
+              {item}
+            </Text>
+          </View>
+        ))}
+      </Animated.View>
+    </View>
+  );
+});
+
+const OpportunityFeedCard = React.memo(({
   opportunity,
   onPress,
   onLike,
@@ -137,41 +148,38 @@ const OpportunityFeedCard = ({
   const navigation = useNavigation();
   const [currentUserId, setCurrentUserId] = useState(null);
 
-  // ── 3-dot menu state ────────────────────────────────────────────────────────
+  // ── 3-dot menu state using Reanimated ───────────────────────────────────────
   const [menuVisible, setMenuVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
-  const menuAnim = useRef(new Animated.Value(0)).current;
+  const menuAnim = useSharedValue(0);
 
   // ── Comments modal state ─────────────────────────────────────────────────────
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [commentCount, setCommentCount] = useState(opportunity.comment_count || 0);
 
-  const openMenu = () => {
+  const openMenu = useCallback(() => {
     setMenuVisible(true);
-    Animated.spring(menuAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-      tension: 80,
-      friction: 12,
-    }).start();
-  };
+    menuAnim.value = withSpring(1, { damping: 15, stiffness: 100 });
+  }, []);
 
-  const closeMenu = () => {
-    Animated.timing(menuAnim, {
-      toValue: 0,
-      duration: 180,
-      useNativeDriver: true,
-    }).start(() => setMenuVisible(false));
-  };
+  const closeMenu = useCallback(() => {
+    menuAnim.value = withTiming(0, { duration: 180 });
+    setTimeout(() => {
+      setMenuVisible(false);
+    }, 180);
+  }, []);
 
-  const menuTranslateY = menuAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [200, 0],
+  const animatedMenuContainerStyle = useAnimatedStyle(() => {
+    const translateY = (1 - menuAnim.value) * 200;
+    return {
+      opacity: menuAnim.value,
+      transform: [{ translateY }],
+    };
   });
 
   // ── Current user detection ─────────────────────────────────────────────────
-  React.useEffect(() => {
+  useEffect(() => {
     const fetchUser = async () => {
       const account = await getActiveAccount();
       if (account?.id) {
@@ -183,32 +191,20 @@ const OpportunityFeedCard = ({
 
   const isCreator = currentUserId && opportunity.creator_id == currentUserId;
 
-  // ── Time formatting ────────────────────────────────────────────────────────
-  const formatTimeAgo = (dateStr) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diff = Math.floor((now - date) / 1000);
-    if (diff < 60) return "just now";
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
-
-  // ── Work mode / type / compensation helpers ────────────────────────────────
-  const getWorkModeText = () => {
+  // ── Work mode / type / compensation helpers (Memoized) ───────────────────────
+  const workModeText = useMemo(() => {
     if (opportunity.work_mode === "hybrid") return "Hybrid";
     if (opportunity.work_mode === "remote") return "Remote";
     if (opportunity.work_mode === "on_site") return "On-site";
     return opportunity.work_mode || "Remote";
-  };
+  }, [opportunity.work_mode]);
 
-  const getWorkTypeText = () => {
+  const workTypeText = useMemo(() => {
     const type = opportunity.work_type === "one_time" ? "One-time" : "Ongoing";
     return opportunity.availability ? `${type} (${opportunity.availability})` : type;
-  };
+  }, [opportunity.work_type, opportunity.availability]);
 
-  const getCompensationText = () => {
+  const compensationText = useMemo(() => {
     if (opportunity.payment_nature === "exposure") return "Exposure";
     if (opportunity.payment_nature === "revenue_share") return "Rev Share";
     if (opportunity.payment_nature === "trial") {
@@ -233,19 +229,18 @@ const OpportunityFeedCard = ({
         : `Paid${payType}`;
     }
     return opportunity.budget_range || opportunity.payment_nature || "Negotiable";
-  };
+  }, [opportunity.payment_nature, opportunity.trial_type, opportunity.budget_range, opportunity.payment_type]);
 
-  // ── Chip helpers — separated roles vs skills ───────────────────────────────
-  const getRoleChips = () => {
+  // ── Chip helpers — separated roles vs skills (Memoized) ─────────────────────
+  const roleChips = useMemo(() => {
     const roles = opportunity.opportunity_types || opportunity.roles || [];
     return Array.isArray(roles) ? roles.slice(0, 3) : [];
-  };
+  }, [opportunity.opportunity_types, opportunity.roles]);
 
-  const getSkillChips = () => {
+  const skillChips = useMemo(() => {
     const tools = [];
     if (opportunity.skill_groups && Array.isArray(opportunity.skill_groups)) {
       opportunity.skill_groups.forEach((group) => {
-        // tools can come back as a JS array, a stringified JSON array, or null
         let groupTools = group.tools;
         if (!groupTools) return;
         if (typeof groupTools === "string") {
@@ -259,10 +254,7 @@ const OpportunityFeedCard = ({
       });
     }
     return tools.slice(0, 8);
-  };
-
-  const roleChips = getRoleChips();
-  const skillChips = getSkillChips();
+  }, [opportunity.skill_groups]);
 
   // ── Engagement state ───────────────────────────────────────────────────────
   const initialIsLiked = opportunity.is_liked === true || opportunity.isLiked === true;
@@ -273,8 +265,8 @@ const OpportunityFeedCard = ({
   const [saveCount, setSaveCount] = useState(opportunity.save_count || 0);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Sync state when the opportunity prop changes (e.g. feed refresh or parent state update)
-  React.useEffect(() => {
+  // Sync state when the opportunity prop changes
+  useEffect(() => {
     setIsLiked(opportunity.is_liked === true || opportunity.isLiked === true);
     setLikeCount(opportunity.like_count || 0);
     setIsSaved(opportunity.is_saved || false);
@@ -316,7 +308,7 @@ const OpportunityFeedCard = ({
   }, [opportunity.id]);
 
   // ── Like handler (opportunity-specific endpoint) ──────────────────────────
-  const handleLike = async () => {
+  const handleLike = useCallback(async () => {
     if (isLiking) return;
 
     const prevLiked = isLiked;
@@ -338,7 +330,6 @@ const OpportunityFeedCard = ({
       } else {
         await apiDelete(`/opportunities/${opportunity.id}/like`, null, 15000, token);
       }
-      // Notify other screens to sync like state
       EventBus.emit("post-like-updated", {
         postId: opportunity.id,
         isLiked: nextLiked,
@@ -346,7 +337,6 @@ const OpportunityFeedCard = ({
       });
     } catch (error) {
       console.error("Error liking opportunity:", error);
-      // If server says "already liked", correct local state
       if (error?.message?.toLowerCase().includes("already liked")) {
         setIsLiked(true);
         setLikeCount(prevLikeCount);
@@ -358,16 +348,15 @@ const OpportunityFeedCard = ({
     } finally {
       setIsLiking(false);
     }
-  };
+  }, [isLiked, likeCount, isLiking, opportunity.id, onLike]);
 
   // ── Save handler (opportunity-specific endpoint) ──────────────────────────
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (isSaving) return;
 
     const newSaveState = !isSaved;
     const nextSaveCount = Math.max(0, saveCount + (newSaveState ? 1 : -1));
 
-    // Optimistic update
     setIsSaved(newSaveState);
     setSaveCount(nextSaveCount);
     setIsSaving(true);
@@ -379,7 +368,6 @@ const OpportunityFeedCard = ({
       } else {
         await apiDelete(`/opportunities/${opportunity.id}/save`, null, 15000, token);
       }
-      // Notify other screens to sync save state
       EventBus.emit("post-save-updated", {
         postId: opportunity.id,
         isSaved: newSaveState,
@@ -388,7 +376,6 @@ const OpportunityFeedCard = ({
       if (onSave) onSave(opportunity.id, newSaveState);
     } catch (error) {
       console.error("Failed to save/unsave opportunity:", error);
-      // If server says "already saved", correct local state instead of reverting
       if (error?.message?.toLowerCase().includes("already saved")) {
         setIsSaved(true);
       } else {
@@ -398,10 +385,10 @@ const OpportunityFeedCard = ({
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [isSaved, saveCount, isSaving, opportunity.id, onSave]);
 
   // ── Delete handler ─────────────────────────────────────────────────────────
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     closeMenu();
     setIsDeleting(true);
     try {
@@ -413,15 +400,14 @@ const OpportunityFeedCard = ({
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [opportunity.id, onDelete, closeMenu]);
 
   // ── Author press handler ───────────────────────────────────────────────────
-  const handleAuthorPress = () => {
+  const handleAuthorPress = useCallback(() => {
     if (onUserPress) {
       onUserPress(opportunity.creator_id, opportunity.creator_type || "community");
       return;
     }
-    // Fallback: try navigation directly
     const creatorType = opportunity.creator_type || "community";
     if (creatorType === "community") {
       navigation.navigate("CommunityPublicProfile", {
@@ -433,33 +419,53 @@ const OpportunityFeedCard = ({
         memberId: opportunity.creator_id,
       });
     }
-  };
+  }, [onUserPress, opportunity.creator_id, opportunity.creator_type, navigation]);
 
-
-  const handleComment = () => {
+  const handleComment = useCallback(() => {
     setCommentsVisible(true);
-  };
+  }, []);
 
-  const handleShare = () => {
+  const handleShare = useCallback(() => {
     if (onShare) onShare(opportunity.id);
-  };
+  }, [onShare, opportunity.id]);
 
-  // ── Count formatter ────────────────────────────────────────────────────────
-  const formatCount = (count) => {
-    if (!count || count === 0) return "0";
-    if (count < 1000) return count.toString();
-    if (count < 10000) return `${(count / 1000).toFixed(1)}k`;
-    if (count < 1000000) return `${Math.floor(count / 1000)}k`;
-    return `${(count / 1000000).toFixed(1)}m`;
-  };
+  const handleCardPress = useCallback(() => {
+    onPress?.(opportunity);
+  }, [onPress, opportunity]);
 
-  const isClosed =
-    opportunity.closed_at ||
-    (opportunity.expires_at && new Date(opportunity.expires_at) < new Date());
+  const handlePinPress = useCallback(() => {
+    onPinToggle?.(opportunity, true);
+  }, [onPinToggle, opportunity]);
+
+  const handleMenuPress = useCallback((e) => {
+    const { pageX, pageY } = e.nativeEvent;
+    const screenWidth = Dimensions.get("window").width;
+    setMenuPosition({
+      x: screenWidth - pageX - 10,
+      y: pageY + 12,
+    });
+    openMenu();
+  }, [openMenu]);
+
+  const handleEditPress = useCallback(() => {
+    closeMenu();
+    navigation.navigate("CreateOpportunityScreen", {
+      opportunityToEdit: opportunity,
+    });
+  }, [closeMenu, navigation, opportunity]);
+
+  const handleApplyPress = useCallback(() => {
+    onPress?.(opportunity);
+  }, [onPress, opportunity]);
+
+  const isClosed = useMemo(() => {
+    return opportunity.closed_at ||
+      (opportunity.expires_at && new Date(opportunity.expires_at) < new Date());
+  }, [opportunity.closed_at, opportunity.expires_at]);
 
   return (
     <>
-    <TouchableOpacity activeOpacity={0.9} onPress={() => onPress?.(opportunity)}>
+    <TouchableOpacity activeOpacity={0.9} onPress={handleCardPress}>
       <LinearGradient
         colors={["#C8E9EA", "#E8F7F8"]}
         start={{ x: 0, y: 0 }}
@@ -471,7 +477,7 @@ const OpportunityFeedCard = ({
           <View style={styles.typeBadge}>
             <Text style={styles.typeBadgeText}>OPPORTUNITY</Text>
           </View>
-
+ 
           <View style={styles.rightHeaderContent}>
             {/* Pin button — only shown in profile screens with management enabled */}
             {showManagementControls && onPinToggle && (
@@ -480,7 +486,7 @@ const OpportunityFeedCard = ({
                   styles.pinButton,
                   opportunity.is_pinned && styles.pinButtonActive,
                 ]}
-                onPress={() => onPinToggle(opportunity, true)}
+                onPress={handlePinPress}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <View style={styles.pinIconWrapper}>
@@ -493,32 +499,24 @@ const OpportunityFeedCard = ({
                 </View>
               </TouchableOpacity>
             )}
-
+ 
             {/* 3-dot menu — shown only to creator when management controls are enabled (profile screens) */}
             {showManagementControls && isCreator && (
               <TouchableOpacity
                 style={styles.menuButton}
-                onPress={(e) => {
-                  const { pageX, pageY } = e.nativeEvent;
-                  const screenWidth = Dimensions.get("window").width;
-                  setMenuPosition({
-                    x: screenWidth - pageX - 10,
-                    y: pageY + 12,
-                  });
-                  openMenu();
-                }}
+                onPress={handleMenuPress}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <MoreHorizontal size={20} color="#5B6B7C" strokeWidth={2} />
               </TouchableOpacity>
             )}
-
+ 
             <View style={styles.iconContainer}>
               <Briefcase size={20} color="#2962FF" strokeWidth={2} />
             </View>
           </View>
         </View>
-
+ 
         {/* ── Author Row (tappable → profile) ───────────────────────────── */}
         <TouchableOpacity
           style={styles.authorRow}
@@ -545,44 +543,44 @@ const OpportunityFeedCard = ({
             {formatTimeAgo(opportunity.created_at)}
           </Text>
         </TouchableOpacity>
-
+ 
         {/* ── Title ─────────────────────────────────────────────────────── */}
         <Text style={styles.title} numberOfLines={2}>
           {opportunity.title}
         </Text>
-
+ 
         {/* ── Role Chips (auto scroll, no heading) ─────────────────── */}
         {roleChips.length > 0 && (
           <MarqueeChips chips={roleChips} chipType="role" styles={styles} />
         )}
-
+ 
         {/* ── Skill Chips (auto scroll, no heading) ─────────────────── */}
         {skillChips.length > 0 && (
           <MarqueeChips chips={skillChips} chipType="skill" styles={styles} />
         )}
-
+ 
         {/* ── Details Row ───────────────────────────────────────────────── */}
         <View style={styles.detailsRow}>
           <View style={styles.detailItem}>
             <Globe size={15} color="#5e8d9b" strokeWidth={2} />
-            <Text style={styles.detailText}>{getWorkModeText()}</Text>
+            <Text style={styles.detailText}>{workModeText}</Text>
           </View>
-
+ 
           <Text style={styles.detailSeparator}>•</Text>
-
+ 
           <View style={styles.detailItem}>
             <Clock size={15} color="#5e8d9b" strokeWidth={2} />
-            <Text style={styles.detailText}>{getWorkTypeText()}</Text>
+            <Text style={styles.detailText}>{workTypeText}</Text>
           </View>
-
+ 
           <Text style={styles.detailSeparator}>•</Text>
-
+ 
           <View style={styles.detailItem}>
             <Coins size={15} color="#5e8d9b" strokeWidth={2} />
-            <Text style={styles.detailText}>{getCompensationText()}</Text>
+            <Text style={styles.detailText}>{compensationText}</Text>
           </View>
         </View>
-
+ 
         {/* ── Footer Row ────────────────────────────────────────────────── */}
         <View style={styles.footerRow}>
           {/* Applicants + Timer/Ended */}
@@ -614,7 +612,7 @@ const OpportunityFeedCard = ({
                 <Text style={styles.applicantCountText}>Be the first</Text>
               )}
             </View>
-
+ 
             {(opportunity.expires_at || opportunity.closed_at) && (
               <>
                 <Text style={styles.footerSeparator}>•</Text>
@@ -633,7 +631,7 @@ const OpportunityFeedCard = ({
               </>
             )}
           </View>
-
+ 
           {/* Apply Button */}
           <TouchableOpacity
             style={[styles.applyButton, isClosed && styles.applyButtonDisabled]}
@@ -662,7 +660,7 @@ const OpportunityFeedCard = ({
             </LinearGradient>
           </TouchableOpacity>
         </View>
-
+ 
         {/* ── Engagement Row ────────────────────────────────────────────── */}
         <View style={styles.engagementRow}>
           {/* Like */}
@@ -797,7 +795,7 @@ const OpportunityFeedCard = ({
     />
     </>
   );
-};
+});
 
 const styles = StyleSheet.create({
   card: {
