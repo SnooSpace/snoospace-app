@@ -2,7 +2,7 @@ const { createPool } = require("../config/db");
 
 const pool = createPool();
 
-// Ensure all engagement columns exist on opportunities table (idempotent, runs once at startup)
+// Ensure all engagement columns and tables exist on opportunities (idempotent, runs once at startup)
 const ensureOpportunityColumns = async () => {
   try {
     await pool.query(`
@@ -10,7 +10,39 @@ const ensureOpportunityColumns = async () => {
         ADD COLUMN IF NOT EXISTS like_count INTEGER DEFAULT 0,
         ADD COLUMN IF NOT EXISTS view_count INTEGER DEFAULT 0,
         ADD COLUMN IF NOT EXISTS comment_count INTEGER DEFAULT 0,
-        ADD COLUMN IF NOT EXISTS share_count INTEGER DEFAULT 0
+        ADD COLUMN IF NOT EXISTS share_count INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS save_count INTEGER DEFAULT 0
+    `);
+    // Ensure engagement tables exist so EXISTS() subqueries never crash
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS opportunity_likes (
+        id SERIAL PRIMARY KEY,
+        opportunity_id UUID NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+        liker_id INTEGER NOT NULL,
+        liker_type TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(opportunity_id, liker_id, liker_type)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS opportunity_saves (
+        id SERIAL PRIMARY KEY,
+        opportunity_id UUID NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+        saver_id INTEGER NOT NULL,
+        saver_type TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(opportunity_id, saver_id, saver_type)
+      )
+    `);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS opportunity_views (
+        id SERIAL PRIMARY KEY,
+        opportunity_id UUID NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+        viewer_id INTEGER NOT NULL,
+        viewer_type TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(opportunity_id, viewer_id, viewer_type)
+      )
     `);
   } catch (e) {
     console.warn("[opportunityController] ensureOpportunityColumns warning:", e.message);
@@ -240,11 +272,19 @@ const getOpportunities = async (req, res) => {
         o.budget_range,
         o.visibility,
         o.applicant_count,
+        o.availability,
+        o.experience_level,
         o.expires_at,
         o.closed_at,
         o.created_at,
         o.updated_at,
+        o.creator_id,
+        o.creator_type,
         COALESCE(o.is_pinned, FALSE) as is_pinned,
+        COALESCE(o.like_count, 0) as like_count,
+        COALESCE(o.view_count, 0) as view_count,
+        COALESCE(o.comment_count, 0) as comment_count,
+        COALESCE(o.save_count, 0) as save_count,
         COALESCE(
           (SELECT COUNT(*) FROM opportunity_applications oa 
            WHERE oa.opportunity_id = o.id AND oa.status = 'shortlisted'),
@@ -258,6 +298,29 @@ const getOpportunities = async (req, res) => {
 
     const result = await pool.query(query, params);
 
+    // Build a set of liked/saved opportunity IDs for this user (safe: tables may not exist yet)
+    const opportunityIds = result.rows.map((r) => r.id);
+    let likedSet = new Set();
+    let savedSet = new Set();
+    if (opportunityIds.length > 0) {
+      try {
+        const likedRes = await pool.query(
+          `SELECT opportunity_id FROM opportunity_likes
+           WHERE opportunity_id = ANY($1) AND liker_id = $2 AND liker_type = $3`,
+          [opportunityIds, userId, userType]
+        );
+        likedRes.rows.forEach((r) => likedSet.add(r.opportunity_id));
+      } catch (_) { /* table may not exist yet */ }
+      try {
+        const savedRes = await pool.query(
+          `SELECT opportunity_id FROM opportunity_saves
+           WHERE opportunity_id = ANY($1) AND saver_id = $2 AND saver_type = $3`,
+          [opportunityIds, userId, userType]
+        );
+        savedRes.rows.forEach((r) => savedSet.add(r.opportunity_id));
+      } catch (_) { /* table may not exist yet */ }
+    }
+
     // Fetch skill groups for each opportunity
     const opportunities = await Promise.all(
       result.rows.map(async (opp) => {
@@ -268,6 +331,8 @@ const getOpportunities = async (req, res) => {
         );
         return {
           ...opp,
+          is_liked: likedSet.has(opp.id),
+          is_saved: savedSet.has(opp.id),
           skill_groups: skillGroupsResult.rows,
         };
       }),
@@ -1041,37 +1106,53 @@ const getFollowedOpportunities = async (req, res) => {
         COALESCE(o.like_count, 0) as like_count,
         COALESCE(o.view_count, 0) as view_count,
         COALESCE(o.comment_count, 0) as comment_count,
+        COALESCE(o.save_count, 0) as save_count,
         o.created_at,
         o.creator_id,
         o.creator_type,
         c.name as creator_name,
         c.logo_url as creator_photo,
-        c.username as creator_username,
-        EXISTS(
-          SELECT 1 FROM opportunity_likes ol
-          WHERE ol.opportunity_id = o.id AND ol.liker_id = $1 AND ol.liker_type = 'member'
-        ) AS is_liked,
-        EXISTS(
-          SELECT 1 FROM opportunity_saves os
-          WHERE os.opportunity_id = o.id AND os.saver_id = $1 AND os.saver_type = 'member'
-        ) AS is_saved
+        c.username as creator_username
       FROM opportunities o
       JOIN follows f ON f.following_id = o.creator_id::integer AND f.following_type = 'community'
       JOIN communities c ON o.creator_id::integer = c.id
       WHERE o.status = 'active'
         AND o.creator_type = 'community'
         AND f.follower_id = $1
-        AND f.follower_type = 'member'
+        AND f.follower_type = $2
       ORDER BY o.created_at DESC
-      LIMIT $2
+      LIMIT $3
     `;
 
-    console.log("[getFollowedOpportunities] userId:", userId, "limit:", limit);
-    const result = await pool.query(query, [userId, parseInt(limit)]);
+    console.log("[getFollowedOpportunities] userId:", userId, "userType:", userType, "limit:", limit);
+    const result = await pool.query(query, [userId, userType, parseInt(limit)]);
     console.log(
       "[getFollowedOpportunities] Found opportunities:",
       result.rows.length,
     );
+
+    // Build liked/saved sets (safe: tables may not exist yet)
+    const opportunityIds = result.rows.map((r) => r.id);
+    let likedSet = new Set();
+    let savedSet = new Set();
+    if (opportunityIds.length > 0) {
+      try {
+        const likedRes = await pool.query(
+          `SELECT opportunity_id FROM opportunity_likes
+           WHERE opportunity_id = ANY($1) AND liker_id = $2 AND liker_type = $3`,
+          [opportunityIds, userId, userType]
+        );
+        likedRes.rows.forEach((r) => likedSet.add(r.opportunity_id));
+      } catch (_) { /* table may not exist yet */ }
+      try {
+        const savedRes = await pool.query(
+          `SELECT opportunity_id FROM opportunity_saves
+           WHERE opportunity_id = ANY($1) AND saver_id = $2 AND saver_type = $3`,
+          [opportunityIds, userId, userType]
+        );
+        savedRes.rows.forEach((r) => savedSet.add(r.opportunity_id));
+      } catch (_) { /* table may not exist yet */ }
+    }
 
     // Fetch skill groups for each opportunity (include tools so frontend can show skill chips)
     const opportunities = await Promise.all(
@@ -1083,6 +1164,8 @@ const getFollowedOpportunities = async (req, res) => {
         );
         return {
           ...opp,
+          is_liked: likedSet.has(opp.id),
+          is_saved: savedSet.has(opp.id),
           skill_groups: sgResult.rows,
           // Keep legacy 'roles' field for backward compatibility
           roles: sgResult.rows.map((r) => r.role),
@@ -1138,6 +1221,7 @@ const getCommunityOpportunities = async (req, res) => {
         COALESCE(o.like_count, 0) as like_count,
         COALESCE(o.view_count, 0) as view_count,
         COALESCE(o.comment_count, 0) as comment_count,
+        COALESCE(o.save_count, 0) as save_count,
         o.is_pinned,
         c.name as creator_name,
         c.logo_url as creator_photo,
@@ -1365,7 +1449,15 @@ const saveOpportunity = async (req, res) => {
       `INSERT INTO opportunity_saves (opportunity_id, saver_id, saver_type) VALUES ($1, $2, $3)`,
       [id, userId, userType]
     );
-    res.json({ success: true, is_saved: true });
+    // Increment save_count
+    await pool.query(
+      `UPDATE opportunities SET save_count = COALESCE(save_count, 0) + 1 WHERE id = $1`,
+      [id]
+    );
+    const updated = await pool.query(
+      `SELECT save_count FROM opportunities WHERE id = $1`, [id]
+    );
+    res.json({ success: true, is_saved: true, save_count: updated.rows[0]?.save_count || 1 });
   } catch (e) {
     console.error('Error saving opportunity:', e);
     res.status(500).json({ error: 'Internal server error' });
@@ -1388,7 +1480,15 @@ const unsaveOpportunity = async (req, res) => {
       [id, userId, userType]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Save not found' });
-    res.json({ success: true, is_saved: false });
+    // Decrement save_count
+    await pool.query(
+      `UPDATE opportunities SET save_count = GREATEST(0, COALESCE(save_count, 1) - 1) WHERE id = $1`,
+      [id]
+    );
+    const updated = await pool.query(
+      `SELECT save_count FROM opportunities WHERE id = $1`, [id]
+    );
+    res.json({ success: true, is_saved: false, save_count: updated.rows[0]?.save_count || 0 });
   } catch (e) {
     console.error('Error unsaving opportunity:', e);
     res.status(500).json({ error: 'Internal server error' });

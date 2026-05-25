@@ -1946,6 +1946,15 @@ export default function CommunityProfileScreen({ navigation }) {
                                 ),
                               );
                             }}
+                            onSave={(postId, isSaved) => {
+                              setPosts((prevPosts) =>
+                                prevPosts.map((p) =>
+                                  p.id === postId
+                                    ? { ...p, is_saved: isSaved }
+                                    : p,
+                                ),
+                              );
+                            }}
                             onShare={() => {}}
                             onPinToggle={() => handlePinToggle(post)}
                             onDelete={(opportunityId) => {

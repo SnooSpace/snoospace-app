@@ -1654,6 +1654,15 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                                 ),
                               );
                             }}
+                            onSave={(postId, isSaved) => {
+                              setPosts((prevPosts) =>
+                                prevPosts.map((p) =>
+                                  p.id === postId
+                                    ? { ...p, is_saved: isSaved }
+                                    : p,
+                                ),
+                              );
+                            }}
                             onShare={() => {}}
                             onUserPress={(userId, userType) => {
                               if (userType === "community") {
