@@ -35,6 +35,7 @@ import { COLORS } from "../../constants/theme";
 import KeyboardAwareToolbar from "../../components/KeyboardAwareToolbar";
 import TicketMessageCard from "../../components/TicketMessageCard";
 import SharedPostCard from "../../components/SharedPostCard";
+import SharedOpportunityCard from "../../components/SharedOpportunityCard";
 import ProfilePostFeed from "../../components/ProfilePostFeed";
 import SnooLoader from "../../components/ui/SnooLoader";
 import EmptyChatState from "../../components/EmptyChatState";
@@ -1508,6 +1509,50 @@ export default function ChatScreen({ route, navigation }) {
                   } else {
                     nav.navigate("MemberPublicProfile", { memberId: userId });
                   }
+                }}
+              />
+            </View>
+          </SwipeableMessage>
+        </View>
+      );
+    }
+
+    if (msg.messageType === "opportunity_share" && msg.metadata) {
+      return (
+        <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
+          {avatarEl}
+          <SwipeableMessage
+            messageId={msg.id}
+            highlightedIdSV={highlightedIdSV}
+            isMyMessage={isMyMessage}
+            onReply={() => setSelectedReply({
+              id: msg.id,
+              messageText: "Shared an opportunity",
+              senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
+              isDeleted: msg.isDeleted,
+            })}
+            onLongPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              setOptionsTarget(msg);
+            }}
+          >
+            <View collapsable={false}>
+              {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
+              {msg.replyPreview && (
+                <ReplyQuote
+                  replyPreview={msg.replyPreview}
+                  isMyMessage={isMyMessage}
+                  onPress={() => scrollToMessage(msg.replyToMessageId)}
+                />
+              )}
+              <SharedOpportunityCard
+                metadata={msg.metadata}
+                onPress={(opportunityId) => {
+                  const nav = navigation.getParent()?.getParent() || navigation;
+                  nav.navigate("OpportunityView", {
+                    opportunityId,
+                    opportunity: { id: opportunityId, ...msg.metadata },
+                  });
                 }}
               />
             </View>

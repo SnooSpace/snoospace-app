@@ -600,7 +600,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       if (!payload?.postId) return;
       await LikeStateManager.setLikeState(payload.postId, payload.isLiked);
 
-      setPosts((prev) =>
+      const likeUpdater = (prev) =>
         prev.map((post) =>
           post.id === payload.postId
             ? {
@@ -617,13 +617,14 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
                     : post.comment_count,
               }
             : post,
-        ),
-      );
+        );
+      setPosts(likeUpdater);
+      setOpportunities(likeUpdater);
     };
 
     const handlePostCommentUpdate = (payload) => {
       if (!payload?.postId) return;
-      setPosts((prev) =>
+      const commentUpdater = (prev) =>
         prev.map((post) =>
           post.id === payload.postId
             ? {
@@ -634,8 +635,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
                     : post.comment_count,
               }
             : post,
-        ),
-      );
+        );
+      setPosts(commentUpdater);
+      setOpportunities(commentUpdater);
     };
 
     const unsubscribeLike = EventBus.on(
