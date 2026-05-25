@@ -15,7 +15,6 @@ import Animated, {
   useAnimatedScrollHandler,
   withTiming,
   FadeInDown,
-  Layout,
 } from "react-native-reanimated";
 import {
   Heart,
@@ -565,7 +564,6 @@ const NotificationRow = ({
   return (
     <Animated.View
       entering={FadeInDown.delay(Math.min(index, 6) * 50).duration(300)}
-      layout={Layout.springify().mass(0.8)}
       style={[styles.cardContainer, bounceStyle]}
     >
       <AnimatedPressable

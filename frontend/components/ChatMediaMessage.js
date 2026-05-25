@@ -13,9 +13,10 @@
  */
 import React, { useState } from "react";
 import {
-  View, Text, Image, TouchableOpacity,
+  View, Text, TouchableOpacity,
   StyleSheet, Dimensions,
 } from "react-native";
+import { Image } from "expo-image";
 import { Film, Image as ImageIcon, Play } from "lucide-react-native";
 
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -86,7 +87,8 @@ function ImageItem({ item, isMyMessage, styleOverrides, mediaId, isUploading, up
         <Image
           source={{ uri: mediaUrl }}
           style={bubbleStyles.thumb}
-          resizeMode="cover"
+          contentFit="cover"
+          cachePolicy="memory-disk"
           onError={() => setThumbError(true)}
         />
       )}
@@ -127,7 +129,8 @@ function VideoItem({ item, isMyMessage, styleOverrides, mediaId, onOpenViewer })
         <Image
           source={{ uri: thumbnailUrl }}
           style={bubbleStyles.thumb}
-          resizeMode="cover"
+          contentFit="cover"
+          cachePolicy="memory-disk"
           onError={() => setThumbError(true)}
         />
       )}

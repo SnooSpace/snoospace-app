@@ -63,7 +63,8 @@
           "savePhotosPermission": "Allow SnooSpace to save photos.",
           "isAccessMediaLocationEnabled": true
         }
-      ]
+      ],
+      "expo-image"
     ],
     "extra": {
       "eas": {

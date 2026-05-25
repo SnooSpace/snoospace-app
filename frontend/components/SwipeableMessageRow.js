@@ -118,7 +118,7 @@ const SwipeableMessageRow = React.memo(({
     })
     .onEnd((e) => {
       const didTrigger = Math.abs(e.translationX) >= REPLY_HAPTIC_THRESHOLD;
-      translateX.value  = withSpring(0, { damping: 18, stiffness: 200 });
+      translateX.value  = withSpring(0, { damping: 20, stiffness: 200, mass: 0.5 });
       iconOpacity.value = withTiming(0, { duration: 150 });
       fired.current = false;
       if (didTrigger) runOnJS(onReply)();

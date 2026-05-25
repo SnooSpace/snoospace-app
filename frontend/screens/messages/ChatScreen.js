@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   StyleSheet, View, Platform, Alert, Text, TextInput, Modal, ScrollView,
-  TouchableOpacity, Image, KeyboardAvoidingView, Pressable, ActivityIndicator,
+  TouchableOpacity, KeyboardAvoidingView, Pressable, ActivityIndicator,
   FlatList,
 } from "react-native";
+import { Image } from "expo-image";
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, withSpring, Easing,
 } from "react-native-reanimated";
@@ -70,7 +71,8 @@ const GroupAvatar = ({ photoUrl, name, size = 30 }) => {
       <Image
         source={{ uri: photoUrl }}
         style={{ width: size, height: size, borderRadius: size / 2, marginRight: 8 }}
-        defaultSource={null}
+        contentFit="cover"
+        cachePolicy="memory-disk"
       />
     );
   }
@@ -142,11 +144,11 @@ const buildMessageList = (messages) => {
 };
 
 // ── TimestampSeparator ──────────────────────────────────────────────────────
-const TimestampSeparator = ({ label }) => (
+const TimestampSeparator = React.memo(({ label }) => (
   <View style={sepStyles.row}>
     <Text style={sepStyles.label}>{label}</Text>
   </View>
-);
+));
 const sepStyles = StyleSheet.create({
   row:   { alignItems: "center", marginVertical: 12 },
   label: { fontFamily: "Manrope-Medium", fontSize: 12, color: LIGHT_TEXT, opacity: 0.7 },
@@ -580,6 +582,220 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
 // SwipeableMessage extracted to components/SwipeableMessageRow.js
 const SwipeableMessage = SwipeableMessageRow;
 
+// ── MessageRow ──────────────────────────────────────────────────────────────
+const MessageRow = React.memo(({
+  item,
+  index,
+  isMyMessage,
+  showAvatar,
+  showSenderName,
+  isGroup,
+  currentUser,
+  recipient,
+  recipientId,
+  rsvpLoading,
+  highlightedIdSV,
+  onReply,
+  onLongPress,
+  onRSVP,
+  onOpenViewer,
+  onPressPostShare,
+  onPressUser,
+  onPressOpportunity,
+  onPressReplyQuote,
+  navigation,
+}) => {
+  const msg = item.data;
+  if (msg.messageType === "system") {
+    return (
+      <View style={styles.systemRow}>
+        <Text style={styles.systemText}>{msg.messageText}</Text>
+      </View>
+    );
+  }
+
+  // Pre-compute avatar element once.
+  const avatarEl = !isMyMessage && (
+    showAvatar
+      ? (isGroup
+          ? <GroupAvatar photoUrl={msg.senderPhotoUrl} name={msg.senderName} />
+          : <Image source={{ uri: recipient?.profilePhotoUrl || "https://via.placeholder.com/30" }} style={styles.messageAvatar} />)
+      : <View style={{ width: 30, marginRight: 8 }} />
+  );
+
+  if (msg.isDeleted) {
+    return (
+      <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
+        {avatarEl}
+        <View>
+          {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
+          <View style={[styles.messageBubble, isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble, styles.deletedBubble]}>
+            <Text style={styles.deletedText}>This message was unsent</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  if (msg.messageType === "ticket" && msg.metadata) {
+    return (
+      <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
+        {avatarEl}
+        <View>
+          {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
+          <TicketMessageCard
+            metadata={msg.metadata}
+            isFromMe={isMyMessage}
+            senderName={recipient?.name}
+            loading={rsvpLoading}
+            onViewEvent={() => {
+              const n = navigation.getParent()?.getParent() || navigation;
+              n.navigate("EventDetails", { eventId: msg.metadata.eventId });
+            }}
+            onConfirmGoing={() => onRSVP(msg, "going")}
+            onDecline={() => onRSVP(msg, "not_going")}
+          />
+        </View>
+      </View>
+    );
+  }
+
+  // ——— Image / Video / MultiMedia messages ————————————————————————————————————————
+  if (msg.messageType === "image" || msg.messageType === "video" || msg.messageType === "multi_media") {
+    return (
+      <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
+        {avatarEl}
+        <SwipeableMessage
+          messageId={msg.id}
+          highlightedIdSV={highlightedIdSV}
+          isMyMessage={isMyMessage}
+          onReply={() => onReply(msg, isMyMessage)}
+          onLongPress={() => onLongPress(msg)}
+        >
+          <View collapsable={false}>
+            {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
+            {msg.replyPreview && (
+              <ReplyQuote
+                replyPreview={msg.replyPreview}
+                isMyMessage={isMyMessage}
+                onPress={() => onPressReplyQuote(msg.replyToMessageId)}
+              />
+            )}
+            <ChatMediaMessage
+              message={msg}
+              isMyMessage={isMyMessage}
+              uploadProgress={null}
+              onOpenViewer={onOpenViewer}
+            />
+            <Text style={[
+              styles.messageTime,
+              isMyMessage ? styles.myMessageTime : styles.otherMessageTime,
+              { marginRight: isMyMessage ? 4 : 0, marginLeft: isMyMessage ? 0 : 4, marginTop: 2 },
+            ]}>
+              {formatTime(msg.createdAt)}
+            </Text>
+          </View>
+        </SwipeableMessage>
+      </View>
+    );
+  }
+
+  if (msg.messageType === "post_share" && msg.metadata) {
+    return (
+      <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
+        {avatarEl}
+        <SwipeableMessage
+          messageId={msg.id}
+          highlightedIdSV={highlightedIdSV}
+          isMyMessage={isMyMessage}
+          onReply={() => onReply(msg, isMyMessage)}
+          onLongPress={() => onLongPress(msg)}
+        >
+          <View collapsable={false}>
+            {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
+            {msg.replyPreview && (
+              <ReplyQuote
+                replyPreview={msg.replyPreview}
+                isMyMessage={isMyMessage}
+                onPress={() => onPressReplyQuote(msg.replyToMessageId)}
+              />
+            )}
+            <SharedPostCard 
+              metadata={msg.metadata} 
+              onPress={onPressPostShare}
+              onUserPress={onPressUser}
+            />
+          </View>
+        </SwipeableMessage>
+      </View>
+    );
+  }
+
+  if (msg.messageType === "opportunity_share" && msg.metadata) {
+    return (
+      <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
+        {avatarEl}
+        <SwipeableMessage
+          messageId={msg.id}
+          highlightedIdSV={highlightedIdSV}
+          isMyMessage={isMyMessage}
+          onReply={() => onReply(msg, isMyMessage)}
+          onLongPress={() => onLongPress(msg)}
+        >
+          <View collapsable={false}>
+            {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
+            {msg.replyPreview && (
+              <ReplyQuote
+                replyPreview={msg.replyPreview}
+                isMyMessage={isMyMessage}
+                onPress={() => onPressReplyQuote(msg.replyToMessageId)}
+              />
+            )}
+            <SharedOpportunityCard
+              metadata={msg.metadata}
+              onPress={onPressOpportunity}
+            />
+          </View>
+        </SwipeableMessage>
+      </View>
+    );
+  }
+
+  const bubbleContent = (
+    <View collapsable={false} style={{ alignItems: isMyMessage ? "flex-end" : "flex-start", maxWidth: "100%" }}>
+      {msg.replyPreview && (
+        <ReplyQuote replyPreview={msg.replyPreview} isMyMessage={isMyMessage} onPress={() => onPressReplyQuote(msg.replyToMessageId)} />
+      )}
+      <View style={[
+        styles.messageBubble, 
+        isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble,
+        msg.replyPreview && (isMyMessage ? styles.myMessageBubbleReplied : styles.otherMessageBubbleReplied)
+      ]}>
+        <Text style={[styles.messageText, isMyMessage ? styles.myMessageText : styles.otherMessageText]}>{msg.messageText}</Text>
+        <Text style={[styles.messageTime, isMyMessage ? styles.myMessageTime : styles.otherMessageTime]}>{formatTime(msg.createdAt)}</Text>
+      </View>
+    </View>
+  );
+
+  return (
+    <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
+      {avatarEl}
+      <View style={{ flex: 1 }}>
+        {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
+        <SwipeableMessage
+          messageId={msg.id}
+          highlightedIdSV={highlightedIdSV}
+          isMyMessage={isMyMessage}
+          onReply={() => onReply(msg, isMyMessage)}
+          onLongPress={() => onLongPress(msg)}
+        >
+          {bubbleContent}
+        </SwipeableMessage>
+      </View>
+    </View>
+  );
+});
+
 // ── Main Component ──────────────────────────────────────────────────────────
 export default function ChatScreen({ route, navigation }) {
   const {
@@ -770,6 +986,81 @@ export default function ChatScreen({ route, navigation }) {
     highlightedIdSV.value = String(targetId);
     setTimeout(() => { highlightedIdSV.value = ""; }, 1600);
   }, [messageIndexMap, highlightedIdSV]);
+
+  const handleReply = useCallback((msg, isMyMessage) => {
+    setSelectedReply({
+      id: msg.id,
+      messageText: msg.messageType === "multi_media" ? "Media" : (msg.messageType === "image" ? "Photo" : (msg.messageType === "video" ? "Video" : msg.messageText)),
+      messageType: msg.messageType,
+      senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
+      isDeleted: msg.isDeleted,
+      isPostShare: msg.messageType === "post_share",
+      postAuthorUsername: msg.metadata?.authorUsername || msg.metadata?.author_username,
+      postCaption: msg.metadata?.caption,
+    });
+  }, [recipient?.name]);
+
+  const handleLongPress = useCallback((msg) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setOptionsTarget(msg);
+  }, []);
+
+  const handleRSVP = useCallback(async (msg, response) => {
+    const giftId = msg.metadata?.giftId;
+    if (!giftId) { 
+      showAlert({ title: "Error", message: "Unable to process RSVP", primaryAction: { text: "OK", onPress: hideAlert }, icon: AlertTriangle });
+      return; 
+    }
+    setRsvpLoading(prev => ({ ...prev, [msg.id]: true }));
+    try {
+      const result = await confirmGiftRSVP(giftId, response);
+      if (result.success) {
+        updateMessageById(msg.id, { metadata: { ...msg.metadata, status: result.status } });
+        showAlert({
+          title: response === "going" ? "You're In! 🎁" : "Maybe Next Time",
+          message: result.message,
+          primaryAction: { text: "Sweet!", onPress: hideAlert },
+          icon: PartyPopper,
+          iconColor: COLORS.primary,
+        });
+      }
+    } catch (err) { 
+      showAlert({ title: "Error", message: err?.message || "Failed to confirm RSVP", primaryAction: { text: "OK", onPress: hideAlert }, icon: AlertTriangle });
+    } finally {
+      setRsvpLoading(prev => ({ ...prev, [msg.id]: false }));
+    }
+  }, [updateMessageById]);
+
+  const handleOpenViewer = useCallback((mediaId) => {
+    const idx = mediaTimeline.findIndex((m) => m.id === mediaId);
+    if (idx !== -1) {
+      setViewerIndex(idx);
+      setViewerVisible(true);
+    }
+  }, [mediaTimeline]);
+
+  const handlePressPostShare = useCallback((postId, postData) => {
+    setSharedPosts(prev => ({ ...prev, [postId]: postData }));
+    setSelectedSharedPost(postData);
+    setSharedPostModalVisible(true);
+  }, []);
+
+  const handlePressUser = useCallback((userId, userType) => {
+    const nav = navigation.getParent()?.getParent() || navigation;
+    if (userType === "community") {
+      nav.navigate("CommunityPublicProfile", { communityId: userId, viewerRole: "member" });
+    } else {
+      nav.navigate("MemberPublicProfile", { memberId: userId });
+    }
+  }, [navigation]);
+
+  const handlePressOpportunity = useCallback((opportunityId, metadata) => {
+    const nav = navigation.getParent()?.getParent() || navigation;
+    nav.navigate("OpportunityView", {
+      opportunityId,
+      opportunity: { id: opportunityId, ...metadata },
+    });
+  }, [navigation]);
 
   // ΓöÇΓöÇ loadMessages ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
@@ -1321,9 +1612,14 @@ export default function ChatScreen({ route, navigation }) {
   const highlightedIdSV = useSharedValue("");
 
   // ——— renderItem ———————————————————————————————————————————————————————————————————
-  const renderItem = ({ item, index }) => {
-    if (item.type === "separator") return <TimestampSeparator label={item.label} />;
+  const renderItem = useCallback(({ item, index }) => {
+    if (item.type === "separator") {
+      return <TimestampSeparator label={item.label} />;
+    }
+
     const msg = item.data;
+    
+    // System messages don't need a wrapper with gestures.
     if (msg.messageType === "system") {
       return (
         <View style={styles.systemRow}>
@@ -1331,278 +1627,59 @@ export default function ChatScreen({ route, navigation }) {
         </View>
       );
     }
-    // For group chats: compare sender against the logged-in user.
-    // For DMs: compare against the other participant (backward-compat).
+
     const isMyMessage = isGroup
       ? (String(msg.senderId) === String(currentUser?.id) && (msg.senderType || "member") === (currentUser?.type || "member"))
       : msg.senderId !== (recipient?.id || recipientId);
-    // flatListData is already reversed (newest=index 0 for inverted FlashList).
-    // The next item chronologically (older message below this one in the chat) is at index+1.
-    const nextItem     = flatListData[index + 1];
-    const nextMsg      = nextItem?.type === "message" ? nextItem.data : null;
-    const showAvatar   = shouldShowAvatar(msg, nextMsg, isMyMessage);
-    // Show sender name above the first message in a group of messages from the same person
-    const showSenderName = isGroup && !isMyMessage && (
-      !nextMsg || nextMsg.senderId !== msg.senderId
-    );
 
-    // Pre-compute avatar element once — reused in every message-type branch.
-    // Group chats: GroupAvatar handles photo + initials fallback (no placeholder.com).
-    // DMs: plain Image with the recipient's photo.
-    const avatarEl = !isMyMessage && (
-      showAvatar
-        ? (isGroup
-            ? <GroupAvatar photoUrl={msg.senderPhotoUrl} name={msg.senderName} />
-            : <Image source={{ uri: recipient?.profilePhotoUrl || "https://via.placeholder.com/30" }} style={styles.messageAvatar} />)
-        : <View style={{ width: 30, marginRight: 8 }} />
-    );
-
-    if (msg.isDeleted) {
-      return (
-        <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
-          {avatarEl}
-          <View>
-            {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
-            <View style={[styles.messageBubble, isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble, styles.deletedBubble]}>
-              <Text style={styles.deletedText}>This message was unsent</Text>
-            </View>
-          </View>
-        </View>
-      );
-    }
-
-    if (msg.messageType === "ticket" && msg.metadata) {
-      const handleRSVP = async (response) => {
-        const giftId = msg.metadata.giftId;
-        if (!giftId) { 
-          showAlert({ title: "Error", message: "Unable to process RSVP", primaryAction: { text: "OK", onPress: hideAlert }, icon: AlertTriangle });
-          return; 
-        }
-        setRsvpLoading(prev => ({ ...prev, [msg.id]: true }));
-        try {
-          const result = await confirmGiftRSVP(giftId, response);
-          if (result.success) {
-            updateMessageById(msg.id, { metadata: { ...msg.metadata, status: result.status } });
-            showAlert({
-              title: response === "going" ? "You're In! ≡ƒÄë" : "Maybe Next Time",
-              message: result.message,
-              primaryAction: { text: "Sweet!", onPress: hideAlert },
-              icon: PartyPopper,
-              iconColor: COLORS.primary,
-            });
-          }
-        } catch (err) { 
-          showAlert({ title: "Error", message: err?.message || "Failed to confirm RSVP", primaryAction: { text: "OK", onPress: hideAlert }, icon: AlertTriangle });
-        }
-        finally { setRsvpLoading(prev => ({ ...prev, [msg.id]: false })); }
-      };
-      return (
-        <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
-          {avatarEl}
-          <View>
-            {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
-            <TicketMessageCard metadata={msg.metadata} isFromMe={isMyMessage} senderName={recipient?.name}
-              loading={rsvpLoading[msg.id]}
-              onViewEvent={() => { const n = navigation.getParent()?.getParent() || navigation; n.navigate("EventDetails", { eventId: msg.metadata.eventId }); }}
-              onConfirmGoing={() => handleRSVP("going")} onDecline={() => handleRSVP("not_going")} />
-          </View>
-        </View>
-      );
-    }
-
-    // ——— Image / Video / MultiMedia messages ————————————————————————————————————————
-    if (msg.messageType === "image" || msg.messageType === "video" || msg.messageType === "multi_media") {
-      return (
-        <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
-          {avatarEl}
-          <SwipeableMessage
-            messageId={msg.id}
-            highlightedIdSV={highlightedIdSV}
-            isMyMessage={isMyMessage}
-            onReply={() => setSelectedReply({
-              id: msg.id,
-              messageText: msg.messageType === "multi_media" ? "Media" : (msg.messageType === "image" ? "Photo" : "Video"),
-              messageType: msg.messageType,
-              senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
-              isDeleted: msg.isDeleted,
-            })}
-            onLongPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setOptionsTarget(msg);
-            }}
-          >
-            <View collapsable={false}>
-              {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
-              {msg.replyPreview && (
-                <ReplyQuote
-                  replyPreview={msg.replyPreview}
-                  isMyMessage={isMyMessage}
-                  onPress={() => scrollToMessage(msg.replyToMessageId)}
-                />
-              )}
-              <ChatMediaMessage
-                message={msg}
-                isMyMessage={isMyMessage}
-                uploadProgress={null}
-                onOpenViewer={(mediaId) => {
-                  const idx = mediaTimeline.findIndex((m) => m.id === mediaId);
-                  if (idx !== -1) {
-                    setViewerIndex(idx);
-                    setViewerVisible(true);
-                  }
-                }}
-              />
-              <Text style={[
-                styles.messageTime,
-                isMyMessage ? styles.myMessageTime : styles.otherMessageTime,
-                { marginRight: isMyMessage ? 4 : 0, marginLeft: isMyMessage ? 0 : 4, marginTop: 2 },
-              ]}>
-                {formatTime(msg.createdAt)}
-              </Text>
-            </View>
-          </SwipeableMessage>
-        </View>
-      );
-    }
-
-    if (msg.messageType === "post_share" && msg.metadata) {
-      return (
-        <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
-          {avatarEl}
-          <SwipeableMessage
-            messageId={msg.id}
-            highlightedIdSV={highlightedIdSV}
-            isMyMessage={isMyMessage}
-            onReply={() => setSelectedReply({
-              id: msg.id,
-              messageText: "Shared a post",
-              senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
-              isDeleted: msg.isDeleted,
-              isPostShare: true,
-              postAuthorUsername: msg.metadata?.authorUsername || msg.metadata?.author_username,
-              postCaption: msg.metadata?.caption,
-            })}
-            onLongPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setOptionsTarget(msg);
-            }}
-          >
-            <View collapsable={false}>
-              {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
-              {msg.replyPreview && (
-                <ReplyQuote
-                  replyPreview={msg.replyPreview}
-                  isMyMessage={isMyMessage}
-                  onPress={() => scrollToMessage(msg.replyToMessageId)}
-                />
-              )}
-              <SharedPostCard 
-                metadata={msg.metadata} 
-                onPress={(postId, postData) => {
-                  setSharedPosts(prev => ({ ...prev, [postId]: postData }));
-                  setSelectedSharedPost(postData); setSharedPostModalVisible(true);
-                }}
-                onUserPress={(userId, userType) => {
-                  const nav = navigation.getParent()?.getParent() || navigation;
-                  if (userType === "community") {
-                    nav.navigate("CommunityPublicProfile", { communityId: userId, viewerRole: "member" });
-                  } else {
-                    nav.navigate("MemberPublicProfile", { memberId: userId });
-                  }
-                }}
-              />
-            </View>
-          </SwipeableMessage>
-        </View>
-      );
-    }
-
-    if (msg.messageType === "opportunity_share" && msg.metadata) {
-      return (
-        <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
-          {avatarEl}
-          <SwipeableMessage
-            messageId={msg.id}
-            highlightedIdSV={highlightedIdSV}
-            isMyMessage={isMyMessage}
-            onReply={() => setSelectedReply({
-              id: msg.id,
-              messageText: "Shared an opportunity",
-              senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
-              isDeleted: msg.isDeleted,
-            })}
-            onLongPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setOptionsTarget(msg);
-            }}
-          >
-            <View collapsable={false}>
-              {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
-              {msg.replyPreview && (
-                <ReplyQuote
-                  replyPreview={msg.replyPreview}
-                  isMyMessage={isMyMessage}
-                  onPress={() => scrollToMessage(msg.replyToMessageId)}
-                />
-              )}
-              <SharedOpportunityCard
-                metadata={msg.metadata}
-                onPress={(opportunityId) => {
-                  const nav = navigation.getParent()?.getParent() || navigation;
-                  nav.navigate("OpportunityView", {
-                    opportunityId,
-                    opportunity: { id: opportunityId, ...msg.metadata },
-                  });
-                }}
-              />
-            </View>
-          </SwipeableMessage>
-        </View>
-      );
-    }
-
-    const bubbleContent = (
-      <View collapsable={false} style={{ alignItems: isMyMessage ? "flex-end" : "flex-start", maxWidth: "100%" }}>
-        {msg.replyPreview && (
-          <ReplyQuote replyPreview={msg.replyPreview} isMyMessage={isMyMessage} onPress={() => scrollToMessage(msg.replyToMessageId)} />
-        )}
-        <View style={[
-          styles.messageBubble, 
-          isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble,
-          msg.replyPreview && (isMyMessage ? styles.myMessageBubbleReplied : styles.otherMessageBubbleReplied)
-        ]}>
-          <Text style={[styles.messageText, isMyMessage ? styles.myMessageText : styles.otherMessageText]}>{msg.messageText}</Text>
-          <Text style={[styles.messageTime, isMyMessage ? styles.myMessageTime : styles.otherMessageTime]}>{formatTime(msg.createdAt)}</Text>
-        </View>
-      </View>
-    );
+    const nextItem = flatListData[index + 1];
+    const nextMsg = nextItem?.type === "message" ? nextItem.data : null;
+    const showAvatar = shouldShowAvatar(msg, nextMsg, isMyMessage);
+    const showSenderName = isGroup && !isMyMessage && (!nextMsg || nextMsg.senderId !== msg.senderId);
 
     return (
-      <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
-        {avatarEl}
-        <View style={{ flex: 1 }}>
-          {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
-          <SwipeableMessage
-            messageId={msg.id}
-            highlightedIdSV={highlightedIdSV}
-            isMyMessage={isMyMessage}
-            onReply={() => setSelectedReply({
-              id: msg.id,
-              messageText: msg.messageText,
-              senderName: isMyMessage ? "You" : (msg.senderName || recipient?.name),
-              isDeleted: msg.isDeleted,
-            })}
-            onLongPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              setOptionsTarget(msg);
-            }}
-          >
-            {bubbleContent}
-          </SwipeableMessage>
-        </View>
-      </View>
+      <MessageRow
+        item={item}
+        index={index}
+        isMyMessage={isMyMessage}
+        showAvatar={showAvatar}
+        showSenderName={showSenderName}
+        isGroup={isGroup}
+        currentUser={currentUser}
+        recipient={recipient}
+        recipientId={recipientId}
+        rsvpLoading={rsvpLoading[msg.id]}
+        highlightedIdSV={highlightedIdSV}
+        onReply={handleReply}
+        onLongPress={handleLongPress}
+        onRSVP={handleRSVP}
+        onOpenViewer={handleOpenViewer}
+        onPressPostShare={handlePressPostShare}
+        onPressUser={handlePressUser}
+        onPressOpportunity={handlePressOpportunity}
+        onPressReplyQuote={scrollToMessage}
+        navigation={navigation}
+      />
     );
-  };
+  }, [
+    isGroup,
+    currentUser,
+    recipient,
+    recipientId,
+    flatListData,
+    shouldShowAvatar,
+    rsvpLoading,
+    highlightedIdSV,
+    handleReply,
+    handleLongPress,
+    handleRSVP,
+    handleOpenViewer,
+    handlePressPostShare,
+    handlePressUser,
+    handlePressOpportunity,
+    scrollToMessage,
+    navigation,
+  ]);
 
   // ——— Loading screen —————————————————————————————————————————————————————————————
   if (loading) {
@@ -1652,7 +1729,7 @@ export default function ChatScreen({ route, navigation }) {
               <>
                 {recipient && (
                   <>
-                    <Image source={{ uri: recipient.profilePhotoUrl || "https://via.placeholder.com/32" }} style={styles.headerAvatar} />
+                    <Image source={{ uri: recipient.profilePhotoUrl }} style={styles.headerAvatar} contentFit="cover" cachePolicy="memory-disk" />
                     <View style={styles.headerInfo}>
                       <Text style={styles.headerName} numberOfLines={1}>{recipient.name || "User"}</Text>
                       <Text style={styles.headerUsername} numberOfLines={1}>@{recipient.username || "user"}</Text>
@@ -1685,6 +1762,13 @@ export default function ChatScreen({ route, navigation }) {
               inverted
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.listContent}
+              maintainVisibleContentPosition={{
+                minIndexForVisible: 0,
+              }}
+              initialNumToRender={15}
+              maxToRenderPerBatch={8}
+              windowSize={21}
+              removeClippedSubviews={false}
               onEndReached={() => {
                 if (hasMore && !loadingOlder) {
                   loadOlderMessages(currentConversationId);
@@ -1738,7 +1822,8 @@ export default function ChatScreen({ route, navigation }) {
                           <Image
                             source={{ uri: att.thumbnailUri || att.uri }}
                             style={styles.mediaPreviewThumb}
-                            resizeMode="cover"
+                            contentFit="cover"
+                            cachePolicy="memory"
                           />
                           {att.type === "video" && (
                             <View style={styles.mediaPreviewVideoIcon}>
