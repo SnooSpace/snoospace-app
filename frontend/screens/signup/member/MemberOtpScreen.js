@@ -470,61 +470,65 @@ const MemberOtpScreen = ({ route, navigation }) => {
           </View>
         </ScrollView>
 
-        <AccountPickerModal
-          visible={showAccountPicker}
-          onClose={() => setShowAccountPicker(false)}
-          onGoBack={async () => {
-            await clearPendingAccountSelection();
-            setShowAccountPicker(false);
-            setShowGoBackModal(true);
-          }}
-          accounts={accounts}
-          onSelectAccount={handleSelectAccount}
-          onCreateNewProfile={handleCreateNewProfile}
-          loading={accountPickerLoading}
-          email={email}
-        />
+        {showAccountPicker && (
+          <AccountPickerModal
+            visible={showAccountPicker}
+            onClose={() => setShowAccountPicker(false)}
+            onGoBack={async () => {
+              await clearPendingAccountSelection();
+              setShowAccountPicker(false);
+              setShowGoBackModal(true);
+            }}
+            accounts={accounts}
+            onSelectAccount={handleSelectAccount}
+            onCreateNewProfile={handleCreateNewProfile}
+            loading={accountPickerLoading}
+            email={email}
+          />
+        )}
 
-        <Modal
-          visible={showGoBackModal}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowGoBackModal(false)}
-          statusBarTranslucent={true}
-        >
-          <TouchableWithoutFeedback onPress={() => setShowGoBackModal(false)}>
-            <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback onPress={() => {}}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Go Back?</Text>
-                  <Text style={styles.modalMessage}>
-                    You'll need to request a new code if you go back.
-                  </Text>
-                  <View style={styles.modalActions}>
-                    <TouchableOpacity
-                      style={styles.modalSecondaryButton}
-                      onPress={() => setShowGoBackModal(false)}
-                    >
-                      <Text style={styles.modalSecondaryButtonText}>Stay</Text>
-                    </TouchableOpacity>
-                    <View style={styles.modalVerticalDivider} />
-                    <TouchableOpacity
-                      style={styles.modalPrimaryButton}
-                      onPress={() => {
-                        setShowGoBackModal(false);
-                        navigation.goBack();
-                      }}
-                    >
-                      <GradientText style={styles.modalPrimaryButtonText}>
-                        Change Email
-                      </GradientText>
-                    </TouchableOpacity>
+        {showGoBackModal && (
+          <Modal
+            visible={showGoBackModal}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setShowGoBackModal(false)}
+            statusBarTranslucent={true}
+          >
+            <TouchableWithoutFeedback onPress={() => setShowGoBackModal(false)}>
+              <View style={styles.modalOverlay}>
+                <TouchableWithoutFeedback onPress={() => {}}>
+                  <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>Go Back?</Text>
+                    <Text style={styles.modalMessage}>
+                      You'll need to request a new code if you go back.
+                    </Text>
+                    <View style={styles.modalActions}>
+                      <TouchableOpacity
+                        style={styles.modalSecondaryButton}
+                        onPress={() => setShowGoBackModal(false)}
+                      >
+                        <Text style={styles.modalSecondaryButtonText}>Stay</Text>
+                      </TouchableOpacity>
+                      <View style={styles.modalVerticalDivider} />
+                      <TouchableOpacity
+                        style={styles.modalPrimaryButton}
+                        onPress={() => {
+                          setShowGoBackModal(false);
+                          navigation.goBack();
+                        }}
+                      >
+                        <GradientText style={styles.modalPrimaryButtonText}>
+                          Change Email
+                        </GradientText>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
+                </TouchableWithoutFeedback>
+              </View>
+            </TouchableWithoutFeedback>
+          </Modal>
+        )}
 
       </SafeAreaView>
     </ImageBackground>

@@ -94,6 +94,7 @@ import { INTEREST_CATEGORIES, getInterestStyle } from "./EditProfileConstants";
 import { OCCUPATION_CATEGORIES, getOccupationLabel, getOccupationCategory } from "../../../constants/OccupationConstants";
 import { getSubFieldsForOccupation, getSubFieldsForCategory, shouldShowPortfolio, CATEGORY_GENERIC_FIELDS } from "../../../constants/OccupationSubFields";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import FormTextInput from "../../../components/ui/FormTextInput";
 
 // Pronoun Category Tints
 const PRONOUN_STYLE_CONFIG = {
@@ -365,7 +366,7 @@ export default function EditProfileScreen({ route, navigation }) {
     [profile?.username],
   );
 
-  const handleUsernameChange = (value) => {
+  const handleUsernameChange = useCallback((value) => {
     const sanitized = value.toLowerCase().replace(/[^a-z0-9._]/g, "");
     setUsername(sanitized);
     if (sanitized.length >= 3) {
@@ -377,7 +378,11 @@ export default function EditProfileScreen({ route, navigation }) {
     } else {
       setUsernameAvailable(null);
     }
-  };
+  }, [checkUsernameAvailability]);
+
+  const handleOccupationDetailChange = useCallback((text, key) => {
+    setOccupationDetails((prev) => ({ ...prev, [key]: text }));
+  }, []);
 
   const { pickAndCrop } = useCrop();
 
@@ -559,7 +564,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>DISPLAY NAME</Text>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               value={name}
               onChangeText={setName}
@@ -572,7 +577,7 @@ export default function EditProfileScreen({ route, navigation }) {
             <Text style={styles.inputLabel}>USERNAME</Text>
             <View style={[styles.input, styles.rowInput]}>
               <Text style={styles.prefix}>@</Text>
-              <TextInput
+              <FormTextInput
                 style={styles.flexInput}
                 value={username}
                 onChangeText={handleUsernameChange}
@@ -633,7 +638,7 @@ export default function EditProfileScreen({ route, navigation }) {
         <View style={styles.card}>
           {renderSectionHeader("ABOUT ME", NotebookText)}
           <View style={styles.inputGroupLast}>
-            <TextInput
+            <FormTextInput
               style={styles.bioInput}
               value={bio}
               onChangeText={setBio}
@@ -829,10 +834,11 @@ export default function EditProfileScreen({ route, navigation }) {
                             <Text style={styles.inputLabel}>
                               {field.label}{field.optional ? " (OPTIONAL)" : ""}
                             </Text>
-                            <TextInput
+                            <FormTextInput
+                              id={field.key}
                               style={styles.input}
                               value={occupationDetails[field.key] || ""}
-                              onChangeText={(text) => setOccupationDetails(prev => ({ ...prev, [field.key]: text }))}
+                              onChangeText={handleOccupationDetailChange}
                               placeholder={field.placeholder}
                               placeholderTextColor={TEXT_SECONDARY}
                               maxLength={200}
@@ -851,7 +857,7 @@ export default function EditProfileScreen({ route, navigation }) {
                 {shouldShowPortfolio(selectedOccupation, occupationCategory) && (
                   <View style={{ marginTop: selectedOccupation === "other" ? 2 : 16, marginBottom: 4 }}>
                     <Text style={styles.inputLabel}>PORTFOLIO / WEBSITE</Text>
-                    <TextInput
+                    <FormTextInput
                       style={styles.input}
                       value={portfolioLink}
                       onChangeText={setPortfolioLink}
@@ -1041,7 +1047,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
             <View style={styles.inputGroupLast}>
               <Text style={styles.inputLabel}>GRADUATION YEAR</Text>
-              <TextInput
+              <FormTextInput
                 style={styles.input}
                 value={educationYear}
                 onChangeText={setEducationYear}
@@ -1354,7 +1360,7 @@ export default function EditProfileScreen({ route, navigation }) {
                 { backgroundColor: "#F8F8F8" }
               ]}>
                 <Phone size={16} color={"#8B95A5"} style={{ marginRight: 10 }} />
-                <TextInput
+                <FormTextInput
                   ref={phoneInputRef}
                   style={[styles.flexInput, { color: TEXT_SECONDARY }]}
                   value={phone}

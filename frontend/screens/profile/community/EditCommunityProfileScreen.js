@@ -52,6 +52,7 @@ import {
 } from "../../../constants/theme";
 import HapticsService from "../../../services/HapticsService";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import FormTextInput from "../../../components/ui/FormTextInput";
 
 // Typography constants
 const FONT_HEADER = FONTS.primary || "BasicCommercial-Bold";
@@ -303,7 +304,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     }
   }, []);
 
-  const handleUsernameChange = (value) => {
+  const handleUsernameChange = useCallback((value) => {
     const sanitized = value.toLowerCase().replace(/[^a-z0-9._]/g, "");
     setUsername(sanitized);
     if (sanitized.length >= 3) {
@@ -315,7 +316,15 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     } else {
       setUsernameAvailable(null);
     }
-  };
+  }, [checkUsernameAvailability]);
+
+  const handlePrimaryPhoneChange = useCallback((val) => {
+    setPrimaryPhone(sanitizePhoneValue(val));
+  }, []);
+
+  const handleSecondaryPhoneChange = useCallback((val) => {
+    setSecondaryPhone(sanitizePhoneValue(val));
+  }, []);
 
   const { pickAndCrop } = useCrop();
 
@@ -579,7 +588,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
           {renderSectionHeader("THE BASICS", User)}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>COMMUNITY NAME</Text>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               value={name}
               onChangeText={setName}
@@ -592,7 +601,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
             <Text style={styles.inputLabel}>USERNAME</Text>
             <View style={[styles.input, styles.rowInput]}>
               <Text style={styles.prefix}>@</Text>
-              <TextInput
+              <FormTextInput
                 style={styles.flexInput}
                 value={username}
                 onChangeText={handleUsernameChange}
@@ -624,7 +633,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         <View style={styles.card}>
           {renderSectionHeader("ABOUT", NotebookText)}
           <View style={styles.inputGroupLast}>
-            <TextInput
+            <FormTextInput
               style={styles.bioInput}
               value={bio}
               onChangeText={setBio}
@@ -918,10 +927,10 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>PRIMARY PHONE</Text>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               value={primaryPhone}
-              onChangeText={(val) => setPrimaryPhone(sanitizePhoneValue(val))}
+              onChangeText={handlePrimaryPhoneChange}
               keyboardType="phone-pad"
               placeholder="+1 (555) 000-0000"
               placeholderTextColor={TEXT_SECONDARY}
@@ -930,10 +939,10 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
           <View style={styles.inputGroupLast}>
             <Text style={styles.inputLabel}>SECONDARY PHONE</Text>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               value={secondaryPhone}
-              onChangeText={(val) => setSecondaryPhone(sanitizePhoneValue(val))}
+              onChangeText={handleSecondaryPhoneChange}
               keyboardType="phone-pad"
               placeholder="Optional"
               placeholderTextColor={TEXT_SECONDARY}

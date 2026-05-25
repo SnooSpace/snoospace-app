@@ -1403,46 +1403,54 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       />
 
       {/* Comments Modal */}
-      <CommentsModal
-        visible={commentsModalVisible}
-        postId={selectedPostId}
-        onClose={() => {
-          setCommentsModalVisible(false);
-          setSelectedPostId(null);
-        }}
-        onCommentCountChange={
-          selectedPostId ? handleCommentCountChange(selectedPostId) : undefined
-        }
-        navigation={navigation}
-      />
+      {commentsModalVisible && (
+        <CommentsModal
+          visible={commentsModalVisible}
+          postId={selectedPostId}
+          onClose={() => {
+            setCommentsModalVisible(false);
+            setSelectedPostId(null);
+          }}
+          onCommentCountChange={
+            selectedPostId ? handleCommentCountChange(selectedPostId) : undefined
+          }
+          navigation={navigation}
+        />
+      )}
 
       {/* Share Modal */}
-      <ShareModal
-        visible={shareModalVisible}
-        post={selectedSharePost}
-        onClose={() => {
-          setShareModalVisible(false);
-          setSelectedSharePost(null);
-        }}
-      />
+      {shareModalVisible && (
+        <ShareModal
+          visible={shareModalVisible}
+          post={selectedSharePost}
+          onClose={() => {
+            setShareModalVisible(false);
+            setSelectedSharePost(null);
+          }}
+        />
+      )}
 
       {/* Attendance Confirmation Modal */}
-      <AttendanceConfirmationModal
-        visible={showAttendanceModal}
-        eventTitle={pendingAttendanceEvent?.title}
-        onConfirmAttendance={handleConfirmAttendance}
-        loading={attendanceLoading}
-      />
+      {showAttendanceModal && (
+        <AttendanceConfirmationModal
+          visible={showAttendanceModal}
+          eventTitle={pendingAttendanceEvent?.title}
+          onConfirmAttendance={handleConfirmAttendance}
+          loading={attendanceLoading}
+        />
+      )}
 
       {/* Delete Post Modal */}
-      <DeletePostModal
-        visible={deleteModalVisible}
-        onCancel={() => {
-          setDeleteModalVisible(false);
-          setPostToDelete(null);
-        }}
-        onDelete={handleConfirmDelete}
-      />
+      {deleteModalVisible && (
+        <DeletePostModal
+          visible={deleteModalVisible}
+          onCancel={() => {
+            setDeleteModalVisible(false);
+            setPostToDelete(null);
+          }}
+          onDelete={handleConfirmDelete}
+        />
+      )}
 
       {/* ── Account Switch Tutorial Overlay ──────────────────────────────── */}
       {tutorialStep > 0 && (

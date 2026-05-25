@@ -1569,218 +1569,222 @@ const EventDetailsScreen = ({ route, navigation }) => {
           </Animated.ScrollView>
 
           {/* Schedule and Timeline Modal */}
-          <Modal
-            visible={showScheduleModal}
-            transparent
-            animationType="slide"
-            statusBarTranslucent
-            onRequestClose={() => setShowScheduleModal(false)}
-          >
-            <TouchableOpacity
-              style={{
-                flex: 1,
-                backgroundColor: "rgba(0,0,0,0.4)",
-                justifyContent: "flex-end",
-              }}
-              activeOpacity={1}
-              onPress={() => setShowScheduleModal(false)}
+          {showScheduleModal && (
+            <Modal
+              visible={showScheduleModal}
+              transparent
+              animationType="slide"
+              statusBarTranslucent
+              onRequestClose={() => setShowScheduleModal(false)}
             >
-              <TouchableOpacity activeOpacity={1}>
-                <View
-                  style={{
-                    backgroundColor: "#FFFFFF",
-                    borderTopLeftRadius: 24,
-                    borderTopRightRadius: 24,
-                    paddingTop: 20,
-                    paddingHorizontal: 24,
-                    paddingBottom: 48,
-                  }}
-                >
-                  {/* Handle bar */}
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: "rgba(0,0,0,0.4)",
+                  justifyContent: "flex-end",
+                }}
+                activeOpacity={1}
+                onPress={() => setShowScheduleModal(false)}
+              >
+                <TouchableOpacity activeOpacity={1}>
                   <View
                     style={{
-                      width: 36,
-                      height: 4,
-                      borderRadius: 2,
-                      backgroundColor: "#E5E7EB",
-                      alignSelf: "center",
-                      marginBottom: 20,
-                    }}
-                  />
-
-                  {/* Header row */}
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: 24,
+                      backgroundColor: "#FFFFFF",
+                      borderTopLeftRadius: 24,
+                      borderTopRightRadius: 24,
+                      paddingTop: 20,
+                      paddingHorizontal: 24,
+                      paddingBottom: 48,
                     }}
                   >
-                    <Text
+                    {/* Handle bar */}
+                    <View
                       style={{
-                        fontFamily: "BasicCommercial-Bold",
-                        fontSize: 20,
-                        color: TEXT_COLOR,
-                        letterSpacing: -0.3,
+                        width: 36,
+                        height: 4,
+                        borderRadius: 2,
+                        backgroundColor: "#E5E7EB",
+                        alignSelf: "center",
+                        marginBottom: 20,
+                      }}
+                    />
+
+                    {/* Header row */}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: 24,
                       }}
                     >
-                      Schedule and timeline
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => setShowScheduleModal(false)}
-                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                    >
-                      <XCircle size={22} color={MUTED_TEXT} strokeWidth={2} />
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Date header */}
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      marginBottom: 20,
-                    }}
-                  >
-                    <Calendar size={16} color={MUTED_TEXT} strokeWidth={2} />
-                    <Text
-                      style={{
-                        fontFamily: "Manrope-Medium",
-                        fontSize: 14,
-                        color: MUTED_TEXT,
-                        marginLeft: 8,
-                      }}
-                    >
-                      {event.start_datetime || event.event_date
-                        ? new Date(
-                            event.start_datetime || event.event_date,
-                          ).toLocaleDateString("en-IN", {
-                            weekday: "short",
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : ""}
-                    </Text>
-                  </View>
-
-                  {/* Timeline items */}
-                  {[
-                    event.gates_open_time
-                      ? { label: "Gates open", time: event.gates_open_time }
-                      : null,
-                    event.start_datetime || event.event_date
-                      ? {
-                          label: "Event starts",
-                          time: event.start_datetime || event.event_date,
-                        }
-                      : null,
-                    {
-                      label: "Event ends",
-                      // Treat end_datetime as absent if it equals start_datetime
-                      // (backend stores start == end when no end time is set)
-                      time:
-                        event.end_datetime &&
-                        event.end_datetime !== event.start_datetime &&
-                        event.end_datetime !== event.event_date
-                          ? event.end_datetime
-                          : null,
-                    },
-                  ]
-                    .filter(Boolean)
-                    .map((item, index, arr) => (
-                      <View
-                        key={index}
-                        style={{ flexDirection: "row", alignItems: "stretch" }}
+                      <Text
+                        style={{
+                          fontFamily: "BasicCommercial-Bold",
+                          fontSize: 20,
+                          color: TEXT_COLOR,
+                          letterSpacing: -0.3,
+                        }}
                       >
-                        {/* Left connector column */}
+                        Schedule and timeline
+                      </Text>
+                      <TouchableOpacity
+                        onPress={() => setShowScheduleModal(false)}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                      >
+                        <XCircle size={22} color={MUTED_TEXT} strokeWidth={2} />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Date header */}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        marginBottom: 20,
+                      }}
+                    >
+                      <Calendar size={16} color={MUTED_TEXT} strokeWidth={2} />
+                      <Text
+                        style={{
+                          fontFamily: "Manrope-Medium",
+                          fontSize: 14,
+                          color: MUTED_TEXT,
+                          marginLeft: 8,
+                        }}
+                      >
+                        {event.start_datetime || event.event_date
+                          ? new Date(
+                              event.start_datetime || event.event_date,
+                            ).toLocaleDateString("en-IN", {
+                              weekday: "short",
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : ""}
+                      </Text>
+                    </View>
+
+                    {/* Timeline items */}
+                    {[
+                      event.gates_open_time
+                        ? { label: "Gates open", time: event.gates_open_time }
+                        : null,
+                      event.start_datetime || event.event_date
+                        ? {
+                            label: "Event starts",
+                            time: event.start_datetime || event.event_date,
+                          }
+                        : null,
+                      {
+                        label: "Event ends",
+                        // Treat end_datetime as absent if it equals start_datetime
+                        // (backend stores start == end when no end time is set)
+                        time:
+                          event.end_datetime &&
+                          event.end_datetime !== event.start_datetime &&
+                          event.end_datetime !== event.event_date
+                            ? event.end_datetime
+                            : null,
+                      },
+                    ]
+                      .filter(Boolean)
+                      .map((item, index, arr) => (
                         <View
-                          style={{
-                            width: 24,
-                            alignItems: "center",
-                            marginRight: 14,
-                          }}
+                          key={index}
+                          style={{ flexDirection: "row", alignItems: "stretch" }}
                         >
-                          {/* Circle node */}
+                          {/* Left connector column */}
                           <View
                             style={{
-                              width: 20,
-                              height: 20,
-                              borderRadius: 10,
-                              borderWidth: 2,
-                              borderColor: "#D1D5DB",
-                              backgroundColor: "#FFFFFF",
-                              marginTop: 14,
+                              width: 24,
+                              alignItems: "center",
+                              marginRight: 14,
                             }}
-                          />
-                          {/* Connector line (hide on last item) */}
-                          {index < arr.length - 1 && (
+                          >
+                            {/* Circle node */}
                             <View
                               style={{
-                                flex: 1,
-                                width: 2,
-                                backgroundColor: "#E5E7EB",
-                                marginTop: 2,
-                                marginBottom: 0,
+                                width: 20,
+                                height: 20,
+                                borderRadius: 10,
+                                borderWidth: 2,
+                                borderColor: "#D1D5DB",
+                                backgroundColor: "#FFFFFF",
+                                marginTop: 14,
                               }}
                             />
-                          )}
-                        </View>
+                            {/* Connector line (hide on last item) */}
+                            {index < arr.length - 1 && (
+                              <View
+                                style={{
+                                  flex: 1,
+                                  width: 2,
+                                  backgroundColor: "#E5E7EB",
+                                  marginTop: 2,
+                                  marginBottom: 0,
+                                }}
+                              />
+                            )}
+                          </View>
 
-                        {/* Row content */}
-                        <View
-                          style={{
-                            flex: 1,
-                            flexDirection: "row",
-                            justifyContent: "space-between",
-                            alignItems: "flex-start",
-                            paddingTop: 11,
-                            paddingBottom: index < arr.length - 1 ? 18 : 0,
-                          }}
-                        >
-                          <Text
+                          {/* Row content */}
+                          <View
                             style={{
-                              fontFamily: "Manrope-Regular",
-                              fontSize: 15,
-                              color: TEXT_COLOR,
+                              flex: 1,
+                              flexDirection: "row",
+                              justifyContent: "space-between",
+                              alignItems: "flex-start",
+                              paddingTop: 11,
+                              paddingBottom: index < arr.length - 1 ? 18 : 0,
                             }}
                           >
-                            {item.label}
-                          </Text>
-                          <Text
-                            style={{
-                              fontFamily: "Manrope-Medium",
-                              fontSize: 15,
-                              color: MUTED_TEXT,
-                            }}
-                          >
-                            {item.time
-                              ? new Date(item.time).toLocaleTimeString(
-                                  "en-IN",
-                                  {
-                                    hour: "numeric",
-                                    minute: "2-digit",
-                                    hour12: true,
-                                  },
-                                )
-                              : "Not specified"}
-                          </Text>
+                            <Text
+                              style={{
+                                fontFamily: "Manrope-Regular",
+                                fontSize: 15,
+                                color: TEXT_COLOR,
+                              }}
+                            >
+                              {item.label}
+                            </Text>
+                            <Text
+                              style={{
+                                fontFamily: "Manrope-Medium",
+                                fontSize: 15,
+                                color: MUTED_TEXT,
+                              }}
+                            >
+                              {item.time
+                                ? new Date(item.time).toLocaleTimeString(
+                                    "en-IN",
+                                    {
+                                      hour: "numeric",
+                                      minute: "2-digit",
+                                      hour12: true,
+                                    },
+                                  )
+                                : "Not specified"}
+                            </Text>
+                          </View>
                         </View>
-                      </View>
-                    ))}
-                </View>
+                      ))}
+                  </View>
+                </TouchableOpacity>
               </TouchableOpacity>
-            </TouchableOpacity>
-          </Modal>
+            </Modal>
+          )}
 
           {/* Attendance Confirmation Modal */}
-          <AttendanceConfirmationModal
-            visible={showAttendanceModal}
-            eventTitle={event.title}
-            onConfirmAttendance={handleConfirmAttendance}
-            loading={attendanceLoading}
-          />
+          {showAttendanceModal && (
+            <AttendanceConfirmationModal
+              visible={showAttendanceModal}
+              eventTitle={event.title}
+              onConfirmAttendance={handleConfirmAttendance}
+              loading={attendanceLoading}
+            />
+          )}
 
           {/* Locked View Attendees Toast */}
           {lockedToastVisible && (

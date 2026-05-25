@@ -64,6 +64,124 @@ const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 const PRIMARY_COLOR = COLORS.primary;
 
+// Render bio preserving explicit newlines exactly as typed
+const renderBio = (bioText) => {
+  if (!bioText) return null;
+  const lines = String(bioText).replace(/\r\n/g, "\n").split("\n");
+  return (
+    <Text style={styles.bioLeft}>
+      {lines.map((line, idx) => (
+        <Text key={`bio-${idx}`}>
+          {line}
+          {idx !== lines.length - 1 ? "\n" : ""}
+        </Text>
+      ))}
+    </Text>
+  );
+};
+
+const ProfileBioHeader = React.memo(({ profile, setShowCollegeHub }) => {
+  const visiblePronouns = Array.isArray(profile.pronouns)
+    ? profile.pronouns.filter((p) => p !== "Prefer not to say")
+    : [];
+  const hasBio = !!profile.bio;
+  const hasPronouns = visiblePronouns.length > 0;
+
+  return (
+    <>
+      <View style={styles.profileImageContainer}>
+        <Image
+          source={{
+            uri:
+              profile.profile_photo_url &&
+              /^https?:\/\//.test(profile.profile_photo_url)
+                ? profile.profile_photo_url
+                : `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                    profile.name || "Member",
+                  )}&background=6A0DAD&color=FFFFFF&size=120&bold=true`,
+          }}
+          style={styles.profileImage}
+        />
+      </View>
+
+      <View
+        style={[
+          styles.nameAndPronounsContainer,
+          !hasBio && !hasPronouns && { marginBottom: 30 },
+        ]}
+      >
+        <Text style={styles.profileName}>{profile.name}</Text>
+        {hasPronouns ? (
+          <View style={styles.pronounsRowCentered}>
+            <View style={[styles.chip, styles.pronounChipSmall]}>
+              <Text style={styles.chipText}>
+                {visiblePronouns
+                  .map((p) => String(p).replace(/^[{\"]+|[}\"]+$/g, ""))
+                  .join(" / ")}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+      </View>
+      {profile.bio ? renderBio(profile.bio) : null}
+
+      {/* College chip — only shown when member has linked a college and show_college is on */}
+      {profile.college_info && profile.show_college !== false ? (
+        <View style={{ marginTop: 10, marginBottom: 16, alignItems: 'center' }}>
+          <CollegeChip
+            collegeInfo={profile.college_info}
+            onPress={() => setShowCollegeHub(true)}
+          />
+        </View>
+      ) : null}
+    </>
+  );
+});
+
+const ProfileInterestsSection = React.memo(({ interests, showAllInterests, setShowAllInterests }) => {
+  if (!Array.isArray(interests) || interests.length === 0) return null;
+  return (
+    <View style={styles.metaChipsSection}>
+      <View style={[styles.chipGridRow, { marginTop: 6 }]}>
+        {(showAllInterests
+          ? interests
+          : interests.slice(0, 6)
+        ).map((i, idx) => (
+          <ThemeChip
+            key={`interest-${idx}`}
+            label={String(i)}
+            index={idx}
+            style={styles.chipGridItem}
+          />
+        ))}
+        {interests.length > 6 && !showAllInterests ? (
+          <TouchableOpacity
+            onPress={() => setShowAllInterests(true)}
+            style={[styles.chip, styles.chipBlue]}
+          >
+            <Text style={[styles.chipText, styles.chipTextBlue]}>
+              See all
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+        {interests.length > 6 && showAllInterests ? (
+          <TouchableOpacity
+            onPress={() => setShowAllInterests(false)}
+            style={[
+              styles.chip,
+              { backgroundColor: "#FF3B30", borderColor: "#FF3B30" },
+            ]}
+          >
+            <Text style={[styles.chipText, { color: "#FFFFFF" }]}>
+              Collapse
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </View>
+  );
+});
+
 export default function MemberProfileScreen({ navigation }) {
   const route = useRoute();
   console.log(
@@ -472,21 +590,6 @@ export default function MemberProfileScreen({ navigation }) {
     HapticsService.triggerImpactLight();
     // Navigate to EditProfile (same stack - ProfileStackNavigator)
     navigation.navigate("EditProfile", { profile });
-  };
-  // Render bio preserving explicit newlines exactly as typed
-  const renderBio = (bioText) => {
-    if (!bioText) return null;
-    const lines = String(bioText).replace(/\r\n/g, "\n").split("\n");
-    return (
-      <Text style={styles.bioLeft}>
-        {lines.map((line, idx) => (
-          <Text key={`bio-${idx}`}>
-            {line}
-            {idx !== lines.length - 1 ? "\n" : ""}
-          </Text>
-        ))}
-      </Text>
-    );
   };
 
   // Change Photo moved to Edit Profile screen
@@ -1108,60 +1211,10 @@ export default function MemberProfileScreen({ navigation }) {
       >
         {/* Profile Section */}
         <View style={styles.profileSection}>
-          <View style={styles.profileImageContainer}>
-            <Image
-              source={{
-                uri:
-                  profile.profile_photo_url &&
-                  /^https?:\/\//.test(profile.profile_photo_url)
-                    ? profile.profile_photo_url
-                    : `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                        profile.name || "Member",
-                      )}&background=6A0DAD&color=FFFFFF&size=120&bold=true`,
-              }}
-              style={styles.profileImage}
-            />
-          </View>
-
-          {(() => {
-            const visiblePronouns = Array.isArray(profile.pronouns)
-              ? profile.pronouns.filter((p) => p !== "Prefer not to say")
-              : [];
-            const hasBio = !!profile.bio;
-            const hasPronouns = visiblePronouns.length > 0;
-            return (
-              <View
-                style={[
-                  styles.nameAndPronounsContainer,
-                  !hasBio && !hasPronouns && { marginBottom: 30 },
-                ]}
-              >
-                <Text style={styles.profileName}>{profile.name}</Text>
-                {hasPronouns ? (
-                  <View style={styles.pronounsRowCentered}>
-                    <View style={[styles.chip, styles.pronounChipSmall]}>
-                      <Text style={styles.chipText}>
-                        {visiblePronouns
-                          .map((p) => String(p).replace(/^[{\"]+|[}\"]+$/g, ""))
-                          .join(" / ")}
-                      </Text>
-                    </View>
-                  </View>
-                ) : null}
-              </View>
-            );
-          })()}
-          {profile.bio ? renderBio(profile.bio) : null}
-
-          {/* College chip — only shown when member has linked a college and show_college is on */}
-          {profile.college_info && profile.show_college !== false ? (
-            <View style={{ marginTop: 10, marginBottom: 16, alignItems: 'center' }}>
-              <CollegeChip
-                collegeInfo={profile.college_info}
-                onPress={() => setShowCollegeHub(true)}
-              />
-            </View>
-          ) : null}
+          <ProfileBioHeader
+            profile={profile}
+            setShowCollegeHub={setShowCollegeHub}
+          />
 
           {/* Stats */}
           <View style={styles.statsContainer}>
@@ -1202,46 +1255,11 @@ export default function MemberProfileScreen({ navigation }) {
           </View>
 
           {/* Interests */}
-          {Array.isArray(profile.interests) && profile.interests.length > 0 ? (
-            <View style={styles.metaChipsSection}>
-              <View style={[styles.chipGridRow, { marginTop: 6 }]}>
-                {(showAllInterests
-                  ? profile.interests
-                  : profile.interests.slice(0, 6)
-                ).map((i, idx) => (
-                  <ThemeChip
-                    key={`interest-${idx}`}
-                    label={String(i)}
-                    index={idx}
-                    style={styles.chipGridItem}
-                  />
-                ))}
-                {profile.interests.length > 6 && !showAllInterests ? (
-                  <TouchableOpacity
-                    onPress={() => setShowAllInterests(true)}
-                    style={[styles.chip, styles.chipBlue]}
-                  >
-                    <Text style={[styles.chipText, styles.chipTextBlue]}>
-                      See all
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-                {profile.interests.length > 6 && showAllInterests ? (
-                  <TouchableOpacity
-                    onPress={() => setShowAllInterests(false)}
-                    style={[
-                      styles.chip,
-                      { backgroundColor: "#FF3B30", borderColor: "#FF3B30" },
-                    ]}
-                  >
-                    <Text style={[styles.chipText, { color: "#FFFFFF" }]}>
-                      Collapse
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-              </View>
-            </View>
-          ) : null}
+          <ProfileInterestsSection
+            interests={profile.interests}
+            showAllInterests={showAllInterests}
+            setShowAllInterests={setShowAllInterests}
+          />
 
           {/* Action Buttons */}
           {isOwnProfile ? (
@@ -1456,103 +1474,107 @@ export default function MemberProfileScreen({ navigation }) {
         navigation={navigation}
       />
 
-      <AccountSwitcherModal
-        visible={showAccountSwitcher}
-        onClose={() => setShowAccountSwitcher(false)}
-        currentAccountId={profile?.id ? `member_${profile.id}` : undefined}
-        currentProfile={profile ? { ...profile, type: "member" } : null}
-        onAccountSwitch={(account) => {
-          // Navigate to correct home screen based on account type
-          const routeName =
-            account.type === "member"
-              ? "MemberHome"
-              : account.type === "community"
-                ? "CommunityHome"
-                : account.type === "sponsor"
-                  ? "SponsorHome"
-                  : account.type === "venue"
-                    ? "VenueHome"
-                    : "Landing";
+      {showAccountSwitcher && (
+        <AccountSwitcherModal
+          visible={showAccountSwitcher}
+          onClose={() => setShowAccountSwitcher(false)}
+          currentAccountId={profile?.id ? `member_${profile.id}` : undefined}
+          currentProfile={profile ? { ...profile, type: "member" } : null}
+          onAccountSwitch={(account) => {
+            // Navigate to correct home screen based on account type
+            const routeName =
+              account.type === "member"
+                ? "MemberHome"
+                : account.type === "community"
+                  ? "CommunityHome"
+                  : account.type === "sponsor"
+                    ? "SponsorHome"
+                    : account.type === "venue"
+                      ? "VenueHome"
+                      : "Landing";
 
-          // Get the ROOT navigator (go up the parent chain)
-          let rootNavigator = navigation;
-          try {
-            // ProfileStackNavigator → MemberHomeTabNavigator → RootNavigator
-            if (navigation.getParent) {
-              const parent1 = navigation.getParent(); // MemberHomeTabNavigator
-              if (parent1 && parent1.getParent) {
-                const parent2 = parent1.getParent(); // RootNavigator
-                if (parent2) {
-                  rootNavigator = parent2;
+            // Get the ROOT navigator (go up the parent chain)
+            let rootNavigator = navigation;
+            try {
+              // ProfileStackNavigator → MemberHomeTabNavigator → RootNavigator
+              if (navigation.getParent) {
+                const parent1 = navigation.getParent(); // MemberHomeTabNavigator
+                if (parent1 && parent1.getParent) {
+                  const parent2 = parent1.getParent(); // RootNavigator
+                  if (parent2) {
+                    rootNavigator = parent2;
+                  }
                 }
               }
+            } catch (error) {
+              console.warn(
+                "[AccountSwitch] Could not get root navigator:",
+                error,
+              );
             }
-          } catch (error) {
-            console.warn(
-              "[AccountSwitch] Could not get root navigator:",
-              error,
-            );
-          }
 
-          console.log("[AccountSwitch] Resetting to:", routeName);
-          rootNavigator.reset({
-            index: 0,
-            routes: [{ name: routeName }],
-          });
-        }}
-        onAddAccount={() => {
-          setShowAddAccountModal(true);
-        }}
-        onLoginRequired={(account) => {
-          // Navigate to login with pre-filled email using root navigator
-          setShowAccountSwitcher(false);
-
-          // Get root navigator to ensure we can navigate to Login
-          let rootNavigator = navigation;
-          if (navigation.getParent) {
-            const parent = navigation.getParent();
-            if (parent) {
-              rootNavigator = parent.getParent ? parent.getParent() : parent;
-            }
-          }
-
-          console.log(
-            "[MemberProfile] Navigating to Login for logged-out account:",
-            account.email,
-          );
-
-          // Navigate to Login screen
-          try {
-            rootNavigator.navigate("Login", {
-              email: account.email,
-              isAddingAccount: false,
-            });
-          } catch (error) {
-            console.error(
-              "[MemberProfile] Failed to navigate to Login:",
-              error,
-            );
-            // Fallback: reset to Landing which has Login
+            console.log("[AccountSwitch] Resetting to:", routeName);
             rootNavigator.reset({
               index: 0,
-              routes: [{ name: "Landing" }],
+              routes: [{ name: routeName }],
             });
-          }
-        }}
-      />
+          }}
+          onAddAccount={() => {
+            setShowAddAccountModal(true);
+          }}
+          onLoginRequired={(account) => {
+            // Navigate to login with pre-filled email using root navigator
+            setShowAccountSwitcher(false);
 
-      <AddAccountModal
-        visible={showAddAccountModal}
-        onClose={() => setShowAddAccountModal(false)}
-        onLoginExisting={() => {
-          // Navigate to login with isAddingAccount flag
-          navigation.navigate("Login", { isAddingAccount: true });
-        }}
-        onCreateNew={() => {
-          // Navigate to signup landing
-          navigation.navigate("Landing", { fromSwitcher: true });
-        }}
-      />
+            // Get root navigator to ensure we can navigate to Login
+            let rootNavigator = navigation;
+            if (navigation.getParent) {
+              const parent = navigation.getParent();
+              if (parent) {
+                rootNavigator = parent.getParent ? parent.getParent() : parent;
+              }
+            }
+
+            console.log(
+              "[MemberProfile] Navigating to Login for logged-out account:",
+              account.email,
+            );
+
+            // Navigate to Login screen
+            try {
+              rootNavigator.navigate("Login", {
+                email: account.email,
+                isAddingAccount: false,
+              });
+            } catch (error) {
+              console.error(
+                "[MemberProfile] Failed to navigate to Login:",
+                error,
+              );
+              // Fallback: reset to Landing which has Login
+              rootNavigator.reset({
+                index: 0,
+                routes: [{ name: "Landing" }],
+              });
+            }
+          }}
+        />
+      )}
+
+      {showAddAccountModal && (
+        <AddAccountModal
+          visible={showAddAccountModal}
+          onClose={() => setShowAddAccountModal(false)}
+          onLoginExisting={() => {
+            // Navigate to login with isAddingAccount flag
+            navigation.navigate("Login", { isAddingAccount: true });
+          }}
+          onCreateNew={() => {
+            // Navigate to signup landing
+            navigation.navigate("Landing", { fromSwitcher: true });
+          }}
+        />
+      )}
 
       <SettingsModal
         visible={showSettingsModal}
@@ -1585,14 +1607,16 @@ export default function MemberProfileScreen({ navigation }) {
         lightTextColor={LIGHT_TEXT_COLOR}
       />
 
-      <LogoutModal
-        visible={showLogoutModal}
-        onClose={() => setShowLogoutModal(false)}
-        onLogoutCurrent={() => performLogout(false)}
-        onLogoutAll={() => performLogout(true)}
-        currentAccount={logoutModalData.currentAccount}
-        hasMultipleAccounts={logoutModalData.hasMultiple}
-      />
+      {showLogoutModal && (
+        <LogoutModal
+          visible={showLogoutModal}
+          onClose={() => setShowLogoutModal(false)}
+          onLogoutCurrent={() => performLogout(false)}
+          onLogoutAll={() => performLogout(true)}
+          currentAccount={logoutModalData.currentAccount}
+          hasMultipleAccounts={logoutModalData.hasMultiple}
+        />
+      )}
 
       {/* Old Delete Account Modal removed */}
 

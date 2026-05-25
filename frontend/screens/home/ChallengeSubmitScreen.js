@@ -741,17 +741,19 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <CustomImagePicker
-        visible={isCustomPickerVisible}
-        onClose={() => setIsCustomPickerVisible(false)}
-        onDone={handleCustomPickerDone}
-        selectionLimit={
-          pickerMode === "video"
-            ? 1
-            : maxImagesPerSubmission - selectedImages.length
-        }
-        allowVideos={pickerMode === "video"}
-      />
+      {isCustomPickerVisible && (
+        <CustomImagePicker
+          visible={isCustomPickerVisible}
+          onClose={() => setIsCustomPickerVisible(false)}
+          onDone={handleCustomPickerDone}
+          selectionLimit={
+            pickerMode === "video"
+              ? 1
+              : maxImagesPerSubmission - selectedImages.length
+          }
+          allowVideos={pickerMode === "video"}
+        />
+      )}
     </SafeAreaView>
   );
 };

@@ -610,13 +610,15 @@ export default function CommunityCreatePostScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <SuccessCard
-        visible={showCelebration}
-        type={postType}
-        data={successCardData}
-        onPrimaryAction={handleViewPost}
-        onSecondaryAction={handleCreateAnother}
-      />
+      {showCelebration && (
+        <SuccessCard
+          visible={showCelebration}
+          type={postType}
+          data={successCardData}
+          onPrimaryAction={handleViewPost}
+          onSecondaryAction={handleCreateAnother}
+        />
+      )}
 
       <BlurView
         intensity={80}
@@ -954,9 +956,9 @@ export default function CommunityCreatePostScreen({ navigation }) {
           </View>
         </KeyboardAwareToolbar>
       )}
-      {renderGuidelinesModal()}
-      {renderDiscardModal()}
-      {renderRemoveMediaModal()}
+      {showGuidelines && renderGuidelinesModal()}
+      {showDiscardModal && renderDiscardModal()}
+      {showRemoveMediaModal && renderRemoveMediaModal()}
     </View>
   );
 }

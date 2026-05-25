@@ -1917,45 +1917,51 @@ export default function ChatScreen({ route, navigation }) {
           </View>
         </KeyboardAwareToolbar>
 
-        <MessageOptionsModal 
-          visible={!!optionsTarget} 
-          isMyMessage={isGroup
-            ? (String(optionsTarget?.senderId) === String(currentUser?.id) && (optionsTarget?.senderType || "member") === (currentUser?.type || "member"))
-            : optionsTarget?.senderId !== (recipient?.id || recipientId)}
-          onReply={() => {
-            const isOwnMsg = isGroup
+        {!!optionsTarget && (
+          <MessageOptionsModal 
+            visible={!!optionsTarget} 
+            isMyMessage={isGroup
               ? (String(optionsTarget?.senderId) === String(currentUser?.id) && (optionsTarget?.senderType || "member") === (currentUser?.type || "member"))
-              : optionsTarget?.senderId !== (recipient?.id || recipientId);
-            setSelectedReply({
-              id: optionsTarget.id,
-              messageText: optionsTarget.messageText,
-              senderName: isOwnMsg ? "You" : (optionsTarget.senderName || recipient?.name),
-              isDeleted: optionsTarget.isDeleted,
-            });
-            setOptionsTarget(null);
-            setTimeout(() => inputRef.current?.focus(), 100);
-          }}
-          onUnsend={() => {
-            handleUnsend(optionsTarget.id);
-            setOptionsTarget(null);
-          }}
-          onCancel={() => setOptionsTarget(null)} 
-        />
+              : optionsTarget?.senderId !== (recipient?.id || recipientId)}
+            onReply={() => {
+              const isOwnMsg = isGroup
+                ? (String(optionsTarget?.senderId) === String(currentUser?.id) && (optionsTarget?.senderType || "member") === (currentUser?.type || "member"))
+                : optionsTarget?.senderId !== (recipient?.id || recipientId);
+              setSelectedReply({
+                id: optionsTarget.id,
+                messageText: optionsTarget.messageText,
+                senderName: isOwnMsg ? "You" : (optionsTarget.senderName || recipient?.name),
+                isDeleted: optionsTarget.isDeleted,
+              });
+              setOptionsTarget(null);
+              setTimeout(() => inputRef.current?.focus(), 100);
+            }}
+            onUnsend={() => {
+              handleUnsend(optionsTarget.id);
+              setOptionsTarget(null);
+            }}
+            onCancel={() => setOptionsTarget(null)} 
+          />
+        )}
 
-        <ChatActionsSheet
-          visible={chatActionsVisible}
-          onClose={() => setChatActionsVisible(false)}
-          onDeleteChat={handleDeleteChat}
-          onReport={handleStartReport}
-          onMute={handleMuteChat}
-          isMuted={isMuted}
-        />
+        {chatActionsVisible && (
+          <ChatActionsSheet
+            visible={chatActionsVisible}
+            onClose={() => setChatActionsVisible(false)}
+            onDeleteChat={handleDeleteChat}
+            onReport={handleStartReport}
+            onMute={handleMuteChat}
+            isMuted={isMuted}
+          />
+        )}
 
-        <ReportReasonSheet
-          visible={reportSheetVisible}
-          onClose={() => setReportSheetVisible(false)}
-          onSelect={handleReportReason}
-        />
+        {reportSheetVisible && (
+          <ReportReasonSheet
+            visible={reportSheetVisible}
+            onClose={() => setReportSheetVisible(false)}
+            onSelect={handleReportReason}
+          />
+        )}
 
         {sharedPostModalVisible && selectedSharedPost && (
           <ProfilePostFeed
@@ -1971,42 +1977,50 @@ export default function ChatScreen({ route, navigation }) {
           />
         )}
 
-        <CustomImagePicker
-          visible={mediaPickerOpen}
-          onClose={() => setMediaPickerOpen(false)}
-          onDone={handleCustomPickerDone}
-          selectionLimit={10}
-          allowVideos
-          videoMaxDuration={120}
-        />
+        {mediaPickerOpen && (
+          <CustomImagePicker
+            visible={mediaPickerOpen}
+            onClose={() => setMediaPickerOpen(false)}
+            onDone={handleCustomPickerDone}
+            selectionLimit={10}
+            allowVideos
+            videoMaxDuration={120}
+          />
+        )}
 
-        <VideoSendPreviewModal
-          visible={!!videoPreviewing}
-          videoUri={videoPreviewing?.uri}
-          duration={videoPreviewing?.duration}
-          onClose={() => setVideoPreviewing(null)}
-          onSend={handleVideoSendConfirm}
-        />
+        {!!videoPreviewing && (
+          <VideoSendPreviewModal
+            visible={!!videoPreviewing}
+            videoUri={videoPreviewing?.uri}
+            duration={videoPreviewing?.duration}
+            onClose={() => setVideoPreviewing(null)}
+            onSend={handleVideoSendConfirm}
+          />
+        )}
 
-        <MediaViewerTimeline
-          timeline={mediaTimeline}
-          initialIndex={viewerIndex}
-          visible={viewerVisible}
-          onClose={() => setViewerVisible(false)}
-          onReply={(mediaItem) => {
-            setViewerVisible(false);
-            setSelectedReply({
-              id: mediaItem.messageId,
-              messageText: mediaItem.type === "video" ? "Video" : "Photo",
-              messageType: mediaItem.type === "video" ? "video" : "image",
-              senderName: mediaItem.senderName,
-              isDeleted: false,
-            });
-            setTimeout(() => inputRef.current?.focus(), 100);
-          }}
-        />
+        {viewerVisible && (
+          <MediaViewerTimeline
+            timeline={mediaTimeline}
+            initialIndex={viewerIndex}
+            visible={viewerVisible}
+            onClose={() => setViewerVisible(false)}
+            onReply={(mediaItem) => {
+              setViewerVisible(false);
+              setSelectedReply({
+                id: mediaItem.messageId,
+                messageText: mediaItem.type === "video" ? "Video" : "Photo",
+                messageType: mediaItem.type === "video" ? "video" : "image",
+                senderName: mediaItem.senderName,
+                isDeleted: false,
+              });
+              setTimeout(() => inputRef.current?.focus(), 100);
+            }}
+          />
+        )}
 
-        <CustomAlertModal onClose={hideAlert} {...alertConfig} />
+        {alertConfig.visible && (
+          <CustomAlertModal onClose={hideAlert} {...alertConfig} />
+        )}
       </View>
     </GestureHandlerRootView>
   );

@@ -349,7 +349,7 @@ const getProfileCounts = async (req, res) => {
       `SELECT
         (SELECT COUNT(*) FROM follows WHERE following_id = $1 AND following_type = $2) AS followers_count,
         (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = $2) AS following_count,
-        (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = $2 AND is_deleted IS NOT TRUE) AS post_count`,
+        (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = $2) AS post_count`,
       [userId, userType]
     );
 

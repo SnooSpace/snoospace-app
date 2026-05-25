@@ -973,88 +973,96 @@ export default function CommunityDashboardScreen({ navigation }) {
       </ScrollView>
 
       {/* Modals */}
-      <CreateEventModal
-        visible={showCreateEventModal}
-        onClose={() => {
-          setShowCreateEventModal(false);
-          setResumeDraft(false);
-        }}
-        onEventCreated={handleEventCreated}
-        resumeDraft={resumeDraft}
-      />
-      <EditEventModal
-        visible={showEditEventModal}
-        onClose={() => {
-          setShowEditEventModal(false);
-          setSelectedEvent(null);
-        }}
-        onEventUpdated={handleEventUpdated}
-        eventData={selectedEvent}
-      />
-      <ActionModal
-        visible={modalConfig.visible}
-        title={modalConfig.title}
-        message={modalConfig.message}
-        actions={modalConfig.actions}
-        onClose={() => setModalConfig((prev) => ({ ...prev, visible: false }))}
-      />
+      {showCreateEventModal && (
+        <CreateEventModal
+          visible={showCreateEventModal}
+          onClose={() => {
+            setShowCreateEventModal(false);
+            setResumeDraft(false);
+          }}
+          onEventCreated={handleEventCreated}
+          resumeDraft={resumeDraft}
+        />
+      )}
+      {showEditEventModal && (
+        <EditEventModal
+          visible={showEditEventModal}
+          onClose={() => {
+            setShowEditEventModal(false);
+            setSelectedEvent(null);
+          }}
+          onEventUpdated={handleEventUpdated}
+          eventData={selectedEvent}
+        />
+      )}
+      {modalConfig.visible && (
+        <ActionModal
+          visible={modalConfig.visible}
+          title={modalConfig.title}
+          message={modalConfig.message}
+          actions={modalConfig.actions}
+          onClose={() => setModalConfig((prev) => ({ ...prev, visible: false }))}
+        />
+      )}
 
       {/* Draft Prompt Modal (shown on Dashboard) */}
-      <Modal
-        visible={showDraftPrompt}
-        transparent
-        animationType="fade"
-        statusBarTranslucent={true}
-        onRequestClose={() => setShowDraftPrompt(false)}
-      >
-        <View style={styles.draftPromptOverlay}>
-          <View style={styles.draftPromptContainer}>
-            <TouchableOpacity
-              style={styles.draftXButton}
-              onPress={() => setShowDraftPrompt(false)}
-            >
-              <X size={24} color="#6B7280" />
-            </TouchableOpacity>
-            <Ionicons
-              name="save-outline"
-              size={48}
-              color={COLORS.primary}
-              style={{ alignSelf: "center", marginBottom: 15 }}
-            />
-            <Text style={styles.draftPromptTitle}>Resume Draft?</Text>
-            <Text style={styles.draftPromptSubtitle}>
-              Last saved{" "}
-              {draftLastSaved ? formatLastSaved(draftLastSaved) : "recently"}
-            </Text>
-            <TouchableOpacity
-              style={styles.draftMainButton}
-              onPress={() => {
-                setShowDraftPrompt(false);
-                setResumeDraft(true);
-                setShowCreateEventModal(true);
-              }}
-            >
-              <Text style={styles.draftMainButtonText}>Continue Editing</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.draftSecondaryButton}
-              onPress={async () => {
-                setShowDraftPrompt(false);
-                try {
-                  const account = await getActiveAccount();
-                  if (account?.id) await deleteDraftUtil(account.id);
-                } catch (e) {
-                  console.error("Delete draft error:", e);
-                }
-                setResumeDraft(false);
-                setShowCreateEventModal(true);
-              }}
-            >
-              <Text style={styles.draftSecondaryButtonText}>Start Fresh</Text>
-            </TouchableOpacity>
+      {showDraftPrompt && (
+        <Modal
+          visible={showDraftPrompt}
+          transparent
+          animationType="fade"
+          statusBarTranslucent={true}
+          onRequestClose={() => setShowDraftPrompt(false)}
+        >
+          <View style={styles.draftPromptOverlay}>
+            <View style={styles.draftPromptContainer}>
+              <TouchableOpacity
+                style={styles.draftXButton}
+                onPress={() => setShowDraftPrompt(false)}
+              >
+                <X size={24} color="#6B7280" />
+              </TouchableOpacity>
+              <Ionicons
+                name="save-outline"
+                size={48}
+                color={COLORS.primary}
+                style={{ alignSelf: "center", marginBottom: 15 }}
+              />
+              <Text style={styles.draftPromptTitle}>Resume Draft?</Text>
+              <Text style={styles.draftPromptSubtitle}>
+                Last saved{" "}
+                {draftLastSaved ? formatLastSaved(draftLastSaved) : "recently"}
+              </Text>
+              <TouchableOpacity
+                style={styles.draftMainButton}
+                onPress={() => {
+                  setShowDraftPrompt(false);
+                  setResumeDraft(true);
+                  setShowCreateEventModal(true);
+                }}
+              >
+                <Text style={styles.draftMainButtonText}>Continue Editing</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.draftSecondaryButton}
+                onPress={async () => {
+                  setShowDraftPrompt(false);
+                  try {
+                    const account = await getActiveAccount();
+                    if (account?.id) await deleteDraftUtil(account.id);
+                  } catch (e) {
+                    console.error("Delete draft error:", e);
+                  }
+                  setResumeDraft(false);
+                  setShowCreateEventModal(true);
+                }}
+              >
+                <Text style={styles.draftSecondaryButtonText}>Start Fresh</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }

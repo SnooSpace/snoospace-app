@@ -144,6 +144,282 @@ const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = "#0F172A"; // Slate 900
 const LIGHT_TEXT_COLOR = "#6B7280"; // Slate 500
 
+const CommunityProfileHeaderBioSection = React.memo(({
+  profile,
+  insets,
+  bannerUploading,
+  onBannerAction,
+  onShowAccountSwitcher,
+  onShowCollegeHub,
+}) => {
+  return (
+    <>
+      {/* Banner - only render if banner exists */}
+      {profile.banner_url && (
+        <View style={styles.bannerContainer}>
+          <Image
+            source={{ uri: profile.banner_url }}
+            style={styles.bannerImage}
+          />
+          {/* Blur + Dim Overlay for mood effect */}
+          <BlurView intensity={15} tint="dark" style={styles.bannerOverlay} />
+          <TouchableOpacity
+            style={styles.bannerEdit}
+            onPress={onBannerAction}
+          >
+            {bannerUploading ? (
+              <SnooLoader size="small" color="#fff" />
+            ) : (
+              <Camera size={20} color="#fff" />
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <View
+        style={[
+          styles.summarySection,
+          !profile.banner_url && { paddingTop: insets.top + 60 },
+        ]}
+      >
+        <View
+          style={[
+            styles.profileHeader,
+            !profile.banner_url && styles.profileHeaderNoBanner,
+          ]}
+        >
+          <View style={styles.avatarWrapper}>
+            {profile.logo_url && /^https?:\/\//.test(profile.logo_url) ? (
+              <Image
+                source={{ uri: profile.logo_url }}
+                style={styles.avatar}
+              />
+            ) : (
+              <LinearGradient
+                colors={getGradientForName(profile.name)}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[
+                  styles.avatar,
+                  { justifyContent: "center", alignItems: "center" },
+                ]}
+              >
+                <Text
+                  style={{ fontSize: 36, fontWeight: "bold", color: "#fff" }}
+                >
+                  {getInitials(profile.name)}
+                </Text>
+              </LinearGradient>
+            )}
+          </View>
+          {/* Identity Block: Name → Username (with dropdown) → Categories → Bio */}
+          <Text style={styles.communityName}>{profile.name}</Text>
+          <TouchableOpacity
+            style={styles.usernameRow}
+            onPress={onShowAccountSwitcher}
+          >
+            <View style={{ width: 26 }} />
+            <Text style={styles.usernameText}>
+              {profile.username ? `@${profile.username}` : ""}
+            </Text>
+            <ChevronDown
+              size={26}
+              color="#3B82F6"
+              style={{ marginLeft: 2 }}
+            />
+          </TouchableOpacity>
+          {Array.isArray(profile.categories) &&
+            profile.categories.length > 0 && (
+              <View style={styles.categoriesRow}>
+                {profile.categories.map((cat, idx) => (
+                  <ThemeChip key={cat} label={cat} index={idx} />
+                ))}
+              </View>
+            )}
+
+          {/* College Chip — shown for college-affiliated communities */}
+          {profile.college_info && (
+            <View style={{ marginTop: 8 }}>
+              <CollegeChip
+                collegeInfo={profile.college_info}
+                onPress={onShowCollegeHub}
+              />
+            </View>
+          )}
+
+          {!!profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
+        </View>
+      </View>
+    </>
+  );
+});
+
+const CommunityProfileHostsAndSponsors = React.memo(({
+  profile,
+  onHeadPress,
+  onShowHeadsMenu,
+  navigation,
+}) => {
+  return (
+    <View style={styles.summarySection}>
+      {profile.show_heads !== false && (
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              {profile.heads && profile.heads.length > 1
+                ? "Meet the Hosts"
+                : "Meet the Host"}
+            </Text>
+
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <TouchableOpacity onPress={() => {
+                HapticsService.triggerImpactLight();
+                navigation.navigate("CommunityHosts", {
+                  initialHeads: profile?.heads || [],
+                  maxHeads: 5,
+                });
+              }}>
+                <Pencil size={20} color={PRIMARY_COLOR} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={onShowHeadsMenu}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MoreHorizontal size={20} color={LIGHT_TEXT_COLOR} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          {profile.heads && profile.heads.length > 0 ? (
+            <View style={{ paddingVertical: 4 }}>
+              {profile.heads.map((head, index) => {
+                const isClickable = !!head.member_id || !!head.email || !!head.phone;
+                return (
+                  <TouchableOpacity
+                    key={head.id || index}
+                    onPress={() => onHeadPress(head)}
+                    disabled={!isClickable}
+                    style={[
+                      styles.headRow,
+                      !isClickable && { opacity: 0.85 },
+                    ]}
+                  >
+                    {head.profile_pic_url ? (
+                      <Image
+                        source={{
+                          uri: head.profile_pic_url,
+                        }}
+                        style={styles.headAvatar}
+                      />
+                    ) : (
+                      <LinearGradient
+                        colors={getGradientForName(head.name || "Head")}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={[
+                          styles.headAvatar,
+                          { justifyContent: "center", alignItems: "center" },
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 18,
+                            fontWeight: "bold",
+                            color: "#fff",
+                          }}
+                        >
+                          {getInitials(head.name || "H")}
+                        </Text>
+                      </LinearGradient>
+                    )}
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={styles.headName}>{head.name}</Text>
+                      {(head.email || head.phone) ? (
+                        <Text style={styles.headSub} numberOfLines={1}>
+                          {[head.email, head.phone].filter(Boolean).join("  •  ")}
+                        </Text>
+                      ) : null}
+                    </View>
+                    {isClickable && (
+                      <ChevronRight size={20} color={LIGHT_TEXT_COLOR} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.emptyText}>No hosts added yet</Text>
+          )}
+        </View>
+      )}
+
+      {profile.show_heads === false && (
+        <View style={[styles.sectionCard, { borderColor: "rgba(0,0,0,0.05)" }]}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              {profile.heads && profile.heads.length > 1
+                ? "Meet the Hosts"
+                : "Meet the Host"}
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <TouchableOpacity onPress={() => {
+                HapticsService.triggerImpactLight();
+                navigation.navigate("CommunityHosts", {
+                  initialHeads: profile?.heads || [],
+                  maxHeads: 5,
+                });
+              }}>
+                <Pencil size={20} color={PRIMARY_COLOR} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={onShowHeadsMenu}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <MoreHorizontal size={20} color={LIGHT_TEXT_COLOR} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+            backgroundColor: "rgba(245, 158, 11, 0.08)",
+            borderRadius: 12,
+            paddingHorizontal: 12,
+            paddingVertical: 10,
+          }}>
+            <EyeOff size={15} color="#B45309" strokeWidth={2} />
+            <Text style={{
+              fontFamily: FONTS.regular,
+              fontSize: 13,
+              color: "#B45309",
+              flex: 1,
+            }}>
+              This section is hidden from your public profile
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {profile.sponsor_types && profile.sponsor_types.length > 0 && (
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Looking for Sponsors</Text>
+          </View>
+          <View style={styles.sponsorTypesList}>
+            {profile.sponsor_types.map((type, index) => (
+              <ThemeChip
+                key={index}
+                label={type}
+                index={index}
+              />
+            ))}
+          </View>
+        </View>
+      )}
+    </View>
+  );
+});
+
 export default function CommunityProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
@@ -247,6 +523,18 @@ export default function CommunityProfileScreen({ navigation }) {
     setHapticsEnabled(value);
     await HapticsService.setEnabled(value);
   };
+
+  const handleShowAccountSwitcher = useCallback(() => {
+    setShowAccountSwitcher(true);
+  }, []);
+
+  const handleShowCollegeHub = useCallback(() => {
+    setShowCollegeHub(true);
+  }, []);
+
+  const handleShowHeadsMenu = useCallback(() => {
+    setShowHeadsMenu(true);
+  }, []);
 
   const MAX_PINS = 3;
 
@@ -1079,7 +1367,7 @@ export default function CommunityProfileScreen({ navigation }) {
   };
 
 
-  const handleHeadPress = (head) => {
+  const handleHeadPress = useCallback((head) => {
     if (!head) return;
     const hasProfile = !!head.member_id;
     const hasEmail = !!head.email;
@@ -1103,7 +1391,7 @@ export default function CommunityProfileScreen({ navigation }) {
 
     setSelectedHeadForContact(head);
     setContactModalVisible(true);
-  };
+  }, [navigation]);
 
   const postsCount =
     polledCounts.posts || (profile?.posts_count ?? profile?.post_count ?? 0);
@@ -1276,133 +1564,16 @@ export default function CommunityProfileScreen({ navigation }) {
           />
         }
       >
-        {/* Banner - only render if banner exists */}
-        {profile.banner_url && (
-          <View style={styles.bannerContainer}>
-            <Image
-              source={{ uri: profile.banner_url }}
-              style={styles.bannerImage}
-            />
-            {/* Blur + Dim Overlay for mood effect */}
-            <BlurView intensity={15} tint="dark" style={styles.bannerOverlay} />
-            <TouchableOpacity
-              style={styles.bannerEdit}
-              onPress={handleBannerAction}
-            >
-              {bannerUploading ? (
-                <SnooLoader size="small" color="#fff" />
-              ) : (
-                <Camera size={20} color="#fff" />
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
+        <CommunityProfileHeaderBioSection
+          profile={profile}
+          insets={insets}
+          bannerUploading={bannerUploading}
+          onBannerAction={handleBannerAction}
+          onShowAccountSwitcher={handleShowAccountSwitcher}
+          onShowCollegeHub={handleShowCollegeHub}
+        />
 
-        {/* Settings Icon - positioned based on banner presence */}
-        <TouchableOpacity
-          onPress={() => setShowSettingsModal(true)}
-          style={[
-            styles.settingsIconAbsolute,
-            !profile.banner_url && { top: insets.top + 16 },
-          ]}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Settings
-            size={26}
-            color={COLORS.editorial?.textSecondary || "#6B7280"}
-          />
-        </TouchableOpacity>
-
-        {/* Bookmark Icon */}
-        <TouchableOpacity
-          onPress={() => navigation.navigate("SavedPostsScreen")}
-          style={[
-            styles.settingsIconAbsolute,
-            !profile.banner_url && { top: insets.top + 16 },
-            { right: 60 }, // Position to the left of settings
-          ]}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Bookmark
-            size={26}
-            color={COLORS.editorial?.textSecondary || "#6B7280"}
-          />
-        </TouchableOpacity>
-
-        <View
-          style={[
-            styles.summarySection,
-            !profile.banner_url && { paddingTop: insets.top + 60 },
-          ]}
-        >
-          <View
-            style={[
-              styles.profileHeader,
-              !profile.banner_url && styles.profileHeaderNoBanner,
-            ]}
-          >
-            <View style={styles.avatarWrapper}>
-              {profile.logo_url && /^https?:\/\//.test(profile.logo_url) ? (
-                <Image
-                  source={{ uri: profile.logo_url }}
-                  style={styles.avatar}
-                />
-              ) : (
-                <LinearGradient
-                  colors={getGradientForName(profile.name)}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[
-                    styles.avatar,
-                    { justifyContent: "center", alignItems: "center" },
-                  ]}
-                >
-                  <Text
-                    style={{ fontSize: 36, fontWeight: "bold", color: "#fff" }}
-                  >
-                    {getInitials(profile.name)}
-                  </Text>
-                </LinearGradient>
-              )}
-            </View>
-            {/* Identity Block: Name → Username (with dropdown) → Categories → Bio */}
-            <Text style={styles.communityName}>{profile.name}</Text>
-            <TouchableOpacity
-              style={styles.usernameRow}
-              onPress={() => setShowAccountSwitcher(true)}
-            >
-              <View style={{ width: 26 }} />
-              <Text style={styles.usernameText}>
-                {profile.username ? `@${profile.username}` : ""}
-              </Text>
-              <ChevronDown
-                size={26}
-                color="#3B82F6"
-                style={{ marginLeft: 2 }}
-              />
-            </TouchableOpacity>
-            {Array.isArray(profile.categories) &&
-              profile.categories.length > 0 && (
-                <View style={styles.categoriesRow}>
-                  {profile.categories.map((cat, idx) => (
-                    <ThemeChip key={cat} label={cat} index={idx} />
-                  ))}
-                </View>
-              )}
-
-            {/* College Chip — shown for college-affiliated communities */}
-            {profile.college_info && (
-              <View style={{ marginTop: 8 }}>
-                <CollegeChip
-                  collegeInfo={profile.college_info}
-                  onPress={() => setShowCollegeHub(true)}
-                />
-              </View>
-            )}
-
-            {!!profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
-          </View>
-
+        <View style={styles.summarySection}>
           {/* Stats Row */}
           <View style={[styles.statsRow, { justifyContent: "space-evenly" }]}>
             <TouchableOpacity
@@ -1428,7 +1599,7 @@ export default function CommunityProfileScreen({ navigation }) {
                 })
               }
             >
-              <Text style={styles.statNumber}>{profile.follower_count}</Text>
+              <Text style={styles.statNumber}>{followersCount}</Text>
               <Text style={styles.statLabel}>Followers</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -1440,11 +1611,11 @@ export default function CommunityProfileScreen({ navigation }) {
                 })
               }
             >
-              <Text style={styles.statNumber}>{profile.following_count}</Text>
+              <Text style={styles.statNumber}>{followingCount}</Text>
               <Text style={styles.statLabel}>Following</Text>
             </TouchableOpacity>
             <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{profile.post_count}</Text>
+              <Text style={styles.statNumber}>{postsCount}</Text>
               <Text style={styles.statLabel}>Posts</Text>
             </View>
           </View>
@@ -1496,162 +1667,14 @@ export default function CommunityProfileScreen({ navigation }) {
               textStyle={{ fontFamily: FONTS.semiBold }}
             />
           </View>
-
-          {profile.show_heads !== false && (
-          <View style={styles.sectionCard}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                {profile.heads && profile.heads.length > 1
-                  ? "Meet the Hosts"
-                  : "Meet the Host"}
-              </Text>
-
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <TouchableOpacity onPress={() => {
-                  HapticsService.triggerImpactLight();
-                  navigation.navigate("CommunityHosts", {
-                    initialHeads: profile?.heads || [],
-                    maxHeads: 5,
-                  });
-                }}>
-                  <Pencil size={20} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setShowHeadsMenu(true)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <MoreHorizontal size={20} color={LIGHT_TEXT_COLOR} />
-                </TouchableOpacity>
-              </View>
-            </View>
-            {profile.heads && profile.heads.length > 0 ? (
-              <View style={{ paddingVertical: 4 }}>
-                {profile.heads.map((head, index) => {
-                  const isClickable = !!head.member_id || !!head.email || !!head.phone;
-                  return (
-                    <TouchableOpacity
-                      key={head.id || index}
-                      onPress={() => handleHeadPress(head)}
-                      disabled={!isClickable}
-                      style={[
-                        styles.headRow,
-                        !isClickable && { opacity: 0.85 },
-                      ]}
-                    >
-                      {head.profile_pic_url ? (
-                        <Image
-                          source={{
-                            uri: head.profile_pic_url,
-                          }}
-                          style={styles.headAvatar}
-                        />
-                      ) : (
-                        <LinearGradient
-                          colors={getGradientForName(head.name || "Head")}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={[
-                            styles.headAvatar,
-                            { justifyContent: "center", alignItems: "center" },
-                          ]}
-                        >
-                          <Text
-                            style={{
-                              fontSize: 18,
-                              fontWeight: "bold",
-                              color: "#fff",
-                            }}
-                          >
-                            {getInitials(head.name || "H")}
-                          </Text>
-                        </LinearGradient>
-                      )}
-                      <View style={{ flex: 1, gap: 2 }}>
-                        <Text style={styles.headName}>{head.name}</Text>
-                        {(head.email || head.phone) ? (
-                          <Text style={styles.headSub} numberOfLines={1}>
-                            {[head.email, head.phone].filter(Boolean).join("  •  ")}
-                          </Text>
-                        ) : null}
-                      </View>
-                      {isClickable && (
-                        <ChevronRight size={20} color={LIGHT_TEXT_COLOR} />
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            ) : (
-              <Text style={styles.emptyText}>No hosts added yet</Text>
-            )}
-          </View>
-          )}
-
-          {profile.show_heads === false && (
-          <View style={[styles.sectionCard, { borderColor: "rgba(0,0,0,0.05)" }]}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                {profile.heads && profile.heads.length > 1
-                  ? "Meet the Hosts"
-                  : "Meet the Host"}
-              </Text>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                <TouchableOpacity onPress={() => {
-                  HapticsService.triggerImpactLight();
-                  navigation.navigate("CommunityHosts", {
-                    initialHeads: profile?.heads || [],
-                    maxHeads: 5,
-                  });
-                }}>
-                  <Pencil size={20} color={PRIMARY_COLOR} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setShowHeadsMenu(true)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <MoreHorizontal size={20} color={LIGHT_TEXT_COLOR} />
-                </TouchableOpacity>
-              </View>
-            </View>
-            <View style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 8,
-              backgroundColor: "rgba(245, 158, 11, 0.08)",
-              borderRadius: 12,
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-            }}>
-              <EyeOff size={15} color="#B45309" strokeWidth={2} />
-              <Text style={{
-                fontFamily: FONTS.regular,
-                fontSize: 13,
-                color: "#B45309",
-                flex: 1,
-              }}>
-                This section is hidden from your public profile
-              </Text>
-            </View>
-          </View>
-          )}
-
-          {profile.sponsor_types && profile.sponsor_types.length > 0 && (
-            <View style={styles.sectionCard}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Looking for Sponsors</Text>
-              </View>
-              <View style={styles.sponsorTypesList}>
-                {profile.sponsor_types.map((type, index) => (
-                  <ThemeChip
-                    key={index}
-                    label={type}
-                    index={index} // Removed the +2 shift to allow keyword-based styling to take precedence properly
-                  />
-                ))}
-              </View>
-            </View>
-          )}
         </View>
+
+        <CommunityProfileHostsAndSponsors
+          profile={profile}
+          onHeadPress={handleHeadPress}
+          onShowHeadsMenu={handleShowHeadsMenu}
+          navigation={navigation}
+        />
 
         {/* Tab Bar */}
         <View style={styles.tabBar}>
@@ -2399,158 +2422,164 @@ export default function CommunityProfileScreen({ navigation }) {
         </View>
       </Animated.ScrollView>
 
-      <SettingsModal
-        visible={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
-        onNotificationsPress={() =>
-          Alert.alert(
-            "Notifications",
-            "Notifications settings will be implemented soon!",
-          )
-        }
-        onPrivacyPress={() => {
-          setShowSettingsModal(false);
-          navigation.navigate("MyDataScreen");
-        }}
-        onHelpPress={() =>
-          Alert.alert("Help", "Help & Support will be implemented soon!")
-        }
-        onAddAccountPress={() => setShowAddAccountModal(true)}
-        onLogoutPress={handleLogout}
-        onDeleteAccountPress={() => navigation.navigate("DeleteAccount")}
-        hapticsEnabled={hapticsEnabled}
-        onToggleHaptics={handleToggleHaptics}
-        textColor={TEXT_COLOR}
-        lightTextColor={LIGHT_TEXT_COLOR}
-      />
+      {showSettingsModal && (
+        <SettingsModal
+          visible={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
+          onNotificationsPress={() =>
+            Alert.alert(
+              "Notifications",
+              "Notifications settings will be implemented soon!",
+            )
+          }
+          onPrivacyPress={() => {
+            setShowSettingsModal(false);
+            navigation.navigate("MyDataScreen");
+          }}
+          onHelpPress={() =>
+            Alert.alert("Help", "Help & Support will be implemented soon!")
+          }
+          onAddAccountPress={() => setShowAddAccountModal(true)}
+          onLogoutPress={handleLogout}
+          onDeleteAccountPress={() => navigation.navigate("DeleteAccount")}
+          hapticsEnabled={hapticsEnabled}
+          onToggleHaptics={handleToggleHaptics}
+          textColor={TEXT_COLOR}
+          lightTextColor={LIGHT_TEXT_COLOR}
+        />
+      )}
 
-      <LogoutModal
-        visible={showLogoutModal}
-        onClose={() => setShowLogoutModal(false)}
-        onLogoutCurrent={() => performLogout(false)}
-        onLogoutAll={() => performLogout(true)}
-        currentAccount={logoutModalData.currentAccount}
-        hasMultipleAccounts={logoutModalData.hasMultiple}
-      />
+      {showLogoutModal && (
+        <LogoutModal
+          visible={showLogoutModal}
+          onClose={() => setShowLogoutModal(false)}
+          onLogoutCurrent={() => performLogout(false)}
+          onLogoutAll={() => performLogout(true)}
+          currentAccount={logoutModalData.currentAccount}
+          hasMultipleAccounts={logoutModalData.hasMultiple}
+        />
+      )}
 
       {/* Old Delete Account Modal removed */}
 
       {/* Meet the Host — Hide/Show action modal */}
-      <Modal
-        visible={showHeadsMenu}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setShowHeadsMenu(false)}
-      >
-        <TouchableOpacity
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.4)",
-            justifyContent: "flex-end",
-          }}
-          activeOpacity={1}
-          onPress={() => setShowHeadsMenu(false)}
+      {showHeadsMenu && (
+        <Modal
+          visible={showHeadsMenu}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setShowHeadsMenu(false)}
         >
-          <View
+          <TouchableOpacity
             style={{
-              backgroundColor: "#FFFFFF",
-              borderTopLeftRadius: 24,
-              borderTopRightRadius: 24,
-              paddingTop: 12,
-              paddingBottom: 36,
-              paddingHorizontal: 20,
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.4)",
+              justifyContent: "flex-end",
             }}
+            activeOpacity={1}
+            onPress={() => setShowHeadsMenu(false)}
           >
-            {/* Handle bar */}
             <View
               style={{
-                width: 40,
-                height: 4,
-                borderRadius: 2,
-                backgroundColor: "#E5E7EB",
-                alignSelf: "center",
-                marginBottom: 20,
-              }}
-            />
-            <Text
-              style={{
-                fontFamily: FONTS.primary,
-                fontSize: 16,
-                color: TEXT_COLOR,
-                marginBottom: 16,
+                backgroundColor: "#FFFFFF",
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                paddingTop: 12,
+                paddingBottom: 36,
+                paddingHorizontal: 20,
               }}
             >
-              Meet the Host
-            </Text>
+              {/* Handle bar */}
+              <View
+                style={{
+                  width: 40,
+                  height: 4,
+                  borderRadius: 2,
+                  backgroundColor: "#E5E7EB",
+                  alignSelf: "center",
+                  marginBottom: 20,
+                }}
+              />
+              <Text
+                style={{
+                  fontFamily: FONTS.primary,
+                  fontSize: 16,
+                  color: TEXT_COLOR,
+                  marginBottom: 16,
+                }}
+              >
+                Meet the Host
+              </Text>
 
-            {/* Hide / Show option */}
-            <TouchableOpacity
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 14,
-                paddingVertical: 14,
-                borderRadius: 16,
-              }}
-              onPress={async () => {
-                setShowHeadsMenu(false);
-                const newVal = profile.show_heads === false ? true : false;
-                // Optimistic local update
-                setProfile((prev) =>
-                  prev ? { ...prev, show_heads: newVal } : prev,
-                );
-                try {
-                  await updateCommunityProfile({ show_heads: newVal });
-                } catch (e) {
-                  // Revert on error
+              {/* Hide / Show option */}
+              <TouchableOpacity
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 14,
+                  paddingVertical: 14,
+                  borderRadius: 16,
+                }}
+                onPress={async () => {
+                  setShowHeadsMenu(false);
+                  const newVal = profile.show_heads === false ? true : false;
+                  // Optimistic local update
                   setProfile((prev) =>
-                    prev ? { ...prev, show_heads: !newVal } : prev,
+                    prev ? { ...prev, show_heads: newVal } : prev,
                   );
-                  Alert.alert("Error", "Could not update visibility.");
-                }
-              }}
-            >
-              {profile.show_heads === false ? (
-                <Eye size={20} color={PRIMARY_COLOR} strokeWidth={2} />
-              ) : (
-                <EyeOff size={20} color="#B45309" strokeWidth={2} />
-              )}
-              <Text
-                style={{
-                  fontFamily: FONTS.medium,
-                  fontSize: 15,
-                  color: profile.show_heads === false ? PRIMARY_COLOR : "#B45309",
+                  try {
+                    await updateCommunityProfile({ show_heads: newVal });
+                  } catch (e) {
+                    // Revert on error
+                    setProfile((prev) =>
+                      prev ? { ...prev, show_heads: !newVal } : prev,
+                    );
+                    Alert.alert("Error", "Could not update visibility.");
+                  }
                 }}
               >
-                {profile.show_heads === false
-                  ? "Show on public profile"
-                  : "Hide from public profile"}
-              </Text>
-            </TouchableOpacity>
+                {profile.show_heads === false ? (
+                  <Eye size={20} color={PRIMARY_COLOR} strokeWidth={2} />
+                ) : (
+                  <EyeOff size={20} color="#B45309" strokeWidth={2} />
+                )}
+                <Text
+                  style={{
+                    fontFamily: FONTS.medium,
+                    fontSize: 15,
+                    color: profile.show_heads === false ? PRIMARY_COLOR : "#B45309",
+                  }}
+                >
+                  {profile.show_heads === false
+                    ? "Show on public profile"
+                    : "Hide from public profile"}
+                </Text>
+              </TouchableOpacity>
 
-            {/* Cancel */}
-            <TouchableOpacity
-              style={{
-                paddingVertical: 14,
-                alignItems: "center",
-                marginTop: 4,
-              }}
-              onPress={() => setShowHeadsMenu(false)}
-            >
-              <Text
+              {/* Cancel */}
+              <TouchableOpacity
                 style={{
-                  fontFamily: FONTS.medium,
-                  fontSize: 15,
-                  color: LIGHT_TEXT_COLOR,
+                  paddingVertical: 14,
+                  alignItems: "center",
+                  marginTop: 4,
                 }}
+                onPress={() => setShowHeadsMenu(false)}
               >
-                Cancel
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+                <Text
+                  style={{
+                    fontFamily: FONTS.medium,
+                    fontSize: 15,
+                    color: LIGHT_TEXT_COLOR,
+                  }}
+                >
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
 
       {selectedPost && (
         <ProfilePostFeed
@@ -2655,410 +2684,428 @@ export default function CommunityProfileScreen({ navigation }) {
         />
       )}
 
-      <CommentsModal
-        visible={commentsModalState.visible}
-        postId={commentsModalState.postId}
-        onClose={closeCommentsModal}
-        onCommentCountChange={(postId) => {
-          // Update comment count in posts
-          setPosts((prevPosts) =>
-            prevPosts.map((p) =>
-              p.id === postId
-                ? { ...p, comment_count: (p.comment_count || 0) + 1 }
-                : p,
-            ),
-          );
-        }}
-        navigation={navigation}
-      />
+      {commentsModalState.visible && (
+        <CommentsModal
+          visible={commentsModalState.visible}
+          postId={commentsModalState.postId}
+          onClose={closeCommentsModal}
+          onCommentCountChange={(postId) => {
+            // Update comment count in posts
+            setPosts((prevPosts) =>
+              prevPosts.map((p) =>
+                p.id === postId
+                  ? { ...p, comment_count: (p.comment_count || 0) + 1 }
+                  : p,
+              ),
+            );
+          }}
+          navigation={navigation}
+        />
+      )}
 
-      <AccountSwitcherModal
-        visible={showAccountSwitcher}
-        onClose={() => setShowAccountSwitcher(false)}
-        currentAccountId={profile?.id ? `community_${profile.id}` : undefined}
-        currentProfile={profile ? { ...profile, type: "community" } : null}
-        onAccountSwitch={(account) => {
-          // Navigate to correct home screen based on account type
-          const routeName =
-            account.type === "member"
-              ? "MemberHome"
-              : account.type === "community"
-                ? "CommunityHome"
-                : account.type === "sponsor"
-                  ? "SponsorHome"
-                  : account.type === "venue"
-                    ? "VenueHome"
-                    : "Landing";
+      {showAccountSwitcher && (
+        <AccountSwitcherModal
+          visible={showAccountSwitcher}
+          onClose={() => setShowAccountSwitcher(false)}
+          currentAccountId={profile?.id ? `community_${profile.id}` : undefined}
+          currentProfile={profile ? { ...profile, type: "community" } : null}
+          onAccountSwitch={(account) => {
+            // Navigate to correct home screen based on account type
+            const routeName =
+              account.type === "member"
+                ? "MemberHome"
+                : account.type === "community"
+                  ? "CommunityHome"
+                  : account.type === "sponsor"
+                    ? "SponsorHome"
+                    : account.type === "venue"
+                      ? "VenueHome"
+                      : "Landing";
 
-          // Get the ROOT navigator (go up the parent chain)
-          let rootNavigator = navigation;
-          try {
-            // ProfileStackNavigator → CommunityHomeTabNavigator → RootNavigator
-            if (navigation.getParent) {
-              const parent1 = navigation.getParent(); // CommunityHomeTabNavigator
-              if (parent1 && parent1.getParent) {
-                const parent2 = parent1.getParent(); // RootNavigator
-                if (parent2) {
-                  rootNavigator = parent2;
+            // Get the ROOT navigator (go up the parent chain)
+            let rootNavigator = navigation;
+            try {
+              // ProfileStackNavigator → CommunityHomeTabNavigator → RootNavigator
+              if (navigation.getParent) {
+                const parent1 = navigation.getParent(); // CommunityHomeTabNavigator
+                if (parent1 && parent1.getParent) {
+                  const parent2 = parent1.getParent(); // RootNavigator
+                  if (parent2) {
+                    rootNavigator = parent2;
+                  }
                 }
               }
-            }
-          } catch (error) {
-            console.warn(
-              "[AccountSwitch] Could not get root navigator:",
-              error,
-            );
-          }
-
-          console.log("[AccountSwitch] Resetting to:", routeName);
-          rootNavigator.reset({
-            index: 0,
-            routes: [{ name: routeName }],
-          });
-        }}
-        onAddAccount={() => setShowAddAccountModal(true)}
-        onLoginRequired={(account) => {
-          console.log(
-            "[CommunityProfile] ============================================",
-          );
-          console.log("[CommunityProfile] onLoginRequired called!");
-          console.log("[CommunityProfile] Account:", {
-            id: account?.id,
-            username: account?.username,
-            email: account?.email,
-            type: account?.type,
-          });
-
-          setShowAccountSwitcher(false);
-          console.log("[CommunityProfile] Closed account switcher modal");
-
-          let rootNavigator = navigation;
-          console.log(
-            "[CommunityProfile] Initial navigation object:",
-            !!navigation,
-          );
-
-          try {
-            if (navigation.getParent) {
-              const parent1 = navigation.getParent();
-              console.log("[CommunityProfile] Parent navigator:", !!parent1);
-              if (parent1 && parent1.getParent) {
-                const parent2 = parent1.getParent();
-                console.log(
-                  "[CommunityProfile] Grand parent navigator:",
-                  !!parent2,
-                );
-                rootNavigator = parent2 || parent1;
-              }
-            }
-          } catch (error) {
-            console.warn(
-              "[CommunityProfile] Error getting root navigator:",
-              error,
-            );
-          }
-
-          console.log(
-            "[CommunityProfile] Root navigator obtained:",
-            !!rootNavigator,
-          );
-          console.log("[CommunityProfile] Attempting navigation to Login...");
-
-          try {
-            console.log(
-              '[CommunityProfile] Calling rootNavigator.navigate("Login", ...)',
-            );
-            rootNavigator.navigate("Login", {
-              email: account.email,
-              isAddingAccount: false,
-            });
-            console.log(
-              "[CommunityProfile] Navigation call completed successfully",
-            );
-          } catch (error) {
-            console.error(
-              "[CommunityProfile] Navigation to Login failed!",
-              error,
-            );
-            console.error("[CommunityProfile] Error details:", {
-              message: error.message,
-              name: error.name,
-            });
-            console.log(
-              "[CommunityProfile] Attempting fallback: reset to Landing",
-            );
-            try {
-              rootNavigator.reset({
-                index: 0,
-                routes: [{ name: "Landing" }],
-              });
-              console.log("[CommunityProfile] Fallback navigation completed");
-            } catch (fallbackError) {
-              console.error(
-                "[CommunityProfile] Fallback navigation ALSO failed!",
-                fallbackError,
+            } catch (error) {
+              console.warn(
+                "[AccountSwitch] Could not get root navigator:",
+                error,
               );
             }
+
+            console.log("[AccountSwitch] Resetting to:", routeName);
+            rootNavigator.reset({
+              index: 0,
+              routes: [{ name: routeName }],
+            });
+          }}
+          onAddAccount={() => setShowAddAccountModal(true)}
+          onLoginRequired={(account) => {
+            console.log(
+              "[CommunityProfile] ============================================",
+            );
+            console.log("[CommunityProfile] onLoginRequired called!");
+            console.log("[CommunityProfile] Account:", {
+              id: account?.id,
+              username: account?.username,
+              email: account?.email,
+              type: account?.type,
+            });
+
+            setShowAccountSwitcher(false);
+            console.log("[CommunityProfile] Closed account switcher modal");
+
+            let rootNavigator = navigation;
+            console.log(
+              "[CommunityProfile] Initial navigation object:",
+              !!navigation,
+            );
+
+            try {
+              if (navigation.getParent) {
+                const parent1 = navigation.getParent();
+                console.log("[CommunityProfile] Parent navigator:", !!parent1);
+                if (parent1 && parent1.getParent) {
+                  const parent2 = parent1.getParent();
+                  console.log(
+                    "[CommunityProfile] Grand parent navigator:",
+                    !!parent2,
+                  );
+                  rootNavigator = parent2 || parent1;
+                }
+              }
+            } catch (error) {
+              console.warn(
+                "[CommunityProfile] Error getting root navigator:",
+                error,
+              );
+            }
+
+            console.log(
+              "[CommunityProfile] Root navigator obtained:",
+              !!rootNavigator,
+            );
+            console.log("[CommunityProfile] Attempting navigation to Login...");
+
+            try {
+              console.log(
+                '[CommunityProfile] Calling rootNavigator.navigate("Login", ...)',
+              );
+              rootNavigator.navigate("Login", {
+                email: account.email,
+                isAddingAccount: false,
+              });
+              console.log(
+                "[CommunityProfile] Navigation call completed successfully",
+              );
+            } catch (error) {
+              console.error(
+                "[CommunityProfile] Navigation to Login failed!",
+                error,
+              );
+              console.error("[CommunityProfile] Error details:", {
+                message: error.message,
+                name: error.name,
+              });
+              console.log(
+                "[CommunityProfile] Attempting fallback: reset to Landing",
+              );
+              try {
+                rootNavigator.reset({
+                  index: 0,
+                  routes: [{ name: "Landing" }],
+                });
+                console.log("[CommunityProfile] Fallback navigation completed");
+              } catch (fallbackError) {
+                console.error(
+                  "[CommunityProfile] Fallback navigation ALSO failed!",
+                  fallbackError,
+                );
+              }
+            }
+            console.log(
+              "[CommunityProfile] ============================================",
+            );
+          }}
+        />
+      )}
+
+      {showAddAccountModal && (
+        <AddAccountModal
+          visible={showAddAccountModal}
+          onClose={() => setShowAddAccountModal(false)}
+          onLoginExisting={() =>
+            navigation.navigate("Login", { isAddingAccount: true })
           }
-          console.log(
-            "[CommunityProfile] ============================================",
-          );
-        }}
-      />
+          onCreateNew={() =>
+            navigation.navigate("Landing", { fromSwitcher: true })
+          }
+        />
+      )}
 
-      <AddAccountModal
-        visible={showAddAccountModal}
-        onClose={() => setShowAddAccountModal(false)}
-        onLoginExisting={() =>
-          navigation.navigate("Login", { isAddingAccount: true })
-        }
-        onCreateNew={() =>
-          navigation.navigate("Landing", { fromSwitcher: true })
-        }
-      />
-
-      <ActionSheet
-        visible={showBannerActionSheet}
-        onClose={() => setShowBannerActionSheet(false)}
-        title="Banner"
-        message="Update your community banner"
-        actions={[
-          {
-            text: "Change banner",
-            icon: "image-outline",
-            onPress: () => {
-              setShowBannerActionSheet(false);
-              pickBannerImage();
+      {showBannerActionSheet && (
+        <ActionSheet
+          visible={showBannerActionSheet}
+          onClose={() => setShowBannerActionSheet(false)}
+          title="Banner"
+          message="Update your community banner"
+          actions={[
+            {
+              text: "Change banner",
+              icon: "image-outline",
+              onPress: () => {
+                setShowBannerActionSheet(false);
+                pickBannerImage();
+              },
             },
-          },
-          ...(profile?.banner_url
-            ? [
-                {
-                  text: "Remove banner",
-                  icon: "trash-outline",
-                  style: "destructive",
-                  onPress: () => {
-                    setShowBannerActionSheet(false);
-                    removeBanner();
+            ...(profile?.banner_url
+              ? [
+                  {
+                    text: "Remove banner",
+                    icon: "trash-outline",
+                    style: "destructive",
+                    onPress: () => {
+                      setShowBannerActionSheet(false);
+                      removeBanner();
+                    },
                   },
-                },
-              ]
-            : []),
-        ]}
-      />
+                ]
+              : []),
+          ]}
+        />
+      )}
 
       {/* College Hub Bottom Sheet */}
-      <CollegeHubSheet
-        visible={showCollegeHub}
-        collegeId={profile?.college_info?.college_id}
-        onClose={() => setShowCollegeHub(false)}
-        onCommunityPress={(communityId) => {
-          setShowCollegeHub(false);
-          navigation.navigate("CommunityPublicProfile", { communityId });
-        }}
-      />
+      {showCollegeHub && (
+        <CollegeHubSheet
+          visible={showCollegeHub}
+          collegeId={profile?.college_info?.college_id}
+          onClose={() => setShowCollegeHub(false)}
+          onCommunityPress={(communityId) => {
+            setShowCollegeHub(false);
+            navigation.navigate("CommunityPublicProfile", { communityId });
+          }}
+        />
+      )}
 
-      <CreateEventModal
-        visible={showCreateEventModal}
-        onClose={() => {
-          setShowCreateEventModal(false);
-          setResumeDraft(false);
-        }}
-        onEventCreated={handleEventCreated}
-        resumeDraft={resumeDraft}
-      />
+      {showCreateEventModal && (
+        <CreateEventModal
+          visible={showCreateEventModal}
+          onClose={() => {
+            setShowCreateEventModal(false);
+            setResumeDraft(false);
+          }}
+          onEventCreated={handleEventCreated}
+          resumeDraft={resumeDraft}
+        />
+      )}
 
-      <ActionModal
-        visible={showDraftPrompt}
-        title="Resume Draft?"
-        message={`You have an unsaved event draft from ${formatLastSaved(draftLastSaved)}. Would you like to resume where you left off?`}
-        actions={[
-          {
-            text: "Resume Draft",
-            onPress: () => {
-              setShowDraftPrompt(false);
-              setResumeDraft(true);
-              setShowCreateEventModal(true);
+      {showDraftPrompt && (
+        <ActionModal
+          visible={showDraftPrompt}
+          title="Resume Draft?"
+          message={`You have an unsaved event draft from ${formatLastSaved(draftLastSaved)}. Would you like to resume where you left off?`}
+          actions={[
+            {
+              text: "Resume Draft",
+              onPress: () => {
+                setShowDraftPrompt(false);
+                setResumeDraft(true);
+                setShowCreateEventModal(true);
+              },
+              style: "primary",
             },
-            style: "primary",
-          },
-          {
-            text: "Start Fresh",
-            onPress: async () => {
-              setShowDraftPrompt(false);
-              const account = await getActiveAccount();
-              if (account?.id) await deleteDraftUtil(account.id);
-              setResumeDraft(false);
-              setShowCreateEventModal(true);
+            {
+              text: "Start Fresh",
+              onPress: async () => {
+                setShowDraftPrompt(false);
+                const account = await getActiveAccount();
+                if (account?.id) await deleteDraftUtil(account.id);
+                setResumeDraft(false);
+                setShowCreateEventModal(true);
+              },
+              style: "secondary",
             },
-            style: "secondary",
-          },
-        ]}
-        onClose={() => setShowDraftPrompt(false)}
-      />
+          ]}
+          onClose={() => setShowDraftPrompt(false)}
+        />
+      )}
 
-      <ActionModal
-        visible={pinModalVisible}
-        title={
-          postForPinToggle?.is_pinned
-            ? "Unpin Post"
-            : oldestPinnedPost
-            ? "Pin Limit Reached"
-            : "Pin Post"
-        }
-        message={
-          postForPinToggle?.is_pinned
-            ? "Remove this post from your pinned posts?"
-            : oldestPinnedPost
-            ? `You already have ${MAX_PINS} pinned posts. Pinning this will replace your oldest pin.`
-            : "Pin this post to the top of your Community tab?"
-        }
-        actions={[
-          {
-            text: postForPinToggle?.is_pinned
-              ? "Unpin"
+      {pinModalVisible && (
+        <ActionModal
+          visible={pinModalVisible}
+          title={
+            postForPinToggle?.is_pinned
+              ? "Unpin Post"
               : oldestPinnedPost
-              ? "Replace Oldest Pin"
-              : "Pin to Top",
-            onPress: async () => {
-              setPinModalVisible(false);
-              if (postForPinToggle) {
-                await handlePinToggleConfirm(postForPinToggle);
-              }
+              ? "Pin Limit Reached"
+              : "Pin Post"
+          }
+          message={
+            postForPinToggle?.is_pinned
+              ? "Remove this post from your pinned posts?"
+              : oldestPinnedPost
+              ? `You already have ${MAX_PINS} pinned posts. Pinning this will replace your oldest pin.`
+              : "Pin this post to the top of your Community tab?"
+          }
+          actions={[
+            {
+              text: postForPinToggle?.is_pinned
+                ? "Unpin"
+                : oldestPinnedPost
+                ? "Replace Oldest Pin"
+                : "Pin to Top",
+              onPress: async () => {
+                setPinModalVisible(false);
+                if (postForPinToggle) {
+                  await handlePinToggleConfirm(postForPinToggle);
+                }
+              },
+              style: oldestPinnedPost ? "warning" : "success",
             },
-            style: oldestPinnedPost ? "warning" : "success",
-          },
-          {
-            text: "Cancel",
-            onPress: () => {
-              setPinModalVisible(false);
-              setOldestPinnedPost(null);
+            {
+              text: "Cancel",
+              onPress: () => {
+                setPinModalVisible(false);
+                setOldestPinnedPost(null);
+              },
+              style: "cancel",
             },
-            style: "cancel",
-          },
-        ]}
-        onClose={() => {
-          setPinModalVisible(false);
-          setOldestPinnedPost(null);
-        }}
-      />
+          ]}
+          onClose={() => {
+            setPinModalVisible(false);
+            setOldestPinnedPost(null);
+          }}
+        />
+      )}
 
       {/* Premium Contact Info Modal */}
-      <Modal
-        visible={contactModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setContactModalVisible(false)}
-        statusBarTranslucent={true}
-      >
-        <TouchableOpacity
-          style={styles.contactModalOverlay}
-          activeOpacity={1}
-          onPress={() => setContactModalVisible(false)}
+      {contactModalVisible && (
+        <Modal
+          visible={contactModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setContactModalVisible(false)}
+          statusBarTranslucent={true}
         >
           <TouchableOpacity
-            style={styles.contactModalContent}
+            style={styles.contactModalOverlay}
             activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
+            onPress={() => setContactModalVisible(false)}
           >
-            {/* Header */}
-            <View style={styles.contactModalHeader}>
-              <Text style={styles.contactModalTitle}>
-                {selectedHeadForContact ? `${selectedHeadForContact.name}'s Contact Info` : "Contact Info"}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setContactModalVisible(false)}
-                style={styles.contactModalCloseBtn}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <X size={20} color="#0F172A" strokeWidth={2.2} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Options Body */}
-            <View style={styles.contactModalBody}>
-              {selectedHeadForContact?.member_id && (
+            <TouchableOpacity
+              style={styles.contactModalContent}
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <View style={styles.contactModalHeader}>
+                <Text style={styles.contactModalTitle}>
+                  {selectedHeadForContact ? `${selectedHeadForContact.name}'s Contact Info` : "Contact Info"}
+                </Text>
                 <TouchableOpacity
-                  style={styles.contactModalOption}
-                  onPress={() => {
-                    setContactModalVisible(false);
-                    const memberId = selectedHeadForContact.member_id;
-                    const isOwnProfile = currentUserId && memberId === currentUserId;
-                    if (isOwnProfile) {
-                      const root = navigation.getParent()?.getParent();
-                      if (root) {
-                        root.navigate("MemberHome", {
-                          screen: "Profile",
-                          params: {
-                            screen: "MemberProfile",
-                          },
-                        });
+                  onPress={() => setContactModalVisible(false)}
+                  style={styles.contactModalCloseBtn}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <X size={20} color="#0F172A" strokeWidth={2.2} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Options Body */}
+              <View style={styles.contactModalBody}>
+                {selectedHeadForContact?.member_id && (
+                  <TouchableOpacity
+                    style={styles.contactModalOption}
+                    onPress={() => {
+                      setContactModalVisible(false);
+                      const memberId = selectedHeadForContact.member_id;
+                      const isOwnProfile = currentUserId && memberId === currentUserId;
+                      if (isOwnProfile) {
+                        const root = navigation.getParent()?.getParent();
+                        if (root) {
+                          root.navigate("MemberHome", {
+                            screen: "Profile",
+                            params: {
+                              screen: "MemberProfile",
+                            },
+                          });
+                        } else {
+                          navigation.navigate("MemberProfile");
+                        }
                       } else {
-                        navigation.navigate("MemberProfile");
+                        navigation.navigate("MemberPublicProfile", {
+                          memberId: memberId,
+                        });
                       }
-                    } else {
-                      navigation.navigate("MemberPublicProfile", {
-                        memberId: memberId,
+                    }}
+                  >
+                    <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(41, 98, 255, 0.08)" }]}>
+                      <User size={20} color="#2962FF" strokeWidth={2.2} />
+                    </View>
+                    <View style={styles.contactOptionTextContainer}>
+                      <Text style={styles.contactOptionTitle}>Visit Profile</Text>
+                      <Text style={styles.contactOptionSubtitle}>Go to user profile</Text>
+                    </View>
+                    <ChevronRight size={16} color="#8E8E93" />
+                  </TouchableOpacity>
+                )}
+
+                {selectedHeadForContact?.email && (
+                  <TouchableOpacity
+                    style={styles.contactModalOption}
+                    onPress={() => {
+                      setContactModalVisible(false);
+                      Linking.openURL(`mailto:${selectedHeadForContact.email}`).catch(() => {
+                        Alert.alert("Error", "Could not open mail app");
                       });
-                    }
-                  }}
-                >
-                  <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(41, 98, 255, 0.08)" }]}>
-                    <User size={20} color="#2962FF" strokeWidth={2.2} />
-                  </View>
-                  <View style={styles.contactOptionTextContainer}>
-                    <Text style={styles.contactOptionTitle}>Visit Profile</Text>
-                    <Text style={styles.contactOptionSubtitle}>Go to user profile</Text>
-                  </View>
-                  <ChevronRight size={16} color="#8E8E93" />
-                </TouchableOpacity>
-              )}
+                    }}
+                  >
+                    <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(16, 185, 129, 0.08)" }]}>
+                      <Mail size={20} color="#10B981" strokeWidth={2.2} />
+                    </View>
+                    <View style={styles.contactOptionTextContainer}>
+                      <Text style={styles.contactOptionTitle}>Email</Text>
+                      <Text style={styles.contactOptionSubtitle}>{selectedHeadForContact.email}</Text>
+                    </View>
+                    <ChevronRight size={16} color="#8E8E93" />
+                  </TouchableOpacity>
+                )}
 
-              {selectedHeadForContact?.email && (
-                <TouchableOpacity
-                  style={styles.contactModalOption}
-                  onPress={() => {
-                    setContactModalVisible(false);
-                    Linking.openURL(`mailto:${selectedHeadForContact.email}`).catch(() => {
-                      Alert.alert("Error", "Could not open mail app");
-                    });
-                  }}
-                >
-                  <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(16, 185, 129, 0.08)" }]}>
-                    <Mail size={20} color="#10B981" strokeWidth={2.2} />
-                  </View>
-                  <View style={styles.contactOptionTextContainer}>
-                    <Text style={styles.contactOptionTitle}>Email</Text>
-                    <Text style={styles.contactOptionSubtitle}>{selectedHeadForContact.email}</Text>
-                  </View>
-                  <ChevronRight size={16} color="#8E8E93" />
-                </TouchableOpacity>
-              )}
-
-              {selectedHeadForContact?.phone && (
-                <TouchableOpacity
-                  style={styles.contactModalOption}
-                  onPress={() => {
-                    setContactModalVisible(false);
-                    Linking.openURL(`tel:${selectedHeadForContact.phone}`).catch(() => {
-                      Alert.alert("Error", "Could not initiate call");
-                    });
-                  }}
-                >
-                  <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(245, 158, 11, 0.08)" }]}>
-                    <Phone size={20} color="#F59E0B" strokeWidth={2.2} />
-                  </View>
-                  <View style={styles.contactOptionTextContainer}>
-                    <Text style={styles.contactOptionTitle}>Call / Message</Text>
-                    <Text style={styles.contactOptionSubtitle}>{formatPhoneNumber(selectedHeadForContact.phone)}</Text>
-                  </View>
-                  <ChevronRight size={16} color="#8E8E93" />
-                </TouchableOpacity>
-              )}
-            </View>
+                {selectedHeadForContact?.phone && (
+                  <TouchableOpacity
+                    style={styles.contactModalOption}
+                    onPress={() => {
+                      setContactModalVisible(false);
+                      Linking.openURL(`tel:${selectedHeadForContact.phone}`).catch(() => {
+                        Alert.alert("Error", "Could not initiate call");
+                      });
+                    }}
+                  >
+                    <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(245, 158, 11, 0.08)" }]}>
+                      <Phone size={20} color="#F59E0B" strokeWidth={2.2} />
+                    </View>
+                    <View style={styles.contactOptionTextContainer}>
+                      <Text style={styles.contactOptionTitle}>Call / Message</Text>
+                      <Text style={styles.contactOptionSubtitle}>{formatPhoneNumber(selectedHeadForContact.phone)}</Text>
+                    </View>
+                    <ChevronRight size={16} color="#8E8E93" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </TouchableOpacity>
           </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
+        </Modal>
+      )}
     </View>
   );
 }

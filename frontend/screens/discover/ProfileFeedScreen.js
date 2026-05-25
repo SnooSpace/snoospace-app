@@ -345,12 +345,14 @@ export default function ProfileFeedScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      <DiscoverFilterSheet
-        visible={filterSheetVisible}
-        onClose={() => setFilterSheetVisible(false)}
-        onApply={setActiveFilters}
-        initialFilters={activeFilters}
-      />
+      {filterSheetVisible && (
+        <DiscoverFilterSheet
+          visible={filterSheetVisible}
+          onClose={() => setFilterSheetVisible(false)}
+          onApply={setActiveFilters}
+          initialFilters={activeFilters}
+        />
+      )}
     </SafeAreaView>
   );
 }

@@ -1272,409 +1272,425 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
            No screen-level modal is needed here. */}
 
       {/* Fullscreen Image Modal (Rich Detail View) */}
-      <Modal
-        visible={!!fullscreenImage}
-        transparent={false}
-        animationType="slide"
-        onRequestClose={() => setFullscreenImage(null)}
-      >
-        <SafeAreaView style={styles.detailModalContainer} edges={["top", "bottom"]}>
-          {fullscreenImage && (
-            <>
-              {/* Header */}
-              <View style={styles.detailHeader}>
-                <TouchableOpacity
-                  style={styles.detailAuthorInfo}
-                  onPress={() => {
-                    setFullscreenImage(null);
-                    if (fullscreenImage.participant_type === "community") {
-                      navigation.push("CommunityPublicProfile", {
-                        communityId: fullscreenImage.participant_id,
-                      });
-                    } else {
-                      navigation.push("MemberPublicProfile", {
-                        memberId: fullscreenImage.participant_id,
-                      });
-                    }
-                  }}
-                >
-                  {fullscreenImage.participant_photo_url ? (
-                    <Image
-                      source={{ uri: fullscreenImage.participant_photo_url }}
-                      style={styles.detailAvatar}
-                    />
-                  ) : (
-                    <View style={styles.detailAvatarPlaceholder}>
-                      <User size={16} color={COLORS.textSecondary} />
-                    </View>
-                  )}
-                  <View>
-                    <Text style={styles.detailAuthorName}>
-                      {fullscreenImage.participant_name || "User"}
-                    </Text>
-                    <Text style={styles.detailTimeAgo}>
-                      {formatTimeAgo(fullscreenImage.created_at)}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.detailCloseBtn}
-                  onPress={() => setFullscreenImage(null)}
-                >
-                  <X size={24} color={COLORS.textPrimary} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Scrollable Content */}
-              <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-                {/* Media */}
-                <View style={styles.detailMediaContainer}>
-                  <Image
-                    source={{ uri: fullscreenImage.media_urls?.[0] }}
-                    style={styles.detailImage}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                {/* Action Bar */}
-                <View style={styles.detailActionBar}>
-                  <View style={styles.detailActionGroup}>
-                    <TouchableOpacity
-                      style={styles.detailActionBtn}
-                      onPress={() => handleLike(fullscreenImage.id, fullscreenImage.has_liked)}
-                    >
-                      <Heart
-                        size={24}
-                        color={fullscreenImage.has_liked ? COLORS.error : COLORS.textPrimary}
-                        fill={fullscreenImage.has_liked ? COLORS.error : "transparent"}
+      {!!fullscreenImage && (
+        <Modal
+          visible={!!fullscreenImage}
+          transparent={false}
+          animationType="slide"
+          onRequestClose={() => setFullscreenImage(null)}
+        >
+          <SafeAreaView style={styles.detailModalContainer} edges={["top", "bottom"]}>
+            {fullscreenImage && (
+              <>
+                {/* Header */}
+                <View style={styles.detailHeader}>
+                  <TouchableOpacity
+                    style={styles.detailAuthorInfo}
+                    onPress={() => {
+                      setFullscreenImage(null);
+                      if (fullscreenImage.participant_type === "community") {
+                        navigation.push("CommunityPublicProfile", {
+                          communityId: fullscreenImage.participant_id,
+                        });
+                      } else {
+                        navigation.push("MemberPublicProfile", {
+                          memberId: fullscreenImage.participant_id,
+                        });
+                      }
+                    }}
+                  >
+                    {fullscreenImage.participant_photo_url ? (
+                      <Image
+                        source={{ uri: fullscreenImage.participant_photo_url }}
+                        style={styles.detailAvatar}
                       />
-                      {fullscreenImage.like_count > 0 && (
-                        <Text style={styles.detailActionText}>
-                          {fullscreenImage.like_count}
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.detailActionBtn}>
-                      <MessageCircle size={24} color={COLORS.textPrimary} />
-                    </TouchableOpacity>
-                    <View style={styles.detailActionBtn}>
-                      <ChartNoAxesCombined size={24} color={COLORS.textPrimary} />
-                      <Text style={styles.detailActionText}>
-                        {fullscreenImage.view_count || fullscreenImage.views || 0}
+                    ) : (
+                      <View style={styles.detailAvatarPlaceholder}>
+                        <User size={16} color={COLORS.textSecondary} />
+                      </View>
+                    )}
+                    <View>
+                      <Text style={styles.detailAuthorName}>
+                        {fullscreenImage.participant_name || "User"}
+                      </Text>
+                      <Text style={styles.detailTimeAgo}>
+                        {formatTimeAgo(fullscreenImage.created_at)}
                       </Text>
                     </View>
-                    <TouchableOpacity style={styles.detailActionBtn}>
-                      <Send size={24} color={COLORS.textPrimary} />
-                    </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.detailCloseBtn}
+                    onPress={() => setFullscreenImage(null)}
+                  >
+                    <X size={24} color={COLORS.textPrimary} />
+                  </TouchableOpacity>
                 </View>
 
-                {/* Caption */}
-                {fullscreenImage.content ? (
-                  <View style={styles.detailCaptionContainer}>
-                    <Text style={styles.detailCaptionText}>
-                      <Text style={styles.detailCaptionName}>
-                        {fullscreenImage.participant_name}
+                {/* Scrollable Content */}
+                <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                  {/* Media */}
+                  <View style={styles.detailMediaContainer}>
+                    <Image
+                      source={{ uri: fullscreenImage.media_urls?.[0] }}
+                      style={styles.detailImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+
+                  {/* Action Bar */}
+                  <View style={styles.detailActionBar}>
+                    <View style={styles.detailActionGroup}>
+                      <TouchableOpacity
+                        style={styles.detailActionBtn}
+                        onPress={() => handleLike(fullscreenImage.id, fullscreenImage.has_liked)}
+                      >
+                        <Heart
+                          size={24}
+                          color={fullscreenImage.has_liked ? COLORS.error : COLORS.textPrimary}
+                          fill={fullscreenImage.has_liked ? COLORS.error : "transparent"}
+                        />
+                        {fullscreenImage.like_count > 0 && (
+                          <Text style={styles.detailActionText}>
+                            {fullscreenImage.like_count}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.detailActionBtn}>
+                        <MessageCircle size={24} color={COLORS.textPrimary} />
+                      </TouchableOpacity>
+                      <View style={styles.detailActionBtn}>
+                        <ChartNoAxesCombined size={24} color={COLORS.textPrimary} />
+                        <Text style={styles.detailActionText}>
+                          {fullscreenImage.view_count || fullscreenImage.views || 0}
+                        </Text>
+                      </View>
+                      <TouchableOpacity style={styles.detailActionBtn}>
+                        <Send size={24} color={COLORS.textPrimary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {/* Caption */}
+                  {fullscreenImage.content ? (
+                    <View style={styles.detailCaptionContainer}>
+                      <Text style={styles.detailCaptionText}>
+                        <Text style={styles.detailCaptionName}>
+                          {fullscreenImage.participant_name}
+                        </Text>
+                        {" "}{fullscreenImage.content}
                       </Text>
-                      {" "}{fullscreenImage.content}
-                    </Text>
-                  </View>
-                ) : null}
-              </ScrollView>
+                    </View>
+                  ) : null}
+                </ScrollView>
 
-              {/* Reply Bar */}
-              <View style={styles.detailReplyBar}>
-                <View style={styles.detailReplyAvatarPlaceholder}>
-                  <User size={16} color={COLORS.textSecondary} />
+                {/* Reply Bar */}
+                <View style={styles.detailReplyBar}>
+                  <View style={styles.detailReplyAvatarPlaceholder}>
+                    <User size={16} color={COLORS.textSecondary} />
+                  </View>
+                  <TouchableOpacity style={styles.detailReplyInput}>
+                    <Text style={styles.detailReplyPlaceholder}>
+                      Reply to {fullscreenImage?.participant_name || "User"} in DM's
+                    </Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.detailReplyInput}>
-                  <Text style={styles.detailReplyPlaceholder}>
-                    Reply to {fullscreenImage?.participant_name || "User"} in DM's
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
-        </SafeAreaView>
-      </Modal>
+              </>
+            )}
+          </SafeAreaView>
+        </Modal>
+      )}
 
       {/* Action Sheet Modal */}
-      <Modal
-        visible={!!actionSheet}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setActionSheet(null)}
-      >
-        <TouchableOpacity
-          style={styles.actionSheetOverlay}
-          activeOpacity={1}
-          onPress={() => setActionSheet(null)}
+      {!!actionSheet && (
+        <Modal
+          visible={!!actionSheet}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setActionSheet(null)}
         >
-          <View style={styles.actionSheetContainer}>
-            <Text style={styles.actionSheetTitle}>Submission Options</Text>
-            {/* ── ENDED CHALLENGE: Request Removal ── */}
-            {challengeEnded && actionSheet?.submission?.is_own_submission && (
-              <TouchableOpacity
-                style={styles.actionSheetButton}
-                onPress={() => handleRequestRemoval(actionSheet.submission)}
-              >
-                <Trash2 size={20} color="#FF3B30" />
-                <Text style={[styles.actionSheetButtonText, { color: "#FF3B30" }]}>
-                  Request Removal
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {/* ── ACTIVE CHALLENGE: Edit & Resubmit for rejected ── */}
-            {!challengeEnded &&
-              actionSheet?.submission?.is_own_submission &&
-              actionSheet?.submission?.status === "rejected" && (
+          <TouchableOpacity
+            style={styles.actionSheetOverlay}
+            activeOpacity={1}
+            onPress={() => setActionSheet(null)}
+          >
+            <View style={styles.actionSheetContainer}>
+              <Text style={styles.actionSheetTitle}>Submission Options</Text>
+              {/* ── ENDED CHALLENGE: Request Removal ── */}
+              {challengeEnded && actionSheet?.submission?.is_own_submission && (
                 <TouchableOpacity
                   style={styles.actionSheetButton}
-                  onPress={() => {
-                    setActionSheet(null);
-                    navigation.navigate("ChallengeSubmit", {
-                      post,
-                      participation: null,
-                      prefillContent: actionSheet.submission.content || "",
-                      prefillMediaUrls: actionSheet.submission.media_urls || [],
-                      onSubmitSuccess: () => fetchSubmissions(false),
-                    });
-                  }}
+                  onPress={() => handleRequestRemoval(actionSheet.submission)}
                 >
-                  <Edit2 size={20} color="#2962FF" />
-                  <Text style={[styles.actionSheetButtonText, { color: "#2962FF" }]}>
-                    Edit & Resubmit
+                  <Trash2 size={20} color="#FF3B30" />
+                  <Text style={[styles.actionSheetButtonText, { color: "#FF3B30" }]}>
+                    Request Removal
                   </Text>
                 </TouchableOpacity>
               )}
 
-            {/* ── ACTIVE CHALLENGE: Withdraw options ── */}
-            {!challengeEnded && actionSheet?.submission?.is_own_submission && (
-              <>
-                {/* Divider */}
-                <View style={styles.actionSheetDivider} />
-
-                {/* Withdraw Submission — always visible for own submission */}
-                <TouchableOpacity
-                  style={styles.actionSheetButton}
-                  onPress={() => handleWithdraw(actionSheet.submission, false)}
-                >
-                  <MinusCircle size={20} color="#FF9500" />
-                  <Text style={[styles.actionSheetButtonText, { color: "#FF9500" }]}>
-                    Withdraw Submission
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Withdraw & Delete Post — only for linked (Method 2) submissions */}
-                {actionSheet?.submission?.source_post_id && (
+              {/* ── ACTIVE CHALLENGE: Edit & Resubmit for rejected ── */}
+              {!challengeEnded &&
+                actionSheet?.submission?.is_own_submission &&
+                actionSheet?.submission?.status === "rejected" && (
                   <TouchableOpacity
                     style={styles.actionSheetButton}
-                    onPress={() => handleWithdraw(actionSheet.submission, true)}
+                    onPress={() => {
+                      setActionSheet(null);
+                      navigation.navigate("ChallengeSubmit", {
+                        post,
+                        participation: null,
+                        prefillContent: actionSheet.submission.content || "",
+                        prefillMediaUrls: actionSheet.submission.media_urls || [],
+                        onSubmitSuccess: () => fetchSubmissions(false),
+                      });
+                    }}
                   >
-                    <Trash2 size={20} color="#FF3B30" />
-                    <Text style={[styles.actionSheetButtonText, { color: "#FF3B30" }]}>
-                      Withdraw & Delete Post
+                    <Edit2 size={20} color="#2962FF" />
+                    <Text style={[styles.actionSheetButtonText, { color: "#2962FF" }]}>
+                      Edit & Resubmit
                     </Text>
                   </TouchableOpacity>
                 )}
 
-                {/* Hint for linked submissions: post stays unless explicitly deleted */}
-                {actionSheet?.submission?.source_post_id && (
-                  <View style={styles.actionSheetInfoRow}>
-                    <Info size={15} color="#9CA3AF" />
-                    <Text style={styles.actionSheetInfoText}>
-                      "Withdraw" removes from this challenge only. Your post stays on your profile until you delete it.
+              {/* ── ACTIVE CHALLENGE: Withdraw options ── */}
+              {!challengeEnded && actionSheet?.submission?.is_own_submission && (
+                <>
+                  {/* Divider */}
+                  <View style={styles.actionSheetDivider} />
+
+                  {/* Withdraw Submission — always visible for own submission */}
+                  <TouchableOpacity
+                    style={styles.actionSheetButton}
+                    onPress={() => handleWithdraw(actionSheet.submission, false)}
+                  >
+                    <MinusCircle size={20} color="#FF9500" />
+                    <Text style={[styles.actionSheetButtonText, { color: "#FF9500" }]}>
+                      Withdraw Submission
                     </Text>
-                  </View>
-                )}
-              </>
-            )}
+                  </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.actionSheetButton, styles.actionSheetCancel]}
-              onPress={() => setActionSheet(null)}
-            >
-              <Text style={styles.actionSheetCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+                  {/* Withdraw & Delete Post — only for linked (Method 2) submissions */}
+                  {actionSheet?.submission?.source_post_id && (
+                    <TouchableOpacity
+                      style={styles.actionSheetButton}
+                      onPress={() => handleWithdraw(actionSheet.submission, true)}
+                    >
+                      <Trash2 size={20} color="#FF3B30" />
+                      <Text style={[styles.actionSheetButtonText, { color: "#FF3B30" }]}>
+                        Withdraw & Delete Post
+                      </Text>
+                    </TouchableOpacity>
+                  )}
 
-      {/* Removal Requests Modal (for challenge host) */}
-      <RemovalRequestsModal
-        visible={showRemovalRequests}
-        onClose={() => setShowRemovalRequests(false)}
-        postId={post.id}
-        onRequestReviewed={() => {
-          fetchSubmissions(false);
-          setPendingRemovalCount((c) => Math.max(0, c - 1));
-        }}
-        onContactUser={(submissionLike) => {
-          // Open the existing DM sheet with the requester as recipient
-          setReplyDMState({
-            visible: true,
-            submission: submissionLike,
-            message: "",
-            sending: false,
-          });
-        }}
-      />
-
-      {/* Share Modal — passes the submission's parent post for share context */}
-      <ShareModal
-        visible={shareModalVisible}
-        onClose={() => {
-          setShareModalVisible(false);
-          setSelectedShareSubmission(null);
-        }}
-        post={selectedShareSubmission ? { ...post, id: post.id } : post}
-      />
-
-      {/* Submission Comments Modal — isolated from challenge post's comment count */}
-      <SubmissionCommentsModal
-        visible={commentsModalVisible}
-        submissionId={selectedSubmissionId}
-        submissionAuthorName={selectedSubmissionAuthorName}
-        onClose={() => {
-          setCommentsModalVisible(false);
-          setSelectedSubmissionId(null);
-          setSelectedSubmissionAuthorName(null);
-        }}
-        onCommentCountChange={(count) => {
-          // Update the local submission's comment_count so the card refreshes
-          setSubmissions((prev) =>
-            prev.map((s) =>
-              s.id === selectedSubmissionId ? { ...s, comment_count: count } : s
-            )
-          );
-          // Notify challenge card teaser row so it updates instantly
-          EventBus.emit("submission-comment-added", { postId: post.id, submissionId: selectedSubmissionId, count });
-        }}
-      />
-
-      {/* Reply in DMs Sheet */}
-      <Modal
-        visible={replyDMState.visible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setReplyDMState((p) => ({ ...p, visible: false }))}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={{ flex: 1 }}
-        >
-          <TouchableOpacity
-            style={styles.commentsOverlay}
-            activeOpacity={1}
-            onPress={() => setReplyDMState((p) => ({ ...p, visible: false }))}
-          />
-          <View style={styles.commentsSheet}>
-            <View style={styles.commentsHandle} />
-            <View style={styles.dmHeader}>
-              {replyDMState.submission?.participant_photo_url ? (
-                <Image source={{ uri: replyDMState.submission.participant_photo_url }} style={styles.dmAvatar} />
-              ) : (
-                <View style={styles.dmAvatarFallback}><User size={16} color={COLORS.textSecondary} /></View>
+                  {/* Hint for linked submissions: post stays unless explicitly deleted */}
+                  {actionSheet?.submission?.source_post_id && (
+                    <View style={styles.actionSheetInfoRow}>
+                      <Info size={15} color="#9CA3AF" />
+                      <Text style={styles.actionSheetInfoText}>
+                        "Withdraw" removes from this challenge only. Your post stays on your profile until you delete it.
+                      </Text>
+                    </View>
+                  )}
+                </>
               )}
-              <View>
-                <Text style={styles.dmTitle}>Reply in DMs</Text>
-                <Text style={styles.dmSubtitle}>{replyDMState.submission?.participant_name}</Text>
-              </View>
-            </View>
-            <View style={styles.commentsInputRow}>
-              <TextInput
-                style={[styles.commentsInput, { flex: 1 }]}
-                placeholder="Add a message (optional)…"
-                placeholderTextColor={COLORS.textSecondary}
-                value={replyDMState.message}
-                onChangeText={(t) => setReplyDMState((p) => ({ ...p, message: t }))}
-                multiline
-                maxLength={500}
-              />
+
               <TouchableOpacity
-                style={[styles.commentsSendBtn, replyDMState.sending && styles.commentsSendBtnDisabled]}
-                onPress={sendReplyDM}
-                disabled={replyDMState.sending}
+                style={[styles.actionSheetButton, styles.actionSheetCancel]}
+                onPress={() => setActionSheet(null)}
               >
-                <Send size={18} color="#FFFFFF" />
+                <Text style={styles.actionSheetCancelText}>Cancel</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+          </TouchableOpacity>
+        </Modal>
+      )}
 
-      <CustomAlertModal
-        visible={alertVisible}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        onClose={() => setAlertVisible(false)}
-        primaryAction={alertConfig.primaryAction}
-        secondaryAction={alertConfig.secondaryAction}
-        icon={alertConfig.icon}
-        iconColor={alertConfig.iconColor}
-      />
+      {/* Removal Requests Modal (for challenge host) */}
+      {showRemovalRequests && (
+        <RemovalRequestsModal
+          visible={showRemovalRequests}
+          onClose={() => setShowRemovalRequests(false)}
+          postId={post.id}
+          onRequestReviewed={() => {
+            fetchSubmissions(false);
+            setPendingRemovalCount((c) => Math.max(0, c - 1));
+          }}
+          onContactUser={(submissionLike) => {
+            // Open the existing DM sheet with the requester as recipient
+            setReplyDMState({
+              visible: true,
+              submission: submissionLike,
+              message: "",
+              sending: false,
+            });
+          }}
+        />
+      )}
+
+      {/* Share Modal — passes the submission's parent post for share context */}
+      {shareModalVisible && (
+        <ShareModal
+          visible={shareModalVisible}
+          onClose={() => {
+            setShareModalVisible(false);
+            setSelectedShareSubmission(null);
+          }}
+          post={selectedShareSubmission ? { ...post, id: post.id } : post}
+        />
+      )}
+
+      {/* Submission Comments Modal — isolated from challenge post's comment count */}
+      {commentsModalVisible && (
+        <SubmissionCommentsModal
+          visible={commentsModalVisible}
+          submissionId={selectedSubmissionId}
+          submissionAuthorName={selectedSubmissionAuthorName}
+          onClose={() => {
+            setCommentsModalVisible(false);
+            setSelectedSubmissionId(null);
+            setSelectedSubmissionAuthorName(null);
+          }}
+          onCommentCountChange={(count) => {
+            // Update the local submission's comment_count so the card refreshes
+            setSubmissions((prev) =>
+              prev.map((s) =>
+                s.id === selectedSubmissionId ? { ...s, comment_count: count } : s
+              )
+            );
+            // Notify challenge card teaser row so it updates instantly
+            EventBus.emit("submission-comment-added", { postId: post.id, submissionId: selectedSubmissionId, count });
+          }}
+        />
+      )}
+
+      {/* Reply in DMs Sheet */}
+      {replyDMState.visible && (
+        <Modal
+          visible={replyDMState.visible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setReplyDMState((p) => ({ ...p, visible: false }))}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={{ flex: 1 }}
+          >
+            <TouchableOpacity
+              style={styles.commentsOverlay}
+              activeOpacity={1}
+              onPress={() => setReplyDMState((p) => ({ ...p, visible: false }))}
+            />
+            <View style={styles.commentsSheet}>
+              <View style={styles.commentsHandle} />
+              <View style={styles.dmHeader}>
+                {replyDMState.submission?.participant_photo_url ? (
+                  <Image source={{ uri: replyDMState.submission.participant_photo_url }} style={styles.dmAvatar} />
+                ) : (
+                  <View style={styles.dmAvatarFallback}><User size={16} color={COLORS.textSecondary} /></View>
+                )}
+                <View>
+                  <Text style={styles.dmTitle}>Reply in DMs</Text>
+                  <Text style={styles.dmSubtitle}>{replyDMState.submission?.participant_name}</Text>
+                </View>
+              </View>
+              <View style={styles.commentsInputRow}>
+                <TextInput
+                  style={[styles.commentsInput, { flex: 1 }]}
+                  placeholder="Add a message (optional)…"
+                  placeholderTextColor={COLORS.textSecondary}
+                  value={replyDMState.message}
+                  onChangeText={(t) => setReplyDMState((p) => ({ ...p, message: t }))}
+                  multiline
+                  maxLength={500}
+                />
+                <TouchableOpacity
+                  style={[styles.commentsSendBtn, replyDMState.sending && styles.commentsSendBtnDisabled]}
+                  onPress={sendReplyDM}
+                  disabled={replyDMState.sending}
+                >
+                  <Send size={18} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+      )}
+
+      {alertVisible && (
+        <CustomAlertModal
+          visible={alertVisible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          onClose={() => setAlertVisible(false)}
+          primaryAction={alertConfig.primaryAction}
+          secondaryAction={alertConfig.secondaryAction}
+          icon={alertConfig.icon}
+          iconColor={alertConfig.iconColor}
+        />
+      )}
 
       {/* Status Explanation Modal */}
-      <Modal
-        visible={statusExplanationVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setStatusExplanationVisible(false)}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setStatusExplanationVisible(false)}
+      {statusExplanationVisible && (
+        <Modal
+          visible={statusExplanationVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setStatusExplanationVisible(false)}
         >
-          <View style={styles.explanationModalContent}>
-            <Text style={styles.explanationModalTitle}>Submission Progress</Text>
-            <Text style={styles.explanationModalSubtitle}>
-              Progress status is represented by the following colors:
-            </Text>
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setStatusExplanationVisible(false)}
+          >
+            <View style={styles.explanationModalContent}>
+              <Text style={styles.explanationModalTitle}>Submission Progress</Text>
+              <Text style={styles.explanationModalSubtitle}>
+                Progress status is represented by the following colors:
+              </Text>
 
-            {/* Grey Status Row */}
-            <View style={styles.explanationRow}>
-              <View style={[styles.explanationDot, { backgroundColor: "#9CA3AF" }]} />
-              <View style={styles.explanationTextContainer}>
-                <Text style={styles.explanationItemTitle}>Joined</Text>
-                <Text style={styles.explanationItemDesc}>
-                  You have successfully joined the challenge and are ready to submit proof.
-                </Text>
+              {/* Grey Status Row */}
+              <View style={styles.explanationRow}>
+                <View style={[styles.explanationDot, { backgroundColor: "#9CA3AF" }]} />
+                <View style={styles.explanationTextContainer}>
+                  <Text style={styles.explanationItemTitle}>Joined</Text>
+                  <Text style={styles.explanationItemDesc}>
+                    You have successfully joined the challenge and are ready to submit proof.
+                  </Text>
+                </View>
               </View>
-            </View>
 
-            {/* Orange Status Row */}
-            <View style={styles.explanationRow}>
-              <View style={[styles.explanationDot, { backgroundColor: "#FF9500" }]} />
-              <View style={styles.explanationTextContainer}>
-                <Text style={styles.explanationItemTitle}>Reviewing</Text>
-                <Text style={styles.explanationItemDesc}>
-                  Your submission has been uploaded and is under review by the challenge creator.
-                </Text>
+              {/* Orange Status Row */}
+              <View style={styles.explanationRow}>
+                <View style={[styles.explanationDot, { backgroundColor: "#FF9500" }]} />
+                <View style={styles.explanationTextContainer}>
+                  <Text style={styles.explanationItemTitle}>Reviewing</Text>
+                  <Text style={styles.explanationItemDesc}>
+                    Your submission has been uploaded and is under review by the challenge creator.
+                  </Text>
+                </View>
               </View>
-            </View>
 
-            {/* Green Status Row */}
-            <View style={styles.explanationRow}>
-              <View style={[styles.explanationDot, { backgroundColor: "#34C759" }]} />
-              <View style={styles.explanationTextContainer}>
-                <Text style={styles.explanationItemTitle}>Approved</Text>
-                <Text style={styles.explanationItemDesc}>
-                  Your submission was approved! It is now visible to the community.
-                </Text>
+              {/* Green Status Row */}
+              <View style={styles.explanationRow}>
+                <View style={[styles.explanationDot, { backgroundColor: "#34C759" }]} />
+                <View style={styles.explanationTextContainer}>
+                  <Text style={styles.explanationItemTitle}>Approved</Text>
+                  <Text style={styles.explanationItemDesc}>
+                    Your submission was approved! It is now visible to the community.
+                  </Text>
+                </View>
               </View>
-            </View>
 
-            <TouchableOpacity
-              style={styles.explanationCloseBtn}
-              onPress={() => setStatusExplanationVisible(false)}
-            >
-              <Text style={styles.explanationCloseBtnText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+              <TouchableOpacity
+                style={styles.explanationCloseBtn}
+                onPress={() => setStatusExplanationVisible(false)}
+              >
+                <Text style={styles.explanationCloseBtnText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 };

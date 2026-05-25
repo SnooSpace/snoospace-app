@@ -29,6 +29,22 @@ const THUMB_SIZE = Math.floor((SCREEN_WIDTH - GAP * (NUM_COLUMNS - 1)) / NUM_COL
 const RECENTS_ID = "__recents__";
 const VIDEOS_ID = "__videos__";
 
+const formatDuration = (seconds) => {
+  if (!seconds) return "0:00";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+};
+
+const getAlbumIcon = (albumId, albumTitle) => {
+  if (albumId === RECENTS_ID) return <Clock size={18} color="#0A0A0A" strokeWidth={1.5} />;
+  if (albumId === VIDEOS_ID) return <Video size={18} color="#0A0A0A" strokeWidth={1.5} />;
+  const titleLower = (albumTitle || "").toLowerCase();
+  if (titleLower.includes("video")) return <Video size={18} color="#0A0A0A" strokeWidth={1.5} />;
+  if (titleLower.includes("screenshot")) return <Grid2x2 size={18} color="#0A0A0A" strokeWidth={1.5} />;
+  return <ImageIcon size={18} color="#0A0A0A" strokeWidth={1.5} />;
+};
+
 /**
  * CustomImagePicker
  *
@@ -235,68 +251,19 @@ export default function CustomImagePicker({
       const isSelected = selectionNumber !== null;
 
       return (
-        <TouchableOpacity
-          activeOpacity={tooLong ? 1 : 0.85}
+        <ImagePickerThumbnail
+          item={item}
+          isSelected={isSelected}
+          selectionNumber={selectionNumber}
+          tooLong={tooLong}
           onPress={() => !tooLong && toggleAsset(item)}
-          style={styles.thumbWrapper}
-        >
-          <Image
-            source={{ uri: item.uri }}
-            style={[styles.thumb, tooLong && styles.thumbDisabled]}
-            resizeMode="cover"
-          />
-
-          {/* Grey-out overlay for too-long videos */}
-          {tooLong && <View style={styles.tooLongOverlay} />}
-
-          {/* Dim overlay when selected */}
-          {isSelected && !tooLong && <View style={styles.selectedDim} />}
-
-          {/* Selection badge — only shown for valid assets */}
-          {!tooLong && (
-            <View
-              style={[
-                styles.badge,
-                isSelected ? styles.badgeSelected : styles.badgeUnselected,
-              ]}
-            >
-              {isSelected && (
-                <Text style={styles.badgeNumber}>{selectionNumber}</Text>
-              )}
-            </View>
-          )}
-
-          {/* Video duration badge */}
-          {item.mediaType === "video" && (
-            <View style={[styles.videoBadge, tooLong && styles.videoBadgeTooLong]}>
-              <Text style={[styles.videoDuration, tooLong && styles.videoDurationTooLong]}>
-                {tooLong ? "Too long" : formatDuration(item.duration)}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        />
       );
     },
     [selectedAssets, toggleAsset, isVideoTooLong]
   );
 
   const keyExtractor = useCallback((item) => item.id, []);
-
-  const formatDuration = (seconds) => {
-    if (!seconds) return "0:00";
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  };
-
-  const getAlbumIcon = (albumId, albumTitle) => {
-    if (albumId === RECENTS_ID) return <Clock size={18} color="#0A0A0A" strokeWidth={1.5} />;
-    if (albumId === VIDEOS_ID) return <Video size={18} color="#0A0A0A" strokeWidth={1.5} />;
-    const titleLower = (albumTitle || "").toLowerCase();
-    if (titleLower.includes("video")) return <Video size={18} color="#0A0A0A" strokeWidth={1.5} />;
-    if (titleLower.includes("screenshot")) return <Grid2x2 size={18} color="#0A0A0A" strokeWidth={1.5} />;
-    return <ImageIcon size={18} color="#0A0A0A" strokeWidth={1.5} />;
-  };
 
   // Header dropdown trigger
   const renderAlbumTrigger = () => {
@@ -312,7 +279,9 @@ export default function CustomImagePicker({
         hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
         activeOpacity={0.75}
       >
-        <Text style={styles.albumTriggerText}>{selectedAlbum.title}</Text>
+        <Text style={styles.albumTriggerText} numberOfLines={1} ellipsizeMode="tail">
+          {selectedAlbum.title}
+        </Text>
         <Animated.View style={{ transform: [{ rotate: chevronRotate }], marginLeft: 3 }}>
           <ChevronDown size={16} color="#0A0A0A" strokeWidth={2.5} />
         </Animated.View>
@@ -514,6 +483,65 @@ export default function CustomImagePicker({
     </Modal>
   );
 }
+
+const ImagePickerThumbnail = React.memo(({
+  item,
+  isSelected,
+  selectionNumber,
+  tooLong,
+  onPress,
+}) => {
+  return (
+    <TouchableOpacity
+      activeOpacity={tooLong ? 1 : 0.85}
+      onPress={onPress}
+      style={styles.thumbWrapper}
+    >
+      <Image
+        source={{ uri: item.uri }}
+        style={[styles.thumb, tooLong && styles.thumbDisabled]}
+        resizeMode="cover"
+      />
+
+      {/* Grey-out overlay for too-long videos */}
+      {tooLong && <View style={styles.tooLongOverlay} />}
+
+      {/* Dim overlay when selected */}
+      {isSelected && !tooLong && <View style={styles.selectedDim} />}
+
+      {/* Selection badge — only shown for valid assets */}
+      {!tooLong && (
+        <View
+          style={[
+            styles.badge,
+            isSelected ? styles.badgeSelected : styles.badgeUnselected,
+          ]}
+        >
+          {isSelected && (
+            <Text style={styles.badgeNumber}>{selectionNumber}</Text>
+          )}
+        </View>
+      )}
+
+      {/* Video duration badge */}
+      {item.mediaType === "video" && (
+        <View style={[styles.videoBadge, tooLong && styles.videoBadgeTooLong]}>
+          <Text style={[styles.videoDuration, tooLong && styles.videoDurationTooLong]}>
+            {tooLong ? "Too long" : formatDuration(item.duration)}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}, (prev, next) => {
+  return (
+    prev.item.id === next.item.id &&
+    prev.item.uri === next.item.uri &&
+    prev.isSelected === next.isSelected &&
+    prev.selectionNumber === next.selectionNumber &&
+    prev.tooLong === next.tooLong
+  );
+});
 
 const styles = StyleSheet.create({
   container: {

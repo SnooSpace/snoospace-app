@@ -381,44 +381,46 @@ const PromptSubmissionsScreen = ({ route, navigation }) => {
       </View>
 
       {/* Options Modal for Pin */}
-      <Modal
-        visible={optionsModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setOptionsModalVisible(false)}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setOptionsModalVisible(false)}
+      {optionsModalVisible && (
+        <Modal
+          visible={optionsModalVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setOptionsModalVisible(false)}
         >
-          <View style={styles.optionsModal}>
-            <TouchableOpacity
-              style={styles.optionItem}
-              onPress={() =>
-                handlePin(selectedSubmission?.id, selectedSubmission?.is_pinned)
-              }
-              disabled={pinningId === selectedSubmission?.id}
-            >
-              {pinningId === selectedSubmission?.id ? (
-                <SnooLoader size="small" color={COLORS.primary} />
-              ) : (
-                <>
-                  {selectedSubmission?.is_pinned ? (
-                    <PinOff size={22} color="#FF9500" />
-                  ) : (
-                    <Pin size={22} color="#FF9500" fill="transparent" />
-                  )}
-                  <Text style={[styles.optionText, { fontFamily: 'Manrope-Medium' }]}>
-                    {selectedSubmission?.is_pinned
-                      ? "Unpin response"
-                      : "Pin response"}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
+          <Pressable
+            style={styles.modalOverlay}
+            onPress={() => setOptionsModalVisible(false)}
+          >
+            <View style={styles.optionsModal}>
+              <TouchableOpacity
+                style={styles.optionItem}
+                onPress={() =>
+                  handlePin(selectedSubmission?.id, selectedSubmission?.is_pinned)
+                }
+                disabled={pinningId === selectedSubmission?.id}
+              >
+                {pinningId === selectedSubmission?.id ? (
+                  <SnooLoader size="small" color={COLORS.primary} />
+                ) : (
+                  <>
+                    {selectedSubmission?.is_pinned ? (
+                      <PinOff size={22} color="#FF9500" />
+                    ) : (
+                      <Pin size={22} color="#FF9500" fill="transparent" />
+                    )}
+                    <Text style={[styles.optionText, { fontFamily: 'Manrope-Medium' }]}>
+                      {selectedSubmission?.is_pinned
+                        ? "Unpin response"
+                        : "Pin response"}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 };
