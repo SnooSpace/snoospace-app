@@ -278,6 +278,7 @@ const BottomTabNavigator = ({ navigation, route }) => {
           tabBarStyle: getTabBarStyle(route, [
             "ConversationsList",
             "Chat",
+            "Notifications",
             "CreatePost",
             "PromptReplies",
             "CreateGroupChat",

@@ -31,8 +31,6 @@ const HomeFeedWithSwipe = (props) => (
   </TabSwipeHandler>
 );
 
-
-
 const Stack = createStackNavigator();
 
 export default function HomeStackNavigator() {
