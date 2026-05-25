@@ -285,6 +285,7 @@ const getOpportunities = async (req, res) => {
         COALESCE(o.view_count, 0) as view_count,
         COALESCE(o.comment_count, 0) as comment_count,
         COALESCE(o.save_count, 0) as save_count,
+        COALESCE(o.share_count, 0) as share_count,
         COALESCE(
           (SELECT COUNT(*) FROM opportunity_applications oa 
            WHERE oa.opportunity_id = o.id AND oa.status = 'shortlisted'),
@@ -1107,6 +1108,7 @@ const getFollowedOpportunities = async (req, res) => {
         COALESCE(o.view_count, 0) as view_count,
         COALESCE(o.comment_count, 0) as comment_count,
         COALESCE(o.save_count, 0) as save_count,
+        COALESCE(o.share_count, 0) as share_count,
         o.created_at,
         o.creator_id,
         o.creator_type,
@@ -1222,6 +1224,7 @@ const getCommunityOpportunities = async (req, res) => {
         COALESCE(o.view_count, 0) as view_count,
         COALESCE(o.comment_count, 0) as comment_count,
         COALESCE(o.save_count, 0) as save_count,
+        COALESCE(o.share_count, 0) as share_count,
         o.is_pinned,
         c.name as creator_name,
         c.logo_url as creator_photo,
