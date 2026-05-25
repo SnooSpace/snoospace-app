@@ -143,6 +143,9 @@ const buildMessageList = (messages) => {
   return result;
 };
 
+// ── keyExtractor ────────────────────────────────────────────────────────────
+const keyExtractor = (item) => (item.type === "message" ? String(item.data.id) : item.id);
+
 // ── TimestampSeparator ──────────────────────────────────────────────────────
 const TimestampSeparator = React.memo(({ label }) => (
   <View style={sepStyles.row}>
@@ -674,13 +677,13 @@ const MessageRow = React.memo(({
         >
           <View collapsable={false}>
             {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
-            {msg.replyPreview && (
+            {msg.replyToMessageId && msg.replyPreview ? (
               <ReplyQuote
                 replyPreview={msg.replyPreview}
                 isMyMessage={isMyMessage}
                 onPress={() => onPressReplyQuote(msg.replyToMessageId)}
               />
-            )}
+            ) : null}
             <ChatMediaMessage
               message={msg}
               isMyMessage={isMyMessage}
@@ -713,13 +716,13 @@ const MessageRow = React.memo(({
         >
           <View collapsable={false}>
             {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
-            {msg.replyPreview && (
+            {msg.replyToMessageId && msg.replyPreview ? (
               <ReplyQuote
                 replyPreview={msg.replyPreview}
                 isMyMessage={isMyMessage}
                 onPress={() => onPressReplyQuote(msg.replyToMessageId)}
               />
-            )}
+            ) : null}
             <SharedPostCard 
               metadata={msg.metadata} 
               onPress={onPressPostShare}
@@ -744,13 +747,13 @@ const MessageRow = React.memo(({
         >
           <View collapsable={false}>
             {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
-            {msg.replyPreview && (
+            {msg.replyToMessageId && msg.replyPreview ? (
               <ReplyQuote
                 replyPreview={msg.replyPreview}
                 isMyMessage={isMyMessage}
                 onPress={() => onPressReplyQuote(msg.replyToMessageId)}
               />
-            )}
+            ) : null}
             <SharedOpportunityCard
               metadata={msg.metadata}
               onPress={onPressOpportunity}
@@ -763,9 +766,9 @@ const MessageRow = React.memo(({
 
   const bubbleContent = (
     <View collapsable={false} style={{ alignItems: isMyMessage ? "flex-end" : "flex-start", maxWidth: "100%" }}>
-      {msg.replyPreview && (
+      {msg.replyToMessageId && msg.replyPreview ? (
         <ReplyQuote replyPreview={msg.replyPreview} isMyMessage={isMyMessage} onPress={() => onPressReplyQuote(msg.replyToMessageId)} />
-      )}
+      ) : null}
       <View style={[
         styles.messageBubble, 
         isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble,
@@ -1757,7 +1760,7 @@ export default function ChatScreen({ route, navigation }) {
             <FlatList
               ref={flashListRef}
               data={flatListData}
-              keyExtractor={(item) => item.type === "message" ? String(item.data.id) : item.id}
+              keyExtractor={keyExtractor}
               renderItem={renderItem}
               inverted
               showsVerticalScrollIndicator={false}
@@ -1769,6 +1772,7 @@ export default function ChatScreen({ route, navigation }) {
               maxToRenderPerBatch={8}
               windowSize={21}
               removeClippedSubviews={false}
+              scrollEventThrottle={32}
               onEndReached={() => {
                 if (hasMore && !loadingOlder) {
                   loadOlderMessages(currentConversationId);
