@@ -20,7 +20,7 @@ import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring } fr
 import { School, ChevronRight, Search, XCircle, Plus, X } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import wave from "../../../assets/wave.png";
+import wave from "../../../assets/wave.webp";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
 import { apiGet, apiPost } from "../../../api/client";

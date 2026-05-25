@@ -60,11 +60,12 @@ export function useProfileCountsPolling(options = {}) {
         return null;
       }
 
-      // Parallelize both API calls to halve round-trip time
-      const [countsResponse, postsResponse] = await Promise.all([
-        apiGet(`/follow/counts/${userId}/${userType}`, 10000, token),
-        apiGet(`/posts/user/${userId}/${userType}`, 10000, token),
-      ]);
+      // Single API call returns followers + following + post_count in one round-trip
+      const countsResponse = await apiGet(
+        `/profile/counts/${userId}/${userType}`,
+        10000,
+        token
+      );
 
       const newCounts = {
         followers: typeof countsResponse?.followers_count === 'number'
@@ -73,9 +74,9 @@ export function useProfileCountsPolling(options = {}) {
         following: typeof countsResponse?.following_count === 'number'
           ? countsResponse.following_count
           : parseInt(countsResponse?.following_count || 0, 10),
-        posts: Array.isArray(postsResponse?.posts)
-          ? postsResponse.posts.length
-          : 0,
+        posts: typeof countsResponse?.post_count === 'number'
+          ? countsResponse.post_count
+          : parseInt(countsResponse?.post_count || 0, 10),
       };
 
       // Compare against ref (not state) to avoid recreating fetchCounts on every tick

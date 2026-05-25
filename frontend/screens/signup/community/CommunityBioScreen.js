@@ -16,7 +16,7 @@ import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, wit
 
 
 import { BlurView } from "expo-blur";
-import wave from "../../../assets/wave.png";
+import wave from "../../../assets/wave.webp";
 
 import { LinearGradient } from "expo-linear-gradient";
 import {

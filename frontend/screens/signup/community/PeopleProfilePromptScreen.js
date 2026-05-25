@@ -167,7 +167,7 @@ export default function PeopleProfilePromptScreen({ navigation, route }) {
 
   return (
     <ImageBackground
-      source={require("../../../assets/wave.png")}
+      source={require("../../../assets/wave.webp")}
       style={styles.backgroundImage}
       imageStyle={{ opacity: 0.25, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
       blurRadius={10}

@@ -13,7 +13,7 @@ import {
 import { Sparkles, School, Briefcase, ChevronRight } from "lucide-react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
-import wave from "../../../assets/wave.png";
+import wave from "../../../assets/wave.webp";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   COLORS,

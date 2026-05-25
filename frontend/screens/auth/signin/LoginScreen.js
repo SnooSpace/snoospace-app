@@ -15,7 +15,7 @@ import {
 import { useToast } from "../../../context/ToastContext";
 import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
-import wave from "../../../assets/wave.png";
+import wave from "../../../assets/wave.webp";
 import { LinearGradient } from "expo-linear-gradient";
 
 // Removed local constants in favor of theme constants

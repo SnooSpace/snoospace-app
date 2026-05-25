@@ -19,7 +19,7 @@ import EventsStackNavigator from "./EventsStackNavigator";
 import ProfileTabIcon from "../components/ProfileTabIcon";
 import { getActiveAccount, getAllAccounts, switchAccount } from "../api/auth";
 import { createSwipeablePagerNavigator } from "./SwipeablePagerNavigator";
-import * as Haptics from "expo-haptics";
+import { impactAsync, ImpactFeedbackStyle } from "expo-haptics";
 
 const Tab = createSwipeablePagerNavigator();
 
@@ -62,7 +62,7 @@ const ProfileTabButton = (props) => {
     if (now - lastTapRef.current < DOUBLE_PRESS_DELAY) {
       lastTapRef.current = 0;
       // Provide instant feedback
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      impactAsync(ImpactFeedbackStyle.Medium);
       EventBus.emit("account-switch-start");
 
       try {

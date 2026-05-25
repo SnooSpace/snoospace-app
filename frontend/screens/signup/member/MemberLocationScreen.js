@@ -18,7 +18,7 @@ import { MapPin, CheckCircle2 } from "lucide-react-native";
 import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import wave from "../../../assets/wave.png";
+import wave from "../../../assets/wave.webp";
 import {
   COLORS,
   SPACING,

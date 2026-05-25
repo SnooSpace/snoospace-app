@@ -45,7 +45,7 @@ import {
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
-import wave from "../../../assets/wave.png";
+import wave from "../../../assets/wave.webp";
 
 // Removed local constants in favor of theme constants
 const RESEND_COOLDOWN = 60;

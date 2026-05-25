@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, TextInput, Image, Alert, Dimensions, Platform, Animated, Easing, TouchableWithoutFeedback, ImageBackground, Pressable, KeyboardAvoidingView } from "react-native";
 import { BlurView } from "expo-blur";
-import wave from "../../assets/wave.png";
+import wave from "../../assets/wave.webp";
 import {
   User,
   Camera,

@@ -1297,6 +1297,12 @@ router.get(
   "/follow/counts/:userId/:userType",
   FollowController.getFollowCounts,
 );
+// Consolidated counts endpoint: followers + following + posts in 1 query
+// Used by useProfileCountsPolling to replace 2 separate API calls
+router.get(
+  "/profile/counts/:userId/:userType",
+  FollowController.getProfileCounts,
+);
 
 // ============================================
 // PRIVACY & CONSENT (DPDP Act Compliance)

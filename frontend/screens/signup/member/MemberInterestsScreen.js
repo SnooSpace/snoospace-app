@@ -18,7 +18,7 @@ import HapticsService from "../../../services/HapticsService";
 import { triggerChipSelectHaptic, triggerInputValidHaptic } from "../../../hooks/useCelebrationHaptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import wave from "../../../assets/wave.png";
+import wave from "../../../assets/wave.webp";
 import {
   INTEREST_CATEGORIES,
   getInterestStyle,

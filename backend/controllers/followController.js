@@ -333,6 +333,38 @@ const getFollowCounts = async (req, res) => {
   }
 };
 
+// Get follower + following + post counts in a single round-trip
+// Replaces the two separate calls in useProfileCountsPolling
+const getProfileCounts = async (req, res) => {
+  try {
+    const { userId, userType } = req.params;
+
+    // Map userType to the correct posts table column
+    const validTypes = ["member", "community", "sponsor", "venue"];
+    if (!validTypes.includes(userType)) {
+      return res.status(400).json({ error: "Invalid user type" });
+    }
+
+    const result = await pool.query(
+      `SELECT
+        (SELECT COUNT(*) FROM follows WHERE following_id = $1 AND following_type = $2) AS followers_count,
+        (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = $2) AS following_count,
+        (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = $2 AND is_deleted IS NOT TRUE) AS post_count`,
+      [userId, userType]
+    );
+
+    const row = result.rows[0];
+    res.json({
+      followers_count: parseInt(row.followers_count, 10),
+      following_count: parseInt(row.following_count, 10),
+      post_count: parseInt(row.post_count, 10),
+    });
+  } catch (error) {
+    console.error("Error getting profile counts:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   follow,
   unfollow,
@@ -340,4 +372,5 @@ module.exports = {
   getFollowing,
   getFollowStatus,
   getFollowCounts,
+  getProfileCounts,
 };

@@ -514,7 +514,7 @@ const LandingScreen = ({ navigation, route }) => {
 
   return (
     <ImageBackground
-      source={require("../../assets/wave.png")}
+      source={require("../../assets/wave.webp")}
       style={styles.backgroundImage}
       imageStyle={{ opacity: 0.3 }}
       resizeMode="cover"

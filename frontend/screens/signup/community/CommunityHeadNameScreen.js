@@ -41,7 +41,7 @@ import { apiGet } from "../../../api/client";
 import { getAuthToken } from "../../../api/auth";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import wave from "../../../assets/wave.png";
+import wave from "../../../assets/wave.webp";
 import {
   COLORS,
   BORDER_RADIUS,
