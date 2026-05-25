@@ -728,6 +728,11 @@ router.post(
   authMiddleware,
   OpportunityController.viewOpportunity,
 );
+router.post(
+  "/opportunities/:id/share",
+  authMiddleware,
+  OpportunityController.shareOpportunity,
+);
 router.get(
   "/opportunities/:id",
   authMiddleware,

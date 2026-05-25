@@ -16,7 +16,7 @@ import {
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { X, Search, Check, Send, Lock, Users } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import { searchShareRecipients, sharePost } from "../api/client";
+import { searchShareRecipients, sharePost, shareOpportunity } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 import SnooLoader from "./ui/SnooLoader";
@@ -102,7 +102,19 @@ export default function ShareModal({ visible, onClose, post }) {
         // For group chats, pass the conversationId so the backend routes correctly
         ...(u.type === "group" ? { conversationId: u.conversationId } : {}),
       }));
-      await sharePost(post.id, recipients, "internal", null, token);
+
+      // Route to the correct share endpoint based on content type
+      const isOpportunity =
+        post?.post_type === "opportunity" ||
+        post?.itemType === "opportunity" ||
+        !!post?.opportunity_types;
+
+      if (isOpportunity) {
+        await shareOpportunity(post.id, recipients, "internal", null, token);
+      } else {
+        await sharePost(post.id, recipients, "internal", null, token);
+      }
+
       EventBus.emit("post-share-updated", {
         postId: post.id,
         increment: selectedUsers.length,
@@ -117,7 +129,7 @@ export default function ShareModal({ visible, onClose, post }) {
       console.error("Failed to share post:", error);
       const msg = error?.message?.includes("restricted")
         ? "This group only allows admins to share posts."
-        : "Failed to share post. Please try again.";
+        : "Failed to share. Please try again.";
       Alert.alert("Error", msg);
     } finally {
       setSending(false);

@@ -1839,6 +1839,151 @@ const deleteOpportunityComment = async (req, res) => {
   }
 };
 
+// ============================================
+// SHARE OPPORTUNITY
+// POST /opportunities/:id/share
+// ============================================
+const shareOpportunity = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { recipients, shareType, message } = req.body;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId || !userType) return res.status(401).json({ error: 'Authentication required' });
+
+    if (!['internal', 'copy_link'].includes(shareType)) {
+      return res.status(400).json({ error: 'Invalid share type' });
+    }
+
+    // Verify opportunity exists
+    const oppCheck = await pool.query(
+      `SELECT o.id, o.title, o.opportunity_types, o.creator_id, o.creator_type,
+              COALESCE(o.share_count, 0) as share_count
+       FROM opportunities o WHERE o.id = $1`,
+      [id]
+    );
+    if (oppCheck.rows.length === 0) return res.status(404).json({ error: 'Opportunity not found' });
+
+    const opp = oppCheck.rows[0];
+
+    // Fetch creator display info
+    let creatorName = null;
+    let creatorUsername = null;
+    if (opp.creator_type === 'community') {
+      const c = await pool.query('SELECT name, username FROM communities WHERE id = $1', [opp.creator_id]);
+      creatorName = c.rows[0]?.name || null;
+      creatorUsername = c.rows[0]?.username || null;
+    } else if (opp.creator_type === 'member') {
+      const m = await pool.query('SELECT name, username FROM members WHERE id = $1', [opp.creator_id]);
+      creatorName = m.rows[0]?.name || null;
+      creatorUsername = m.rows[0]?.username || null;
+    }
+
+    if (shareType === 'copy_link') {
+      await pool.query(
+        `UPDATE opportunities SET share_count = COALESCE(share_count, 0) + 1 WHERE id = $1`,
+        [id]
+      );
+      const updated = await pool.query('SELECT share_count FROM opportunities WHERE id = $1', [id]);
+      return res.json({ success: true, shareCount: updated.rows[0]?.share_count || 1 });
+    }
+
+    if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+      return res.status(400).json({ error: 'Recipients required for internal sharing' });
+    }
+
+    // Build the opportunity preview for message metadata
+    const oppPreview = {
+      opportunityId: opp.id,
+      title: opp.title,
+      opportunityTypes: opp.opportunity_types,
+      creatorId: opp.creator_id,
+      creatorType: opp.creator_type,
+      creatorName,
+      creatorUsername,
+    };
+
+    // Reuse the same conversation helper logic from shareController
+    const getOrCreateConversation = async (p1Id, p1Type, p2Id, p2Type) => {
+      const id1 = Number(p1Id); const id2 = Number(p2Id);
+      let a1Id, a1Type, a2Id, a2Type;
+      if (id1 < id2 || (id1 === id2 && p1Type < p2Type)) {
+        a1Id = p1Id; a1Type = p1Type; a2Id = p2Id; a2Type = p2Type;
+      } else {
+        a1Id = p2Id; a1Type = p2Type; a2Id = p1Id; a2Type = p1Type;
+      }
+      const ins = await pool.query(
+        `INSERT INTO conversations (participant1_id, participant1_type, participant2_id, participant2_type)
+         VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING RETURNING id`,
+        [a1Id, a1Type, a2Id, a2Type]
+      );
+      if (ins.rows.length > 0) return ins.rows[0].id;
+      const sel = await pool.query(
+        `SELECT id FROM conversations WHERE participant1_id=$1 AND participant1_type=$2
+         AND participant2_id=$3 AND participant2_type=$4`,
+        [a1Id, a1Type, a2Id, a2Type]
+      );
+      return sel.rows[0].id;
+    };
+
+    const blockedRecipients = [];
+    const messageText = message || 'Shared an opportunity with you';
+
+    for (const recipient of recipients) {
+      if (recipient.type === 'group') {
+        const convId = recipient.conversationId;
+        if (!convId) { blockedRecipients.push(recipient.id); continue; }
+        const cpCheck = await pool.query(
+          `SELECT cp.role, c.messaging_restricted FROM conversations c
+           JOIN conversation_participants cp ON cp.conversation_id = c.id
+             AND cp.participant_id = $1 AND cp.participant_type = $2
+           WHERE c.id = $3 AND c.is_group = true`,
+          [userId, userType, convId]
+        );
+        if (cpCheck.rows.length === 0) { blockedRecipients.push(recipient.id); continue; }
+        const { role, messaging_restricted } = cpCheck.rows[0];
+        if (messaging_restricted && role !== 'admin') { blockedRecipients.push(recipient.id); continue; }
+        await pool.query(
+          `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type, metadata)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [convId, userId, userType, messageText, 'opportunity_share', JSON.stringify(oppPreview)]
+        );
+        await pool.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1`, [convId]);
+        continue;
+      }
+
+      const conversationId = await getOrCreateConversation(userId, userType, recipient.id, recipient.type);
+      await pool.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1`, [conversationId]);
+      await pool.query(
+        `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [conversationId, userId, userType, messageText, 'opportunity_share', JSON.stringify(oppPreview)]
+      );
+    }
+
+    const successCount = recipients.length - blockedRecipients.length;
+    if (successCount === 0) {
+      return res.status(403).json({ error: 'Sharing is restricted. Only admins can share here.' });
+    }
+
+    await pool.query(
+      `UPDATE opportunities SET share_count = COALESCE(share_count, 0) + $1 WHERE id = $2`,
+      [successCount, id]
+    );
+    const updated = await pool.query('SELECT share_count FROM opportunities WHERE id = $1', [id]);
+
+    res.json({
+      success: true,
+      shareCount: updated.rows[0]?.share_count || successCount,
+      recipientCount: successCount,
+      blockedCount: blockedRecipients.length,
+    });
+  } catch (e) {
+    console.error('Error sharing opportunity:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   createOpportunity,
   getOpportunities,
@@ -1863,4 +2008,5 @@ module.exports = {
   createOpportunityComment,
   replyToOpportunityComment,
   deleteOpportunityComment,
+  shareOpportunity,
 };
