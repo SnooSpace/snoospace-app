@@ -29,6 +29,7 @@ export default function TabSwipeHandler({ children, currentTab, tabs = DEFAULT_T
   };
 
   const pan = Gesture.Pan()
+    .hitSlop({ left: 40 })
     // Require a significant horizontal movement (40px) before activating.
     // This allows child ScrollViews and FlatLists (like Carousels) to consume the gesture first.
     // Require a very clear, deliberate horizontal movement (e.g., 100px) before activating.

@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Platform,
   Pressable,
+  InteractionManager,
 } from "react-native";
 import {
   useNavigationBuilder,
@@ -17,6 +18,7 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  withTiming,
   runOnJS,
   interpolate,
   Extrapolation,
@@ -418,13 +420,39 @@ function SwipeablePagerNavigator({
   // Sync scroll position and currentIndex when index changes or tab bar becomes visible
   useEffect(() => {
     currentIndex.value = state.index;
+    let task;
     if (scrollViewRef.current) {
       scrollViewRef.current.scrollTo({
         x: state.index * SCREEN_WIDTH,
         animated: false,
       });
+      // Snap after navigation transition interactions complete to correct any layout drift
+      task = InteractionManager.runAfterInteractions(() => {
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollTo({
+            x: state.index * SCREEN_WIDTH,
+            animated: false,
+          });
+        }
+      });
     }
+    return () => {
+      if (task) task.cancel();
+    };
   }, [state.index, shouldHideTabBar]);
+
+  // Animated style to slide the tab bar off-screen/on-screen
+  const animatedTabBarStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        {
+          translateY: withTiming(shouldHideTabBar ? 120 : 0, {
+            duration: 250,
+          }),
+        },
+      ],
+    };
+  });
 
   // ---------------- RENDER ----------------
   return (
@@ -460,7 +488,13 @@ function SwipeablePagerNavigator({
         })}
       </Animated.ScrollView>
 
-      {!shouldHideTabBar && (
+      <Animated.View
+        style={[
+          styles.tabBarWrapper,
+          animatedTabBarStyle,
+        ]}
+        pointerEvents={shouldHideTabBar ? "none" : "auto"}
+      >
         <AnimatedTabBar
           state={state}
           onTabPress={handleTabPress}
@@ -469,7 +503,7 @@ function SwipeablePagerNavigator({
           role={role}
           navigation={navigation}
         />
-      )}
+      </Animated.View>
     </View>
   );
 }
@@ -481,6 +515,14 @@ export const createSwipeablePagerNavigator = createNavigatorFactory(
 // ---------------- STYLES ----------------
 const styles = StyleSheet.create({
   container: { flex: 1 },
+
+  tabBarWrapper: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: Platform.OS === "ios" ? 95 : 80,
+  },
 
   pager: {
     flex: 1,

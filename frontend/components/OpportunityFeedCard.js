@@ -148,11 +148,10 @@ const OpportunityFeedCard = React.memo(({
   const navigation = useNavigation();
   const [currentUserId, setCurrentUserId] = useState(null);
 
-  // ── 3-dot menu state using Reanimated ───────────────────────────────────────
+  // ── 3-dot menu state ───────────────────────────────────────
   const [menuVisible, setMenuVisible] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
-  const menuAnim = useSharedValue(0);
 
   // ── Comments modal state ─────────────────────────────────────────────────────
   const [commentsVisible, setCommentsVisible] = useState(false);
@@ -160,23 +159,11 @@ const OpportunityFeedCard = React.memo(({
 
   const openMenu = useCallback(() => {
     setMenuVisible(true);
-    menuAnim.value = withSpring(1, { damping: 15, stiffness: 100 });
   }, []);
 
   const closeMenu = useCallback(() => {
-    menuAnim.value = withTiming(0, { duration: 180 });
-    setTimeout(() => {
-      setMenuVisible(false);
-    }, 180);
+    setMenuVisible(false);
   }, []);
-
-  const animatedMenuContainerStyle = useAnimatedStyle(() => {
-    const translateY = (1 - menuAnim.value) * 200;
-    return {
-      opacity: menuAnim.value,
-      transform: [{ translateY }],
-    };
-  });
 
   // ── Current user detection ─────────────────────────────────────────────────
   useEffect(() => {
@@ -500,8 +487,8 @@ const OpportunityFeedCard = React.memo(({
               </TouchableOpacity>
             )}
  
-            {/* 3-dot menu — shown only to creator when management controls are enabled (profile screens) */}
-            {showManagementControls && isCreator && (
+            {/* 3-dot menu — shown only to creator */}
+            {isCreator && (
               <TouchableOpacity
                 style={styles.menuButton}
                 onPress={handleMenuPress}
@@ -710,11 +697,11 @@ const OpportunityFeedCard = React.memo(({
           >
             <Bookmark
               size={20}
-              color={isSaved ? "#2962FF" : "#5e8d9b"}
-              fill={isSaved ? "#2962FF" : "transparent"}
+              color="#5e8d9b"
+              fill={isSaved ? "#5e8d9b" : "transparent"}
               strokeWidth={2}
             />
-            <Text style={[styles.engagementCount, isSaved && { color: "#2962FF" }]}>
+            <Text style={styles.engagementCount}>
               {formatCount(saveCount)}
             </Text>
           </TouchableOpacity>
@@ -729,13 +716,12 @@ const OpportunityFeedCard = React.memo(({
         onRequestClose={closeMenu}
       >
         <Pressable style={styles.modalBackdrop} onPress={closeMenu}>
-          <Animated.View
+          <View
             style={[
               styles.menuContainerModal,
               {
                 top: menuPosition.y,
                 right: menuPosition.x,
-                opacity: menuAnim,
               },
             ]}
           >
@@ -778,7 +764,7 @@ const OpportunityFeedCard = React.memo(({
                 <Text style={styles.menuItemSub}>This action cannot be undone</Text>
               </View>
             </TouchableOpacity>
-          </Animated.View>
+          </View>
         </Pressable>
       </Modal>
     </TouchableOpacity>

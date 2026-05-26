@@ -12,6 +12,7 @@ import {
   Platform,
   Easing,
   Animated as RNAnimated,
+  InteractionManager,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -238,6 +239,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
   // Pause videos when screen loses focus, restore when it regains focus
   useEffect(() => {
+    let task;
     if (!isFocused) {
       // Screen lost focus - save current visible post and pause all videos
       if (visiblePostId) {
@@ -249,14 +251,21 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         setVisiblePostId(null);
       }
     } else if (isFocused && lastVisiblePostIdRef.current && !visiblePostId) {
-      // Screen regained focus - restore the last visible post to trigger playback
+      // Screen regained focus - restore the last visible post to trigger playback after transition
       console.log(
-        "[HomeFeed] Screen regained focus, restoring video:",
+        "[HomeFeed] Screen regained focus, restoring video after transition:",
         lastVisiblePostIdRef.current,
       );
-      setVisiblePostId(lastVisiblePostIdRef.current);
-      lastVisiblePostIdRef.current = null; // Clear the ref
+      task = InteractionManager.runAfterInteractions(() => {
+        if (lastVisiblePostIdRef.current) {
+          setVisiblePostId(lastVisiblePostIdRef.current);
+          lastVisiblePostIdRef.current = null; // Clear the ref
+        }
+      });
     }
+    return () => {
+      if (task) task.cancel();
+    };
   }, [isFocused, visiblePostId]);
 
   // Cursor-based pagination state
@@ -700,21 +709,30 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
   useFocusEffect(
     React.useCallback(() => {
-      loadMessageUnreadCount();
+      const task = InteractionManager.runAfterInteractions(() => {
+        loadMessageUnreadCount();
+      });
+      return () => task.cancel();
     }, []),
   );
 
   const { loadInitial: loadNotifications } = useNotifications();
   useFocusEffect(
     React.useCallback(() => {
-      loadNotifications();
+      const task = InteractionManager.runAfterInteractions(() => {
+        loadNotifications();
+      });
+      return () => task.cancel();
     }, [loadNotifications]),
   );
 
   // Check for pending attendance confirmation on focus
   useFocusEffect(
     React.useCallback(() => {
-      checkPendingAttendance();
+      const task = InteractionManager.runAfterInteractions(() => {
+        checkPendingAttendance();
+      });
+      return () => task.cancel();
     }, []),
   );
 
