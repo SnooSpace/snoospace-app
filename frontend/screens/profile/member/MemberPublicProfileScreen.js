@@ -7,7 +7,8 @@ import React, {
 } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import {
-  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Alert } from "react-native";
+  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Alert, Platform } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { ArrowLeft, Play, Pin } from "lucide-react-native";
 import {
   getPublicMemberProfile,
@@ -48,6 +49,112 @@ import EditorialPostCard from "../../../components/EditorialPostCard";
 import ProfilePostFeed from "../../../components/ProfilePostFeed";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import CollegeChip from "../../../components/CollegeChip";
+
+const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPress }) => {
+  if (!item) {
+    return <View style={{ width: itemSize, height: itemSize * 1.35, backgroundColor: "#F2F2F7" }} />;
+  }
+
+  const firstImageUrl = Array.isArray(item?.image_urls)
+    ? item.image_urls
+        .flat()
+        .find((u) => typeof u === "string" && u.startsWith("http"))
+    : undefined;
+
+  const isVideo =
+    !!item.video_url ||
+    (firstImageUrl &&
+      (firstImageUrl.toLowerCase().includes(".mp4") ||
+        firstImageUrl.toLowerCase().includes(".mov") ||
+        firstImageUrl.toLowerCase().includes(".webm")));
+
+  let mediaUrl = null;
+  if (item.video_thumbnail) {
+    try {
+      if (
+        typeof item.video_thumbnail === "string" &&
+        item.video_thumbnail.startsWith("[")
+      ) {
+        const parsed = JSON.parse(item.video_thumbnail);
+        mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
+      } else {
+        mediaUrl = item.video_thumbnail;
+      }
+    } catch (e) {
+      mediaUrl = item.video_thumbnail;
+    }
+  }
+  const videoSourceUrl = firstImageUrl || item.video_url;
+  if (
+    !mediaUrl &&
+    isVideo &&
+    videoSourceUrl &&
+    videoSourceUrl.includes("cloudinary.com")
+  ) {
+    mediaUrl = videoSourceUrl
+      .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+      .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+  }
+  if (!mediaUrl) {
+    mediaUrl = videoSourceUrl;
+  }
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      style={{
+        width: itemSize,
+        height: itemSize * 1.35,
+        marginBottom: 0,
+        borderRadius: 3,
+        overflow: "hidden",
+      }}
+      onPress={() => onPress(item)}
+    >
+      <ExpoImage
+        source={{ uri: mediaUrl || "https://via.placeholder.com/150" }}
+        style={{ width: "100%", height: "100%" }}
+        cachePolicy="memory-disk"
+        contentFit="cover"
+      />
+      {isVideo && (
+        <View
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            borderRadius: 12,
+            padding: 4,
+          }}
+        >
+          <Play size={16} color="#FFF" />
+        </View>
+      )}
+
+      {item?.is_pinned && (
+        <View
+          style={{
+            position: "absolute",
+            top: 6,
+            left: 6,
+            zIndex: 10,
+            backgroundColor: "rgba(255, 255, 255, 0.22)",
+            borderRadius: 10,
+            padding: 5,
+            borderWidth: 0.6,
+            borderColor: "rgba(255, 255, 255, 0.5)",
+            overflow: "visible",
+          }}
+        >
+          <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+            <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+          </View>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+});
 import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
 import EmptyPostsState from "../../../components/EmptyPostsState";
 
@@ -278,7 +385,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     };
   }, []);
 
-  const openPostModal = (post) => {
+  const openPostModal = useCallback((post) => {
     const latestPost = posts.find((p) => p.id === post.id) || post;
     const normalizedIsLiked = latestPost.is_liked === true;
     const normalizedPost = {
@@ -288,9 +395,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     };
     setSelectedPost(normalizedPost);
     setPostModalVisible(true);
-  };
+  }, [posts]);
 
-  const closePostModal = () => {
+  const closePostModal = useCallback(() => {
     const pending = pendingPostUpdateRef.current;
     if (pending && pending.postId != null) {
       setPosts((prevPosts) =>
@@ -309,115 +416,19 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     }
     setPostModalVisible(false);
     setSelectedPost(null);
-  };
+  }, []);
 
-  const renderGridItem = ({ item, index }) => {
-    const firstImageUrl = Array.isArray(item?.image_urls)
-      ? item.image_urls
-          .flat()
-          .find((u) => typeof u === "string" && u.startsWith("http"))
-      : undefined;
-
-    const isVideo =
-      !!item.video_url ||
-      (firstImageUrl &&
-        (firstImageUrl.toLowerCase().includes(".mp4") ||
-          firstImageUrl.toLowerCase().includes(".mov") ||
-          firstImageUrl.toLowerCase().includes(".webm")));
-
-    let mediaUrl = null;
-    if (item.video_thumbnail) {
-      try {
-        if (
-          typeof item.video_thumbnail === "string" &&
-          item.video_thumbnail.startsWith("[")
-        ) {
-          const parsed = JSON.parse(item.video_thumbnail);
-          mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
-        } else {
-          mediaUrl = item.video_thumbnail;
-        }
-      } catch (e) {
-        mediaUrl = item.video_thumbnail;
-      }
-    }
-    const videoSourceUrl = firstImageUrl || item.video_url;
-    if (
-      !mediaUrl &&
-      isVideo &&
-      videoSourceUrl &&
-      videoSourceUrl.includes("cloudinary.com")
-    ) {
-      mediaUrl = videoSourceUrl
-        .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
-        .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
-    }
-    if (!mediaUrl) {
-      mediaUrl = videoSourceUrl;
-    }
-
+  const renderGridItem = useCallback(({ item, index }) => {
     return (
-      <TouchableOpacity
-        activeOpacity={0.9}
-        style={{
-          width: ITEM_SIZE,
-          height: ITEM_SIZE * 1.35,
-          marginBottom: 0,
-          borderRadius: 3,
-          overflow: "hidden",
-        }}
-        onPress={() => item && openPostModal(item)}
-        disabled={!item}
-      >
-        {item ? (
-          <>
-            <Image
-              source={{ uri: mediaUrl || "https://via.placeholder.com/150" }}
-              style={{ width: "100%", height: "100%", resizeMode: "cover" }}
-            />
-            {isVideo && (
-              <View
-                style={{
-                  position: "absolute",
-                  top: 8,
-                  right: 8,
-                  backgroundColor: "rgba(0,0,0,0.5)",
-                  borderRadius: 12,
-                  padding: 4,
-                }}
-              >
-                <Play size={16} color="#FFF" />
-              </View>
-            )}
-          </>
-        ) : (
-          <View style={{ flex: 1, backgroundColor: "#F2F2F7" }} />
-        )}
-
-        {/* Pinned indicator on grid tile */}
-        {item?.is_pinned && (
-          <View
-            style={{
-              position: "absolute",
-              top: 6,
-              left: 6,
-              zIndex: 10,
-              backgroundColor: "rgba(255, 255, 255, 0.22)",
-              borderRadius: 10,
-              padding: 5,
-              borderWidth: 0.6,
-              borderColor: "rgba(255, 255, 255, 0.5)",
-              overflow: "visible",
-            }}
-          >
-            <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
-              <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
-            </View>
-          </View>
-        )}
-      </TouchableOpacity>
+      <MemberPublicPostGridCell
+        item={item}
+        index={index}
+        itemSize={ITEM_SIZE}
+        gap={GAP}
+        onPress={openPostModal}
+      />
     );
-  };
+  }, [openPostModal]);
 
   const renderBio = (bioText) => {
     if (!bioText) return null;
@@ -461,7 +472,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         <>
           <FlatList
             data={posts}
-            keyExtractor={(item, idx) => String(item?.id ?? idx)}
+            keyExtractor={(item) => String(item.id)}
             renderItem={renderGridItem}
             numColumns={3}
             columnWrapperStyle={{
@@ -475,7 +486,17 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               paddingBottom: 120,
               flexGrow: posts.length === 0 ? 1 : 0,
             }}
-            onEndReachedThreshold={0.6}
+            initialNumToRender={12}
+            maxToRenderPerBatch={6}
+            windowSize={5}
+            removeClippedSubviews={Platform.OS === 'android'}
+            updateCellsBatchingPeriod={50}
+            getItemLayout={(data, index) => ({
+              length: ITEM_SIZE * 1.35,
+              offset: (ITEM_SIZE * 1.35 + GAP) * Math.floor(index / 3),
+              index,
+            })}
+            onEndReachedThreshold={0.5}
             onEndReached={() => loadPosts(false)}
             ListHeaderComponent={
               <View style={styles.profileSection}>

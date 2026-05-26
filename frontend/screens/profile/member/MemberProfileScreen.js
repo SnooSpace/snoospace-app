@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, Image, ScrollView, Alert, Dimensions, Modal, FlatList, KeyboardAvoidingView, Platform, TextInput, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Image as ExpoImage } from "expo-image";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -182,6 +183,144 @@ const ProfileInterestsSection = React.memo(({ interests, showAllInterests, setSh
   );
 });
 
+const MemberPostGridCell = React.memo(({ item, index, itemSize, onPress, onLongPress }) => {
+  if (!item) {
+    return (
+      <View
+        style={[
+          styles.placeholderPost,
+          {
+            width: itemSize,
+            height: itemSize * 1.35,
+          },
+        ]}
+      >
+        <LucideImage size={30} color={COLORS.textSecondary} />
+      </View>
+    );
+  }
+
+  const firstImageUrl = Array.isArray(item.image_urls)
+    ? item.image_urls
+        .flat()
+        .find((u) => typeof u === "string" && u.startsWith("http"))
+    : undefined;
+
+  const isVideo =
+    !!item.video_url ||
+    (firstImageUrl &&
+      (firstImageUrl.toLowerCase().includes(".mp4") ||
+        firstImageUrl.toLowerCase().includes(".mov") ||
+        firstImageUrl.toLowerCase().includes(".webm")));
+
+  let mediaUrl = null;
+  if (item.video_thumbnail) {
+    try {
+      if (
+        typeof item.video_thumbnail === "string" &&
+        item.video_thumbnail.startsWith("[")
+      ) {
+        const parsed = JSON.parse(item.video_thumbnail);
+        mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
+      } else {
+        mediaUrl = item.video_thumbnail;
+      }
+    } catch (e) {
+      mediaUrl = item.video_thumbnail;
+    }
+  }
+  const videoSourceUrl = firstImageUrl || item.video_url;
+
+  if (
+    !mediaUrl &&
+    isVideo &&
+    videoSourceUrl &&
+    videoSourceUrl.includes("cloudinary.com")
+  ) {
+    mediaUrl = videoSourceUrl
+      .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+      .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+  }
+  if (!mediaUrl) {
+    mediaUrl = videoSourceUrl;
+  }
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      style={[
+        styles.postGridItem,
+        {
+          width: itemSize,
+          height: itemSize * 1.35,
+          marginBottom: 0,
+          marginRight: 0,
+        },
+      ]}
+      onPress={() => onPress(item)}
+      onLongPress={() => onLongPress(item)}
+      delayLongPress={400}
+    >
+      <ExpoImage
+        source={{
+          uri: mediaUrl || "https://via.placeholder.com/150",
+        }}
+        style={styles.postImage}
+        cachePolicy="memory-disk"
+        contentFit="cover"
+        onError={(e) => {
+          console.log("[ProfileGrid] Image load error:", {
+            postId: item.id,
+            mediaUrl,
+            error: e.nativeEvent?.error || "Unknown error",
+          });
+        }}
+        onLoad={() => {
+          console.log(
+            "[ProfileGrid] Image loaded successfully:",
+            item.id,
+          );
+        }}
+      />
+      {isVideo && (
+        <View
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            borderRadius: 12,
+            padding: 4,
+          }}
+        >
+          <Play size={16} color="#FFF" />
+        </View>
+      )}
+
+      {item?.is_pinned && (
+        <View
+          style={{
+            position: "absolute",
+            top: 6,
+            left: 6,
+            zIndex: 10,
+            backgroundColor: "rgba(255, 255, 255, 0.22)",
+            borderRadius: 10,
+            padding: 5,
+            borderWidth: 0.6,
+            borderColor: "rgba(255, 255, 255, 0.5)",
+            overflow: "visible",
+          }}
+        >
+          <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+            <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+          </View>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+});
+
 export default function MemberProfileScreen({ navigation }) {
   const route = useRoute();
   console.log(
@@ -258,7 +397,7 @@ export default function MemberProfileScreen({ navigation }) {
 
   const MAX_PINS = 3;
 
-  const handlePinToggle = (post, isDirect = false) => {
+  const handlePinToggle = useCallback((post, isDirect = false) => {
     HapticsService.triggerImpactLight();
     if (isDirect) {
       handlePinToggleConfirm(post);
@@ -281,7 +420,7 @@ export default function MemberProfileScreen({ navigation }) {
     }
     setPostForPinToggle(post);
     setPinModalVisible(true);
-  };
+  }, [posts]);
 
   const handlePinToggleConfirm = async (post) => {
     try {
@@ -783,11 +922,12 @@ export default function MemberProfileScreen({ navigation }) {
     }
   };
 
-  const openPostModal = (post) => {
+  const openPostModal = useCallback((post) => {
     setSelectedPost(post);
     setPostModalVisible(true);
-  };
-  const closePostModal = () => {
+  }, []);
+
+  const closePostModal = useCallback(() => {
     // Apply any buffered like updates once when the modal closes
     const pending = pendingPostUpdateRef.current;
     if (pending && pending.postId != null) {
@@ -807,7 +947,7 @@ export default function MemberProfileScreen({ navigation }) {
     }
     setPostModalVisible(false);
     setSelectedPost(null);
-  };
+  }, []);
 
   // Memoized callback to open comments modal - uses single state update to prevent unnecessary re-renders
   const openCommentsModal = useCallback((postId) => {
@@ -872,210 +1012,20 @@ export default function MemberProfileScreen({ navigation }) {
       setLoadingMorePosts(false);
     }
   };
+    const gap = 2;
+  const itemSize = (screenWidth - gap * 2) / 3;
 
-  const renderPostGrid = () => {
-    // Edge-to-edge grid configuration
-    const gap = 2; // Modern, tight gap (Instagram style)
-    const itemSize = (screenWidth - gap * 2) / 3;
-    // Only show placeholders if there are NO posts (empty state)
-    const data = posts;
-
+  const renderGridItem = useCallback(({ item, index }) => {
     return (
-      <FlatList
-        data={data}
-        keyExtractor={(item, index) =>
-          item && item.id ? String(item.id) : `ph-${index}`
-        }
-        numColumns={3}
-        // Use gap for cleaner spacing, remove marginBottom if gap covers it, but gap in columnWrapper handles horizontal spacing
-        columnWrapperStyle={{
-          justifyContent: "flex-start",
-          marginBottom: gap,
-          gap: gap,
-        }}
-        renderItem={({ item, index }) => {
-          return (
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={[
-                styles.postGridItem,
-                {
-                  width: itemSize,
-                  height: itemSize * 1.35, // Portrait aspect ratio
-                  // No margins needed as gap handles it
-                  marginBottom: 0,
-                  marginRight: 0,
-                },
-              ]}
-              onPress={() => item && openPostModal(item)}
-              onLongPress={() => item && handlePinToggle(item)}
-              delayLongPress={400}
-              disabled={!item}
-            >
-              {item ? (
-                (() => {
-                  const firstImageUrl = Array.isArray(item.image_urls)
-                    ? item.image_urls
-                        .flat()
-                        .find(
-                          (u) => typeof u === "string" && u.startsWith("http"),
-                        )
-                    : undefined;
-
-                  // Detect video by: explicit video_url OR URL extension
-                  const isVideo =
-                    !!item.video_url ||
-                    (firstImageUrl &&
-                      (firstImageUrl.toLowerCase().includes(".mp4") ||
-                        firstImageUrl.toLowerCase().includes(".mov") ||
-                        firstImageUrl.toLowerCase().includes(".webm")));
-
-                  // Generate thumbnail: use video_thumbnail, or Cloudinary jpg conversion, or original URL
-                  // video_thumbnail might be stored as JSON array string '["url"]' in database
-                  let mediaUrl = null;
-                  if (item.video_thumbnail) {
-                    try {
-                      // Try to parse if it's a JSON string
-                      if (
-                        typeof item.video_thumbnail === "string" &&
-                        item.video_thumbnail.startsWith("[")
-                      ) {
-                        const parsed = JSON.parse(item.video_thumbnail);
-                        mediaUrl = Array.isArray(parsed)
-                          ? parsed[0]
-                          : item.video_thumbnail;
-                      } else {
-                        mediaUrl = item.video_thumbnail;
-                      }
-                    } catch (e) {
-                      // If parsing fails, use as-is (might be a direct URL)
-                      mediaUrl = item.video_thumbnail;
-                    }
-                  }
-                  // For videos, the URL might be in video_url instead of image_urls
-                  const videoSourceUrl = firstImageUrl || item.video_url;
-
-                  console.log("[ProfileGrid Debug]", {
-                    postId: item.id,
-                    isVideo,
-                    video_thumbnail_raw: item.video_thumbnail,
-                    video_thumbnail_parsed: mediaUrl,
-                    firstImageUrl,
-                    video_url: item.video_url,
-                    videoSourceUrl,
-                  });
-
-                  if (
-                    !mediaUrl &&
-                    isVideo &&
-                    videoSourceUrl &&
-                    videoSourceUrl.includes("cloudinary.com")
-                  ) {
-                    // Convert Cloudinary video URL to thumbnail with transformation params
-                    // so_0: first frame, f_jpg: JPEG format, q_auto: auto quality, w_800: width
-                    mediaUrl = videoSourceUrl
-                      .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
-                      .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
-                    console.log(
-                      "[ProfileGrid Debug] Generated thumbnail URL:",
-                      mediaUrl,
-                    );
-                  }
-                  if (!mediaUrl) {
-                    mediaUrl = videoSourceUrl;
-                  }
-
-                  return (
-                    <>
-                      <Image
-                        source={{
-                          uri: mediaUrl || "https://via.placeholder.com/150",
-                        }}
-                        style={styles.postImage}
-                        onError={(e) => {
-                          console.log("[ProfileGrid] Image load error:", {
-                            postId: item.id,
-                            mediaUrl,
-                            error: e.nativeEvent?.error || "Unknown error",
-                            });
-                        }}
-                        onLoad={() => {
-                          console.log(
-                            "[ProfileGrid] Image loaded successfully:",
-                            item.id,
-                          );
-                        }}
-                      />
-                      {isVideo && (
-                        <View
-                          style={{
-                            position: "absolute",
-                            top: 8,
-                            right: 8,
-                            backgroundColor: "rgba(0,0,0,0.5)",
-                            borderRadius: 12,
-                            padding: 4,
-                          }}
-                        >
-                          <Play size={16} color="#FFF" />
-                        </View>
-                      )}
-
-                      {/* Pinned indicator on grid tile */}
-                      {item?.is_pinned && (
-                        <View
-                          style={{
-                            position: "absolute",
-                            top: 6,
-                            left: 6,
-                            zIndex: 10,
-                            backgroundColor: "rgba(255, 255, 255, 0.22)",
-                            borderRadius: 10,
-                            padding: 5,
-                            borderWidth: 0.6,
-                            borderColor: "rgba(255, 255, 255, 0.5)",
-                            overflow: "visible",
-                          }}
-                        >
-                          <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
-                            <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
-                          </View>
-                        </View>
-                      )}
-                    </>
-                  );
-                })()
-              ) : (
-                <View style={styles.placeholderPost}>
-                  <LucideImage
-                    size={30}
-                    color={COLORS.textSecondary}
-                  />
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        }}
-        scrollEnabled={false}
-        ListEmptyComponent={
-          <EmptyPostsState isOwnProfile={isOwnProfile} />
-        }
-        onEndReached={() => {
-          if (!loading && !loadingMorePosts && hasMorePosts) {
-            loadMorePosts();
-          }
-        }}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={
-          loadingMorePosts ? (
-            <View style={{ paddingVertical: 20, alignItems: "center" }}>
-              <SnooLoader size="small" color={COLORS.primary} />
-            </View>
-          ) : null
-        }
+      <MemberPostGridCell
+        item={item}
+        index={index}
+        itemSize={itemSize}
+        onPress={openPostModal}
+        onLongPress={handlePinToggle}
       />
     );
-  };
+  }, [itemSize, openPostModal, handlePinToggle]);
 
   // --- Full Post Modal Component ---
 
@@ -1180,10 +1130,30 @@ export default function MemberProfileScreen({ navigation }) {
         </View>
       </View>
 
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 120 }}
+      <FlatList
+        data={posts}
+        keyExtractor={(item) => String(item.id)}
+        renderItem={renderGridItem}
+        numColumns={3}
+        columnWrapperStyle={{
+          justifyContent: "flex-start",
+          marginBottom: gap,
+          gap: gap,
+        }}
+        contentContainerStyle={{
+          paddingBottom: 120,
+          flexGrow: posts.length === 0 ? 1 : 0,
+        }}
+        initialNumToRender={12}
+        maxToRenderPerBatch={6}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS === 'android'}
+        updateCellsBatchingPeriod={50}
+        getItemLayout={(data, index) => ({
+          length: itemSize * 1.35,
+          offset: (itemSize * 1.35 + gap) * Math.floor(index / 3),
+          index,
+        })}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1192,139 +1162,134 @@ export default function MemberProfileScreen({ navigation }) {
             colors={[PRIMARY_COLOR]}
           />
         }
-        onScroll={({ nativeEvent }) => {
-          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
-          const paddingToBottom = 100;
-          const isCloseToBottom =
-            layoutMeasurement.height + contentOffset.y >=
-            contentSize.height - paddingToBottom;
-          if (
-            isCloseToBottom &&
-            !loading &&
-            !loadingMorePosts &&
-            hasMorePosts
-          ) {
+        onEndReached={() => {
+          if (!loading && !loadingMorePosts && hasMorePosts) {
             loadMorePosts();
           }
         }}
-        scrollEventThrottle={400}
-      >
-        {/* Profile Section */}
-        <View style={styles.profileSection}>
-          <ProfileBioHeader
-            profile={profile}
-            setShowCollegeHub={setShowCollegeHub}
-          />
-
-          {/* Stats */}
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{posts.length}</Text>
-              <Text style={styles.statLabel}>Posts</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={() => {
-                // Navigate to FollowersList (same stack - ProfileStackNavigator)
-                navigation.navigate("FollowersList", {
-                  memberId: profile.id,
-                  title: "Followers",
-                });
-              }}
-            >
-              <Text style={styles.statNumber}>
-                {polledCounts.followers || profile.follower_count}
-              </Text>
-              <Text style={styles.statLabel}>Followers</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={() => {
-                // Navigate to FollowingList (same stack - ProfileStackNavigator)
-                navigation.navigate("FollowingList", {
-                  memberId: profile.id,
-                  title: "Following",
-                });
-              }}
-            >
-              <Text style={styles.statNumber}>
-                {polledCounts.following || profile.following_count}
-              </Text>
-              <Text style={styles.statLabel}>Following</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Interests */}
-          <ProfileInterestsSection
-            interests={profile.interests}
-            showAllInterests={showAllInterests}
-            setShowAllInterests={setShowAllInterests}
-          />
-
-          {/* Action Buttons */}
-          {isOwnProfile ? (
-            <View
-              style={{
-                flexDirection: "row",
-                gap: 10,
-                marginTop: 10,
-                width: "100%",
-              }}
-            >
-              <GradientButton
-                title="Edit Profile"
-                onPress={handleEditProfile}
-                style={{
-                  flex: 1,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: "rgba(68, 138, 255, 0.2)",
-                  backgroundColor: "rgba(68, 138, 255, 0.12)",
-                  shadowColor: "transparent",
-                  shadowOpacity: 0,
-                  shadowRadius: 0,
-                  elevation: 0,
-                  overflow: "hidden",
-                }}
-                gradientStyle={{
-                  borderRadius: 0, // Let container handle rounding
-                  paddingHorizontal: 20,
-                }}
-                colors={["transparent", "transparent"]}
-                textStyle={{ fontFamily: FONTS.medium, color: "#2962FF" }}
-              />
-              <GradientButton
-                title="Create Post"
-                onPress={() => {
-                  HapticsService.triggerImpactLight();
-                  navigation.navigate("CreatePost");
-                }}
-                style={{
-                  flex: 1,
-                  borderRadius: 16,
-                  overflow: "hidden",
-                }}
-                gradientStyle={{ borderRadius: 16, paddingHorizontal: 20 }}
-                colors={["#448AFF", "#2962FF"]}
-                textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
-              />
-            </View>
-          ) : (
-            <GradientButton
-              title="Follow"
-              onPress={handleFollow}
-              style={{ marginTop: 10, width: "100%", borderRadius: 16 }}
-              gradientStyle={{ borderRadius: 16, paddingHorizontal: 20 }}
-              textStyle={{ fontFamily: FONTS.semiBold }}
+        onEndReachedThreshold={0.5}
+        ListHeaderComponent={
+          <View style={styles.profileSection}>
+            <ProfileBioHeader
+              profile={profile}
+              setShowCollegeHub={setShowCollegeHub}
             />
-          )}
-        </View>
 
-        {/* Posts Grid */}
-        <View style={styles.postsSection}>
-          <View style={styles.postsGrid}>{renderPostGrid()}</View>
-        </View>
-      </ScrollView>
+            {/* Stats */}
+            <View style={styles.statsContainer}>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{posts.length}</Text>
+                <Text style={styles.statLabel}>Posts</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.statItem}
+                onPress={() => {
+                  // Navigate to FollowersList (same stack - ProfileStackNavigator)
+                  navigation.navigate("FollowersList", {
+                    memberId: profile.id,
+                    title: "Followers",
+                  });
+                }}
+              >
+                <Text style={styles.statNumber}>
+                  {polledCounts.followers || profile.follower_count}
+                </Text>
+                <Text style={styles.statLabel}>Followers</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.statItem}
+                onPress={() => {
+                  // Navigate to FollowingList (same stack - ProfileStackNavigator)
+                  navigation.navigate("FollowingList", {
+                    memberId: profile.id,
+                    title: "Following",
+                  });
+                }}
+              >
+                <Text style={styles.statNumber}>
+                  {polledCounts.following || profile.following_count}
+                </Text>
+                <Text style={styles.statLabel}>Following</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Interests */}
+            <ProfileInterestsSection
+              interests={profile.interests}
+              showAllInterests={showAllInterests}
+              setShowAllInterests={setShowAllInterests}
+            />
+
+            {/* Action Buttons */}
+            {isOwnProfile ? (
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 10,
+                  marginTop: 10,
+                  width: "100%",
+                }}
+              >
+                <GradientButton
+                  title="Edit Profile"
+                  onPress={handleEditProfile}
+                  style={{
+                    flex: 1,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: "rgba(68, 138, 255, 0.2)",
+                    backgroundColor: "rgba(68, 138, 255, 0.12)",
+                    shadowColor: "transparent",
+                    shadowOpacity: 0,
+                    shadowRadius: 0,
+                    elevation: 0,
+                    overflow: "hidden",
+                  }}
+                  gradientStyle={{
+                    borderRadius: 0, // Let container handle rounding
+                    paddingHorizontal: 20,
+                  }}
+                  colors={["transparent", "transparent"]}
+                  textStyle={{ fontFamily: FONTS.medium, color: "#2962FF" }}
+                />
+                <GradientButton
+                  title="Create Post"
+                  onPress={() => {
+                    HapticsService.triggerImpactLight();
+                    navigation.navigate("CreatePost");
+                  }}
+                  style={{
+                    flex: 1,
+                    borderRadius: 16,
+                    overflow: "hidden",
+                  }}
+                  gradientStyle={{ borderRadius: 16, paddingHorizontal: 20 }}
+                  colors={["#448AFF", "#2962FF"]}
+                  textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
+                />
+              </View>
+            ) : (
+              <GradientButton
+                title="Follow"
+                onPress={handleFollow}
+                style={{ marginTop: 10, width: "100%", borderRadius: 16 }}
+                gradientStyle={{ borderRadius: 16, paddingHorizontal: 20 }}
+                textStyle={{ fontFamily: FONTS.semiBold }}
+              />
+            )}
+          </View>
+        }
+        ListEmptyComponent={
+          <EmptyPostsState isOwnProfile={isOwnProfile} />
+        }
+        ListFooterComponent={
+          loadingMorePosts ? (
+            <View style={{ paddingVertical: 20, alignItems: "center" }}>
+              <SnooLoader size="small" color={COLORS.primary} />
+            </View>
+          ) : null
+        }
+      />
       {/* --- Full Post Modal Viewer --- */}
       <ProfilePostFeed
         visible={postModalVisible}

@@ -17,6 +17,7 @@ import {
   Animated,
   Linking,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -420,6 +421,141 @@ const CommunityProfileHostsAndSponsors = React.memo(({
   );
 });
 
+const CommunityPostGridCell = React.memo(({ item, itemSize, onPress, onLongPress }) => {
+  const gap = 2;
+  let firstImageUrl = null;
+  if (item?.image_urls) {
+    if (Array.isArray(item.image_urls)) {
+      const flatUrls = item.image_urls.flat();
+      firstImageUrl = flatUrls.find(
+        (u) => typeof u === "string" && u.startsWith("http"),
+      );
+    } else if (
+      typeof item.image_urls === "string" &&
+      item.image_urls.startsWith("http")
+    ) {
+      firstImageUrl = item.image_urls;
+    }
+  }
+
+  const isVideo =
+    !!item.video_url ||
+    (firstImageUrl &&
+      (firstImageUrl.toLowerCase().includes(".mp4") ||
+        firstImageUrl.toLowerCase().includes(".mov") ||
+        firstImageUrl.toLowerCase().includes(".webm")));
+
+  let mediaUrl = null;
+  if (item.video_thumbnail) {
+    try {
+      if (
+        typeof item.video_thumbnail === "string" &&
+        item.video_thumbnail.startsWith("[")
+      ) {
+        const parsed = JSON.parse(item.video_thumbnail);
+        mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
+      } else {
+        mediaUrl = item.video_thumbnail;
+      }
+    } catch (e) {
+      mediaUrl = item.video_thumbnail;
+    }
+  }
+  const videoSourceUrl = firstImageUrl || item.video_url;
+  if (
+    !mediaUrl &&
+    isVideo &&
+    videoSourceUrl &&
+    videoSourceUrl.includes("cloudinary.com")
+  ) {
+    mediaUrl = videoSourceUrl
+      .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+      .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+  }
+  if (!mediaUrl) {
+    mediaUrl = videoSourceUrl;
+  }
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      style={{
+        width: itemSize,
+        height: itemSize * 1.35,
+        marginBottom: 0,
+        marginRight: 0,
+        borderRadius: 3,
+        overflow: "hidden",
+      }}
+      onPress={() => onPress(item)}
+      onLongPress={() => onLongPress(item)}
+      delayLongPress={400}
+    >
+      {item.is_pinned && (
+        <View
+          style={{
+            position: "absolute",
+            top: 6,
+            left: 6,
+            zIndex: 10,
+            backgroundColor: "rgba(255, 255, 255, 0.22)",
+            borderRadius: 10,
+            padding: 5,
+            borderWidth: 0.6,
+            borderColor: "rgba(255, 255, 255, 0.5)",
+            overflow: "visible",
+          }}
+        >
+          <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+            <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+          </View>
+        </View>
+      )}
+
+      {mediaUrl ? (
+        <>
+          <ExpoImage
+            source={{ uri: mediaUrl }}
+            style={{
+              width: "100%",
+              height: "100%",
+              backgroundColor: "#E5E5EA",
+            }}
+            cachePolicy="memory-disk"
+            contentFit="cover"
+          />
+          {isVideo && (
+            <View
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                backgroundColor: "rgba(0,0,0,0.5)",
+                borderRadius: 12,
+                padding: 4,
+              }}
+            >
+              <Play size={16} color="#FFF" fill="#FFF" />
+            </View>
+          )}
+        </>
+      ) : (
+        <View
+          style={{
+            width: "100%",
+            height: "100%",
+            backgroundColor: "#E5E5EA",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <LucideImage size={30} color={COLORS.textSecondary || "#8E8E93"} />
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+});
+
 export default function CommunityProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
@@ -543,7 +679,7 @@ export default function CommunityProfileScreen({ navigation }) {
   const isCommunityTabPost = (p) =>
     COMMUNITY_TAB_TYPES.includes(p.post_type || p.type);
 
-  const handlePinToggle = (post, isDirect = false) => {
+  const handlePinToggle = useCallback((post, isDirect = false) => {
     HapticsService.triggerImpactLight();
 
     if (isDirect) {
@@ -577,7 +713,7 @@ export default function CommunityProfileScreen({ navigation }) {
 
     setPostForPinToggle(post);
     setPinModalVisible(true);
-  };
+  }, [posts]);
 
   const handlePinToggleConfirm = async (post) => {
     try {
@@ -1402,7 +1538,7 @@ export default function CommunityProfileScreen({ navigation }) {
     polledCounts.following ||
     (profile?.following_count ?? profile?.following ?? 0);
 
-  const openPostModal = (post) => {
+  const openPostModal = useCallback((post) => {
     // Normalize is_liked field - only use is_liked, ignore isLiked completely
     const normalizedIsLiked = post.is_liked === true;
     const normalizedPost = {
@@ -1412,9 +1548,9 @@ export default function CommunityProfileScreen({ navigation }) {
     };
     setSelectedPost(normalizedPost);
     setPostModalVisible(true);
-  };
+  }, []);
 
-  const closePostModal = () => {
+  const closePostModal = useCallback(() => {
     const pending = pendingPostUpdateRef.current;
     if (pending && pending.postId != null) {
       setPosts((prevPosts) =>
@@ -1433,7 +1569,19 @@ export default function CommunityProfileScreen({ navigation }) {
     }
     setPostModalVisible(false);
     setSelectedPost(null);
-  };
+  }, []);
+
+  const renderGridItem = useCallback(({ item }) => {
+    const itemSize = (screenWidth - 2 * 2) / 3;
+    return (
+      <CommunityPostGridCell
+        item={item}
+        itemSize={itemSize}
+        onPress={openPostModal}
+        onLongPress={handlePinToggle}
+      />
+    );
+  }, [openPostModal, handlePinToggle]);
 
   const openCommentsModal = useCallback((postId) => {
     if (postId) {
@@ -1733,181 +1881,43 @@ export default function CommunityProfileScreen({ navigation }) {
                 return hasMedia && !isInteractive;
               });
 
+              const gap = 2;
+              const itemSize = (screenWidth - gap * 2) / 3;
+              const numRows = Math.ceil(mediaPosts.length / 3);
+              const gridHeight = numRows > 0 ? numRows * (itemSize * 1.35) + (numRows - 1) * gap : 0;
+
+              const renderGridItem = React.useCallback(({ item }) => (
+                <CommunityPostGridCell 
+                  item={item} 
+                  itemSize={itemSize} 
+                  onPress={openPostModal} 
+                  onLongPress={handlePinToggle} 
+                />
+              ), [itemSize, openPostModal, handlePinToggle]);
+
               return mediaPosts.length > 0 ? (
-                <View style={styles.postsGrid}>
+                <View style={[styles.postsGrid, { height: gridHeight }]}>
                   <FlatList
                     data={mediaPosts}
-                    keyExtractor={(item) => item.id.toString()}
+                    keyExtractor={(item) => String(item.id)}
                     numColumns={3}
                     scrollEnabled={false}
                     columnWrapperStyle={{
                       justifyContent: "flex-start",
-                      marginBottom: 2,
-                      gap: 2,
+                      marginBottom: gap,
+                      gap: gap,
                     }}
-                    renderItem={({ item, index }) => {
-                      const gap = 2; // Modern, tight gap
-                      const itemSize = (screenWidth - gap * 2) / 3;
-
-                      return (
-                        <TouchableOpacity
-                          activeOpacity={0.8}
-                          style={{
-                            width: itemSize,
-                            height: itemSize * 1.35, // Portrait aspect ratio
-                            marginBottom: 0,
-                            marginRight: 0, // Handled by gap
-                            borderRadius: 3, // Subtle radius
-                            overflow: "hidden",
-                          }}
-                          onPress={() => openPostModal(item)}
-                          onLongPress={() => handlePinToggle(item)}
-                          delayLongPress={400}
-                        >
-                          {/* Pinned indicator on grid tile */}
-                          {item.is_pinned && (
-                            <View
-                              style={{
-                                position: "absolute",
-                                top: 6,
-                                left: 6,
-                                zIndex: 10,
-                                backgroundColor: "rgba(255, 255, 255, 0.22)",
-                                borderRadius: 10,
-                                padding: 5,
-                                borderWidth: 0.6,
-                                borderColor: "rgba(255, 255, 255, 0.5)",
-                                overflow: "visible",
-                              }}
-                            >
-                              <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
-                                <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
-                              </View>
-                            </View>
-                            )}
-
-                          {(() => {
-                            let firstImageUrl = null;
-                            if (item?.image_urls) {
-                              if (Array.isArray(item.image_urls)) {
-
-                                const flatUrls = item.image_urls.flat();
-                                firstImageUrl = flatUrls.find(
-                                  (u) =>
-                                    typeof u === "string" &&
-                                    u.startsWith("http"),
-                                );
-                              } else if (
-                                typeof item.image_urls === "string" &&
-                                item.image_urls.startsWith("http")
-                              ) {
-                                firstImageUrl = item.image_urls;
-                              }
-                            }
-
-                            // Detect video by: explicit video_url OR URL extension
-                            const isVideo =
-                              !!item.video_url ||
-                              (firstImageUrl &&
-                                (firstImageUrl.toLowerCase().includes(".mp4") ||
-                                  firstImageUrl
-                                    .toLowerCase()
-                                    .includes(".mov") ||
-                                  firstImageUrl
-                                    .toLowerCase()
-                                    .includes(".webm")));
-
-                            // Generate thumbnail: use video_thumbnail, or Cloudinary jpg conversion, or original URL
-                            // video_thumbnail might be stored as JSON array string '["url"]' in database
-                            let mediaUrl = null;
-                            if (item.video_thumbnail) {
-                              try {
-                                if (
-                                  typeof item.video_thumbnail === "string" &&
-                                  item.video_thumbnail.startsWith("[")
-                                ) {
-                                  const parsed = JSON.parse(
-                                    item.video_thumbnail,
-                                  );
-                                  mediaUrl = Array.isArray(parsed)
-                                    ? parsed[0]
-                                    : item.video_thumbnail;
-                                } else {
-                                  mediaUrl = item.video_thumbnail;
-                                }
-                              } catch (e) {
-                                mediaUrl = item.video_thumbnail;
-                              }
-                            }
-                            const videoSourceUrl =
-                              firstImageUrl || item.video_url;
-                            if (
-                              !mediaUrl &&
-                              isVideo &&
-                              videoSourceUrl &&
-                              videoSourceUrl.includes("cloudinary.com")
-                            ) {
-                              // Convert Cloudinary video URL to thumbnail with transformation params
-                              mediaUrl = videoSourceUrl
-                                .replace(
-                                  "/upload/",
-                                  "/upload/so_0,f_jpg,q_auto,w_800/",
-                                )
-                                .replace(
-                                  /\.(mp4|mov|webm|avi|mkv|m3u8)$/i,
-                                  ".jpg",
-                                );
-                            }
-                            if (!mediaUrl) {
-                              mediaUrl = videoSourceUrl;
-                            }
-
-                            return mediaUrl ? (
-                              <>
-                                <Image
-                                  source={{ uri: mediaUrl }}
-                                  style={{
-                                    width: "100%",
-                                    height: "100%",
-                                    backgroundColor: "#E5E5EA",
-                                  }}
-                                  resizeMode="cover"
-                                />
-                                {isVideo && (
-                                  <View
-                                    style={{
-                                      position: "absolute",
-                                      top: 8,
-                                      right: 8,
-                                      backgroundColor: "rgba(0,0,0,0.5)",
-                                      borderRadius: 12,
-                                      padding: 4,
-                                    }}
-                                  >
-                                    <Play size={16} color="#FFF" fill="#FFF" />
-                                  </View>
-                                )}
-                              </>
-                            ) : (
-                              <View
-                                style={{
-                                  width: "100%",
-                                  height: "100%",
-                                  backgroundColor: "#E5E5EA",
-                                  justifyContent: "center",
-                                  alignItems: "center",
-                                }}
-                              >
-                                <LucideImage
-                                  size={30}
-                                  color={LIGHT_TEXT_COLOR}
-                                />
-                              </View>
-                            );
-                          })()}
-                        </TouchableOpacity>
-                      );
-                    }}
+                    renderItem={renderGridItem}
+                    initialNumToRender={12}
+                    maxToRenderPerBatch={6}
+                    windowSize={5}
+                    removeClippedSubviews={Platform.OS === 'android'}
+                    updateCellsBatchingPeriod={50}
+                    getItemLayout={(data, index) => ({
+                      length: itemSize * 1.35,
+                      offset: (itemSize * 1.35 + gap) * Math.floor(index / 3),
+                      index,
+                    })}
                   />
                 </View>
               ) : (

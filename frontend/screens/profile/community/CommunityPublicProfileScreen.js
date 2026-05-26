@@ -17,6 +17,7 @@ import {
   Linking,
 } from "react-native";
 import { BlurView } from "expo-blur";
+import { Image as ExpoImage } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { useFocusEffect } from "@react-navigation/native";
@@ -436,6 +437,133 @@ const styles = StyleSheet.create({
   },
 });
 
+const CommunityPublicPostGridCell = React.memo(({ item, itemSize, onPress }) => {
+  let firstImageUrl = null;
+  if (item?.image_urls) {
+    if (Array.isArray(item.image_urls)) {
+      const flatUrls = item.image_urls.flat();
+      firstImageUrl = flatUrls.find(
+        (u) => typeof u === "string" && u.startsWith("http"),
+      );
+    } else if (
+      typeof item.image_urls === "string" &&
+      item.image_urls.startsWith("http")
+    ) {
+      firstImageUrl = item.image_urls;
+    }
+  }
+
+  // Detect video by: explicit video_url OR URL extension
+  const isVideo =
+    !!item.video_url ||
+    (firstImageUrl &&
+      (firstImageUrl.toLowerCase().includes(".mp4") ||
+        firstImageUrl.toLowerCase().includes(".mov") ||
+        firstImageUrl.toLowerCase().includes(".webm")));
+
+  // Generate thumbnail: use video_thumbnail, or Cloudinary jpg conversion, or original URL
+  let mediaUrl = null;
+  if (item.video_thumbnail) {
+    try {
+      if (
+        typeof item.video_thumbnail === "string" &&
+        item.video_thumbnail.startsWith("[")
+      ) {
+        const parsed = JSON.parse(item.video_thumbnail);
+        mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
+      } else {
+        mediaUrl = item.video_thumbnail;
+      }
+    } catch (e) {
+      mediaUrl = item.video_thumbnail;
+    }
+  }
+  const videoSourceUrl = firstImageUrl || item.video_url;
+  if (
+    !mediaUrl &&
+    isVideo &&
+    videoSourceUrl &&
+    videoSourceUrl.includes("cloudinary.com")
+  ) {
+    mediaUrl = videoSourceUrl
+      .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+      .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+  }
+  if (!mediaUrl) {
+    mediaUrl = videoSourceUrl;
+  }
+  if (!mediaUrl) {
+    mediaUrl = firstImageUrl;
+  }
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.9}
+      onPress={() => onPress(item.id)}
+      style={[
+        styles.gridItem,
+        {
+          width: itemSize,
+          height: itemSize * 1.35,
+          borderRadius: 3,
+          overflow: "hidden",
+        },
+      ]}
+    >
+      {mediaUrl ? (
+        <>
+          <ExpoImage
+            source={{ uri: mediaUrl }}
+            style={styles.gridImage}
+            cachePolicy="memory-disk"
+            contentFit="cover"
+          />
+          {isVideo && (
+            <View
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 8,
+                backgroundColor: "rgba(0,0,0,0.5)",
+                borderRadius: 12,
+                padding: 4,
+              }}
+            >
+              <Play size={16} color="#FFF" fill="#FFF" />
+            </View>
+          )}
+        </>
+      ) : (
+        <View style={[styles.gridImage, styles.gridPlaceholder]}>
+          <LucideImage size={30} color="#999" />
+        </View>
+      )}
+
+      {/* Pinned indicator on grid tile */}
+      {item.is_pinned && (
+        <View
+          style={{
+            position: "absolute",
+            top: 6,
+            left: 6,
+            zIndex: 10,
+            backgroundColor: "rgba(255, 255, 255, 0.22)",
+            borderRadius: 10,
+            padding: 5,
+            borderWidth: 0.6,
+            borderColor: "rgba(255, 255, 255, 0.5)",
+            overflow: "visible",
+          }}
+        >
+          <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+            <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+          </View>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+});
+
 export default function CommunityPublicProfileScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const communityId = route?.params?.communityId;
@@ -833,7 +961,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     };
   }, [selectedPost]); // Added selectedPost dependency
 
-  const openPostModal = (postId) => {
+  const openPostModal = useCallback((postId) => {
     console.log(
       "[CommunityPublicProfile] openPostModal called with postId:",
       postId,
@@ -863,9 +991,9 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     };
     setSelectedPost(normalizedPost);
     setPostModalVisible(true);
-  };
+  }, [posts]);
 
-  const closePostModal = () => {
+  const closePostModal = useCallback(() => {
     const pending = pendingPostUpdateRef.current;
     if (pending && pending.postId != null) {
       setPosts((prevPosts) =>
@@ -884,7 +1012,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     }
     setPostModalVisible(false);
     setSelectedPost(null);
-  };
+  }, []);
 
   const openCommentsModal = useCallback((postId) => {
     if (postId) {
@@ -904,132 +1032,15 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     };
   };
 
-  const renderGridItem = ({ item, index }) => {
-    let firstImageUrl = null;
-    if (item?.image_urls) {
-      if (Array.isArray(item.image_urls)) {
-        const flatUrls = item.image_urls.flat();
-        firstImageUrl = flatUrls.find(
-          (u) => typeof u === "string" && u.startsWith("http"),
-        );
-      } else if (
-        typeof item.image_urls === "string" &&
-        item.image_urls.startsWith("http")
-      ) {
-        firstImageUrl = item.image_urls;
-      }
-    }
-
-    // Detect video by: explicit video_url OR URL extension
-    const isVideo =
-      !!item.video_url ||
-      (firstImageUrl &&
-        (firstImageUrl.toLowerCase().includes(".mp4") ||
-          firstImageUrl.toLowerCase().includes(".mov") ||
-          firstImageUrl.toLowerCase().includes(".webm")));
-
-    // Generate thumbnail: use video_thumbnail, or Cloudinary jpg conversion, or original URL
-    let mediaUrl = null;
-    if (item.video_thumbnail) {
-      try {
-        if (
-          typeof item.video_thumbnail === "string" &&
-          item.video_thumbnail.startsWith("[")
-        ) {
-          const parsed = JSON.parse(item.video_thumbnail);
-          mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
-        } else {
-          mediaUrl = item.video_thumbnail;
-        }
-      } catch (e) {
-        mediaUrl = item.video_thumbnail;
-      }
-    }
-    const videoSourceUrl = firstImageUrl || item.video_url;
-    if (
-      !mediaUrl &&
-      isVideo &&
-      videoSourceUrl &&
-      videoSourceUrl.includes("cloudinary.com")
-    ) {
-      // Convert Cloudinary video URL to thumbnail with transformation params
-      mediaUrl = videoSourceUrl
-        .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
-        .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
-    }
-    if (!mediaUrl) {
-      mediaUrl = videoSourceUrl;
-    }
-    if (!mediaUrl) {
-      mediaUrl = firstImageUrl;
-    }
-
+  const renderGridItem = useCallback(({ item, index }) => {
     return (
-      <TouchableOpacity
-        activeOpacity={0.9}
-        onPress={() => openPostModal(item.id)}
-        style={[
-          styles.gridItem,
-          {
-            width: ITEM_SIZE,
-            height: ITEM_SIZE * 1.35,
-            borderRadius: 3,
-            overflow: "hidden",
-          },
-        ]}
-      >
-        {mediaUrl ? (
-          <>
-            <Image
-              source={{ uri: mediaUrl }}
-              style={styles.gridImage}
-              resizeMode="cover"
-            />
-            {isVideo && (
-              <View
-                style={{
-                  position: "absolute",
-                  top: 8,
-                  right: 8,
-                  backgroundColor: "rgba(0,0,0,0.5)",
-                  borderRadius: 12,
-                  padding: 4,
-                }}
-              >
-                <Play size={16} color="#FFF" fill="#FFF" />
-              </View>
-            )}
-          </>
-        ) : (
-          <View style={[styles.gridImage, styles.gridPlaceholder]}>
-            <LucideImage size={30} color="#999" />
-          </View>
-        )}
-
-        {/* Pinned indicator on grid tile */}
-        {item.is_pinned && (
-          <View
-            style={{
-              position: "absolute",
-              top: 6,
-              left: 6,
-              zIndex: 10,
-              backgroundColor: "rgba(255, 255, 255, 0.22)",
-              borderRadius: 10,
-              padding: 5,
-              borderWidth: 0.6,
-              borderColor: "rgba(255, 255, 255, 0.5)",
-              overflow: "visible",
-            }}
-          >
-            <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
-              <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
-            </View>
-          </View>
-        )}
-      </TouchableOpacity>
+      <CommunityPublicPostGridCell
+        item={item}
+        itemSize={ITEM_SIZE}
+        onPress={openPostModal}
+      />
     );
-  };
+  }, [openPostModal]);
 
   const handleHeadPress = (head) => {
     if (!head) return;
@@ -1590,19 +1601,34 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 return !INTERACTIVE_TYPES.includes(postType);
               });
 
+              const numRows = Math.ceil(mediaPosts.length / 3);
+              const gridHeight = numRows > 0 ? numRows * (ITEM_SIZE * 1.35) + (numRows - 1) * GAP : 0;
+
               return mediaPosts.length > 0 ? (
-                <FlatList
-                  data={mediaPosts}
-                  keyExtractor={(item) => item.id.toString()}
-                  numColumns={3}
-                  columnWrapperStyle={{
-                    justifyContent: "flex-start",
-                    marginBottom: 2,
-                    gap: 2,
-                  }}
-                  scrollEnabled={false}
-                  renderItem={renderGridItem}
-                />
+                <View style={{ height: gridHeight }}>
+                  <FlatList
+                    data={mediaPosts}
+                    keyExtractor={(item) => String(item.id)}
+                    numColumns={3}
+                    columnWrapperStyle={{
+                      justifyContent: "flex-start",
+                      marginBottom: GAP,
+                      gap: GAP,
+                    }}
+                    scrollEnabled={false}
+                    renderItem={renderGridItem}
+                    initialNumToRender={12}
+                    maxToRenderPerBatch={6}
+                    windowSize={5}
+                    removeClippedSubviews={Platform.OS === 'android'}
+                    updateCellsBatchingPeriod={50}
+                    getItemLayout={(data, index) => ({
+                      length: ITEM_SIZE * 1.35,
+                      offset: (ITEM_SIZE * 1.35 + GAP) * Math.floor(index / 3),
+                      index,
+                    })}
+                  />
+                </View>
               ) : (
                 <EmptyPostsState isOwnProfile={false} />
               );
