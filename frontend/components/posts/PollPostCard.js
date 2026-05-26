@@ -824,8 +824,8 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   endedBadgeText: {
-    fontFamily: "BasicCommercial-Bold",
-    fontSize: 10,
+    fontFamily: FONTS.medium,
+    fontSize: 12,
     color: "#DC2626",
     letterSpacing: 0.5,
   },
@@ -944,8 +944,8 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   activeBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
+    fontFamily: FONTS.medium,
+    fontSize: 12,
     color: COLORS.textSecondary,
   },
 

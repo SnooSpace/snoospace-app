@@ -920,8 +920,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   endedBadgeText: {
-    fontFamily: "BasicCommercial-Bold",
-    fontSize: 10,
+    fontFamily: FONTS.medium,
+    fontSize: 12,
     color: "#DC2626", // Red text
     letterSpacing: 0.5,
   },
@@ -1222,20 +1222,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   activeBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
+    fontFamily: FONTS.medium,
+    fontSize: 12,
     color: COLORS.textSecondary,
-  },
-  endedBadge: {
-    backgroundColor: "#FEE2E2",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  endedBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#DC2626",
   },
   footerLeftStatus: {
     flexDirection: "row",

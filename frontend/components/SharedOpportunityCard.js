@@ -594,8 +594,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   activeBadgeText: {
-    fontSize: 9,
-    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    fontFamily: FONTS.medium,
     color: COLORS.textSecondary,
   },
   endedBadge: {
@@ -605,8 +605,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   endedBadgeText: {
-    fontSize: 9,
-    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    fontFamily: FONTS.medium,
     color: "#DC2626",
   },
   applyButton: {

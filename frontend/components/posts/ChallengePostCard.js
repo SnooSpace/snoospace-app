@@ -1424,8 +1424,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   endedBadgeText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 10,
+    fontFamily: FONTS.medium,
+    fontSize: 12,
     color: "#DC2626", // Red text
     letterSpacing: 0.5,
   },
@@ -1460,8 +1460,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   activeBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
+    fontFamily: FONTS.medium,
+    fontSize: 12,
     color: COLORS.textSecondary,
   },
   urgencyIcon: {

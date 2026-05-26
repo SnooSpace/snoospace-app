@@ -975,8 +975,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   endedBadgeText: {
-    fontFamily: "BasicCommercial-Bold",
-    fontSize: 10,
+    fontFamily: FONTS.medium,
+    fontSize: 12,
     color: "#DC2626", // Red text
     letterSpacing: 0.5,
   },

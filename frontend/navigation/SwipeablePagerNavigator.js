@@ -396,12 +396,37 @@ function SwipeablePagerNavigator({
     },
   });
 
-  // ---------------- RENDER ----------------
   const currentRoute = state.routes[state.index];
   const currentDescriptor = descriptors[currentRoute.key];
   const shouldHideTabBar =
     currentDescriptor.options.tabBarStyle?.display === "none";
 
+  // State to manage scrollEnabled dynamically with a delay on back transition
+  const [pagerScrollEnabled, setPagerScrollEnabled] = useState(!shouldHideTabBar);
+
+  useEffect(() => {
+    if (shouldHideTabBar) {
+      setPagerScrollEnabled(false);
+    } else {
+      const timer = setTimeout(() => {
+        setPagerScrollEnabled(true);
+      }, 400); // Wait for screen transition to complete
+      return () => clearTimeout(timer);
+    }
+  }, [shouldHideTabBar]);
+
+  // Sync scroll position and currentIndex when index changes or tab bar becomes visible
+  useEffect(() => {
+    currentIndex.value = state.index;
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({
+        x: state.index * SCREEN_WIDTH,
+        animated: false,
+      });
+    }
+  }, [state.index, shouldHideTabBar]);
+
+  // ---------------- RENDER ----------------
   return (
     <View style={styles.container}>
       <Animated.ScrollView
@@ -412,7 +437,7 @@ function SwipeablePagerNavigator({
         showsHorizontalScrollIndicator={false}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
-        scrollEnabled={!shouldHideTabBar}
+        scrollEnabled={pagerScrollEnabled}
         style={styles.pager}
         // directionalLockEnabled tells iOS to commit to ONE axis per gesture.
         // When a nested carousel is scrolling horizontally, iOS automatically

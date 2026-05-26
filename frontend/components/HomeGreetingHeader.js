@@ -6,7 +6,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
-import { COLORS } from "../constants/theme";
+import { COLORS, FONTS } from "../constants/theme";
 
 // Module-level flag to track if animation has played this session
 let hasAnimatedThisSession = false;
@@ -113,8 +113,8 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   greetingText: {
+    fontFamily: FONTS.medium,
     fontSize: 16,
-    fontWeight: "500",
     color: COLORS.textSecondary,
     letterSpacing: 0.2,
   },
