@@ -1,8 +1,7 @@
 import React from 'react';
-import { Dimensions, Platform } from 'react-native';
+import { View, Dimensions } from 'react-native';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import Animated, { runOnJS } from 'react-native-reanimated';
+import { useNavigation } from '@react-navigation/native';
 
 // Define the default order of bottom tabs (Member)
 const DEFAULT_TABS = ["Home", "Search", "Discover", "YourEvents", "Profile"];
@@ -57,9 +56,13 @@ export default function TabSwipeHandler({ children, currentTab, tabs = DEFAULT_T
 
   return (
     <GestureDetector gesture={pan}>
-      <Animated.View style={{ flex: 1 }}>
+      {/* Use plain View — NOT Reanimated Animated.View.
+          Animated.View inside a GestureDetector interacts with @react-navigation/stack's
+          back gesture evaluator, causing a transient translateX on the pager page
+          (visible as a leftward drift + grey strip during back navigation). */}
+      <View style={{ flex: 1 }}>
         {children}
-      </Animated.View>
+      </View>
     </GestureDetector>
   );
 }

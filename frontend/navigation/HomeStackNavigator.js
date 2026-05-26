@@ -22,13 +22,10 @@ import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen"
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
 import CreateGroupScreen from "../screens/messages/CreateGroupScreen";
 import GroupInfoScreen from "../screens/messages/GroupInfoScreen";
-import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
 // [VIDEO INSIGHTS - DEFERRED] import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
 
-const HomeFeedWithSwipe = (props) => (
-  <TabSwipeHandler currentTab="Home">
-    <HomeFeedScreen {...props} role="member" />
-  </TabSwipeHandler>
+const MemberHomeFeed = (props) => (
+  <HomeFeedScreen {...props} role="member" />
 );
 
 const Stack = createStackNavigator();
@@ -36,10 +33,13 @@ const Stack = createStackNavigator();
 export default function HomeStackNavigator() {
   return (
     <Stack.Navigator
-      screenOptions={{ headerShown: false }}
+      screenOptions={{
+        headerShown: false,
+        animationEnabled: false,
+      }}
       initialRouteName="HomeFeed"
     >
-      <Stack.Screen name="HomeFeed" component={HomeFeedWithSwipe} />
+      <Stack.Screen name="HomeFeed" component={MemberHomeFeed} />
       <Stack.Screen
         name="Notifications"
         component={NotificationsScreen}

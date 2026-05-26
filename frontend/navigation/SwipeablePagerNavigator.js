@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Dimensions,
   StyleSheet,
   Platform,
   Pressable,
-  InteractionManager,
 } from "react-native";
 import {
   useNavigationBuilder,
@@ -403,43 +402,38 @@ function SwipeablePagerNavigator({
   const shouldHideTabBar =
     currentDescriptor.options.tabBarStyle?.display === "none";
 
-  // State to manage scrollEnabled dynamically with a delay on back transition
-  const [pagerScrollEnabled, setPagerScrollEnabled] = useState(!shouldHideTabBar);
+  // NOTE: We intentionally do NOT disable scrollEnabled on the pager when child
+  // stack screens (Notifications, Conversations, etc.) are open. Those screens
+  // are pushed ON TOP of the pager via the stack navigator and cover the full
+  // screen — the pager cannot physically receive touch events while they are
+  // open. Toggling scrollEnabled=false→true caused iOS's pagingEnabled
+  // UIScrollView to re-evaluate its snap position on re-enable, producing the
+  // visible horizontal drift during back-navigation.
 
+  // Sync scroll position and currentIndex ONLY when the tab index genuinely changes.
+  //
+  // ⚠️  DO NOT add `shouldHideTabBar` as a dependency here.
+  //  When navigating back from a screen that hides the tab bar (e.g. Notifications → HomeFeed),
+  //  `state.index` stays at 0 the whole time, but `shouldHideTabBar` flips true→false
+  //  mid-transition (while the native slide-back animation is still in flight).
+  //  Reacting to that flip would call `scrollTo(x:0)` while the React Navigation
+  //  stack animator is still moving the pager's parent layout, producing the
+  //  visible leftward drift / grey-strip glitch.
+  const prevIndexRef = useRef(state.index);
   useEffect(() => {
-    if (shouldHideTabBar) {
-      setPagerScrollEnabled(false);
-    } else {
-      const timer = setTimeout(() => {
-        setPagerScrollEnabled(true);
-      }, 400); // Wait for screen transition to complete
-      return () => clearTimeout(timer);
-    }
-  }, [shouldHideTabBar]);
+    // Guard: skip if we're already at the correct position
+    if (prevIndexRef.current === state.index) return;
+    prevIndexRef.current = state.index;
 
-  // Sync scroll position and currentIndex when index changes or tab bar becomes visible
-  useEffect(() => {
     currentIndex.value = state.index;
-    let task;
+    // Only call scrollTo if the ref is ready
     if (scrollViewRef.current) {
       scrollViewRef.current.scrollTo({
         x: state.index * SCREEN_WIDTH,
         animated: false,
       });
-      // Snap after navigation transition interactions complete to correct any layout drift
-      task = InteractionManager.runAfterInteractions(() => {
-        if (scrollViewRef.current) {
-          scrollViewRef.current.scrollTo({
-            x: state.index * SCREEN_WIDTH,
-            animated: false,
-          });
-        }
-      });
     }
-    return () => {
-      if (task) task.cancel();
-    };
-  }, [state.index, shouldHideTabBar]);
+  }, [state.index]);
 
   // Animated style to slide the tab bar off-screen/on-screen
   const animatedTabBarStyle = useAnimatedStyle(() => {
@@ -465,7 +459,6 @@ function SwipeablePagerNavigator({
         showsHorizontalScrollIndicator={false}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
-        scrollEnabled={pagerScrollEnabled}
         style={styles.pager}
         // directionalLockEnabled tells iOS to commit to ONE axis per gesture.
         // When a nested carousel is scrolling horizontally, iOS automatically
