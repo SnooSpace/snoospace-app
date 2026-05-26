@@ -15,7 +15,9 @@ import {
   Alert,
   StatusBar,
   Linking,
+  Pressable,
 } from "react-native";
+import Reanimated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { BlurView } from "expo-blur";
 import { Image as ExpoImage } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -438,6 +440,14 @@ const styles = StyleSheet.create({
 });
 
 const CommunityPublicPostGridCell = React.memo(({ item, itemSize, onPress }) => {
+  const scale = useSharedValue(1);
+
+  const animatedScaleStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: scale.value }],
+    };
+  });
+
   let firstImageUrl = null;
   if (item?.image_urls) {
     if (Array.isArray(item.image_urls)) {
@@ -497,70 +507,75 @@ const CommunityPublicPostGridCell = React.memo(({ item, itemSize, onPress }) => 
   }
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.9}
+    <Pressable
       onPress={() => onPress(item.id)}
+      onPressIn={() => {
+        scale.value = withSpring(0.95, { damping: 10, stiffness: 150 });
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, { damping: 10, stiffness: 150 });
+      }}
       style={[
         styles.gridItem,
         {
           width: itemSize,
           height: itemSize * 1.35,
-          borderRadius: 3,
-          overflow: "hidden",
         },
       ]}
     >
-      {mediaUrl ? (
-        <>
-          <ExpoImage
-            source={{ uri: mediaUrl }}
-            style={styles.gridImage}
-            cachePolicy="memory-disk"
-            contentFit="cover"
-          />
-          {isVideo && (
-            <View
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                backgroundColor: "rgba(0,0,0,0.5)",
-                borderRadius: 12,
-                padding: 4,
-              }}
-            >
-              <Play size={16} color="#FFF" fill="#FFF" />
-            </View>
-          )}
-        </>
-      ) : (
-        <View style={[styles.gridImage, styles.gridPlaceholder]}>
-          <LucideImage size={30} color="#999" />
-        </View>
-      )}
-
-      {/* Pinned indicator on grid tile */}
-      {item.is_pinned && (
-        <View
-          style={{
-            position: "absolute",
-            top: 6,
-            left: 6,
-            zIndex: 10,
-            backgroundColor: "rgba(255, 255, 255, 0.22)",
-            borderRadius: 10,
-            padding: 5,
-            borderWidth: 0.6,
-            borderColor: "rgba(255, 255, 255, 0.5)",
-            overflow: "visible",
-          }}
-        >
-          <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
-            <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+      <Reanimated.View style={[{ width: "100%", height: "100%", overflow: "hidden", borderRadius: 3 }, animatedScaleStyle]}>
+        {mediaUrl ? (
+          <>
+            <ExpoImage
+              source={{ uri: mediaUrl }}
+              style={styles.gridImage}
+              cachePolicy="memory-disk"
+              contentFit="cover"
+            />
+            {isVideo && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 8,
+                  right: 8,
+                  backgroundColor: "rgba(0,0,0,0.5)",
+                  borderRadius: 12,
+                  padding: 4,
+                }}
+              >
+                <Play size={16} color="#FFF" fill="#FFF" />
+              </View>
+            )}
+          </>
+        ) : (
+          <View style={[styles.gridImage, styles.gridPlaceholder]}>
+            <LucideImage size={30} color="#999" />
           </View>
-        </View>
-      )}
-    </TouchableOpacity>
+        )}
+
+        {/* Pinned indicator on grid tile */}
+        {item.is_pinned && (
+          <View
+            style={{
+              position: "absolute",
+              top: 6,
+              left: 6,
+              zIndex: 10,
+              backgroundColor: "rgba(255, 255, 255, 0.22)",
+              borderRadius: 10,
+              padding: 5,
+              borderWidth: 0.6,
+              borderColor: "rgba(255, 255, 255, 0.5)",
+              overflow: "visible",
+            }}
+          >
+            <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+              <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+            </View>
+          </View>
+        )}
+      </Reanimated.View>
+    </Pressable>
   );
 });
 
@@ -605,8 +620,16 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const [communityEvents, setCommunityEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [tabLayouts, setTabLayouts] = useState({});
-  const tabUnderlineX = useRef(new Animated.Value(0)).current;
-  const tabUnderlineScale = useRef(new Animated.Value(0)).current;
+  // Tab underline animation (Reanimated)
+  const tabUnderlineX = useSharedValue(0);
+  const tabUnderlineScale = useSharedValue(0);
+
+  const animatedUnderlineStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: tabUnderlineX.value }],
+      width: tabUnderlineScale.value,
+    };
+  });
 
   const handleTabLayout = (key, event) => {
     const { x, width } = event.nativeEvent.layout;
@@ -616,20 +639,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   useEffect(() => {
     const layout = tabLayouts[activeTab];
     if (layout) {
-      Animated.parallel([
-        Animated.spring(tabUnderlineX, {
-          toValue: layout.x,
-          useNativeDriver: false,
-          tension: 50,
-          friction: 8,
-        }),
-        Animated.spring(tabUnderlineScale, {
-          toValue: layout.width,
-          useNativeDriver: false,
-          tension: 50,
-          friction: 8,
-        }),
-      ]).start();
+      tabUnderlineX.value = withSpring(layout.x, { damping: 15, stiffness: 120 });
+      tabUnderlineScale.value = withSpring(layout.width, { damping: 15, stiffness: 120 });
     }
   }, [activeTab, tabLayouts]);
 
@@ -1574,13 +1585,10 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               </Text>
             </TouchableOpacity>
           ))}
-          <Animated.View
+          <Reanimated.View
             style={[
               styles.activeTabIndicator,
-              {
-                transform: [{ translateX: tabUnderlineX }],
-                width: tabUnderlineScale, // This should be working if state is correct
-              },
+              animatedUnderlineStyle,
             ]}
           />
         </View>

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Dimensions, Animated, Easing } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 const GAP = 10; // Match real profile grid gap
@@ -9,23 +10,12 @@ const ITEM_SIZE = (width - 40 - GAP * 2) / 3; // Match real profile calculation
 
 const AnimatedLG = Animated.createAnimatedComponent(LinearGradient);
 
-const Shimmer = ({ width: w, height: h, style, borderRadius = 0 }) => {
-  const animatedValue = new Animated.Value(0);
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.timing(animatedValue, {
-        toValue: 1,
-        duration: 1500,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-  }, []);
-
-  const translateX = animatedValue.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-w, w],
+const Shimmer = ({ width: w, height: h, style, borderRadius = 0, progress }) => {
+  const animatedStyle = useAnimatedStyle(() => {
+    const translateX = -w + progress.value * (w * 2);
+    return {
+      transform: [{ translateX }],
+    };
   });
 
   return (
@@ -37,9 +27,7 @@ const Shimmer = ({ width: w, height: h, style, borderRadius = 0 }) => {
         end={{ x: 1, y: 0 }}
         style={[
           StyleSheet.absoluteFill,
-          {
-            transform: [{ translateX }],
-          },
+          animatedStyle,
         ]}
       />
     </View>
@@ -49,6 +37,18 @@ const Shimmer = ({ width: w, height: h, style, borderRadius = 0 }) => {
 const SkeletonPostGrid = () => {
   // Show 9 cards (3 rows x 3 columns)
   const data = new Array(9).fill(null);
+  const shimmerProgress = useSharedValue(0);
+
+  useEffect(() => {
+    shimmerProgress.value = withRepeat(
+      withTiming(1, {
+        duration: 1500,
+        easing: Easing.linear,
+      }),
+      -1,
+      false
+    );
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -68,7 +68,7 @@ const SkeletonPostGrid = () => {
                 }
               ]}
             >
-              <Shimmer width={ITEM_SIZE} height={ITEM_SIZE} borderRadius={8} />
+              <Shimmer width={ITEM_SIZE} height={ITEM_SIZE} borderRadius={8} progress={shimmerProgress} />
             </View>
           );
         })}

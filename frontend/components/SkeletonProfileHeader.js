@@ -1,28 +1,18 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Dimensions, Animated, Easing } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 
 const { width } = Dimensions.get('window');
 
 const AnimatedLG = Animated.createAnimatedComponent(LinearGradient);
 
-const Shimmer = ({ width: w, height: h, style, borderRadius = 4 }) => {
-  const animatedValue = new Animated.Value(0);
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.timing(animatedValue, {
-        toValue: 1,
-        duration: 1500,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-  }, []);
-
-  const translateX = animatedValue.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-w, w],
+const Shimmer = ({ width: w, height: h, style, borderRadius = 4, progress }) => {
+  const animatedStyle = useAnimatedStyle(() => {
+    const translateX = -w + progress.value * (w * 2);
+    return {
+      transform: [{ translateX }],
+    };
   });
 
   return (
@@ -34,9 +24,7 @@ const Shimmer = ({ width: w, height: h, style, borderRadius = 4 }) => {
         end={{ x: 1, y: 0 }}
         style={[
           StyleSheet.absoluteFill,
-          {
-            transform: [{ translateX }],
-          },
+          animatedStyle,
         ]}
       />
     </View>
@@ -45,44 +33,56 @@ const Shimmer = ({ width: w, height: h, style, borderRadius = 4 }) => {
 
 const SkeletonProfileHeader = ({ type = 'member' }) => {
   const isCommunity = type === 'community';
+  const shimmerProgress = useSharedValue(0);
+
+  useEffect(() => {
+    shimmerProgress.value = withRepeat(
+      withTiming(1, {
+        duration: 1500,
+        easing: Easing.linear,
+      }),
+      -1,
+      false
+    );
+  }, []);
 
   if (isCommunity) {
     return (
       <View style={styles.container}>
         {/* Banner */}
-        <Shimmer width={width} height={150} borderRadius={0} style={styles.banner} />
+        <Shimmer width={width} height={150} borderRadius={0} style={styles.banner} progress={shimmerProgress} />
         
         {/* Content Wrapper */}
         <View style={styles.communityContent}>
           {/* Avatar Area - Overlapping Banner */}
           <View style={styles.communityAvatarContainer}>
-            <Shimmer width={100} height={100} borderRadius={50} style={styles.avatarBorder} />
+            <Shimmer width={100} height={100} borderRadius={50} style={styles.avatarBorder} progress={shimmerProgress} />
           </View>
 
           {/* Name & Bio */}
           <View style={styles.centerContent}>
-            <Shimmer width={200} height={24} style={styles.nameLine} />
-            <Shimmer width={150} height={16} style={styles.categoryLine} />
+            <Shimmer width={200} height={24} style={styles.nameLine} progress={shimmerProgress} />
+            <Shimmer width={150} height={16} style={styles.categoryLine} progress={shimmerProgress} />
             <View style={styles.bioBlock}>
-              <Shimmer width={width - 40} height={14} style={styles.textLine} />
-              <Shimmer width={width - 80} height={14} style={styles.textLine} />
+              <Shimmer width={width - 40} height={14} style={styles.textLine} progress={shimmerProgress} />
+              <Shimmer width={width - 80} height={14} style={styles.textLine} progress={shimmerProgress} />
             </View>
           </View>
 
           {/* Stats Row */}
           <View style={styles.statsRow}>
-            <Shimmer width={60} height={40} />
-            <Shimmer width={60} height={40} />
-            <Shimmer width={60} height={40} />
+            <Shimmer width={60} height={40} progress={shimmerProgress} />
+            <Shimmer width={60} height={40} progress={shimmerProgress} />
+            <Shimmer width={60} height={40} progress={shimmerProgress} />
           </View>
 
           {/* Edit Button */}
-          <Shimmer width={width - 40} height={45} borderRadius={8} style={styles.button} />
+          <Shimmer width={width - 40} height={45} borderRadius={8} style={styles.button} progress={shimmerProgress} />
 
           {/* Heads Section Placeholder */}
           <View style={styles.sectionPlaceholder}>
-             <Shimmer width={150} height={20} style={styles.sectionTitle} />
-             <Shimmer width={width - 40} height={60} borderRadius={12} />
+             <Shimmer width={150} height={20} style={styles.sectionTitle} progress={shimmerProgress} />
+             <Shimmer width={width - 40} height={60} borderRadius={12} progress={shimmerProgress} />
           </View>
         </View>
       </View>
@@ -97,36 +97,36 @@ const SkeletonProfileHeader = ({ type = 'member' }) => {
 
       {/* Profile Image - Centered */}
       <View style={styles.centerContent}>
-        <Shimmer width={120} height={120} borderRadius={60} style={styles.avatar} />
+        <Shimmer width={120} height={120} borderRadius={60} style={styles.avatar} progress={shimmerProgress} />
       </View>
 
       {/* Name & Info */}
       <View style={styles.centerContent}>
-        <Shimmer width={180} height={24} style={styles.nameLine} />
-        <Shimmer width={100} height={16} style={styles.usernameLine} />
+        <Shimmer width={180} height={24} style={styles.nameLine} progress={shimmerProgress} />
+        <Shimmer width={100} height={16} style={styles.usernameLine} progress={shimmerProgress} />
         
         {/* Chips Row */}
         <View style={styles.chipRow}>
-           <Shimmer width={80} height={24} borderRadius={12} />
-           <Shimmer width={60} height={24} borderRadius={12} />
+           <Shimmer width={80} height={24} borderRadius={12} progress={shimmerProgress} />
+           <Shimmer width={60} height={24} borderRadius={12} progress={shimmerProgress} />
         </View>
 
         {/* Bio */}
         <View style={styles.bioBlock}>
-           <Shimmer width={width - 60} height={14} style={styles.textLine} />
-           <Shimmer width={width - 100} height={14} style={styles.textLine} />
+           <Shimmer width={width - 60} height={14} style={styles.textLine} progress={shimmerProgress} />
+           <Shimmer width={width - 100} height={14} style={styles.textLine} progress={shimmerProgress} />
         </View>
       </View>
 
       {/* Stats Row */}
       <View style={styles.statsRow}>
-        <Shimmer width={80} height={50} />
-        <Shimmer width={80} height={50} />
+        <Shimmer width={80} height={50} progress={shimmerProgress} />
+        <Shimmer width={80} height={50} progress={shimmerProgress} />
       </View>
 
       {/* Action Buttons */}
       <View style={styles.centerContent}>
-         <Shimmer width={width - 40} height={45} borderRadius={8} style={styles.button} />
+         <Shimmer width={width - 40} height={45} borderRadius={8} style={styles.button} progress={shimmerProgress} />
       </View>
     </View>
   );

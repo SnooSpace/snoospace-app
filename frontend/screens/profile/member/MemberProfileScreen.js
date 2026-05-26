@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, Image, ScrollView, Alert, Dimensions, Modal, FlatList, KeyboardAvoidingView, Platform, TextInput, RefreshControl } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Image, ScrollView, Alert, Dimensions, Modal, FlatList, KeyboardAvoidingView, Platform, TextInput, RefreshControl, Pressable } from "react-native";
+import Reanimated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image as ExpoImage } from "expo-image";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
@@ -184,6 +185,14 @@ const ProfileInterestsSection = React.memo(({ interests, showAllInterests, setSh
 });
 
 const MemberPostGridCell = React.memo(({ item, index, itemSize, onPress, onLongPress }) => {
+  const scale = useSharedValue(1);
+
+  const animatedScaleStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: scale.value }],
+    };
+  });
+
   if (!item) {
     return (
       <View
@@ -246,8 +255,7 @@ const MemberPostGridCell = React.memo(({ item, index, itemSize, onPress, onLongP
   }
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.8}
+    <Pressable
       style={[
         styles.postGridItem,
         {
@@ -257,67 +265,75 @@ const MemberPostGridCell = React.memo(({ item, index, itemSize, onPress, onLongP
           marginRight: 0,
         },
       ]}
+      onPressIn={() => {
+        scale.value = withSpring(0.95, { damping: 10, stiffness: 150 });
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, { damping: 10, stiffness: 150 });
+      }}
       onPress={() => onPress(item)}
       onLongPress={() => onLongPress(item)}
       delayLongPress={400}
     >
-      <ExpoImage
-        source={{
-          uri: mediaUrl || "https://via.placeholder.com/150",
-        }}
-        style={styles.postImage}
-        cachePolicy="memory-disk"
-        contentFit="cover"
-        onError={(e) => {
-          console.log("[ProfileGrid] Image load error:", {
-            postId: item.id,
-            mediaUrl,
-            error: e.nativeEvent?.error || "Unknown error",
-          });
-        }}
-        onLoad={() => {
-          console.log(
-            "[ProfileGrid] Image loaded successfully:",
-            item.id,
-          );
-        }}
-      />
-      {isVideo && (
-        <View
-          style={{
-            position: "absolute",
-            top: 8,
-            right: 8,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            borderRadius: 12,
-            padding: 4,
+      <Reanimated.View style={[{ width: "100%", height: "100%", overflow: "hidden", borderRadius: 8 }, animatedScaleStyle]}>
+        <ExpoImage
+          source={{
+            uri: mediaUrl || "https://via.placeholder.com/150",
           }}
-        >
-          <Play size={16} color="#FFF" />
-        </View>
-      )}
-
-      {item?.is_pinned && (
-        <View
-          style={{
-            position: "absolute",
-            top: 6,
-            left: 6,
-            zIndex: 10,
-            backgroundColor: "rgba(255, 255, 255, 0.22)",
-            borderRadius: 10,
-            padding: 5,
-            borderWidth: 0.6,
-            borderColor: "rgba(255, 255, 255, 0.5)",
-            overflow: "visible",
+          style={styles.postImage}
+          cachePolicy="memory-disk"
+          contentFit="cover"
+          onError={(e) => {
+            console.log("[ProfileGrid] Image load error:", {
+              postId: item.id,
+              mediaUrl,
+              error: e.nativeEvent?.error || "Unknown error",
+            });
           }}
-        >
-          <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
-            <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+          onLoad={() => {
+            console.log(
+              "[ProfileGrid] Image loaded successfully:",
+              item.id,
+            );
+          }}
+        />
+        {isVideo && (
+          <View
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              borderRadius: 12,
+              padding: 4,
+            }}
+          >
+            <Play size={16} color="#FFF" />
           </View>
-        </View>
-      )}
-    </TouchableOpacity>
+        )}
+
+        {item?.is_pinned && (
+          <View
+            style={{
+              position: "absolute",
+              top: 6,
+              left: 6,
+              zIndex: 10,
+              backgroundColor: "rgba(255, 255, 255, 0.22)",
+              borderRadius: 10,
+              padding: 5,
+              borderWidth: 0.6,
+              borderColor: "rgba(255, 255, 255, 0.5)",
+              overflow: "visible",
+            }}
+          >
+            <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+              <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+            </View>
+          </View>
+        )}
+      </Reanimated.View>
+    </Pressable>
   );
 });
 

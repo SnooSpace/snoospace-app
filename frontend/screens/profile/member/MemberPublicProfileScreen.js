@@ -7,7 +7,8 @@ import React, {
 } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import {
-  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Alert, Platform } from "react-native";
+  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Alert, Platform, Pressable } from "react-native";
+import Reanimated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { Image as ExpoImage } from "expo-image";
 import { ArrowLeft, Play, Pin } from "lucide-react-native";
 import {
@@ -51,6 +52,14 @@ import SnooLoader from "../../../components/ui/SnooLoader";
 import CollegeChip from "../../../components/CollegeChip";
 
 const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPress }) => {
+  const scale = useSharedValue(1);
+
+  const animatedScaleStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: scale.value }],
+    };
+  });
+
   if (!item) {
     return <View style={{ width: itemSize, height: itemSize * 1.35, backgroundColor: "#F2F2F7" }} />;
   }
@@ -100,59 +109,64 @@ const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPre
   }
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.9}
+    <Pressable
       style={{
         width: itemSize,
         height: itemSize * 1.35,
         marginBottom: 0,
-        borderRadius: 3,
-        overflow: "hidden",
+      }}
+      onPressIn={() => {
+        scale.value = withSpring(0.95, { damping: 10, stiffness: 150 });
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, { damping: 10, stiffness: 150 });
       }}
       onPress={() => onPress(item)}
     >
-      <ExpoImage
-        source={{ uri: mediaUrl || "https://via.placeholder.com/150" }}
-        style={{ width: "100%", height: "100%" }}
-        cachePolicy="memory-disk"
-        contentFit="cover"
-      />
-      {isVideo && (
-        <View
-          style={{
-            position: "absolute",
-            top: 8,
-            right: 8,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            borderRadius: 12,
-            padding: 4,
-          }}
-        >
-          <Play size={16} color="#FFF" />
-        </View>
-      )}
-
-      {item?.is_pinned && (
-        <View
-          style={{
-            position: "absolute",
-            top: 6,
-            left: 6,
-            zIndex: 10,
-            backgroundColor: "rgba(255, 255, 255, 0.22)",
-            borderRadius: 10,
-            padding: 5,
-            borderWidth: 0.6,
-            borderColor: "rgba(255, 255, 255, 0.5)",
-            overflow: "visible",
-          }}
-        >
-          <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
-            <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+      <Reanimated.View style={[{ width: "100%", height: "100%", overflow: "hidden", borderRadius: 3 }, animatedScaleStyle]}>
+        <ExpoImage
+          source={{ uri: mediaUrl || "https://via.placeholder.com/150" }}
+          style={{ width: "100%", height: "100%" }}
+          cachePolicy="memory-disk"
+          contentFit="cover"
+        />
+        {isVideo && (
+          <View
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              borderRadius: 12,
+              padding: 4,
+            }}
+          >
+            <Play size={16} color="#FFF" />
           </View>
-        </View>
-      )}
-    </TouchableOpacity>
+        )}
+
+        {item?.is_pinned && (
+          <View
+            style={{
+              position: "absolute",
+              top: 6,
+              left: 6,
+              zIndex: 10,
+              backgroundColor: "rgba(255, 255, 255, 0.22)",
+              borderRadius: 10,
+              padding: 5,
+              borderWidth: 0.6,
+              borderColor: "rgba(255, 255, 255, 0.5)",
+              overflow: "visible",
+            }}
+          >
+            <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+              <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+            </View>
+          </View>
+        )}
+      </Reanimated.View>
+    </Pressable>
   );
 });
 import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";

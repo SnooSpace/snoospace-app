@@ -16,7 +16,9 @@ import {
   RefreshControl,
   Animated,
   Linking,
+  Pressable,
 } from "react-native";
+import Reanimated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { Image as ExpoImage } from "expo-image";
 import {
   SafeAreaView,
@@ -422,6 +424,14 @@ const CommunityProfileHostsAndSponsors = React.memo(({
 });
 
 const CommunityPostGridCell = React.memo(({ item, itemSize, onPress, onLongPress }) => {
+  const scale = useSharedValue(1);
+
+  const animatedScaleStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: scale.value }],
+    };
+  });
+
   const gap = 2;
   let firstImageUrl = null;
   if (item?.image_urls) {
@@ -477,82 +487,87 @@ const CommunityPostGridCell = React.memo(({ item, itemSize, onPress, onLongPress
   }
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.8}
+    <Pressable
       style={{
         width: itemSize,
         height: itemSize * 1.35,
         marginBottom: 0,
         marginRight: 0,
-        borderRadius: 3,
-        overflow: "hidden",
+      }}
+      onPressIn={() => {
+        scale.value = withSpring(0.95, { damping: 10, stiffness: 150 });
+      }}
+      onPressOut={() => {
+        scale.value = withSpring(1, { damping: 10, stiffness: 150 });
       }}
       onPress={() => onPress(item)}
       onLongPress={() => onLongPress(item)}
       delayLongPress={400}
     >
-      {item.is_pinned && (
-        <View
-          style={{
-            position: "absolute",
-            top: 6,
-            left: 6,
-            zIndex: 10,
-            backgroundColor: "rgba(255, 255, 255, 0.22)",
-            borderRadius: 10,
-            padding: 5,
-            borderWidth: 0.6,
-            borderColor: "rgba(255, 255, 255, 0.5)",
-            overflow: "visible",
-          }}
-        >
-          <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
-            <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+      <Reanimated.View style={[{ width: "100%", height: "100%", overflow: "hidden", borderRadius: 3 }, animatedScaleStyle]}>
+        {item.is_pinned && (
+          <View
+            style={{
+              position: "absolute",
+              top: 6,
+              left: 6,
+              zIndex: 10,
+              backgroundColor: "rgba(255, 255, 255, 0.22)",
+              borderRadius: 10,
+              padding: 5,
+              borderWidth: 0.6,
+              borderColor: "rgba(255, 255, 255, 0.5)",
+              overflow: "visible",
+            }}
+          >
+            <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+              <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+            </View>
           </View>
-        </View>
-      )}
+        )}
 
-      {mediaUrl ? (
-        <>
-          <ExpoImage
-            source={{ uri: mediaUrl }}
+        {mediaUrl ? (
+          <>
+            <ExpoImage
+              source={{ uri: mediaUrl }}
+              style={{
+                width: "100%",
+                height: "100%",
+                backgroundColor: "#E5E5EA",
+              }}
+              cachePolicy="memory-disk"
+              contentFit="cover"
+            />
+            {isVideo && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 8,
+                  right: 8,
+                  backgroundColor: "rgba(0,0,0,0.5)",
+                  borderRadius: 12,
+                  padding: 4,
+                }}
+              >
+                <Play size={16} color="#FFF" fill="#FFF" />
+              </View>
+            )}
+          </>
+        ) : (
+          <View
             style={{
               width: "100%",
               height: "100%",
               backgroundColor: "#E5E5EA",
+              justifyContent: "center",
+              alignItems: "center",
             }}
-            cachePolicy="memory-disk"
-            contentFit="cover"
-          />
-          {isVideo && (
-            <View
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                backgroundColor: "rgba(0,0,0,0.5)",
-                borderRadius: 12,
-                padding: 4,
-              }}
-            >
-              <Play size={16} color="#FFF" fill="#FFF" />
-            </View>
-          )}
-        </>
-      ) : (
-        <View
-          style={{
-            width: "100%",
-            height: "100%",
-            backgroundColor: "#E5E5EA",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <LucideImage size={30} color={COLORS.textSecondary || "#8E8E93"} />
-        </View>
-      )}
-    </TouchableOpacity>
+          >
+            <LucideImage size={30} color={COLORS.textSecondary || "#8E8E93"} />
+          </View>
+        )}
+      </Reanimated.View>
+    </Pressable>
   );
 });
 
@@ -619,11 +634,18 @@ export default function CommunityProfileScreen({ navigation }) {
     actions: [],
   });
 
-  // Tab underline animation
-  const tabUnderlineX = useRef(new Animated.Value(0)).current;
-  const tabUnderlineScale = useRef(new Animated.Value(0)).current;
+  // Tab underline animation (Reanimated)
+  const tabUnderlineX = useSharedValue(0);
+  const tabUnderlineScale = useSharedValue(0);
   const tabWidths = useRef({}).current;
   const tabOffsets = useRef({}).current;
+
+  const animatedUnderlineStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: tabUnderlineX.value }],
+      width: tabUnderlineScale.value,
+    };
+  });
 
   // Real-time counts polling (5-second interval)
   // Pauses when modals are open to avoid distracting updates
@@ -796,20 +818,8 @@ export default function CommunityProfileScreen({ navigation }) {
   useEffect(() => {
     // Underline sliding animation
     if (tabOffsets[activeTab] !== undefined) {
-      Animated.parallel([
-        Animated.spring(tabUnderlineX, {
-          toValue: tabOffsets[activeTab],
-          useNativeDriver: false,
-          tension: 50,
-          friction: 8,
-        }),
-        Animated.spring(tabUnderlineScale, {
-          toValue: tabWidths[activeTab],
-          useNativeDriver: false,
-          tension: 50,
-          friction: 8,
-        }),
-      ]).start();
+      tabUnderlineX.value = withSpring(tabOffsets[activeTab], { damping: 15, stiffness: 120 });
+      tabUnderlineScale.value = withSpring(tabWidths[activeTab], { damping: 15, stiffness: 120 });
     }
   }, [activeTab]);
 
@@ -820,8 +830,8 @@ export default function CommunityProfileScreen({ navigation }) {
 
     // Set initial position for active tab underline
     if (tab === activeTab) {
-      tabUnderlineX.setValue(x);
-      tabUnderlineScale.setValue(width);
+      tabUnderlineX.value = x;
+      tabUnderlineScale.value = width;
     }
   };
 
@@ -1847,13 +1857,10 @@ export default function CommunityProfileScreen({ navigation }) {
             </TouchableOpacity>
           ))}
           {/* Sliding indicator */}
-          <Animated.View
+          <Reanimated.View
             style={[
               styles.activeTabIndicator,
-              {
-                transform: [{ translateX: tabUnderlineX }],
-                width: tabUnderlineScale,
-              },
+              animatedUnderlineStyle,
             ]}
           />
         </View>
@@ -1885,15 +1892,6 @@ export default function CommunityProfileScreen({ navigation }) {
               const itemSize = (screenWidth - gap * 2) / 3;
               const numRows = Math.ceil(mediaPosts.length / 3);
               const gridHeight = numRows > 0 ? numRows * (itemSize * 1.35) + (numRows - 1) * gap : 0;
-
-              const renderGridItem = React.useCallback(({ item }) => (
-                <CommunityPostGridCell 
-                  item={item} 
-                  itemSize={itemSize} 
-                  onPress={openPostModal} 
-                  onLongPress={handlePinToggle} 
-                />
-              ), [itemSize, openPostModal, handlePinToggle]);
 
               return mediaPosts.length > 0 ? (
                 <View style={[styles.postsGrid, { height: gridHeight }]}>
