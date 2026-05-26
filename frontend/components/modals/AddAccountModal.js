@@ -1,7 +1,21 @@
-import React from "react";
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useEffect, useRef } from "react";
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  Dimensions,
+  TouchableWithoutFeedback,
+  Platform,
+} from "react-native";
+import { BlurView } from "expo-blur";
 import { X } from "lucide-react-native";
 import PropTypes from "prop-types";
+import { COLORS, FONTS } from "../../constants/theme";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 /**
  * Add Account Modal - Instagram-style
@@ -13,6 +27,47 @@ export default function AddAccountModal({
   onLoginExisting,
   onCreateNew,
 }) {
+  const [shouldRender, setShouldRender] = React.useState(visible);
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setShouldRender(true);
+      // Entrance
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          stiffness: 200,
+          damping: 25,
+          mass: 1,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      // Exit
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: SCREEN_HEIGHT,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setShouldRender(false);
+      });
+    }
+  }, [visible]);
+
   function handleLoginExisting() {
     onClose();
     if (onLoginExisting) {
@@ -27,23 +82,32 @@ export default function AddAccountModal({
     }
   }
 
+  if (!shouldRender) return null;
+
   return (
     <Modal
-      visible={visible}
-      transparent={true}
-      animationType="slide"
+      transparent
+      visible={shouldRender}
+      animationType="none"
       onRequestClose={onClose}
       statusBarTranslucent={true}
     >
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.modalContent}
-          onPress={(e) => e.stopPropagation()}
+      <View style={styles.overlay}>
+        <TouchableWithoutFeedback onPress={onClose}>
+          <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
+            <BlurView
+              intensity={20}
+              tint="dark"
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+        </TouchableWithoutFeedback>
+
+        <Animated.View
+          style={[
+            styles.modalContent,
+            { transform: [{ translateY: slideAnim }] },
+          ]}
         >
           {/* Handle bar */}
           <View style={styles.handleBar} />
@@ -52,7 +116,7 @@ export default function AddAccountModal({
           <View style={styles.header}>
             <Text style={styles.title}>Add account</Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <X size={24} color="#1D1D1F" />
+              <X size={20} color="#0F172A" strokeWidth={2.2} />
             </TouchableOpacity>
           </View>
 
@@ -73,8 +137,8 @@ export default function AddAccountModal({
           >
             <Text style={styles.secondaryButtonText}>Create new account</Text>
           </TouchableOpacity>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </Animated.View>
+      </View>
     </Modal>
   );
 }
@@ -82,15 +146,18 @@ export default function AddAccountModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "flex-end",
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   modalContent: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     paddingHorizontal: 20,
-    paddingBottom: 30,
+    paddingBottom: Platform.OS === "ios" ? 40 : 30,
   },
   handleBar: {
     width: 40,
@@ -110,8 +177,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontFamily: "BasicCommercialBold",
-    color: "#1D1D1F",
+    fontFamily: FONTS.primary,
+    color: "#0F172A",
     textAlign: "center",
   },
   closeButton: {
@@ -120,8 +187,8 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   primaryButton: {
-    backgroundColor: "#0095F6",
-    borderRadius: 12,
+    backgroundColor: COLORS.primary,
+    borderRadius: 16,
     paddingVertical: 16,
     alignItems: "center",
     marginBottom: 12,
@@ -129,19 +196,19 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: "#FFFFFF",
     fontSize: 16,
-    fontFamily: "Manrope-SemiBold",
+    fontFamily: FONTS.semiBold,
   },
   secondaryButton: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 16,
     paddingVertical: 16,
     alignItems: "center",
     marginBottom: 20,
   },
   secondaryButtonText: {
-    color: "#0095F6",
+    color: COLORS.primary,
     fontSize: 16,
-    fontFamily: "Manrope-SemiBold",
+    fontFamily: FONTS.semiBold,
   },
 });
 

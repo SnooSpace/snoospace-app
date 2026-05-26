@@ -26,10 +26,7 @@ import {
 import { getAuthToken } from "../../api/auth";
 import { apiGet } from "../../api/client";
 import { COLORS, FONTS } from "../../constants/theme";
-import {
-  getGradientForName,
-  getInitials,
-} from "../../utils/AvatarGenerator";
+import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 import SnooLoader from "../ui/SnooLoader";
 import CollegeEntityListSheet from "./CollegeEntityListSheet";
 import { followCommunity, unfollowCommunity } from "../../api/communities";
@@ -69,11 +66,7 @@ export default function CollegeHubSheet({
     setError(null);
     try {
       const token = await getAuthToken();
-      const result = await apiGet(
-        `/colleges/${collegeId}/hub`,
-        15000,
-        token
-      );
+      const result = await apiGet(`/colleges/${collegeId}/hub`, 15000, token);
       setData(result);
     } catch (err) {
       console.error("[CollegeHubSheet] Failed to load:", err);
@@ -96,27 +89,32 @@ export default function CollegeHubSheet({
   useEffect(() => {
     if (data?.communities) {
       const map = {};
-      data.communities.forEach((c) => { map[c.id] = c.is_following ?? false; });
+      data.communities.forEach((c) => {
+        map[c.id] = c.is_following ?? false;
+      });
       setFollowState((prev) => ({ ...prev, ...map }));
     }
   }, [data]);
 
-  const handleCommunityFollow = useCallback(async (community) => {
-    const id = community.id;
-    const cur = followState[id] ?? false;
-    const next = !cur;
-    setFollowState((prev) => ({ ...prev, [id]: next }));
-    setFollowLoading((prev) => ({ ...prev, [id]: true }));
-    HapticsService.triggerImpactLight();
-    try {
-      if (next) await followCommunity(id);
-      else await unfollowCommunity(id);
-    } catch {
-      setFollowState((prev) => ({ ...prev, [id]: cur }));
-    } finally {
-      setFollowLoading((prev) => ({ ...prev, [id]: false }));
-    }
-  }, [followState]);
+  const handleCommunityFollow = useCallback(
+    async (community) => {
+      const id = community.id;
+      const cur = followState[id] ?? false;
+      const next = !cur;
+      setFollowState((prev) => ({ ...prev, [id]: next }));
+      setFollowLoading((prev) => ({ ...prev, [id]: true }));
+      HapticsService.triggerImpactLight();
+      try {
+        if (next) await followCommunity(id);
+        else await unfollowCommunity(id);
+      } catch {
+        setFollowState((prev) => ({ ...prev, [id]: cur }));
+      } finally {
+        setFollowLoading((prev) => ({ ...prev, [id]: false }));
+      }
+    },
+    [followState],
+  );
 
   if (!visible) return null;
 
@@ -141,13 +139,13 @@ export default function CollegeHubSheet({
       >
         {/* Avatar */}
         {item.logo_url ? (
-          <Image source={{ uri: item.logo_url }} style={styles.communityAvatar} />
+          <Image
+            source={{ uri: item.logo_url }}
+            style={styles.communityAvatar}
+          />
         ) : (
           <View
-            style={[
-              styles.communityAvatar,
-              { backgroundColor: gradient[0] },
-            ]}
+            style={[styles.communityAvatar, { backgroundColor: gradient[0] }]}
           >
             <Text style={styles.communityInitials}>{initials}</Text>
           </View>
@@ -177,7 +175,10 @@ export default function CollegeHubSheet({
         {/* Follow button */}
         <TouchableOpacity
           style={[styles.followBtn, isFollowing && styles.followBtnActive]}
-          onPress={(e) => { e.stopPropagation?.(); handleCommunityFollow(item); }}
+          onPress={(e) => {
+            e.stopPropagation?.();
+            handleCommunityFollow(item);
+          }}
           disabled={!!followLoading[item.id]}
           hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
         >
@@ -186,12 +187,22 @@ export default function CollegeHubSheet({
           ) : (
             <UserPlus size={12} color="#FFF" strokeWidth={2} />
           )}
-          <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
+          <Text
+            style={[
+              styles.followBtnText,
+              isFollowing && styles.followBtnTextActive,
+            ]}
+          >
             {isFollowing ? "Following" : "Follow"}
           </Text>
         </TouchableOpacity>
 
-        <ChevronRight size={14} color="#D1D5DB" strokeWidth={2} style={{ marginLeft: 4 }} />
+        <ChevronRight
+          size={14}
+          color="#D1D5DB"
+          strokeWidth={2}
+          style={{ marginLeft: 4 }}
+        />
       </TouchableOpacity>
     );
   };
@@ -213,14 +224,10 @@ export default function CollegeHubSheet({
       </View>
 
       {/* Name + Status */}
-      <Text style={styles.collegeName}>
-        {college?.name || "College"}
-      </Text>
+      <Text style={styles.collegeName}>{college?.name || "College"}</Text>
 
       {college?.abbreviation && (
-        <Text style={styles.collegeAbbr}>
-          {college.abbreviation}
-        </Text>
+        <Text style={styles.collegeAbbr}>{college.abbreviation}</Text>
       )}
 
       {/* Verification badge */}
@@ -257,25 +264,25 @@ export default function CollegeHubSheet({
 
       {/* Stats Row */}
       <View style={styles.statsRow}>
-      <TouchableOpacity
-        style={[styles.statItem, { cursor: 'pointer' }]}
-        activeOpacity={0.7}
-        onPress={() => setEntityListMode('communities')}
-      >
-        <Building2 size={16} color="#2962FF" strokeWidth={1.8} />
-        <Text style={styles.statNumber}>{college?.community_count || 0}</Text>
-        <Text style={styles.statLabel}>Communities</Text>
-      </TouchableOpacity>
-      <View style={styles.statDivider} />
-      <TouchableOpacity
-        style={styles.statItem}
-        activeOpacity={0.7}
-        onPress={() => setEntityListMode('members')}
-      >
-        <Users size={16} color="#2962FF" strokeWidth={1.8} />
-        <Text style={styles.statNumber}>{college?.member_count || 0}</Text>
-        <Text style={styles.statLabel}>Members</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.statItem, { cursor: "pointer" }]}
+          activeOpacity={0.7}
+          onPress={() => setEntityListMode("communities")}
+        >
+          <Building2 size={16} color="#2962FF" strokeWidth={1.8} />
+          <Text style={styles.statNumber}>{college?.community_count || 0}</Text>
+          <Text style={styles.statLabel}>Communities</Text>
+        </TouchableOpacity>
+        <View style={styles.statDivider} />
+        <TouchableOpacity
+          style={styles.statItem}
+          activeOpacity={0.7}
+          onPress={() => setEntityListMode("members")}
+        >
+          <Users size={16} color="#2962FF" strokeWidth={1.8} />
+          <Text style={styles.statNumber}>{college?.member_count || 0}</Text>
+          <Text style={styles.statLabel}>Members</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Communities section header */}
@@ -319,12 +326,17 @@ export default function CollegeHubSheet({
               {loading ? (
                 <View style={styles.loadingWrap}>
                   <SnooLoader size="medium" />
-                  <Text style={styles.loadingText}>Loading college info...</Text>
+                  <Text style={styles.loadingText}>
+                    Loading college info...
+                  </Text>
                 </View>
               ) : error ? (
                 <View style={styles.errorWrap}>
                   <Text style={styles.errorText}>{error}</Text>
-                  <TouchableOpacity onPress={fetchHubData} style={styles.retryButton}>
+                  <TouchableOpacity
+                    onPress={fetchHubData}
+                    style={styles.retryButton}
+                  >
                     <Text style={styles.retryText}>Retry</Text>
                   </TouchableOpacity>
                 </View>
@@ -355,9 +367,9 @@ export default function CollegeHubSheet({
       <CollegeEntityListSheet
         visible={!!entityListMode}
         onClose={() => setEntityListMode(null)}
-        mode={entityListMode || 'members'}
+        mode={entityListMode || "members"}
         collegeId={collegeId}
-        collegeName={data?.college?.name || ''}
+        collegeName={data?.college?.name || ""}
         currentUserId={currentUserId}
         onMemberPress={(memberId) => {
           setEntityListMode(null);
@@ -630,4 +642,3 @@ const styles = StyleSheet.create({
     color: "#2962FF",
   },
 });
-

@@ -11,8 +11,8 @@ import {
   Platform,
 } from "react-native";
 import { BlurView } from "expo-blur";
-import { Ionicons } from "@expo/vector-icons";
-import { COLORS, SHADOWS } from "../../constants/theme";
+import * as Lucide from "lucide-react-native";
+import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -75,6 +75,33 @@ export default function ActionSheet({
 
   if (!shouldRender) return null;
 
+  // Helper to dynamically render Lucide icons and resolve Ionicons names
+  const renderIcon = (iconName, color) => {
+    if (!iconName) return null;
+
+    let componentName = iconName;
+    if (iconName === "image-outline" || iconName === "image") {
+      componentName = "Image";
+    } else if (iconName === "trash-outline" || iconName === "trash") {
+      componentName = "Trash2";
+    } else if (iconName === "chevron-forward") {
+      componentName = "ChevronRight";
+    } else {
+      // Convert kebab-case to PascalCase (e.g., eye-off -> EyeOff)
+      componentName = iconName
+        .split("-")
+        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+        .join("");
+    }
+
+    const IconComponent = Lucide[componentName];
+    if (!IconComponent) {
+      return <Lucide.AlertCircle size={20} color={color} strokeWidth={2} />;
+    }
+
+    return <IconComponent size={20} color={color} strokeWidth={2} />;
+  };
+
   return (
     <Modal
       transparent
@@ -123,14 +150,7 @@ export default function ActionSheet({
                   }}
                 >
                   <View style={styles.optionContent}>
-                    {action.icon && (
-                      <Ionicons
-                        name={action.icon}
-                        size={22}
-                        color={isDestructive ? "#FF3B30" : "#1D1D1F"}
-                        style={styles.optionIcon}
-                      />
-                    )}
+                    {action.icon && renderIcon(action.icon, isDestructive ? COLORS.error : "#1D1D1F")}
                     <Text
                       style={[
                         styles.optionText,
@@ -140,7 +160,7 @@ export default function ActionSheet({
                       {action.text}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color="#C7C7CC" />
+                  <Lucide.ChevronRight size={18} color="#C7C7CC" strokeWidth={2} />
                 </TouchableOpacity>
               );
             })}
@@ -170,7 +190,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     paddingBottom: Platform.OS === "ios" ? 40 : 24,
     maxHeight: SCREEN_HEIGHT * 0.8,
-    ...SHADOWS.lg,
+    ...SHADOWS.large,
   },
   indicator: {
     width: 36,
@@ -189,14 +209,15 @@ const styles = StyleSheet.create({
     borderBottomColor: "#F2F2F7",
   },
   title: {
+    fontFamily: FONTS.primary,
     fontSize: 18,
-    fontWeight: "700",
-    color: "#1D1D1F",
+    color: "#0F172A",
     marginBottom: 4,
   },
   message: {
+    fontFamily: FONTS.regular,
     fontSize: 14,
-    color: "#8E8E93",
+    color: "#6B7280",
     textAlign: "center",
   },
   optionsArea: {
@@ -214,20 +235,16 @@ const styles = StyleSheet.create({
   optionContent: {
     flexDirection: "row",
     alignItems: "center",
-  },
-  optionIcon: {
-    marginRight: 12,
-    width: 24,
-    textAlign: "center",
+    gap: 8,
   },
   optionText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 16,
-    fontWeight: "500",
-    color: "#1D1D1F",
+    color: "#0F172A",
   },
   destructiveText: {
-    color: "#FF3B30",
-    fontWeight: "600",
+    color: COLORS.error,
+    fontFamily: FONTS.semiBold,
   },
   cancelButton: {
     marginHorizontal: 20,
@@ -239,8 +256,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cancelText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 16,
-    fontWeight: "600",
-    color: "#1D1D1F",
+    color: "#0F172A",
   },
 });

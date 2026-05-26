@@ -92,7 +92,9 @@ export default function CollegeEntityListSheet({
             offset: offsetRef.current,
           });
         }
-        const fetched = isMemberMode ? data.members || [] : data.communities || [];
+        const fetched = isMemberMode
+          ? data.members || []
+          : data.communities || [];
         setItems((prev) => (reset ? fetched : [...prev, ...fetched]));
         // Seed follow state map
         const newFollowMap = {};
@@ -109,7 +111,7 @@ export default function CollegeEntityListSheet({
         setLoadingMore(false);
       }
     },
-    [collegeId, mode, hasMore, isMemberMode]
+    [collegeId, mode, hasMore, isMemberMode],
   );
 
   useEffect(() => {
@@ -148,7 +150,7 @@ export default function CollegeEntityListSheet({
         setFollowLoading((prev) => ({ ...prev, [id]: false }));
       }
     },
-    [followState, isMemberMode]
+    [followState, isMemberMode],
   );
 
   const renderMember = ({ item }) => {
@@ -168,7 +170,10 @@ export default function CollegeEntityListSheet({
         {/* Avatar */}
         <View style={styles.avatarWrap}>
           {item.profile_photo_url ? (
-            <Image source={{ uri: item.profile_photo_url }} style={styles.avatar} />
+            <Image
+              source={{ uri: item.profile_photo_url }}
+              style={styles.avatar}
+            />
           ) : (
             <View style={[styles.avatar, styles.avatarFallback]}>
               <Text style={styles.avatarInitial}>
@@ -217,7 +222,12 @@ export default function CollegeEntityListSheet({
             ) : (
               <UserPlus size={14} color="#FFFFFF" strokeWidth={2} />
             )}
-            <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
+            <Text
+              style={[
+                styles.followBtnText,
+                isFollowing && styles.followBtnTextActive,
+              ]}
+            >
               {isFollowing ? "Following" : "Follow"}
             </Text>
           </TouchableOpacity>
@@ -246,7 +256,10 @@ export default function CollegeEntityListSheet({
         {/* Logo */}
         <View style={styles.communityLogoWrap}>
           {item.logo_url ? (
-            <Image source={{ uri: item.logo_url }} style={styles.communityLogo} />
+            <Image
+              source={{ uri: item.logo_url }}
+              style={styles.communityLogo}
+            />
           ) : (
             <View style={[styles.communityLogo, styles.communityLogoFallback]}>
               <Building2 size={16} color="#2962FF" strokeWidth={1.8} />
@@ -285,7 +298,12 @@ export default function CollegeEntityListSheet({
           ) : (
             <UserPlus size={14} color="#FFFFFF" strokeWidth={2} />
           )}
-          <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
+          <Text
+            style={[
+              styles.followBtnText,
+              isFollowing && styles.followBtnTextActive,
+            ]}
+          >
             {isFollowing ? "Following" : "Follow"}
           </Text>
         </TouchableOpacity>
@@ -305,7 +323,11 @@ export default function CollegeEntityListSheet({
     >
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
-          <BlurView intensity={20} style={StyleSheet.absoluteFill} tint="dark" />
+          <BlurView
+            intensity={20}
+            style={StyleSheet.absoluteFill}
+            tint="dark"
+          />
 
           <TouchableWithoutFeedback onPress={() => {}}>
             <View style={styles.sheet}>
@@ -372,7 +394,11 @@ export default function CollegeEntityListSheet({
                       {isMemberMode ? (
                         <Users size={32} color="#E5E7EB" strokeWidth={1.5} />
                       ) : (
-                        <Building2 size={32} color="#E5E7EB" strokeWidth={1.5} />
+                        <Building2
+                          size={32}
+                          color="#E5E7EB"
+                          strokeWidth={1.5}
+                        />
                       )}
                       <Text style={styles.emptyText}>
                         {isMemberMode

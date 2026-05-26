@@ -2869,7 +2869,7 @@ export default function CommunityProfileScreen({ navigation }) {
           actions={[
             {
               text: "Change banner",
-              icon: "image-outline",
+              icon: "Image",
               onPress: () => {
                 setShowBannerActionSheet(false);
                 pickBannerImage();
@@ -2879,7 +2879,7 @@ export default function CommunityProfileScreen({ navigation }) {
               ? [
                   {
                     text: "Remove banner",
-                    icon: "trash-outline",
+                    icon: "Trash2",
                     style: "destructive",
                     onPress: () => {
                       setShowBannerActionSheet(false);

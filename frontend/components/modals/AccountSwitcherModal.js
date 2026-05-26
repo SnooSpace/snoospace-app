@@ -1,5 +1,19 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, Image, Alert, Animated } from "react-native";
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  FlatList,
+  Image,
+  Alert,
+  Animated,
+  Dimensions,
+  TouchableWithoutFeedback,
+  Platform,
+} from "react-native";
+import { BlurView } from "expo-blur";
 import { CheckCircle2, XCircle, PlusCircle } from "lucide-react-native";
 import PropTypes from "prop-types";
 import { getAllAccounts, switchAccount, validateToken } from "../../api/auth";
@@ -7,6 +21,9 @@ import * as accountManager from "../../utils/accountManager";
 import hapticsService from "../../services/HapticsService";
 import SnooLoader from "../ui/SnooLoader";
 import EventBus from "../../utils/EventBus";
+import { COLORS, FONTS } from "../../constants/theme";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 /**
  * Account Switcher Modal - Instagram-style
@@ -24,13 +41,50 @@ export default function AccountSwitcherModal({
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [switchingTo, setSwitchingTo] = useState(null);
-  const [showCurrentAccountSubtitle, setShowCurrentAccountSubtitle] = useState(false);
+  const [showCurrentAccountSubtitle, setShowCurrentAccountSubtitle] =
+    useState(false);
   const shakeAnimation = useRef(new Animated.Value(0)).current;
+
+  const [shouldRender, setShouldRender] = useState(visible);
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       loadAccounts();
       setShowCurrentAccountSubtitle(false);
+      setShouldRender(true);
+      // Entrance
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 350,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          stiffness: 200,
+          damping: 25,
+          mass: 1,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      // Exit
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: SCREEN_HEIGHT,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setShouldRender(false);
+      });
     }
   }, [visible]);
 
@@ -105,27 +159,43 @@ export default function AccountSwitcherModal({
       String(account.id) === String(currentAccountId)
     ) {
       console.log(
-        "[AccountSwitcher] Clicked on current account, showing subtitle"
+        "[AccountSwitcher] Clicked on current account, showing subtitle",
       );
       hapticsService.triggerNotificationWarning();
       setShowCurrentAccountSubtitle(true);
-      
+
       // Shake animation
       shakeAnimation.setValue(0);
       Animated.sequence([
-        Animated.timing(shakeAnimation, { toValue: 6, duration: 40, useNativeDriver: true }),
-        Animated.timing(shakeAnimation, { toValue: -6, duration: 40, useNativeDriver: true }),
-        Animated.timing(shakeAnimation, { toValue: 6, duration: 40, useNativeDriver: true }),
-        Animated.timing(shakeAnimation, { toValue: 0, duration: 40, useNativeDriver: true }),
+        Animated.timing(shakeAnimation, {
+          toValue: 6,
+          duration: 40,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shakeAnimation, {
+          toValue: -6,
+          duration: 40,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shakeAnimation, {
+          toValue: 6,
+          duration: 40,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shakeAnimation, {
+          toValue: 0,
+          duration: 40,
+          useNativeDriver: true,
+        }),
       ]).start();
-      
+
       return;
     }
 
     // Check if account is logged out - navigate to login instead of switching
     if (account.isLoggedIn === false) {
       console.log(
-        "[AccountSwitcher] Account is logged out, navigating to login"
+        "[AccountSwitcher] Account is logged out, navigating to login",
       );
       onClose();
       if (onLoginRequired) {
@@ -165,14 +235,14 @@ export default function AccountSwitcherModal({
         // Token is expired but we have refresh token - let it try naturally
         // The API client will attempt refresh
         console.log(
-          "[AccountSwitcher] Token expired but has refresh token, proceeding"
+          "[AccountSwitcher] Token expired but has refresh token, proceeding",
         );
       }
 
       // Switch account using composite key
       console.log(
         "[AccountSwitcher] Calling switchAccount with:",
-        accountCompositeId
+        accountCompositeId,
       );
       await switchAccount(accountCompositeId);
 
@@ -180,7 +250,7 @@ export default function AccountSwitcherModal({
       // No need to re-verify after switch - the account.authToken is correct
       console.log(
         "[AccountSwitcher] Switch successful, token length:",
-        account.authToken?.length
+        account.authToken?.length,
       );
 
       // Navigate to correct screen
@@ -188,7 +258,7 @@ export default function AccountSwitcherModal({
         console.log("[AccountSwitcher] Calling onAccountSwitch...");
         onAccountSwitch(account);
       }
-      
+
       // Emit event to show the toast notification
       EventBus.emit("account-switch-done", {
         name: account.name || account.username || "",
@@ -208,7 +278,7 @@ export default function AccountSwitcherModal({
       // If it's a logged-out account error, navigate to login
       if (error.message && error.message.includes("logged out")) {
         console.log(
-          "[AccountSwitcher] Caught logged-out error, navigating to login"
+          "[AccountSwitcher] Caught logged-out error, navigating to login",
         );
         onClose();
         if (onLoginRequired) {
@@ -221,7 +291,7 @@ export default function AccountSwitcherModal({
       ) {
         // Token refresh failed
         console.log(
-          "[AccountSwitcher] Token refresh failed, prompting re-auth"
+          "[AccountSwitcher] Token refresh failed, prompting re-auth",
         );
         promptReAuthentication(account);
       } else {
@@ -241,7 +311,7 @@ export default function AccountSwitcherModal({
     accountManager.markAccountLoggedOut(
       accountCompositeId,
       "Token invalid/expired during account switch",
-      "AccountSwitcherModal:promptReAuthentication"
+      "AccountSwitcherModal:promptReAuthentication",
     );
 
     // Silently navigate to login - more seamless than showing alert
@@ -270,7 +340,7 @@ export default function AccountSwitcherModal({
             }
           },
         },
-      ]
+      ],
     );
   }
 
@@ -289,7 +359,11 @@ export default function AccountSwitcherModal({
     return (
       <View style={styles.accountRowContainer}>
         <TouchableOpacity
-          style={[styles.accountRow, isLoggedOut && styles.accountRowLoggedOut, isActive && styles.accountRowActive]}
+          style={[
+            styles.accountRow,
+            isLoggedOut && styles.accountRowLoggedOut,
+            isActive && styles.accountRowActive,
+          ]}
           onPress={() => handleSwitchAccount(item)}
           disabled={isSwitching}
         >
@@ -309,7 +383,12 @@ export default function AccountSwitcherModal({
             {isLoggedOut ? (
               <Text style={styles.loginRequired}>Tap to log in</Text>
             ) : isActive && showCurrentAccountSubtitle ? (
-              <Animated.Text style={[styles.currentAccountSubtitle, { transform: [{ translateX: shakeAnimation }] }]}>
+              <Animated.Text
+                style={[
+                  styles.currentAccountSubtitle,
+                  { transform: [{ translateX: shakeAnimation }] },
+                ]}
+              >
                 Current account !
               </Animated.Text>
             ) : item.unreadCount > 0 ? (
@@ -323,9 +402,9 @@ export default function AccountSwitcherModal({
           </View>
 
           {isSwitching ? (
-            <SnooLoader size="small" color="#0095F6" />
+            <SnooLoader size="small" color={COLORS.primary} />
           ) : isActive && !isLoggedOut ? (
-            <CheckCircle2 size={20} color="#0095F6" />
+            <CheckCircle2 size={20} color={COLORS.primary} />
           ) : null}
         </TouchableOpacity>
 
@@ -343,23 +422,32 @@ export default function AccountSwitcherModal({
 
   const canAddMore = accounts.length < 5;
 
+  if (!shouldRender) return null;
+
   return (
     <Modal
-      visible={visible}
-      transparent={true}
-      animationType="slide"
+      transparent
+      visible={shouldRender}
+      animationType="none"
       onRequestClose={onClose}
       statusBarTranslucent={true}
     >
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.modalContent}
-          onPress={(e) => e.stopPropagation()}
+      <View style={styles.overlay}>
+        <TouchableWithoutFeedback onPress={onClose}>
+          <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
+            <BlurView
+              intensity={20}
+              tint="dark"
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+        </TouchableWithoutFeedback>
+
+        <Animated.View
+          style={[
+            styles.modalContent,
+            { transform: [{ translateY: slideAnim }] },
+          ]}
         >
           {/* Handle bar */}
           <View style={styles.handleBar} />
@@ -385,10 +473,7 @@ export default function AccountSwitcherModal({
             }}
             disabled={!canAddMore}
           >
-            <PlusCircle
-              size={20}
-              color={canAddMore ? "#1D1D1F" : "#8E8E93"}
-            />
+            <PlusCircle size={20} color={canAddMore ? "#1D1D1F" : "#8E8E93"} />
             <Text
               style={[
                 styles.addAccountText,
@@ -406,8 +491,8 @@ export default function AccountSwitcherModal({
           <View style={styles.footer}>
             <Text style={styles.metaText}>SnooSpace</Text>
           </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </Animated.View>
+      </View>
     </Modal>
   );
 }
@@ -415,15 +500,18 @@ export default function AccountSwitcherModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
     justifyContent: "flex-end",
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
   modalContent: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     maxHeight: "80%",
-    paddingBottom: 30,
+    paddingBottom: Platform.OS === "ios" ? 40 : 30,
   },
   handleBar: {
     width: 40,
@@ -473,7 +561,7 @@ const styles = StyleSheet.create({
   },
   username: {
     fontSize: 16,
-    fontFamily: "Manrope-SemiBold",
+    fontFamily: FONTS.semiBold,
     color: "#1D1D1F",
   },
   usernameLoggedOut: {
@@ -481,13 +569,13 @@ const styles = StyleSheet.create({
   },
   loginRequired: {
     fontSize: 13,
-    fontFamily: "Manrope-Regular",
+    fontFamily: FONTS.regular,
     color: "#8E8E93",
     marginTop: 2,
   },
   currentAccountSubtitle: {
     fontSize: 13,
-    fontFamily: "Manrope-Medium",
+    fontFamily: FONTS.medium,
     color: "#D97706",
     marginTop: 2,
   },
@@ -508,11 +596,11 @@ const styles = StyleSheet.create({
   badgeText: {
     color: "#FFFFFF",
     fontSize: 12,
-    fontFamily: "Manrope-Medium",
+    fontFamily: FONTS.medium,
   },
   badgeLabel: {
     fontSize: 13,
-    fontFamily: "Manrope-Regular",
+    fontFamily: FONTS.regular,
     color: "#8E8E93",
   },
   addAccountButton: {
@@ -530,7 +618,7 @@ const styles = StyleSheet.create({
   },
   addAccountText: {
     fontSize: 16,
-    fontFamily: "Manrope-SemiBold",
+    fontFamily: FONTS.semiBold,
     color: "#1D1D1F",
   },
   addAccountTextDisabled: {
@@ -538,7 +626,7 @@ const styles = StyleSheet.create({
   },
   maxReachedText: {
     fontSize: 14,
-    fontFamily: "Manrope-Regular",
+    fontFamily: FONTS.regular,
     color: "#8E8E93",
     marginLeft: 4,
   },
@@ -548,7 +636,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: 16,
-    fontFamily: "Manrope-SemiBold",
+    fontFamily: FONTS.semiBold,
     color: "#8E8E93",
   },
   removeButton: {

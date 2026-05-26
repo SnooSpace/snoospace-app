@@ -54,39 +54,36 @@ export default function CollegePickerModal({
   const inputRef = useRef(null);
 
   // Debounced search
-  const handleSearch = useCallback(
-    (text) => {
-      setQuery(text);
-      if (searchTimeout.current) clearTimeout(searchTimeout.current);
+  const handleSearch = useCallback((text) => {
+    setQuery(text);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
 
-      if (text.trim().length < 2) {
+    if (text.trim().length < 2) {
+      setResults([]);
+      setSearched(false);
+      return;
+    }
+
+    searchTimeout.current = setTimeout(async () => {
+      setLoading(true);
+      setSearched(true);
+      try {
+        const token = await getAuthToken();
+        const data = await apiGet(
+          `/colleges?search=${encodeURIComponent(text.trim())}&limit=20`,
+          10000,
+          token,
+        );
+        // The search returns campus-level results with college info
+        setResults(data?.results || data?.colleges || []);
+      } catch (err) {
+        console.error("[CollegePickerModal] Search failed:", err);
         setResults([]);
-        setSearched(false);
-        return;
+      } finally {
+        setLoading(false);
       }
-
-      searchTimeout.current = setTimeout(async () => {
-        setLoading(true);
-        setSearched(true);
-        try {
-          const token = await getAuthToken();
-          const data = await apiGet(
-            `/colleges?search=${encodeURIComponent(text.trim())}&limit=20`,
-            10000,
-            token
-          );
-          // The search returns campus-level results with college info
-          setResults(data?.results || data?.colleges || []);
-        } catch (err) {
-          console.error("[CollegePickerModal] Search failed:", err);
-          setResults([]);
-        } finally {
-          setLoading(false);
-        }
-      }, 350);
-    },
-    []
-  );
+    }, 350);
+  }, []);
 
   useEffect(() => {
     if (visible) {
@@ -233,7 +230,9 @@ export default function CollegePickerModal({
                             color="#D1D5DB"
                             strokeWidth={1.5}
                           />
-                          <Text style={styles.emptyTitle}>No colleges found</Text>
+                          <Text style={styles.emptyTitle}>
+                            No colleges found
+                          </Text>
                           <Text style={styles.emptySubtext}>
                             Try a different name or abbreviation
                           </Text>

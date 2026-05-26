@@ -14,7 +14,14 @@ import {
   Platform,
 } from "react-native";
 import { BlurView } from "expo-blur";
-import { X, Search, GraduationCap, Check, ChevronRight, Plus } from "lucide-react-native";
+import {
+  X,
+  Search,
+  GraduationCap,
+  Check,
+  ChevronRight,
+  Plus,
+} from "lucide-react-native";
 import { COLORS, FONTS } from "../../constants/theme";
 import { DEGREE_CATEGORIES } from "../../constants/DegreePresets";
 
@@ -59,26 +66,29 @@ export default function DegreePickerModal({
     const q = text.trim().toLowerCase();
     if (q.length === 0) {
       // Show all sections
-      setFilteredSections(DEGREE_CATEGORIES.map((cat) => ({
-        title: cat.label,
-        data: cat.items,
-      })));
+      setFilteredSections(
+        DEGREE_CATEGORIES.map((cat) => ({
+          title: cat.label,
+          data: cat.items,
+        })),
+      );
     } else {
       // Filter items across all categories
-      const filtered = DEGREE_CATEGORIES
-        .map((cat) => ({
-          title: cat.label,
-          data: cat.items.filter((item) => item.toLowerCase().includes(q)),
-        }))
-        .filter((cat) => cat.data.length > 0);
+      const filtered = DEGREE_CATEGORIES.map((cat) => ({
+        title: cat.label,
+        data: cat.items.filter((item) => item.toLowerCase().includes(q)),
+      })).filter((cat) => cat.data.length > 0);
       setFilteredSections(filtered);
     }
   }, []);
 
-  const handleChangeText = useCallback((text) => {
-    setQuery(text);
-    applyFilter(text);
-  }, [applyFilter]);
+  const handleChangeText = useCallback(
+    (text) => {
+      setQuery(text);
+      applyFilter(text);
+    },
+    [applyFilter],
+  );
 
   const handleSelectSuggestion = (degree) => {
     Keyboard.dismiss();
@@ -100,9 +110,9 @@ export default function DegreePickerModal({
   if (!visible) return null;
 
   const hasQuery = query.trim().length > 0;
-  
+
   const isExactMatch = DEGREE_CATEGORIES.some((cat) =>
-    cat.items.some((item) => item.toLowerCase() === query.trim().toLowerCase())
+    cat.items.some((item) => item.toLowerCase() === query.trim().toLowerCase()),
   );
 
   const renderSectionHeader = ({ section }) => (
@@ -115,7 +125,10 @@ export default function DegreePickerModal({
     const isSelected = query.trim().toLowerCase() === item.toLowerCase();
     return (
       <TouchableOpacity
-        style={[styles.suggestionItem, isSelected && styles.suggestionItemSelected]}
+        style={[
+          styles.suggestionItem,
+          isSelected && styles.suggestionItemSelected,
+        ]}
         activeOpacity={0.7}
         onPress={() => handleSelectSuggestion(item)}
       >
@@ -126,7 +139,10 @@ export default function DegreePickerModal({
           style={{ marginRight: 10 }}
         />
         <Text
-          style={[styles.suggestionText, isSelected && styles.suggestionTextSelected]}
+          style={[
+            styles.suggestionText,
+            isSelected && styles.suggestionTextSelected,
+          ]}
           numberOfLines={1}
         >
           {item}
@@ -148,7 +164,11 @@ export default function DegreePickerModal({
     >
       <TouchableWithoutFeedback onPress={handleClose}>
         <View style={styles.overlay}>
-          <BlurView intensity={20} style={StyleSheet.absoluteFill} tint="dark" />
+          <BlurView
+            intensity={20}
+            style={StyleSheet.absoluteFill}
+            tint="dark"
+          />
 
           <TouchableWithoutFeedback onPress={() => {}}>
             <View style={styles.sheet}>
@@ -159,7 +179,9 @@ export default function DegreePickerModal({
               <View style={styles.header}>
                 <View>
                   <Text style={styles.headerTitle}>Degree / Major</Text>
-                  <Text style={styles.headerSubtitle}>Select a preset or type your own</Text>
+                  <Text style={styles.headerSubtitle}>
+                    Select a preset or type your own
+                  </Text>
                 </View>
                 <TouchableOpacity
                   onPress={handleClose}
@@ -223,7 +245,11 @@ export default function DegreePickerModal({
                 stickySectionHeadersEnabled={false}
                 ListEmptyComponent={
                   <View style={styles.emptyWrap}>
-                    <GraduationCap size={32} color="#D1D5DB" strokeWidth={1.5} />
+                    <GraduationCap
+                      size={32}
+                      color="#D1D5DB"
+                      strokeWidth={1.5}
+                    />
                     <Text style={styles.emptyText}>No matching degrees</Text>
                     <Text style={styles.emptySubtext}>
                       Type your degree above and tap "Use this"

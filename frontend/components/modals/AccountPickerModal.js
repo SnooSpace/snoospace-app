@@ -4,11 +4,35 @@
  * User can select one, multiple, or all accounts to log into
  */
 import React, { useState, useEffect } from "react";
-import { Modal, View, Text, TouchableOpacity, StyleSheet, FlatList, Platform } from "react-native";
-import { Check, User, Users, Briefcase, MapPin, Plus, ChevronRight, CheckCircle2, MoveRight } from "lucide-react-native";
+import {
+  Modal,
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  FlatList,
+  Platform,
+} from "react-native";
+import {
+  Check,
+  User,
+  Users,
+  Briefcase,
+  MapPin,
+  Plus,
+  ChevronRight,
+  CheckCircle2,
+  MoveRight,
+} from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import PropTypes from "prop-types";
-import { COLORS, BORDER_RADIUS, SHADOWS, FONTS, SPACING } from "../../constants/theme";
+import {
+  COLORS,
+  BORDER_RADIUS,
+  SHADOWS,
+  FONTS,
+  SPACING,
+} from "../../constants/theme";
 import MaskedView from "@react-native-masked-view/masked-view";
 import SnooLoader from "../ui/SnooLoader";
 
@@ -26,7 +50,19 @@ const GradientText = (props) => {
       <MaskedView
         style={StyleSheet.absoluteFill}
         maskElement={
-          <Text {...props} style={[props.style, { flex: 0, marginLeft: 0, marginTop: 0, marginBottom: 0, marginRight: 0 }]} />
+          <Text
+            {...props}
+            style={[
+              props.style,
+              {
+                flex: 0,
+                marginLeft: 0,
+                marginTop: 0,
+                marginBottom: 0,
+                marginRight: 0,
+              },
+            ]}
+          />
         }
       >
         <LinearGradient
@@ -35,7 +71,20 @@ const GradientText = (props) => {
           end={{ x: 1, y: 0 }}
           style={{ flex: 1 }}
         >
-          <Text {...props} style={[props.style, { opacity: 0, flex: 0, marginLeft: 0, marginTop: 0, marginBottom: 0, marginRight: 0 }]} />
+          <Text
+            {...props}
+            style={[
+              props.style,
+              {
+                opacity: 0,
+                flex: 0,
+                marginLeft: 0,
+                marginTop: 0,
+                marginBottom: 0,
+                marginRight: 0,
+              },
+            ]}
+          />
         </LinearGradient>
       </MaskedView>
     </View>
@@ -104,13 +153,13 @@ export default function AccountPickerModal({
 
   const isSelected = (account) => {
     return selectedAccounts.some(
-      (a) => `${a.type}_${account.id}` === `${account.type}_${account.id}`
+      (a) => `${a.type}_${account.id}` === `${account.type}_${account.id}`,
     );
   };
 
   const selectAll = () => {
     const selectableAccounts = (accounts || []).filter(
-      (acc) => !loggedInAccountIds.includes(`${acc.type}_${acc.id}`)
+      (acc) => !loggedInAccountIds.includes(`${acc.type}_${acc.id}`),
     );
     setSelectedAccounts([...selectableAccounts]);
   };
@@ -128,7 +177,7 @@ export default function AccountPickerModal({
     const gradient = getGradientForName(item.name || item.username);
     const selected = isSelected(item);
     const isAlreadyLoggedIn = loggedInAccountIds.includes(
-      `${item.type}_${item.id}`
+      `${item.type}_${item.id}`,
     );
 
     return (
@@ -143,9 +192,7 @@ export default function AccountPickerModal({
       >
         {!isAlreadyLoggedIn && (
           <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
-            {selected && (
-              <Check size={14} color="#FFFFFF" strokeWidth={3} />
-            )}
+            {selected && <Check size={14} color="#FFFFFF" strokeWidth={3} />}
           </View>
         )}
 
@@ -213,9 +260,7 @@ export default function AccountPickerModal({
       onRequestClose={() => {}}
       statusBarTranslucent={true}
     >
-      <View
-        style={styles.overlay}
-      >
+      <View style={styles.overlay}>
         <TouchableOpacity
           activeOpacity={1}
           style={styles.modalContent}
@@ -252,7 +297,9 @@ export default function AccountPickerModal({
               <FlatList
                 data={accounts || []}
                 renderItem={renderAccountItem}
-                keyExtractor={(item, index) => `${item.type}_${item.id}_${index}`}
+                keyExtractor={(item, index) =>
+                  `${item.type}_${item.id}_${index}`
+                }
                 style={styles.accountList}
                 showsVerticalScrollIndicator={false}
               />
@@ -271,7 +318,9 @@ export default function AccountPickerModal({
                   >
                     <Plus size={20} color={COLORS.primary} strokeWidth={2.5} />
                   </LinearGradient>
-                  <GradientText style={styles.createNewText}>Create a new profile</GradientText>
+                  <GradientText style={styles.createNewText}>
+                    Create a new profile
+                  </GradientText>
                   <MoveRight size={20} color={COLORS.primary} strokeWidth={2} />
                 </TouchableOpacity>
               )}
@@ -306,7 +355,10 @@ export default function AccountPickerModal({
                 style={styles.loginButtonGradient}
               >
                 <Text style={styles.loginButtonText}>
-                  Login{selectedAccounts.length > 1 ? ` (${selectedAccounts.length})` : ""}
+                  Login
+                  {selectedAccounts.length > 1
+                    ? ` (${selectedAccounts.length})`
+                    : ""}
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
@@ -501,7 +553,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontFamily: "Manrope-Bold",
     height: 24,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   buttonContainer: {
     flexDirection: "row",
