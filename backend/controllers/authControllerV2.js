@@ -459,45 +459,28 @@ async function validateToken(req, res) {
 // ============================================================
 
 /**
- * Find all accounts across all tables by email
+ * Find all accounts across all tables by email.
+ * Single UNION ALL query — one round-trip instead of four sequential awaits.
  */
 async function findAccountsByEmail(pool, email) {
   const emailLower = email.toLowerCase().trim();
-  const accounts = [];
 
-  // Members
-  const members = await pool.query(
-    `SELECT id, 'member' as type, name, username, profile_photo_url as avatar, email
-     FROM members WHERE LOWER(email) = $1`,
+  const result = await pool.query(
+    `SELECT id, 'member'    AS type, name,           username, profile_photo_url AS avatar, email
+     FROM members    WHERE LOWER(email)         = $1
+     UNION ALL
+     SELECT id, 'community' AS type, name,           username, logo_url           AS avatar, email
+     FROM communities WHERE LOWER(email)         = $1
+     UNION ALL
+     SELECT id, 'sponsor'   AS type, brand_name,     username, logo_url           AS avatar, email
+     FROM sponsors   WHERE LOWER(email)         = $1
+     UNION ALL
+     SELECT id, 'venue'     AS type, name,           username, NULL::text         AS avatar, contact_email AS email
+     FROM venues     WHERE LOWER(contact_email)  = $1`,
     [emailLower]
   );
-  accounts.push(...members.rows);
 
-  // Communities
-  const communities = await pool.query(
-    `SELECT id, 'community' as type, name, username, logo_url as avatar, email
-     FROM communities WHERE LOWER(email) = $1`,
-    [emailLower]
-  );
-  accounts.push(...communities.rows);
-
-  // Sponsors
-  const sponsors = await pool.query(
-    `SELECT id, 'sponsor' as type, brand_name as name, username, logo_url as avatar, email
-     FROM sponsors WHERE LOWER(email) = $1`,
-    [emailLower]
-  );
-  accounts.push(...sponsors.rows);
-
-  // Venues
-  const venues = await pool.query(
-    `SELECT id, 'venue' as type, name, username, logo_url as avatar, contact_email as email
-     FROM venues WHERE LOWER(contact_email) = $1`,
-    [emailLower]
-  );
-  accounts.push(...venues.rows);
-
-  return accounts;
+  return result.rows;
 }
 
 /**

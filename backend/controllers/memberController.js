@@ -163,12 +163,13 @@ async function getProfile(req, res) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    // Get member profile
+    // Get member profile — includes denormalized follower/following counts
     const memberResult = await pool.query(
       `SELECT id, name, email, phone, dob, gender, interests, username, bio, profile_photo_url, pronouns, location, created_at,
               intent_badges, available_today, available_this_week, prompt_question, prompt_answer, appear_in_discover,
               discover_photos, openers, show_pronouns, occupation, campus_id, show_college,
-              occupation_details, occupation_category, portfolio_link, education
+              occupation_details, occupation_category, portfolio_link, education,
+              follower_count, following_count
        FROM members WHERE id = $1`,
       [userId]
     );
@@ -178,16 +179,6 @@ async function getProfile(req, res) {
     }
 
     const member = memberResult.rows[0];
-
-    // Get follower/following counts
-    const followCountsResult = await pool.query(
-      `SELECT 
-        (SELECT COUNT(*) FROM follows WHERE following_id = $1 AND following_type = 'member') as follower_count,
-        (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = 'member') as following_count`,
-      [userId]
-    );
-
-    const followCounts = followCountsResult.rows[0];
 
     // Get user's posts
     const postsResult = await pool.query(
@@ -262,8 +253,8 @@ async function getProfile(req, res) {
     const profileData = {
       ...member,
       interests,
-      follower_count: parseInt(followCounts.follower_count),
-      following_count: parseInt(followCounts.following_count),
+      follower_count: parseInt(member.follower_count ?? 0, 10),
+      following_count: parseInt(member.following_count ?? 0, 10),
       pronouns: parsePgTextArray(member.pronouns),
       location,
       // Discover profile fields
@@ -459,7 +450,9 @@ async function getPublicMember(req, res) {
 
     const memberR = await pool.query(
       `SELECT id, username, name as full_name, bio, profile_photo_url, created_at, interests, pronouns, occupation,
-              occupation_details, occupation_category, portfolio_link, education, campus_id, show_college
+              occupation_details, occupation_category, portfolio_link, education, campus_id, show_college,
+              follower_count AS followers_count, following_count,
+              (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member')::int AS posts_count
        FROM members
        WHERE id = $1`,
       [targetId]
@@ -468,15 +461,7 @@ async function getPublicMember(req, res) {
       return res.status(404).json({ error: "Member not found" });
     }
     const profile = memberR.rows[0];
-
-    const countsR = await pool.query(
-      `SELECT 
-         (SELECT COUNT(*) FROM follows WHERE following_id = $1 AND following_type = 'member') AS followers_count,
-         (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = 'member') AS following_count,
-         (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member') AS posts_count`,
-      [targetId]
-    );
-    const counts = countsR.rows[0];
+    // counts are now part of profile — no separate countsR query needed
 
     // Check cross-entity follow relationships (members, communities, sponsors, venues)
     const followableTypes = ["member", "community", "sponsor", "venue"];
@@ -500,9 +485,9 @@ async function getPublicMember(req, res) {
       bio: profile.bio,
       profile_photo_url: profile.profile_photo_url,
       created_at: profile.created_at,
-      posts_count: parseInt(counts.posts_count || 0, 10),
-      followers_count: parseInt(counts.followers_count || 0, 10),
-      following_count: parseInt(counts.following_count || 0, 10),
+      posts_count: parseInt(profile.posts_count || 0, 10),
+      followers_count: parseInt(profile.followers_count || 0, 10),
+      following_count: parseInt(profile.following_count || 0, 10),
       is_following: isFollowing,
       interests:
         typeof profile.interests === "string"

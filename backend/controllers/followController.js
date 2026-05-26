@@ -302,63 +302,105 @@ const getFollowStatus = async (req, res) => {
 };
 
 // Get follower/following counts
+// Reads denormalized columns for member/community (O(1)).
+// Falls back to COUNT(*) for sponsor/venue.
 const getFollowCounts = async (req, res) => {
   try {
     const { userId, userType } = req.params;
 
-    const followersQuery = `
-      SELECT COUNT(*) as count 
-      FROM follows 
-      WHERE following_id = $1 AND following_type = $2
-    `;
+    let followers_count, following_count;
 
-    const followingQuery = `
-      SELECT COUNT(*) as count 
-      FROM follows 
-      WHERE follower_id = $1 AND follower_type = $2
-    `;
+    if (userType === 'member') {
+      const r = await pool.query(
+        `SELECT follower_count, following_count FROM members WHERE id = $1`,
+        [userId]
+      );
+      followers_count = parseInt(r.rows[0]?.follower_count ?? 0, 10);
+      following_count = parseInt(r.rows[0]?.following_count ?? 0, 10);
+    } else if (userType === 'community') {
+      const r = await pool.query(
+        `SELECT follower_count, following_count FROM communities WHERE id = $1`,
+        [userId]
+      );
+      followers_count = parseInt(r.rows[0]?.follower_count ?? 0, 10);
+      following_count = parseInt(r.rows[0]?.following_count ?? 0, 10);
+    } else {
+      // sponsor / venue: still live COUNT(*)
+      const [followersResult, followingResult] = await Promise.all([
+        pool.query(
+          `SELECT COUNT(*) as count FROM follows WHERE following_id = $1 AND following_type = $2`,
+          [userId, userType]
+        ),
+        pool.query(
+          `SELECT COUNT(*) as count FROM follows WHERE follower_id = $1 AND follower_type = $2`,
+          [userId, userType]
+        ),
+      ]);
+      followers_count = parseInt(followersResult.rows[0].count, 10);
+      following_count = parseInt(followingResult.rows[0].count, 10);
+    }
 
-    const [followersResult, followingResult] = await Promise.all([
-      pool.query(followersQuery, [userId, userType]),
-      pool.query(followingQuery, [userId, userType]),
-    ]);
-
-    res.json({
-      followers_count: parseInt(followersResult.rows[0].count),
-      following_count: parseInt(followingResult.rows[0].count),
-    });
+    res.json({ followers_count, following_count });
   } catch (error) {
     console.error("Error getting follow counts:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
 
-// Get follower + following + post counts in a single round-trip
-// Replaces the two separate calls in useProfileCountsPolling
+// Get follower + following + post counts in a single round-trip.
+// Reads denormalized columns for member/community (O(1) index lookup).
+// post_count stays a live COUNT(*) — a separate post_count column
+// can be added in a future migration if needed.
 const getProfileCounts = async (req, res) => {
   try {
     const { userId, userType } = req.params;
 
-    // Map userType to the correct posts table column
     const validTypes = ["member", "community", "sponsor", "venue"];
     if (!validTypes.includes(userType)) {
       return res.status(400).json({ error: "Invalid user type" });
     }
 
-    const result = await pool.query(
-      `SELECT
-        (SELECT COUNT(*) FROM follows WHERE following_id = $1 AND following_type = $2) AS followers_count,
-        (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = $2) AS following_count,
-        (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = $2) AS post_count`,
-      [userId, userType]
-    );
+    let followers_count, following_count, post_count;
 
-    const row = result.rows[0];
-    res.json({
-      followers_count: parseInt(row.followers_count, 10),
-      following_count: parseInt(row.following_count, 10),
-      post_count: parseInt(row.post_count, 10),
-    });
+    if (userType === 'member') {
+      const r = await pool.query(
+        `SELECT follower_count, following_count,
+                (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member')::int AS post_count
+         FROM members WHERE id = $1`,
+        [userId]
+      );
+      const row = r.rows[0];
+      followers_count = parseInt(row?.follower_count  ?? 0, 10);
+      following_count = parseInt(row?.following_count ?? 0, 10);
+      post_count      = parseInt(row?.post_count      ?? 0, 10);
+    } else if (userType === 'community') {
+      const r = await pool.query(
+        `SELECT follower_count, following_count,
+                (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'community')::int
+                + (SELECT COUNT(*) FROM opportunities WHERE creator_id = $1::text AND creator_type = 'community' AND status != 'closed')::int AS post_count
+         FROM communities WHERE id = $1`,
+        [userId]
+      );
+      const row = r.rows[0];
+      followers_count = parseInt(row?.follower_count  ?? 0, 10);
+      following_count = parseInt(row?.following_count ?? 0, 10);
+      post_count      = parseInt(row?.post_count      ?? 0, 10);
+    } else {
+      // sponsor / venue: live COUNT(*)
+      const result = await pool.query(
+        `SELECT
+          (SELECT COUNT(*) FROM follows WHERE following_id = $1 AND following_type = $2) AS followers_count,
+          (SELECT COUNT(*) FROM follows WHERE follower_id  = $1 AND follower_type  = $2) AS following_count,
+          (SELECT COUNT(*) FROM posts   WHERE author_id    = $1 AND author_type    = $2) AS post_count`,
+        [userId, userType]
+      );
+      const row = result.rows[0];
+      followers_count = parseInt(row.followers_count, 10);
+      following_count = parseInt(row.following_count, 10);
+      post_count      = parseInt(row.post_count,      10);
+    }
+
+    res.json({ followers_count, following_count, post_count });
   } catch (error) {
     console.error("Error getting profile counts:", error);
     res.status(500).json({ error: "Internal server error" });

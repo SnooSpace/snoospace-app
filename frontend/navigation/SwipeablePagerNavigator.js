@@ -1,8 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { View, Dimensions, StyleSheet, Platform, Pressable } from 'react-native';
-import { useNavigationBuilder, createNavigatorFactory, CommonActions } from '@react-navigation/native';
-import { TabRouter } from '@react-navigation/routers';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Dimensions,
+  StyleSheet,
+  Platform,
+  Pressable,
+} from "react-native";
+import {
+  useNavigationBuilder,
+  createNavigatorFactory,
+  CommonActions,
+} from "@react-navigation/native";
+import { TabRouter } from "@react-navigation/routers";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -12,20 +22,33 @@ import Animated, {
   Extrapolation,
   useAnimatedScrollHandler,
   useAnimatedRef,
-} from 'react-native-reanimated';
-import { BlurView } from 'expo-blur';
-import { House, Search, Compass, Calendar, LayoutGrid, Inbox } from 'lucide-react-native';
+} from "react-native-reanimated";
+import { BlurView } from "expo-blur";
+import {
+  House,
+  Search,
+  Compass,
+  Calendar,
+  LayoutGrid,
+  Inbox,
+} from "lucide-react-native";
 
-import ProfileTabIcon from '../components/ProfileTabIcon';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import EventBus from '../utils/EventBus';
-import { getAllAccounts, getActiveAccount, switchAccount } from '../api/auth';
-import hapticsService from '../services/HapticsService';
+import ProfileTabIcon from "../components/ProfileTabIcon";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import EventBus from "../utils/EventBus";
+import { getAllAccounts, getActiveAccount, switchAccount } from "../api/auth";
+import hapticsService from "../services/HapticsService";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // ---------------- TAB BAR ----------------
-const ProfileTabButton = ({ index, onTabPress, children, style, navigation }) => {
+const ProfileTabButton = ({
+  index,
+  onTabPress,
+  children,
+  style,
+  navigation,
+}) => {
   const navigateToProfile = () => {
     onTabPress(index);
   };
@@ -33,8 +56,10 @@ const ProfileTabButton = ({ index, onTabPress, children, style, navigation }) =>
   const cycleNextAccount = async () => {
     try {
       const allAccounts = await getAllAccounts();
-      const loggedInAccounts = allAccounts.filter(a => a.isLoggedIn !== false && a.authToken);
-      
+      const loggedInAccounts = allAccounts.filter(
+        (a) => a.isLoggedIn !== false && a.authToken,
+      );
+
       if (loggedInAccounts.length <= 1) {
         navigateToProfile();
         return;
@@ -43,25 +68,33 @@ const ProfileTabButton = ({ index, onTabPress, children, style, navigation }) =>
       hapticsService.triggerImpactLight();
 
       const activeAccount = await getActiveAccount();
-      const activeCompositeId = activeAccount ? `${activeAccount.type}_${activeAccount.id}` : null;
+      const activeCompositeId = activeAccount
+        ? `${activeAccount.type}_${activeAccount.id}`
+        : null;
 
       let currentIndex = loggedInAccounts.findIndex(
-        (acc) => `${acc.type}_${acc.id}` === activeCompositeId
+        (acc) => `${acc.type}_${acc.id}` === activeCompositeId,
       );
 
       if (currentIndex === -1) currentIndex = 0;
 
-      const nextAccount = loggedInAccounts[(currentIndex + 1) % loggedInAccounts.length];
+      const nextAccount =
+        loggedInAccounts[(currentIndex + 1) % loggedInAccounts.length];
       const nextCompositeId = `${nextAccount.type}_${nextAccount.id}`;
 
       console.log(`[DoubleTapCycle] Switching to ${nextCompositeId}`);
       await switchAccount(nextCompositeId);
 
       const routeName =
-        nextAccount.type === "member" ? "MemberHome" :
-        nextAccount.type === "community" ? "CommunityHome" :
-        nextAccount.type === "sponsor" ? "SponsorHome" :
-        nextAccount.type === "venue" ? "VenueHome" : "Landing";
+        nextAccount.type === "member"
+          ? "MemberHome"
+          : nextAccount.type === "community"
+            ? "CommunityHome"
+            : nextAccount.type === "sponsor"
+              ? "SponsorHome"
+              : nextAccount.type === "venue"
+                ? "VenueHome"
+                : "Landing";
 
       let rootNav = navigation;
       while (rootNav.getParent && rootNav.getParent()) {
@@ -72,7 +105,7 @@ const ProfileTabButton = ({ index, onTabPress, children, style, navigation }) =>
         CommonActions.reset({
           index: 0,
           routes: [{ name: routeName }],
-        })
+        }),
       );
     } catch (error) {
       console.error("[DoubleTapCycle] Error cycling account:", error);
@@ -98,19 +131,41 @@ const ProfileTabButton = ({ index, onTabPress, children, style, navigation }) =>
 
   return (
     <GestureDetector gesture={gesture}>
-      <Animated.View style={style} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+      <Animated.View
+        style={style}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
         {children}
       </Animated.View>
     </GestureDetector>
   );
 };
 
-const AnimatedTabBar = ({ state, onTabPress, translateX, insets, role, navigation }) => {
+const AnimatedTabBar = ({
+  state,
+  onTabPress,
+  translateX,
+  insets,
+  role,
+  navigation,
+}) => {
   return (
-    <View style={[styles.tabBarContainer, { paddingBottom: Platform.OS === "ios" ? Math.max(20, insets.bottom) : 10 }]}>
+    <View
+      style={[
+        styles.tabBarContainer,
+        {
+          paddingBottom:
+            Platform.OS === "ios" ? Math.max(20, insets.bottom) : 10,
+        },
+      ]}
+    >
       {Platform.OS === "ios" ? (
         <View style={StyleSheet.absoluteFill}>
-          <BlurView tint="systemChromeMaterialLight" intensity={100} style={StyleSheet.absoluteFill} />
+          <BlurView
+            tint="systemChromeMaterialLight"
+            intensity={100}
+            style={StyleSheet.absoluteFill}
+          />
           <View style={styles.iosDivider} />
         </View>
       ) : (
@@ -136,35 +191,69 @@ const AnimatedTabBar = ({ state, onTabPress, translateX, insets, role, navigatio
           ];
 
           const iconStyle = useAnimatedStyle(() => {
-            const scale = interpolate(translateX.value, inputRange, [1, 1.2, 1], Extrapolation.CLAMP);
-            const translateY = interpolate(translateX.value, inputRange, [0, -4, 0], Extrapolation.CLAMP);
+            const scale = interpolate(
+              translateX.value,
+              inputRange,
+              [1, 1.2, 1],
+              Extrapolation.CLAMP,
+            );
+            const translateY = interpolate(
+              translateX.value,
+              inputRange,
+              [0, -4, 0],
+              Extrapolation.CLAMP,
+            );
             return {
               transform: [{ scale }, { translateY }],
             };
           });
 
           const activeOpacityStyle = useAnimatedStyle(() => {
-            const opacity = interpolate(translateX.value, inputRange, [0, 1, 0], Extrapolation.CLAMP);
-            return { opacity, position: 'absolute' };
+            const opacity = interpolate(
+              translateX.value,
+              inputRange,
+              [0, 1, 0],
+              Extrapolation.CLAMP,
+            );
+            return { opacity, position: "absolute" };
           });
 
           const inactiveOpacityStyle = useAnimatedStyle(() => {
-            const opacity = interpolate(translateX.value, inputRange, [1, 0, 1], Extrapolation.CLAMP);
+            const opacity = interpolate(
+              translateX.value,
+              inputRange,
+              [1, 0, 1],
+              Extrapolation.CLAMP,
+            );
             return { opacity };
           });
 
           if (route.name === "Profile") {
             return (
-              <ProfileTabButton key={route.key} index={index} onTabPress={onTabPress} style={styles.tabButton} navigation={navigation}>
+              <ProfileTabButton
+                key={route.key}
+                index={index}
+                onTabPress={onTabPress}
+                style={styles.tabButton}
+                navigation={navigation}
+              >
                 <Animated.View style={iconStyle}>
                   {/* Inactive Icon Layer */}
                   <Animated.View style={inactiveOpacityStyle}>
-                    <ProfileTabIcon focused={false} color="#999999" userType={role} />
+                    <ProfileTabIcon
+                      focused={false}
+                      color="#999999"
+                      userType={role}
+                    />
                   </Animated.View>
 
                   {/* Active Icon Layer (Cross-fades on top) */}
                   <Animated.View style={activeOpacityStyle}>
-                    <ProfileTabIcon focused={true} color="#3565F2" userType={role} />
+                    <ProfileTabIcon
+                      focused={true}
+                      color="#3565F2"
+                      userType={role}
+                    />
                   </Animated.View>
                 </Animated.View>
               </ProfileTabButton>
@@ -172,16 +261,30 @@ const AnimatedTabBar = ({ state, onTabPress, translateX, insets, role, navigatio
           }
 
           return (
-            <Pressable key={route.key} onPress={() => onTabPress(index)} style={styles.tabButton}>
+            <Pressable
+              key={route.key}
+              onPress={() => onTabPress(index)}
+              style={styles.tabButton}
+            >
               <Animated.View style={iconStyle}>
                 {/* Inactive Icon Layer */}
                 <Animated.View style={inactiveOpacityStyle}>
-                  <IconComponent size={26} color="#999999" fill="transparent" strokeWidth={2.2} />
+                  <IconComponent
+                    size={26}
+                    color="#999999"
+                    fill="transparent"
+                    strokeWidth={2.2}
+                  />
                 </Animated.View>
 
                 {/* Active Icon Layer (Cross-fades on top) */}
                 <Animated.View style={activeOpacityStyle}>
-                  <IconComponent size={26} color="#3565F2" fill="rgba(53, 101, 242, 0.15)" strokeWidth={2.5} />
+                  <IconComponent
+                    size={26}
+                    color="#3565F2"
+                    fill="rgba(53, 101, 242, 0.15)"
+                    strokeWidth={2.5}
+                  />
                 </Animated.View>
               </Animated.View>
             </Pressable>
@@ -192,10 +295,13 @@ const AnimatedTabBar = ({ state, onTabPress, translateX, insets, role, navigatio
   );
 };
 
-
 // ---------------- MAIN NAVIGATOR ----------------
-function SwipeablePagerNavigator({ initialRouteName, children, screenOptions, role = "member" }) {
-
+function SwipeablePagerNavigator({
+  initialRouteName,
+  children,
+  screenOptions,
+  role = "member",
+}) {
   const { state, navigation, descriptors } = useNavigationBuilder(TabRouter, {
     initialRouteName,
     children,
@@ -212,11 +318,16 @@ function SwipeablePagerNavigator({ initialRouteName, children, screenOptions, ro
   const [loaded, setLoaded] = useState([]);
 
   useEffect(() => {
-    setLoaded(prev => {
+    setLoaded((prev) => {
       const next = [...prev];
       if (!next.includes(state.index)) next.push(state.index);
-      if (state.index > 0 && !next.includes(state.index - 1)) next.push(state.index - 1);
-      if (state.index < state.routes.length - 1 && !next.includes(state.index + 1)) next.push(state.index + 1);
+      if (state.index > 0 && !next.includes(state.index - 1))
+        next.push(state.index - 1);
+      if (
+        state.index < state.routes.length - 1 &&
+        !next.includes(state.index + 1)
+      )
+        next.push(state.index + 1);
       return next;
     });
   }, [state.index]);
@@ -247,7 +358,10 @@ function SwipeablePagerNavigator({ initialRouteName, children, screenOptions, ro
     currentIndex.value = index;
 
     if (scrollViewRef.current) {
-      scrollViewRef.current.scrollTo({ x: index * SCREEN_WIDTH, animated: true });
+      scrollViewRef.current.scrollTo({
+        x: index * SCREEN_WIDTH,
+        animated: true,
+      });
     }
     // ❌ Do NOT call navigation.navigate here.
     //    Doing so changes state.index immediately, which would cause any
@@ -285,7 +399,8 @@ function SwipeablePagerNavigator({ initialRouteName, children, screenOptions, ro
   // ---------------- RENDER ----------------
   const currentRoute = state.routes[state.index];
   const currentDescriptor = descriptors[currentRoute.key];
-  const shouldHideTabBar = currentDescriptor.options.tabBarStyle?.display === 'none';
+  const shouldHideTabBar =
+    currentDescriptor.options.tabBarStyle?.display === "none";
 
   return (
     <View style={styles.container}>
@@ -334,8 +449,9 @@ function SwipeablePagerNavigator({ initialRouteName, children, screenOptions, ro
   );
 }
 
-export const createSwipeablePagerNavigator = createNavigatorFactory(SwipeablePagerNavigator);
-
+export const createSwipeablePagerNavigator = createNavigatorFactory(
+  SwipeablePagerNavigator,
+);
 
 // ---------------- STYLES ----------------
 const styles = StyleSheet.create({
@@ -375,14 +491,14 @@ const styles = StyleSheet.create({
   },
 
   tabBarContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
     flex: 1,
   },
 
   tabButton: {
     width: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

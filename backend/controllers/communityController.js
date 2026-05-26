@@ -330,10 +330,15 @@ async function getProfile(req, res) {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    // Get community profile (include college/campus fields)
+    // Single query: community profile + denormalized follow counts + live event/post counts
     const communityResult = await pool.query(
       `SELECT id, name, email, phone, secondary_phone, category, categories, location, username, bio, logo_url, banner_url, sponsor_types, show_heads, created_at,
-              community_type, college_id, college_subtype, club_type, community_theme, campus_id
+              community_type, college_id, college_subtype, club_type, community_theme, campus_id,
+              follower_count, following_count,
+              (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'community')::int
+               + (SELECT COUNT(*) FROM opportunities WHERE creator_id = $1::text AND creator_type = 'community' AND status != 'closed')::int AS post_count,
+              (SELECT COUNT(*) FROM events WHERE community_id = $1 AND is_published = true AND COALESCE(start_datetime, event_date) < NOW())::int AS events_hosted_count,
+              (SELECT COUNT(*) FROM events WHERE community_id = $1 AND is_published = true AND COALESCE(start_datetime, event_date) >= NOW() AND is_cancelled = false)::int AS events_scheduled_count
        FROM communities WHERE id = $1`,
       [userId],
     );
@@ -343,14 +348,6 @@ async function getProfile(req, res) {
     }
 
     const community = communityResult.rows[0];
-    console.log('[CommunityProfile] DB values:', {
-      id: community.id,
-      name: community.name,
-      community_type: community.community_type,
-      college_id: community.college_id,
-      campus_id: community.campus_id,
-      college_subtype: community.college_subtype,
-    });
 
     // Get all community heads
     const headsResult = await pool.query(
@@ -379,18 +376,6 @@ async function getProfile(req, res) {
       member_username: head.member_username || null,
       member_photo_url: head.member_photo_url || null,
     }));
-
-    // Get follower/following/event counts
-    const followCountsResult = await pool.query(
-      `SELECT 
-        (SELECT COUNT(*) FROM follows WHERE following_id = $1 AND following_type = 'community') as follower_count,
-        (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = 'member') as following_count,
-        (SELECT COUNT(*) FROM events WHERE community_id = $1 AND is_published = true AND COALESCE(start_datetime, event_date) < NOW()) AS events_hosted_count,
-        (SELECT COUNT(*) FROM events WHERE community_id = $1 AND is_published = true AND COALESCE(start_datetime, event_date) >= NOW() AND is_cancelled = false) AS events_scheduled_count`,
-      [userId],
-    );
-
-    const followCounts = followCountsResult.rows[0];
 
     // Get user's posts
     const postsResult = await pool.query(
@@ -521,13 +506,11 @@ async function getProfile(req, res) {
         community.categories,
         community.category,
       ),
-      follower_count: parseInt(followCounts.follower_count),
-      following_count: parseInt(followCounts.following_count),
-      events_hosted_count: parseInt(followCounts.events_hosted_count || 0, 10),
-      events_scheduled_count: parseInt(
-        followCounts.events_scheduled_count || 0,
-        10,
-      ),
+      follower_count: parseInt(community.follower_count ?? 0, 10),
+      following_count: parseInt(community.following_count ?? 0, 10),
+      post_count: parseInt(community.post_count ?? 0, 10),
+      events_hosted_count: parseInt(community.events_hosted_count || 0, 10),
+      events_scheduled_count: parseInt(community.events_scheduled_count || 0, 10),
       location:
         typeof community.location === "string"
           ? JSON.parse(community.location)
@@ -882,7 +865,8 @@ async function getPublicCommunity(req, res) {
       `SELECT 
          (SELECT COUNT(*) FROM follows WHERE following_id = $1 AND following_type = 'community') AS followers_count,
          (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = 'community') AS following_count,
-         (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'community') AS posts_count,
+         (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'community')
+            + (SELECT COUNT(*) FROM opportunities WHERE creator_id = $1::text AND creator_type = 'community' AND status != 'closed') AS posts_count,
          (SELECT COUNT(*) FROM events WHERE community_id = $1 AND is_published = true AND COALESCE(start_datetime, event_date) < NOW()) AS events_hosted_count,
          (SELECT COUNT(*) FROM events WHERE community_id = $1 AND is_published = true AND COALESCE(start_datetime, event_date) >= NOW() AND is_cancelled = false) AS events_scheduled_count`,
       [targetId],
