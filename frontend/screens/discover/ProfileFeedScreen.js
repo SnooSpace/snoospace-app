@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert } from "react-native";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -65,9 +66,9 @@ export default function ProfileFeedScreen({ route, navigation }) {
     if (event) {
       loadAttendees();
     }
-  }, [event, activeFilters]);
+  }, [event, activeFilters, loadAttendees]);
 
-  const loadAttendees = async (filters = activeFilters) => {
+  const loadAttendees = useCallback(async (filters = activeFilters) => {
     try {
       setLoading(true);
       const token = await getAuthToken();
@@ -86,7 +87,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [event, activeFilters]);
 
   const currentAttendee = attendees[currentIndex];
 
@@ -127,56 +128,17 @@ export default function ProfileFeedScreen({ route, navigation }) {
     return content;
   }, [photos, openers]);
 
-  const handleNext = () => {
+  const handleNext = useCallback(() => {
     if (currentIndex < attendees.length - 1)
       setCurrentIndex((prev) => prev + 1);
     else Alert.alert("All Done", "You've seen everyone.");
-  };
+  }, [currentIndex, attendees.length]);
 
-  const handleConnect = () => {
+  const handleConnect = useCallback(() => {
     HapticsService.triggerImpactMedium();
     Alert.alert("Request Sent", `Connection request sent to ${name}`);
     handleNext();
-  };
-
-  const ContentCard = ({ children, onPress, style }) => (
-    <TouchableOpacity
-      style={[styles.cardContainer, style]}
-      activeOpacity={0.9}
-      onPress={onPress}
-    >
-      {children}
-    </TouchableOpacity>
-  );
-
-  const PromptCard = ({ item }) => (
-    <ContentCard onPress={() => {}} style={styles.promptCardContainer}>
-      <View style={styles.promptContent}>
-        <Text style={styles.promptLabel}>{item.data.prompt}</Text>
-        <Text style={styles.promptAnswer}>{item.data.response}</Text>
-      </View>
-      <View style={styles.actionIconBubble}>
-        <MessageCircle size={22} color="#0F3D3E" />
-      </View>
-    </ContentCard>
-  );
-
-  const PhotoCard = ({ url }) => (
-    <ContentCard onPress={() => {}} style={styles.photoCardContainer}>
-      <Image
-        source={{ uri: url }}
-        style={styles.photoImage}
-        resizeMode="cover"
-      />
-      <LinearGradient
-        colors={["transparent", "rgba(0,0,0,0.2)"]}
-        style={styles.gradientOverlay}
-      />
-      <View style={styles.actionIconBubble}>
-        <MessageCircle size={22} color="#0F3D3E" />
-      </View>
-    </ContentCard>
-  );
+  }, [name, handleNext]);
 
   if (loading) {
     return (
@@ -356,6 +318,46 @@ export default function ProfileFeedScreen({ route, navigation }) {
     </SafeAreaView>
   );
 }
+
+const ContentCard = React.memo(({ children, onPress, style }) => (
+  <TouchableOpacity
+    style={[styles.cardContainer, style]}
+    activeOpacity={0.9}
+    onPress={onPress}
+  >
+    {children}
+  </TouchableOpacity>
+));
+
+const PromptCard = React.memo(({ item }) => (
+  <ContentCard onPress={() => {}} style={styles.promptCardContainer}>
+    <View style={styles.promptContent}>
+      <Text style={styles.promptLabel}>{item.data.prompt}</Text>
+      <Text style={styles.promptAnswer}>{item.data.response}</Text>
+    </View>
+    <View style={styles.actionIconBubble}>
+      <MessageCircle size={22} color="#0F3D3E" />
+    </View>
+  </ContentCard>
+));
+
+const PhotoCard = React.memo(({ url }) => (
+  <ContentCard onPress={() => {}} style={styles.photoCardContainer}>
+    <Image
+      source={{ uri: url }}
+      style={styles.photoImage}
+      contentFit="cover"
+      cachePolicy="memory-disk"
+    />
+    <LinearGradient
+      colors={["transparent", "rgba(0,0,0,0.2)"]}
+      style={styles.gradientOverlay}
+    />
+    <View style={styles.actionIconBubble}>
+      <MessageCircle size={22} color="#0F3D3E" />
+    </View>
+  </ContentCard>
+));
 
 const styles = StyleSheet.create({
   container: {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Dimensions, ImageBackground } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { BarChart3, User } from "lucide-react-native";
@@ -105,8 +106,9 @@ export default function DiscoverScreen({ navigation }) {
     }
   };
 
-  const handleEventPress = (event) =>
+  const handleEventPress = useCallback((event) => {
     navigation.navigate("ProfileFeed", { event });
+  }, [navigation]);
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
@@ -129,62 +131,21 @@ export default function DiscoverScreen({ navigation }) {
           contentContainerStyle={styles.horizontalList}
         >
           {events.slice(0, 5).map((event) => (
-            <TouchableOpacity
+            <ReconnectCard
               key={event.id}
-              style={styles.reconnectCard}
-              activeOpacity={0.9}
-              onPress={() => handleEventPress(event)}
-            >
-              <View style={styles.reconnectImageContainer}>
-                <ImageBackground
-                  source={{
-                    uri:
-                      event.cover_image ||
-                      "https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
-                  }}
-                  style={{ flex: 1 }}
-                >
-                  <LinearGradient
-                    colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.45)"]}
-                    start={{ x: 0.5, y: 0.0 }}
-                    end={{ x: 0.5, y: 1.0 }}
-                    style={styles.imageGradient}
-                  />
-                  <View style={styles.pastBadge}>
-                    <Text style={styles.pastBadgeText}>Past Event</Text>
-                  </View>
-                </ImageBackground>
-              </View>
-              <View style={styles.reconnectContent}>
-                <Text style={styles.reconnectTitle} numberOfLines={2}>
-                  {event.title}
-                </Text>
-
-                <View style={styles.reconnectMeta}>
-                  <Ionicons name="calendar-outline" size={14} color="#64748B" />
-                  <Text style={styles.metaText}>
-                    {formatDate(event.event_date)}
-                  </Text>
-
-                  <View style={styles.attendeeRow}>
-                    <Ionicons name="people-outline" size={14} color="#64748B" />
-                    <Text style={styles.metaText}>
-                      {event.attendee_count || 0} attended
-                    </Text>
-                  </View>
-                </View>
-
-                <TouchableOpacity style={styles.revisitButton}>
-                  <Ionicons name="time-outline" size={16} color="#2962FF" />
-                  <Text style={styles.revisitButtonText}>Revisit</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
+              event={event}
+              onPress={handleEventPress}
+              formatDate={formatDate}
+            />
           ))}
         </ScrollView>
       </View>
     );
   };
+
+  const handleCommunityPress = useCallback((communityId) => {
+    navigation.navigate("CommunityPublicProfile", { communityId });
+  }, [navigation]);
 
   const renderTribeSection = () => {
     if (suggestedCommunities.length === 0) return null;
@@ -204,46 +165,11 @@ export default function DiscoverScreen({ navigation }) {
           contentContainerStyle={styles.horizontalList}
         >
           {suggestedCommunities.map((community) => (
-            <TouchableOpacity
+            <TribeCard
               key={community.id}
-              style={styles.tribeCard}
-              onPress={() =>
-                navigation.navigate("CommunityPublicProfile", {
-                  communityId: community.id,
-                })
-              }
-              activeOpacity={0.97}
-            >
-              <View style={styles.tribeVisualContainer}>
-                <ImageBackground
-                  source={{
-                    uri:
-                      community.logo_url ||
-                      "https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
-                  }}
-                  style={styles.tribeVisual}
-                >
-                  <LinearGradient
-                    colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.35)"]}
-                    start={{ x: 0.5, y: 0.0 }}
-                    end={{ x: 0.5, y: 1.0 }}
-                    style={styles.tribeVisualGradient}
-                  />
-                </ImageBackground>
-              </View>
-
-              <View style={styles.tribeContent}>
-                <Text style={styles.tribeName} numberOfLines={1}>
-                  {community.name}
-                </Text>
-                <Text style={styles.tribeMembers}>
-                  {community.follower_count || 0} members
-                </Text>
-                <TouchableOpacity style={styles.joinButton}>
-                  <Text style={styles.joinButtonText}>Join</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
+              community={community}
+              onPress={handleCommunityPress}
+            />
           ))}
         </ScrollView>
       </View>
@@ -259,26 +185,10 @@ export default function DiscoverScreen({ navigation }) {
         contentContainerStyle={styles.horizontalList}
       >
         {people.map((person) => (
-          <TouchableOpacity
+          <DiscoverScreenPersonCard
             key={person.id}
-            style={styles.personCard}
-            activeOpacity={0.9}
-          >
-            <Image source={{ uri: person.image }} style={styles.personImage} />
-            <Text style={styles.personName} numberOfLines={1}>
-              {person.name}
-            </Text>
-            <Text style={styles.personRole} numberOfLines={1}>
-              {person.role}
-            </Text>
-            <View style={styles.interestsContainer}>
-              {person.interests.map((interest, index) => (
-                <View key={index} style={styles.interestTag}>
-                  <Text style={styles.interestText}>#{interest}</Text>
-                </View>
-              ))}
-            </View>
-          </TouchableOpacity>
+            person={person}
+          />
         ))}
       </ScrollView>
     </View>
@@ -290,64 +200,12 @@ export default function DiscoverScreen({ navigation }) {
       <View style={styles.section}>
         <Text style={styles.sectionTitleContainer}>Recommended Events</Text>
         {exploreEvents.slice(0, 5).map((event) => (
-          <TouchableOpacity
+          <RecommendedEventCard
             key={event.id}
-            style={styles.recommendedCard}
-            onPress={() => handleEventPress(event)}
-            activeOpacity={0.9}
-          >
-            <ImageBackground
-              source={{
-                uri:
-                  event.cover_image ||
-                  "https://images.unsplash.com/photo-1551818255-e6e10975bc17?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
-              }}
-              style={styles.recommendedImage}
-            >
-              <LinearGradient // added usage of Gradient on cards
-                colors={["transparent", "rgba(0,0,0,0.6)"]}
-                style={styles.imageGradient}
-              />
-              <View style={styles.priceBadge}>
-                <Text style={styles.priceText}>Free</Text>
-              </View>
-            </ImageBackground>
-
-            <View style={styles.recommendedContent}>
-              <Text style={styles.recommendedTitle}>{event.title}</Text>
-              <Text style={styles.recommendedHost}>
-                Hosted by {event.organizer || "Community"}
-              </Text>
-
-              <View style={styles.recommendedMetaRow}>
-                <Ionicons
-                  name="calendar-outline"
-                  size={14}
-                  color={COLORS.textSecondary}
-                />
-                <Text style={styles.recommendedMetaText}>
-                  {formatDate(event.event_date)}
-                </Text>
-              </View>
-              <View style={styles.recommendedMetaRow}>
-                <Ionicons
-                  name="location-outline"
-                  size={14}
-                  color={COLORS.textSecondary}
-                />
-                <Text style={styles.recommendedMetaText} numberOfLines={1}>
-                  {event.venue_name || event.location}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                style={styles.viewEventButton}
-                onPress={() => handleEventPress(event)}
-              >
-                <Text style={styles.viewEventText}>View Event</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
+            event={event}
+            onPress={handleEventPress}
+            formatDate={formatDate}
+          />
         ))}
       </View>
     );
@@ -400,6 +258,186 @@ export default function DiscoverScreen({ navigation }) {
     </SafeAreaView>
   );
 }
+
+const ExpoImageBackground = ({ source, style, children }) => (
+  <View style={style}>
+    <Image source={source} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" />
+    {children}
+  </View>
+);
+
+const ReconnectCard = React.memo(({ event, onPress, formatDate }) => (
+  <TouchableOpacity
+    style={styles.reconnectCard}
+    activeOpacity={0.9}
+    onPress={() => onPress(event)}
+  >
+    <View style={styles.reconnectImageContainer}>
+      <ExpoImageBackground
+        source={{
+          uri:
+            event.cover_image ||
+            "https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
+        }}
+        style={{ flex: 1 }}
+      >
+        <LinearGradient
+          colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.45)"]}
+          start={{ x: 0.5, y: 0.0 }}
+          end={{ x: 0.5, y: 1.0 }}
+          style={styles.imageGradient}
+        />
+        <View style={styles.pastBadge}>
+          <Text style={styles.pastBadgeText}>Past Event</Text>
+        </View>
+      </ExpoImageBackground>
+    </View>
+    <View style={styles.reconnectContent}>
+      <Text style={styles.reconnectTitle} numberOfLines={2}>
+        {event.title}
+      </Text>
+
+      <View style={styles.reconnectMeta}>
+        <Ionicons name="calendar-outline" size={14} color="#64748B" />
+        <Text style={styles.metaText}>
+          {formatDate(event.event_date)}
+        </Text>
+
+        <View style={styles.attendeeRow}>
+          <Ionicons name="people-outline" size={14} color="#64748B" />
+          <Text style={styles.metaText}>
+            {event.attendee_count || 0} attended
+          </Text>
+        </View>
+      </View>
+
+      <TouchableOpacity style={styles.revisitButton} onPress={() => onPress(event)}>
+        <Ionicons name="time-outline" size={16} color="#2962FF" />
+        <Text style={styles.revisitButtonText}>Revisit</Text>
+      </TouchableOpacity>
+    </View>
+  </TouchableOpacity>
+));
+
+const TribeCard = React.memo(({ community, onPress }) => (
+  <TouchableOpacity
+    style={styles.tribeCard}
+    onPress={() => onPress(community.id)}
+    activeOpacity={0.97}
+  >
+    <View style={styles.tribeVisualContainer}>
+      <ExpoImageBackground
+        source={{
+          uri:
+            community.logo_url ||
+            "https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
+        }}
+        style={styles.tribeVisual}
+      >
+        <LinearGradient
+          colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.35)"]}
+          start={{ x: 0.5, y: 0.0 }}
+          end={{ x: 0.5, y: 1.0 }}
+          style={styles.tribeVisualGradient}
+        />
+      </ExpoImageBackground>
+    </View>
+
+    <View style={styles.tribeContent}>
+      <Text style={styles.tribeName} numberOfLines={1}>
+        {community.name}
+      </Text>
+      <Text style={styles.tribeMembers}>
+        {community.follower_count || 0} members
+      </Text>
+      <TouchableOpacity style={styles.joinButton} onPress={() => onPress(community.id)}>
+        <Text style={styles.joinButtonText}>Join</Text>
+      </TouchableOpacity>
+    </View>
+  </TouchableOpacity>
+));
+
+const DiscoverScreenPersonCard = React.memo(({ person }) => (
+  <TouchableOpacity
+    style={styles.personCard}
+    activeOpacity={0.9}
+  >
+    <Image source={{ uri: person.image }} style={styles.personImage} cachePolicy="memory-disk" />
+    <Text style={styles.personName} numberOfLines={1}>
+      {person.name}
+    </Text>
+    <Text style={styles.personRole} numberOfLines={1}>
+      {person.role}
+    </Text>
+    <View style={styles.interestsContainer}>
+      {person.interests.map((interest, index) => (
+        <View key={index} style={styles.interestTag}>
+          <Text style={styles.interestText}>#{interest}</Text>
+        </View>
+      ))}
+    </View>
+  </TouchableOpacity>
+));
+
+const RecommendedEventCard = React.memo(({ event, onPress, formatDate }) => (
+  <TouchableOpacity
+    style={styles.recommendedCard}
+    onPress={() => onPress(event)}
+    activeOpacity={0.9}
+  >
+    <ExpoImageBackground
+      source={{
+        uri:
+          event.cover_image ||
+          "https://images.unsplash.com/photo-1551818255-e6e10975bc17?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
+      }}
+      style={styles.recommendedImage}
+    >
+      <LinearGradient
+        colors={["transparent", "rgba(0,0,0,0.6)"]}
+        style={styles.imageGradient}
+      />
+      <View style={styles.priceBadge}>
+        <Text style={styles.priceText}>Free</Text>
+      </View>
+    </ExpoImageBackground>
+
+    <View style={styles.recommendedContent}>
+      <Text style={styles.recommendedTitle}>{event.title}</Text>
+      <Text style={styles.recommendedHost}>
+        Hosted by {event.organizer || "Community"}
+      </Text>
+
+      <View style={styles.recommendedMetaRow}>
+        <Ionicons
+          name="calendar-outline"
+          size={14}
+          color={COLORS.textSecondary}
+        />
+        <Text style={styles.recommendedMetaText}>
+          {formatDate(event.event_date)}
+        </Text>
+      </View>
+      <View style={styles.recommendedMetaRow}>
+        <Ionicons
+          name="location-outline"
+          size={14}
+          color={COLORS.textSecondary}
+        />
+        <Text style={styles.recommendedMetaText} numberOfLines={1}>
+          {event.venue_name || event.location}
+        </Text>
+      </View>
+
+      <TouchableOpacity
+        style={styles.viewEventButton}
+        onPress={() => onPress(event)}
+      >
+        <Text style={styles.viewEventText}>View Event</Text>
+      </TouchableOpacity>
+    </View>
+  </TouchableOpacity>
+));
 
 const styles = StyleSheet.create({
   container: {

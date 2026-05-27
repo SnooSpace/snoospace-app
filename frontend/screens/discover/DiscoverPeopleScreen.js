@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, Image } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { StyleSheet, View, Text, TouchableOpacity, FlatList, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
@@ -45,43 +46,19 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
     }
   };
 
-  const handlePersonPress = (attendee) => {
+  const handlePersonPress = useCallback((attendee) => {
     navigation.navigate("NetworkingProfile", { attendee, event });
-  };
+  }, [navigation, event]);
 
-  const renderPerson = ({ item: attendee }) => {
-    const photo =
-      attendee.photos?.[0]?.photo_url || "https://via.placeholder.com/150";
-
+  const renderPerson = useCallback(({ item: attendee }) => {
     return (
-      <TouchableOpacity
-        style={styles.personCard}
-        onPress={() => handlePersonPress(attendee)}
-        activeOpacity={0.7}
-      >
-        <Image source={{ uri: photo }} style={styles.personPhoto} />
-        <View style={styles.personInfo}>
-          <Text style={styles.personName} numberOfLines={1}>
-            {attendee.name}
-            {attendee.age ? `, ${attendee.age}` : ""}
-          </Text>
-          <Text style={styles.personPronouns} numberOfLines={1}>
-            {attendee.pronouns && attendee.pronouns !== "Prefer not to say"
-              ? attendee.pronouns
-              : "they/them"}
-          </Text>
-          {attendee.intent_badges?.[0] && (
-            <View style={styles.intentBadgeSmall}>
-              <Text style={styles.intentBadgeSmallText} numberOfLines={1}>
-                {attendee.intent_badges[0]}
-              </Text>
-            </View>
-          )}
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={LIGHT_TEXT_COLOR} />
-      </TouchableOpacity>
+      <PersonCard
+        attendee={attendee}
+        onPress={handlePersonPress}
+        lightTextColor={LIGHT_TEXT_COLOR}
+      />
     );
-  };
+  }, [handlePersonPress]);
 
   if (loading) {
     return (
@@ -141,11 +118,48 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
           keyExtractor={(item) => item.id?.toString()}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS === "android"}
         />
       )}
     </SafeAreaView>
   );
 }
+
+const PersonCard = React.memo(({ attendee, onPress, lightTextColor }) => {
+  const photo = attendee.photos?.[0]?.photo_url || "https://via.placeholder.com/150";
+
+  return (
+    <TouchableOpacity
+      style={styles.personCard}
+      onPress={() => onPress(attendee)}
+      activeOpacity={0.7}
+    >
+      <Image source={{ uri: photo }} style={styles.personPhoto} cachePolicy="memory-disk" />
+      <View style={styles.personInfo}>
+        <Text style={styles.personName} numberOfLines={1}>
+          {attendee.name}
+          {attendee.age ? `, ${attendee.age}` : ""}
+        </Text>
+        <Text style={styles.personPronouns} numberOfLines={1}>
+          {attendee.pronouns && attendee.pronouns !== "Prefer not to say"
+            ? attendee.pronouns
+            : "they/them"}
+        </Text>
+        {attendee.intent_badges?.[0] && (
+          <View style={styles.intentBadgeSmall}>
+            <Text style={styles.intentBadgeSmallText} numberOfLines={1}>
+              {attendee.intent_badges[0]}
+            </Text>
+          </View>
+        )}
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={lightTextColor} />
+    </TouchableOpacity>
+  );
+});
 
 const styles = StyleSheet.create({
   container: {
