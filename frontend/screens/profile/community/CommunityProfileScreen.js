@@ -2107,7 +2107,9 @@ export default function CommunityProfileScreen({ navigation }) {
                   }}
                 />
               );
-               {/* Events Tab */}
+            })()}
+
+          {/* Events Tab */}
           {activeTab === "events" &&
             (() => {
               if (communityEvents.length === 0) {
