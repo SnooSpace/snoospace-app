@@ -16,6 +16,8 @@ import {
   StyleSheet,
   Platform,
   Alert,
+  ScrollView,
+  Keyboard,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -371,6 +373,7 @@ const CommentsModal = ({
         setComments((prev) => [...prev, enrichedComment]);
         setCommentInput("");
         setTaggedEntities([]);
+        Keyboard.dismiss();
 
         // Calculate total count including all nested replies (3 levels)
         const getTotalCount = (arr) => {
@@ -454,6 +457,7 @@ const CommentsModal = ({
         setCommentInput("");
         setTaggedEntities([]);
         setReplyingTo(null);
+        Keyboard.dismiss();
 
         // Update count with the pre-calculated value
         if (onCommentCountChange) {
@@ -840,7 +844,12 @@ const CommentsModal = ({
 
       {/* Input bar using KeyboardAwareToolbar - placed OUTSIDE main content as sibling */}
       <KeyboardAwareToolbar style={styles.toolbarContainer}>
-        <View style={styles.inputContainer}>
+        <ScrollView
+          keyboardShouldPersistTaps="always"
+          scrollEnabled={false}
+          style={styles.inputScrollView}
+          contentContainerStyle={styles.inputContainer}
+        >
           {/* Replying indicator */}
           {/* Replying indicator */}
           {replyingTo && (
@@ -929,7 +938,7 @@ const CommentsModal = ({
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAwareToolbar>
     </View>
   );
