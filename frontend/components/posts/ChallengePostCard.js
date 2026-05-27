@@ -1733,9 +1733,9 @@ const styles = StyleSheet.create({
     color: "#5e8d9b",
   },
   viewAllText: {
-    fontSize: 15,
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
     color: COLORS.primary,
-    fontWeight: "600",
   },
   participantCountContainer: {
     flexDirection: "row",

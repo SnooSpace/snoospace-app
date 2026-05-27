@@ -5,8 +5,23 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import { View, Text, Modal, TouchableOpacity, FlatList, TextInput, Image, StyleSheet, Platform, Alert } from "react-native";
-import Animated, { useSharedValue, useAnimatedStyle, withTiming } from "react-native-reanimated";
+import {
+  View,
+  Text,
+  Modal,
+  TouchableOpacity,
+  FlatList,
+  TextInput,
+  Image,
+  StyleSheet,
+  Platform,
+  Alert,
+} from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from "react-native-reanimated";
 import { Ionicons } from "@expo/vector-icons";
 import { X, Send, Heart, CornerUpLeft } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete } from "../api/client";
@@ -42,8 +57,8 @@ const CommentsModal = ({
   navigation,
   isNestedModal = false,
   // Route customisation for non-post entities (e.g. opportunities)
-  baseRoute = '/posts',        // e.g. '/opportunities'
-  replyBaseRoute = '/comments', // e.g. '/opportunity-comments'
+  baseRoute = "/posts", // e.g. '/opportunities'
+  replyBaseRoute = "/comments", // e.g. '/opportunity-comments'
 }) => {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -169,7 +184,11 @@ const CommentsModal = ({
     try {
       setLoading(true);
       const token = await getAuthToken();
-      const data = await apiGet(`${baseRoute}/${postId}/comments`, 10000, token);
+      const data = await apiGet(
+        `${baseRoute}/${postId}/comments`,
+        10000,
+        token,
+      );
       const normalizedComments = Array.isArray(data?.comments)
         ? data.comments.map((comment) => {
             let taggedEntities = comment.tagged_entities || [];
@@ -202,7 +221,10 @@ const CommentsModal = ({
       }
 
       // Update card's comment count with the authoritative total from the backend
-      if (typeof data?.total_comment_count === 'number' && onCommentCountChange) {
+      if (
+        typeof data?.total_comment_count === "number" &&
+        onCommentCountChange
+      ) {
         onCommentCountChange(data.total_comment_count);
       }
     } catch (error) {
@@ -212,7 +234,6 @@ const CommentsModal = ({
       setLoading(false);
     }
   };
-
 
   // Build flat list for display - supports 3 levels of nesting
   const flatComments = useMemo(() => {
@@ -276,41 +297,49 @@ const CommentsModal = ({
     return result;
   }, [comments, collapsedThreads]);
 
-  const handleDeleteComment = useCallback((commentId) => {
-    Alert.alert(
-      "Delete Comment",
-      "Are you sure you want to delete this comment?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const token = await getAuthToken();
-              await apiDelete(`${replyBaseRoute}/${commentId}`, null, 15000, token);
+  const handleDeleteComment = useCallback(
+    (commentId) => {
+      Alert.alert(
+        "Delete Comment",
+        "Are you sure you want to delete this comment?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Delete",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                const token = await getAuthToken();
+                await apiDelete(
+                  `${replyBaseRoute}/${commentId}`,
+                  null,
+                  15000,
+                  token,
+                );
 
-              setComments((prev) => prev.filter((c) => c.id !== commentId));
+                setComments((prev) => prev.filter((c) => c.id !== commentId));
 
-              const newCount = Math.max(0, comments.length - 1);
-              if (onCommentCountChange) {
-                onCommentCountChange(newCount);
+                const newCount = Math.max(0, comments.length - 1);
+                if (onCommentCountChange) {
+                  onCommentCountChange(newCount);
+                }
+                // Emit event for other screens to update
+                EventBus.emit("post-comment-updated", {
+                  postId: postId,
+                  commentCount: newCount,
+                });
+              } catch (error) {
+                console.error("Error deleting comment:", error);
+                Alert.alert("Error", "Failed to delete comment");
+                loadComments();
               }
-              // Emit event for other screens to update
-              EventBus.emit("post-comment-updated", {
-                postId: postId,
-                commentCount: newCount,
-              });
-            } catch (error) {
-              console.error("Error deleting comment:", error);
-              Alert.alert("Error", "Failed to delete comment");
-              loadComments();
-            }
+            },
           },
-        },
-      ],
-    );
-  }, [comments, replyBaseRoute, onCommentCountChange, postId, loadComments]);
+        ],
+      );
+    },
+    [comments, replyBaseRoute, onCommentCountChange, postId, loadComments],
+  );
 
   const handleCommentInputChange = (text) => {
     setCommentInput(text);
@@ -506,279 +535,283 @@ const CommentsModal = ({
     return `${Math.floor(diffInSeconds / 2592000)}mo`;
   };
 
-  const handleCommentLike = useCallback(async (commentId, isLiked, currentLikeCount) => {
-    const newIsLiked = !isLiked;
-    const numLikeCount =
-      typeof currentLikeCount === "string"
-        ? parseInt(currentLikeCount, 10) || 0
-        : Number(currentLikeCount) || 0;
-    const newLikeCount = isLiked
-      ? Math.max(0, numLikeCount - 1)
-      : numLikeCount + 1;
-
-    setComments((prevComments) =>
-      prevComments.map((comment) =>
-        comment.id === commentId
-          ? {
-              ...comment,
-              is_liked: newIsLiked,
-              isLiked: newIsLiked,
-              like_count: newLikeCount,
-            }
-          : comment,
-      ),
-    );
-
-    try {
-      const token = await getAuthToken();
-
-      if (isLiked) {
-        await apiDelete(`/comments/${commentId}/like`, null, 15000, token);
-      } else {
-        await apiPost(`/comments/${commentId}/like`, {}, 15000, token);
-      }
-    } catch (error) {
-      console.error("Error toggling comment like:", error);
-      const normalizedCurrentCount =
+  const handleCommentLike = useCallback(
+    async (commentId, isLiked, currentLikeCount) => {
+      const newIsLiked = !isLiked;
+      const numLikeCount =
         typeof currentLikeCount === "string"
           ? parseInt(currentLikeCount, 10) || 0
           : Number(currentLikeCount) || 0;
+      const newLikeCount = isLiked
+        ? Math.max(0, numLikeCount - 1)
+        : numLikeCount + 1;
+
       setComments((prevComments) =>
         prevComments.map((comment) =>
           comment.id === commentId
             ? {
                 ...comment,
-                is_liked: isLiked,
-                isLiked,
-                like_count: normalizedCurrentCount,
+                is_liked: newIsLiked,
+                isLiked: newIsLiked,
+                like_count: newLikeCount,
               }
             : comment,
         ),
       );
-      Alert.alert("Error", error?.message || "Failed to update like");
-    }
-  }, []);
 
-  const renderComment = useCallback(({ item }) => {
-    const depth = item.depth || 0;
-    const hasReplies = item.hasReplies && item.replyCount > 0;
-    const isLiked = item.is_liked === true || item.isLiked === true;
-    const likeCount =
-      typeof item.like_count === "string"
-        ? parseInt(item.like_count, 10) || 0
-        : Number(item.like_count) || 0;
+      try {
+        const token = await getAuthToken();
 
-    // Check if this thread is expanded
-    const isExpanded = collapsedThreads[item.id] === false;
-
-    // Depth-based left margin for nested replies
-    const leftMargin = depth * REPLY_INDENT;
-
-    const handleProfilePress = () => {
-      if (!navigation || !item.commenter_id) return;
-
-      const isOwnProfile = currentUserId && item.commenter_id === currentUserId;
-      const root = navigation.getParent()?.getParent()?.getParent();
-
-      if (root) {
-        if (isOwnProfile) {
-          root.navigate("MemberHome", {
-            screen: "Profile",
-            params: { screen: "MemberProfile" },
-          });
+        if (isLiked) {
+          await apiDelete(`/comments/${commentId}/like`, null, 15000, token);
         } else {
-          root.navigate("MemberHome", {
-            screen: "Profile",
-            params: {
-              screen: "MemberPublicProfile",
-              params: { memberId: item.commenter_id },
-            },
-          });
+          await apiPost(`/comments/${commentId}/like`, {}, 15000, token);
         }
-      } else {
-        const parent = navigation.getParent();
-        if (parent) {
+      } catch (error) {
+        console.error("Error toggling comment like:", error);
+        const normalizedCurrentCount =
+          typeof currentLikeCount === "string"
+            ? parseInt(currentLikeCount, 10) || 0
+            : Number(currentLikeCount) || 0;
+        setComments((prevComments) =>
+          prevComments.map((comment) =>
+            comment.id === commentId
+              ? {
+                  ...comment,
+                  is_liked: isLiked,
+                  isLiked,
+                  like_count: normalizedCurrentCount,
+                }
+              : comment,
+          ),
+        );
+        Alert.alert("Error", error?.message || "Failed to update like");
+      }
+    },
+    [],
+  );
+
+  const renderComment = useCallback(
+    ({ item }) => {
+      const depth = item.depth || 0;
+      const hasReplies = item.hasReplies && item.replyCount > 0;
+      const isLiked = item.is_liked === true || item.isLiked === true;
+      const likeCount =
+        typeof item.like_count === "string"
+          ? parseInt(item.like_count, 10) || 0
+          : Number(item.like_count) || 0;
+
+      // Check if this thread is expanded
+      const isExpanded = collapsedThreads[item.id] === false;
+
+      // Depth-based left margin for nested replies
+      const leftMargin = depth * REPLY_INDENT;
+
+      const handleProfilePress = () => {
+        if (!navigation || !item.commenter_id) return;
+
+        const isOwnProfile =
+          currentUserId && item.commenter_id === currentUserId;
+        const root = navigation.getParent()?.getParent()?.getParent();
+
+        if (root) {
           if (isOwnProfile) {
-            parent.navigate("Profile", { screen: "MemberProfile" });
+            root.navigate("MemberHome", {
+              screen: "Profile",
+              params: { screen: "MemberProfile" },
+            });
           } else {
-            parent.navigate("Profile", {
-              screen: "MemberPublicProfile",
-              params: { memberId: item.commenter_id },
+            root.navigate("MemberHome", {
+              screen: "Profile",
+              params: {
+                screen: "MemberPublicProfile",
+                params: { memberId: item.commenter_id },
+              },
             });
           }
+        } else {
+          const parent = navigation.getParent();
+          if (parent) {
+            if (isOwnProfile) {
+              parent.navigate("Profile", { screen: "MemberProfile" });
+            } else {
+              parent.navigate("Profile", {
+                screen: "MemberPublicProfile",
+                params: { memberId: item.commenter_id },
+              });
+            }
+          }
         }
-      }
-    };
+      };
 
-    // Photo URL with placeholder fallback
-    const isCommunity = item.commenter_type === "community";
-    const placeholderBg = isCommunity ? "5f27cd" : "6A0DAD";
-    const photoUri =
-      item.commenter_photo_url && item.commenter_photo_url.trim() !== ""
-        ? item.commenter_photo_url
-        : `https://ui-avatars.com/api/?name=${encodeURIComponent(
-            item.commenter_name || "User",
-          )}&background=${placeholderBg}&color=FFFFFF`;
+      // Photo URL with placeholder fallback
+      const isCommunity = item.commenter_type === "community";
+      const placeholderBg = isCommunity ? "5f27cd" : "6A0DAD";
+      const photoUri =
+        item.commenter_photo_url && item.commenter_photo_url.trim() !== ""
+          ? item.commenter_photo_url
+          : `https://ui-avatars.com/api/?name=${encodeURIComponent(
+              item.commenter_name || "User",
+            )}&background=${placeholderBg}&color=FFFFFF`;
 
-    return (
-      <View style={[styles.commentItem, { marginLeft: leftMargin }]}>
-        <TouchableOpacity onPress={handleProfilePress}>
-          <Image source={{ uri: photoUri }} style={styles.commentAvatar} />
-        </TouchableOpacity>
-        <View style={styles.commentContent}>
-          <View style={styles.commentHeader}>
-            <TouchableOpacity onPress={handleProfilePress}>
-              <Text style={styles.commenterName}>{item.commenter_name}</Text>
-            </TouchableOpacity>
-            <Text style={styles.commentTime}>
-              {formatTimeAgo(item.created_at)}
-            </Text>
-            {(currentUserId && item.commenter_id === currentUserId) ||
-            (currentUserId &&
-              postAuthorId === currentUserId &&
-              postAuthorType === "member") ? (
-              <TouchableOpacity
-                onPress={() => handleDeleteComment(item.id)}
-                style={styles.deleteButton}
-              >
-                <Ionicons
-                  name="trash-outline"
-                  size={16}
-                  color={COLORS.textSecondary}
-                />
+      return (
+        <View style={[styles.commentItem, { marginLeft: leftMargin }]}>
+          <TouchableOpacity onPress={handleProfilePress}>
+            <Image source={{ uri: photoUri }} style={styles.commentAvatar} />
+          </TouchableOpacity>
+          <View style={styles.commentContent}>
+            <View style={styles.commentHeader}>
+              <TouchableOpacity onPress={handleProfilePress}>
+                <Text style={styles.commenterName}>{item.commenter_name}</Text>
               </TouchableOpacity>
-            ) : null}
-          </View>
-          <Text style={styles.commentText}>
-            {(() => {
-              let text = item.comment_text || "";
-              const tagged = item.tagged_entities || [];
+              <Text style={styles.commentTime}>
+                {formatTimeAgo(item.created_at)}
+              </Text>
+              {(currentUserId && item.commenter_id === currentUserId) ||
+              (currentUserId &&
+                postAuthorId === currentUserId &&
+                postAuthorType === "member") ? (
+                <TouchableOpacity
+                  onPress={() => handleDeleteComment(item.id)}
+                  style={styles.deleteButton}
+                >
+                  <Ionicons
+                    name="trash-outline"
+                    size={16}
+                    color={COLORS.textSecondary}
+                  />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+            <Text style={styles.commentText}>
+              {(() => {
+                let text = item.comment_text || "";
+                const tagged = item.tagged_entities || [];
 
-              if (!tagged || tagged.length === 0) {
-                return text;
-              }
+                if (!tagged || tagged.length === 0) {
+                  return text;
+                }
 
-              const parts = [];
-              let lastIndex = 0;
+                const parts = [];
+                let lastIndex = 0;
 
-              tagged.forEach((entity) => {
-                const username = entity.username || entity.name || "";
-                const searchText = `@${username}`;
-                const index = text.indexOf(searchText, lastIndex);
+                tagged.forEach((entity) => {
+                  const username = entity.username || entity.name || "";
+                  const searchText = `@${username}`;
+                  const index = text.indexOf(searchText, lastIndex);
 
-                if (index !== -1) {
-                  if (index > lastIndex) {
-                    parts.push({
-                      type: "text",
-                      content: text.substring(lastIndex, index),
-                    });
+                  if (index !== -1) {
+                    if (index > lastIndex) {
+                      parts.push({
+                        type: "text",
+                        content: text.substring(lastIndex, index),
+                      });
+                    }
+                    parts.push({ type: "tag", content: searchText, entity });
+                    lastIndex = index + searchText.length;
                   }
-                  parts.push({ type: "tag", content: searchText, entity });
-                  lastIndex = index + searchText.length;
-                }
-              });
-
-              if (lastIndex < text.length) {
-                parts.push({
-                  type: "text",
-                  content: text.substring(lastIndex),
                 });
-              }
 
-              if (parts.length === 0) {
-                return text;
-              }
-
-              return parts.map((part, idx) => {
-                if (part.type === "tag") {
-                  return (
-                    <Text key={idx} style={styles.taggedUsername}>
-                      {part.content}
-                    </Text>
-                  );
+                if (lastIndex < text.length) {
+                  parts.push({
+                    type: "text",
+                    content: text.substring(lastIndex),
+                  });
                 }
-                return <Text key={idx}>{part.content}</Text>;
-              });
-            })()}
-          </Text>
 
-          {/* Action row: Reply + Show/Hide replies */}
-          <View style={styles.commentActionsRow}>
-            <TouchableOpacity
-              style={styles.replyButton}
-              onPress={() => {
-                setReplyingTo({
-                  // Reply to this specific comment (up to depth 2)
-                  // For depth 2, route to parent to keep max 3 levels
-                  id: item.depth >= 2 ? item.parentCommentId : item.id,
-                  name: item.commenter_name,
-                  username: item.commenter_username,
-                  isNestedReply: item.depth > 0,
+                if (parts.length === 0) {
+                  return text;
+                }
+
+                return parts.map((part, idx) => {
+                  if (part.type === "tag") {
+                    return (
+                      <Text key={idx} style={styles.taggedUsername}>
+                        {part.content}
+                      </Text>
+                    );
+                  }
+                  return <Text key={idx}>{part.content}</Text>;
                 });
-                setFocusTrigger((prev) => prev + 1); // Trigger robust focus logic
+              })()}
+            </Text>
 
-                // Reinforce focus immediately on button tap
-                inputRef.current?.focus();
-              }}
-            >
-              <CornerUpLeft size={14} color="#6B7280" strokeWidth={2} />
-              <Text style={styles.replyButtonText}>Reply</Text>
-            </TouchableOpacity>
-
-            {hasReplies && (
+            {/* Action row: Reply + Show/Hide replies */}
+            <View style={styles.commentActionsRow}>
               <TouchableOpacity
-                style={styles.showRepliesButton}
-                onPress={() => toggleThreadCollapse(item.id)}
+                style={styles.replyButton}
+                onPress={() => {
+                  setReplyingTo({
+                    // Reply to this specific comment (up to depth 2)
+                    // For depth 2, route to parent to keep max 3 levels
+                    id: item.depth >= 2 ? item.parentCommentId : item.id,
+                    name: item.commenter_name,
+                    username: item.commenter_username,
+                    isNestedReply: item.depth > 0,
+                  });
+                  setFocusTrigger((prev) => prev + 1); // Trigger robust focus logic
+
+                  // Reinforce focus immediately on button tap
+                  inputRef.current?.focus();
+                }}
               >
-                <Ionicons
-                  name={isExpanded ? "chevron-up" : "chevron-down"}
-                  size={14}
-                  color={COLORS.primary}
-                />
-                <Text style={styles.showRepliesText}>
-                  {isExpanded
-                    ? "Hide replies"
-                    : `View ${item.replyCount} ${
-                        item.replyCount === 1 ? "reply" : "replies"
-                      }`}
-                </Text>
+                <CornerUpLeft size={14} color="#6B7280" strokeWidth={2} />
+                <Text style={styles.replyButtonText}>Reply</Text>
               </TouchableOpacity>
-            )}
+
+              {hasReplies && (
+                <TouchableOpacity
+                  style={styles.showRepliesButton}
+                  onPress={() => toggleThreadCollapse(item.id)}
+                >
+                  <Ionicons
+                    name={isExpanded ? "chevron-up" : "chevron-down"}
+                    size={14}
+                    color={COLORS.primary}
+                  />
+                  <Text style={styles.showRepliesText}>
+                    {isExpanded
+                      ? "Hide replies"
+                      : `View ${item.replyCount} ${
+                          item.replyCount === 1 ? "reply" : "replies"
+                        }`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
+          <TouchableOpacity
+            style={styles.commentLikeButton}
+            onPress={() => handleCommentLike(item.id, isLiked, likeCount)}
+          >
+            <Heart
+              size={18}
+              color={isLiked ? COLORS.error : "#9CA3AF"}
+              fill={isLiked ? COLORS.error : "transparent"}
+              strokeWidth={2}
+            />
+            {likeCount > 0 && (
+              <Text style={styles.commentLikeCount}>{likeCount}</Text>
+            )}
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.commentLikeButton}
-          onPress={() => handleCommentLike(item.id, isLiked, likeCount)}
-        >
-          <Heart
-            size={18}
-            color={isLiked ? COLORS.error : "#9CA3AF"}
-            fill={isLiked ? COLORS.error : "transparent"}
-            strokeWidth={2}
-          />
-          {likeCount > 0 && (
-            <Text style={styles.commentLikeCount}>{likeCount}</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-    );
-  }, [
-    comments,
-    collapsedThreads,
-    currentUserId,
-    postAuthorId,
-    postAuthorType,
-    handleDeleteComment,
-    handleCommentLike,
-    navigation,
-  ]);
+      );
+    },
+    [
+      comments,
+      collapsedThreads,
+      currentUserId,
+      postAuthorId,
+      postAuthorType,
+      handleDeleteComment,
+      handleCommentLike,
+      navigation,
+    ],
+  );
 
   const content = (
     <View style={embedded ? styles.embeddedContainer : styles.container}>
-      <View
-        style={styles.modalContent}
-        onStartShouldSetResponder={() => true}
-      >
+      <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Comments</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -824,10 +857,7 @@ const CommentsModal = ({
           {/* Replying indicator */}
           {replyingTo && (
             <Animated.View
-              style={[
-                styles.replyingIndicator,
-                animatedReplyStyle,
-              ]}
+              style={[styles.replyingIndicator, animatedReplyStyle]}
             >
               <View style={styles.replyingContent}>
                 <CornerUpLeft size={14} color="#9CA3AF" strokeWidth={2} />

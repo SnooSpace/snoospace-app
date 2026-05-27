@@ -47,6 +47,7 @@ import {
   Pin,
   Pencil,
   Trash2,
+  MoveRight,
 } from "lucide-react-native";
 import { savePost, unsavePost } from "../../api/client";
 import { postService } from "../../services/postService";
@@ -742,8 +743,7 @@ const QnAPostCard = ({
                 ? "View 1 question"
                 : `View all ${questionCount} questions`}
             </Text>
-            <Ionicons
-              name="arrow-forward"
+            <MoveRight
               size={18}
               color="#FFFFFF"
               style={{ marginLeft: 6 }}
@@ -1125,8 +1125,8 @@ const styles = StyleSheet.create({
     marginRight: 6,
   },
   topAnswerUsername: {
+    fontFamily: FONTS.medium,
     fontSize: 13,
-    fontWeight: "600",
     color: "#5e8d9b",
     flex: 1,
   },
@@ -1161,9 +1161,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.m,
   },
   viewAllText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
     color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "700",
   },
 
   // Footer Row

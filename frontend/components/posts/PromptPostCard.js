@@ -1167,9 +1167,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   viewAllText: {
-    fontSize: 15,
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
     color: COLORS.primary,
-    fontWeight: "600",
   },
   starIconContainer: {
     width: 44,

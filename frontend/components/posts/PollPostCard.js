@@ -37,6 +37,7 @@ import {
   Pin,
   Pencil,
   Trash2,
+  MoveRight,
 } from "lucide-react-native";
 import EventBus from "../../utils/EventBus";
 import CountdownTimer from "../CountdownTimer";
@@ -633,25 +634,42 @@ const PollPostCard = ({
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text style={styles.voteCount}>
-            {totalVotes} vote{totalVotes !== 1 ? "s" : ""}
-          </Text>
-          {post.expires_at &&
-            (isExpired ? (
-              <>
-                <Text style={styles.separator}>•</Text>
-                <View style={[styles.endedBadge, { marginLeft: 4 }]}>
-                  <Text style={styles.endedBadgeText}>Ended</Text>
+          <View style={styles.footerLeft}>
+            <Text style={styles.voteCount}>
+              {totalVotes} vote{totalVotes !== 1 ? "s" : ""}
+            </Text>
+            {post.expires_at &&
+              (isExpired ? (
+                <>
+                  <Text style={styles.separator}>•</Text>
+                  <View style={[styles.endedBadge, { marginLeft: 4 }]}>
+                    <Text style={styles.endedBadgeText}>Ended</Text>
+                  </View>
+                </>
+              ) : (
+                <View style={styles.activeBadge}>
+                  <CountdownTimer
+                    expiresAt={post.expires_at}
+                    style={styles.activeBadgeText}
+                  />
                 </View>
-              </>
-            ) : (
-              <View style={styles.activeBadge}>
-                <CountdownTimer
-                  expiresAt={post.expires_at}
-                  style={styles.activeBadgeText}
-                />
-              </View>
-            ))}
+              ))}
+          </View>
+          {totalVotes > 0 && (
+            <TouchableOpacity
+              style={styles.viewAllButton}
+              onPress={() => setShowVotersModal(true)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.viewAllText}>View all</Text>
+              <MoveRight
+                size={16}
+                color={COLORS.primary}
+                strokeWidth={2}
+                style={{ marginLeft: 4 }}
+              />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Engagement Row */}
@@ -930,11 +948,26 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     marginTop: SPACING.m,
   },
+  footerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   voteCount: {
+    fontFamily: FONTS.medium,
     fontSize: 13,
     color: COLORS.textSecondary,
+  },
+  viewAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  viewAllText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: COLORS.primary,
   },
   activeBadge: {
     backgroundColor: "#F3F4F6",
