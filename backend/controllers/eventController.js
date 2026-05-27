@@ -387,13 +387,30 @@ const getCommunityEvents = async (req, res) => {
         e.ticket_price,
         e.access_type,
         e.invite_public_visibility,
+        c.id as community_id,
+        c.name as community_name,
+        c.username as community_username,
+        c.logo_url as community_logo,
         COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) as current_attendees,
+        (SELECT COUNT(*) FROM event_registrations er3 WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')) as attendee_count,
+        (
+          SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
+          FROM (
+            SELECT m3.name, m3.profile_photo_url
+            FROM event_registrations er3
+            INNER JOIN members m3 ON er3.member_id = m3.id
+            WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')
+            ORDER BY er3.created_at DESC
+            LIMIT 3
+          ) m2
+        ) as attendee_avatars,
         (e.start_datetime < NOW()) as is_past,
         e.created_at
       FROM events e
       LEFT JOIN event_registrations er ON e.id = er.event_id
-      WHERE e.creator_id = $1
-      GROUP BY e.id
+      LEFT JOIN communities c ON e.community_id = c.id OR e.creator_id = c.id
+      WHERE e.creator_id = $1 OR e.community_id = $1
+      GROUP BY e.id, c.id
       ORDER BY e.start_datetime DESC
     `;
 
@@ -4887,6 +4904,9 @@ const getCommunityPublicEvents = async (req, res) => {
     const limitParsed = Math.min(parseInt(limit), 50);
     const offsetParsed = Math.max(parseInt(offset), 0);
 
+    const userId = req.user?.id || null;
+    const userType = req.user?.type || null;
+
     let dateFilter = "";
     let orderClause = "ORDER BY COALESCE(e.start_datetime, e.event_date) DESC";
 
@@ -4914,6 +4934,20 @@ const getCommunityPublicEvents = async (req, res) => {
         e.virtual_link,
         e.ticket_price,
         e.is_cancelled,
+        c.id as community_id,
+        c.name as community_name,
+        c.username as community_username,
+        c.logo_url as community_logo,
+        -- Check if user is interested in this event
+        CASE WHEN EXISTS (
+          SELECT 1 FROM event_interests ei 
+          WHERE ei.event_id = e.id AND ei.member_id = $4 AND $5 = 'member'
+        ) THEN true ELSE false END as is_interested,
+        -- Check if user is registered for this event
+        CASE WHEN EXISTS (
+          SELECT 1 FROM event_registrations er2 
+          WHERE er2.event_id = e.id AND er2.member_id = $4 AND er2.registration_status IN ('registered', 'attended', 'confirmed') AND $5 = 'member'
+        ) THEN true ELSE false END as is_registered,
         (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status IN ('registered', 'attended', 'confirmed')) as current_attendees,
         (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status IN ('registered', 'attended', 'confirmed')) as attendee_count,
         (
@@ -4928,7 +4962,8 @@ const getCommunityPublicEvents = async (req, res) => {
           ) m2
         ) as attendee_avatars
       FROM events e
-      WHERE e.creator_id = $1 ${dateFilter}
+      LEFT JOIN communities c ON e.community_id = c.id OR e.creator_id = c.id
+      WHERE (e.creator_id = $1 OR e.community_id = $1) ${dateFilter}
       ${orderClause}
       LIMIT $2 OFFSET $3
     `;
@@ -4937,6 +4972,8 @@ const getCommunityPublicEvents = async (req, res) => {
       communityId,
       limitParsed,
       offsetParsed,
+      userId,
+      userType,
       type,
       dateFilter,
     });
@@ -4946,6 +4983,8 @@ const getCommunityPublicEvents = async (req, res) => {
       communityId,
       limitParsed,
       offsetParsed,
+      userId,
+      userType,
     ]);
 
     console.log("[getCommunityPublicEvents] Query result:", {
