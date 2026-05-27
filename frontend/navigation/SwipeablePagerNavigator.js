@@ -402,13 +402,61 @@ function SwipeablePagerNavigator({
   const shouldHideTabBar =
     currentDescriptor.options.tabBarStyle?.display === "none";
 
-  // NOTE: We intentionally do NOT disable scrollEnabled on the pager when child
-  // stack screens (Notifications, Conversations, etc.) are open. Those screens
-  // are pushed ON TOP of the pager via the stack navigator and cover the full
-  // screen — the pager cannot physically receive touch events while they are
-  // open. Toggling scrollEnabled=false→true caused iOS's pagingEnabled
-  // UIScrollView to re-evaluate its snap position on re-enable, producing the
-  // visible horizontal drift during back-navigation.
+  // ---------------- TRANSITION LOCK FOR SCROLL/PAGING ----------------
+  //
+  // TIMING FIX: `shouldHideTabBar` is derived synchronously during render (from
+  // navigation descriptors).  A useEffect-based setState would only update
+  // `scrollEnabled` AFTER the render + layout pass — one frame too late.
+  // During that single render where shouldHideTabBar already flipped but
+  // scrollEnabled hadn't caught up, iOS's pagingEnabled UIScrollView would
+  // re-evaluate snap positions on the moving parent frame, producing the
+  // visible leftward-drift / grey-strip glitch.
+  //
+  // The fix: derive `effectiveScrollEnabled` directly from BOTH values so
+  // it's correct in the very same render cycle.  `scrollEnabled` state is
+  // only needed for the *delayed* re-enable when navigating back (400ms
+  // after shouldHideTabBar flips false).
+  //
+  //   Push (shouldHideTabBar: false → true):
+  //     scrollEnabled still true (useEffect hasn't run) but
+  //     effectiveScrollEnabled = !true && true = FALSE  ← immediate, safe
+  //
+  //   Pop  (shouldHideTabBar: true → false):
+  //     scrollEnabled is false (set by previous useEffect)
+  //     effectiveScrollEnabled = !false && false = FALSE ← still locked
+  //
+  //   After 400ms: scrollEnabled → true
+  //     effectiveScrollEnabled = !false && true = TRUE   ← safe to re-enable
+  //
+  const [scrollEnabled, setScrollEnabled] = useState(true);
+  const scrollTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (shouldHideTabBar) {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+      setScrollEnabled(false);
+    } else {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+      // Delay re-enabling scroll to ensure the slide transition finishes first
+      scrollTimeoutRef.current = setTimeout(() => {
+        setScrollEnabled(true);
+      }, 400);
+    }
+
+    return () => {
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, [shouldHideTabBar]);
+
+  // Synchronous derivation — correct in the same render cycle as the
+  // shouldHideTabBar flip, unlike the useEffect-set scrollEnabled alone.
+  const effectiveScrollEnabled = !shouldHideTabBar && scrollEnabled;
 
   // Sync scroll position and currentIndex ONLY when the tab index genuinely changes.
   //
@@ -454,7 +502,8 @@ function SwipeablePagerNavigator({
       <Animated.ScrollView
         ref={scrollViewRef}
         horizontal
-        pagingEnabled
+        pagingEnabled={effectiveScrollEnabled}
+        scrollEnabled={effectiveScrollEnabled}
         bounces={false}
         showsHorizontalScrollIndicator={false}
         onScroll={scrollHandler}

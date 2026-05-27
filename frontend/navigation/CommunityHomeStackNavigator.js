@@ -1,5 +1,5 @@
 import React from "react";
-import { createStackNavigator } from "@react-navigation/stack";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeFeedScreen from "../components/HomeFeedScreen";
 import NotificationsScreen from "../screens/notifications/NotificationsScreen";
 import ConversationsListScreen from "../screens/messages/ConversationsListScreen";
@@ -26,12 +26,17 @@ const CommunityHomeFeed = (props) => (
   <HomeFeedScreen {...props} role="community" />
 );
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 export default function CommunityHomeStackNavigator() {
   return (
     <Stack.Navigator
-      screenOptions={{ headerShown: false }}
+      screenOptions={{
+        headerShown: false,
+        // Native stack keeps transitions outside the JS layout tree so
+        // SwipeablePagerNavigator never receives layout events during push/pop.
+        animation: "default",
+      }}
       initialRouteName="HomeFeed"
     >
       <Stack.Screen name="HomeFeed" component={CommunityHomeFeed} />

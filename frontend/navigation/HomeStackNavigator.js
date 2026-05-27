@@ -1,5 +1,5 @@
 import React from "react";
-import { createStackNavigator } from "@react-navigation/stack";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeFeedScreen from "../components/HomeFeedScreen";
 import NotificationsScreen from "../screens/notifications/NotificationsScreen";
 import ConversationsListScreen from "../screens/messages/ConversationsListScreen";
@@ -28,14 +28,21 @@ const MemberHomeFeed = (props) => (
   <HomeFeedScreen {...props} role="member" />
 );
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 export default function HomeStackNavigator() {
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        animationEnabled: false,
+        // Using createNativeStackNavigator (same as DiscoverStackNavigator) so that
+        // stack transitions run natively and are fully decoupled from the JS layout
+        // tree. This prevents SwipeablePagerNavigator's Animated.ScrollView from
+        // receiving layout events during HomeStack push/pop transitions, which was
+        // the root cause of the pagingEnabled snap / horizontal drift on HomeFeedScreen.
+        // The old createStackNavigator + animationEnabled:false caused an immediate
+        // synchronous layout commit that triggered the paging snap.
+        animation: "default",
       }}
       initialRouteName="HomeFeed"
     >
