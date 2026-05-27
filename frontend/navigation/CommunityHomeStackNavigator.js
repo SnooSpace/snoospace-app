@@ -1,4 +1,5 @@
 import React from "react";
+import { Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeFeedScreen from "../components/HomeFeedScreen";
 import NotificationsScreen from "../screens/notifications/NotificationsScreen";
@@ -35,7 +36,9 @@ export default function CommunityHomeStackNavigator() {
         headerShown: false,
         // Native stack keeps transitions outside the JS layout tree so
         // SwipeablePagerNavigator never receives layout events during push/pop.
-        animation: "default",
+        animation: Platform.OS === "ios" ? "ios" : "default",
+        gestureEnabled: true,
+        ...(Platform.OS === "ios" ? { animationDuration: 350 } : {}),
       }}
       initialRouteName="HomeFeed"
     >
@@ -122,6 +125,7 @@ export default function CommunityHomeStackNavigator() {
         options={{
           headerShown: false,
           presentation: "modal",
+          animation: "slide_from_bottom",
         }}
       />
       <Stack.Screen
@@ -130,6 +134,7 @@ export default function CommunityHomeStackNavigator() {
         options={{
           headerShown: false,
           presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
         }}
       />
       <Stack.Screen

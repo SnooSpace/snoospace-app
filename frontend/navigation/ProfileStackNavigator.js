@@ -1,5 +1,5 @@
 import React from "react";
-import { createStackNavigator } from "@react-navigation/stack";
+import { createStackNavigator, CardStyleInterpolators } from "@react-navigation/stack";
 import MemberProfileScreen from "../screens/profile/member/MemberProfileScreen";
 import FollowersListScreen from "../screens/profile/member/FollowersListScreen";
 import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
@@ -16,7 +16,36 @@ const Stack = createStackNavigator();
 export default function ProfileStackNavigator() {
   return (
     <Stack.Navigator
-      screenOptions={{ headerShown: false }}
+      screenOptions={{
+        headerShown: false,
+        gestureEnabled: true,
+        gestureDirection: "horizontal",
+        transitionSpec: {
+          open: {
+            animation: "spring",
+            config: {
+              stiffness: 1000,
+              damping: 500,
+              mass: 3,
+              overshootClamping: true,
+              restDisplacementThreshold: 0.01,
+              restSpeedThreshold: 0.01,
+            },
+          },
+          close: {
+            animation: "spring",
+            config: {
+              stiffness: 1000,
+              damping: 500,
+              mass: 3,
+              overshootClamping: true,
+              restDisplacementThreshold: 0.01,
+              restSpeedThreshold: 0.01,
+            },
+          },
+        },
+        cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+      }}
       initialRouteName="Profile"
     >
       <Stack.Screen name="Profile" component={MemberProfileScreen} />

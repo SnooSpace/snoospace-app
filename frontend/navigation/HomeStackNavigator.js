@@ -1,4 +1,5 @@
 import React from "react";
+import { Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import HomeFeedScreen from "../components/HomeFeedScreen";
 import NotificationsScreen from "../screens/notifications/NotificationsScreen";
@@ -42,7 +43,9 @@ export default function HomeStackNavigator() {
         // the root cause of the pagingEnabled snap / horizontal drift on HomeFeedScreen.
         // The old createStackNavigator + animationEnabled:false caused an immediate
         // synchronous layout commit that triggered the paging snap.
-        animation: "default",
+        animation: Platform.OS === "ios" ? "ios" : "default",
+        gestureEnabled: true,
+        ...(Platform.OS === "ios" ? { animationDuration: 350 } : {}),
       }}
       initialRouteName="HomeFeed"
     >
@@ -148,6 +151,7 @@ export default function HomeStackNavigator() {
         options={{
           headerShown: false,
           presentation: "modal",
+          animation: "slide_from_bottom",
         }}
       />
       <Stack.Screen
@@ -156,6 +160,7 @@ export default function HomeStackNavigator() {
         options={{
           headerShown: false,
           presentation: "fullScreenModal",
+          animation: "slide_from_bottom",
         }}
       />
       <Stack.Screen name="OpportunityView" component={OpportunityViewScreen} />

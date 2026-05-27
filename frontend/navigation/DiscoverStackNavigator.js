@@ -1,4 +1,5 @@
 import React from "react";
+import { Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import DiscoverScreen from "../screens/discover/DiscoverScreen";
@@ -24,6 +25,9 @@ export default function DiscoverStackNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
+        animation: Platform.OS === "ios" ? "ios" : "default",
+        gestureEnabled: true,
+        ...(Platform.OS === "ios" ? { animationDuration: 350 } : {}),
       }}
     >
       <Stack.Screen name="DiscoverHome" component={DiscoverScreenWithSwipe} />

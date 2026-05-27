@@ -1,6 +1,6 @@
 // navigation/AppNavigator.js
 import React from "react";
-import { createStackNavigator } from "@react-navigation/stack";
+import { createStackNavigator, CardStyleInterpolators } from "@react-navigation/stack";
 
 import LandingScreen from "../screens/auth/LandingScreen";
 import AuthGate from "../screens/auth/AuthGate";
@@ -39,10 +39,45 @@ import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityS
 
 const Stack = createStackNavigator();
 
+const forFadeFromCenter = ({ current }) => ({
+  cardStyle: {
+    opacity: current.progress,
+  },
+});
+
 export default function AppNavigator({ initialRouteName }) {
   return (
     <Stack.Navigator
-      screenOptions={{ headerShown: false }}
+      screenOptions={{
+        headerShown: false,
+        gestureEnabled: true,
+        gestureDirection: "horizontal",
+        transitionSpec: {
+          open: {
+            animation: "spring",
+            config: {
+              stiffness: 1000,
+              damping: 500,
+              mass: 3,
+              overshootClamping: true,
+              restDisplacementThreshold: 0.01,
+              restSpeedThreshold: 0.01,
+            },
+          },
+          close: {
+            animation: "spring",
+            config: {
+              stiffness: 1000,
+              damping: 500,
+              mass: 3,
+              overshootClamping: true,
+              restDisplacementThreshold: 0.01,
+              restSpeedThreshold: 0.01,
+            },
+          },
+        },
+        cardStyleInterpolator: forFadeFromCenter,
+      }}
       initialRouteName={initialRouteName}
     >
       <Stack.Screen name="AuthGate" component={AuthGate} />
@@ -81,37 +116,59 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="CommunityEventsList"
         component={CommunityEventsListScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
       <Stack.Screen
         name="CommunityCreatePost"
         component={CommunityCreatePostScreen}
-        options={{ headerShown: false, presentation: "fullScreenModal" }}
+        options={{
+          headerShown: false,
+          presentation: "fullScreenModal",
+          cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
+        }}
       />
       <Stack.Screen
         name="EventDetails"
         component={EventDetailsScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
       <Stack.Screen
         name="TicketSelection"
         component={TicketSelectionScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
       <Stack.Screen
         name="Checkout"
         component={CheckoutScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
       <Stack.Screen
         name="TicketView"
         component={TicketViewScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
       <Stack.Screen
         name="CategoryEvents"
         component={CategoryEventsScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
       <Stack.Screen
         name="EventGallery"
@@ -119,18 +176,24 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           presentation: "fullScreenModal",
-          animation: "slide_from_bottom",
+          cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
         }}
       />
       <Stack.Screen
         name="MemberPublicProfile"
         component={MemberPublicProfileScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
       <Stack.Screen
         name="CommunityPublicProfile"
         component={CommunityPublicProfileScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
       <Stack.Screen
         name="CommunityPublicEventsList"
@@ -138,7 +201,10 @@ export default function AppNavigator({ initialRouteName }) {
           require("../screens/profile/community/CommunityPublicEventsListScreen")
             .default
         }
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
       <Stack.Screen
         name="CropScreen"
@@ -146,7 +212,7 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           presentation: "fullScreenModal",
-          animation: "slide_from_bottom",
+          cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
         }}
       />
       <Stack.Screen
@@ -155,43 +221,64 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           presentation: "fullScreenModal",
-          animation: "slide_from_bottom",
+          cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
         }}
       />
       <Stack.Screen
         name="DeleteAccount"
         component={DeleteAccountScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
       <Stack.Screen
         name="DeleteConfirmation"
         component={DeleteConfirmationScreen}
-        options={{ headerShown: false, animation: "fade" }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: forFadeFromCenter,
+        }}
       />
       <Stack.Screen
         name="SavedPostsScreen"
         component={SavedPostsScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
       <Stack.Screen
         name="ConsentScreen"
         component={ConsentScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
       <Stack.Screen
         name="MyDataScreen"
         component={MyDataScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
       <Stack.Screen
         name="OpportunityView"
         component={OpportunityViewScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
       <Stack.Screen
         name="ApplyToOpportunity"
         component={ApplyToOpportunityScreen}
-        options={{ headerShown: false }}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
       />
     </Stack.Navigator>
   );
