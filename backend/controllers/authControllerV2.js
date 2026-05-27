@@ -561,6 +561,139 @@ function classifyDeviceTier(brand, modelName) {
 }
 
 /**
+ * Resolve which of the user's devices is the "primary" device based on usage
+ * duration across all sessions, then sync the result to user_aqi_signals.
+ *
+ * Logic:
+ *   1. Query all member sessions for this user that have device info
+ *   2. Compute a usage_score per session:
+ *        usage_score = duration_days × recency_weight
+ *        recency_weight = 1.0 if active in last 90 days, 0.5 if 90–365 days, 0.2 if older
+ *   3. Group sessions by device_brand + device_tier (same device may have multiple sessions
+ *      due to reinstalls or token refreshes)
+ *   4. The brand+tier combination with the highest total usage_score wins
+ *   5. If the current login device is within 15% of the winner, prefer the current device
+ *      (avoids micro-swings between devices used roughly equally)
+ *   6. Writes the winning device info to user_aqi_signals
+ */
+async function resolvePrimaryDeviceAndSync(pool, userId, currentPlatform, currentBrand, currentModel, currentTier) {
+  // Always register the current session's device info first (brand/model/tier may be null
+  // in older sessions that predate this feature)
+  await pool.query(
+    `UPDATE sessions
+     SET device_brand = COALESCE(device_brand, $3),
+         device_model = COALESCE(device_model, $4)
+     WHERE user_id = $1 AND user_type = 'member'
+       AND device_id = (
+         SELECT device_id FROM sessions
+         WHERE user_id = $1 AND user_type = 'member'
+         ORDER BY last_used_at DESC LIMIT 1
+       )`,
+    [userId, 'member', currentBrand, currentModel],
+  );
+
+  // Query all sessions with known device info
+  const { rows } = await pool.query(
+    `SELECT
+       device_brand,
+       device_tier,
+       device_platform,
+       device_model,
+       GREATEST(
+         EXTRACT(EPOCH FROM (last_used_at - created_at)) / 86400,
+         0
+       ) AS duration_days,
+       CASE
+         WHEN last_used_at > NOW() - INTERVAL '90 days'  THEN 1.0
+         WHEN last_used_at > NOW() - INTERVAL '365 days' THEN 0.5
+         ELSE 0.2
+       END AS recency_weight
+     FROM sessions
+     WHERE user_id = $1
+       AND user_type = 'member'
+       AND device_brand IS NOT NULL
+       AND device_tier   IS NOT NULL
+       AND device_tier   != 'other'`,
+    [userId],
+  );
+
+  if (rows.length === 0) {
+    // No sessions with known device — write current device as a starting point
+    if (currentBrand || currentPlatform) {
+      await pool.query(
+        `UPDATE user_aqi_signals
+         SET device_platform  = COALESCE($2, device_platform),
+             device_brand     = COALESCE($3, device_brand),
+             device_model_raw = COALESCE($4, device_model_raw),
+             device_tier      = COALESCE($5, device_tier)
+         WHERE user_id = $1`,
+        [userId, currentPlatform, currentBrand, currentModel, currentTier],
+      );
+    }
+    return;
+  }
+
+  // Group and aggregate usage_score by (device_brand, device_tier)
+  const scoreMap = {};
+  for (const row of rows) {
+    const key = `${row.device_brand}::${row.device_tier}`;
+    if (!scoreMap[key]) {
+      scoreMap[key] = {
+        brand: row.device_brand,
+        tier: row.device_tier,
+        platform: row.device_platform,
+        model: row.device_model,
+        totalScore: 0,
+      };
+    }
+    scoreMap[key].totalScore += parseFloat(row.duration_days) * parseFloat(row.recency_weight);
+  }
+
+  // Find the dominant device (highest total usage score)
+  let dominant = null;
+  for (const entry of Object.values(scoreMap)) {
+    if (!dominant || entry.totalScore > dominant.totalScore) {
+      dominant = entry;
+    }
+  }
+
+  // Find current device's score in the map
+  const currentKey = `${currentBrand}::${currentTier}`;
+  const currentScore = scoreMap[currentKey]?.totalScore || 0;
+
+  // If current device is within 15% of dominant, prefer current (the live, known device)
+  const primaryDevice = (currentScore >= dominant.totalScore * 0.85 && currentBrand)
+    ? { brand: currentBrand, tier: currentTier, platform: currentPlatform, model: currentModel }
+    : dominant;
+
+  // Log a device change event if the primary device shifted (for analysis)
+  const { rows: existing } = await pool.query(
+    `SELECT device_brand, device_tier FROM user_aqi_signals WHERE user_id = $1 LIMIT 1`,
+    [userId],
+  );
+  const prevBrand = existing[0]?.device_brand;
+  const prevTier  = existing[0]?.device_tier;
+  if (prevBrand && prevBrand !== primaryDevice.brand) {
+    console.log(
+      `[Auth] 📱 Device shift detected for user ${userId}:`,
+      `${prevBrand}(${prevTier}) → ${primaryDevice.brand}(${primaryDevice.tier})`,
+      `based on ${dominant.totalScore.toFixed(1)} usage-days`,
+    );
+  }
+
+  // Sync dominant device to AQI signals
+  await pool.query(
+    `UPDATE user_aqi_signals
+     SET device_platform  = $2,
+         device_brand     = $3,
+         device_model_raw = COALESCE($4, device_model_raw),
+         device_tier      = $5
+     WHERE user_id = $1`,
+    [userId, primaryDevice.platform, primaryDevice.brand, primaryDevice.model, primaryDevice.tier],
+  );
+}
+
+/**
  * Create session in database
  * @param {Object} deviceInfo - Optional device info { platform, osVersion, deviceModel, deviceBrand, isPhysicalDevice }
  */
@@ -590,8 +723,8 @@ async function createSession(
 
   // Upsert session (replace existing session for same user+device)
   const result = await pool.query(
-    `INSERT INTO sessions (user_id, user_type, device_id, access_token, refresh_token, expires_at, platform, os_version, device_model, device_brand)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `INSERT INTO sessions (user_id, user_type, device_id, access_token, refresh_token, expires_at, platform, os_version, device_model, device_brand, device_tier)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      ON CONFLICT (user_id, user_type, device_id)
      DO UPDATE SET
        access_token = EXCLUDED.access_token,
@@ -601,25 +734,21 @@ async function createSession(
        platform     = COALESCE(EXCLUDED.platform, sessions.platform),
        os_version   = COALESCE(EXCLUDED.os_version, sessions.os_version),
        device_model = COALESCE(EXCLUDED.device_model, sessions.device_model),
-       device_brand = COALESCE(EXCLUDED.device_brand, sessions.device_brand)
+       device_brand = COALESCE(EXCLUDED.device_brand, sessions.device_brand),
+       device_tier  = COALESCE(EXCLUDED.device_tier, sessions.device_tier)
      RETURNING *`,
     [userId, userType, deviceId, accessToken, refreshToken, expiresAt,
-     platform, osVersion, deviceModel, deviceBrand],
+     platform, osVersion, deviceModel, deviceBrand, deviceTier],
   );
 
-  // Sync device info into user_aqi_signals (member only, non-blocking)
-  // Only update if this is a physical device (not emulator/simulator) to
-  // avoid polluting AQI signals from dev machines.
-  if (userType === 'member' && isPhysical && (platform || deviceBrand)) {
-    pool.query(
-      `UPDATE user_aqi_signals
-       SET device_platform = COALESCE($2, device_platform),
-           device_brand    = COALESCE($3, device_brand),
-           device_model_raw = COALESCE($4, device_model_raw),
-           device_tier     = $5
-       WHERE user_id = $1`,
-      [userId, platform, deviceBrand, deviceModel, deviceTier],
-    ).catch(err => console.error('[Auth] device AQI sync failed:', err.message));
+  // Sync primary device into user_aqi_signals (member only, non-blocking).
+  // Uses duration-weighted device resolution: if the user registered on an iPhone
+  // but has used a different phone for longer, the longer-used device wins.
+  // Duration = last_used_at - created_at per session (proxy for usage time).
+  // Simulators/emulators are excluded to avoid polluting the signal.
+  if (userType === 'member' && isPhysical) {
+    resolvePrimaryDeviceAndSync(pool, userId, platform, deviceBrand, deviceModel, deviceTier)
+      .catch(err => console.error('[Auth] primary device AQI sync failed:', err.message));
   }
 
   return {
