@@ -630,6 +630,14 @@ const CommentsModal = ({
               item.commenter_name || "User",
             )}&background=${placeholderBg}&color=FFFFFF`;
 
+      const canDelete =
+        (activeAccount &&
+          String(item.commenter_id) === String(activeAccount.id) &&
+          item.commenter_type === activeAccount.type) ||
+        (activeAccount &&
+          String(postAuthorId) === String(activeAccount.id) &&
+          postAuthorType === activeAccount.type);
+
       return (
         <View style={[styles.commentItem, { marginLeft: leftMargin }]}>
           <TouchableOpacity onPress={handleProfilePress}>
@@ -643,23 +651,6 @@ const CommentsModal = ({
               <Text style={styles.commentTime}>
                 {formatTimeAgo(item.created_at)}
               </Text>
-              {(activeAccount &&
-                String(item.commenter_id) === String(activeAccount.id) &&
-                item.commenter_type === activeAccount.type) ||
-              (activeAccount &&
-                String(postAuthorId) === String(activeAccount.id) &&
-                postAuthorType === activeAccount.type) ? (
-                <TouchableOpacity
-                  onPress={() => handleDeleteComment(item.id)}
-                  style={styles.deleteButton}
-                >
-                  <Trash2
-                    size={16}
-                    color={COLORS.textSecondary}
-                    strokeWidth={2}
-                  />
-                </TouchableOpacity>
-              ) : null}
             </View>
             <Text style={styles.commentText}>
               {(() => {
@@ -766,20 +757,34 @@ const CommentsModal = ({
               )}
             </View>
           </View>
-          <TouchableOpacity
-            style={styles.commentLikeButton}
-            onPress={() => handleCommentLike(item.id, isLiked, likeCount)}
-          >
-            <Heart
-              size={18}
-              color={isLiked ? COLORS.error : "#9CA3AF"}
-              fill={isLiked ? COLORS.error : "transparent"}
-              strokeWidth={2}
-            />
-            {likeCount > 0 && (
-              <Text style={styles.commentLikeCount}>{likeCount}</Text>
-            )}
-          </TouchableOpacity>
+          <View style={styles.commentRightActions}>
+            {canDelete ? (
+              <TouchableOpacity
+                onPress={() => handleDeleteComment(item.id)}
+                style={styles.commentDeleteButton}
+              >
+                <Trash2
+                  size={16}
+                  color={COLORS.textSecondary}
+                  strokeWidth={2}
+                />
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              style={styles.commentLikeButton}
+              onPress={() => handleCommentLike(item.id, isLiked, likeCount)}
+            >
+              <Heart
+                size={18}
+                color={isLiked ? COLORS.error : "#9CA3AF"}
+                fill={isLiked ? COLORS.error : "transparent"}
+                strokeWidth={2}
+              />
+              {likeCount > 0 && (
+                <Text style={styles.commentLikeCount}>{likeCount}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       );
     },
@@ -1143,11 +1148,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     gap: 8,
   },
-  deleteButton: {
-    marginLeft: "auto",
-    padding: 10,
-    marginRight: -6,
-  },
   commenterName: {
     fontFamily: FONTS.semiBold,
     fontSize: 14,
@@ -1179,12 +1179,24 @@ const styles = StyleSheet.create({
   commentLikeButton: {
     paddingHorizontal: 8,
     paddingVertical: 4,
-    alignSelf: "flex-start",
     flexDirection: "column", // Stack vertically
     alignItems: "center",
     gap: 2, // Tighter gap for vertical stack
-    marginLeft: 8,
     minWidth: 40, // Ensure touch target
+  },
+  commentRightActions: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    alignSelf: "flex-start",
+    gap: 2,
+    marginLeft: 8,
+  },
+  commentDeleteButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    justifyContent: "center",
+    alignItems: "center",
+    minWidth: 36,
   },
   commentLikeCount: {
     fontFamily: FONTS.medium,
