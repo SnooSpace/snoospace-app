@@ -154,6 +154,8 @@ const CommunityProfileHeaderBioSection = React.memo(({
   onBannerAction,
   onShowAccountSwitcher,
   onShowCollegeHub,
+  onShowSettings,
+  onShowBookmark,
 }) => {
   return (
     <>
@@ -183,8 +185,28 @@ const CommunityProfileHeaderBioSection = React.memo(({
         style={[
           styles.summarySection,
           !profile.banner_url && { paddingTop: insets.top + 60 },
+          { position: "relative" }
         ]}
       >
+        {/* Render Settings and Bookmark/Saved icons below the banner on the right side */}
+        {profile.banner_url && (
+          <View style={styles.settingsIconsRowAbsolute}>
+            <TouchableOpacity
+              style={styles.settingsIconInline}
+              onPress={onShowBookmark}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Bookmark size={22} color="#475569" strokeWidth={2.2} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.settingsIconInline}
+              onPress={onShowSettings}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Settings size={22} color="#475569" strokeWidth={2.2} />
+            </TouchableOpacity>
+          </View>
+        )}
         <View
           style={[
             styles.profileHeader,
@@ -1667,7 +1689,8 @@ export default function CommunityProfileScreen({ navigation }) {
       {!profile.banner_url && <GradientSafeArea variant="primary" />}
 
       {/* Custom Fixed Header (Status Bar Scrim Only) */}
-      <View style={[styles.headerContainer, { height: insets.top }]}>
+      {/* Custom Fixed Header */}
+      <View style={[styles.headerContainer, { height: insets.top + 50 }]}>
         {/* iOS Blur */}
         {Platform.OS === "ios" && (
           <Animated.View
@@ -1704,6 +1727,29 @@ export default function CommunityProfileScreen({ navigation }) {
             },
           ]}
         />
+
+        {/* Header Content containing Settings and Saved Icons (Only when no banner) */}
+        {!profile.banner_url && (
+          <View style={[styles.headerContent, { marginTop: insets.top }]}>
+            <View style={{ flex: 1 }} />
+            <View style={styles.headerRight}>
+              <TouchableOpacity
+                style={styles.headerIconButton}
+                onPress={() => navigation.navigate("SavedPostsScreen")}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Bookmark size={24} color="#0F172A" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.headerIconButton}
+                onPress={() => setShowSettingsModal(true)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Settings size={24} color="#0F172A" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
 
       <Animated.ScrollView
@@ -1729,6 +1775,8 @@ export default function CommunityProfileScreen({ navigation }) {
           onBannerAction={handleBannerAction}
           onShowAccountSwitcher={handleShowAccountSwitcher}
           onShowCollegeHub={handleShowCollegeHub}
+          onShowSettings={() => setShowSettingsModal(true)}
+          onShowBookmark={() => navigation.navigate("SavedPostsScreen")}
         />
 
         <View style={styles.summarySection}>
@@ -3183,10 +3231,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     height: 50, // Match header content height
   },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  headerIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+    position: "relative",
+  },
 
   summarySection: {
     paddingHorizontal: 20,
     paddingTop: 0, // Avatar overlap handles spacing
+  },
+  settingsIconsRowAbsolute: {
+    position: "absolute",
+    right: 20,
+    top: 14,
+    flexDirection: "row",
+    gap: 12,
+    zIndex: 10,
+  },
+  settingsIconInline: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
   },
   profileHeader: {
     alignItems: "center",

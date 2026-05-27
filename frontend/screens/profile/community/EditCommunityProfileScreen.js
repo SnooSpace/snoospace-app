@@ -36,6 +36,7 @@ import { uploadImage } from "../../../api/cloudinary";
 import { getSponsorTypes, apiGet } from "../../../api/client";
 import EmailChangeModal from "../../../components/EmailChangeModal";
 import LocationPicker from "../../../components/LocationPicker/LocationPicker";
+import ActionSheet from "../../../components/modals/ActionSheet";
 import {
   COMMUNITY_CATEGORIES_CONFIG,
   getCategoryStyle,
@@ -169,6 +170,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   const [hasChanges, setHasChanges] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [showBannerActionSheet, setShowBannerActionSheet] = useState(false);
 
   const [logoUrl, setLogoUrl] = useState(
     profile?.logo_url ||
@@ -418,6 +420,20 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     }
   };
 
+  const handleRemoveBanner = async () => {
+    try {
+      setUploadingBanner(true);
+      const token = await getAuthToken();
+      await updateCommunityProfile({ banner_url: null }, token);
+      setBannerUrl(null);
+      HapticsService.triggerNotificationSuccess();
+    } catch (e) {
+      Alert.alert("Update failed", e?.message || "Could not remove banner");
+    } finally {
+      setUploadingBanner(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!hasChanges) return;
 
@@ -546,7 +562,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         <View style={styles.visualsContainer}>
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={handleChangeBanner}
+            onPress={() => setShowBannerActionSheet(true)}
             style={styles.bannerWrapper}
           >
             {bannerUrl ? (
@@ -1041,6 +1057,38 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         startEmailChange={startEmailChange}
         verifyEmailChange={verifyEmailChange}
       />
+
+      {showBannerActionSheet && (
+        <ActionSheet
+          visible={showBannerActionSheet}
+          onClose={() => setShowBannerActionSheet(false)}
+          title="Banner"
+          message="Update your community banner"
+          actions={[
+            {
+              text: "Change banner",
+              icon: "Image",
+              onPress: () => {
+                setShowBannerActionSheet(false);
+                handleChangeBanner();
+              },
+            },
+            ...(bannerUrl
+              ? [
+                  {
+                    text: "Remove banner",
+                    icon: "Trash2",
+                    style: "destructive",
+                    onPress: () => {
+                      setShowBannerActionSheet(false);
+                      handleRemoveBanner();
+                    },
+                  },
+                ]
+              : []),
+          ]}
+        />
+      )}
 
       <Modal
         visible={locationPickerVisible}

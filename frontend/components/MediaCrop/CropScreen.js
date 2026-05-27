@@ -458,30 +458,6 @@ const CropScreen = ({ route, navigation }) => {
                 Grid
               </Text>
             </TouchableOpacity>
-
-            {preset.safeZone && (
-              <TouchableOpacity
-                style={[
-                  styles.toolButton,
-                  showSafeZone && styles.toolButtonActive,
-                ]}
-                onPress={handleToggleSafeZone}
-              >
-                <ScanLine
-                  size={20}
-                  color={showSafeZone ? COLORS.primary : "#888888"}
-                  strokeWidth={1.75}
-                />
-                <Text
-                  style={[
-                    styles.toolButtonText,
-                    showSafeZone && styles.toolButtonTextActive,
-                  ]}
-                >
-                  Safe Zone
-                </Text>
-              </TouchableOpacity>
-            )}
           </View>
 
           {/* Aspect Ratio Presets */}
