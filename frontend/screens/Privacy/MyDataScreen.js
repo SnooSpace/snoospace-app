@@ -503,7 +503,7 @@ const MyDataScreen = ({ navigation }) => {
                 {/* Icon + Title */}
                 <View style={styles.infoTitleRow}>
                   <View style={styles.infoIconWrap}>
-                    <Info size={18} color="#8B5CF6" strokeWidth={2} />
+                    <Info size={18} color={COLORS.primary} strokeWidth={2} />
                   </View>
                   <Text style={styles.infoTitle}>{infoModal.title}</Text>
                 </View>
@@ -587,7 +587,7 @@ const styles = StyleSheet.create({
   infoSheet: { backgroundColor:"#FFFFFF", borderTopLeftRadius:28, borderTopRightRadius:28, padding:24, paddingBottom:36, borderWidth:1, borderColor:"rgba(0,0,0,0.05)" },
   infoHandle: { width:40, height:4, borderRadius:2, backgroundColor:"#E5E7EB", alignSelf:"center", marginBottom:20 },
   infoTitleRow: { flexDirection:"row", alignItems:"center", gap:12, marginBottom:14 },
-  infoIconWrap: { width:38, height:38, borderRadius:19, backgroundColor:"rgba(139,92,246,0.1)", alignItems:"center", justifyContent:"center" },
+  infoIconWrap: { width:38, height:38, borderRadius:19, backgroundColor:"rgba(41, 98, 255, 0.1)", alignItems:"center", justifyContent:"center" },
   infoTitle: { fontSize:17, fontFamily:FONTS.semiBold, color:"#111827", flex:1 },
   infoBody: { fontSize:14, fontFamily:FONTS.regular, color:"#4B5563", lineHeight:22, marginBottom:16 },
   // Content breakdown (in info modal)
@@ -597,8 +597,8 @@ const styles = StyleSheet.create({
   breakdownLabel: { flex:1, fontSize:13, fontFamily:FONTS.medium, color:"#374151" },
   breakdownCount: { fontSize:14, fontFamily:FONTS.semiBold, color:"#111827" },
   breakdownEmpty: { fontSize:13, fontFamily:FONTS.regular, color:"#9CA3AF", textAlign:"center", paddingVertical:8 },
-  infoCloseBtn: { backgroundColor:"rgba(139,92,246,0.08)", borderRadius:14, paddingVertical:14, alignItems:"center", borderWidth:1, borderColor:"rgba(139,92,246,0.15)" },
-  infoCloseText: { fontSize:15, fontFamily:FONTS.semiBold, color:"#7C3AED" },
+  infoCloseBtn: { backgroundColor:COLORS.primary, borderRadius:14, paddingVertical:14, alignItems:"center" },
+  infoCloseText: { fontSize:16, fontFamily:FONTS.semiBold, color:"#FFFFFF" },
   // Chips
   chipRow: { flexDirection:"row", flexWrap:"wrap", gap:8 },
   chip: { backgroundColor:"rgba(139,92,246,0.08)", borderRadius:20, paddingHorizontal:14, paddingVertical:7, borderWidth:1, borderColor:"rgba(139,92,246,0.15)" },
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
   toggleKnob: { width:20, height:20, borderRadius:10, backgroundColor:"#FFFFFF", shadowColor:"#000", shadowOffset:{width:0,height:2}, shadowOpacity:0.1, shadowRadius:2, elevation:2 },
   // Delete
   deleteButton: { flexDirection:"row", alignItems:"center", justifyContent:"center", gap:10, backgroundColor:"rgba(239,68,68,0.06)", borderRadius:14, paddingVertical:16, borderWidth:1, borderColor:"rgba(239,68,68,0.15)" },
-  deleteText: { fontSize:15, fontFamily:FONTS.semiBold, color:"#DC2626" },
+  deleteText: { fontSize:16, fontFamily:FONTS.semiBold, color:"#DC2626" },
   // Modal
   modalOverlay: { flex:1, backgroundColor:"rgba(0,0,0,0.4)", justifyContent:"center", alignItems:"center", padding:32 },
   modalContent: { backgroundColor:"#FFFFFF", borderRadius:20, padding:24, width:"100%", alignItems:"center", borderWidth:1, borderColor:"rgba(0,0,0,0.05)", shadowColor:"#000", shadowOffset:{width:0,height:10}, shadowOpacity:0.1, shadowRadius:20, elevation:10 },
@@ -625,9 +625,9 @@ const styles = StyleSheet.create({
   modalBody: { fontSize:14, fontFamily:FONTS.regular, color:"#4B5563", lineHeight:20, textAlign:"center", marginBottom:24 },
   modalActions: { flexDirection:"row", gap:12, width:"100%" },
   modalCancel: { flex:1, paddingVertical:14, borderRadius:12, alignItems:"center", backgroundColor:"rgba(0,0,0,0.03)", borderWidth:1, borderColor:"rgba(0,0,0,0.05)" },
-  modalCancelText: { fontSize:15, fontFamily:FONTS.semiBold, color:"#4B5563" },
+  modalCancelText: { fontSize:16, fontFamily:FONTS.semiBold, color:"#4B5563" },
   modalConfirm: { flex:1, paddingVertical:14, borderRadius:12, alignItems:"center", backgroundColor:"rgba(239,68,68,0.1)", borderWidth:1, borderColor:"rgba(239,68,68,0.2)" },
-  modalConfirmText: { fontSize:15, fontFamily:FONTS.semiBold, color:"#DC2626" },
+  modalConfirmText: { fontSize:16, fontFamily:FONTS.semiBold, color:"#DC2626" },
   // Sponsor
   sponsorBanner: { backgroundColor:"#FFFFFF", borderRadius:20, padding:20, marginBottom:24, borderWidth:1, borderColor:"rgba(139,92,246,0.15)", gap:12, shadowColor:"#000", shadowOffset:{width:0,height:4}, shadowOpacity:0.05, shadowRadius:12, elevation:3 },
   sponsorBannerTitle: { fontSize:17, fontFamily:FONTS.semiBold, color:"#111827", textAlign:"center" },
