@@ -5,6 +5,7 @@
 
 const { createPool } = require("../config/db");
 const pushService = require("../services/pushService");
+const { emitSignal, getCategoryForPost } = require("../utils/signalEmitter");
 
 const pool = createPool();
 
@@ -306,6 +307,19 @@ const vote = async (req, res) => {
       `[vote] Returning options:`,
       JSON.stringify(updatedOptions, null, 2),
     );
+
+    // Emit behavioral signal — fire-and-forget, non-blocking
+    if (indexesToAdd.length > 0) {
+      getCategoryForPost(pool, postId).then((category) =>
+        emitSignal(pool, {
+          userId,
+          userType,
+          eventType: 'poll_vote',
+          category,
+          metadata: { postId: parseInt(postId) },
+        })
+      ).catch(() => {});
+    }
 
     res.json({
       success: true,

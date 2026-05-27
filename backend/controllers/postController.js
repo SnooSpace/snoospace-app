@@ -1,5 +1,6 @@
 const { createPool } = require("../config/db");
 const pushService = require("../services/pushService");
+const { emitSignal, getCategoryForPost } = require("../utils/signalEmitter");
 const {
   generateVideoMetadata,
   findVideoIndex,
@@ -1323,6 +1324,20 @@ const likePost = async (req, res) => {
     } catch (e) {
       // Non-fatal: do not block like if notification fails
       console.error("Failed to create like notification", e);
+    }
+
+    // Emit behavioral signal — fire-and-forget, non-blocking
+    // Only track likes on other users' posts, not self-likes
+    if (postCheck.rows.length > 0) {
+      getCategoryForPost(pool, postId).then((category) =>
+        emitSignal(pool, {
+          userId,
+          userType,
+          eventType: 'post_like',
+          category,
+          metadata: { postId: parseInt(postId) },
+        })
+      ).catch(() => {});
     }
 
     res.json({ success: true, message: "Post liked" });

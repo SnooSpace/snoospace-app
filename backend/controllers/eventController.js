@@ -1,5 +1,6 @@
 const { createPool } = require("../config/db");
 const { isValidGoogleMapsUrl } = require("../utils/googleMapsValidation");
+const { emitSignal, getCategoryForEvent } = require("../utils/signalEmitter");
 const crypto = require("crypto");
 const notificationService = require("../services/notificationService");
 const pushService = require("../services/pushService");
@@ -3390,6 +3391,18 @@ const registerForEvent = async (req, res) => {
     }
 
     await client.query("COMMIT");
+
+    // Emit behavioral signal — fire-and-forget, non-blocking
+    // Determine if this is a paid or free event based on totalAmount
+    getCategoryForEvent(pool, eventId).then((category) =>
+      emitSignal(pool, {
+        userId,
+        userType,
+        eventType: (totalAmount && totalAmount > 0) ? 'paid_event_attended' : 'event_rsvp',
+        category,
+        metadata: { eventId: parseInt(eventId), totalAmount: totalAmount || 0 },
+      })
+    ).catch(() => {});
 
     // Fraud guard — fire-and-forget, never blocks the RSVP response
     checkForDummyAccountRsvps(pool, eventId).catch((err) =>

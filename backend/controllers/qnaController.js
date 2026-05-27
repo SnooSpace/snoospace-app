@@ -5,6 +5,7 @@
 
 const { createPool } = require("../config/db");
 const pushService = require("../services/pushService");
+const { emitSignal, getCategoryForPost } = require("../utils/signalEmitter");
 
 const pool = createPool();
 
@@ -217,6 +218,17 @@ const submitQuestion = async (req, res) => {
     }
 
     console.log(`[QnA] Question ${question.id} submitted to post ${postId}`);
+
+    // Emit behavioral signal — fire-and-forget, non-blocking
+    getCategoryForPost(pool, postId).then((category) =>
+      emitSignal(pool, {
+        userId,
+        userType,
+        eventType: 'qna_question',
+        category,
+        metadata: { postId: parseInt(postId), questionId: question.id },
+      })
+    ).catch(() => {});
 
     res.status(201).json({
       success: true,
@@ -492,6 +504,17 @@ const upvoteQuestion = async (req, res) => {
         console.error("[QnA] Failed to send upvote notification:", e);
       }
     }
+
+    // Emit behavioral signal — fire-and-forget, non-blocking
+    getCategoryForPost(pool, String(question.post_id)).then((category) =>
+      emitSignal(pool, {
+        userId,
+        userType,
+        eventType: 'qna_upvote',
+        category,
+        metadata: { questionId: parseInt(questionId), postId: question.post_id },
+      })
+    ).catch(() => {});
 
     res.json({
       success: true,

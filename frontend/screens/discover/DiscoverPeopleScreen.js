@@ -12,17 +12,15 @@ const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 const PRIMARY_COLOR = COLORS.primary;
 
+const EDGES = ["top"];
+
 export default function DiscoverPeopleScreen({ route, navigation }) {
   const { event } = route.params || {};
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
 
-  useEffect(() => {
-    loadAttendees();
-  }, []);
-
-  const loadAttendees = async () => {
+  const loadAttendees = useCallback(async () => {
     if (!event?.id) return;
 
     try {
@@ -44,11 +42,19 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [event?.id]);
+
+  useEffect(() => {
+    loadAttendees();
+  }, [loadAttendees]);
 
   const handlePersonPress = useCallback((attendee) => {
     navigation.navigate("NetworkingProfile", { attendee, event });
   }, [navigation, event]);
+
+  const handleBack = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
 
   const renderPerson = useCallback(({ item: attendee }) => {
     return (
@@ -60,24 +66,32 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
     );
   }, [handlePersonPress]);
 
+  const keyExtractor = useCallback((item) => item.id?.toString(), []);
+
+  const getItemLayout = useCallback((data, index) => ({
+    length: 96,
+    offset: 96 * index,
+    index,
+  }), []);
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <SnooLoader size="large" color={PRIMARY_COLOR} />
-          <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Loading people...</Text>
+          <Text style={styles.loadingText}>Loading people...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={EDGES}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={handleBack}
         >
           <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
         </TouchableOpacity>
@@ -115,13 +129,15 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
         <FlatList
           data={attendees}
           renderItem={renderPerson}
-          keyExtractor={(item) => item.id?.toString()}
+          keyExtractor={keyExtractor}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
+          initialNumToRender={8}
+          maxToRenderPerBatch={5}
           windowSize={5}
           removeClippedSubviews={Platform.OS === "android"}
+          updateCellsBatchingPeriod={50}
+          getItemLayout={getItemLayout}
         />
       )}
     </SafeAreaView>
@@ -175,8 +191,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.m,
     fontSize: 16,
     color: LIGHT_TEXT_COLOR,
-  
-    fontFamily: "Manrope-Regular",
+    fontFamily: "Manrope-Medium",
   },
   header: {
     flexDirection: "row",

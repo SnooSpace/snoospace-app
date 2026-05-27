@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -22,6 +22,15 @@ const CARD_WIDTH = width * 0.75;
 const PEOPLE_CARD_WIDTH = width * 0.4;
 const COMMUNITY_CARD_WIDTH = width * 0.35;
 
+const EDGES = ["top"];
+const AVATAR_HITSLOP = { top: 20, bottom: 20, left: 10, right: 20 };
+const INSIGHTS_HITSLOP = { top: 20, bottom: 20, left: 10, right: 10 };
+
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+};
+
 export default function DiscoverScreen({ navigation }) {
   const [events, setEvents] = useState([]);
   const [exploreEvents, setExploreEvents] = useState([]);
@@ -30,14 +39,7 @@ export default function DiscoverScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [profileComplete, setProfileComplete] = useState(true);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-      checkProfileCompletion();
-    }, []),
-  );
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getAuthToken();
@@ -89,9 +91,9 @@ export default function DiscoverScreen({ navigation }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const checkProfileCompletion = async () => {
+  const checkProfileCompletion = useCallback(async () => {
     try {
       const token = await getAuthToken();
       if (token) {
@@ -104,24 +106,45 @@ export default function DiscoverScreen({ navigation }) {
     } catch (error) {
       console.error("Error checking profile:", error);
     }
-  };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+      checkProfileCompletion();
+    }, [loadData, checkProfileCompletion]),
+  );
 
   const handleEventPress = useCallback((event) => {
     navigation.navigate("ProfileFeed", { event });
   }, [navigation]);
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  };
+  const handleCommunityPress = useCallback((communityId) => {
+    navigation.navigate("CommunityPublicProfile", { communityId });
+  }, [navigation]);
+
+  const handleSearchPress = useCallback(() => {
+    navigation.navigate("Search");
+  }, [navigation]);
+
+  const handleInsightsPress = useCallback(() => {
+    navigation.navigate("ActivityInsights");
+  }, [navigation]);
+
+  const handleEditProfilePress = useCallback(() => {
+    navigation.navigate("EditDiscoverProfile");
+  }, [navigation]);
+
+  const slicedEvents = useMemo(() => events.slice(0, 5), [events]);
+  const slicedExploreEvents = useMemo(() => exploreEvents.slice(0, 5), [exploreEvents]);
 
   const renderReconnectSection = () => {
-    if (events.length === 0) return null;
+    if (slicedEvents.length === 0) return null;
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Reconnect with Peers</Text>
-          <TouchableOpacity onPress={() => navigation.navigate("Search")}>
+          <TouchableOpacity onPress={handleSearchPress}>
             <Text style={styles.seeAllText}>See all</Text>
           </TouchableOpacity>
         </View>
@@ -130,7 +153,7 @@ export default function DiscoverScreen({ navigation }) {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalList}
         >
-          {events.slice(0, 5).map((event) => (
+          {slicedEvents.map((event) => (
             <ReconnectCard
               key={event.id}
               event={event}
@@ -142,10 +165,6 @@ export default function DiscoverScreen({ navigation }) {
       </View>
     );
   };
-
-  const handleCommunityPress = useCallback((communityId) => {
-    navigation.navigate("CommunityPublicProfile", { communityId });
-  }, [navigation]);
 
   const renderTribeSection = () => {
     if (suggestedCommunities.length === 0) return null;
@@ -195,11 +214,11 @@ export default function DiscoverScreen({ navigation }) {
   );
 
   const renderEventsSection = () => {
-    if (exploreEvents.length === 0) return null;
+    if (slicedExploreEvents.length === 0) return null;
     return (
       <View style={styles.section}>
         <Text style={styles.sectionTitleContainer}>Recommended Events</Text>
-        {exploreEvents.slice(0, 5).map((event) => (
+        {slicedExploreEvents.map((event) => (
           <RecommendedEventCard
             key={event.id}
             event={event}
@@ -220,21 +239,21 @@ export default function DiscoverScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={EDGES}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { fontFamily: 'Manrope-Medium' }]}>Discover</Text>
         <View style={styles.headerRight}>
           <TouchableOpacity
             style={styles.iconButton}
-            onPress={() => navigation.navigate("ActivityInsights")}
-            hitSlop={{ top: 20, bottom: 20, left: 10, right: 10 }}
+            onPress={handleInsightsPress}
+            hitSlop={INSIGHTS_HITSLOP}
           >
             <BarChart3 size={26} color={COLORS.editorial.textSecondary} />
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => navigation.navigate("EditDiscoverProfile")}
-            hitSlop={{ top: 20, bottom: 20, left: 10, right: 20 }}
+            onPress={handleEditProfilePress}
+            hitSlop={AVATAR_HITSLOP}
           >
             <View style={styles.avatarContainer}>
               <User size={22} color={COLORS.editorial.textSecondary} />

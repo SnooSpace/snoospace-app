@@ -5,6 +5,7 @@
 
 const { createPool } = require("../config/db");
 const pushService = require("../services/pushService");
+const { emitSignal, getCategoryForPost } = require("../utils/signalEmitter");
 
 const pool = createPool();
 
@@ -178,6 +179,17 @@ const joinChallenge = async (req, res) => {
     console.log(
       `[Challenge] User ${userType}:${userId} joined challenge ${postId}`,
     );
+
+    // Emit behavioral signal — fire-and-forget, non-blocking
+    getCategoryForPost(pool, postId).then((category) =>
+      emitSignal(pool, {
+        userId,
+        userType,
+        eventType: 'challenge_join',
+        category,
+        metadata: { postId: parseInt(postId) },
+      })
+    ).catch(() => {});
 
     res.status(201).json({
       success: true,
@@ -591,6 +603,17 @@ const submitProof = async (req, res) => {
     console.log(
       `[Challenge] Submission ${submission.id} created for post ${postId}`,
     );
+
+    // Emit behavioral signal — fire-and-forget, non-blocking
+    getCategoryForPost(pool, postId).then((category) =>
+      emitSignal(pool, {
+        userId,
+        userType,
+        eventType: 'challenge_submit',
+        category,
+        metadata: { postId: parseInt(postId), submissionId: submission.id },
+      })
+    ).catch(() => {});
 
     res.status(201).json({
       success: true,

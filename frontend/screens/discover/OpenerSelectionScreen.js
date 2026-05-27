@@ -88,19 +88,21 @@ const OPENER_CATEGORIES = [
   },
 ];
 
+const EDGES = ["top"];
+
 export default function OpenerSelectionScreen({ navigation, route }) {
   const { onSelect } = route.params || {};
   const [selectedPrompt, setSelectedPrompt] = useState(null);
   const [response, setResponse] = useState("");
   const [step, setStep] = useState("select"); // "select" or "respond"
 
-  const handlePromptSelect = (prompt) => {
+  const handlePromptSelect = useCallback((prompt) => {
     HapticsService.triggerSelection();
     setSelectedPrompt(prompt);
     setStep("respond");
-  };
+  }, []);
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     if (!selectedPrompt || !response.trim()) return;
 
     HapticsService.triggerNotificationSuccess();
@@ -111,16 +113,16 @@ export default function OpenerSelectionScreen({ navigation, route }) {
       });
     }
     navigation.goBack();
-  };
+  }, [selectedPrompt, response, onSelect, navigation]);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (step === "respond") {
       setStep("select");
       setResponse("");
     } else {
       navigation.goBack();
     }
-  };
+  }, [step, navigation]);
 
   const canSave = selectedPrompt && response.trim().length >= 10;
 
@@ -130,7 +132,7 @@ export default function OpenerSelectionScreen({ navigation, route }) {
       <View style={styles.container}>
         <SafeAreaView
           style={{ backgroundColor: COLORS.surface }}
-          edges={["top"]}
+          edges={EDGES}
         >
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={handleBack}>
@@ -188,7 +190,7 @@ export default function OpenerSelectionScreen({ navigation, route }) {
   // Step 2: Write your response
   return (
     <View style={styles.container}>
-      <SafeAreaView style={{ backgroundColor: COLORS.surface }} edges={["top"]}>
+      <SafeAreaView style={{ backgroundColor: COLORS.surface }} edges={EDGES}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
             <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />

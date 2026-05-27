@@ -6,6 +6,7 @@
 const { createPool } = require("../config/db");
 const pushService = require("../services/pushService");
 const notificationService = require("../services/notificationService");
+const { emitSignal, getCategoryForPost } = require("../utils/signalEmitter");
 
 const pool = createPool();
 
@@ -254,6 +255,17 @@ const submitResponse = async (req, res) => {
     console.log(
       `[submitResponse] User ${userType}:${userId} submitted to prompt ${postId}`
     );
+
+    // Emit behavioral signal — fire-and-forget, non-blocking
+    getCategoryForPost(pool, postId).then((category) =>
+      emitSignal(pool, {
+        userId,
+        userType,
+        eventType: 'prompt_submit',
+        category,
+        metadata: { postId: parseInt(postId), submissionId: submission.id },
+      })
+    ).catch(() => {});
 
     res.status(201).json({
       success: true,

@@ -52,6 +52,8 @@ const getGoalStyle = (goal) => {
   return GOAL_COLORS.default;
 };
 
+const EDGES = ["top"];
+
 export default function ProfileFeedScreen({ route, navigation }) {
   const { event } = route.params || {};
   const [attendees, setAttendees] = useState([]);
@@ -61,12 +63,6 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const [selectedContent, setSelectedContent] = useState(null);
   const [activeFilters, setActiveFilters] = useState({});
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
-
-  useEffect(() => {
-    if (event) {
-      loadAttendees();
-    }
-  }, [event, activeFilters, loadAttendees]);
 
   const loadAttendees = useCallback(async (filters = activeFilters) => {
     try {
@@ -88,6 +84,12 @@ export default function ProfileFeedScreen({ route, navigation }) {
       setLoading(false);
     }
   }, [event, activeFilters]);
+
+  useEffect(() => {
+    if (event) {
+      loadAttendees();
+    }
+  }, [event, activeFilters, loadAttendees]);
 
   const currentAttendee = attendees[currentIndex];
 
@@ -140,6 +142,18 @@ export default function ProfileFeedScreen({ route, navigation }) {
     handleNext();
   }, [name, handleNext]);
 
+  const handleBack = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
+
+  const handleOpenFilters = useCallback(() => {
+    setFilterSheetVisible(true);
+  }, []);
+
+  const handleCloseFilters = useCallback(() => {
+    setFilterSheetVisible(false);
+  }, []);
+
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -153,7 +167,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={handleBack}
             style={styles.backBtn}
           >
             <ArrowLeft size={26} color={COLORS.editorial.textSecondary} />
@@ -169,18 +183,18 @@ export default function ProfileFeedScreen({ route, navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={EDGES}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={handleBack}
           style={styles.backBtn}
         >
           <ArrowLeft size={26} color={COLORS.editorial.textSecondary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Discover</Text>
         <TouchableOpacity
-          onPress={() => setFilterSheetVisible(true)}
+          onPress={handleOpenFilters}
           style={styles.filterBtn}
         >
           <SlidersHorizontal size={26} color={COLORS.editorial.textSecondary} />
@@ -218,7 +232,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
                 style={[
                   styles.chip,
                   gender.toLowerCase() === "binary"
-                    ? { backgroundColor: "#E2E8F1" }
+                    ? styles.binaryGenderChip
                     : styles.genderChip,
                 ]}
               >
@@ -226,7 +240,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
                   style={[
                     styles.chipText,
                     gender.toLowerCase() === "binary"
-                      ? { color: "#2F3A55" }
+                      ? styles.binaryGenderChipText
                       : styles.genderChipText,
                   ]}
                 >
@@ -238,7 +252,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
 
           {/* Bottom Row: Goals */}
           {goalBadges.length > 0 && (
-            <View style={[styles.vitalsRow, { marginTop: 20 }]}>
+            <View style={[styles.vitalsRow, styles.marginTop20]}>
               {goalBadges.map((badge, i) => {
                 const goalStyle = getGoalStyle(badge);
                 return (
@@ -294,7 +308,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
           </View>
         )}
 
-        <View style={{ height: 120 }} />
+        <View style={styles.bottomSpacer} />
       </ScrollView>
 
       {/* Floating Action Bar */}
@@ -310,7 +324,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
       {filterSheetVisible && (
         <DiscoverFilterSheet
           visible={filterSheetVisible}
-          onClose={() => setFilterSheetVisible(false)}
+          onClose={handleCloseFilters}
           onApply={setActiveFilters}
           initialFilters={activeFilters}
         />
@@ -604,5 +618,17 @@ const styles = StyleSheet.create({
   connectButtonText: {
     ...TYPOGRAPHY.button,
     fontSize: 16,
+  },
+  binaryGenderChip: {
+    backgroundColor: "#E2E8F1",
+  },
+  binaryGenderChipText: {
+    color: "#2F3A55",
+  },
+  marginTop20: {
+    marginTop: 20,
+  },
+  bottomSpacer: {
+    height: 120,
   },
 });

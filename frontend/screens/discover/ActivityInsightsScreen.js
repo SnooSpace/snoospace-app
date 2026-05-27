@@ -1,10 +1,20 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, RefreshControl, Alert, Animated, Pressable } from "react-native";
+import React, { useState, useEffect, useCallback } from "react";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, RefreshControl, Alert, Pressable } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  withSequence,
+  withRepeat,
+  withDelay,
+  useAnimatedReaction,
+  runOnJS
+} from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { getAuthToken } from "../../api/auth";
-import { apiGet, apiPost } from "../../api/client";
+import { apiGet } from "../../api/client";
 import { COLORS, FONTS } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
 import SnooLoader from "../../components/ui/SnooLoader";
@@ -15,35 +25,44 @@ import {
   ChartNoAxesColumn,
   Users,
   ChevronRight,
-  User,
-  Coffee,
   Rocket,
 } from "lucide-react-native";
 
-// Helper for counting numbers
-const CountingNumber = ({ value, duration = 300 }) => {
+const EDGES = ["top"];
+
+const formatTimeAgo = (timestamp) => {
+  if (!timestamp) return "Recently";
+  const now = new Date();
+  const date = new Date(timestamp);
+  const diff = Math.floor((now - date) / 1000);
+
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 172800) return "Yesterday";
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return "This week";
+};
+
+// Helper for counting numbers running on UI thread via Reanimated timing
+const CountingNumber = React.memo(({ value, duration = 300 }) => {
   const [displayValue, setDisplayValue] = useState(0);
-  const countRef = useRef(new Animated.Value(0)).current;
+  const count = useSharedValue(0);
 
   useEffect(() => {
-    countRef.setValue(0);
-    const listener = countRef.addListener(({ value }) => {
-      setDisplayValue(Math.floor(value));
-    });
+    count.value = 0;
+    count.value = withTiming(value || 0, { duration });
+  }, [value, duration]);
 
-    Animated.timing(countRef, {
-      toValue: value || 0,
-      duration: duration,
-      useNativeDriver: false, // Cannot use native driver for listeners that update state
-    }).start();
-
-    return () => {
-      countRef.removeListener(listener);
-    };
-  }, [value]);
+  useAnimatedReaction(
+    () => count.value,
+    (nextVal) => {
+      runOnJS(setDisplayValue)(Math.floor(nextVal));
+    }
+  );
 
   return <Text style={styles.statNumber}>{displayValue}</Text>;
-};
+});
 
 export default function ActivityInsightsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -52,79 +71,18 @@ export default function ActivityInsightsScreen({ navigation }) {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
 
-  // Animation values
-  const card1Opacity = useRef(new Animated.Value(0)).current;
-  const card1TranslateY = useRef(new Animated.Value(8)).current;
-  const card2Opacity = useRef(new Animated.Value(0)).current;
-  const card2TranslateY = useRef(new Animated.Value(8)).current;
-  const card1Scale = useRef(new Animated.Value(1)).current;
-  const card2Scale = useRef(new Animated.Value(1)).current;
+  // Animation values using high-performance useSharedValue
+  const card1Opacity = useSharedValue(0);
+  const card1TranslateY = useSharedValue(8);
+  const card2Opacity = useSharedValue(0);
+  const card2TranslateY = useSharedValue(8);
+  const card1Scale = useSharedValue(1);
+  const card2Scale = useSharedValue(1);
 
-  const sectionOpacity = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const sectionOpacity = useSharedValue(0);
+  const pulseAnim = useSharedValue(1);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-    }, []),
-  );
-
-  useEffect(() => {
-    if (!loading) {
-      // Trigger card load animations
-      Animated.stagger(80, [
-        Animated.parallel([
-          Animated.timing(card1Opacity, {
-            toValue: 1,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-          Animated.timing(card1TranslateY, {
-            toValue: 0,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-        ]),
-        Animated.parallel([
-          Animated.timing(card2Opacity, {
-            toValue: 1,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-          Animated.timing(card2TranslateY, {
-            toValue: 0,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-        ]),
-      ]).start(() => {
-        // Section fade-in
-        Animated.timing(sectionOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
-      });
-
-      // Infinite pulse animation for empty state icon
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 0.96,
-            duration: 1250,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 1250,
-            useNativeDriver: true,
-          }),
-        ]),
-      ).start();
-    }
-  }, [loading]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getAuthToken();
@@ -149,44 +107,49 @@ export default function ActivityInsightsScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
-  const handleRefresh = () => {
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData]),
+  );
+
+  useEffect(() => {
+    if (!loading) {
+      // Trigger card load animations using native-backed timing staggers
+      card1Opacity.value = withTiming(1, { duration: 400 });
+      card1TranslateY.value = withTiming(0, { duration: 400 });
+
+      card2Opacity.value = withDelay(80, withTiming(1, { duration: 400 }));
+      card2TranslateY.value = withDelay(80, withTiming(0, { duration: 400 }));
+
+      // Section fade-in
+      sectionOpacity.value = withDelay(480, withTiming(1, { duration: 300 }));
+
+      // Infinite pulse animation for empty state icon offloaded to native thread
+      pulseAnim.value = withRepeat(
+        withTiming(0.96, { duration: 1250 }),
+        -1,
+        true
+      );
+    }
+  }, [loading]);
+
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
     loadData();
-  };
+  }, [loadData]);
 
-  const handleCardPress = (scaleValue) => {
+  const handleCardPress = useCallback((scaleValue) => {
     HapticsService.triggerImpactLight();
-    Animated.sequence([
-      Animated.timing(scaleValue, {
-        toValue: 0.97,
-        duration: 80,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleValue, {
-        toValue: 1,
-        friction: 4,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
+    scaleValue.value = withSequence(
+      withTiming(0.97, { duration: 80 }),
+      withSpring(1, { damping: 12, stiffness: 120 })
+    );
+  }, []);
 
-  const formatTimeAgo = (timestamp) => {
-    if (!timestamp) return "Recently";
-    const now = new Date();
-    const date = new Date(timestamp);
-    const diff = Math.floor((now - date) / 1000);
-
-    if (diff < 60) return "just now";
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-    if (diff < 172800) return "Yesterday";
-    if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
-    return "This week";
-  };
-
-  const getActivityIcon = (type) => {
+  const getActivityIcon = useCallback((type) => {
     switch (type) {
       case "profile_view":
         return <Eye size={18} color={COLORS.textSecondary} strokeWidth={1.5} />;
@@ -203,37 +166,25 @@ export default function ActivityInsightsScreen({ navigation }) {
           <Rocket size={18} color={COLORS.textSecondary} strokeWidth={1.5} />
         );
     }
-  };
+  }, []);
 
   // Staggered Row Component
-  const ActivityRow = ({ activity, index }) => {
-    const rowOpacity = useRef(new Animated.Value(0)).current;
-    const rowTranslateX = useRef(new Animated.Value(-6)).current;
+  const ActivityRow = React.memo(({ activity, index }) => {
+    const rowOpacity = useSharedValue(0);
+    const rowTranslateX = useSharedValue(-6);
 
     useEffect(() => {
-      Animated.delay(index * 40).start(() => {
-        Animated.parallel([
-          Animated.timing(rowOpacity, {
-            toValue: 1,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-          Animated.timing(rowTranslateX, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }),
-        ]).start();
-      });
+      rowOpacity.value = withDelay(index * 40, withTiming(1, { duration: 300 }));
+      rowTranslateX.value = withDelay(index * 40, withTiming(0, { duration: 300 }));
     }, [index]);
 
+    const animatedStyle = useAnimatedStyle(() => ({
+      opacity: rowOpacity.value,
+      transform: [{ translateX: rowTranslateX.value }],
+    }));
+
     return (
-      <Animated.View
-        style={[
-          styles.activityRow,
-          { opacity: rowOpacity, transform: [{ translateX: rowTranslateX }] },
-        ]}
-      >
+      <Animated.View style={[styles.activityRow, animatedStyle]}>
         <View style={styles.activityIconContainer}>
           {getActivityIcon(activity.type)}
         </View>
@@ -247,7 +198,31 @@ export default function ActivityInsightsScreen({ navigation }) {
         </View>
       </Animated.View>
     );
-  };
+  });
+
+  const card1AnimatedStyle = useAnimatedStyle(() => ({
+    opacity: card1Opacity.value,
+    transform: [
+      { translateY: card1TranslateY.value },
+      { scale: card1Scale.value },
+    ],
+  }));
+
+  const card2AnimatedStyle = useAnimatedStyle(() => ({
+    opacity: card2Opacity.value,
+    transform: [
+      { translateY: card2TranslateY.value },
+      { scale: card2Scale.value },
+    ],
+  }));
+
+  const sectionAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: sectionOpacity.value,
+  }));
+
+  const pulseAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseAnim.value }],
+  }));
 
   if (loading) {
     return (
@@ -260,7 +235,7 @@ export default function ActivityInsightsScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={EDGES}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -282,18 +257,7 @@ export default function ActivityInsightsScreen({ navigation }) {
       >
         {/* Stats Cards */}
         <View style={styles.statsRow}>
-          <Animated.View
-            style={[
-              {
-                flex: 1,
-                opacity: card1Opacity,
-                transform: [
-                  { translateY: card1TranslateY },
-                  { scale: card1Scale },
-                ],
-              },
-            ]}
-          >
+          <Animated.View style={[{ flex: 1 }, card1AnimatedStyle]}>
             <Pressable
               onPress={() => handleCardPress(card1Scale)}
               style={({ pressed }) => [
@@ -312,18 +276,7 @@ export default function ActivityInsightsScreen({ navigation }) {
             </Pressable>
           </Animated.View>
 
-          <Animated.View
-            style={[
-              {
-                flex: 1,
-                opacity: card2Opacity,
-                transform: [
-                  { translateY: card2TranslateY },
-                  { scale: card2Scale },
-                ],
-              },
-            ]}
-          >
+          <Animated.View style={[{ flex: 1 }, card2AnimatedStyle]}>
             <Pressable
               onPress={() => handleCardPress(card2Scale)}
               style={({ pressed }) => [
@@ -344,12 +297,12 @@ export default function ActivityInsightsScreen({ navigation }) {
         </View>
 
         {/* Recent Activity */}
-        <Animated.View style={[styles.section, { opacity: sectionOpacity }]}>
+        <Animated.View style={[styles.section, sectionAnimatedStyle]}>
           <Text style={styles.sectionTitle}>Recent Activity</Text>
 
           {recentActivity.length === 0 ? (
             <View style={styles.emptyState}>
-              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+              <Animated.View style={pulseAnimatedStyle}>
                 <ChartNoAxesColumn size={48} color={COLORS.textSecondary} />
               </Animated.View>
               <Text style={styles.emptyText}>No recent activity</Text>

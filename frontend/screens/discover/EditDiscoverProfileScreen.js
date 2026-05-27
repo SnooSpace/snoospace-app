@@ -63,6 +63,8 @@ const GOAL_BADGE_PRESETS = [
   "Looking for teammates",
 ];
 
+const EDGES = ["top"];
+
 export default function EditDiscoverProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,15 +86,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   const imageUploaderRef = useRef(null);
   const hasLoadedRef = useRef(false);
 
-  // Only load profile once on mount, not on every focus
-  useEffect(() => {
-    if (!hasLoadedRef.current) {
-      hasLoadedRef.current = true;
-      loadProfile();
-    }
-  }, []);
-
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getAuthToken();
@@ -140,9 +134,17 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const hasChanges = () => {
+  // Only load profile once on mount, not on every focus
+  useEffect(() => {
+    if (!hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+      loadProfile();
+    }
+  }, [loadProfile]);
+
+  const hasChanges = useCallback(() => {
     if (!initialState) return false;
     return (
       JSON.stringify(photos) !== JSON.stringify(initialState.photos) ||
@@ -151,7 +153,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       showPronouns !== initialState.showPronouns ||
       appearInDiscover !== initialState.appearInDiscover
     );
-  };
+  }, [photos, goalBadges, openers, showPronouns, appearInDiscover, initialState]);
 
   // Handle back button with unsaved changes confirmation
   const handleBackPress = useCallback(() => {
@@ -204,7 +206,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     return () => backHandler.remove();
   }, [handleBackPress]);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     // Validation
     if (photos.length < 3) {
       Alert.alert(
@@ -292,15 +294,26 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     } finally {
       setSaving(false);
     }
-  };
+  }, [
+    name,
+    age,
+    gender,
+    pronouns,
+    showPronouns,
+    photos,
+    goalBadges,
+    openers,
+    appearInDiscover,
+    navigation,
+  ]);
 
   // ImageUploader callback - receives array of image URIs
-  const handlePhotosChange = (newPhotos) => {
+  const handlePhotosChange = useCallback((newPhotos) => {
     setPhotos(newPhotos);
     HapticsService.triggerSelection();
-  };
+  }, []);
 
-  const handleAddOpener = () => {
+  const handleAddOpener = useCallback(() => {
     if (openers.length >= 3) {
       Alert.alert(
         "Maximum Openers",
@@ -310,19 +323,21 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     }
     navigation.navigate("OpenerSelection", {
       onSelect: (opener) => {
-        setOpeners([...openers, opener]);
+        setOpeners((prev) => [...prev, opener]);
       },
     });
-  };
+  }, [navigation, openers.length]);
 
-  const handleRemoveOpener = (index) => {
-    const newOpeners = [...openers];
-    newOpeners.splice(index, 1);
-    setOpeners(newOpeners);
+  const handleRemoveOpener = useCallback((index) => {
+    setOpeners((prev) => {
+      const newOpeners = [...prev];
+      newOpeners.splice(index, 1);
+      return newOpeners;
+    });
     HapticsService.triggerSelection();
-  };
+  }, []);
 
-  const toggleGoal = (goal) => {
+  const toggleGoal = useCallback((goal) => {
     HapticsService.triggerSelection();
     setGoalBadges((prev) => {
       if (prev.includes(goal)) {
@@ -335,16 +350,16 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         return [...prev, goal];
       }
     });
-  };
+  }, []);
 
-  const getCompletionState = () => {
+  const getCompletionState = useCallback(() => {
     let stepsTotal = 4; // Photos, Identity(done), Goals, Openers
     let stepsDone = 1; // Identity is mostly auto-filled/done
     if (photos.length >= 3) stepsDone++;
     if (goalBadges.length > 0) stepsDone++;
     if (openers.length > 0) stepsDone++;
     return { stepsDone, stepsTotal };
-  };
+  }, [photos.length, goalBadges.length, openers.length]);
 
   const { stepsDone, stepsTotal } = getCompletionState();
   const completionPercentage = (stepsDone / stepsTotal) * 100;
@@ -365,7 +380,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       {/* Header with background covering status bar */}
       <SafeAreaView
         style={{ backgroundColor: CONSTANTS_COLORS.surface }}
-        edges={["top"]}
+        edges={EDGES}
       >
         <View style={styles.header}>
           <View style={styles.headerTopRow}>

@@ -34,7 +34,8 @@ const requireBehavioralConsent = async (req, res, next) => {
       [userId, userType]
     );
 
-    const hasConsent = result.rows[0]?.behavioral_tracking_consent ?? false;
+    // Default: true (opt-out model — tracking is ON unless the user explicitly revokes consent)
+    const hasConsent = result.rows[0]?.behavioral_tracking_consent ?? true;
 
     if (!hasConsent) {
       return res.status(200).json({ status: "skipped", reason: "no_consent" });
