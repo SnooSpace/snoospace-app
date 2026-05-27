@@ -425,17 +425,12 @@ export default function YourEventsScreen({ navigation }) {
   };
 
   const handleEventPress = (item) => {
-    // For Going tab events (registered), go directly to ticket view
-    if (activeTab === "Going" && item.registration_status === "registered") {
-      navigation.navigate("TicketView", { eventId: item.id });
-    } else {
-      // For Interested/Past, go to event details
-      navigation.navigate("EventDetails", {
-        eventId: item.id,
-        eventData: item,
-        isRegistered: activeTab === "Going" || activeTab === "Past",
-      });
-    }
+    // Tapping the card always opens EventDetails screen
+    navigation.navigate("EventDetails", {
+      eventId: item.id,
+      eventData: item,
+      isRegistered: activeTab === "Going" || activeTab === "Past" || item.registration_status === "registered" || item.registration_status === "attended" || item.registration_status === "confirmed",
+    });
   };
 
   const handleRemoveInterest = async (item) => {

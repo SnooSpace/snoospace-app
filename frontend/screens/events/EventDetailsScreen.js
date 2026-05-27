@@ -12,6 +12,7 @@ import {
   Share,
   Modal,
 } from "react-native";
+import { ScrollView as GestureScrollView } from "react-native-gesture-handler";
 import { StatusBar, setStatusBarStyle } from "expo-status-bar";
 import {
   ArrowLeft,
@@ -181,6 +182,10 @@ const EventDetailsScreen = ({ route, navigation }) => {
   const { eventId, eventData: initialData } = route.params || {};
   const insets = useSafeAreaInsets();
 
+  const scrollViewRef = useRef(null);
+  const attendeeSectionYRef = useRef(0);
+  const [contentContainerY, setContentContainerY] = useState(0);
+
   // Use initialData for quick display, but always load full details from API
   const [event, setEvent] = useState(initialData || null);
   const [loading, setLoading] = useState(true); // Always show loading initially
@@ -209,6 +214,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
   const [totalPublicCapacity, setTotalPublicCapacity] = useState(null);
   const [totalCapacity, setTotalCapacity] = useState(null);
   const [isMostlyInviteOnly, setIsMostlyInviteOnly] = useState(false);
+  const [parentScrollEnabled, setParentScrollEnabled] = useState(true);
   // Custom toast for locked View Attendees
   const [lockedToastVisible, setLockedToastVisible] = useState(false);
   const lockedToastOpacity = useRef(new Animated.Value(0)).current;
@@ -317,6 +323,28 @@ const EventDetailsScreen = ({ route, navigation }) => {
       setLoading(false);
     }
   };
+
+  const handleAttendeeSectionLayout = (e) => {
+    attendeeSectionYRef.current = e.nativeEvent.layout.y;
+  };
+
+  useEffect(() => {
+    if (route.params?.scrollToAttendees && !loading && event) {
+      const timer = setTimeout(() => {
+        const scrollEl = scrollViewRef.current;
+        if (scrollEl) {
+          const scrollToMethod = scrollEl.scrollTo || (scrollEl.getNode && scrollEl.getNode()?.scrollTo);
+          if (scrollToMethod) {
+            scrollToMethod.call(scrollEl, { 
+              y: contentContainerY + attendeeSectionYRef.current - 80, // slightly offset to center nicely
+              animated: true 
+            });
+          }
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, event, contentContainerY, route.params?.scrollToAttendees]);
 
   const formatDateTime = (startDate, endDate) => {
     if (!startDate) return "";
@@ -778,7 +806,9 @@ const EventDetailsScreen = ({ route, navigation }) => {
           </View>
 
           <Animated.ScrollView
+            ref={scrollViewRef}
             style={styles.scrollView}
+            scrollEnabled={parentScrollEnabled}
             showsVerticalScrollIndicator={false}
             bounces={false}
             onScroll={Animated.event(
@@ -790,7 +820,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
             {/* Banner Section */}
             <View style={styles.bannerContainer}>
               {banners.length > 0 ? (
-                <ScrollView
+                <GestureScrollView
                   horizontal
                   pagingEnabled
                   nestedScrollEnabled={true}
@@ -798,6 +828,10 @@ const EventDetailsScreen = ({ route, navigation }) => {
                   snapToInterval={SCREEN_WIDTH}
                   disableIntervalMomentum={true}
                   showsHorizontalScrollIndicator={false}
+                  style={{ width: SCREEN_WIDTH, height: BANNER_HEIGHT }}
+                  contentContainerStyle={{ width: SCREEN_WIDTH * banners.length, height: BANNER_HEIGHT }}
+                  onScrollBeginDrag={() => setParentScrollEnabled(false)}
+                  onScrollEndDrag={() => setParentScrollEnabled(true)}
                   onScroll={(e) => {
                     const xOffset = e.nativeEvent.contentOffset.x;
                     const index = Math.round(xOffset / SCREEN_WIDTH);
@@ -811,7 +845,9 @@ const EventDetailsScreen = ({ route, navigation }) => {
                       e.nativeEvent.contentOffset.x / SCREEN_WIDTH,
                     );
                     setCurrentBannerIndex(index);
+                    setParentScrollEnabled(true);
                   }}
+                  disallowInterruption={true}
                 >
                   {banners.map((banner, index) => (
                     <View key={index} style={styles.bannerImageContainer}>
@@ -827,7 +863,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
                       />
                     </View>
                   ))}
-                </ScrollView>
+                </GestureScrollView>
               ) : (
                 <View>
                   <LinearGradient
@@ -1171,7 +1207,12 @@ const EventDetailsScreen = ({ route, navigation }) => {
             </View>
 
             {/* Content Section */}
-            <View style={styles.contentContainer}>
+            <View 
+              style={styles.contentContainer}
+              onLayout={(e) => {
+                setContentContainerY(e.nativeEvent.layout.y);
+              }}
+            >
               {/* About Section */}
               {event.description && (
                 <View style={styles.section}>
@@ -1416,7 +1457,10 @@ const EventDetailsScreen = ({ route, navigation }) => {
 
               {/* Who's Going / Guest List Section */}
               {event.attendees && event.attendees.length > 0 && (
-                <View style={styles.section}>
+                <View 
+                  style={styles.section}
+                  onLayout={handleAttendeeSectionLayout}
+                >
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                     <Text style={styles.sectionTitle}>Who's Going</Text>
                     {event.attendee_count > 0 && (
@@ -1489,7 +1533,10 @@ const EventDetailsScreen = ({ route, navigation }) => {
 
               {/* Enhanced View Attendees Section - always visible for members */}
               {viewAttendeesState.visible && (
-                <View style={styles.viewAttendeesSection}>
+                <View 
+                  style={styles.viewAttendeesSection}
+                  onLayout={!event.attendees || event.attendees.length === 0 ? handleAttendeeSectionLayout : undefined}
+                >
                   {/* View Attendees Button */}
                   <TouchableOpacity
                     style={[

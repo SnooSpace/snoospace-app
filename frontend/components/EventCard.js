@@ -7,6 +7,8 @@ import {
   StyleSheet,
   Dimensions,
 } from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
+import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   Calendar,
@@ -19,6 +21,7 @@ import {
   CheckCircle2,
   Check,
   MoveRight,
+  QrCode,
 } from "lucide-react-native";
 import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../constants/theme";
 import { getGradientForName, getInitials } from "../utils/AvatarGenerator";
@@ -92,6 +95,9 @@ export default function EventCard({
   );
   const [userRole, setUserRole] = useState(null);
   const [interestLoading, setInterestLoading] = useState(false);
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(CARD_WIDTH);
+  const navigation = useNavigation();
 
   // Ref to track if we're the source of an EventBus event (prevent self-listening)
   const isEmittingRef = useRef(false);
@@ -173,8 +179,14 @@ export default function EventCard({
     !is_invited &&
     !isRegistered;
 
-  // Get display image - prioritize carousel, then banner_url
-  const displayImage = banner_carousel?.[0]?.image_url || banner_url;
+  // Get banners array - prioritize carousel, then banner_url
+  const banners = banner_carousel?.length > 0
+    ? banner_carousel
+    : event?.banners?.length > 0
+      ? event.banners
+      : banner_url
+        ? [{ image_url: banner_url }]
+        : [];
 
   // Format date if not pre-formatted
   const displayDate =
@@ -251,6 +263,19 @@ export default function EventCard({
     onInterestedPress?.(event);
   };
 
+  const handleQrPress = () => {
+    HapticsService.triggerImpactLight();
+    navigation.navigate("TicketView", { eventId: id });
+  };
+
+  const handleAttendeesPress = () => {
+    navigation.navigate("EventDetails", {
+      eventId: id,
+      eventData: event,
+      scrollToAttendees: true,
+    });
+  };
+
   const getLowestPrice = () => {
     if (!event) return 0;
 
@@ -300,11 +325,7 @@ export default function EventCard({
   const { month, day } = parseDisplayDate(displayDate);
 
   return (
-    <TouchableOpacity
-      style={[styles.container, style]}
-      onPress={() => onPress?.(event)}
-      activeOpacity={0.95}
-    >
+    <View style={[styles.container, style]}>
       {/* Event Label */}
       <View style={styles.eventLabel}>
         <Calendar size={13} color={COLORS.primary} strokeWidth={2} />
@@ -314,13 +335,57 @@ export default function EventCard({
       {/* Main Card */}
       <View style={styles.card}>
         {/* Banner Image */}
-        <View style={styles.imageContainer}>
-          {displayImage ? (
-            <Image
-              source={{ uri: displayImage }}
-              style={styles.bannerImage}
-              resizeMode="cover"
-            />
+        <View 
+          style={styles.imageContainer}
+          onLayout={(e) => {
+            setContainerWidth(e.nativeEvent.layout.width);
+          }}
+        >
+          {banners.length > 0 ? (
+            banners.length > 1 ? (
+              <View style={{ flex: 1 }}>
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onMomentumScrollEnd={(e) => {
+                    const index = Math.round(
+                      e.nativeEvent.contentOffset.x / containerWidth,
+                    );
+                    setCurrentBannerIndex(index);
+                  }}
+                  nestedScrollEnabled={true}
+                  disallowInterruption={true}
+                >
+                  {banners.map((banner, index) => (
+                    <Image
+                      key={index}
+                      source={{ uri: banner.image_url || banner.url }}
+                      style={{ width: containerWidth, height: "100%" }}
+                      resizeMode="cover"
+                    />
+                  ))}
+                </ScrollView>
+                {/* Banner Indicator Dots */}
+                <View style={styles.bannerDotsContainer}>
+                  {banners.map((_, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.bannerDot,
+                        currentBannerIndex === index && styles.bannerDotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <Image
+                source={{ uri: banners[0].image_url || banners[0].url }}
+                style={styles.bannerImage}
+                resizeMode="cover"
+              />
+            )
           ) : (
             <LinearGradient
               colors={COLORS.primaryGradient}
@@ -338,7 +403,6 @@ export default function EventCard({
             <Text style={styles.dateBadgeNumber}>{day}</Text>
           </View>
 
-
           {/* Gradient Overlay */}
           <LinearGradient
             colors={["transparent", "rgba(0,0,0,0.4)"]}
@@ -348,89 +412,114 @@ export default function EventCard({
 
         {/* Content */}
         <View style={styles.content}>
-          {/* Organizer/Community Row */}
-          <TouchableOpacity
-            style={styles.communityRow}
-            onPress={() => {
-              /* Navigate to community profile */
-            }}
-          >
-            {hasValidPhoto ? (
-              <Image
-                source={{ uri: community_logo }}
-                style={styles.communityAvatar}
-              />
-            ) : (
-              <LinearGradient
-                colors={getGradientForName(community_name || "Community")}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[styles.communityAvatar, styles.communityAvatarGradient]}
+          {/* Organizer/Community Row + QR Ticket shortcut */}
+          <View style={styles.communityQrRow}>
+            <TouchableOpacity
+              style={styles.communityRow}
+              onPress={() => {
+                if (community_id) {
+                  navigation.navigate("CommunityPublicProfile", { communityId: community_id });
+                }
+              }}
+            >
+              {hasValidPhoto ? (
+                <Image
+                  source={{ uri: community_logo }}
+                  style={styles.communityAvatar}
+                />
+              ) : (
+                <LinearGradient
+                  colors={getGradientForName(community_name || "Community")}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[styles.communityAvatar, styles.communityAvatarGradient]}
+                >
+                  <Text style={styles.communityInitials}>
+                    {getInitials(community_name || "C")}
+                  </Text>
+                </LinearGradient>
+              )}
+              <Text style={styles.communityName} numberOfLines={1}>
+                {community_name}
+              </Text>
+              {is_following_community && (
+                <View style={styles.followingBadge}>
+                  <Text style={styles.followingText}>Following</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            {isRegistered && (
+              <TouchableOpacity
+                onPress={handleQrPress}
+                style={styles.qrButton}
+                activeOpacity={0.7}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={styles.communityInitials}>
-                  {getInitials(community_name || "C")}
-                </Text>
-              </LinearGradient>
+                <QrCode size={20} color={COLORS.primary} strokeWidth={2} />
+              </TouchableOpacity>
             )}
-            <Text style={styles.communityName} numberOfLines={1}>
-              {community_name}
+          </View>
+
+          {/* Clickable Content Area */}
+          <TouchableOpacity
+            activeOpacity={0.9}
+            onPress={() => onPress?.(event)}
+          >
+            {/* Title */}
+            <Text style={styles.title} numberOfLines={2}>
+              {title}
             </Text>
-            {is_following_community && (
-              <View style={styles.followingBadge}>
-                <Text style={styles.followingText}>Following</Text>
+
+            {/* Metadata Grid */}
+            <View style={styles.metaGrid}>
+              {/* Combined Date & Time Row */}
+              <View style={styles.metaItem}>
+                <Clock size={14} color={COLORS.textSecondary} strokeWidth={2} />
+                <Text style={styles.metaText}>{displayDate} • {displayTime}</Text>
               </View>
-            )}
+
+              {locationName && (
+                <View style={styles.metaItem}>
+                  {event_type === "virtual" ? (
+                    <Video size={14} color={COLORS.textSecondary} strokeWidth={2} />
+                  ) : (
+                    <MapPin size={14} color={COLORS.textSecondary} strokeWidth={2} />
+                  )}
+                  <Text style={styles.metaText} numberOfLines={1}>
+                    {locationName}
+                  </Text>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
 
-          {/* Title */}
-          <Text style={styles.title} numberOfLines={2}>
-            {title}
-          </Text>
-
-          {/* Metadata Grid */}
-          <View style={styles.metaGrid}>
-            {/* Combined Date & Time Row */}
-            <View style={styles.metaItem}>
-              <Clock size={14} color={COLORS.textSecondary} strokeWidth={2} />
-              <Text style={styles.metaText}>{displayDate} • {displayTime}</Text>
+          {/* Price & Explicit View Details CTA Row */}
+          <View style={styles.priceDetailsRow}>
+            <View style={styles.priceContainer}>
+              <Text style={[styles.priceText, isFree && styles.freePriceText]}>
+                {displayPrice}
+              </Text>
             </View>
 
-            {locationName && (
-              <View style={styles.metaItem}>
-                {event_type === "virtual" ? (
-                  <Video size={14} color={COLORS.textSecondary} strokeWidth={2} />
-                ) : (
-                  <MapPin size={14} color={COLORS.textSecondary} strokeWidth={2} />
-                )}
-                <Text style={styles.metaText} numberOfLines={1}>
-                  {locationName}
-                </Text>
-              </View>
-            )}
-
-            {/* Price & Explicit View Details CTA Row */}
-            <View style={styles.priceDetailsRow}>
-              <View style={styles.priceContainer}>
-                <Text style={[styles.priceText, isFree && styles.freePriceText]}>
-                  {displayPrice}
-                </Text>
-              </View>
-
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => onPress?.(event)}
-                style={styles.viewDetailsRow}
-              >
-                <Text style={styles.viewDetailsText}>View details</Text>
-                <MoveRight size={14} color={COLORS.primary} strokeWidth={2.2} />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => onPress?.(event)}
+              style={styles.viewDetailsRow}
+            >
+              <Text style={styles.viewDetailsText}>View details</Text>
+              <MoveRight size={14} color={COLORS.primary} strokeWidth={2.2} />
+            </TouchableOpacity>
           </View>
 
           {/* Bottom Row: Attendees Stack + RSVP CTA Button */}
           <View style={styles.bottomRow}>
             {/* Attendee Stack */}
-            <View style={styles.attendeesContainer}>
+            <TouchableOpacity 
+              style={styles.attendeesContainer}
+              onPress={handleAttendeesPress}
+              activeOpacity={0.7}
+            >
               {attendee_count > 0 ? (
                 <>
                   <View style={styles.avatarStack}>
@@ -485,7 +574,7 @@ export default function EventCard({
               ) : (
                 <View style={{ height: 24 }} />
               )}
-            </View>
+            </TouchableOpacity>
 
             {/* Action CTA Button */}
             {userRole !== "community" && (
@@ -528,7 +617,7 @@ export default function EventCard({
           </View>
         </View>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -604,14 +693,48 @@ const styles = StyleSheet.create({
     right: 0,
     height: 60,
   },
+  bannerDotsContainer: {
+    position: "absolute",
+    bottom: 8,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 4,
+    zIndex: 10,
+  },
+  bannerDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.4)",
+  },
+  bannerDotActive: {
+    backgroundColor: "#FFFFFF",
+    width: 12,
+  },
   content: {
     padding: 16,
+  },
+  communityQrRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
   },
   communityRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    marginBottom: 8,
+    flex: 1,
+  },
+  qrButton: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   communityAvatar: {
     width: 20,

@@ -2,7 +2,6 @@ import React from "react";
 import { createStackNavigator, CardStyleInterpolators } from "@react-navigation/stack";
 
 import YourEventsScreen from "../screens/events/YourEventsScreen";
-import TicketViewScreen from "../screens/events/TicketViewScreen";
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
 
@@ -49,7 +48,6 @@ export default function EventsStackNavigator() {
       }}
     >
       <Stack.Screen name="YourEventsList" component={YourEventsScreenWithSwipe} />
-      <Stack.Screen name="TicketView" component={TicketViewScreen} />
     </Stack.Navigator>
   );
 }
