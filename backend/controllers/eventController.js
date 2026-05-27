@@ -619,7 +619,18 @@ const getMyEvents = async (req, res) => {
         er.registration_status,
         er.created_at as registration_date,
         (SELECT COUNT(*) FROM event_registrations er3 
-         WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')) as attendee_count
+         WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')) as attendee_count,
+        (
+          SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
+          FROM (
+            SELECT m3.name, m3.profile_photo_url
+            FROM event_registrations er3
+            INNER JOIN members m3 ON er3.member_id = m3.id
+            WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')
+            ORDER BY er3.created_at DESC
+            LIMIT 3
+          ) m2
+        ) as attendee_avatars
       FROM events e
       LEFT JOIN communities c ON e.community_id = c.id
       LEFT JOIN venues v ON e.venue_id = v.id
@@ -1230,6 +1241,17 @@ const discoverEvents = async (req, res) => {
             (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'),
             0
           ) as attendee_count,
+          (
+            SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
+            FROM (
+              SELECT m3.name, m3.profile_photo_url
+              FROM event_registrations er3
+              INNER JOIN members m3 ON er3.member_id = m3.id
+              WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')
+              ORDER BY er3.created_at DESC
+              LIMIT 3
+            ) m2
+          ) as attendee_avatars,
           CASE WHEN fc.following_id IS NOT NULL THEN 1 ELSE 0 END as is_following_community,
           -- Check if user is interested in this event
           CASE WHEN EXISTS (
@@ -2338,6 +2360,21 @@ const getEventById = async (req, res) => {
       registrationCountResult.rows[0]?.count || 0,
     );
 
+    // Fetch registered attendees preview for details screen
+    const attendeesResult = await pool.query(
+      `SELECT 
+        m.id,
+        m.name,
+        m.username,
+        m.profile_photo_url
+       FROM event_registrations er
+       JOIN members m ON er.member_id = m.id
+       WHERE er.event_id = $1 AND er.registration_status IN ('registered', 'attended', 'confirmed')
+       ORDER BY er.created_at ASC
+       LIMIT 10`,
+      [eventId],
+    );
+
     // Calculate ticket capacities
     // Public tickets: access_type is null, 'open', or anything other than 'invite_only'
     // limit_per_event NULL means unlimited
@@ -2539,6 +2576,7 @@ const getEventById = async (req, res) => {
       min_price: minPrice,
       has_hidden_tickets: hasHiddenTickets,
       all_tickets_invite_only: allTicketsInviteOnly,
+      attendees: attendeesResult.rows,
     };
 
     // Hide location details if user is not invited to invite_only public event
@@ -3006,7 +3044,18 @@ const getInterestedEvents = async (req, res) => {
         COALESCE(
           (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id AND registration_status = 'registered'),
           0
-        ) as attendee_count
+        ) as attendee_count,
+        (
+          SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
+          FROM (
+            SELECT m3.name, m3.profile_photo_url
+            FROM event_registrations er3
+            INNER JOIN members m3 ON er3.member_id = m3.id
+            WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')
+            ORDER BY er3.created_at DESC
+            LIMIT 3
+          ) m2
+        ) as attendee_avatars
       FROM event_interests ei
       INNER JOIN events e ON ei.event_id = e.id
       INNER JOIN communities c ON e.community_id = c.id
@@ -4865,7 +4914,19 @@ const getCommunityPublicEvents = async (req, res) => {
         e.virtual_link,
         e.ticket_price,
         e.is_cancelled,
-        (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status IN ('registered', 'attended', 'confirmed')) as current_attendees
+        (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status IN ('registered', 'attended', 'confirmed')) as current_attendees,
+        (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status IN ('registered', 'attended', 'confirmed')) as attendee_count,
+        (
+          SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
+          FROM (
+            SELECT m3.name, m3.profile_photo_url
+            FROM event_registrations er3
+            INNER JOIN members m3 ON er3.member_id = m3.id
+            WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')
+            ORDER BY er3.created_at DESC
+            LIMIT 3
+          ) m2
+        ) as attendee_avatars
       FROM events e
       WHERE e.creator_id = $1 ${dateFilter}
       ${orderClause}

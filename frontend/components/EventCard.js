@@ -135,7 +135,12 @@ export default function EventCard({
   }, [event?.is_interested]);
 
   // Check if user is registered for this event
-  const isRegistered = Boolean(event?.is_registered);
+  const isRegistered = Boolean(
+    event?.is_registered ||
+    event?.registration_status === "registered" ||
+    event?.registration_status === "attended" ||
+    event?.registration_status === "confirmed"
+  );
 
   if (!event) return null;
 
@@ -429,14 +434,48 @@ export default function EventCard({
               {attendee_count > 0 ? (
                 <>
                   <View style={styles.avatarStack}>
-                    {attendee_count >= 1 && (
-                      <View style={[styles.avatar, { backgroundColor: "#E5E7EB", zIndex: 3 }]} />
-                    )}
-                    {attendee_count >= 2 && (
-                      <View style={[styles.avatar, { backgroundColor: "#D1D5DB", marginLeft: -8, zIndex: 2 }]} />
-                    )}
-                    {attendee_count >= 3 && (
-                      <View style={[styles.avatar, { backgroundColor: "#9CA3AF", marginLeft: -8, zIndex: 1 }]} />
+                    {Array.isArray(event.attendee_avatars) && event.attendee_avatars.length > 0 ? (
+                      event.attendee_avatars.slice(0, 3).map((avatarData, index) => {
+                        const hasPhoto = avatarData?.profile_photo_url && /^https?:\/\//.test(avatarData.profile_photo_url);
+                        const zIndex = 3 - index;
+                        const marginLeft = index > 0 ? -8 : 0;
+                        if (hasPhoto) {
+                          return (
+                            <Image
+                              key={`attendee-avatar-${index}`}
+                              source={{ uri: avatarData.profile_photo_url }}
+                              style={[styles.avatar, { marginLeft, zIndex }]}
+                            />
+                          );
+                        } else {
+                          const initials = getInitials(avatarData?.name || "U");
+                          const gradientColors = getGradientForName(avatarData?.name || "U");
+                          return (
+                            <LinearGradient
+                              key={`attendee-avatar-${index}`}
+                              colors={gradientColors}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={[styles.avatar, styles.avatarGradient, { marginLeft, zIndex }]}
+                            >
+                              <Text style={styles.avatarInitials}>{initials}</Text>
+                            </LinearGradient>
+                          );
+                        }
+                      })
+                    ) : (
+                      // Fallback placeholders when no actual attendee profiles are loaded
+                      <>
+                        {attendee_count >= 1 && (
+                          <View style={[styles.avatar, { backgroundColor: "#E5E7EB", zIndex: 3 }]} />
+                        )}
+                        {attendee_count >= 2 && (
+                          <View style={[styles.avatar, { backgroundColor: "#D1D5DB", marginLeft: -8, zIndex: 2 }]} />
+                        )}
+                        {attendee_count >= 3 && (
+                          <View style={[styles.avatar, { backgroundColor: "#9CA3AF", marginLeft: -8, zIndex: 1 }]} />
+                        )}
+                      </>
                     )}
                   </View>
                   <Text style={styles.attendeeCount}>
@@ -682,6 +721,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: "#FFFFFF",
+  },
+  avatarGradient: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarInitials: {
+    fontSize: 10,
+    fontFamily: FONTS.medium,
+    color: "#FFFFFF",
   },
   attendeeCount: {
     fontSize: 12,

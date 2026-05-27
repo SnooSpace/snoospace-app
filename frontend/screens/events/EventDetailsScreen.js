@@ -793,7 +793,19 @@ const EventDetailsScreen = ({ route, navigation }) => {
                 <ScrollView
                   horizontal
                   pagingEnabled
+                  nestedScrollEnabled={true}
+                  decelerationRate="fast"
+                  snapToInterval={SCREEN_WIDTH}
+                  disableIntervalMomentum={true}
                   showsHorizontalScrollIndicator={false}
+                  onScroll={(e) => {
+                    const xOffset = e.nativeEvent.contentOffset.x;
+                    const index = Math.round(xOffset / SCREEN_WIDTH);
+                    if (index !== currentBannerIndex && index >= 0 && index < banners.length) {
+                      setCurrentBannerIndex(index);
+                    }
+                  }}
+                  scrollEventThrottle={16}
                   onMomentumScrollEnd={(e) => {
                     const index = Math.round(
                       e.nativeEvent.contentOffset.x / SCREEN_WIDTH,
@@ -802,7 +814,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
                   }}
                 >
                   {banners.map((banner, index) => (
-                    <View key={index}>
+                    <View key={index} style={styles.bannerImageContainer}>
                       <Image
                         source={{ uri: banner.image_url || banner.url }}
                         style={styles.bannerImage}
@@ -1401,6 +1413,79 @@ const EventDetailsScreen = ({ route, navigation }) => {
                   </View>
                 )}
               </View>
+
+              {/* Who's Going / Guest List Section */}
+              {event.attendees && event.attendees.length > 0 && (
+                <View style={styles.section}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <Text style={styles.sectionTitle}>Who's Going</Text>
+                    {event.attendee_count > 0 && (
+                      <Text style={{ fontFamily: "Manrope-Medium", fontSize: 13, color: MUTED_TEXT }}>
+                        {event.attendee_count} {event.attendee_count === 1 ? "person" : "people"}
+                      </Text>
+                    )}
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                    {event.attendees.map((attendee, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={{ alignItems: "center", width: 70 }}
+                        onPress={() => {
+                          if (currentUser?.type === "member" && attendee.id !== currentUser?.id) {
+                            navigation.navigate("MemberPublicProfile", { memberId: attendee.id });
+                          }
+                        }}
+                        disabled={currentUser?.type !== "member" || attendee.id === currentUser?.id}
+                        activeOpacity={0.7}
+                      >
+                        {attendee.profile_photo_url ? (
+                          <Image
+                            source={{ uri: attendee.profile_photo_url }}
+                            style={{ width: 50, height: 50, borderRadius: 25 }}
+                          />
+                        ) : (
+                          <LinearGradient
+                            colors={getGradientForName(attendee.name || "M")}
+                            style={{ width: 50, height: 50, borderRadius: 25, justifyContent: "center", alignItems: "center" }}
+                          >
+                            <Text style={{ fontSize: 18, color: "#FFFFFF", fontFamily: "Manrope-Bold" }}>
+                              {getInitials(attendee.name || "M")}
+                            </Text>
+                          </LinearGradient>
+                        )}
+                        <Text style={{ fontFamily: "Manrope-Regular", fontSize: 12, color: TEXT_COLOR, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
+                          {attendee.name?.split(" ")[0]}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                    {event.attendee_count > event.attendees.length && (
+                      <TouchableOpacity
+                        style={{
+                          width: 50,
+                          height: 50,
+                          borderRadius: 25,
+                          backgroundColor: "rgba(41, 98, 255, 0.08)",
+                          justifyContent: "center",
+                          alignItems: "center",
+                          borderWidth: 1,
+                          borderColor: "rgba(41, 98, 255, 0.15)",
+                          alignSelf: "flex-start",
+                        }}
+                        onPress={
+                          viewAttendeesState.locked
+                            ? triggerLockedToast
+                            : handleViewAttendees
+                        }
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ fontFamily: "Manrope-SemiBold", fontSize: 13, color: "#2962FF" }}>
+                          +{event.attendee_count - event.attendees.length}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </ScrollView>
+                </View>
+              )}
 
               {/* Enhanced View Attendees Section - always visible for members */}
               {viewAttendeesState.visible && (
@@ -2168,7 +2253,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontFamily: "Manrope-SemiBold",
+    fontFamily: "BasicCommercial-Bold",
     color: TEXT_COLOR,
     marginBottom: 12,
   },

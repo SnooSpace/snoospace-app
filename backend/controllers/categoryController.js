@@ -220,6 +220,17 @@ const getCategoryById = async (req, res) => {
         edc.is_featured,
         edc.display_order,
         COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) as attendee_count,
+        (
+          SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
+          FROM (
+            SELECT m3.name, m3.profile_photo_url
+            FROM event_registrations er3
+            INNER JOIN members m3 ON er3.member_id = m3.id
+            WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')
+            ORDER BY er3.created_at DESC
+            LIMIT 3
+          ) m2
+        ) as attendee_avatars,
         TO_CHAR(e.start_datetime, 'Dy, DD Mon') as formatted_date,
         TO_CHAR(e.start_datetime, 'HH:MI AM') as formatted_time
       FROM events e
@@ -319,6 +330,17 @@ const getDiscoverFeedV2 = async (req, res) => {
             c.logo_url as community_logo,
             edc.is_featured,
             COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) as attendee_count,
+            (
+              SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
+              FROM (
+                SELECT m3.name, m3.profile_photo_url
+                FROM event_registrations er3
+                INNER JOIN members m3 ON er3.member_id = m3.id
+                WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')
+                ORDER BY er3.created_at DESC
+                LIMIT 3
+              ) m2
+            ) as attendee_avatars,
             TO_CHAR(e.start_datetime, 'Dy, DD Mon, HH:MI AM') as formatted_date,
             TO_CHAR(e.start_datetime, 'HH:MI AM') as formatted_time
           FROM events e
@@ -403,6 +425,17 @@ const getEventsByCategory = async (req, res) => {
         c.logo_url as community_logo,
         edc.is_featured,
         COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) as attendee_count,
+        (
+          SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
+          FROM (
+            SELECT m3.name, m3.profile_photo_url
+            FROM event_registrations er3
+            INNER JOIN members m3 ON er3.member_id = m3.id
+            WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')
+            ORDER BY er3.created_at DESC
+            LIMIT 3
+          ) m2
+        ) as attendee_avatars,
         TO_CHAR(e.start_datetime, 'Dy, DD Mon, HH:MI AM') as formatted_date,
         TO_CHAR(e.start_datetime, 'HH:MI AM') as formatted_time
       FROM events e

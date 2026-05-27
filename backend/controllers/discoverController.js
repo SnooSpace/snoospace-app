@@ -113,6 +113,17 @@ const getDiscoverFeed = async (req, res) => {
             (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'),
             0
           ) as attendee_count,
+          (
+            SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
+            FROM (
+              SELECT m3.name, m3.profile_photo_url
+              FROM event_registrations er3
+              INNER JOIN members m3 ON er3.member_id = m3.id
+              WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')
+              ORDER BY er3.created_at DESC
+              LIMIT 3
+            ) m2
+          ) as attendee_avatars,
           'event' as item_type,
           -- Events get higher base score to appear in feed
           50 + (COALESCE((SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id), 0) * 3) as score
@@ -164,6 +175,7 @@ const getDiscoverFeed = async (req, res) => {
           community_username: event.community_username,
           community_logo: event.community_logo,
           attendee_count: parseInt(event.attendee_count),
+          attendee_avatars: event.attendee_avatars,
           score: event.score,
           // Events take 2 columns in grid (stand out)
           grid_span: 2,
