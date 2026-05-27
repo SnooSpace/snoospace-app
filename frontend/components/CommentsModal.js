@@ -22,8 +22,7 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
 } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
-import { X, Send, Heart, CornerUpLeft } from "lucide-react-native";
+import { X, Send, Heart, CornerUpLeft, Trash2, ChevronUp, ChevronDown } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete } from "../api/client";
 import { getAuthToken, getAuthEmail } from "../api/auth";
 import { searchMembers } from "../api/search";
@@ -73,6 +72,7 @@ const CommentsModal = ({
   const [replyingTo, setReplyingTo] = useState(null); // {id, name} of parent comment
   const [collapsedThreads, setCollapsedThreads] = useState({}); // {commentId: boolean}
   const [focusTrigger, setFocusTrigger] = useState(0); // Trigger to focus input
+  const [commentToDelete, setCommentToDelete] = useState(null);
 
   const prevPostIdRef = useRef(null);
   const prevVisibleRef = useRef(false);
@@ -299,46 +299,9 @@ const CommentsModal = ({
 
   const handleDeleteComment = useCallback(
     (commentId) => {
-      Alert.alert(
-        "Delete Comment",
-        "Are you sure you want to delete this comment?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Delete",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                const token = await getAuthToken();
-                await apiDelete(
-                  `${replyBaseRoute}/${commentId}`,
-                  null,
-                  15000,
-                  token,
-                );
-
-                setComments((prev) => prev.filter((c) => c.id !== commentId));
-
-                const newCount = Math.max(0, comments.length - 1);
-                if (onCommentCountChange) {
-                  onCommentCountChange(newCount);
-                }
-                // Emit event for other screens to update
-                EventBus.emit("post-comment-updated", {
-                  postId: postId,
-                  commentCount: newCount,
-                });
-              } catch (error) {
-                console.error("Error deleting comment:", error);
-                Alert.alert("Error", "Failed to delete comment");
-                loadComments();
-              }
-            },
-          },
-        ],
-      );
+      setCommentToDelete(commentId);
     },
-    [comments, replyBaseRoute, onCommentCountChange, postId, loadComments],
+    [],
   );
 
   const handleCommentInputChange = (text) => {
@@ -675,10 +638,10 @@ const CommentsModal = ({
                   onPress={() => handleDeleteComment(item.id)}
                   style={styles.deleteButton}
                 >
-                  <Ionicons
-                    name="trash-outline"
+                  <Trash2
                     size={16}
                     color={COLORS.textSecondary}
+                    strokeWidth={2}
                   />
                 </TouchableOpacity>
               ) : null}
@@ -764,11 +727,19 @@ const CommentsModal = ({
                   style={styles.showRepliesButton}
                   onPress={() => toggleThreadCollapse(item.id)}
                 >
-                  <Ionicons
-                    name={isExpanded ? "chevron-up" : "chevron-down"}
-                    size={14}
-                    color={COLORS.primary}
-                  />
+                  {isExpanded ? (
+                    <ChevronUp
+                      size={14}
+                      color={COLORS.primary}
+                      strokeWidth={2}
+                    />
+                  ) : (
+                    <ChevronDown
+                      size={14}
+                      color={COLORS.primary}
+                      strokeWidth={2}
+                    />
+                  )}
                   <Text style={styles.showRepliesText}>
                     {isExpanded
                       ? "Hide replies"
@@ -935,12 +906,7 @@ const CommentsModal = ({
                 <SnooLoader size="small" color="#FFFFFF" />
               ) : (
                 <>
-                  <Ionicons
-                    name="send" // Fallback
-                    size={20}
-                    color="#FFFFFF"
-                    style={{ display: "none" }}
-                  />
+                  {/* Ionicons send removed */}
                   <Send size={20} color="#FFFFFF" strokeWidth={2.6} />
                 </>
               )}
@@ -953,25 +919,125 @@ const CommentsModal = ({
 
   if (!visible) return null;
 
+  const renderDeleteModal = () => (
+    <Modal
+      visible={!!commentToDelete}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={() => setCommentToDelete(null)}
+    >
+      <View style={styles.alertOverlay}>
+        <View style={styles.alertDialog}>
+          <View style={styles.alertIconContainer}>
+            <Trash2 size={24} color={COLORS.error} strokeWidth={2} />
+          </View>
+          <Text style={styles.alertTitle}>Delete Comment</Text>
+          <Text style={styles.alertMessage}>
+            Are you sure you want to delete this comment? This action cannot be undone.
+          </Text>
+          <View style={styles.alertActions}>
+            <TouchableOpacity
+              style={[styles.alertButton, styles.alertCancelButton]}
+              onPress={() => setCommentToDelete(null)}
+            >
+              <Text style={styles.alertCancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.alertButton, styles.alertDeleteButton]}
+              onPress={async () => {
+                const commentId = commentToDelete;
+                setCommentToDelete(null);
+                try {
+                  const token = await getAuthToken();
+                  await apiDelete(
+                    `${replyBaseRoute}/${commentId}`,
+                    null,
+                    15000,
+                    token,
+                  );
+
+                  setComments((prev) => prev.filter((c) => c.id !== commentId));
+
+                  // Calculate remaining comment count accurately
+                  const getRemainingCount = (arr, idToDelete) => {
+                    let count = 0;
+                    arr.forEach((c) => {
+                      if (c.id !== idToDelete) {
+                        count += 1;
+                        if (c.replies) {
+                          c.replies.forEach((r) => {
+                            if (r.id !== idToDelete) {
+                              count += 1;
+                              if (r.replies) {
+                                r.replies.forEach((sr) => {
+                                  if (sr.id !== idToDelete) {
+                                    count += 1;
+                                  }
+                                });
+                              }
+                            }
+                          });
+                        }
+                      }
+                    });
+                    return count;
+                  };
+                  const newCount = getRemainingCount(comments, commentId);
+
+                  if (onCommentCountChange) {
+                    onCommentCountChange(newCount);
+                  }
+                  EventBus.emit("post-comment-updated", {
+                    postId: postId,
+                    commentCount: newCount,
+                  });
+                } catch (error) {
+                  console.error("Error deleting comment:", error);
+                  Alert.alert("Error", "Failed to delete comment");
+                  loadComments();
+                }
+              }}
+            >
+              <Text style={styles.alertDeleteButtonText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+
   if (embedded) {
-    return <View style={styles.embeddedOverlay}>{content}</View>;
+    return (
+      <>
+        <View style={styles.embeddedOverlay}>{content}</View>
+        {renderDeleteModal()}
+      </>
+    );
   }
 
   if (isNestedModal) {
-    return <View style={styles.nestedModalOverlay}>{content}</View>;
+    return (
+      <>
+        <View style={styles.nestedModalOverlay}>{content}</View>
+        {renderDeleteModal()}
+      </>
+    );
   }
 
   return (
-    <Modal
-      visible={visible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={onClose}
-      statusBarTranslucent={true}
-      presentationStyle="overFullScreen"
-    >
-      {content}
-    </Modal>
+    <>
+      <Modal
+        visible={visible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={onClose}
+        statusBarTranslucent={true}
+        presentationStyle="overFullScreen"
+      >
+        {content}
+      </Modal>
+      {renderDeleteModal()}
+    </>
   );
 };
 
@@ -1063,7 +1129,8 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     marginLeft: "auto",
-    padding: 4,
+    padding: 10,
+    marginRight: -6,
   },
   commenterName: {
     fontFamily: FONTS.semiBold,
@@ -1089,9 +1156,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   viewRepliesText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 12,
     color: COLORS.primary,
-    fontWeight: "500",
   },
   commentLikeButton: {
     paddingHorizontal: 8,
@@ -1200,7 +1267,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   replyButtonText: {
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.semiBold,
     fontSize: 12,
     color: "#6B7280",
     lineHeight: 16,
@@ -1211,9 +1278,9 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   showRepliesText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 12,
     color: COLORS.primary,
-    fontWeight: "500",
   },
   replyingIndicator: {
     flexDirection: "row",
@@ -1244,6 +1311,79 @@ const styles = StyleSheet.create({
   },
   cancelReplyButton: {
     padding: 4,
+  },
+  // Custom Alert Modal styles
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  alertDialog: {
+    width: "100%",
+    maxWidth: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  alertIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FFEBEE",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  alertTitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 18,
+    color: "#111827",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  alertMessage: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: "#4B5563",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  alertActions: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  alertButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  alertCancelButton: {
+    backgroundColor: "#F3F4F6",
+  },
+  alertCancelButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: "#4B5563",
+  },
+  alertDeleteButton: {
+    backgroundColor: COLORS.error,
+  },
+  alertDeleteButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: "#FFFFFF",
   },
 });
 

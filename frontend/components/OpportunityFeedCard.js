@@ -452,7 +452,6 @@ const OpportunityFeedCard = React.memo(({
 
   return (
     <>
-    <TouchableOpacity activeOpacity={0.9} onPress={handleCardPress}>
       <LinearGradient
         colors={["#C8E9EA", "#E8F7F8"]}
         start={{ x: 0, y: 0 }}
@@ -531,42 +530,45 @@ const OpportunityFeedCard = React.memo(({
           </Text>
         </TouchableOpacity>
  
-        {/* ── Title ─────────────────────────────────────────────────────── */}
-        <Text style={styles.title} numberOfLines={2}>
-          {opportunity.title}
-        </Text>
+        {/* ── Tappable Middle Content (navigates to details) ──────────────── */}
+        <TouchableOpacity onPress={handleCardPress} activeOpacity={0.95}>
+          {/* ── Title ─────────────────────────────────────────────────────── */}
+          <Text style={styles.title} numberOfLines={2}>
+            {opportunity.title}
+          </Text>
  
-        {/* ── Role Chips (auto scroll, no heading) ─────────────────── */}
-        {roleChips.length > 0 && (
-          <MarqueeChips chips={roleChips} chipType="role" styles={styles} />
-        )}
+          {/* ── Role Chips (auto scroll, no heading) ─────────────────── */}
+          {roleChips.length > 0 && (
+            <MarqueeChips chips={roleChips} chipType="role" styles={styles} />
+          )}
  
-        {/* ── Skill Chips (auto scroll, no heading) ─────────────────── */}
-        {skillChips.length > 0 && (
-          <MarqueeChips chips={skillChips} chipType="skill" styles={styles} />
-        )}
+          {/* ── Skill Chips (auto scroll, no heading) ─────────────────── */}
+          {skillChips.length > 0 && (
+            <MarqueeChips chips={skillChips} chipType="skill" styles={styles} />
+          )}
  
-        {/* ── Details Row ───────────────────────────────────────────────── */}
-        <View style={styles.detailsRow}>
-          <View style={styles.detailItem}>
-            <Globe size={15} color="#5e8d9b" strokeWidth={2} />
-            <Text style={styles.detailText}>{workModeText}</Text>
+          {/* ── Details Row ───────────────────────────────────────────────── */}
+          <View style={styles.detailsRow}>
+            <View style={styles.detailItem}>
+              <Globe size={15} color="#5e8d9b" strokeWidth={2} />
+              <Text style={styles.detailText}>{workModeText}</Text>
+            </View>
+ 
+            <Text style={styles.detailSeparator}>•</Text>
+ 
+            <View style={styles.detailItem}>
+              <Clock size={15} color="#5e8d9b" strokeWidth={2} />
+              <Text style={styles.detailText}>{workTypeText}</Text>
+            </View>
+ 
+            <Text style={styles.detailSeparator}>•</Text>
+ 
+            <View style={styles.detailItem}>
+              <Coins size={15} color="#5e8d9b" strokeWidth={2} />
+              <Text style={styles.detailText}>{compensationText}</Text>
+            </View>
           </View>
- 
-          <Text style={styles.detailSeparator}>•</Text>
- 
-          <View style={styles.detailItem}>
-            <Clock size={15} color="#5e8d9b" strokeWidth={2} />
-            <Text style={styles.detailText}>{workTypeText}</Text>
-          </View>
- 
-          <Text style={styles.detailSeparator}>•</Text>
- 
-          <View style={styles.detailItem}>
-            <Coins size={15} color="#5e8d9b" strokeWidth={2} />
-            <Text style={styles.detailText}>{compensationText}</Text>
-          </View>
-        </View>
+        </TouchableOpacity>
  
         {/* ── Footer Row ────────────────────────────────────────────────── */}
         <View style={styles.footerRow}>
@@ -706,7 +708,6 @@ const OpportunityFeedCard = React.memo(({
             </Text>
           </TouchableOpacity>
         </View>
-      </LinearGradient>
 
       {/* ── 3-dot Menu Modal ──────────────────────────────────────────────── */}
       <Modal
@@ -767,7 +768,7 @@ const OpportunityFeedCard = React.memo(({
           </View>
         </Pressable>
       </Modal>
-    </TouchableOpacity>
+      </LinearGradient>
 
     {/* ── Opportunity Comments Modal ──────────────────────────────────────── */}
     <CommentsModal
