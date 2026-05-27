@@ -371,28 +371,47 @@ async function getMyDataSummary(req, res) {
     );
     const topInterests = interestsResult.rows.map((r) => r.category);
 
-    const followResult = await pool.query(
-      `SELECT COUNT(*) as total_follows,
-              COUNT(*) FILTER (WHERE is_content_follow = true) as content_follows
-       FROM follow_events WHERE follower_id = $1`,
-      [userId]
-    );
-    const followData = followResult.rows[0] || {};
-    const totalFollows = parseInt(followData.total_follows) || 0;
-    const contentFollows = parseInt(followData.content_follows) || 0;
-    const followQualityPct = totalFollows > 0
-      ? Math.round((contentFollows / totalFollows) * 100) : 0;
-
-    // ── Meaningful activity breakdown (display only — total_behavior_events unchanged) ──
+    // ── Meaningful activity breakdown — uses real event_type values from signalEmitter ──
     const activityResult = await pool.query(
       `SELECT
-         COUNT(*) FILTER (WHERE event_type = 'event_attended')                       AS events_attended,
-         COUNT(*) FILTER (WHERE event_type IN ('content_watched', 'content_shared'))  AS content_engaged,
-         COUNT(*) FILTER (WHERE event_type = 'search_performed')                      AS searches_performed
+         -- Events
+         COUNT(*) FILTER (WHERE event_type IN ('event_rsvp', 'paid_event_attended', 'free_event_attended'))
+                                                                                    AS events_attended,
+         -- Content (all non-event interactions)
+         COUNT(*) FILTER (WHERE event_type IN ('poll_vote', 'qna_question', 'qna_upvote',
+                                               'challenge_join', 'challenge_submit',
+                                               'prompt_submit', 'post_like',
+                                               'content_watched_long', 'content_watched_short',
+                                               'content_shared'))
+                                                                                    AS content_engaged,
+         -- Per-type breakdown for the info modal
+         COUNT(*) FILTER (WHERE event_type = 'post_like')                           AS post_likes,
+         COUNT(*) FILTER (WHERE event_type = 'poll_vote')                           AS poll_votes,
+         COUNT(*) FILTER (WHERE event_type = 'qna_question')                        AS questions_asked,
+         COUNT(*) FILTER (WHERE event_type = 'qna_upvote')                          AS question_upvotes,
+         COUNT(*) FILTER (WHERE event_type IN ('challenge_join', 'challenge_submit'))
+                                                                                    AS challenge_actions,
+         COUNT(*) FILTER (WHERE event_type = 'prompt_submit')                       AS prompt_responses,
+         COUNT(*) FILTER (WHERE event_type IN ('content_watched_long', 'content_watched_short'))
+                                                                                    AS videos_watched,
+         COUNT(*) FILTER (WHERE event_type = 'content_shared')                      AS content_shared,
+         -- Diversity: how many distinct interaction types has the user used? (max 7 counted)
+         COUNT(DISTINCT event_type) FILTER (
+           WHERE event_type IN ('event_rsvp','paid_event_attended','free_event_attended',
+                                'poll_vote','qna_question','challenge_join',
+                                'prompt_submit','post_like','content_shared')
+         )                                                                           AS distinct_types,
+         COUNT(*)                                                                    AS total_signals
        FROM user_behavior_events WHERE user_id = $1`,
       [userId]
     );
     const activity = activityResult.rows[0] || {};
+
+    // Quality = engagement diversity: how many distinct activity categories has the user tried?
+    // 9 meaningful distinct types tracked → express as % capped at 100
+    const distinctTypes = parseInt(activity.distinct_types) || 0;
+    const MAX_TYPES = 9;
+    const engagementQualityPct = Math.min(100, Math.round((distinctTypes / MAX_TYPES) * 100));
 
     // Account creation date — check members table first, then communities
     const table = userType === "community" ? "communities" : "members";
@@ -407,13 +426,24 @@ async function getMyDataSummary(req, res) {
       tierBadge: TIER_BADGES[aqiTier] || "👻",
       tierExplanation: TIER_EXPLANATIONS[aqiTier] || "",
       topInterests,
-      // Display breakdown — meaningful categories instead of raw event count
-      eventsAttended:    parseInt(activity.events_attended)    || 0,
-      contentEngaged:    parseInt(activity.content_engaged)    || 0,
-      searchesPerformed: parseInt(activity.searches_performed) || 0,
+      // Display breakdown — real counts from the signal pipeline
+      eventsAttended:        parseInt(activity.events_attended)  || 0,
+      contentEngaged:        parseInt(activity.content_engaged)  || 0,
+      totalSignals:          parseInt(activity.total_signals)    || 0,
+      engagementQualityPct,
+      // Per-type content breakdown — shown in the info modal
+      contentBreakdown: {
+        postLikes:        parseInt(activity.post_likes)         || 0,
+        pollVotes:        parseInt(activity.poll_votes)         || 0,
+        questionsAsked:   parseInt(activity.questions_asked)    || 0,
+        questionUpvotes:  parseInt(activity.question_upvotes)   || 0,
+        challengeActions: parseInt(activity.challenge_actions)  || 0,
+        promptResponses:  parseInt(activity.prompt_responses)   || 0,
+        videosWatched:    parseInt(activity.videos_watched)     || 0,
+        contentShared:    parseInt(activity.content_shared)     || 0,
+      },
       // Internal threshold counter — kept for Top Interests threshold logic
       behaviorEventCount: parseInt(aqiSignals.total_behavior_events) || 0,
-      followQualityPct,
       trajectory: aqiSignals.aqi_trajectory || "stable",
       accountCreatedAt,
       consentState: {

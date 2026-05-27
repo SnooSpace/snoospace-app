@@ -17,7 +17,7 @@ import {
   ArrowLeft, TrendingUp, TrendingDown, Minus,
   Sparkles, Handshake, Users, Trash2, Zap,
   ShieldCheck, Calendar, BarChart2, CheckCircle,
-  ChevronRight,
+  ChevronRight, Info, ThumbsUp, HelpCircle, MessageSquare, Share2, Play,
 } from "lucide-react-native";
 import { FONTS, COLORS } from "../../constants/theme";
 import { getMyDataSummary, updateConsent, requestDataDeletion } from "../../api/privacy";
@@ -86,6 +86,7 @@ const MyDataScreen = ({ navigation }) => {
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting]         = useState(false);
+  const [infoModal, setInfoModal]        = useState({ visible: false, title: '', body: '', breakdown: null });
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const loadData = useCallback(async () => {
@@ -161,14 +162,19 @@ const MyDataScreen = ({ navigation }) => {
   const trajectory = TRAJECTORY_CONFIG[summary?.trajectory || "stable"];
   const TrajectoryIcon = trajectory.icon;
   
-  const eventsAttended    = summary?.eventsAttended    || 0;
-  const contentEngaged    = summary?.contentEngaged    || 0;
-  const searchesPerformed = summary?.searchesPerformed || 0;
-  const showInterests = (summary?.topInterests?.length > 0) && (eventsAttended + contentEngaged) >= 20;
+  const eventsAttended    = summary?.eventsAttended          || 0;
+  const contentEngaged    = summary?.contentEngaged           || 0;
+  const totalSignals      = summary?.totalSignals             || 0;
+  const engagementQuality = summary?.engagementQualityPct    || 0;
+  const contentBreakdown  = summary?.contentBreakdown        || {};
+  const showInterests = (summary?.topInterests?.length > 0) && (eventsAttended + contentEngaged) >= 5;
 
   const dataDescription = eventsAttended === 0 && contentEngaged === 0
     ? "Start attending events and engaging with content to personalize your experience."
-    : `${eventsAttended} events attended · ${contentEngaged} content interactions.`;
+    : `${eventsAttended} event${eventsAttended !== 1 ? 's' : ''} attended · ${contentEngaged} content interaction${contentEngaged !== 1 ? 's' : ''}.`;
+
+  const openInfo = (title, body, breakdown = null) =>
+    setInfoModal({ visible: true, title, body, breakdown });
 
   const toggles = accountType === "community"
     ? [...MEMBER_TOGGLES, EVENT_AUDIENCE_TOGGLE]
@@ -312,30 +318,80 @@ const MyDataScreen = ({ navigation }) => {
               <Text style={styles.tierExplanation}>{summary?.tierExplanation || ""}</Text>
             </View>
 
-            {/* Your Data stats — 4 meaningful categories */}
+            {/* Your Data stats */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Your Data</Text>
               <View style={styles.statsRow}>
-                <View style={styles.statCard}>
-                  <View style={styles.statHeader}><View style={[styles.statIconWrap,{backgroundColor:"rgba(245,158,11,0.1)"}]}><Calendar size={14} color="#F59E0B" strokeWidth={2} /></View></View>
+
+                {/* Events Attended */}
+                <TouchableOpacity
+                  style={styles.statCard}
+                  activeOpacity={0.75}
+                  onPress={() => openInfo(
+                    'Events Attended',
+                    'The number of events you have RSVPd to or registered for through SnooSpace.\n\nAttending events helps us understand what experiences matter to you and improves the recommendations you see.',
+                  )}
+                >
+                  <View style={styles.statHeader}>
+                    <View style={[styles.statIconWrap,{backgroundColor:"rgba(245,158,11,0.1)"}]}><Calendar size={14} color="#F59E0B" strokeWidth={2} /></View>
+                    <Info size={13} color="#D1D5DB" strokeWidth={2} />
+                  </View>
                   <Text style={styles.statValue}>{eventsAttended}</Text>
-                  <Text style={styles.statLabel}>Events</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <View style={styles.statHeader}><View style={[styles.statIconWrap,{backgroundColor:"rgba(139,92,246,0.1)"}]}><Zap size={14} color="#8B5CF6" strokeWidth={2} /></View></View>
+                  <Text style={styles.statLabel}>Events Attended</Text>
+                </TouchableOpacity>
+
+                {/* Content Interactions */}
+                <TouchableOpacity
+                  style={styles.statCard}
+                  activeOpacity={0.75}
+                  onPress={() => openInfo(
+                    'Content Interactions',
+                    'How you engage with community content — polls, questions, challenges, prompts, and posts.',
+                    contentBreakdown,
+                  )}
+                >
+                  <View style={styles.statHeader}>
+                    <View style={[styles.statIconWrap,{backgroundColor:"rgba(139,92,246,0.1)"}]}><Zap size={14} color="#8B5CF6" strokeWidth={2} /></View>
+                    <Info size={13} color="#D1D5DB" strokeWidth={2} />
+                  </View>
                   <Text style={styles.statValue}>{contentEngaged}</Text>
-                  <Text style={styles.statLabel}>Content</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <View style={styles.statHeader}><View style={[styles.statIconWrap,{backgroundColor:"rgba(236,72,153,0.1)"}]}><ShieldCheck size={14} color="#EC4899" strokeWidth={2} /></View></View>
-                  <Text style={styles.statValue}>{summary?.followQualityPct || 0}%</Text>
+                  <Text style={styles.statLabel}>Content Interactions</Text>
+                </TouchableOpacity>
+
+                {/* Engagement Quality */}
+                <TouchableOpacity
+                  style={styles.statCard}
+                  activeOpacity={0.75}
+                  onPress={() => openInfo(
+                    'Engagement Quality',
+                    'Reflects how varied your activity is across SnooSpace.\n\nA broader mix of engagement — events, posts, polls, challenges — builds a richer and more accurate profile, which leads to better recommendations for you.',
+                  )}
+                >
+                  <View style={styles.statHeader}>
+                    <View style={[styles.statIconWrap,{backgroundColor:"rgba(236,72,153,0.1)"}]}><ShieldCheck size={14} color="#EC4899" strokeWidth={2} /></View>
+                    <Info size={13} color="#D1D5DB" strokeWidth={2} />
+                  </View>
+                  <Text style={styles.statValue}>{engagementQuality}%</Text>
                   <Text style={styles.statLabel}>Quality</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <View style={styles.statHeader}><View style={[styles.statIconWrap,{backgroundColor:"rgba(59,130,246,0.1)"}]}><TrendingUp size={14} color="#3B82F6" strokeWidth={2} /></View></View>
+                </TouchableOpacity>
+
+                {/* Member since */}
+                <TouchableOpacity
+                  style={styles.statCard}
+                  activeOpacity={0.75}
+                  onPress={() => openInfo(
+                    'Member Since',
+                    `You joined SnooSpace on ${joinDate} — ${accountAge} day${accountAge !== 1 ? 's' : ''} ago.\n\nLonger membership paired with consistent activity builds a stronger audience profile over time.`,
+                  )}
+                >
+                  <View style={styles.statHeader}>
+                    <View style={[styles.statIconWrap,{backgroundColor:"rgba(59,130,246,0.1)"}]}><TrendingUp size={14} color="#3B82F6" strokeWidth={2} /></View>
+                    <Info size={13} color="#D1D5DB" strokeWidth={2} />
+                  </View>
                   <Text style={styles.statValue}>{accountAge}d</Text>
                   <Text style={styles.statLabel}>Joined on {joinDate}</Text>
-                </View>
+                </TouchableOpacity>
+
               </View>
               <Text style={styles.positiveFrame}>{dataDescription}</Text>
             </View>
@@ -345,7 +401,7 @@ const MyDataScreen = ({ navigation }) => {
               <Text style={styles.sectionTitle}>Your Top Interests</Text>
               {showInterests ? (
                 <>
-                  <Text style={styles.sectionMeta}>Based on your last {eventCount} interactions</Text>
+                  <Text style={styles.sectionMeta}>Based on your last {totalSignals} interactions</Text>
                   <View style={styles.chipRow}>
                     {summary.topInterests.map((interest, i) => (
                       <View key={i} style={styles.chip}><Text style={styles.chipText}>{interest}</Text></View>
@@ -436,6 +492,62 @@ const MyDataScreen = ({ navigation }) => {
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+      {/* Info Modal */}
+      <Modal visible={infoModal.visible} transparent animationType="fade" statusBarTranslucent>
+        <TouchableWithoutFeedback onPress={() => setInfoModal(m => ({ ...m, visible: false }))}>
+          <View style={styles.infoOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.infoSheet}>
+                {/* Handle */}
+                <View style={styles.infoHandle} />
+                {/* Icon + Title */}
+                <View style={styles.infoTitleRow}>
+                  <View style={styles.infoIconWrap}>
+                    <Info size={18} color="#8B5CF6" strokeWidth={2} />
+                  </View>
+                  <Text style={styles.infoTitle}>{infoModal.title}</Text>
+                </View>
+                {/* Body */}
+                <Text style={styles.infoBody}>{infoModal.body}</Text>
+                {/* Content Breakdown — only shown for Content Interactions */}
+                {infoModal.breakdown && (
+                  <View style={styles.breakdownContainer}>
+                    {[
+                      { icon: ThumbsUp,      color: '#EC4899', label: 'Post Likes',         key: 'postLikes' },
+                      { icon: BarChart2,     color: '#F59E0B', label: 'Poll Votes',          key: 'pollVotes' },
+                      { icon: HelpCircle,    color: '#3B82F6', label: 'Questions Asked',     key: 'questionsAsked' },
+                      { icon: TrendingUp,    color: '#10B981', label: 'Question Upvotes',    key: 'questionUpvotes' },
+                      { icon: Zap,           color: '#8B5CF6', label: 'Challenge Actions',   key: 'challengeActions' },
+                      { icon: MessageSquare, color: '#6366F1', label: 'Prompt Responses',    key: 'promptResponses' },
+                      { icon: Play,          color: '#0EA5E9', label: 'Videos Watched',      key: 'videosWatched' },
+                      { icon: Share2,        color: '#14B8A6', label: 'Content Shared',      key: 'contentShared' },
+                    ].filter(item => (infoModal.breakdown[item.key] || 0) > 0).map(item => (
+                      <View key={item.key} style={styles.breakdownRow}>
+                        <View style={[styles.breakdownIcon, { backgroundColor: item.color + '18' }]}>
+                          <item.icon size={13} color={item.color} strokeWidth={2} />
+                        </View>
+                        <Text style={styles.breakdownLabel}>{item.label}</Text>
+                        <Text style={styles.breakdownCount}>{infoModal.breakdown[item.key]}</Text>
+                      </View>
+                    ))}
+                    {Object.values(infoModal.breakdown).every(v => !v) && (
+                      <Text style={styles.breakdownEmpty}>No content interactions recorded yet.</Text>
+                    )}
+                  </View>
+                )}
+                {/* Close */}
+                <TouchableOpacity
+                  style={styles.infoCloseBtn}
+                  activeOpacity={0.85}
+                  onPress={() => setInfoModal(m => ({ ...m, visible: false }))}
+                >
+                  <Text style={styles.infoCloseText}>Got it</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
     </View>
   );
 };
@@ -470,6 +582,23 @@ const styles = StyleSheet.create({
   statValue: { fontSize:22, fontFamily:FONTS.semiBold, color:"#111827" },
   statLabel: { fontSize:11, fontFamily:FONTS.medium, color:"#6B7280" },
   positiveFrame: { fontSize:14, fontFamily:FONTS.regular, color:"#4B5563", lineHeight:20 },
+  // Info Modal
+  infoOverlay: { flex:1, backgroundColor:"rgba(0,0,0,0.45)", justifyContent:"flex-end" },
+  infoSheet: { backgroundColor:"#FFFFFF", borderTopLeftRadius:28, borderTopRightRadius:28, padding:24, paddingBottom:36, borderWidth:1, borderColor:"rgba(0,0,0,0.05)" },
+  infoHandle: { width:40, height:4, borderRadius:2, backgroundColor:"#E5E7EB", alignSelf:"center", marginBottom:20 },
+  infoTitleRow: { flexDirection:"row", alignItems:"center", gap:12, marginBottom:14 },
+  infoIconWrap: { width:38, height:38, borderRadius:19, backgroundColor:"rgba(139,92,246,0.1)", alignItems:"center", justifyContent:"center" },
+  infoTitle: { fontSize:17, fontFamily:FONTS.semiBold, color:"#111827", flex:1 },
+  infoBody: { fontSize:14, fontFamily:FONTS.regular, color:"#4B5563", lineHeight:22, marginBottom:16 },
+  // Content breakdown (in info modal)
+  breakdownContainer: { backgroundColor:"rgba(0,0,0,0.02)", borderRadius:16, padding:14, gap:10, marginBottom:16, borderWidth:1, borderColor:"rgba(0,0,0,0.04)" },
+  breakdownRow: { flexDirection:"row", alignItems:"center", gap:10 },
+  breakdownIcon: { width:28, height:28, borderRadius:14, alignItems:"center", justifyContent:"center" },
+  breakdownLabel: { flex:1, fontSize:13, fontFamily:FONTS.medium, color:"#374151" },
+  breakdownCount: { fontSize:14, fontFamily:FONTS.semiBold, color:"#111827" },
+  breakdownEmpty: { fontSize:13, fontFamily:FONTS.regular, color:"#9CA3AF", textAlign:"center", paddingVertical:8 },
+  infoCloseBtn: { backgroundColor:"rgba(139,92,246,0.08)", borderRadius:14, paddingVertical:14, alignItems:"center", borderWidth:1, borderColor:"rgba(139,92,246,0.15)" },
+  infoCloseText: { fontSize:15, fontFamily:FONTS.semiBold, color:"#7C3AED" },
   // Chips
   chipRow: { flexDirection:"row", flexWrap:"wrap", gap:8 },
   chip: { backgroundColor:"rgba(139,92,246,0.08)", borderRadius:20, paddingHorizontal:14, paddingVertical:7, borderWidth:1, borderColor:"rgba(139,92,246,0.15)" },
