@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import { Svg, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { getAuthToken } from "../../api/auth";
 import { apiGet } from "../../api/client";
@@ -25,6 +24,9 @@ import {
   Camera,
   User,
   Sparkles,
+  ArrowLeft,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react-native";
 import { INTEREST_CATEGORIES } from "../profile/member/EditProfileConstants";
 import SnooLoader from "../../components/ui/SnooLoader";
@@ -80,6 +82,8 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   const [goalBadges, setGoalBadges] = useState([]);
   const [openers, setOpeners] = useState([]);
   const [appearInDiscover, setAppearInDiscover] = useState(true);
+  const [customGoal, setCustomGoal] = useState("");
+  const [showCustomGoalInput, setShowCustomGoalInput] = useState(false);
 
   // Initial state for change detection
   const [initialState, setInitialState] = useState(null);
@@ -352,17 +356,62 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     });
   }, []);
 
-  const getCompletionState = useCallback(() => {
-    let stepsTotal = 4; // Photos, Identity(done), Goals, Openers
-    let stepsDone = 1; // Identity is mostly auto-filled/done
-    if (photos.length >= 3) stepsDone++;
-    if (goalBadges.length > 0) stepsDone++;
-    if (openers.length > 0) stepsDone++;
-    return { stepsDone, stepsTotal };
+  const handleAddCustomGoal = useCallback(() => {
+    const trimmed = customGoal.trim();
+    if (!trimmed) return;
+    if (goalBadges.includes(trimmed)) {
+      Alert.alert("Already Added", "This goal badge is already selected.");
+      return;
+    }
+    if (goalBadges.length >= 3) {
+      Alert.alert("Limit Reached", "You can select up to 3 goals.");
+      return;
+    }
+    setGoalBadges((prev) => [...prev, trimmed]);
+    setCustomGoal("");
+    setShowCustomGoalInput(false);
+    HapticsService.triggerSelection();
+  }, [customGoal, goalBadges]);
+
+  const getCompletionPercentage = useCallback(() => {
+    let pct = 0;
+    
+    // Photos (40% max)
+    const photoCount = photos.length;
+    if (photoCount === 1) pct += 10;
+    else if (photoCount === 2) pct += 20;
+    else if (photoCount >= 3) {
+      pct += 30; // Min requirement met
+      // Extra photos add to the score
+      if (photoCount === 4) pct += 3.3;
+      else if (photoCount === 5) pct += 6.6;
+      else if (photoCount >= 6) pct += 10;
+    }
+
+    // Goal Badges (30% max)
+    const badgeCount = goalBadges.length;
+    if (badgeCount === 1) {
+      pct += 20; // Min requirement met
+    } else if (badgeCount === 2) {
+      pct += 25;
+    } else if (badgeCount >= 3) {
+      pct += 30;
+    }
+
+    // Icebreakers/Openers (30% max)
+    const openerCount = openers.length;
+    if (openerCount === 1) {
+      pct += 20; // Min requirement met
+    } else if (openerCount === 2) {
+      pct += 25;
+    } else if (openerCount >= 3) {
+      pct += 30;
+    }
+
+    return Math.min(Math.round(pct), 100);
   }, [photos.length, goalBadges.length, openers.length]);
 
-  const { stepsDone, stepsTotal } = getCompletionState();
-  const completionPercentage = (stepsDone / stepsTotal) * 100;
+  const completionPercentage = getCompletionPercentage();
   const changesExist = hasChanges();
 
   if (loading) {
@@ -388,7 +437,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
               style={styles.backButton}
               onPress={handleBackPress}
             >
-              <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+              <ArrowLeft size={24} color={TEXT_COLOR} strokeWidth={2} />
             </TouchableOpacity>
             <View style={styles.headerTextContainer}>
               <Text style={styles.headerTitle}>My Discover Profile</Text>
@@ -486,7 +535,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
 
       {showSuccess && (
         <View style={styles.successToast}>
-          <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+          <CheckCircle size={24} color="#FFFFFF" strokeWidth={2} />
           <Text style={styles.successToastText}>Saved successfully!</Text>
         </View>
       )}
@@ -524,10 +573,10 @@ export default function EditDiscoverProfileScreen({ navigation }) {
               />
               {photos.length < 3 && (
                 <View style={styles.inlineWarning}>
-                  <Ionicons
-                    name="alert-circle"
+                  <AlertCircle
                     size={16}
                     color={CONSTANTS_COLORS.error}
+                    strokeWidth={2}
                   />
                   <Text style={styles.inlineWarningText}>
                     Add {3 - photos.length} more photo
@@ -645,41 +694,84 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                   const isSelected = goalBadges.includes(goal);
 
                   return (
-                    <TouchableOpacity
-                      key={goal}
-                      onPress={() => toggleGoal(goal)}
-                      activeOpacity={0.7}
-                      style={[
-                        styles.goalChip,
-                        isSelected
-                          ? styles.goalChipSelected
-                          : styles.goalChipUnselected,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.goalChipText,
-                          isSelected
-                            ? {
-                                color: CONSTANTS_COLORS.textPrimary,
-                                fontFamily: FONTS.semiBold,
-                              }
-                            : { color: CONSTANTS_COLORS.textPrimary },
-                        ]}
-                      >
-                        {goal}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
+                     <TouchableOpacity
+                       key={goal}
+                       onPress={() => toggleGoal(goal)}
+                       activeOpacity={0.7}
+                       style={[
+                         styles.goalChip,
+                         isSelected
+                           ? styles.goalChipSelected
+                           : styles.goalChipUnselected,
+                       ]}
+                     >
+                       <Text style={styles.goalChipText}>
+                         {goal}
+                       </Text>
+                     </TouchableOpacity>
+                   );
+                 })}
+                 {goalBadges.filter(g => !GOAL_BADGE_PRESETS.includes(g)).map((goal) => (
+                   <TouchableOpacity
+                     key={goal}
+                     onPress={() => toggleGoal(goal)}
+                     activeOpacity={0.7}
+                     style={[styles.goalChip, styles.goalChipSelected]}
+                   >
+                     <Text style={styles.goalChipText}>
+                       {goal}
+                     </Text>
+                   </TouchableOpacity>
+                 ))}
               </View>
+
+              {showCustomGoalInput ? (
+                <View style={styles.customGoalInputContainer}>
+                  <TextInput
+                    style={styles.customGoalInput}
+                    placeholder="Enter custom goal..."
+                    placeholderTextColor={CONSTANTS_COLORS.textSecondary}
+                    value={customGoal}
+                    onChangeText={setCustomGoal}
+                    maxLength={25}
+                    autoFocus
+                  />
+                  <TouchableOpacity
+                    style={styles.customGoalAddButton}
+                    onPress={handleAddCustomGoal}
+                  >
+                    <Plus size={16} color="#FFFFFF" strokeWidth={3} />
+                    <Text style={styles.customGoalAddButtonText}>Add</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.customGoalCancelButton}
+                    onPress={() => {
+                      setShowCustomGoalInput(false);
+                      setCustomGoal("");
+                    }}
+                  >
+                    <X size={18} color={CONSTANTS_COLORS.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.addCustomGoalTrigger}
+                  onPress={() => {
+                    HapticsService.triggerSelection();
+                    setShowCustomGoalInput(true);
+                  }}
+                >
+                  <Plus size={16} color={PRIMARY_COLOR} strokeWidth={2.5} />
+                  <Text style={styles.addCustomGoalTriggerText}>Add Custom Goal</Text>
+                </TouchableOpacity>
+              )}
 
               {goalBadges.length === 0 && (
                 <View style={styles.inlineWarning}>
-                  <Ionicons
-                    name="alert-circle"
+                  <AlertCircle
                     size={16}
                     color={CONSTANTS_COLORS.error}
+                    strokeWidth={2}
                   />
                   <Text style={styles.inlineWarningText}>
                     Select at least 1 goal
@@ -746,10 +838,10 @@ export default function EditDiscoverProfileScreen({ navigation }) {
 
               {openers.length === 0 && (
                 <View style={styles.inlineWarning}>
-                  <Ionicons
-                    name="alert-circle"
+                  <AlertCircle
                     size={16}
                     color={CONSTANTS_COLORS.error}
+                    strokeWidth={2}
                   />
                   <Text style={styles.inlineWarningText}>
                     Add at least 1 starter
@@ -1132,8 +1224,9 @@ const styles = StyleSheet.create({
     backgroundColor: CONSTANTS_COLORS.secondaryAccent, // #D4EEEF
   },
   goalChipText: {
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.semiBold,
     fontSize: 14,
+    color: CONSTANTS_COLORS.textPrimary,
   },
 
   // Icebreakers / Openers
@@ -1189,5 +1282,59 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 17,
     color: "#FFFFFF",
+  },
+  customGoalInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    gap: 8,
+    backgroundColor: CONSTANTS_COLORS.surfaceLight,
+    borderRadius: 12,
+    padding: 8,
+  },
+  customGoalInput: {
+    flex: 1,
+    height: 40,
+    paddingHorizontal: 12,
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: CONSTANTS_COLORS.textPrimary,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  customGoalAddButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: PRIMARY_COLOR,
+    paddingHorizontal: 12,
+    height: 40,
+    borderRadius: 8,
+    gap: 4,
+  },
+  customGoalAddButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: "#FFFFFF",
+  },
+  customGoalCancelButton: {
+    padding: 8,
+  },
+  addCustomGoalTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    gap: 6,
+  },
+  addCustomGoalTriggerText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: PRIMARY_COLOR,
   },
 });

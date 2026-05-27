@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -10,7 +10,17 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  ArrowLeft,
+  ChevronRight,
+  Info,
+  CheckCircle,
+  Lightbulb,
+  Rocket,
+  Calendar,
+  Users,
+  Sparkles,
+} from "lucide-react-native";
 import {
   COLORS,
   SPACING,
@@ -88,6 +98,14 @@ const OPENER_CATEGORIES = [
   },
 ];
 
+const CATEGORY_ICONS = {
+  curiosity: Lightbulb,
+  projects: Rocket,
+  events: Calendar,
+  collaboration: Users,
+  fun: Sparkles,
+};
+
 const EDGES = ["top"];
 
 export default function OpenerSelectionScreen({ navigation, route }) {
@@ -136,7 +154,7 @@ export default function OpenerSelectionScreen({ navigation, route }) {
         >
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-              <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+              <ArrowLeft size={24} color={TEXT_COLOR} strokeWidth={2} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Choose a Prompt</Text>
             <View style={{ width: 40 }} />
@@ -151,11 +169,10 @@ export default function OpenerSelectionScreen({ navigation, route }) {
           {OPENER_CATEGORIES.map((category) => (
             <View key={category.id} style={styles.categorySection}>
               <View style={styles.categoryHeader}>
-                <Ionicons
-                  name={category.icon.replace("-outline", "")}
-                  size={16}
-                  color={PRIMARY_COLOR}
-                />
+                {(() => {
+                  const Icon = CATEGORY_ICONS[category.id] || Sparkles;
+                  return <Icon size={16} color={PRIMARY_COLOR} strokeWidth={2} />;
+                })()}
                 <Text style={styles.categoryTitle}>{category.title}</Text>
               </View>
 
@@ -170,10 +187,10 @@ export default function OpenerSelectionScreen({ navigation, route }) {
                     onPress={() => handlePromptSelect(prompt)}
                   >
                     <Text style={styles.promptText}>{prompt}</Text>
-                    <Ionicons
-                      name="chevron-forward"
+                    <ChevronRight
                       size={18}
                       color={COLORS.border}
+                      strokeWidth={2}
                     />
                   </TouchableOpacity>
                 ))}
@@ -193,7 +210,7 @@ export default function OpenerSelectionScreen({ navigation, route }) {
       <SafeAreaView style={{ backgroundColor: COLORS.surface }} edges={EDGES}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+            <ArrowLeft size={24} color={TEXT_COLOR} strokeWidth={2} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Your Answer</Text>
           <TouchableOpacity
@@ -243,10 +260,10 @@ export default function OpenerSelectionScreen({ navigation, route }) {
               />
             </View>
             <View style={styles.helperRow}>
-              <Ionicons
-                name="information-circle-outline"
+              <Info
                 size={14}
                 color={LIGHT_TEXT_COLOR}
+                strokeWidth={2}
                 style={{ marginRight: 4 }}
               />
               <Text style={styles.helperText}>
@@ -264,28 +281,28 @@ export default function OpenerSelectionScreen({ navigation, route }) {
             </View>
             <View style={styles.guidanceList}>
               <View style={styles.guidanceItem}>
-                <Ionicons
-                  name="checkmark-circle"
+                <CheckCircle
                   size={18}
                   color="#D1D5DB"
+                  strokeWidth={2}
                   style={{ opacity: 0.8 }}
                 />
                 <Text style={styles.guidanceText}>Specific and personal</Text>
               </View>
               <View style={styles.guidanceItem}>
-                <Ionicons
-                  name="checkmark-circle"
+                <CheckCircle
                   size={18}
                   color="#D1D5DB"
+                  strokeWidth={2}
                   style={{ opacity: 0.8 }}
                 />
                 <Text style={styles.guidanceText}>Easy to respond to</Text>
               </View>
               <View style={styles.guidanceItem}>
-                <Ionicons
-                  name="checkmark-circle"
+                <CheckCircle
                   size={18}
                   color="#D1D5DB"
+                  strokeWidth={2}
                   style={{ opacity: 0.8 }}
                 />
                 <Text style={styles.guidanceText}>Show personality</Text>
