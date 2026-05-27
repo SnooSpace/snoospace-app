@@ -564,6 +564,14 @@ const FullscreenVideoModal = ({
                         onFollowChange={onFollow}
                         style={styles.followButton}
                         textStyle={styles.followButtonText}
+                        currentFollowerId={currentUserId}
+                        navigationContext={{
+                          navigationState: { routeName: 'PostView' },
+                          lastContentInteraction: {
+                            type: 'video',
+                            contentId: post?.id,
+                          },
+                        }}
                       />
                     )}
                   </TouchableOpacity>

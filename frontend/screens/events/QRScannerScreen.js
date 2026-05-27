@@ -6,10 +6,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image, Animated, Dimensions, TextInput, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import { Ionicons } from "@expo/vector-icons";
+import { ArrowLeft, Calendar, Camera, Check, AlertCircle, X, QrCode, Keyboard } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { verifyTicket } from "../../api/events";
-import { COLORS } from "../../constants/theme";
+import { COLORS, FONTS } from "../../constants/theme";
 import SnooLoader from "../../components/ui/SnooLoader";
 
 const { width, height } = Dimensions.get("window");
@@ -143,8 +143,8 @@ export default function QRScannerScreen({ route, navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.permissionContainer}>
-          <Ionicons name="camera-outline" size={80} color={PRIMARY_COLOR} />
-          <Text style={[styles.permissionTitle, { fontFamily: 'Manrope-Medium' }]}>Camera Access Required</Text>
+          <Camera size={64} color={PRIMARY_COLOR} strokeWidth={1.5} />
+          <Text style={styles.permissionTitle}>Camera Access Required</Text>
           <Text style={styles.permissionText}>
             We need camera access to scan ticket QR codes
           </Text>
@@ -186,7 +186,7 @@ export default function QRScannerScreen({ route, navigation }) {
               style={styles.backButton}
               onPress={() => navigation.goBack()}
             >
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+              <ArrowLeft size={24} color="#FFFFFF" strokeWidth={2.5} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Scan Tickets</Text>
             <View style={{ width: 40 }} />
@@ -194,7 +194,7 @@ export default function QRScannerScreen({ route, navigation }) {
 
           {/* Event Info */}
           <View style={styles.eventBadge}>
-            <Ionicons name="calendar" size={16} color="#FFFFFF" />
+            <Calendar size={16} color="#FFFFFF" strokeWidth={2} />
             <Text style={styles.eventBadgeText} numberOfLines={1}>
               {event?.title || "Select Event"}
             </Text>
@@ -220,7 +220,7 @@ export default function QRScannerScreen({ route, navigation }) {
         {processing && (
           <View style={styles.processingContainer}>
             <SnooLoader size="large" color="#FFFFFF" />
-            <Text style={[styles.processingText, { fontFamily: 'Manrope-Medium' }]}>Verifying...</Text>
+            <Text style={styles.processingText}>Verifying...</Text>
           </View>
         )}
 
@@ -244,23 +244,19 @@ export default function QRScannerScreen({ route, navigation }) {
                 style={[
                   styles.resultIconContainer,
                   result.success
-                    ? { backgroundColor: SUCCESS_COLOR }
+                    ? { backgroundColor: "rgba(22, 163, 74, 0.1)" }
                     : result.alreadyCheckedIn
-                    ? { backgroundColor: WARNING_COLOR }
-                    : { backgroundColor: ERROR_COLOR },
+                    ? { backgroundColor: "rgba(245, 158, 11, 0.1)" }
+                    : { backgroundColor: "rgba(220, 38, 38, 0.1)" },
                 ]}
               >
-                <Ionicons
-                  name={
-                    result.success
-                      ? "checkmark"
-                      : result.alreadyCheckedIn
-                      ? "alert"
-                      : "close"
-                  }
-                  size={40}
-                  color="#FFFFFF"
-                />
+                {result.success ? (
+                  <Check size={36} color={SUCCESS_COLOR} strokeWidth={3} />
+                ) : result.alreadyCheckedIn ? (
+                  <AlertCircle size={36} color={WARNING_COLOR} strokeWidth={2.5} />
+                ) : (
+                  <X size={36} color={ERROR_COLOR} strokeWidth={3} />
+                )}
               </View>
 
               {/* Status Text */}
@@ -317,10 +313,10 @@ export default function QRScannerScreen({ route, navigation }) {
                   end={{ x: 1, y: 0 }}
                   style={styles.scanNextGradient}
                 >
-                  <Ionicons
-                    name="scan-outline"
+                  <QrCode
                     size={20}
                     color="#FFFFFF"
+                    strokeWidth={2}
                     style={{ marginRight: 8 }}
                   />
                   <Text style={styles.scanNextText}>Scan Next Ticket</Text>
@@ -336,7 +332,7 @@ export default function QRScannerScreen({ route, navigation }) {
             style={styles.manualButton}
             onPress={() => setShowManualEntry(true)}
           >
-            <Ionicons name="keypad-outline" size={20} color="#FFFFFF" />
+            <Keyboard size={20} color="#FFFFFF" strokeWidth={2} />
             <Text style={styles.manualButtonText}>Enter code manually</Text>
           </TouchableOpacity>
         </SafeAreaView>
@@ -345,7 +341,13 @@ export default function QRScannerScreen({ route, navigation }) {
         {showManualEntry && (
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
+              <View style={styles.modalIconContainer}>
+                <Keyboard size={24} color={PRIMARY_COLOR} strokeWidth={2} />
+              </View>
               <Text style={styles.modalTitle}>Enter Registration Code</Text>
+              <Text style={styles.modalDescription}>
+                Enter the attendee's code manually to verify their ticket.
+              </Text>
               <TextInput
                 style={styles.modalInput}
                 placeholder="SNOO-E15-R123-abc123..."
@@ -369,7 +371,14 @@ export default function QRScannerScreen({ route, navigation }) {
                   style={styles.modalSubmitButton}
                   onPress={handleManualSubmit}
                 >
-                  <Text style={styles.modalSubmitText}>Verify</Text>
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.modalSubmitGradient}
+                  >
+                    <Text style={styles.modalSubmitText}>Verify</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
             </View>
@@ -400,8 +409,8 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontFamily: FONTS.black,
     color: "#FFFFFF",
   },
   eventBadge: {
@@ -418,7 +427,7 @@ const styles = StyleSheet.create({
   },
   eventBadgeText: {
     fontSize: 14,
-    fontWeight: "500",
+    fontFamily: FONTS.medium,
     color: "#FFFFFF",
   },
   scanFrameContainer: {
@@ -471,6 +480,7 @@ const styles = StyleSheet.create({
   scanHint: {
     marginTop: 24,
     fontSize: 16,
+    fontFamily: FONTS.regular,
     color: "#FFFFFF",
     textAlign: "center",
   },
@@ -483,8 +493,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: "#FFFFFF",
-  
-    fontFamily: "Manrope-Regular",
+    fontFamily: FONTS.medium,
   },
   resultContainer: {
     flex: 1,
@@ -495,26 +504,26 @@ const styles = StyleSheet.create({
   resultCard: {
     width: "100%",
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 24,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 10,
   },
   resultCardSuccess: {
-    borderWidth: 2,
-    borderColor: SUCCESS_COLOR,
+    borderWidth: 1.5,
+    borderColor: "rgba(22, 163, 74, 0.2)",
   },
   resultCardWarning: {
-    borderWidth: 2,
-    borderColor: WARNING_COLOR,
+    borderWidth: 1.5,
+    borderColor: "rgba(245, 158, 11, 0.2)",
   },
   resultCardError: {
-    borderWidth: 2,
-    borderColor: ERROR_COLOR,
+    borderWidth: 1.5,
+    borderColor: "rgba(220, 38, 38, 0.2)",
   },
   resultIconContainer: {
     width: 80,
@@ -525,40 +534,61 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   resultStatus: {
-    fontSize: 24,
-    fontWeight: "700",
-    marginBottom: 16,
-  },
-  attendeeInfo: {
-    alignItems: "center",
+    fontSize: 26,
+    fontFamily: FONTS.primary,
+    letterSpacing: -0.5,
     marginBottom: 20,
   },
+  attendeeInfo: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+    padding: 16,
+    width: "100%",
+    alignItems: "center",
+    marginBottom: 24,
+  },
   attendeePhoto: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     marginBottom: 12,
     backgroundColor: "#E5E7EB",
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
   },
   attendeeName: {
     fontSize: 18,
-    fontWeight: "600",
-    color: "#1F2937",
-    marginBottom: 4,
+    fontFamily: FONTS.primary,
+    color: COLORS.textPrimary,
+    marginBottom: 6,
   },
   attendeeTicket: {
-    fontSize: 14,
-    color: "#6B7280",
+    fontSize: 13,
+    fontFamily: FONTS.medium,
+    color: COLORS.textSecondary,
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    overflow: "hidden",
   },
   errorMessage: {
     fontSize: 14,
-    color: "#6B7280",
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 24,
+    lineHeight: 20,
   },
   scanNextButton: {
     width: "100%",
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: "hidden",
   },
   scanNextGradient: {
@@ -570,7 +600,7 @@ const styles = StyleSheet.create({
   },
   scanNextText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
   },
   bottomActions: {
@@ -589,7 +619,7 @@ const styles = StyleSheet.create({
   manualButtonText: {
     fontSize: 14,
     color: "#FFFFFF",
-    fontWeight: "500",
+    fontFamily: FONTS.semiBold,
   },
   permissionContainer: {
     flex: 1,
@@ -600,13 +630,14 @@ const styles = StyleSheet.create({
   },
   permissionTitle: {
     fontSize: 20,
-    fontWeight: "700",
+    fontFamily: FONTS.primary,
     color: "#1F2937",
     marginTop: 20,
     marginBottom: 8,
   },
   permissionText: {
     fontSize: 14,
+    fontFamily: FONTS.regular,
     color: "#6B7280",
     textAlign: "center",
     marginBottom: 24,
@@ -619,7 +650,7 @@ const styles = StyleSheet.create({
   },
   permissionButtonText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
   },
   cancelButton: {
@@ -628,11 +659,12 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     fontSize: 14,
+    fontFamily: FONTS.semiBold,
     color: "#6B7280",
   },
   modalOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
@@ -640,51 +672,86 @@ const styles = StyleSheet.create({
   modalContent: {
     width: "100%",
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 24,
     padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  modalIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: FONTS.primary,
     color: "#1F2937",
-    marginBottom: 16,
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  modalDescription: {
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: "#6B7280",
+    textAlign: "center",
+    marginBottom: 20,
+    paddingHorizontal: 8,
+    lineHeight: 20,
   },
   modalInput: {
+    width: "100%",
+    backgroundColor: "#F9FAFB",
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    borderRadius: 8,
+    borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     fontSize: 14,
+    fontFamily: FONTS.regular,
     color: "#1F2937",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   modalButtons: {
     flexDirection: "row",
     gap: 12,
+    width: "100%",
   },
   modalCancelButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
     backgroundColor: "#F3F4F6",
     alignItems: "center",
+    justifyContent: "center",
   },
   modalCancelText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: "#6B7280",
   },
   modalSubmitButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: PRIMARY_COLOR,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  modalSubmitGradient: {
+    width: "100%",
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
   },
   modalSubmitText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
   },
 });

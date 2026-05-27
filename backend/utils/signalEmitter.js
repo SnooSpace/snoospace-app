@@ -112,9 +112,10 @@ async function hasConsent(pool, userId, userType) {
  * @param {string} opts.userType      - 'member' | 'community'
  * @param {string} opts.eventType     - key from SIGNAL_STRENGTH_MAP
  * @param {string|null} opts.category - interest category slug (optional)
+ * @param {number|null} opts.hourOfDay - hour 0-23 when action occurred (optional, defaults to now)
  * @param {object} [opts.metadata]    - extra JSON context (postId, eventId, etc.)
  */
-async function emitSignal(pool, { userId, userType, eventType, category = null, metadata = {} }) {
+async function emitSignal(pool, { userId, userType, eventType, category = null, hourOfDay = null, metadata = {} }) {
   try {
     if (!userId || !userType) return;
 
@@ -165,7 +166,42 @@ async function emitSignal(pool, { userId, userType, eventType, category = null, 
 
     const totalEvents = parseInt(updateResult.rows[0]?.total_behavior_events) || 0;
 
-    // 5. Auto-trigger AQI recalculation every 10 signals (debounced, async)
+    // 5. Update engagement hour pattern + professional hours ratio
+    const hour = (hourOfDay !== null && hourOfDay >= 0 && hourOfDay <= 23)
+      ? hourOfDay
+      : new Date().getHours();
+
+    const hourUpdates = [
+      `engagement_hour_pattern = jsonb_set(
+         COALESCE(engagement_hour_pattern, '{}'::jsonb),
+         ARRAY[$2::text],
+         (COALESCE((engagement_hour_pattern->>$2)::int, 0) + 1)::text::jsonb
+       )`,
+    ];
+    // Professional hours = 8am-7pm (inclusive)
+    if (hour >= 8 && hour <= 19) {
+      hourUpdates.push(`professional_hours_ratio = (professional_hours_ratio * 0.95) + (1.0 * 0.05)`);
+    } else {
+      hourUpdates.push(`professional_hours_ratio = (professional_hours_ratio * 0.95) + (0.0 * 0.05)`);
+    }
+    await pool.query(
+      `UPDATE user_aqi_signals SET ${hourUpdates.join(', ')} WHERE user_id = $1`,
+      [userId, String(hour)],
+    ).catch(err => console.error('[SignalEmitter] Hour pattern update failed:', err.message));
+
+    // 6. Update premium_categories_ratio if category known
+    const premiumCategories = ['wellness', 'tech', 'technology', 'business', 'luxury', 'finance', 'professional'];
+    if (category) {
+      const isPremium = premiumCategories.includes(category.toLowerCase());
+      await pool.query(
+        `UPDATE user_aqi_signals
+         SET premium_categories_ratio = (premium_categories_ratio * 0.9) + ($2 * 0.1)
+         WHERE user_id = $1`,
+        [userId, isPremium ? 1.0 : 0.0],
+      ).catch(err => console.error('[SignalEmitter] Premium category update failed:', err.message));
+    }
+
+    // 7. Auto-trigger AQI recalculation every 10 signals (debounced, async)
     if (totalEvents > 0 && totalEvents % 10 === 0) {
       recalculateAqiAsync(pool, userId).catch((err) =>
         console.error(`[SignalEmitter] AQI auto-recalc failed for user ${userId}:`, err.message),
@@ -294,7 +330,25 @@ async function recalculateAqiAsync(pool, userId) {
     [userId, aqiScore, aqiTier, trajectory],
   );
 
-  console.log(`[SignalEmitter] AQI recalculated for user ${userId}: score=${aqiScore} tier=${aqiTier}`);
+  // Snapshot aqi_score → aqi_score_4w_ago only if 7+ days have passed
+  // (or if aqi_score_4w_ago is still NULL from first calculation)
+  await pool.query(
+    `UPDATE user_aqi_signals
+     SET aqi_score_4w_ago = aqi_score
+     WHERE user_id = $1
+       AND (aqi_score_4w_ago IS NULL
+            OR last_calculated_at IS NULL
+            OR NOW() - last_calculated_at > INTERVAL '7 days')`,
+    [userId],
+  );
+
+  // Trigger interest vector decay + drift detection async
+  const { recalculateInterestVectors, detectDrift } = require('./interestVectorEngine');
+  recalculateInterestVectors(pool, userId)
+    .then(() => detectDrift(pool, userId))
+    .catch(err => console.error(`[SignalEmitter] Vector decay/drift failed for user ${userId}:`, err.message));
+
+  console.log(`[SignalEmitter] AQI recalculated for user ${userId}: score=${aqiScore} tier=${aqiTier} trajectory=${trajectory}`);
 }
 
-module.exports = { emitSignal, getCategoryForPost, getCategoryForEvent };
+module.exports = { emitSignal, getCategoryForPost, getCategoryForEvent, recalculateAqiAsync };

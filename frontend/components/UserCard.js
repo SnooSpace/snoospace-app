@@ -28,6 +28,8 @@ const UserCard = ({
   onFollowChange,
   style,
   isLoading = false,
+  currentFollowerId,
+  navigationContext,
 }) => {
   // Add null check for user
   if (!user) {
@@ -122,6 +124,8 @@ const UserCard = ({
           onFollowChange={onFollowChange}
           isLoading={isLoading}
           style={styles.followButton}
+          currentFollowerId={currentFollowerId}
+          navigationContext={navigationContext}
         />
       )}
     </TouchableOpacity>

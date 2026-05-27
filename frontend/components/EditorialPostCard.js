@@ -799,6 +799,14 @@ const EditorialPostCard = ({
             onFollowChange={handleFollowChange}
             style={styles.followButton}
             textStyle={styles.followButtonText}
+            currentFollowerId={currentUserId}
+            navigationContext={{
+              navigationState: { routeName: isVideo ? 'PostView' : 'HomeFeed' },
+              lastContentInteraction: {
+                type: isVideo ? 'video' : 'post',
+                contentId: post.id,
+              },
+            }}
           />
         )}
 

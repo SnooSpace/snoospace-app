@@ -9,7 +9,6 @@ import ApplicantDetailScreen from "../screens/home/community/ApplicantDetailScre
 import EventAttendeesScreen from "../screens/events/EventAttendeesScreen";
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
-import QRScannerScreen from "../screens/events/QRScannerScreen";
 import ShareTicketScreen from "../screens/events/ShareTicketScreen";
 import AudienceIntelligenceScreen from "../screens/home/community/AudienceIntelligenceScreen";
 
@@ -80,7 +79,6 @@ export default function CommunityDashboardStackNavigator() {
         name="MemberPublicProfile"
         component={MemberPublicProfileScreen}
       />
-      <Stack.Screen name="QRScanner" component={QRScannerScreen} />
       <Stack.Screen name="ShareTicket" component={ShareTicketScreen} />
       <Stack.Screen name="AudienceIntelligence" component={AudienceIntelligenceScreen} />
     </Stack.Navigator>
