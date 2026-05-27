@@ -775,6 +775,17 @@ router.delete(
   authMiddleware,
   OpportunityController.deleteOpportunityComment,
 );
+router.post(
+  "/opportunity-comments/:commentId/like",
+  authMiddleware,
+  OpportunityController.likeOpportunityComment,
+);
+router.delete(
+  "/opportunity-comments/:commentId/like",
+  authMiddleware,
+  OpportunityController.unlikeOpportunityComment,
+);
+
 
 // Applications
 router.post(

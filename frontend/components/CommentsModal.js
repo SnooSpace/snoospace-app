@@ -24,7 +24,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { X, Send, Heart, CornerUpLeft, Trash2, ChevronUp, ChevronDown } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete } from "../api/client";
-import { getAuthToken, getAuthEmail } from "../api/auth";
+import { getAuthToken, getAuthEmail, getActiveAccount } from "../api/auth";
 import { searchMembers } from "../api/search";
 import EventBus from "../utils/EventBus";
 import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
@@ -73,6 +73,7 @@ const CommentsModal = ({
   const [collapsedThreads, setCollapsedThreads] = useState({}); // {commentId: boolean}
   const [focusTrigger, setFocusTrigger] = useState(0); // Trigger to focus input
   const [commentToDelete, setCommentToDelete] = useState(null);
+  const [activeAccount, setActiveAccount] = useState(null);
 
   const prevPostIdRef = useRef(null);
   const prevVisibleRef = useRef(false);
@@ -169,8 +170,15 @@ const CommentsModal = ({
       );
       if (profileResponse?.profile) {
         setUserProfile(profileResponse.profile);
+      }
+
+      const account = await getActiveAccount();
+      if (account) {
+        setActiveAccount(account);
+        setCurrentUserId(account.id);
+      } else {
         const userId =
-          profileResponse.profile.id || profileResponse.profile.user_id;
+          profileResponse?.profile?.id || profileResponse?.profile?.user_id;
         if (userId) {
           setCurrentUserId(userId);
         }
@@ -524,11 +532,14 @@ const CommentsModal = ({
 
       try {
         const token = await getAuthToken();
+        const likeRoute = replyBaseRoute === "/opportunity-comments"
+          ? `/opportunity-comments/${commentId}/like`
+          : `/comments/${commentId}/like`;
 
         if (isLiked) {
-          await apiDelete(`/comments/${commentId}/like`, null, 15000, token);
+          await apiDelete(likeRoute, null, 15000, token);
         } else {
-          await apiPost(`/comments/${commentId}/like`, {}, 15000, token);
+          await apiPost(likeRoute, {}, 15000, token);
         }
       } catch (error) {
         console.error("Error toggling comment like:", error);
@@ -551,7 +562,7 @@ const CommentsModal = ({
         Alert.alert("Error", error?.message || "Failed to update like");
       }
     },
-    [],
+    [replyBaseRoute],
   );
 
   const renderComment = useCallback(
@@ -574,7 +585,9 @@ const CommentsModal = ({
         if (!navigation || !item.commenter_id) return;
 
         const isOwnProfile =
-          currentUserId && item.commenter_id === currentUserId;
+          activeAccount &&
+          String(item.commenter_id) === String(activeAccount.id) &&
+          item.commenter_type === activeAccount.type;
         const root = navigation.getParent()?.getParent()?.getParent();
 
         if (root) {
@@ -630,10 +643,12 @@ const CommentsModal = ({
               <Text style={styles.commentTime}>
                 {formatTimeAgo(item.created_at)}
               </Text>
-              {(currentUserId && item.commenter_id === currentUserId) ||
-              (currentUserId &&
-                postAuthorId === currentUserId &&
-                postAuthorType === "member") ? (
+              {(activeAccount &&
+                String(item.commenter_id) === String(activeAccount.id) &&
+                item.commenter_type === activeAccount.type) ||
+              (activeAccount &&
+                String(postAuthorId) === String(activeAccount.id) &&
+                postAuthorType === activeAccount.type) ? (
                 <TouchableOpacity
                   onPress={() => handleDeleteComment(item.id)}
                   style={styles.deleteButton}
@@ -772,6 +787,7 @@ const CommentsModal = ({
       comments,
       collapsedThreads,
       currentUserId,
+      activeAccount,
       postAuthorId,
       postAuthorType,
       handleDeleteComment,

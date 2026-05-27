@@ -1621,6 +1621,17 @@ const getOpportunityComments = async (req, res) => {
     }
     const opp = oppCheck.rows[0];
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS opportunity_comment_likes (
+        id SERIAL PRIMARY KEY,
+        opportunity_comment_id INTEGER NOT NULL REFERENCES opportunity_comments(id) ON DELETE CASCADE,
+        liker_id INTEGER NOT NULL,
+        liker_type TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(opportunity_comment_id, liker_id, liker_type)
+      )
+    `);
+
     const query = `
       SELECT
         c.*,
@@ -1642,8 +1653,11 @@ const getOpportunityComments = async (req, res) => {
           WHEN c.commenter_type = 'sponsor'   THEN s.logo_url
           WHEN c.commenter_type = 'venue'     THEN NULL
         END as commenter_photo_url,
-        0 as like_count,
-        false AS is_liked
+        (SELECT COUNT(*)::int FROM opportunity_comment_likes ocl WHERE ocl.opportunity_comment_id = c.id) as like_count,
+        CASE WHEN $4::integer IS NOT NULL THEN EXISTS(
+          SELECT 1 FROM opportunity_comment_likes ocl
+          WHERE ocl.opportunity_comment_id = c.id AND ocl.liker_id = $4 AND ocl.liker_type = $5
+        ) ELSE false END AS is_liked
       FROM opportunity_comments c
       LEFT JOIN members     m    ON c.commenter_type = 'member'    AND c.commenter_id = m.id
       LEFT JOIN communities comm ON c.commenter_type = 'community' AND c.commenter_id = comm.id
@@ -1654,7 +1668,7 @@ const getOpportunityComments = async (req, res) => {
       LIMIT $2 OFFSET $3
     `;
 
-    const result = await pool.query(query, [id, limit, offset]);
+    const result = await pool.query(query, [id, limit, offset, userId, userType]);
 
     const comments = await Promise.all(result.rows.map(async (comment) => {
       // Parse tagged_entities
@@ -1671,7 +1685,11 @@ const getOpportunityComments = async (req, res) => {
           CASE WHEN r.commenter_type='member' THEN m.name WHEN r.commenter_type='community' THEN comm.name WHEN r.commenter_type='sponsor' THEN s.brand_name WHEN r.commenter_type='venue' THEN v.name END as commenter_name,
           CASE WHEN r.commenter_type='member' THEN m.username WHEN r.commenter_type='community' THEN comm.username WHEN r.commenter_type='sponsor' THEN s.username WHEN r.commenter_type='venue' THEN v.username END as commenter_username,
           CASE WHEN r.commenter_type='member' THEN m.profile_photo_url WHEN r.commenter_type='community' THEN comm.logo_url WHEN r.commenter_type='sponsor' THEN s.logo_url WHEN r.commenter_type='venue' THEN NULL END as commenter_photo_url,
-          0 as like_count, false as is_liked
+          (SELECT COUNT(*)::int FROM opportunity_comment_likes ocl WHERE ocl.opportunity_comment_id = r.id) as like_count,
+          CASE WHEN $2::integer IS NOT NULL THEN EXISTS(
+            SELECT 1 FROM opportunity_comment_likes ocl
+            WHERE ocl.opportunity_comment_id = r.id AND ocl.liker_id = $2 AND ocl.liker_type = $3
+          ) ELSE false END AS is_liked
         FROM opportunity_comments r
         LEFT JOIN members m ON r.commenter_type='member' AND r.commenter_id=m.id
         LEFT JOIN communities comm ON r.commenter_type='community' AND r.commenter_id=comm.id
@@ -1679,7 +1697,7 @@ const getOpportunityComments = async (req, res) => {
         LEFT JOIN venues v ON r.commenter_type='venue' AND r.commenter_id=v.id
         WHERE r.parent_comment_id = $1
         ORDER BY r.created_at ASC
-      `, [comment.id]);
+      `, [comment.id, userId, userType]);
 
       comment.replies = repliesResult.rows.map(r => {
         try { r.tagged_entities = r.tagged_entities ? (typeof r.tagged_entities==='string' ? JSON.parse(r.tagged_entities) : r.tagged_entities) : null; } catch { r.tagged_entities = null; }
@@ -1855,7 +1873,7 @@ const deleteOpportunityComment = async (req, res) => {
     }
 
     const comment = commentResult.rows[0];
-    const isCommentAuthor = comment.commenter_id === userId && comment.commenter_type === userType;
+    const isCommentAuthor = String(comment.commenter_id) === String(userId) && comment.commenter_type === userType;
     const isOpportunityCreator = String(comment.creator_id) === String(userId) && comment.creator_type === userType;
 
     if (!isCommentAuthor && !isOpportunityCreator) {
@@ -1872,6 +1890,70 @@ const deleteOpportunityComment = async (req, res) => {
   } catch (error) {
     console.error('Error deleting opportunity comment:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const likeOpportunityComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS opportunity_comment_likes (
+        id SERIAL PRIMARY KEY,
+        opportunity_comment_id INTEGER NOT NULL REFERENCES opportunity_comments(id) ON DELETE CASCADE,
+        liker_id INTEGER NOT NULL,
+        liker_type TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(opportunity_comment_id, liker_id, liker_type)
+      )
+    `);
+
+    const existing = await pool.query(
+      `SELECT id FROM opportunity_comment_likes WHERE opportunity_comment_id = $1 AND liker_id = $2 AND liker_type = $3`,
+      [commentId, userId, userType]
+    );
+
+    if (existing.rows.length > 0) {
+      return res.status(400).json({ error: "Already liked" });
+    }
+
+    await pool.query(
+      `INSERT INTO opportunity_comment_likes (opportunity_comment_id, liker_id, liker_type) VALUES ($1, $2, $3)`,
+      [commentId, userId, userType]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error liking opportunity comment:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const unlikeOpportunityComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    await pool.query(
+      `DELETE FROM opportunity_comment_likes WHERE opportunity_comment_id = $1 AND liker_id = $2 AND liker_type = $3`,
+      [commentId, userId, userType]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error unliking opportunity comment:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -2045,4 +2127,6 @@ module.exports = {
   replyToOpportunityComment,
   deleteOpportunityComment,
   shareOpportunity,
+  likeOpportunityComment,
+  unlikeOpportunityComment,
 };
