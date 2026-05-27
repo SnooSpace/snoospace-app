@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { BarChart3, User } from "lucide-react-native";
+import { BarChart3, User, Calendar, Users, Clock, MapPin } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import { apiGet } from "../../api/client";
@@ -38,10 +37,13 @@ export default function DiscoverScreen({ navigation }) {
   const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(true);
   const [profileComplete, setProfileComplete] = useState(true);
+  const hasLoadedRef = useRef(false);
 
   const loadData = useCallback(async () => {
     try {
-      setLoading(true);
+      if (!hasLoadedRef.current) {
+        setLoading(true);
+      }
       const token = await getAuthToken();
 
       if (token) {
@@ -85,6 +87,7 @@ export default function DiscoverScreen({ navigation }) {
             image: "https://i.pravatar.cc/150?u=maya",
           },
         ]);
+        hasLoadedRef.current = true;
       }
     } catch (error) {
       console.error("Error loading data:", error);
@@ -317,13 +320,13 @@ const ReconnectCard = React.memo(({ event, onPress, formatDate }) => (
       </Text>
 
       <View style={styles.reconnectMeta}>
-        <Ionicons name="calendar-outline" size={14} color="#64748B" />
+        <Calendar size={14} color="#64748B" strokeWidth={2} />
         <Text style={styles.metaText}>
           {formatDate(event.event_date)}
         </Text>
 
         <View style={styles.attendeeRow}>
-          <Ionicons name="people-outline" size={14} color="#64748B" />
+          <Users size={14} color="#64748B" strokeWidth={2} />
           <Text style={styles.metaText}>
             {event.attendee_count || 0} attended
           </Text>
@@ -331,7 +334,7 @@ const ReconnectCard = React.memo(({ event, onPress, formatDate }) => (
       </View>
 
       <TouchableOpacity style={styles.revisitButton} onPress={() => onPress(event)}>
-        <Ionicons name="time-outline" size={16} color="#2962FF" />
+        <Clock size={16} color="#2962FF" strokeWidth={2} />
         <Text style={styles.revisitButtonText}>Revisit</Text>
       </TouchableOpacity>
     </View>
@@ -428,20 +431,20 @@ const RecommendedEventCard = React.memo(({ event, onPress, formatDate }) => (
       </Text>
 
       <View style={styles.recommendedMetaRow}>
-        <Ionicons
-          name="calendar-outline"
+        <Calendar
           size={14}
           color={COLORS.textSecondary}
+          strokeWidth={2}
         />
         <Text style={styles.recommendedMetaText}>
           {formatDate(event.event_date)}
         </Text>
       </View>
       <View style={styles.recommendedMetaRow}>
-        <Ionicons
-          name="location-outline"
+        <MapPin
           size={14}
           color={COLORS.textSecondary}
+          strokeWidth={2}
         />
         <Text style={styles.recommendedMetaText} numberOfLines={1}>
           {event.venue_name || event.location}
