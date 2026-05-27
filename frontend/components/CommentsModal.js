@@ -803,7 +803,7 @@ const CommentsModal = ({
 
   const content = (
     <View style={embedded ? styles.embeddedContainer : styles.container}>
-      <View style={styles.modalContent} onStartShouldSetResponder={() => true}>
+      <View style={styles.modalContent}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Comments</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -840,11 +840,7 @@ const CommentsModal = ({
 
       {/* Input bar using KeyboardAwareToolbar - placed OUTSIDE main content as sibling */}
       <KeyboardAwareToolbar style={styles.toolbarContainer}>
-        <View
-          style={styles.inputContainer}
-          onStartShouldSetResponder={() => true}
-          onTouchStart={(e) => e.stopPropagation()}
-        >
+        <View style={styles.inputContainer}>
           {/* Replying indicator */}
           {/* Replying indicator */}
           {replyingTo && (
