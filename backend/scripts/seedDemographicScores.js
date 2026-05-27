@@ -72,6 +72,22 @@ const CITY_TIER_SEEDS = [
   { dimension: 'location_city_tier', value: 'Tier3', score: 38, rationale: 'Smaller cities — lower avg disposable income' },
 ];
 
+// ─── Device Tier Seeds ────────────────────────────────────────────────────────
+// Tiers are assigned by the classifyDeviceTier() function in authControllerV2.js
+// based on brand + model name. These scores are the buying power proxy.
+//
+// iPhone 15 Pro in Mumbai: ultra_premium (78) × 40% occ + ultra_premium (78) × 20% device
+// iPhone 12 in Tier3 city: premium (65) device, Tier3 location (38) → lower combined
+// This is exactly the cross-referencing the user asked for — device score alone
+// doesn't inflate the AQI; it combines with location.
+const DEVICE_TIER_SEEDS = [
+  { value: 'ultra_premium', score: 78, rationale: 'iPhone Pro/Max, Samsung Galaxy S flagship — ₹1L+ device spend' },
+  { value: 'premium',       score: 65, rationale: 'iPhone 12+, Samsung Galaxy S20+, OnePlus 10+ — ₹50K-1L range' },
+  { value: 'mid',           score: 48, rationale: 'iPhone X/11, Samsung A-series, OnePlus mid — ₹20K-50K range' },
+  { value: 'budget',        score: 30, rationale: 'Redmi, Realme, basic Android — under ₹20K' },
+  { value: 'other',         score: 45, rationale: 'Unknown brand — falls to platform median' },
+];
+
 // ─── Age Bands Table ──────────────────────────────────────────────────────────
 // Maps exact ages to band + life stage for the fallback chain
 const AGE_EXACT_MAPPINGS = [];
@@ -163,7 +179,26 @@ async function seed() {
       console.log(`  ✓ ${seed.dimension}=${seed.value}: score=${seed.score} (${seed.rationale})`);
     }
 
-    // 4. Seed age bands
+    // 4. Seed device tiers
+    console.log('\n[Seed] Seeding device tier scores...');
+    for (const seed of DEVICE_TIER_SEEDS) {
+      await pool.query(
+        `INSERT INTO learned_demographic_scores
+           (dimension, dimension_value, learned_score, confidence_level, sample_size)
+         VALUES ('device_tier', $1, $2, 'bootstrap', 0)
+         ON CONFLICT (dimension, dimension_value) DO UPDATE SET
+           learned_score    = EXCLUDED.learned_score,
+           confidence_level = CASE
+             WHEN learned_demographic_scores.confidence_level = 'bootstrap' THEN 'bootstrap'
+             ELSE learned_demographic_scores.confidence_level
+           END,
+           last_calculated_at = NOW()`,
+        [seed.value, seed.score],
+      );
+      console.log(`  ✓ device_tier=${seed.value}: score=${seed.score} (${seed.rationale})`);
+    }
+
+    // 5. Seed age bands
     console.log('\n[Seed] Seeding age band scores...');
     for (const seed of [...AGE_BAND_SEEDS, ...LIFE_STAGE_SEEDS]) {
       await pool.query(

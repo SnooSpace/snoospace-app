@@ -514,8 +514,55 @@ async function getAccountById(pool, userId, userType) {
 }
 
 /**
+ * Classify a device into a price tier for AQI demographic signal.
+ * Uses brand + model name pattern matching.
+ * Tiers: ultra_premium | premium | mid | budget | other
+ */
+function classifyDeviceTier(brand, modelName) {
+  if (!brand) return 'other';
+
+  const b = brand.toLowerCase();
+  const m = (modelName || '').toLowerCase();
+
+  if (b === 'apple') {
+    // Pro/Max models: iPhone 12 Pro and above
+    if (m.match(/iphone\s*(1[2-9]|[2-9]\d)\s*(pro|max)/)) return 'ultra_premium';
+    if (m.match(/iphone\s*(1[2-9]|[2-9]\d)/)) return 'premium'; // iPhone 12+
+    if (m.match(/iphone\s*(1[0-1])/)) return 'mid';              // iPhone X, 11
+    return 'mid'; // older iPhones
+  }
+
+  if (b === 'samsung') {
+    if (m.match(/galaxy\s*(s|z|fold|flip)\s*(2[0-9]|1[5-9])/)) return 'premium'; // S20+, Z Fold
+    if (m.match(/galaxy\s*a\s*(5[0-9]|[6-9]\d)/)) return 'mid'; // A50+
+    if (m.match(/galaxy\s*a/)) return 'mid';
+    return 'budget';
+  }
+
+  if (b === 'oneplus') {
+    if (m.match(/oneplus\s*(1[0-9]|[2-9]\d)/)) return 'premium'; // OnePlus 10+
+    if (m.includes('pro') || m.includes('ultra')) return 'mid';
+    return 'mid';
+  }
+
+  if (b === 'google') {
+    if (m.match(/pixel\s*[7-9]/)) return 'premium';
+    return 'mid';
+  }
+
+  // Budget-dominant brands
+  if (['xiaomi', 'redmi', 'poco', 'realme', 'vivo', 'oppo', 'itel', 'tecno', 'infinix'].includes(b)) {
+    if (m.includes('ultra') || m.includes('pro max')) return 'mid';
+    if (m.includes('pro') || m.includes('plus')) return 'mid';
+    return 'budget';
+  }
+
+  return 'other';
+}
+
+/**
  * Create session in database
- * @param {Object} deviceInfo - Optional device info { platform, osVersion, deviceModel }
+ * @param {Object} deviceInfo - Optional device info { platform, osVersion, deviceModel, deviceBrand, isPhysicalDevice }
  */
 async function createSession(
   pool,
@@ -532,36 +579,48 @@ async function createSession(
   );
 
   // Extract device info
-  const platform = deviceInfo.platform || null;
-  const osVersion = deviceInfo.osVersion || null;
-  const deviceModel = deviceInfo.deviceModel || null;
+  const platform      = deviceInfo.platform      || null;
+  const osVersion     = deviceInfo.osVersion     || null;
+  const deviceModel   = deviceInfo.deviceModel   || null;
+  const deviceBrand   = deviceInfo.deviceBrand   || null;
+  const isPhysical    = deviceInfo.isPhysicalDevice !== false; // treat null as physical
+
+  // Classify device tier — used for AQI demographic signal
+  const deviceTier = classifyDeviceTier(deviceBrand, deviceModel);
 
   // Upsert session (replace existing session for same user+device)
   const result = await pool.query(
-    `INSERT INTO sessions (user_id, user_type, device_id, access_token, refresh_token, expires_at, platform, os_version, device_model)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-     ON CONFLICT (user_id, user_type, device_id) 
-     DO UPDATE SET 
+    `INSERT INTO sessions (user_id, user_type, device_id, access_token, refresh_token, expires_at, platform, os_version, device_model, device_brand)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+     ON CONFLICT (user_id, user_type, device_id)
+     DO UPDATE SET
        access_token = EXCLUDED.access_token,
        refresh_token = EXCLUDED.refresh_token,
        expires_at = EXCLUDED.expires_at,
        last_used_at = NOW(),
-       platform = COALESCE(EXCLUDED.platform, sessions.platform),
-       os_version = COALESCE(EXCLUDED.os_version, sessions.os_version),
-       device_model = COALESCE(EXCLUDED.device_model, sessions.device_model)
+       platform     = COALESCE(EXCLUDED.platform, sessions.platform),
+       os_version   = COALESCE(EXCLUDED.os_version, sessions.os_version),
+       device_model = COALESCE(EXCLUDED.device_model, sessions.device_model),
+       device_brand = COALESCE(EXCLUDED.device_brand, sessions.device_brand)
      RETURNING *`,
-    [
-      userId,
-      userType,
-      deviceId,
-      accessToken,
-      refreshToken,
-      expiresAt,
-      platform,
-      osVersion,
-      deviceModel,
-    ]
+    [userId, userType, deviceId, accessToken, refreshToken, expiresAt,
+     platform, osVersion, deviceModel, deviceBrand],
   );
+
+  // Sync device info into user_aqi_signals (member only, non-blocking)
+  // Only update if this is a physical device (not emulator/simulator) to
+  // avoid polluting AQI signals from dev machines.
+  if (userType === 'member' && isPhysical && (platform || deviceBrand)) {
+    pool.query(
+      `UPDATE user_aqi_signals
+       SET device_platform = COALESCE($2, device_platform),
+           device_brand    = COALESCE($3, device_brand),
+           device_model_raw = COALESCE($4, device_model_raw),
+           device_tier     = $5
+       WHERE user_id = $1`,
+      [userId, platform, deviceBrand, deviceModel, deviceTier],
+    ).catch(err => console.error('[Auth] device AQI sync failed:', err.message));
+  }
 
   return {
     accessToken,

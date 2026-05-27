@@ -17,19 +17,29 @@ const MAX_ACCOUNTS = 5;
 const BACKEND_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL || "http://192.168.1.11:5000";
 
+import * as Device from 'expo-device';
+
 /**
- * Get device info for analytics tracking
- * Returns platform, OS version, and basic device info
+ * Get device info for analytics and audience intelligence.
+ * Captures real device model and brand — used to understand spending power
+ * signals (e.g. iPhone 15 Pro + Mumbai = stronger premium signal than
+ * iPhone + Tier3 city). Never used to auto-assign tiers.
  */
 function getDeviceInfo() {
+  const platform = Platform.OS; // 'ios', 'android', 'web'
+
+  // Device.modelName: 'iPhone 15 Pro', 'Samsung Galaxy S24', etc.
+  // Device.brand: 'Apple', 'Samsung', 'OnePlus', etc.
+  // Both are synchronous on native — null on web/Expo Go simulator
+  const modelName = Device.modelName || null;
+  const brand = Device.brand || null;
+
   return {
-    platform: Platform.OS, // 'ios', 'android', 'web'
-    osVersion: String(Platform.Version), // e.g., '18.2', '34'
-    deviceModel: Platform.select({
-      ios: "iOS Device",
-      android: "Android Device",
-      default: "Unknown Device",
-    }),
+    platform,
+    osVersion: String(Platform.Version),
+    deviceModel: modelName || (platform === 'ios' ? 'iOS Device' : platform === 'android' ? 'Android Device' : 'Unknown'),
+    deviceBrand: brand || (platform === 'ios' ? 'Apple' : null),
+    isPhysicalDevice: Device.isDevice, // false on simulator/emulator
   };
 }
 

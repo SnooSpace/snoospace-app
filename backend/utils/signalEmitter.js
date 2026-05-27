@@ -280,6 +280,7 @@ async function recalculateAqiAsync(pool, userId) {
   let occupationScore = median;
   let ageScore = median;
   let locationScore = median;
+  let deviceScore = median; // 4th component: device price tier
 
   if (memberResult.rows.length > 0) {
     const member = memberResult.rows[0];
@@ -308,7 +309,21 @@ async function recalculateAqiAsync(pool, userId) {
     }
   }
 
-  const onboardingAqi = (occupationScore * 0.50) + (ageScore * 0.25) + (locationScore * 0.25);
+  // Device signal: read tier from user_aqi_signals, look up score from learned table
+  const deviceTierResult = await pool.query(
+    `SELECT device_tier FROM user_aqi_signals WHERE user_id = $1 LIMIT 1`,
+    [userId],
+  );
+  const deviceTier = deviceTierResult.rows[0]?.device_tier || null;
+  if (deviceTier) {
+    const devResult = await getLearnedDemographicScore(pool, 'device_tier', deviceTier, []);
+    deviceScore = devResult.score;
+  }
+
+  // Onboarding AQI: occ=40%, age=20%, location=20%, device=20%
+  // Device is the most gameable signal so it gets the same weight as location
+  // but onboarding_weight decays to near 0 over time as behavior takes over.
+  const onboardingAqi = (occupationScore * 0.40) + (ageScore * 0.20) + (locationScore * 0.20) + (deviceScore * 0.20);
   const onboardingWeight = parseFloat(signals.onboarding_weight) || 0.9;
   const behaviorWeight   = parseFloat(signals.behavior_weight) || 0.1;
   const aqiScore = Math.min(100, Math.max(0, Math.round(((onboardingAqi * onboardingWeight) + (behavioralAqi * behaviorWeight)) * 100) / 100));
