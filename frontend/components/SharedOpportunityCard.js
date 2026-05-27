@@ -239,8 +239,8 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
     : false;
 
   const handlePress = useCallback(() => {
-    if (onPress && targetId) onPress(targetId);
-  }, [onPress, targetId]);
+    if (onPress && targetId) onPress(targetId, opp);
+  }, [onPress, targetId, opp]);
 
   return (
     <TouchableOpacity

@@ -768,7 +768,7 @@ const CommentsModal = ({
                 style={styles.commentDeleteButton}
               >
                 <Trash2
-                  size={16}
+                  size={18}
                   color={COLORS.textSecondary}
                   strokeWidth={2}
                 />
@@ -921,7 +921,7 @@ const CommentsModal = ({
               />
             </View>
             <TouchableOpacity
-              onPress={replyingTo ? handleReplyComment : handlePostComment}
+              onPressIn={replyingTo ? handleReplyComment : handlePostComment}
               disabled={!commentInput.trim() || posting}
               style={[
                 styles.sendButton,

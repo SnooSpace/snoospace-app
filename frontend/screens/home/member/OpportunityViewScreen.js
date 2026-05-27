@@ -163,8 +163,9 @@ const getPaymentTypeDisplayText = (type) => {
 export default function OpportunityViewScreen({ route, navigation }) {
   const insets = useSafeAreaInsets();
   const { opportunityId, opportunity: passedOpportunity } = route.params || {};
-  const [opportunity, setOpportunity] = useState(passedOpportunity || null);
-  const [loading, setLoading] = useState(!passedOpportunity);
+  const hasFullOpportunity = !!(passedOpportunity && passedOpportunity.title);
+  const [opportunity, setOpportunity] = useState(hasFullOpportunity ? passedOpportunity : null);
+  const [loading, setLoading] = useState(!hasFullOpportunity);
   const [error, setError] = useState(null);
 
   const targetId = opportunityId || passedOpportunity?.id;
@@ -177,7 +178,7 @@ export default function OpportunityViewScreen({ route, navigation }) {
 
   const fetchOpportunity = async () => {
     try {
-      if (!passedOpportunity) {
+      if (!hasFullOpportunity) {
         setLoading(true);
       }
       const response = await getOpportunityDetail(targetId);
