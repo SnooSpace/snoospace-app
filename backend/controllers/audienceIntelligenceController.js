@@ -742,7 +742,11 @@ async function recalculateCreatorStats(creatorId) {
         COALESCE(AVG(aqi_score), 0) as avg_aqi,
         COUNT(*) FILTER (WHERE aqi_score IS NOT NULL) as aqi_count
       FROM user_aqi_signals
-      WHERE user_id = ANY($1)`,
+      WHERE user_id = ANY($1)
+        AND user_id NOT IN (
+          SELECT user_id FROM user_privacy_consent
+          WHERE brand_targeting_consent = false
+        )`,
       [followerIds],
     );
 
@@ -786,6 +790,10 @@ async function recalculateCreatorStats(creatorId) {
       FROM follow_events fe
       JOIN members m ON m.id = fe.follower_id
       WHERE fe.creator_id = $1
+        AND fe.follower_id NOT IN (
+          SELECT user_id FROM user_privacy_consent
+          WHERE brand_targeting_consent = false
+        )
       GROUP BY m.gender`,
       [creatorId, totalFollowers],
     );
@@ -927,6 +935,7 @@ async function getAdminCommunityAudienceStats(req, res) {
 async function getAdminAudienceOverview(req, res) {
   try {
     // Platform-wide AQI distribution
+    // Platform-wide AQI distribution — excludes users who opted out of Community Insights
     const aqiDistribution = await pool.query(`
       SELECT
         COUNT(*) FILTER (WHERE aqi_tier = 1) as tier1_count,
@@ -937,8 +946,11 @@ async function getAdminAudienceOverview(req, res) {
         COALESCE(AVG(aqi_score), 0) as platform_avg_aqi
       FROM user_aqi_signals
       WHERE aqi_score IS NOT NULL
+        AND user_id NOT IN (
+          SELECT user_id FROM user_privacy_consent
+          WHERE data_sharing_consent = false
+        )
     `);
-
     // Top communities by audience quality
     const topCommunities = await pool.query(`
       SELECT

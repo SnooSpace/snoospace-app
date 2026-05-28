@@ -14,20 +14,177 @@
  */
 
 const SIGNAL_STRENGTH_MAP = {
-  event_rsvp:           1.0,
-  free_event_attended:  1.5,
-  paid_event_attended:  3.0,
-  content_shared:       2.0,
-  poll_vote:            0.8,
-  qna_question:         0.7,
-  qna_upvote:           0.4,
-  challenge_join:       0.9,
-  challenge_submit:     1.8,
-  prompt_submit:        0.9,
-  post_like:            0.3,
-  content_watched_long: 1.0,
-  content_watched_short:0.3,
+  qr_checkin:            5.0,  // verified physical attendance — strongest signal
+  paid_event_attended:   3.0,
+  content_shared:        2.0,
+  challenge_submit:      1.8,
+  free_event_attended:   1.5,
+  content_watched_long:  1.0,  // ≥50% completion
+  event_rsvp:            1.0,
+  challenge_join:        0.9,
+  prompt_submit:         0.9,
+  poll_vote:             0.8,
+  qna_question:          0.7,
+  follow_content:        0.6,
+  post_save:             0.5,
+  qna_upvote:            0.4,
+  content_watched_short: 0.3,  // <50% completion
+  post_like:             0.3,
+  // video_watch is dynamic — use getVideoSignalStrength() before calling emitSignal
 };
+
+/**
+ * Dynamic signal strength for video watches based on completion ratio.
+ * Callers should pass the result as the eventType='content_watched_long'
+ * or 'content_watched_short' depending on completion.
+ *
+ * @param {number} completionRatio - 0 to 1
+ * @returns {{ eventType: string, strength: number }}
+ */
+function getVideoSignalStrength(completionRatio) {
+  const ratio = Math.max(0, Math.min(1, completionRatio || 0));
+  if (ratio >= 0.90) return { eventType: 'content_watched_long', strength: 1.5 };
+  if (ratio >= 0.75) return { eventType: 'content_watched_long', strength: 1.0 };
+  if (ratio >= 0.50) return { eventType: 'content_watched_long', strength: 0.7 };
+  if (ratio >= 0.25) return { eventType: 'content_watched_short', strength: 0.4 };
+  return { eventType: 'content_watched_short', strength: 0.1 }; // bounce / autoplay scroll
+}
+
+/**
+ * Build an incremental SQL update for user_aqi_signals sub-signal columns
+ * based on the event type. Called inside emitSignal() after the behavior
+ * event is inserted.
+ *
+ * Returns { sql: string, values: any[] } or null if no sub-signal applies.
+ *
+ * @param {string} eventType
+ * @param {object} metadata
+ * @returns {{ sql: string, values: any[] } | null}
+ */
+function buildSubSignalUpdate(eventType, metadata) {
+  switch (eventType) {
+
+    case 'paid_event_attended': {
+      // Increment paid event count and update running average ticket price
+      const ticketPrice = parseFloat(metadata.ticketPrice ?? metadata.ticket_price ?? 0);
+      return {
+        sql: `
+          paid_events_attended = COALESCE(paid_events_attended, 0) + 1,
+          avg_ticket_price_paid = (
+            (COALESCE(avg_ticket_price_paid, 0) * COALESCE(paid_events_attended, 0)) + $2
+          ) / NULLIF(COALESCE(paid_events_attended, 0) + 1, 0)
+        `,
+        values: [ticketPrice],
+      };
+    }
+
+    case 'qr_checkin': {
+      // QR check-in = verified physical presence
+      // Increments total_attended and recalculates rsvp_to_attend_ratio inline
+      return {
+        sql: `
+          total_attended = COALESCE(total_attended, 0) + 1,
+          rsvp_to_attend_ratio = (
+            COALESCE(total_attended, 0) + 1
+          )::float / NULLIF(COALESCE(total_rsvps, 1), 0)
+        `,
+        values: [],
+      };
+    }
+
+    case 'event_rsvp': {
+      // Track RSVP count for ratio calculation
+      return {
+        sql: `total_rsvps = COALESCE(total_rsvps, 0) + 1`,
+        values: [],
+      };
+    }
+
+    case 'free_event_attended': {
+      // Free attendance still counts as physically showing up
+      return {
+        sql: `
+          total_attended = COALESCE(total_attended, 0) + 1,
+          rsvp_to_attend_ratio = (
+            COALESCE(total_attended, 0) + 1
+          )::float / NULLIF(COALESCE(total_rsvps, 1), 0)
+        `,
+        values: [],
+      };
+    }
+
+    case 'event_hosted': {
+      return {
+        sql: `events_hosted = COALESCE(events_hosted, 0) + 1`,
+        values: [],
+      };
+    }
+
+    case 'content_watched_long': {
+      // Long watch = strong depth signal. completion ratio in metadata.
+      const completion = parseFloat(metadata.completionRatio ?? metadata.completion_ratio ?? 0.75);
+      const depthValue = Math.round(completion * 100); // 0-100
+      return {
+        sql: `content_depth_score = (COALESCE(content_depth_score, 0) * 0.85) + ($2 * 0.15)`,
+        values: [depthValue],
+      };
+    }
+
+    case 'content_watched_short': {
+      const completion = parseFloat(metadata.completionRatio ?? metadata.completion_ratio ?? 0.2);
+      const depthValue = Math.round(completion * 100);
+      return {
+        sql: `content_depth_score = (COALESCE(content_depth_score, 0) * 0.90) + ($2 * 0.10)`,
+        values: [depthValue],
+      };
+    }
+
+    case 'post_save': {
+      return {
+        sql: `content_depth_score = (COALESCE(content_depth_score, 0) * 0.90) + (70.0 * 0.10)`,
+        values: [],
+      };
+    }
+
+    case 'challenge_submit': {
+      return {
+        sql: `content_depth_score = (COALESCE(content_depth_score, 0) * 0.90) + (65.0 * 0.10)`,
+        values: [],
+      };
+    }
+
+    case 'qna_question': {
+      return {
+        sql: `content_depth_score = (COALESCE(content_depth_score, 0) * 0.90) + (55.0 * 0.10)`,
+        values: [],
+      };
+    }
+
+    case 'poll_vote': {
+      return {
+        sql: `content_depth_score = (COALESCE(content_depth_score, 0) * 0.92) + (45.0 * 0.08)`,
+        values: [],
+      };
+    }
+
+    case 'challenge_join': {
+      return {
+        sql: `content_depth_score = (COALESCE(content_depth_score, 0) * 0.92) + (40.0 * 0.08)`,
+        values: [],
+      };
+    }
+
+    case 'post_like': {
+      return {
+        sql: `content_depth_score = (COALESCE(content_depth_score, 0) * 0.95) + (25.0 * 0.05)`,
+        values: [],
+      };
+    }
+
+    default:
+      return null; // no sub-signal update needed
+  }
+}
 
 /**
  * Resolve a post's community category slug for interest vector tagging.
@@ -166,42 +323,56 @@ async function emitSignal(pool, { userId, userType, eventType, category = null, 
 
     const totalEvents = parseInt(updateResult.rows[0]?.total_behavior_events) || 0;
 
-    // 5. Update engagement hour pattern + professional hours ratio
-    const hour = (hourOfDay !== null && hourOfDay >= 0 && hourOfDay <= 23)
-      ? hourOfDay
-      : new Date().getHours();
-
-    const hourUpdates = [
-      `engagement_hour_pattern = jsonb_set(
-         COALESCE(engagement_hour_pattern, '{}'::jsonb),
-         ARRAY[$2::text],
-         (COALESCE((engagement_hour_pattern->>$2)::int, 0) + 1)::text::jsonb
-       )`,
-    ];
-    // Professional hours = 8am-7pm (inclusive)
-    if (hour >= 8 && hour <= 19) {
-      hourUpdates.push(`professional_hours_ratio = (professional_hours_ratio * 0.95) + (1.0 * 0.05)`);
-    } else {
-      hourUpdates.push(`professional_hours_ratio = (professional_hours_ratio * 0.95) + (0.0 * 0.05)`);
+    // 5. Incremental sub-signal update — populates paid_events_attended,
+    //    content_depth_score, total_rsvps, total_attended, events_hosted, etc.
+    //    This is what feeds the behavioral AQI components directly.
+    const subSignal = buildSubSignalUpdate(eventType, metadata);
+    if (subSignal) {
+      await pool.query(
+        `UPDATE user_aqi_signals
+         SET ${subSignal.sql}, updated_at = NOW()
+         WHERE user_id = $1`,
+        [userId, ...subSignal.values],
+      ).catch(err => console.error('[SignalEmitter] Sub-signal update failed:', err.message));
     }
+
+    // 6. Update engagement_hour_pattern + professional_hours_ratio
+    //    Use IST (UTC+5:30) for professional hours classification.
+    const nowUtc = new Date();
+    const istMinutes = nowUtc.getUTCHours() * 60 + nowUtc.getUTCMinutes() + 330; // +5h30m
+    const hourIST = Math.floor(istMinutes / 60) % 24;
+    const dayIST  = new Date(nowUtc.getTime() + 330 * 60000).getUTCDay(); // 0=Sun
+    // Override with explicit hourOfDay if provided (backfill / test cases)
+    const hour = (hourOfDay !== null && hourOfDay >= 0 && hourOfDay <= 23) ? hourOfDay : hourIST;
+    // Mon–Fri, 9am–6pm IST = professional hours
+    const isProfessionalHour = dayIST >= 1 && dayIST <= 5 && hourIST >= 9 && hourIST < 18;
+
     await pool.query(
-      `UPDATE user_aqi_signals SET ${hourUpdates.join(', ')} WHERE user_id = $1`,
-      [userId, String(hour)],
+      `UPDATE user_aqi_signals SET
+         engagement_hour_pattern = jsonb_set(
+           COALESCE(engagement_hour_pattern, '{}'::jsonb),
+           ARRAY[$2::text],
+           (COALESCE((engagement_hour_pattern->>$2)::int, 0) + 1)::text::jsonb
+         ),
+         professional_hours_ratio = LEAST(1.0, (COALESCE(professional_hours_ratio, 0) * 0.92) + ($3 * 0.08))
+       WHERE user_id = $1`,
+      // $3: 1.0 if professional hour, 0.0 if not — matches NUMERIC(5,4) 0–1 range
+      [userId, String(hour), isProfessionalHour ? 1.0 : 0.0],
     ).catch(err => console.error('[SignalEmitter] Hour pattern update failed:', err.message));
 
-    // 6. Update premium_categories_ratio if category known
+    // 7. Update premium_categories_ratio if category known
     const premiumCategories = ['wellness', 'tech', 'technology', 'business', 'luxury', 'finance', 'professional'];
     if (category) {
       const isPremium = premiumCategories.includes(category.toLowerCase());
       await pool.query(
         `UPDATE user_aqi_signals
-         SET premium_categories_ratio = (premium_categories_ratio * 0.9) + ($2 * 0.1)
+         SET premium_categories_ratio = (COALESCE(premium_categories_ratio, 0) * 0.9) + ($2 * 0.1)
          WHERE user_id = $1`,
         [userId, isPremium ? 1.0 : 0.0],
       ).catch(err => console.error('[SignalEmitter] Premium category update failed:', err.message));
     }
 
-    // 7. Auto-trigger AQI recalculation every 10 signals (debounced, async)
+    // 8. Auto-trigger AQI recalculation every 10 signals (debounced, async)
     if (totalEvents > 0 && totalEvents % 10 === 0) {
       recalculateAqiAsync(pool, userId).catch((err) =>
         console.error(`[SignalEmitter] AQI auto-recalc failed for user ${userId}:`, err.message),
@@ -366,4 +537,4 @@ async function recalculateAqiAsync(pool, userId) {
   console.log(`[SignalEmitter] AQI recalculated for user ${userId}: score=${aqiScore} tier=${aqiTier} trajectory=${trajectory}`);
 }
 
-module.exports = { emitSignal, getCategoryForPost, getCategoryForEvent, recalculateAqiAsync };
+module.exports = { emitSignal, getCategoryForPost, getCategoryForEvent, recalculateAqiAsync, getVideoSignalStrength };
