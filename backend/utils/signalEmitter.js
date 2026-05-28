@@ -588,7 +588,35 @@ async function recalculateAqiAsync(pool, userId) {
   const onboardingAqi = (occupationScore * 0.40) + (ageScore * 0.20) + (locationScore * 0.20) + (deviceScore * 0.20);
   const onboardingWeight = parseFloat(signals.onboarding_weight) || 0.9;
   const behaviorWeight   = parseFloat(signals.behavior_weight) || 0.1;
-  const aqiScore = Math.min(100, Math.max(0, Math.round(((onboardingAqi * onboardingWeight) + (behavioralAqi * behaviorWeight)) * 100) / 100));
+  const rawAqiScore = Math.min(100, Math.max(0,
+    Math.round(((onboardingAqi * onboardingWeight) + (behavioralAqi * behaviorWeight)) * 100) / 100
+  ));
+
+  // ── Dormancy decay ─────────────────────────────────────────────────────────
+  // A score earned months ago is worth less than the same score earned today.
+  // We read last_active_at from the already-fetched signals row (no extra query).
+  // The multiplier decays the final score; tiers are re-derived from the decayed value.
+  //
+  // Thresholds (days inactive → multiplier):
+  //   0-30d  → 1.00  (no penalty — fully active)
+  //  31-60d  → 0.90  (mild cool-off)
+  //  61-90d  → 0.75  (lapsing)
+  // 91-180d  → 0.55  (dormant)
+  //   180d+  → 0.35  (ghost-level)
+  const lastActive = signals.last_active_at ? new Date(signals.last_active_at) : null;
+  const daysSinceActive = lastActive
+    ? Math.floor((Date.now() - lastActive.getTime()) / 86_400_000)
+    : 999; // unknown = treat as maximally dormant
+
+  const dormancyMultiplier =
+    daysSinceActive <= 30  ? 1.00 :
+    daysSinceActive <= 60  ? 0.90 :
+    daysSinceActive <= 90  ? 0.75 :
+    daysSinceActive <= 180 ? 0.55 : 0.35;
+
+  const dormancyApplied = dormancyMultiplier < 1.0;
+  const aqiScore = Math.round(rawAqiScore * dormancyMultiplier * 100) / 100;
+  // ─────────────────────────────────────────────────────────────────────────
 
   let aqiTier = 4;
   if (aqiScore >= 75) aqiTier = 1;
@@ -628,10 +656,19 @@ async function recalculateAqiAsync(pool, userId) {
   await pool.query(
     `UPDATE user_aqi_signals
      SET aqi_score = $2, aqi_tier = $3, aqi_trajectory = $4,
+         dormancy_adjustment_applied = $5,
          last_calculated_at = NOW(), updated_at = NOW()
      WHERE user_id = $1`,
-    [userId, aqiScore, aqiTier, trajectory],
+    [userId, aqiScore, aqiTier, trajectory, dormancyApplied],
   );
+
+  if (dormancyApplied) {
+    console.log(
+      `[SignalEmitter] Dormancy decay applied for user ${userId}: ` +
+      `${daysSinceActive}d inactive, multiplier=${dormancyMultiplier}, ` +
+      `raw=${rawAqiScore} → final=${aqiScore}`
+    );
+  }
 
   // Trigger interest vector decay + drift detection async
   const { recalculateInterestVectors, detectDrift } = require('./interestVectorEngine');

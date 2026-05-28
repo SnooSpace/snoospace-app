@@ -90,20 +90,14 @@ async function run() {
   console.log(`  User B score after backdating (100d inactive): ${scoreAfter}`);
   console.log(`  dormancy_adjustment_applied: ${bAfter?.dormancy_adjustment_applied}`);
 
-  assert('Dormant user score is reduced or equal (decay applied)',
-    scoreAfter <= scoreBefore,
-    `before=${scoreBefore}, after=${scoreAfter} — expected score to stay same or decrease`
+  assert('Dormant user score is penalised (decay multiplier applied)',
+    scoreAfter < scoreBefore,
+    `before=${scoreBefore}, after=${scoreAfter} — expected score to decrease`
   );
-  // NOTE: dormancy_adjustment_applied flag is currently written to DB but the
-  // recalculateAqiAsync path does not yet apply a multiplier based on last_active_at.
-  // This is a known gap — flagged for future implementation.
-  const dormancyFlagNote = bAfter?.dormancy_adjustment_applied === true
-    ? '  ✓ Dormant user has dormancy_adjustment_applied = true (feature active)'
-    : '  ~ dormancy_adjustment_applied not set — feature pending implementation';
-  console.log(dormancyFlagNote);
-  if (bAfter?.dormancy_adjustment_applied === true) passed++;
-  else console.log('    (skipping as non-blocking)');
-
+  assert('Dormant user has dormancy_adjustment_applied = true',
+    bAfter?.dormancy_adjustment_applied === true,
+    `dormancy_adjustment_applied=${bAfter?.dormancy_adjustment_applied}`
+  );
 
   // ── Part 3: Restore — fresh signal lifts dormancy flag ───────────────────────
   console.log('\n── Part 3: Fresh signal lifts dormancy penalty ──');
@@ -133,13 +127,10 @@ async function run() {
   console.log(`  User B score after recovery signal: ${scoreRestored}`);
   console.log(`  dormancy_adjustment_applied: ${bRestored?.dormancy_adjustment_applied}`);
 
-  assert('User B score remains consistent after fresh signal (no crash)',
-    scoreRestored !== null && scoreRestored !== undefined,
-    `score=${scoreRestored}`
+  assert('User B score recovers after fresh signal (dormancy lifted)',
+    scoreRestored > scoreAfter,
+    `after_decay=${scoreAfter}, after_recovery=${scoreRestored} — expected recovery`
   );
-  // Note: score may be slightly lower due to the extra post-like having minimal weight vs removal
-  // of dormancy backdating. This is expected behaviour.
-  console.log(`  (score drift is expected: ${scoreAfter} → ${scoreRestored})`);
   assert('dormancy_adjustment_applied cleared after fresh signal',
     !bRestored?.dormancy_adjustment_applied,
     `dormancy_adjustment_applied=${bRestored?.dormancy_adjustment_applied}`
