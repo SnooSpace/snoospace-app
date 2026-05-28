@@ -1323,6 +1323,7 @@ router.post("/privacy/consent", authMiddleware, PrivacyController.updateConsent)
 router.get("/privacy/consent", authMiddleware, PrivacyController.getConsent);
 router.post("/privacy/request-deletion", authMiddleware, PrivacyController.requestDataDeletion);
 router.get("/privacy/my-data-summary", authMiddleware, PrivacyController.getMyDataSummary);
+router.get("/privacy/community-data-summary", authMiddleware, PrivacyController.getCommunityDataSummary);
 
 // ============================================
 // AUDIENCE INTELLIGENCE

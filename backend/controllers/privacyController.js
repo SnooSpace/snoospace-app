@@ -496,4 +496,120 @@ async function getMyDataSummary(req, res) {
   }
 }
 
-module.exports = { updateConsent, getConsent, requestDataDeletion, getMyDataSummary };
+// ============================================================
+// GET /privacy/community-data-summary
+// Community equivalent of getMyDataSummary — uses community-specific
+// data sources instead of personal AQI / interest vectors.
+// ============================================================
+
+async function getCommunityDataSummary(req, res) {
+  try {
+    const communityId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!communityId) return res.status(401).json({ error: "Authentication required" });
+    if (userType !== "community") {
+      return res.status(403).json({ error: "This endpoint is for community accounts only" });
+    }
+
+    const [
+      eventsHostedResult,
+      communityResult,
+      contentPublishedResult,
+      topCategoriesResult,
+      healthScoreResult,
+      consentResult,
+    ] = await Promise.all([
+      // Count all published events this community has created
+      pool.query(
+        `SELECT COUNT(*) AS count FROM events WHERE community_id = $1 AND is_published = true`,
+        [communityId]
+      ),
+      // Get follower_count (denormalized) and created_at from communities table
+      pool.query(
+        `SELECT follower_count, created_at FROM communities WHERE id = $1`,
+        [communityId]
+      ),
+      // Count posts + videos authored by this community
+      pool.query(
+        `SELECT COUNT(*) AS count FROM posts
+         WHERE author_id = $1 AND author_type = 'community'`,
+        [communityId]
+      ),
+      // Top 5 event categories hosted by this community
+      pool.query(
+        `SELECT category, COUNT(*) AS event_count
+         FROM events
+         WHERE community_id = $1
+           AND is_published = true
+           AND category IS NOT NULL
+         GROUP BY category
+         ORDER BY event_count DESC
+         LIMIT 5`,
+        [communityId]
+      ),
+      // Community health score (may be absent for brand-new communities)
+      pool.query(
+        `SELECT health_status, brand_match_multiplier,
+                active_flag_count, medium_flag_count, high_flag_count
+         FROM community_health_scores
+         WHERE community_id = $1`,
+        [communityId]
+      ),
+      // Consent state using polymorphic key (user_id, user_type)
+      pool.query(
+        `SELECT behavioral_tracking_consent, brand_targeting_consent,
+                data_sharing_consent, event_audience_intelligence_consent
+         FROM user_privacy_consent
+         WHERE user_id = $1 AND user_type = 'community'`,
+        [communityId]
+      ),
+    ]);
+
+    const communityRow = communityResult.rows[0] || {};
+    const consentRow = consentResult.rows[0] || {};
+
+    // Default to healthy for communities with no fraud flags yet
+    const healthRow = healthScoreResult.rows[0] || {
+      health_status: "healthy",
+      brand_match_multiplier: 1.0,
+      active_flag_count: 0,
+      medium_flag_count: 0,
+      high_flag_count: 0,
+    };
+
+    console.log(`[Privacy] getCommunityDataSummary for community ${communityId}: health=${healthRow.health_status}`);
+
+    return res.json({
+      success: true,
+      eventsHosted: parseInt(eventsHostedResult.rows[0]?.count ?? 0),
+      memberCount: parseInt(communityRow.follower_count ?? 0),
+      contentPublished: parseInt(contentPublishedResult.rows[0]?.count ?? 0),
+      topCategories: topCategoriesResult.rows.map((r) => ({
+        category: r.category,
+        eventCount: parseInt(r.event_count),
+      })),
+      healthScore: {
+        healthStatus: healthRow.health_status,
+        brandMatchMultiplier: parseFloat(healthRow.brand_match_multiplier ?? 1.0),
+        activeFlagCount: parseInt(healthRow.active_flag_count ?? 0),
+        mediumFlagCount: parseInt(healthRow.medium_flag_count ?? 0),
+        highFlagCount: parseInt(healthRow.high_flag_count ?? 0),
+      },
+      consentState: {
+        behavioral: consentRow.behavioral_tracking_consent ?? false,
+        brand: consentRow.brand_targeting_consent ?? false,
+        dataSharing: consentRow.data_sharing_consent ?? false,
+        eventAudienceIntelligence: consentRow.event_audience_intelligence_consent ?? false,
+      },
+      joinedAt: communityRow.created_at || null,
+    });
+
+  } catch (error) {
+    console.error("[Privacy] getCommunityDataSummary error:", error.message, error.stack);
+    res.status(500).json({ error: "Failed to fetch community data summary" });
+  }
+}
+
+module.exports = { updateConsent, getConsent, requestDataDeletion, getMyDataSummary, getCommunityDataSummary };
+

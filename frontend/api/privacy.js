@@ -22,18 +22,16 @@ export const getConsentState = async () => {
 };
 
 /**
- * Update consent preferences
- * @param {{ behavioralTracking?: boolean, brandTargeting?: boolean, dataSharing?: boolean }} consentPayload
+ * Update consent preferences — intentionally does NOT swallow errors.
+ * Callers (toggle handlers) rely on this throwing so they can revert state.
+ * @param {{ behavioralTracking?: boolean, brandTargeting?: boolean, dataSharing?: boolean, eventAudienceIntelligence?: boolean }} consentPayload
  * @returns {{ success, consent }}
  */
 export const updateConsent = async (consentPayload) => {
-  try {
-    const response = await apiPost("/privacy/consent", consentPayload);
-    return response;
-  } catch (error) {
-    console.error("[PrivacyAPI] updateConsent error:", error);
-    return null;
-  }
+  // No try/catch here — apiPost already throws a structured Error on non-2xx.
+  // handleToggle in the screen catches the error and reverts local state.
+  const response = await apiPost("/privacy/consent", consentPayload);
+  return response;
 };
 
 /**
@@ -52,7 +50,7 @@ export const requestDataDeletion = async () => {
 };
 
 /**
- * Get a plain-language summary of what data exists about the user
+ * Get a plain-language summary of what data exists about the user (member / sponsor)
  * @returns {{ success, summary }}
  */
 export const getMyDataSummary = async () => {
@@ -61,6 +59,22 @@ export const getMyDataSummary = async () => {
     return response;
   } catch (error) {
     console.error("[PrivacyAPI] getMyDataSummary error:", error);
+    return null;
+  }
+};
+
+/**
+ * Get community-specific data summary for the Community Privacy Screen.
+ * Returns eventsHosted, memberCount, contentPublished, topCategories,
+ * healthScore, consentState, and joinedAt.
+ * @returns {{ success, eventsHosted, memberCount, contentPublished, topCategories, healthScore, consentState, joinedAt }}
+ */
+export const getCommunityDataSummary = async () => {
+  try {
+    const response = await apiGet("/privacy/community-data-summary");
+    return response;
+  } catch (error) {
+    console.error("[PrivacyAPI] getCommunityDataSummary error:", error);
     return null;
   }
 };
