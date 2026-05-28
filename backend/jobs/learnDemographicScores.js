@@ -284,6 +284,11 @@ async function runDemographicLearningJob(pool) {
   // Step 6: Learn gender-category affinity indexes
   await learnGenderCategoryAffinity(pool);
 
+  // Step 7: Calculate network quality averages for all active members
+  // network_quality_avg = mean AQI score of users this person follows
+  // This is stored weekly in user_aqi_signals and feeds networkQualityScore
+  await calculateNetworkQualityScores(pool);
+
   const elapsed = Math.round((Date.now() - startTime) / 1000);
   console.log(
     `[DemographicLearning] === Weekly job completed in ${elapsed}s ===`,
@@ -393,6 +398,49 @@ async function learnGenderCategoryAffinity(pool) {
   }
 }
 
+/**
+ * Calculate network quality scores for all active members.
+ * For each member, computes the mean AQI score of everyone they follow.
+ * Stored in user_aqi_signals.network_quality_avg (weekly update).
+ * High network quality = user surrounds themselves with high-engagement peers
+ * which is itself a behavioural signal.
+ *
+ * Note: Only includes follows from member → member (not member → community)
+ * because the AQI pipeline only scores members.
+ */
+async function calculateNetworkQualityScores(pool) {
+  console.log('[DemographicLearning] Calculating network quality averages...');
+  try {
+    // Bulk update: for each member, compute mean AQI of their following list
+    // Only include followees who have at least 20 behavior events (non-ghost)
+    const result = await pool.query(`
+      UPDATE user_aqi_signals s
+      SET network_quality_avg = nq.avg_following_aqi,
+          updated_at = NOW()
+      FROM (
+        SELECT
+          f.follower_id    AS user_id,
+          AVG(fs.aqi_score) AS avg_following_aqi
+        FROM follows f
+        JOIN user_aqi_signals fs ON fs.user_id = f.following_id
+        WHERE f.follower_type  = 'member'
+          AND f.following_type = 'member'
+          AND fs.total_behavior_events >= 20
+          AND fs.aqi_score IS NOT NULL
+        GROUP BY f.follower_id
+        HAVING COUNT(*) >= 3  -- must follow at least 3 qualifying members
+      ) nq
+      WHERE s.user_id = nq.user_id
+    `);
+
+    console.log(
+      `[DemographicLearning] Network quality updated for ${result.rowCount} member(s)`
+    );
+  } catch (err) {
+    console.error('[DemographicLearning] calculateNetworkQualityScores error:', err.message);
+  }
+}
+
 module.exports = {
   runDemographicLearningJob,
   learnScoresForDimension,
@@ -400,4 +448,5 @@ module.exports = {
   recalculateAllUserVectors,
   learnGenderCategoryAffinity,
   detectAnomalousSignals,
+  calculateNetworkQualityScores,
 };

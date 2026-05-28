@@ -2,6 +2,21 @@ const MemberController = require("./memberController");
 const CommunityController = require("./communityController");
 const SponsorController = require("./sponsorController");
 const VenueController = require("./venueController");
+const { emitSignal } = require("../utils/signalEmitter");
+
+// Derive a rough category from search query text for interest vector tagging
+function deriveCategoryFromQuery(query) {
+  const q = query.toLowerCase();
+  if (/music|concert|dj|gig|band|festival|EDM|hip.hop/i.test(q))   return 'music';
+  if (/tech|startup|coding|hackathon|AI|product|SaaS/i.test(q))    return 'technology';
+  if (/fitness|yoga|gym|marathon|run|sport|wellness/i.test(q))     return 'fitness';
+  if (/network|career|job|professional|entrepreneur/i.test(q))     return 'networking';
+  if (/art|design|craft|paint|sketch|gallery/i.test(q))            return 'arts';
+  if (/food|cook|chef|dining|restaurant|bake/i.test(q))            return 'food';
+  if (/game|gaming|esport|LAN|tournament/i.test(q))                return 'gaming';
+  if (/dance|salsa|bollywood|choreograph/i.test(q))                return 'dance';
+  return null;
+}
 
 async function globalSearch(req, res) {
   try {
@@ -334,6 +349,25 @@ async function globalSearch(req, res) {
       nextOffset: offset + combinedResults.length,
       hasMore,
     });
+
+    // Fire search_performed signal after response is sent — fire-and-forget
+    // Only emit if we have a logged-in member and the search returned results
+    if (userType === 'member' && combinedResults.length > 0 && q.length >= 2) {
+      const pool = req.app.locals.pool;
+      const derivedCategory = deriveCategoryFromQuery(q);
+      emitSignal(pool, {
+        userId,
+        userType: 'member',
+        eventType: 'search_performed',
+        category: derivedCategory,
+        metadata: {
+          query:            q,
+          query_word_count: q.trim().split(/\s+/).length,
+          result_count:     combinedResults.length,
+          led_to_rsvp:      false,  // updated to true if RSVP follows within 10 min
+        },
+      }).catch(() => {});
+    }
   } catch (err) {
     console.error("/search/global error:", err && err.stack ? err.stack : err);
     console.error("Error details:", {

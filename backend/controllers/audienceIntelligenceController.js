@@ -805,7 +805,46 @@ async function recalculateCreatorStats(creatorId) {
     }
   }
 
+  // Geographic breakdown — top cities among consenting followers
+  // Only computed if we have ≥ 5 followers with city data to protect privacy
+  const geographicBreakdown = {};
+  if (followerIds.length >= 5) {
+    try {
+      const geoResult = await pool.query(
+        `SELECT
+           NULLIF(TRIM(COALESCE(m.location->>'city', '')), '') AS city,
+           COUNT(*) AS follower_count
+         FROM members m
+         WHERE m.id = ANY($1)
+           AND m.id NOT IN (
+             SELECT user_id FROM user_privacy_consent
+             WHERE brand_targeting_consent = false
+           )
+           AND m.location->>'city' IS NOT NULL
+           AND TRIM(m.location->>'city') != ''
+         GROUP BY city
+         HAVING COUNT(*) >= 2
+         ORDER BY follower_count DESC
+         LIMIT 5`,
+        [followerIds]
+      );
+
+      const total = geoResult.rows.reduce((sum, r) => sum + parseInt(r.follower_count), 0);
+      if (total >= 5) {
+        for (const row of geoResult.rows) {
+          geographicBreakdown[row.city] = Math.round(
+            (parseInt(row.follower_count) / total) * 100
+          );
+        }
+      }
+    } catch (geoErr) {
+      // Non-fatal — geographic breakdown is a nice-to-have
+      console.warn('[AQI] Geographic breakdown query failed:', geoErr.message);
+    }
+  }
+
   // Get existing weekly trend and append current week
+
   const existingStats = await pool.query(
     `SELECT weekly_follow_quality_trend FROM creator_audience_stats WHERE creator_id = $1`,
     [creatorId],
@@ -854,7 +893,7 @@ async function recalculateCreatorStats(creatorId) {
       tier2Pct,
       Math.round(audienceBuyingPower * 100) / 100,
       JSON.stringify([]), // top_spending_categories — populate from event registrations
-      JSON.stringify({}), // geographic_breakdown — populate from member locations
+      JSON.stringify(geographicBreakdown), // real city distribution computed above
       Math.round(authenticityScore * 100) / 100,
       JSON.stringify(weeklyTrend),
       JSON.stringify(audienceGenderBreakdown),

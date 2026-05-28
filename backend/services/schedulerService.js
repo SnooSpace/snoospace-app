@@ -11,6 +11,10 @@ const notificationService = require("./notificationService");
 const pushService = require("./pushService");
 const { runDemographicLearningJob } = require("../jobs/learnDemographicScores");
 const { runBehaviorEventRetention } = require("../jobs/behaviorEventRetention");
+const {
+  resolvePostEventAttendance,
+  analysePostEventEcho,
+} = require("../utils/postEventAttendanceResolver");
 
 let pool = null;
 
@@ -50,6 +54,81 @@ const init = (dbPool) => {
   cron.schedule("0 4 * * 0", async () => {
     console.log("[Scheduler] Running behavior event retention job...");
     await runBehaviorEventRetention(pool);
+  });
+
+  // ── Hourly: resolve attendance for events that ended in the last 1–3 hours ──
+  // Runs at the top of every hour. Finds events that ended between 1h and 3h ago
+  // with unresolved registrations, and runs the attendance inference logic.
+  cron.schedule("0 * * * *", async () => {
+    if (!pool) return;
+    try {
+      const recentlyEnded = await pool.query(`
+        SELECT DISTINCT e.id
+        FROM events e
+        WHERE COALESCE(e.end_datetime, e.start_datetime + INTERVAL '2 hours')
+              BETWEEN NOW() - INTERVAL '3 hours' AND NOW() - INTERVAL '1 hour'
+          AND NOT EXISTS (
+            SELECT 1 FROM event_registrations er
+            WHERE er.event_id = e.id
+              AND er.attendance_status != 'registered'
+            LIMIT 1
+          )
+          AND EXISTS (
+            SELECT 1 FROM event_registrations er2
+            WHERE er2.event_id = e.id
+              AND er2.attendance_status = 'registered'
+            LIMIT 1
+          )
+      `);
+      for (const row of recentlyEnded.rows) {
+        await resolvePostEventAttendance(pool, row.id).catch(err =>
+          console.error(`[Scheduler] Attendance resolver failed for event ${row.id}:`, err.message)
+        );
+      }
+      if (recentlyEnded.rows.length > 0) {
+        console.log(`[Scheduler] Resolved attendance for ${recentlyEnded.rows.length} event(s)`);
+      }
+    } catch (err) {
+      console.error("[Scheduler] Post-event resolution job error:", err.message);
+    }
+  });
+
+  // ── Every 6h: analyse post-event echo windows that have closed ──────────────
+  // Finds 48h observation windows that opened after an event and have now closed.
+  cron.schedule("0 */6 * * *", async () => {
+    if (!pool) return;
+    try {
+      const windows = await pool.query(`
+        SELECT
+          ube.user_id,
+          (ube.metadata->>'event_id')::int     AS event_id,
+          ube.occurred_at                       AS window_start,
+          (ube.metadata->>'window_ends_at')::timestamptz AS window_end,
+          e.community_id,
+          e.category
+        FROM user_behavior_events ube
+        JOIN events e ON e.id = (ube.metadata->>'event_id')::int
+        WHERE ube.event_type = 'post_event_window_start'
+          AND ube.occurred_at >= NOW() - INTERVAL '72 hours'
+          AND (ube.metadata->>'window_ends_at')::timestamptz <= NOW()
+          AND NOT EXISTS (
+            SELECT 1 FROM user_behavior_events analysed
+            WHERE analysed.user_id = ube.user_id
+              AND analysed.event_type = 'post_event_echo_analysed'
+              AND analysed.metadata->>'event_id' = ube.metadata->>'event_id'
+          )
+      `);
+      for (const window of windows.rows) {
+        await analysePostEventEcho(pool, window).catch(err =>
+          console.error(`[Scheduler] Echo analysis failed for user ${window.user_id}:`, err.message)
+        );
+      }
+      if (windows.rows.length > 0) {
+        console.log(`[Scheduler] Analysed ${windows.rows.length} post-event echo window(s)`);
+      }
+    } catch (err) {
+      console.error("[Scheduler] Echo analysis job error:", err.message);
+    }
   });
 
   console.log("[Scheduler] Scheduler service initialized");

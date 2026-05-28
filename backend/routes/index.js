@@ -1398,6 +1398,13 @@ router.get(
   authMiddleware,
   AudienceIntelligenceController.getCommunityHealthScore,
 );
+// Organiser manually confirms attendance (within 7 days of event end)
+router.post(
+  "/events/:eventId/confirm-attendance/:registrationId",
+  authMiddleware,
+  EventController.organiserConfirmAttendance,
+);
+
 // Notifications
 router.get(
   "/notifications",

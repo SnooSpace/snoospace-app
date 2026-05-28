@@ -14,23 +14,35 @@
  */
 
 const SIGNAL_STRENGTH_MAP = {
-  qr_checkin:            5.0,  // verified physical attendance — strongest signal
-  paid_event_attended:   3.0,
-  content_shared:        2.0,
-  challenge_submit:      1.8,
-  free_event_attended:   1.5,
-  content_watched_long:  1.0,  // ≥50% completion
-  event_rsvp:            1.0,
-  challenge_join:        0.9,
-  prompt_submit:         0.9,
-  poll_vote:             0.8,
-  qna_question:          0.7,
-  follow_content:        0.6,
-  post_save:             0.5,
-  qna_upvote:            0.4,
-  content_watched_short: 0.3,  // <50% completion
-  post_like:             0.3,
-  // video_watch is dynamic — use getVideoSignalStrength() before calling emitSignal
+  // ── Physical attendance ───────────────────────────────────────────────────
+  qr_checkin:                    5.0,  // verified physical attendance — strongest
+  paid_event_attended:           3.0,  // legacy (pre-resolver) full attendance
+  manually_confirmed_attended:   2.5,  // organiser confirmed post-event
+  paid_event_inferred_attended:  2.1,  // payment + app activity near event
+  paid_event_purchase_only:      1.8,  // payment confirmed, attendance unknown
+  free_event_attended:           1.5,
+  // ── Content ───────────────────────────────────────────────────────────────
+  content_shared:                2.0,
+  challenge_submit:              1.8,
+  content_watched_long:          1.0,  // ≥50% — override with getVideoSignalStrength()
+  event_rsvp:                    1.0,
+  challenge_join:                0.9,
+  prompt_submit:                 0.9,
+  poll_vote:                     0.8,
+  qna_question:                  0.7,
+  follow_content:                0.6,
+  post_save:                     0.5,
+  qna_upvote:                    0.4,
+  content_watched_short:         0.3,  // <50%
+  post_like:                     0.3,
+  // ── Search intelligence ───────────────────────────────────────────────────
+  search_converted_to_rsvp:      1.5,  // search that led to RSVP within 10 min
+  search_performed:              0.4,  // deliberate search — modulated by sophistication
+  // ── Post-event ────────────────────────────────────────────────────────────
+  post_event_echo:               null, // dynamic — set from calculateEchoScore() (0–2.0)
+  // ── System markers (signal_strength = 0, never scored) ───────────────────
+  post_event_window_start:       0,
+  post_event_echo_analysed:      0,
 };
 
 /**
@@ -81,12 +93,15 @@ function buildSubSignalUpdate(eventType, metadata) {
     case 'qr_checkin': {
       // QR check-in = verified physical presence
       // Increments total_attended and recalculates rsvp_to_attend_ratio inline
+      // Use GREATEST(total_rsvps, 1) to avoid divide-by-zero when no prior RSVP exists
       return {
         sql: `
           total_attended = COALESCE(total_attended, 0) + 1,
-          rsvp_to_attend_ratio = (
-            COALESCE(total_attended, 0) + 1
-          )::float / NULLIF(COALESCE(total_rsvps, 1), 0)
+          rsvp_to_attend_ratio = ROUND(
+            (COALESCE(total_attended, 0) + 1)::numeric
+            / GREATEST(COALESCE(total_rsvps, 0), 1)::numeric,
+            4
+          )
         `,
         values: [],
       };
@@ -105,9 +120,11 @@ function buildSubSignalUpdate(eventType, metadata) {
       return {
         sql: `
           total_attended = COALESCE(total_attended, 0) + 1,
-          rsvp_to_attend_ratio = (
-            COALESCE(total_attended, 0) + 1
-          )::float / NULLIF(COALESCE(total_rsvps, 1), 0)
+          rsvp_to_attend_ratio = ROUND(
+            (COALESCE(total_attended, 0) + 1)::numeric
+            / GREATEST(COALESCE(total_rsvps, 0), 1)::numeric,
+            4
+          )
         `,
         values: [],
       };
@@ -178,6 +195,62 @@ function buildSubSignalUpdate(eventType, metadata) {
       return {
         sql: `content_depth_score = (COALESCE(content_depth_score, 0) * 0.95) + (25.0 * 0.05)`,
         values: [],
+      };
+    }
+
+    case 'paid_event_inferred_attended':
+    case 'manually_confirmed_attended': {
+      // Both count toward paid event analytics (partial/confirmed attendance)
+      const ticketPrice = parseFloat(metadata.ticketPrice ?? metadata.ticket_price ?? 0);
+      return {
+        sql: `
+          paid_events_attended = COALESCE(paid_events_attended, 0) + 1,
+          avg_ticket_price_paid = (
+            (COALESCE(avg_ticket_price_paid, 0) * COALESCE(paid_events_attended, 0)) + $2
+          ) / NULLIF(COALESCE(paid_events_attended, 0) + 1, 0),
+          total_attended = COALESCE(total_attended, 0) + 1,
+          rsvp_to_attend_ratio = (
+            COALESCE(total_attended, 0) + 1
+          )::float / NULLIF(COALESCE(total_rsvps, 1), 0)
+        `,
+        values: [ticketPrice],
+      };
+    }
+
+    case 'paid_event_purchase_only': {
+      // Payment confirmed but no attendance evidence — contributes to ticket price avg
+      // Does NOT increment total_attended (unconfirmed)
+      const ticketPrice = parseFloat(metadata.ticketPrice ?? metadata.ticket_price ?? 0);
+      return ticketPrice > 0 ? {
+        sql: `
+          avg_ticket_price_paid = (
+            (COALESCE(avg_ticket_price_paid, 0) * COALESCE(paid_events_attended, 0)) + $2
+          ) / NULLIF(COALESCE(paid_events_attended, 0) + 1, 0)
+        `,
+        values: [ticketPrice],
+      } : null;
+    }
+
+    case 'search_performed': {
+      // Score search sophistication → nudges content_depth_score
+      // More specific, contextual searches = higher intent user
+      const query     = (metadata.query ?? '').trim().toLowerCase();
+      const wordCount = query ? query.split(/\s+/).length : 0;
+      const hasLocation    = /bangalore|mumbai|delhi|pune|hyderabad|chennai|kolkata|noida|gurgaon|[a-z]+ nagar|koramangala|bandra|andheri/i.test(query);
+      const hasTimeContext = /saturday|sunday|weekend|tonight|this week|morning|evening|next/i.test(query);
+      const hasNicheTerms = query.length > 15 && wordCount >= 3;
+
+      let sophisticationScore = 20; // base for any deliberate search
+      if (wordCount >= 2) sophisticationScore += 15;
+      if (wordCount >= 3) sophisticationScore += 15;
+      if (hasLocation)    sophisticationScore += 20;
+      if (hasTimeContext) sophisticationScore += 15;
+      if (hasNicheTerms)  sophisticationScore += 15;
+      sophisticationScore = Math.min(100, sophisticationScore);
+
+      return {
+        sql: `content_depth_score = (COALESCE(content_depth_score, 0) * 0.92) + ($2 * 0.08)`,
+        values: [sophisticationScore],
       };
     }
 
@@ -272,7 +345,7 @@ async function hasConsent(pool, userId, userType) {
  * @param {number|null} opts.hourOfDay - hour 0-23 when action occurred (optional, defaults to now)
  * @param {object} [opts.metadata]    - extra JSON context (postId, eventId, etc.)
  */
-async function emitSignal(pool, { userId, userType, eventType, category = null, hourOfDay = null, metadata = {} }) {
+async function emitSignal(pool, { userId, userType, eventType, category = null, hourOfDay = null, metadata = {}, completionRatio, signalStrength: overrideStrength }) {
   try {
     if (!userId || !userType) return;
 
@@ -280,7 +353,25 @@ async function emitSignal(pool, { userId, userType, eventType, category = null, 
     const consent = await hasConsent(pool, userId, userType);
     if (!consent) return;
 
-    const signalStrength = SIGNAL_STRENGTH_MAP[eventType] ?? 0.3;
+    // Signal strength resolution (precedence: override → completionRatio → map → default 0.3)
+    let finalStrength;
+    if (overrideStrength !== undefined) {
+      finalStrength = overrideStrength;
+    } else if (completionRatio !== undefined) {
+      // Dynamic video strength — ignores the map value
+      finalStrength = getVideoSignalStrength(completionRatio).strength;
+      // Rewatch bonus: user scrubbed back = strong interest signal, cap at 2.0
+      if (metadata?.rewatch_detected) {
+        finalStrength = Math.min(2.0, finalStrength * 1.3);
+      }
+    } else {
+      finalStrength = SIGNAL_STRENGTH_MAP[eventType] ?? 0.3;
+    }
+
+    // Propagate completionRatio into metadata for sub-signal update
+    const enrichedMetadata = completionRatio !== undefined
+      ? { ...metadata, completionRatio, completion_ratio: completionRatio }
+      : metadata;
 
     // 1. Upsert user_aqi_signals row (idempotent for new users)
     await pool.query(
@@ -292,7 +383,7 @@ async function emitSignal(pool, { userId, userType, eventType, category = null, 
     await pool.query(
       `INSERT INTO user_behavior_events (user_id, event_type, category, metadata, signal_strength)
        VALUES ($1, $2, $3, $4, $5)`,
-      [userId, eventType, category, JSON.stringify(metadata), signalStrength],
+      [userId, eventType, category, JSON.stringify(enrichedMetadata), finalStrength],
     );
 
     // 3. Upsert interest vector if category is known
@@ -304,7 +395,7 @@ async function emitSignal(pool, { userId, userType, eventType, category = null, 
            raw_score     = user_interest_vectors.raw_score + $3,
            signal_count  = user_interest_vectors.signal_count + 1,
            last_signal_at = NOW()`,
-        [userId, category.toLowerCase(), signalStrength],
+        [userId, category.toLowerCase(), finalStrength],
       );
     }
 
@@ -326,7 +417,7 @@ async function emitSignal(pool, { userId, userType, eventType, category = null, 
     // 5. Incremental sub-signal update — populates paid_events_attended,
     //    content_depth_score, total_rsvps, total_attended, events_hosted, etc.
     //    This is what feeds the behavioral AQI components directly.
-    const subSignal = buildSubSignalUpdate(eventType, metadata);
+    const subSignal = buildSubSignalUpdate(eventType, enrichedMetadata);
     if (subSignal) {
       await pool.query(
         `UPDATE user_aqi_signals

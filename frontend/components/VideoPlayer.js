@@ -253,11 +253,13 @@ const VideoPlayer = ({
   useEffect(() => {
     if (isFullscreen || !postId) return;
     if (isVisible && isPlaying) {
-      WatchTracker.start(postId, viewerId, viewSource);
+      // Pass current player.duration (seconds) for completionRatio calculation
+      const durationSec = player?.duration ?? 0;
+      WatchTracker.start(postId, viewerId, viewSource, durationSec);
     } else if (!isVisible) {
       WatchTracker.stop();
     }
-  }, [isVisible, isPlaying, isFullscreen, postId, viewerId, viewSource]);
+  }, [isVisible, isPlaying, isFullscreen, postId, viewerId, viewSource, player]);
 
   // Re-load after off-screen unload
   useEffect(() => {

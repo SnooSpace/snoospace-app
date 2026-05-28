@@ -39,6 +39,37 @@ const TRAJECTORY_CONFIG = {
   stable:   { icon: Minus,        color: "#6B7280", label: "Stable" },
 };
 
+const INFO_TIERS = [
+  {
+    tier: 1,
+    badge: "🏆",
+    label: "The Buyers",
+    desc: "Highly active members who RSVP and engage frequently. Brands view this tier as high-value.",
+    color: TIER_COLORS[1],
+  },
+  {
+    tier: 2,
+    badge: "⭐",
+    label: "The Aspirants",
+    desc: "Consistent engagement pattern, showing growing interest in events and content.",
+    color: TIER_COLORS[2],
+  },
+  {
+    tier: 3,
+    badge: "👥",
+    label: "The Browsers",
+    desc: "Exploring what SnooSpace has to offer. Profile grows with attendance and interactions.",
+    color: TIER_COLORS[3],
+  },
+  {
+    tier: 4,
+    badge: "👻",
+    label: "The Ghosts",
+    desc: "Just getting started. Explore events and content to build out your interest profile.",
+    color: TIER_COLORS[4],
+  },
+];
+
 // Toggles per role ─────────────────────────────────────────────────────────────
 
 const MEMBER_TOGGLES = [
@@ -173,8 +204,8 @@ const MyDataScreen = ({ navigation }) => {
     ? "Start attending events and engaging with content to personalize your experience."
     : `${eventsAttended} event${eventsAttended !== 1 ? 's' : ''} attended · ${contentEngaged} content interaction${contentEngaged !== 1 ? 's' : ''}.`;
 
-  const openInfo = (title, body, breakdown = null) =>
-    setInfoModal({ visible: true, title, body, breakdown });
+  const openInfo = (title, body, breakdown = null, showTiers = false) =>
+    setInfoModal({ visible: true, title, body, breakdown, showTiers });
 
   const toggles = accountType === "community"
     ? [...MEMBER_TOGGLES, EVENT_AUDIENCE_TOGGLE]
@@ -305,7 +336,16 @@ const MyDataScreen = ({ navigation }) => {
             {/* Tier */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Your Audience Tier</Text>
-              <View style={[styles.tierCard,{backgroundColor:tierColor.bg,borderColor:tierColor.border}]}>
+              <TouchableOpacity
+                style={[styles.tierCard,{backgroundColor:tierColor.bg,borderColor:tierColor.border}]}
+                activeOpacity={0.75}
+                onPress={() => openInfo(
+                  'Audience Tiers',
+                  'Tiers are calculated based on your event attendance and engagement depth over the last 30 days.',
+                  null,
+                  true
+                )}
+              >
                 <Text style={styles.tierBadge}>{summary?.tierBadge || "👻"}</Text>
                 <View style={styles.tierInfo}>
                   <Text style={[styles.tierLabel,{color:tierColor.text}]}>{summary?.tierLabel || "Unknown"}</Text>
@@ -314,7 +354,8 @@ const MyDataScreen = ({ navigation }) => {
                     <Text style={[styles.trajectoryText,{color:trajectory.color}]}>{trajectory.label}</Text>
                   </View>
                 </View>
-              </View>
+                <Info size={18} color={tierColor.text} strokeWidth={2} style={{ opacity: 0.7 }} />
+              </TouchableOpacity>
               <Text style={styles.tierExplanation}>{summary?.tierExplanation || ""}</Text>
             </View>
 
@@ -535,6 +576,22 @@ const MyDataScreen = ({ navigation }) => {
                     )}
                   </View>
                 )}
+                {/* Tiers Breakdown */}
+                {infoModal.showTiers && (
+                  <View style={styles.tiersList}>
+                    {INFO_TIERS.map((item) => (
+                      <View key={item.tier} style={styles.tierRow}>
+                        <View style={[styles.tierRowBadgeContainer, { backgroundColor: item.color.bg, borderColor: item.color.border }]}>
+                          <Text style={styles.tierRowBadge}>{item.badge}</Text>
+                        </View>
+                        <View style={styles.tierRowContent}>
+                          <Text style={[styles.tierRowLabel, { color: item.color.text }]}>{item.label} (Tier {item.tier})</Text>
+                          <Text style={styles.tierRowDesc}>{item.desc}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
                 {/* Close */}
                 <TouchableOpacity
                   style={styles.infoCloseBtn}
@@ -574,6 +631,40 @@ const styles = StyleSheet.create({
   trajectoryRow: { flexDirection:"row", alignItems:"center", gap:5 },
   trajectoryText: { fontSize:13, fontFamily:FONTS.medium },
   tierExplanation: { fontSize:14, fontFamily:FONTS.regular, color:"#4B5563", lineHeight:20 },
+  tiersList: {
+    gap: 14,
+    marginBottom: 20,
+  },
+  tierRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  tierRowBadgeContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  tierRowBadge: {
+    fontSize: 18,
+  },
+  tierRowContent: {
+    flex: 1,
+    gap: 2,
+  },
+  tierRowLabel: {
+    fontSize: 14,
+    fontFamily: FONTS.semiBold,
+  },
+  tierRowDesc: {
+    fontSize: 13,
+    fontFamily: FONTS.regular,
+    color: "#4B5563",
+    lineHeight: 18,
+  },
   // Stats
   statsRow: { flexDirection:"row", flexWrap:"wrap", justifyContent:"space-between", gap:12, marginBottom:16 },
   statCard: { width:"48%", backgroundColor:"#FFFFFF", borderRadius:20, padding:14, alignItems:"flex-start", gap:8, borderWidth:1, borderColor:"rgba(0,0,0,0.03)", shadowColor:"#000", shadowOffset:{width:0,height:4}, shadowOpacity:0.03, shadowRadius:10, elevation:2 },

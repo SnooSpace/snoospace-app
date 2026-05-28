@@ -40,6 +40,27 @@ export async function recordFollowConversion(videoId, payload) {
 }
 
 /**
+ * Emit an AQI video completion signal to the behavioral pipeline.
+ * Called by WatchTracker on complete/exit with the real completionRatio.
+ * Uses getVideoSignalStrength() server-side so dynamic strength is applied.
+ * Fails silently — never block on AQI failure.
+ *
+ * @param {string|number} videoId
+ * @param {{ viewer_id, completion_ratio, duration_seconds, rewatch_detected, source }} payload
+ */
+export async function recordAqiVideoSignal(videoId, payload) {
+  try {
+    await fetch(`${BACKEND_BASE_URL}/api/videos/${videoId}/aqi-signal`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // silent — tracking must never crash the app
+  }
+}
+
+/**
  * Fetch full aggregated insights for a video (creator only).
  * @returns {Promise<Object>} insights data
  */

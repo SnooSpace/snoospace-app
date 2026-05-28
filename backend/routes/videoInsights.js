@@ -14,6 +14,7 @@
 const express = require('express');
 const router = express.Router();
 const { createPool } = require('../config/db');
+const { emitSignal, getVideoSignalStrength, getCategoryForPost } = require('../utils/signalEmitter');
 
 const pool = createPool();
 
@@ -30,6 +31,54 @@ router.get('/:videoId/insights', async (req, res) => {
     return res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// ─── POST /api/videos/:videoId/aqi-signal ────────────────────────────────────
+// Called by WatchTracker on video complete/exit with the real completionRatio.
+// Emits a content_watched_long/short signal using getVideoSignalStrength() so
+// the behavioral AQI receives an accurate video signal instead of a default 0.3.
+router.post('/:videoId/aqi-signal', async (req, res) => {
+  // Always return 200 — tracking must never error
+  res.status(200).json({ ok: true });
+
+  try {
+    const videoId = parseInt(req.params.videoId);
+    if (isNaN(videoId)) return;
+
+    const {
+      viewer_id,
+      completion_ratio,
+      rewatch_detected = false,
+      source = 'for_you',
+    } = req.body;
+
+    if (!viewer_id || completion_ratio === undefined) return;
+
+    const parsedViewerId = parseInt(viewer_id);
+    if (isNaN(parsedViewerId)) return;
+
+    // Determine event type from completion ratio
+    const { eventType } = getVideoSignalStrength(completion_ratio);
+    const category = await getCategoryForPost(pool, videoId).catch(() => null);
+
+    await emitSignal(pool, {
+      userId:          parsedViewerId,
+      userType:        'member',
+      eventType,
+      category,
+      completionRatio: completion_ratio,
+      metadata: {
+        post_id:         videoId,
+        completion_ratio,
+        source,
+        rewatch_detected,
+      },
+    });
+  } catch (err) {
+    // Fire-and-forget — log but never surface
+    console.error('[aqi-signal]', err.message);
+  }
+});
+
 
 // ─── Helper: computeInsights(videoId) ───────────────────────────────────────
 async function computeInsights(videoId) {

@@ -1,6 +1,7 @@
 const { createPool } = require("../config/db");
 const { isValidGoogleMapsUrl } = require("../utils/googleMapsValidation");
 const { emitSignal, getCategoryForEvent } = require("../utils/signalEmitter");
+const { manuallyConfirmAttendance } = require("../utils/postEventAttendanceResolver");
 const crypto = require("crypto");
 const notificationService = require("../services/notificationService");
 const pushService = require("../services/pushService");
@@ -3474,18 +3475,52 @@ const registerForEvent = async (req, res) => {
 
     // Emit behavioral signal — fire-and-forget, non-blocking
     // Always emit event_rsvp here (free events only reach this path).
-    // Paid events are blocked below and their registrations are created
+    // Paid events are blocked above and their registrations are created
     // by the Razorpay webhook (handlePaymentCaptured in routes/webhooks.js).
     // paid_event_attended fires only after QR check-in via postEventAttendanceResolver.
-    getCategoryForEvent(pool, eventId).then((category) =>
-      emitSignal(pool, {
+    getCategoryForEvent(pool, eventId).then(async (category) => {
+      await emitSignal(pool, {
         userId,
         userType,
         eventType: 'event_rsvp',
         category,
         metadata: { eventId: parseInt(eventId), totalAmount: 0, payment_verified: false },
-      })
-    ).catch(() => {});
+      });
+
+      // Search-to-RSVP conversion: check if this RSVP followed a search within 10 min
+      // If so, mark the search as converted and emit a bonus signal
+      try {
+        const recentSearch = await pool.query(
+          `SELECT id FROM user_behavior_events
+           WHERE user_id = $1
+             AND event_type = 'search_performed'
+             AND occurred_at >= NOW() - INTERVAL '10 minutes'
+           ORDER BY occurred_at DESC
+           LIMIT 1`,
+          [userId]
+        );
+        if (recentSearch.rows.length > 0) {
+          // Mark the search as having converted to an RSVP
+          await pool.query(
+            `UPDATE user_behavior_events
+             SET metadata = jsonb_set(COALESCE(metadata, '{}'), '{led_to_rsvp}', 'true')
+             WHERE id = $1`,
+            [recentSearch.rows[0].id]
+          );
+          // Bonus signal — search that converts is confirmed intent
+          await emitSignal(pool, {
+            userId,
+            userType,
+            eventType: 'search_converted_to_rsvp',
+            category,
+            metadata: { event_id: parseInt(eventId) },
+          });
+        }
+      } catch (searchErr) {
+        // Non-fatal — never block the RSVP on search tracking failure
+        console.warn('[RSVP] Search-to-RSVP conversion tracking failed:', searchErr.message);
+      }
+    }).catch(() => {});
 
     // Fraud guard — fire-and-forget, never blocks the RSVP response
     checkForDummyAccountRsvps(pool, eventId).catch((err) =>
@@ -5570,9 +5605,42 @@ module.exports = {
   // Attendance confirmation
   confirmAttendance,
   getPendingAttendanceEvents,
+  organiserConfirmAttendance,
   // Ticket reservations
   reserveTickets,
   releaseReservation,
   // Event Insights
   getEventInsights,
 };
+
+/**
+ * POST /events/:eventId/confirm-attendance/:registrationId
+ * Organiser manually marks a member as attended.
+ * Community auth — only the event's community can confirm.
+ */
+async function organiserConfirmAttendance(req, res) {
+  try {
+    const communityId  = req.user?.id;
+    const userType     = req.user?.type;
+    if (userType !== 'community') {
+      return res.status(403).json({ error: 'Only community organisers can confirm attendance' });
+    }
+    const { eventId, registrationId } = req.params;
+    const result = await manuallyConfirmAttendance(
+      req.app.locals.pool,
+      parseInt(registrationId),
+      parseInt(communityId)
+    );
+    if (!result.success) {
+      return res.status(400).json({
+        error: result.reason === 'not_authorised_or_expired'
+          ? 'Registration not found, not owned by your community, or confirmation window has closed (7 days)'
+          : result.reason,
+      });
+    }
+    return res.json({ success: true, message: 'Attendance confirmed' });
+  } catch (err) {
+    console.error('[organiserConfirmAttendance]', err.message);
+    return res.status(500).json({ error: 'Failed to confirm attendance' });
+  }
+}
