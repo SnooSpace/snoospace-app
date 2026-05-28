@@ -504,9 +504,35 @@ async function recalculateAqiAsync(pool, userId) {
   else if (aqiScore >= 50) aqiTier = 2;
   else if (aqiScore >= 25) aqiTier = 3;
 
-  const previousScore = parseFloat(signals.aqi_score_4w_ago) || 0;
+  // Snapshot aqi_score_4w_ago: only update if it's the first calculation (NULL)
+  // or 7+ days have passed since last_calculated_at.
+  // We do this BEFORE computing trajectory so new users start with 'stable'
+  // rather than comparing against 0 (which would show every first-scored user as 'rising').
+  const isFirstCalc = signals.aqi_score_4w_ago === null;
+  if (isFirstCalc) {
+    await pool.query(
+      `UPDATE user_aqi_signals SET aqi_score_4w_ago = $2 WHERE user_id = $1`,
+      [userId, aqiScore],
+    );
+  } else {
+    // Only roll the snapshot forward after 7 days — it's a 4-week baseline
+    await pool.query(
+      `UPDATE user_aqi_signals
+       SET aqi_score_4w_ago = aqi_score
+       WHERE user_id = $1
+         AND last_calculated_at IS NOT NULL
+         AND NOW() - last_calculated_at > INTERVAL '7 days'`,
+      [userId],
+    );
+  }
+
+  // Trajectory: compare new score vs the real previous snapshot
+  // If this is the first calculation, always 'stable' — no baseline to compare against
+  const previousScore = isFirstCalc ? aqiScore : (parseFloat(signals.aqi_score_4w_ago) || aqiScore);
   const delta = aqiScore - previousScore;
-  const trajectory = delta > 5 ? 'rising' : delta < -5 ? 'declining' : 'stable';
+  const trajectory = isFirstCalc
+    ? 'stable'
+    : delta > 5 ? 'rising' : delta < -5 ? 'declining' : 'stable';
 
   await pool.query(
     `UPDATE user_aqi_signals
@@ -514,18 +540,6 @@ async function recalculateAqiAsync(pool, userId) {
          last_calculated_at = NOW(), updated_at = NOW()
      WHERE user_id = $1`,
     [userId, aqiScore, aqiTier, trajectory],
-  );
-
-  // Snapshot aqi_score → aqi_score_4w_ago only if 7+ days have passed
-  // (or if aqi_score_4w_ago is still NULL from first calculation)
-  await pool.query(
-    `UPDATE user_aqi_signals
-     SET aqi_score_4w_ago = aqi_score
-     WHERE user_id = $1
-       AND (aqi_score_4w_ago IS NULL
-            OR last_calculated_at IS NULL
-            OR NOW() - last_calculated_at > INTERVAL '7 days')`,
-    [userId],
   );
 
   // Trigger interest vector decay + drift detection async
