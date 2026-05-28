@@ -5422,9 +5422,9 @@ const getEventInsights = async (req, res) => {
       return res.status(403).json({ error: "Community access required" });
     }
 
-    // Verify this community owns the event
+    // Verify this community owns the event (creator_id or community_id)
     const ownerCheck = await pool.query(
-      "SELECT id FROM events WHERE id = $1 AND community_id = $2",
+      "SELECT id FROM events WHERE id = $1 AND (creator_id = $2 OR community_id = $2)",
       [eventId, userId]
     );
     if (ownerCheck.rows.length === 0) {

@@ -15,8 +15,12 @@ import Animated, {
 } from "react-native-reanimated";
 import {
   ArrowLeft,
+  Bookmark,
   ChevronDown,
+  Heart,
+  MessageCircle,
   Radio,
+  Share2,
   Tag,
   Ticket,
   TrendingUp,
