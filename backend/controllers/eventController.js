@@ -3215,6 +3215,20 @@ const registerForEvent = async (req, res) => {
         .json({ error: "Already registered for this event" });
     }
 
+    // 5a. Payment gate — paid events must go through Razorpay
+    // If totalAmount > 0, the frontend should have called /payments/create-order,
+    // opened the Razorpay payment sheet, and called /payments/verify.
+    // Registration for paid events is created by the Razorpay webhook
+    // (handlePaymentCaptured in routes/webhooks.js) — NOT here.
+    // This guard prevents bypass attempts that skip the payment step.
+    if (totalAmount && parseFloat(totalAmount) > 0) {
+      await client.query("ROLLBACK");
+      return res.status(402).json({
+        error: "payment_required",
+        message: "Payment is required for this ticket. Please complete checkout to register.",
+      });
+    }
+
     // 6. Get member info for gender validation
     const memberResult = await client.query(
       "SELECT name, email, gender FROM members WHERE id = $1",
@@ -3459,14 +3473,17 @@ const registerForEvent = async (req, res) => {
     await client.query("COMMIT");
 
     // Emit behavioral signal — fire-and-forget, non-blocking
-    // Determine if this is a paid or free event based on totalAmount
+    // Always emit event_rsvp here (free events only reach this path).
+    // Paid events are blocked below and their registrations are created
+    // by the Razorpay webhook (handlePaymentCaptured in routes/webhooks.js).
+    // paid_event_attended fires only after QR check-in via postEventAttendanceResolver.
     getCategoryForEvent(pool, eventId).then((category) =>
       emitSignal(pool, {
         userId,
         userType,
-        eventType: (totalAmount && totalAmount > 0) ? 'paid_event_attended' : 'event_rsvp',
+        eventType: 'event_rsvp',
         category,
-        metadata: { eventId: parseInt(eventId), totalAmount: totalAmount || 0 },
+        metadata: { eventId: parseInt(eventId), totalAmount: 0, payment_verified: false },
       })
     ).catch(() => {});
 

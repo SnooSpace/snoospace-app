@@ -35,6 +35,7 @@ const ShareController = require("../controllers/shareController");
 const SaveController = require("../controllers/saveController");
 const AudienceIntelligenceController = require("../controllers/audienceIntelligenceController");
 const PrivacyController = require("../controllers/privacyController");
+const PaymentController = require("../controllers/paymentController");
 const videoInsightsRouter = require('./videoInsights');
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 const { requireBehavioralConsent, requireBrandConsent, requireBrandAcknowledgment, checkCreatorEventConsent } = require("../middleware/consentGate");
@@ -1683,5 +1684,26 @@ router.get("/search/accounts", authMiddleware, SearchController.searchAccounts);
 // VIDEO INSIGHTS
 // ============================================
 router.use('/api/videos', videoInsightsRouter);
+
+// ============================================
+// PAYMENTS (Razorpay)
+// Webhook is NOT here — it is registered in server.js BEFORE express.json()
+// because Razorpay signature verification requires the raw body buffer.
+// ============================================
+router.post(
+  "/payments/create-order",
+  authMiddleware,
+  PaymentController.createOrder
+);
+router.post(
+  "/payments/verify",
+  authMiddleware,
+  PaymentController.verifyPayment
+);
+router.get(
+  "/payments/status/:eventId",
+  authMiddleware,
+  PaymentController.getPaymentStatus
+);
 
 module.exports = router;

@@ -1,6 +1,14 @@
 /**
  * CheckoutScreen - Review booking and confirm
  * Shows order summary, timer, promo codes, and confirmation
+ *
+ * Payment flow (paid tickets, finalAmount > 0):
+ *   1. createPaymentOrder  → get Razorpay order from backend
+ *   2. RazorpayCheckout.open() → user pays via Razorpay sheet
+ *   3. verifyPayment        → backend verifies HMAC signature
+ *   4. Show 'payment received' state → webhook confirms & creates registration
+ *
+ * Free tickets: registerForEvent() directly (unchanged).
  */
 import React, { useState, useEffect } from "react";
 import {
@@ -38,11 +46,14 @@ import {
   reserveTickets,
   releaseReservation,
 } from "../../api/events";
+import { createPaymentOrder, verifyPayment } from "../../api/payments";
+import RazorpayCheckout from "@codearcade/expo-razorpay";
 import EventBus from "../../utils/EventBus";
 import CelebrationModal from "../../components/CelebrationModal";
 import SnooLoader from "../../components/ui/SnooLoader";
 import { useToast } from "../../context/ToastContext";
 import DynamicStatusBar from "../../components/DynamicStatusBar";
+import { getActiveAccount } from "../../api/auth";
 
 // Premium Theme Colors
 const BACKGROUND_COLOR = "#F8F9FA";
@@ -282,40 +293,89 @@ export default function CheckoutScreen({ route, navigation }) {
   const bookingFee = 0; // Free as requested
   const finalAmount = totalAmount - discountAmount + bookingFee;
 
+  // ─── Confirm Booking ────────────────────────────────────────────────────────
+  // For FREE tickets (finalAmount === 0): calls registerForEvent directly.
+  // For PAID tickets (finalAmount > 0): creates a Razorpay order, opens the
+  // Razorpay payment sheet, verifies the signature, and shows a 'payment received'
+  // state. The actual registration is created by the backend webhook.
   const handleConfirmBooking = async () => {
     if (isConfirmed || isLoading) return;
 
     setIsLoading(true);
     try {
-      const bookingData = {
-        tickets: cartItems.map((item) => ({
-          ticketTypeId: item.ticket.id,
-          quantity: item.quantity,
-          unitPrice: calculateEffectivePrice(item.ticket, event.pricing_rules)
-            .effectivePrice,
-          ticketName: item.ticket.name,
-        })),
-        promoCode: appliedDiscount?.code || null,
-        totalAmount: finalAmount,
-        discountAmount: discountAmount,
-        sessionId: sessionId,
-      };
+      if (finalAmount > 0) {
+        // ── PAID FLOW ──────────────────────────────────────────────────────
+        // Step 1: Create Razorpay order on backend
+        const order = await createPaymentOrder(event.id, finalAmount);
 
-      const response = await registerForEvent(event.id, bookingData);
+        if (!order.success) {
+          throw new Error(order.error || "Failed to create payment order");
+        }
 
-      if (response.success) {
+        // Fetch current user info for prefill (best-effort)
+        let prefillName = order.prefill?.name || "";
+        let prefillEmail = order.prefill?.email || "";
+        try {
+          const activeAccount = await getActiveAccount();
+          if (activeAccount) {
+            prefillName = activeAccount.name || prefillName;
+            prefillEmail = activeAccount.email || prefillEmail;
+          }
+        } catch (_) { /* non-critical */ }
+
+        // Step 2: Open Razorpay payment sheet
+        const options = {
+          description: `Ticket for ${order.eventTitle}`,
+          currency: order.currency,
+          key: order.keyId,         // public key — safe to use in frontend
+          amount: order.amount,     // amount in paise
+          name: "SnooSpace",
+          order_id: order.orderId,
+          prefill: {
+            name: prefillName,
+            email: prefillEmail,
+            contact: "",            // phone not required
+          },
+          theme: { color: COLORS.primary },
+        };
+
+        let paymentData;
+        try {
+          paymentData = await RazorpayCheckout.open(options);
+          // paymentData = { razorpay_payment_id, razorpay_order_id, razorpay_signature }
+        } catch (rzpError) {
+          // User dismissed the sheet or payment was cancelled — not an app error
+          if (
+            rzpError?.code === "PAYMENT_CANCELLED" ||
+            rzpError?.description?.toLowerCase().includes("cancelled") ||
+            rzpError?.description?.toLowerCase().includes("dismissed")
+          ) {
+            showToast("Info", "Payment was cancelled");
+          } else {
+            console.error("[Checkout] Razorpay error:", rzpError);
+            Alert.alert(
+              "Payment Failed",
+              rzpError?.description || "Payment could not be completed. Please try again."
+            );
+          }
+          return; // Do not mark as confirmed
+        }
+
+        // Step 3: Verify payment signature on backend
+        await verifyPayment(paymentData);
+
+        // Step 4: Payment received — registration will be confirmed by webhook
+        // Show optimistic success state. The webhook creates the event_registrations row.
         setIsConfirmed(true);
 
         EventBus.emit("event-registration-updated", {
           eventId: event.id,
           isRegistered: true,
         });
-
         EventBus.emit("event-interest-updated", {
           eventId: event.id,
           isInterested: false,
         });
-
         if (event.community_id || event.organizer_id) {
           EventBus.emit("event-registered", {
             communityId: event.community_id || event.organizer_id,
@@ -324,8 +384,47 @@ export default function CheckoutScreen({ route, navigation }) {
         }
 
         setShowCelebration(true);
+
       } else {
-        throw new Error(response.error || "Booking failed");
+        // ── FREE FLOW (unchanged) ───────────────────────────────────────────
+        const bookingData = {
+          tickets: cartItems.map((item) => ({
+            ticketTypeId: item.ticket.id,
+            quantity: item.quantity,
+            unitPrice: calculateEffectivePrice(item.ticket, event.pricing_rules)
+              .effectivePrice,
+            ticketName: item.ticket.name,
+          })),
+          promoCode: appliedDiscount?.code || null,
+          totalAmount: 0,
+          discountAmount: discountAmount,
+          sessionId: sessionId,
+        };
+
+        const response = await registerForEvent(event.id, bookingData);
+
+        if (response.success) {
+          setIsConfirmed(true);
+
+          EventBus.emit("event-registration-updated", {
+            eventId: event.id,
+            isRegistered: true,
+          });
+          EventBus.emit("event-interest-updated", {
+            eventId: event.id,
+            isInterested: false,
+          });
+          if (event.community_id || event.organizer_id) {
+            EventBus.emit("event-registered", {
+              communityId: event.community_id || event.organizer_id,
+              eventId: event.id,
+            });
+          }
+
+          setShowCelebration(true);
+        } else {
+          throw new Error(response.error || "Booking failed");
+        }
       }
     } catch (error) {
       console.error("Booking error:", error);
@@ -588,7 +687,9 @@ export default function CheckoutScreen({ route, navigation }) {
                   <SnooLoader color="#FFFFFF" size="small" />
                 ) : (
                   <Text style={styles.confirmButtonText}>
-                    {isConfirmed ? "Booking Confirmed ✓" : "Confirm Booking"}
+                    {isConfirmed
+                      ? (finalAmount > 0 ? "Payment Received ✓" : "Booking Confirmed ✓")
+                      : (finalAmount > 0 ? `Pay ₹${finalAmount.toLocaleString("en-IN")}` : "Confirm Booking")}
                   </Text>
                 )}
               </LinearGradient>

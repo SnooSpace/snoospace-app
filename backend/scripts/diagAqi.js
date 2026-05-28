@@ -1,5 +1,5 @@
-require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
-const { createPool } = require('../config/db');
+require("dotenv").config({ path: require("path").join(__dirname, "../.env") });
+const { createPool } = require("../config/db");
 const p = createPool();
 
 async function run() {
@@ -27,21 +27,47 @@ async function run() {
     JOIN members m ON m.id = u.user_id
     ORDER BY u.user_id
   `);
-  rows.rows.forEach(r => {
-    console.log('─'.repeat(50));
-    console.log('User:', r.user_id, '|', r.name);
-    console.log('  AQI score:        ', r.aqi_score, '→ Tier', r.aqi_tier, '|', r.aqi_trajectory);
-    console.log('  4w snapshot:      ', r.aqi_score_4w_ago, '  delta:', parseFloat(r.delta).toFixed(2));
-    console.log('  total events:     ', r.total_behavior_events, '(raw behavior rows:', r.raw_event_count, ')');
-    console.log('  paid_events:      ', r.paid_events_attended);
-    console.log('  total_rsvps:      ', r.total_rsvps);
-    console.log('  total_attended:   ', r.total_attended);
-    console.log('  rsvp_ratio:       ', r.rsvp_to_attend_ratio);
-    console.log('  content_depth:    ', r.content_depth_score);
-    console.log('  prof_hours:       ', r.professional_hours_ratio);
-    console.log('  onboard/behavior: ', parseFloat(r.onboarding_weight).toFixed(3), '/', parseFloat(r.behavior_weight).toFixed(3));
-    console.log('  last_calculated:  ', r.last_calculated_at);
+  rows.rows.forEach((r) => {
+    console.log("─".repeat(50));
+    console.log("User:", r.user_id, "|", r.name);
+    console.log(
+      "  AQI score:        ",
+      r.aqi_score,
+      "→ Tier",
+      r.aqi_tier,
+      "|",
+      r.aqi_trajectory,
+    );
+    console.log(
+      "  4w snapshot:      ",
+      r.aqi_score_4w_ago,
+      "  delta:",
+      parseFloat(r.delta).toFixed(2),
+    );
+    console.log(
+      "  total events:     ",
+      r.total_behavior_events,
+      "(raw behavior rows:",
+      r.raw_event_count,
+      ")",
+    );
+    console.log("  paid_events:      ", r.paid_events_attended);
+    console.log("  total_rsvps:      ", r.total_rsvps);
+    console.log("  total_attended:   ", r.total_attended);
+    console.log("  rsvp_ratio:       ", r.rsvp_to_attend_ratio);
+    console.log("  content_depth:    ", r.content_depth_score);
+    console.log("  prof_hours:       ", r.professional_hours_ratio);
+    console.log(
+      "  onboard/behavior: ",
+      parseFloat(r.onboarding_weight).toFixed(3),
+      "/",
+      parseFloat(r.behavior_weight).toFixed(3),
+    );
+    console.log("  last_calculated:  ", r.last_calculated_at);
   });
   await p.end();
 }
-run().catch(e => { console.error(e.message); p.end(); });
+run().catch((e) => {
+  console.error(e.message);
+  p.end();
+});
