@@ -343,12 +343,22 @@ function MemberPrivacyScreen({ navigation }) {
   const engagementQuality = summary?.engagementQualityPct || 0;
   const contentBreakdown  = summary?.contentBreakdown || {};
   const showInterests = (summary?.topInterests?.length > 0) && (eventsAttended + contentEngaged) >= 5;
+  const aqiDrivers        = summary?.aqiDrivers     || [];
+  const improvements      = summary?.improvements   || [];
+  const activeDaysThisWeek = summary?.activeDaysThisWeek ?? 0;
+  const aqiTier            = summary?.aqiTier ?? 4;
 
-  const dataDescription = eventsAttended === 0 && contentEngaged === 0
-    ? "Start attending events and engaging with content to personalize your experience."
-    : eventsAttended === 0
-      ? `No events attended yet · ${contentEngaged} content interaction${contentEngaged !== 1 ? "s" : ""}`
-      : `${eventsAttended} event${eventsAttended !== 1 ? "s" : ""} attended · ${contentEngaged} content interaction${contentEngaged !== 1 ? "s" : ""}`;
+  // Fully dynamic description — uses activeDaysThisWeek from API when available
+  const dataDescription = (() => {
+    if (eventsAttended === 0 && contentEngaged === 0)
+      return "Start engaging with SnooSpace to build your profile";
+    if (eventsAttended === 0)
+      return `${contentEngaged} content interaction${contentEngaged !== 1 ? "s" : ""} logged. Attend an event to unlock stronger signals.`;
+    const dayStr = activeDaysThisWeek > 0
+      ? ` · ${activeDaysThisWeek} active day${activeDaysThisWeek !== 1 ? "s" : ""} this week`
+      : "";
+    return `${eventsAttended} event${eventsAttended !== 1 ? "s" : ""} attended · ${contentEngaged} content interaction${contentEngaged !== 1 ? "s" : ""}${dayStr}`;
+  })();
 
   if (loading) return <LoadingScreen />;
 
@@ -396,6 +406,48 @@ function MemberPrivacyScreen({ navigation }) {
               </TouchableOpacity>
               <Text style={styles.tierExplanation}>{summary?.tierExplanation || ""}</Text>
             </View>
+
+            {/* AQI Drivers — what's building the profile */}
+            {aqiDrivers.length > 0 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>What's Building Your Profile</Text>
+                {aqiDrivers.map((driver, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.driverCard,
+                      driver.contribution === "positive"
+                        ? styles.driverCardPositive
+                        : styles.driverCardNegative,
+                    ]}
+                  >
+                    <View style={styles.driverRow}>
+                      <View
+                        style={[
+                          styles.driverIconWrap,
+                          {
+                            backgroundColor:
+                              driver.contribution === "positive"
+                                ? COLORS.success + "18"
+                                : "rgba(245,158,11,0.12)",
+                          },
+                        ]}
+                      >
+                        {driver.contribution === "positive" ? (
+                          <TrendingUp size={16} color={COLORS.success} strokeWidth={2} />
+                        ) : (
+                          <TrendingDown size={16} color="#F59E0B" strokeWidth={2} />
+                        )}
+                      </View>
+                      <View style={styles.driverContent}>
+                        <Text style={styles.driverLabel}>{driver.label}</Text>
+                        <Text style={styles.driverDetail}>{driver.detail}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
 
             {/* Your Data stats */}
             <View style={styles.section}>
@@ -486,6 +538,29 @@ function MemberPrivacyScreen({ navigation }) {
                 ))}
               </View>
             </View>
+
+            {/* Improvements — only for non-Tier-1 members with suggestions */}
+            {improvements.length > 0 && aqiTier !== 1 && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>How to Strengthen Your Profile</Text>
+                <View style={styles.improvementsCard}>
+                  {improvements.map((improvement, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.improvementRow,
+                        index < improvements.length - 1 && styles.improvementDivider,
+                      ]}
+                    >
+                      <View style={styles.improvementBulletWrap}>
+                        <ChevronRight size={14} color={COLORS.primary} strokeWidth={2.5} />
+                      </View>
+                      <Text style={styles.improvementText}>{improvement}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
 
             {/* Delete */}
             <View style={[styles.section, { marginBottom: 40 }]}>
@@ -1024,6 +1099,48 @@ const styles = StyleSheet.create({
   dataUsageCard: { backgroundColor: "rgba(139,92,246,0.06)", borderRadius: 16, padding: 18, borderWidth: 1, borderColor: "rgba(139,92,246,0.12)" },
   dataUsageTitle: { fontSize: 15, fontFamily: FONTS.semiBold, color: "#6D28D9", marginBottom: 8 },
   dataUsageBody: { fontSize: 14, fontFamily: FONTS.regular, color: "#4B5563", lineHeight: 22 },
+  // AQI Driver cards
+  driverCard: {
+    borderRadius: 16, borderWidth: 1, padding: 14,
+    marginBottom: 10,
+    backgroundColor: "#FFFFFF",
+  },
+  driverCardPositive: {
+    borderColor: COLORS.success + "30",
+    backgroundColor: COLORS.success + "06",
+  },
+  driverCardNegative: {
+    borderColor: "rgba(245,158,11,0.3)",
+    backgroundColor: "rgba(245,158,11,0.05)",
+  },
+  driverRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  driverIconWrap: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  driverContent: { flex: 1, gap: 2 },
+  driverLabel: { fontSize: 14, fontFamily: FONTS.semiBold, color: "#111827" },
+  driverDetail: { fontSize: 13, fontFamily: FONTS.regular, color: "#4B5563", lineHeight: 18 },
+  // Improvements section
+  improvementsCard: {
+    backgroundColor: "#FFFFFF", borderRadius: 20, borderWidth: 1,
+    borderColor: "rgba(41,98,255,0.08)",
+    paddingVertical: 4,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03, shadowRadius: 10, elevation: 2,
+  },
+  improvementRow: {
+    flexDirection: "row", alignItems: "flex-start",
+    gap: 10, padding: 14,
+  },
+  improvementDivider: { borderBottomWidth: 1, borderBottomColor: "#F3F4F6" },
+  improvementBulletWrap: {
+    width: 24, height: 24, borderRadius: 12,
+    backgroundColor: COLORS.primary + "12",
+    alignItems: "center", justifyContent: "center",
+    marginTop: 1,
+  },
+  improvementText: {
+    flex: 1, fontSize: 14, fontFamily: FONTS.regular,
+    color: "#374151", lineHeight: 20,
+  },
 });
 
 export default MyDataScreen;

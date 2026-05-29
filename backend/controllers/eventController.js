@@ -5480,13 +5480,14 @@ const getEventInsights = async (req, res) => {
     const ticketTypeResult = await pool.query(`
       SELECT
         COALESCE(tt.name, 'General') AS ticket_name,
-        COUNT(*) AS count,
+        COUNT(DISTINCT er.id) AS count,
         COALESCE(AVG(tt.base_price), 0) AS avg_price
       FROM event_registrations er
-      LEFT JOIN ticket_types tt ON er.ticket_type_id = tt.id
+      LEFT JOIN registration_tickets rt ON rt.registration_id = er.id
+      LEFT JOIN ticket_types tt ON tt.id = rt.ticket_type_id
       WHERE er.event_id = $1
         AND er.registration_status IN ('registered', 'attended', 'confirmed')
-      GROUP BY ticket_name, tt.base_price
+      GROUP BY tt.name, tt.base_price
       ORDER BY count DESC
     `, [eventId]);
 
@@ -5497,9 +5498,12 @@ const getEventInsights = async (req, res) => {
         COUNT(er.id) AS times_used,
         COALESCE(SUM(er.discount_amount), 0) AS total_saved
       FROM event_registrations er
-      INNER JOIN discount_codes dc ON er.discount_code_id = dc.id
+      INNER JOIN discount_codes dc
+        ON UPPER(TRIM(er.promo_code)) = dc.code_normalized
+        AND dc.event_id = er.event_id
       WHERE er.event_id = $1
         AND er.registration_status IN ('registered', 'attended', 'confirmed')
+        AND er.promo_code IS NOT NULL
       GROUP BY dc.id, dc.code, dc.discount_type, dc.discount_value
       ORDER BY times_used DESC
     `, [eventId]);
@@ -5533,10 +5537,11 @@ const getEventInsights = async (req, res) => {
              EXTRACT(YEAR FROM AGE(CURRENT_DATE, m.dob))::int AS age,
              er.created_at AS registered_at,
              er.total_amount, er.discount_amount,
-             tt.name AS ticket_name, er.ticket_type_id, er.registration_status
+             rt.ticket_type_id, tt.name AS ticket_name, er.registration_status
       FROM event_registrations er
       INNER JOIN members m ON er.member_id = m.id
-      LEFT JOIN ticket_types tt ON er.ticket_type_id = tt.id
+      LEFT JOIN registration_tickets rt ON rt.registration_id = er.id
+      LEFT JOIN ticket_types tt ON tt.id = rt.ticket_type_id
       WHERE er.event_id = $1
         AND er.registration_status IN ('registered', 'attended', 'confirmed')
       ORDER BY er.created_at DESC
@@ -5627,6 +5632,13 @@ module.exports = {
   releaseReservation,
   // Event Insights
   getEventInsights,
+  // Event Engagement
+  likeEvent,
+  unlikeEvent,
+  getEventComments,
+  addEventComment,
+  recordEventView,
+  shareEvent,
 };
 
 /**
@@ -5660,3 +5672,159 @@ async function organiserConfirmAttendance(req, res) {
     return res.status(500).json({ error: 'Failed to confirm attendance' });
   }
 }
+
+// ============================================================
+// EVENT ENGAGEMENT HANDLERS
+// ============================================================
+
+/** POST /events/:eventId/like */
+async function likeEvent(req, res) {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const eventCheck = await pool.query("SELECT id FROM events WHERE id = $1 AND is_cancelled = false", [eventId]);
+    if (eventCheck.rows.length === 0) return res.status(404).json({ error: "Event not found" });
+    const existing = await pool.query("SELECT id FROM event_likes WHERE event_id = $1 AND liker_id = $2 AND liker_type = $3", [eventId, userId, userType]);
+    if (existing.rows.length > 0) {
+      const ev = await pool.query("SELECT like_count FROM events WHERE id = $1", [eventId]);
+      return res.json({ success: true, is_liked: true, like_count: ev.rows[0]?.like_count ?? 0 });
+    }
+    await pool.query("INSERT INTO event_likes (event_id, liker_id, liker_type) VALUES ($1, $2, $3)", [eventId, userId, userType]);
+    const updated = await pool.query("UPDATE events SET like_count = like_count + 1 WHERE id = $1 RETURNING like_count", [eventId]);
+    return res.json({ success: true, is_liked: true, like_count: updated.rows[0]?.like_count ?? 0 });
+  } catch (err) {
+    console.error("[likeEvent]", err.message);
+    return res.status(500).json({ error: "Failed to like event" });
+  }
+};
+
+/** DELETE /events/:eventId/like */
+async function unlikeEvent(req, res) {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const del = await pool.query("DELETE FROM event_likes WHERE event_id = $1 AND liker_id = $2 AND liker_type = $3 RETURNING id", [eventId, userId, userType]);
+    if (del.rows.length > 0) {
+      const updated = await pool.query("UPDATE events SET like_count = GREATEST(like_count - 1, 0) WHERE id = $1 RETURNING like_count", [eventId]);
+      return res.json({ success: true, is_liked: false, like_count: updated.rows[0]?.like_count ?? 0 });
+    }
+    const ev = await pool.query("SELECT like_count FROM events WHERE id = $1", [eventId]);
+    return res.json({ success: true, is_liked: false, like_count: ev.rows[0]?.like_count ?? 0 });
+  } catch (err) {
+    console.error("[unlikeEvent]", err.message);
+    return res.status(500).json({ error: "Failed to unlike event" });
+  }
+};
+
+/** GET /events/:eventId/comments */
+async function getEventComments(req, res) {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const eventCheck = await pool.query("SELECT id, community_id FROM events WHERE id = $1", [eventId]);
+    if (eventCheck.rows.length === 0) return res.status(404).json({ error: "Event not found" });
+    const commentsRes = await pool.query(
+      `SELECT ec.id, ec.event_id, ec.parent_id, ec.commenter_id, ec.commenter_type,
+        ec.comment_text, ec.like_count, ec.tagged_entities, ec.created_at,
+        CASE WHEN ec.commenter_type = 'member' THEN m.name ELSE c.name END AS commenter_name,
+        CASE WHEN ec.commenter_type = 'member' THEN m.username ELSE c.username END AS commenter_username,
+        CASE WHEN ec.commenter_type = 'member' THEN m.profile_photo_url ELSE c.logo_url END AS commenter_photo_url,
+        EXISTS(SELECT 1 FROM event_comment_likes ecl WHERE ecl.comment_id = ec.id AND ecl.liker_id = $2 AND ecl.liker_type = $3) AS is_liked
+      FROM event_comments ec
+      LEFT JOIN members m ON ec.commenter_type = 'member' AND ec.commenter_id = m.id
+      LEFT JOIN communities c ON ec.commenter_type = 'community' AND ec.commenter_id = c.id
+      WHERE ec.event_id = $1 AND ec.parent_id IS NULL
+      ORDER BY ec.created_at ASC`,
+      [eventId, userId || 0, userType || "member"]
+    );
+    const repliesRes = await pool.query(
+      `SELECT ec.id, ec.event_id, ec.parent_id, ec.commenter_id, ec.commenter_type,
+        ec.comment_text, ec.like_count, ec.tagged_entities, ec.created_at,
+        CASE WHEN ec.commenter_type = 'member' THEN m.name ELSE c.name END AS commenter_name,
+        CASE WHEN ec.commenter_type = 'member' THEN m.username ELSE c.username END AS commenter_username,
+        CASE WHEN ec.commenter_type = 'member' THEN m.profile_photo_url ELSE c.logo_url END AS commenter_photo_url,
+        EXISTS(SELECT 1 FROM event_comment_likes ecl WHERE ecl.comment_id = ec.id AND ecl.liker_id = $2 AND ecl.liker_type = $3) AS is_liked
+      FROM event_comments ec
+      LEFT JOIN members m ON ec.commenter_type = 'member' AND ec.commenter_id = m.id
+      LEFT JOIN communities c ON ec.commenter_type = 'community' AND ec.commenter_id = c.id
+      WHERE ec.event_id = $1 AND ec.parent_id IS NOT NULL
+      ORDER BY ec.created_at ASC`,
+      [eventId, userId || 0, userType || "member"]
+    );
+    const replyMap = {};
+    repliesRes.rows.forEach((r) => { if (!replyMap[r.parent_id]) replyMap[r.parent_id] = []; replyMap[r.parent_id].push(r); });
+    const comments = commentsRes.rows.map((c) => ({ ...c, replies: replyMap[c.id] || [] }));
+    return res.json({ success: true, comments, total_comment_count: commentsRes.rows.length + repliesRes.rows.length, post_author_id: eventCheck.rows[0].community_id, post_author_type: "community" });
+  } catch (err) {
+    console.error("[getEventComments]", err.message);
+    return res.status(500).json({ error: "Failed to load comments" });
+  }
+};
+
+/** POST /events/:eventId/comments */
+async function addEventComment(req, res) {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { commentText, parentId, taggedEntities } = req.body;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (!commentText?.trim()) return res.status(400).json({ error: "Comment text required" });
+    const eventCheck = await pool.query("SELECT id FROM events WHERE id = $1 AND is_cancelled = false", [eventId]);
+    if (eventCheck.rows.length === 0) return res.status(404).json({ error: "Event not found" });
+    const insertRes = await pool.query(
+      "INSERT INTO event_comments (event_id, parent_id, commenter_id, commenter_type, comment_text, tagged_entities) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+      [eventId, parentId || null, userId, userType, commentText.trim(), JSON.stringify(taggedEntities || [])]
+    );
+    if (!parentId) {
+      await pool.query("UPDATE events SET comment_count = comment_count + 1 WHERE id = $1", [eventId]);
+    }
+    return res.json({ success: true, comment: insertRes.rows[0] });
+  } catch (err) {
+    console.error("[addEventComment]", err.message);
+    return res.status(500).json({ error: "Failed to post comment" });
+  }
+};
+
+/** POST /events/:eventId/view */
+async function recordEventView(req, res) {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId) return res.json({ success: true, view_count: 0 });
+    const insertRes = await pool.query(
+      "INSERT INTO event_views (event_id, viewer_id, viewer_type) VALUES ($1, $2, $3) ON CONFLICT (event_id, viewer_id, viewer_type) DO NOTHING",
+      [eventId, userId, userType]
+    );
+    let view_count = 0;
+    if (insertRes.rowCount > 0) {
+      const updated = await pool.query("UPDATE events SET view_count = view_count + 1 WHERE id = $1 RETURNING view_count", [eventId]);
+      view_count = updated.rows[0]?.view_count ?? 0;
+    } else {
+      const ev = await pool.query("SELECT view_count FROM events WHERE id = $1", [eventId]);
+      view_count = ev.rows[0]?.view_count ?? 0;
+    }
+    return res.json({ success: true, view_count });
+  } catch (err) {
+    console.error("[recordEventView]", err.message);
+    return res.json({ success: true, view_count: 0 });
+  }
+};
+
+/** POST /events/:eventId/share */
+async function shareEvent(req, res) {
+  try {
+    const { eventId } = req.params;
+    await pool.query("UPDATE events SET share_count = share_count + 1 WHERE id = $1", [eventId]);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[shareEvent]", err.message);
+    return res.json({ success: true });
+  }
+};

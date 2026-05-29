@@ -183,7 +183,6 @@ export default function EventAttendeesScreen({ route, navigation }) {
   const [insights, setInsights] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeFilter, setActiveFilter] = useState("All Tickets");
 
   const loadInsights = useCallback(async () => {
     if (!event?.id) return;
@@ -243,12 +242,7 @@ export default function EventAttendeesScreen({ route, navigation }) {
       .join(" ");
   })();
 
-  // Filter attendees based on active tab
-  const filteredAttendees = (insights?.attendees ?? []).filter((a) => {
-    if (activeFilter === "Gender") return !!a.gender;
-    if (activeFilter === "Ticket Type") return !!a.ticketName;
-    return true; // "All Tickets"
-  });
+  const allAttendees = insights?.attendees ?? [];
 
   const renderHeader = () => (
     <View style={styles.header}>
@@ -263,29 +257,6 @@ export default function EventAttendeesScreen({ route, navigation }) {
     </View>
   );
 
-  const renderFilters = () => (
-    <View style={styles.filterContainer}>
-      {["All Tickets", "Gender", "Ticket Type"].map((filter) => (
-        <TouchableOpacity
-          key={filter}
-          onPress={() => setActiveFilter(filter)}
-          style={[
-            styles.filterPill,
-            activeFilter === filter && styles.filterPillActive,
-          ]}
-        >
-          <Text
-            style={[
-              styles.filterText,
-              activeFilter === filter && styles.filterTextActive,
-            ]}
-          >
-            {filter}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
 
   if (loading) {
     return (
@@ -305,7 +276,6 @@ export default function EventAttendeesScreen({ route, navigation }) {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {renderHeader()}
-      {renderFilters()}
 
       <ScrollView
         style={styles.content}
@@ -387,15 +357,33 @@ export default function EventAttendeesScreen({ route, navigation }) {
         <Animated.View entering={FadeInDown.delay(300).springify()} style={styles.card}>
           <Text style={styles.sectionHeader}>Event Funnel</Text>
 
-          <View style={styles.funnelStep}>
-            <Text style={styles.funnelLabel}>Interested</Text>
-            <Text style={styles.funnelValue}>{interestedCount}</Text>
+          {/* Interested — full width */}
+          <View style={styles.funnelRowWrap}>
+            <View style={[styles.funnelBar, { width: "100%", backgroundColor: "#E0F2FE" }]}>
+              <Text style={styles.funnelBarLabel}>Interested</Text>
+              <Text style={[styles.funnelBarValue, { color: "#0284C7" }]}>{interestedCount}</Text>
+            </View>
           </View>
-          <View style={styles.funnelArrow}><ChevronDown size={16} color={MUTED_TEXT}/></View>
 
-          <View style={styles.funnelStepPrimary}>
-            <Text style={styles.funnelLabelPrimary}>Tickets Sold</Text>
-            <Text style={styles.funnelValuePrimary}>{ticketsSold}</Text>
+          {/* Connector + conversion badge */}
+          <View style={styles.funnelConnector}>
+            <View style={styles.funnelConnectorLine} />
+            <View style={styles.funnelConversionBadge}>
+              <Text style={styles.funnelConversionBadgeText}>
+                {interestedCount > 0
+                  ? `${Math.min(100, Math.round((ticketsSold / interestedCount) * 100))}%`
+                  : ticketsSold > 0 ? "100%" : "0%"}
+              </Text>
+            </View>
+            <View style={styles.funnelConnectorLine} />
+          </View>
+
+          {/* Tickets Sold — narrower, 70% width */}
+          <View style={styles.funnelRowWrap}>
+            <View style={[styles.funnelBar, { width: "70%", backgroundColor: PRIMARY_COLOR }]}>
+              <Text style={[styles.funnelBarLabel, { color: "#FFFFFF" }]}>Tickets Sold</Text>
+              <Text style={[styles.funnelBarValue, { color: "#FFFFFF" }]}>{ticketsSold}</Text>
+            </View>
           </View>
         </Animated.View>
 
@@ -519,17 +507,17 @@ export default function EventAttendeesScreen({ route, navigation }) {
           <View style={styles.listHeaderRow}>
             <Text style={styles.sectionHeader}>Attendees</Text>
             <View style={styles.attendeeCountChip}>
-              <Text style={styles.attendeeCountChipText}>{filteredAttendees.length}</Text>
+              <Text style={styles.attendeeCountChipText}>{allAttendees.length}</Text>
             </View>
           </View>
 
-          {filteredAttendees.length === 0 ? (
+          {allAttendees.length === 0 ? (
             <View style={[styles.card, { alignItems: "center", paddingVertical: 32 }]}>
               <Users size={32} color={MUTED_TEXT} style={{ marginBottom: 8 }} />
               <Text style={[styles.metricLabel, { textAlign: "center" }]}>No attendees yet</Text>
             </View>
           ) : (
-            filteredAttendees.map((att) => (
+            allAttendees.map((att) => (
               <AttendeeListItem
                 key={att.id + att.registered_at}
                 attendee={att}
@@ -734,46 +722,51 @@ const styles = StyleSheet.create({
     color: MUTED_TEXT,
     marginTop: 4,
   },
-  funnelStep: {
+  // Visual funnel styles
+  funnelRowWrap: {
+    alignItems: "center",
+  },
+  funnelBar: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: BACKGROUND_COLOR,
-    padding: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     borderRadius: 12,
   },
-  funnelArrow: {
-    alignItems: "center",
-    marginVertical: 4,
-  },
-  funnelLabel: {
-    fontFamily: "Manrope-Medium",
-    fontSize: 15,
-    color: MUTED_TEXT,
-  },
-  funnelValue: {
-    fontFamily: "Manrope-SemiBold",
-    fontSize: 16,
-    color: TEXT_COLOR,
-  },
-  funnelStepPrimary: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: PRIMARY_COLOR,
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 4,
-  },
-  funnelLabelPrimary: {
+  funnelBarLabel: {
     fontFamily: "Manrope-SemiBold",
     fontSize: 15,
-    color: "#FFFFFF",
+    color: "#0284C7",
   },
-  funnelValuePrimary: {
+  funnelBarValue: {
     fontFamily: "BasicCommercial-Bold",
-    fontSize: 18,
-    color: "#FFFFFF",
+    fontSize: 20,
+  },
+  funnelConnector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 6,
+    gap: 10,
+  },
+  funnelConnectorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: BORDER_COLOR,
+  },
+  funnelConversionBadge: {
+    backgroundColor: "#F3E8FF",
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#D8B4FE",
+  },
+  funnelConversionBadgeText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 13,
+    color: PRIMARY_COLOR,
   },
   engagementGrid: {
     flexDirection: "row",

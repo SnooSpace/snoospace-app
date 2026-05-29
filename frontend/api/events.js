@@ -313,3 +313,63 @@ export async function getEventInsights(eventId) {
   const token = await (await import("./auth")).getAuthToken();
   return apiGet(`/events/${eventId}/insights`, 15000, token);
 }
+
+/**
+ * Toggle event like (like if not liked, unlike if liked)
+ * @param {string|number} eventId
+ * @param {boolean} isCurrentlyLiked - current like state for routing POST vs DELETE
+ */
+export async function toggleEventLike(eventId, isCurrentlyLiked) {
+  const { apiPost, apiDelete } = await import("./client");
+  const token = await (await import("./auth")).getAuthToken();
+  if (isCurrentlyLiked) {
+    return apiDelete(`/events/${eventId}/like`, null, 10000, token);
+  }
+  return apiPost(`/events/${eventId}/like`, {}, 10000, token);
+}
+
+/**
+ * Get comments for an event
+ * @param {string|number} eventId
+ */
+export async function getEventComments(eventId) {
+  const token = await (await import("./auth")).getAuthToken();
+  return (await import("./client")).apiGet(`/events/${eventId}/comments`, 10000, token);
+}
+
+/**
+ * Add a comment to an event
+ * @param {string|number} eventId
+ * @param {string} commentText
+ * @param {Array} taggedEntities
+ */
+export async function addEventComment(eventId, commentText, taggedEntities = []) {
+  const token = await (await import("./auth")).getAuthToken();
+  return (await import("./client")).apiPost(`/events/${eventId}/comments`, { commentText, taggedEntities }, 10000, token);
+}
+
+/**
+ * Record a unique view for an event (fire-and-forget friendly)
+ * @param {string|number} eventId
+ */
+export async function recordEventView(eventId) {
+  try {
+    const token = await (await import("./auth")).getAuthToken();
+    return (await import("./client")).apiPost(`/events/${eventId}/view`, {}, 8000, token);
+  } catch (_) {
+    // Non-fatal — view tracking should never crash the UI
+  }
+}
+
+/**
+ * Increment the share counter for an event (fire-and-forget)
+ * @param {string|number} eventId
+ */
+export async function trackEventShare(eventId) {
+  try {
+    const token = await (await import("./auth")).getAuthToken();
+    return (await import("./client")).apiPost(`/events/${eventId}/share`, {}, 8000, token);
+  } catch (_) {
+    // Non-fatal
+  }
+}

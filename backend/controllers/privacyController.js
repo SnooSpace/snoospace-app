@@ -367,12 +367,42 @@ async function getMyDataSummary(req, res) {
 
     // ── MEMBER + COMMUNITY — shared personal AQI data ─────────────────────────
     const aqiResult = await pool.query(
-      `SELECT aqi_tier, total_behavior_events, aqi_trajectory, aqi_score, created_at
+      `SELECT aqi_tier, total_behavior_events, aqi_trajectory, aqi_score, created_at,
+              paid_events_attended, content_depth_score, rsvp_to_attend_ratio
        FROM user_aqi_signals WHERE user_id = $1`,
       [userId]
     );
     const aqiSignals = aqiResult.rows[0] || {};
     const aqiTier = aqiSignals.aqi_tier || 4;
+
+    // ── Session stats (aqi_sessions) — used for driver cards ─────────────────
+    // Non-fatal: if the table doesn't exist yet return nulls
+    let sessionStats = null;
+    try {
+      const sessionResult = await pool.query(
+        `SELECT
+           COUNT(DISTINCT DATE(started_at))
+             FILTER (WHERE started_at >= NOW() - INTERVAL '7 days')  AS active_days_last_7,
+           ROUND(AVG(screens_visited)::numeric, 1)                   AS avg_screens_per_session,
+           ROUND(
+             (COUNT(*) FILTER (WHERE screens_visited >= 5))::numeric /
+             NULLIF(COUNT(*), 0) * 100,
+             1
+           )                                                          AS deep_session_ratio
+         FROM aqi_sessions WHERE user_id = $1`,
+        [userId]
+      );
+      if (sessionResult.rows.length > 0) {
+        const r = sessionResult.rows[0];
+        sessionStats = {
+          active_days_last_7:     parseInt(r.active_days_last_7)    || 0,
+          avg_screens_per_session: parseFloat(r.avg_screens_per_session) || 0,
+          deep_session_ratio:      parseFloat(r.deep_session_ratio)  || 0,
+        };
+      }
+    } catch (_) {
+      // aqi_sessions may not be deployed yet — silently skip
+    }
 
     const interestsResult = await pool.query(
       `SELECT category FROM user_interest_vectors
@@ -464,6 +494,81 @@ async function getMyDataSummary(req, res) {
       },
     };
 
+    // ── AQI driver cards (plain-language, member-facing) ──────────────────────
+    const signals = aqiSignals; // alias for readability
+    const aqiDrivers = [];
+
+    if (parseInt(signals.paid_events_attended) > 0) {
+      const count = parseInt(signals.paid_events_attended);
+      aqiDrivers.push({
+        factor: "events",
+        label: "Event Attendance",
+        contribution: "positive",
+        detail: `${count} paid event${count !== 1 ? "s" : ""} attended`,
+      });
+    }
+
+    if (parseFloat(signals.content_depth_score) > 50) {
+      aqiDrivers.push({
+        factor: "content",
+        label: "Content Engagement",
+        contribution: "positive",
+        detail: "You engage deeply with content you find interesting",
+      });
+    }
+
+    if (sessionStats?.active_days_last_7 >= 4) {
+      aqiDrivers.push({
+        factor: "frequency",
+        label: "Regular Activity",
+        contribution: "positive",
+        detail: `Active ${sessionStats.active_days_last_7} day${sessionStats.active_days_last_7 !== 1 ? "s" : ""} this week`,
+      });
+    }
+
+    if (
+      signals.rsvp_to_attend_ratio !== null &&
+      signals.rsvp_to_attend_ratio !== undefined &&
+      parseFloat(signals.rsvp_to_attend_ratio) < 0.4 &&
+      parseInt(signals.paid_events_attended) > 0
+    ) {
+      aqiDrivers.push({
+        factor: "followthrough",
+        label: "RSVP Follow-through",
+        contribution: "negative",
+        detail: "You often RSVP but miss events — attending more would boost your score",
+      });
+    }
+
+    // ── Improvement suggestions ───────────────────────────────────────────────
+    const improvements = [];
+
+    if (parseInt(signals.paid_events_attended) === 0) {
+      improvements.push(
+        "Attend your first paid event to unlock the strongest quality signal"
+      );
+    }
+
+    if ((parseFloat(signals.content_depth_score) ?? 0) < 30) {
+      improvements.push(
+        "Engage more deeply with content — watch videos fully, leave comments"
+      );
+    }
+
+    if ((sessionStats?.active_days_last_7 ?? 0) < 3) {
+      improvements.push(
+        "Open SnooSpace more regularly to build your engagement pattern"
+      );
+    }
+
+    // ── Trajectory explanation ────────────────────────────────────────────────
+    const trajectoryExplanation =
+      signals.aqi_trajectory === "rising"
+        ? "Your audience value is growing week over week."
+        : signals.aqi_trajectory === "declining"
+        ? "Your recent activity has slowed — keep engaging to maintain your score."
+        : "Your audience quality is holding steady.";
+
     // ── COMMUNITY — append event audience stats ────────────────────────────────
     if (userType === "community") {
       const casResult = await pool.query(
@@ -480,6 +585,12 @@ async function getMyDataSummary(req, res) {
         role: "community",
         summary: {
           ...baseSummary,
+          aqiDrivers,
+          improvements,
+          trajectoryExplanation,
+          activeDaysThisWeek:  sessionStats?.active_days_last_7      ?? 0,
+          avgSessionDepth:     sessionStats?.avg_screens_per_session  ?? 0,
+          deepSessionRatio:    sessionStats?.deep_session_ratio        ?? 0,
           eventAudienceStats: cas
             ? {
                 totalFollowers: cas.total_followers || 0,
@@ -498,7 +609,20 @@ async function getMyDataSummary(req, res) {
     }
 
     // ── MEMBER ────────────────────────────────────────────────────────────────
-    res.json({ success: true, role: "member", summary: baseSummary });
+    res.json({
+      success: true,
+      role: "member",
+      summary: {
+        ...baseSummary,
+        aqiDrivers,
+        improvements,
+        trajectoryExplanation,
+        activeDaysThisWeek:  sessionStats?.active_days_last_7      ?? 0,
+        avgSessionDepth:     sessionStats?.avg_screens_per_session  ?? 0,
+        deepSessionRatio:    sessionStats?.deep_session_ratio        ?? 0,
+      },
+    });
+
 
   } catch (error) {
     console.error("[Privacy] getMyDataSummary error:", error.message, error.stack);

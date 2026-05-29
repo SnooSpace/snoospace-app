@@ -1275,6 +1275,60 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE campuses ADD COLUMN IF NOT EXISTS location_url TEXT;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+      -- EVENT ENGAGEMENT: cached counters + junction tables
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS like_count INT NOT NULL DEFAULT 0;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS comment_count INT NOT NULL DEFAULT 0;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE events ADD COLUMN IF NOT EXISTS share_count INT NOT NULL DEFAULT 0;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      CREATE TABLE IF NOT EXISTS event_likes (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        liker_id BIGINT NOT NULL,
+        liker_type TEXT NOT NULL CHECK (liker_type IN ('member','community')),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (event_id, liker_id, liker_type)
+      );
+      CREATE INDEX IF NOT EXISTS idx_event_likes_event ON event_likes(event_id);
+      CREATE INDEX IF NOT EXISTS idx_event_likes_liker ON event_likes(liker_id, liker_type);
+      CREATE TABLE IF NOT EXISTS event_views (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        viewer_id BIGINT NOT NULL,
+        viewer_type TEXT NOT NULL CHECK (viewer_type IN ('member','community')),
+        viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (event_id, viewer_id, viewer_type)
+      );
+      CREATE INDEX IF NOT EXISTS idx_event_views_event ON event_views(event_id);
+      CREATE TABLE IF NOT EXISTS event_comments (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        parent_id BIGINT REFERENCES event_comments(id) ON DELETE CASCADE,
+        commenter_id BIGINT NOT NULL,
+        commenter_type TEXT NOT NULL CHECK (commenter_type IN ('member','community')),
+        comment_text TEXT NOT NULL,
+        like_count INT NOT NULL DEFAULT 0,
+        tagged_entities JSONB DEFAULT '[]',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_event_comments_event ON event_comments(event_id);
+      CREATE INDEX IF NOT EXISTS idx_event_comments_parent ON event_comments(parent_id);
+      CREATE TABLE IF NOT EXISTS event_comment_likes (
+        id BIGSERIAL PRIMARY KEY,
+        comment_id BIGINT NOT NULL REFERENCES event_comments(id) ON DELETE CASCADE,
+        liker_id BIGINT NOT NULL,
+        liker_type TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (comment_id, liker_id, liker_type)
+      );
     `);
     console.log("✅ Ensured all tables");
   } catch (err) {

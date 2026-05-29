@@ -1491,6 +1491,13 @@ router.post(
   authMiddleware,
   EventController.toggleEventInterest,
 );
+// Event engagement routes (like, comment, view, share)
+router.post("/events/:eventId/like", authMiddleware, EventController.likeEvent);
+router.delete("/events/:eventId/like", authMiddleware, EventController.unlikeEvent);
+router.get("/events/:eventId/comments", authMiddleware, EventController.getEventComments);
+router.post("/events/:eventId/comments", authMiddleware, EventController.addEventComment);
+router.post("/events/:eventId/view", authMiddleware, EventController.recordEventView);
+router.post("/events/:eventId/share", authMiddleware, EventController.shareEvent);
 // Event registration routes
 router.post(
   "/events/:eventId/register",

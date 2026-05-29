@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  Share,
 } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
 import { useNavigation } from "@react-navigation/native";
@@ -22,15 +23,20 @@ import {
   Check,
   MoveRight,
   QrCode,
+  Heart,
+  MessageCircle,
+  ChartNoAxesCombined,
+  Send,
 } from "lucide-react-native";
 import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../constants/theme";
 import { getGradientForName, getInitials } from "../utils/AvatarGenerator";
 import { useLocationName } from "../utils/locationNameCache";
-import { toggleEventInterest } from "../api/events";
+import { toggleEventInterest, toggleEventLike, recordEventView, trackEventShare } from "../api/events";
 import { formatPrice } from "../utils/pricingUtils";
 import HapticsService from "../services/HapticsService";
 import EventBus from "../utils/EventBus";
 import { getActiveAccount } from "../api/auth";
+import CommentsModal from "./CommentsModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 40; // 20px padding on each side
@@ -98,6 +104,16 @@ export default function EventCard({
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [containerWidth, setContainerWidth] = useState(CARD_WIDTH);
   const navigation = useNavigation();
+
+  // Engagement state
+  const [isLiked, setIsLiked] = useState(Boolean(event?.is_liked));
+  const [likeCount, setLikeCount] = useState(event?.like_count ?? 0);
+  const [isLiking, setIsLiking] = useState(false);
+  const [commentCount, setCommentCount] = useState(event?.comment_count ?? 0);
+  const [viewCount, setViewCount] = useState(event?.view_count ?? 0);
+  const [shareCount, setShareCount] = useState(event?.share_count ?? 0);
+  const [commentsVisible, setCommentsVisible] = useState(false);
+  const viewTrackedRef = useRef(false);
 
   // Ref to track if we're the source of an EventBus event (prevent self-listening)
   const isEmittingRef = useRef(false);
@@ -261,6 +277,47 @@ export default function EventCard({
 
     // Also call parent callback if provided
     onInterestedPress?.(event);
+  };
+
+  // Engagement handlers
+  const handleLikePress = async () => {
+    if (isLiking) return;
+    HapticsService.triggerImpactLight();
+    const nextLiked = !isLiked;
+    const nextCount = Math.max(0, likeCount + (nextLiked ? 1 : -1));
+    setIsLiked(nextLiked);
+    setLikeCount(nextCount);
+    setIsLiking(true);
+    try {
+      const resp = await toggleEventLike(id, isLiked);
+      if (resp?.success) {
+        setIsLiked(resp.is_liked);
+        setLikeCount(resp.like_count ?? nextCount);
+        EventBus.emit('event-like-updated', { eventId: id, isLiked: resp.is_liked, likeCount: resp.like_count });
+      } else {
+        setIsLiked(!nextLiked);
+        setLikeCount(likeCount);
+      }
+    } catch (e) {
+      setIsLiked(!nextLiked);
+      setLikeCount(likeCount);
+    } finally {
+      setIsLiking(false);
+    }
+  };
+
+  const handleSharePress = async () => {
+    HapticsService.triggerImpactLight();
+    try {
+      await Share.share({ message: 'Check out ' + title + ' on SnooSpace!', title });
+      setShareCount((c) => c + 1);
+      trackEventShare(id);
+    } catch (_) {}
+  };
+
+  const handleCommentPress = () => {
+    HapticsService.triggerImpactLight();
+    setCommentsVisible(true);
   };
 
   const handleQrPress = () => {
@@ -615,6 +672,36 @@ export default function EventCard({
               </>
             )}
           </View>
+
+          {/* Engagement Row */}
+          <View style={styles.engagementRow}>
+            <TouchableOpacity style={styles.engagementBtn} onPress={handleLikePress} disabled={isLiking}>
+              <Heart size={22} color={isLiked ? COLORS.error : '#5e8d9b'} fill={isLiked ? COLORS.error : 'transparent'} strokeWidth={2} />
+              {likeCount > 0 && <Text style={[styles.engagementCount, isLiked && { color: COLORS.error }]}>{likeCount}</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.engagementBtn} onPress={handleCommentPress}>
+              <MessageCircle size={22} color="#5e8d9b" strokeWidth={2} />
+              {commentCount > 0 && <Text style={styles.engagementCount}>{commentCount}</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.engagementBtn} onPress={() => onPress?.(event)}>
+              <ChartNoAxesCombined size={22} color="#5e8d9b" strokeWidth={2} />
+              {viewCount > 0 && <Text style={styles.engagementCount}>{viewCount}</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.engagementBtn} onPress={handleSharePress}>
+              <Send size={22} color="#5e8d9b" strokeWidth={2} />
+              {shareCount > 0 && <Text style={styles.engagementCount}>{shareCount}</Text>}
+            </TouchableOpacity>
+          </View>
+
+          <CommentsModal
+            visible={commentsVisible}
+            postId={id}
+            baseRoute="/events"
+            replyBaseRoute="/comments"
+            onCommentCountChange={(n) => setCommentCount(n)}
+            onClose={() => setCommentsVisible(false)}
+            navigation={navigation}
+          />
         </View>
       </View>
     </View>
@@ -914,5 +1001,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: FONTS.medium,
     color: "#16A34A",
+  },
+  engagementRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 10,
+    paddingHorizontal: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  engagementBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  engagementCount: {
+    fontSize: 13,
+    fontFamily: FONTS.medium,
+    color: '#5e8d9b',
   },
 });
