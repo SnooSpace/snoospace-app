@@ -58,6 +58,24 @@ const runBehaviorEventRetention = async (pool) => {
 
   // Step 3: Log the cleanup for monitoring.
   await _logJob(pool, 'behavior_event_retention', deletedCount, null);
+
+  // Step 4: Clean up raw session records older than 90 days.
+  // By 90 days, sessions have been rolled up into user_session_stats by 12+ weekly
+  // learning runs. Raw rows have no additional value and would grow unboundedly.
+  let deletedSessionCount = 0;
+  try {
+    const sessionResult = await pool.query(`
+      DELETE FROM aqi_sessions
+      WHERE session_start < NOW() - INTERVAL '90 days'
+      RETURNING id
+    `);
+    deletedSessionCount = sessionResult.rowCount;
+    console.log(`[RetentionJob] Session retention: deleted ${deletedSessionCount} old session records`);
+  } catch (err) {
+    console.error('[RetentionJob] Session deletion failed:', err.message);
+  }
+
+  await _logJob(pool, 'session_retention', deletedSessionCount, null);
 };
 
 /**

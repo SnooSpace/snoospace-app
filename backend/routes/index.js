@@ -36,6 +36,7 @@ const SaveController = require("../controllers/saveController");
 const AudienceIntelligenceController = require("../controllers/audienceIntelligenceController");
 const PrivacyController = require("../controllers/privacyController");
 const PaymentController = require("../controllers/paymentController");
+const SessionController = require("../controllers/sessionController");
 const videoInsightsRouter = require('./videoInsights');
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 const { requireBehavioralConsent, requireBrandConsent, requireBrandAcknowledgment, checkCreatorEventConsent } = require("../middleware/consentGate");
@@ -1405,6 +1406,19 @@ router.post(
   authMiddleware,
   EventController.organiserConfirmAttendance,
 );
+// Event quality score — pre-event prediction + post-event actuals
+// Available to the community who owns the event and to brand accounts
+router.get(
+  "/events/:eventId/quality",
+  authMiddleware,
+  AudienceIntelligenceController.getEventQualityScore,
+);
+// Community event quality history — for brand sponsorship research
+router.get(
+  "/community/:communityId/event-quality-history",
+  authMiddleware,
+  AudienceIntelligenceController.getCommunityEventQualityHistory,
+);
 
 // Notifications
 router.get(
@@ -1712,6 +1726,16 @@ router.get(
   "/payments/status/:eventId",
   authMiddleware,
   PaymentController.getPaymentStatus
+);
+// ============================================
+// SESSION TRACKING
+// POST /sessions/track — session_start and session_end events from frontend
+// Fire-and-forget: always responds 200, processing happens async post-response
+// ============================================
+router.post(
+  "/sessions/track",
+  authMiddleware,
+  SessionController.trackSession
 );
 
 module.exports = router;

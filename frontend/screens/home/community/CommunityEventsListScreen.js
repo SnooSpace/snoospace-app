@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, RefreshControl, Alert, Animated, Easing } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, MapPin, CalendarDays, MoreHorizontal, Ticket, Edit2, FileText, Trash2, PauseCircle } from "lucide-react-native";
+import { ArrowLeft, MapPin, CalendarDays, MoreHorizontal, Ticket, Edit2, FileText, Trash2, PauseCircle, BarChart3 } from "lucide-react-native";
 import Svg, { Circle, Rect, Path, Ellipse } from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS } from "../../../constants/theme";
@@ -150,7 +150,7 @@ export default function CommunityEventsListScreen({ navigation, route }) {
 
     // View Details — always available
     options.push({
-      text: "View Details",
+      text: "View Attendees",
       icon: <FileText size={24} strokeWidth={2} />,
       onPress: () => {
         setModalConfig((prev) => ({ ...prev, visible: false }));
@@ -160,6 +160,24 @@ export default function CommunityEventsListScreen({ navigation, route }) {
       },
       style: "secondary",
     });
+
+    // Quality Score — available for past events with enough RSVPs
+    if (event.is_past) {
+      options.push({
+        text: "View Quality Score",
+        icon: <BarChart3 size={24} strokeWidth={2} />,
+        onPress: () => {
+          setModalConfig((prev) => ({ ...prev, visible: false }));
+          setTimeout(() => {
+            navigation.navigate("EventQuality", {
+              eventId: event.id,
+              eventTitle: event.title,
+            });
+          }, 300);
+        },
+        style: "secondary",
+      });
+    }
 
     // --- Delete / Cancel logic ---
     if (event.is_past) {
@@ -511,6 +529,26 @@ export default function CommunityEventsListScreen({ navigation, route }) {
                   ? `${ticketsSold}/${ticketCapacity} sold`
                   : `${ticketsSold} sold`}
               </Text>
+
+              {/* Quality score entry — only on past events */}
+              {item.is_past && (
+                <>
+                  <View style={styles.ticketFooterDivider} />
+                  <TouchableOpacity
+                    style={styles.qualityScoreLink}
+                    onPress={() =>
+                      navigation.navigate("EventQuality", {
+                        eventId: item.id,
+                        eventTitle: item.title,
+                      })
+                    }
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <BarChart3 size={12} color="#007AFF" />
+                    <Text style={styles.qualityScoreLinkText}>Quality Score</Text>
+                  </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
 
@@ -854,4 +892,21 @@ const styles = StyleSheet.create({
     zIndex: 10,
     borderRadius: 16,
   },
+  ticketFooterDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: "#E5E7EB",
+    marginHorizontal: 8,
+  },
+  qualityScoreLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  qualityScoreLinkText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 11,
+    color: "#007AFF",
+  },
 });
+

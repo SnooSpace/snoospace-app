@@ -522,15 +522,21 @@ async function recalculateAqiAsync(pool, userId) {
   const professionalHours     = parseFloat(signals.professional_hours_ratio) * 100;
   const networkQuality        = parseFloat(signals.network_quality_avg);
   const eventsHostedScore     = normalizeScore(signals.events_hosted, parseFloat(platformAvg.avg_events_hosted));
+  // Session-derived scores — populated weekly; default 0 for users with no session data yet
+  const returnFrequencyScore  = parseFloat(signals.return_frequency_score ?? 0);
+  const sessionDepthScore     = parseFloat(signals.session_depth_score ?? 0);
 
+  // NOTE: Weights must stay in sync with calculateAqi in audienceIntelligenceController.js
   const behavioralAqi =
-    paidEventsScore * 0.27 +
-    avgTicketPriceScore * 0.22 +
-    rsvpAttendRatio * 0.15 +
-    contentDepth * 0.13 +
-    professionalHours * 0.10 +
-    networkQuality * 0.08 +
-    eventsHostedScore * 0.05;
+    (paidEventsScore       * 0.22) +  // down from 0.27
+    (avgTicketPriceScore   * 0.18) +  // down from 0.22
+    (rsvpAttendRatio       * 0.12) +  // down from 0.15
+    (contentDepth          * 0.10) +  // down from 0.13
+    (returnFrequencyScore  * 0.14) +  // NEW — habitual return signal
+    (sessionDepthScore     * 0.10) +  // NEW — per-session engagement depth
+    (professionalHours     * 0.08) +  // down from 0.10
+    (networkQuality        * 0.06) +  // unchanged
+    (eventsHostedScore     * 0.00);   // community-only — not scored for members
 
   // Onboarding AQI from demographics
   const memberResult = await pool.query(

@@ -3527,7 +3527,23 @@ const registerForEvent = async (req, res) => {
       console.error('[FraudGuard] Dummy account RSVP check failed:', err.message)
     );
 
-    // 13. Send confirmation email (async, don't block response)
+    // Event quality prediction — update at meaningful RSVP milestones
+    // Thresholds: 10 = first meaningful prediction, 20 = high confidence,
+    //             50/100 = refinements as audience grows
+    pool.query(
+      `SELECT COUNT(*) as count FROM event_registrations WHERE event_id = $1`,
+      [eventId],
+    ).then(async (rsvpCountResult) => {
+      const rsvpCount = parseInt(rsvpCountResult.rows[0]?.count ?? 0);
+      if ([10, 20, 50, 100].includes(rsvpCount)) {
+        const { predictEventQuality } = require('../utils/eventQualityScorer');
+        predictEventQuality(pool, eventId).catch((err) =>
+          console.error(`[EventQuality] Prediction update failed for event ${eventId}:`, err.message)
+        );
+      }
+    }).catch(() => {}); // non-fatal — never propagate
+
+
     sendBookingConfirmationEmail({
       to: member.email,
       memberName: member.name,

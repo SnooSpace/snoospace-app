@@ -228,3 +228,39 @@ export const getCommunityHealthScore = async () => {
     return null;
   }
 };
+
+/**
+ * Get event quality score for a specific event.
+ * Returns pre-event prediction or post-event actuals.
+ * Used by community organisers to understand audience quality.
+ */
+export const getEventQualityScore = async (eventId) => {
+  try {
+    const token = await getAuthToken();
+    const response = await apiGet(`/events/${eventId}/quality`, 15000, token);
+    return response;
+  } catch (error) {
+    console.error("[AudienceAPI] getEventQualityScore error:", error);
+    return null;
+  }
+};
+
+/**
+ * Get event quality history for a community.
+ * Returns list of past scored events + aggregate stats.
+ * Used by community organisers and brands to evaluate track record.
+ */
+export const getCommunityEventQualityHistory = async (communityId) => {
+  try {
+    const token = await getAuthToken();
+    const response = await apiGet(
+      `/community/${communityId}/event-quality-history`,
+      15000,
+      token,
+    );
+    return response;
+  } catch (error) {
+    console.error("[AudienceAPI] getCommunityEventQualityHistory error:", error);
+    return null;
+  }
+};

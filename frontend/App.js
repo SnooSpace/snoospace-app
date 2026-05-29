@@ -30,6 +30,7 @@ import { AuthStateProvider } from "./contexts/AuthStateContext";
 import { StatusBarManagerProvider } from "./contexts/StatusBarManager";
 import { VideoProvider } from "./context/VideoContext";
 import AnimatedSplashScreen from "./components/ui/AnimatedSplashScreen";
+import { initSessionTracker, trackScreenVisit } from "./utils/sessionTracker";
 
 import { ToastProvider } from "./context/ToastContext";
 import AccountSwitchOverlay from "./components/ui/AccountSwitchOverlay";
@@ -38,6 +39,43 @@ function AppContent() {
   const { currentBanner, setCurrentBanner } = useNotifications();
   const navigationRef = React.useRef(null);
   const removeAppStateListenerRef = React.useRef(null);
+
+  // ── Session Tracking ─────────────────────────────────────────────────────
+  // initSessionTracker subscribes to AppState (foreground/background) and
+  // starts the first session. Returns a cleanup function for unmount.
+  useEffect(() => {
+    const cleanup = initSessionTracker();
+    return cleanup;
+  }, []);
+
+  /**
+   * Recursively resolve the currently active route name and its stack depth
+   * from React Navigation's state tree.
+   *
+   * @param {object} navState  - Navigation state (or nested state)
+   * @param {number} depth     - Current recursion depth (starts at 1)
+   * @returns {{ name: string, depth: number }}
+   */
+  const getActiveRoute = (navState, depth = 1) => {
+    if (!navState || navState.index === undefined) return { name: 'Unknown', depth };
+    const route = navState.routes[navState.index];
+    if (!route) return { name: 'Unknown', depth };
+    if (route.state) {
+      return getActiveRoute(route.state, depth + 1);
+    }
+    return { name: route.name, depth };
+  };
+
+  /**
+   * Called by NavigationContainer on every navigation state change.
+   * Extracts the active screen name and stack depth, then reports to sessionTracker.
+   */
+  const onNavigationStateChange = (state) => {
+    if (!state) return;
+    const { name, depth } = getActiveRoute(state);
+    trackScreenVisit(name, depth);
+  };
+  // ─────────────────────────────────────────────────────────────────────────
 
   const handleBannerPress = () => {
     if (currentBanner?.type === "follow" && currentBanner?.actor_id) {
@@ -59,7 +97,10 @@ function AppContent() {
 
   return (
     <>
-      <NavigationContainer ref={navigationRef}>
+      <NavigationContainer
+        ref={navigationRef}
+        onStateChange={onNavigationStateChange}
+      >
         <AppNavigator initialRouteName={"AuthGate"} />
       </NavigationContainer>
       <NotificationBanner

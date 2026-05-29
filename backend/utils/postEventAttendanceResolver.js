@@ -176,6 +176,13 @@ const resolvePostEventAttendance = async (pool, eventId) => {
   console.log(
     `[AttendanceResolver] Event ${eventId}: ${unresolved.rows.length} paid resolved, ${freeNoShow.rowCount} free no-shows marked`
   );
+
+  // Calculate final event quality score after all attendance is resolved.
+  // Fire-and-forget — this is a read-only enrichment pass on top of the resolver.
+  const { calculatePostEventQuality } = require('./eventQualityScorer');
+  calculatePostEventQuality(pool, eventId).catch((err) =>
+    console.error(`[EventQuality] Post-event score failed for event ${eventId}:`, err.message)
+  );
 };
 
 // ─── Organiser manual confirmation (within 7 days of event end) ──────────────

@@ -289,6 +289,10 @@ async function runDemographicLearningJob(pool) {
   // This is stored weekly in user_aqi_signals and feeds networkQualityScore
   await calculateNetworkQualityScores(pool);
 
+  // Step 8: Calculate session depth and return frequency stats
+  // Aggregates user_sessions → user_session_stats and updates AQI signal scores
+  await calculateSessionStats(pool);
+
   const elapsed = Math.round((Date.now() - startTime) / 1000);
   console.log(
     `[DemographicLearning] === Weekly job completed in ${elapsed}s ===`,
@@ -441,6 +445,125 @@ async function calculateNetworkQualityScores(pool) {
   }
 }
 
+/**
+ * Calculate session depth and return frequency stats for all users.
+ *
+ * Aggregates raw aqi_sessions → aqi_session_stats (upsert).
+ * Then updates user_aqi_signals with:
+ *   - return_frequency_score (0-100): habitual return signal
+ *   - session_depth_score    (0-100): per-session engagement depth signal
+ *   - professional_hours_ratio: overridden with session-derived value
+ *     (more accurate than per-event calculation because it reflects
+ *      the actual hour the user opened the app, not just actions taken)
+ *
+ * Runs as Step 8 of the weekly learning job (after network quality scores).
+ */
+async function calculateSessionStats(pool) {
+  console.log('[DemographicLearning] Calculating session stats...');
+  try {
+    await pool.query(`
+      INSERT INTO aqi_session_stats (
+        user_id,
+        active_days_last_7,
+        active_days_last_30,
+        active_weeks_last_8,
+        avg_sessions_per_active_day,
+        avg_screens_per_session,
+        avg_session_duration_seconds,
+        deep_session_ratio,
+        bounce_rate,
+        professional_hours_session_ratio,
+        most_active_hour,
+        last_session_at,
+        days_since_last_session,
+        total_sessions,
+        calculated_at
+      )
+      SELECT
+        user_id,
+        COUNT(DISTINCT DATE(session_start))
+          FILTER (WHERE session_start >= NOW() - INTERVAL '7 days') AS active_days_last_7,
+        COUNT(DISTINCT DATE(session_start))
+          FILTER (WHERE session_start >= NOW() - INTERVAL '30 days') AS active_days_last_30,
+        COUNT(DISTINCT DATE_TRUNC('week', session_start))
+          FILTER (WHERE session_start >= NOW() - INTERVAL '8 weeks') AS active_weeks_last_8,
+        ROUND(
+          COUNT(*) FILTER (WHERE session_start >= NOW() - INTERVAL '30 days')::numeric /
+          NULLIF(COUNT(DISTINCT DATE(session_start))
+            FILTER (WHERE session_start >= NOW() - INTERVAL '30 days'), 0),
+          2
+        ) AS avg_sessions_per_active_day,
+        ROUND(AVG(screens_visited)::numeric, 1) AS avg_screens_per_session,
+        ROUND(AVG(duration_seconds)::numeric, 0) AS avg_session_duration_seconds,
+        ROUND(
+          COUNT(*) FILTER (WHERE session_quality IN ('deep', 'engaged'))::numeric /
+          NULLIF(COUNT(*), 0) * 100,
+          1
+        ) AS deep_session_ratio,
+        ROUND(
+          COUNT(*) FILTER (WHERE session_quality = 'bounce')::numeric /
+          NULLIF(COUNT(*), 0) * 100,
+          1
+        ) AS bounce_rate,
+        ROUND(
+          COUNT(*) FILTER (WHERE is_professional_hours = true)::numeric /
+          NULLIF(COUNT(*), 0) * 100,
+          1
+        ) AS professional_hours_session_ratio,
+        MODE() WITHIN GROUP (ORDER BY hour_of_day) AS most_active_hour,
+        MAX(session_start) AS last_session_at,
+        EXTRACT(DAY FROM NOW() - MAX(session_start))::int AS days_since_last_session,
+        COUNT(*) AS total_sessions,
+        NOW() AS calculated_at
+      FROM aqi_sessions
+      GROUP BY user_id
+      ON CONFLICT (user_id) DO UPDATE SET
+        active_days_last_7               = EXCLUDED.active_days_last_7,
+        active_days_last_30              = EXCLUDED.active_days_last_30,
+        active_weeks_last_8              = EXCLUDED.active_weeks_last_8,
+        avg_sessions_per_active_day      = EXCLUDED.avg_sessions_per_active_day,
+        avg_screens_per_session          = EXCLUDED.avg_screens_per_session,
+        avg_session_duration_seconds     = EXCLUDED.avg_session_duration_seconds,
+        deep_session_ratio               = EXCLUDED.deep_session_ratio,
+        bounce_rate                      = EXCLUDED.bounce_rate,
+        professional_hours_session_ratio = EXCLUDED.professional_hours_session_ratio,
+        most_active_hour                 = EXCLUDED.most_active_hour,
+        last_session_at                  = EXCLUDED.last_session_at,
+        days_since_last_session          = EXCLUDED.days_since_last_session,
+        total_sessions                   = EXCLUDED.total_sessions,
+        calculated_at                    = NOW()
+    `);
+
+    // Update AQI signals with session-derived scores
+    // return_frequency_score: 7-day active days (60%) + 8-week streak bonus (40%)
+    // session_depth_score:    deep session ratio (60%) + avg screens per session (40%)
+    // professional_hours_ratio: overridden with session-level data (more accurate)
+    await pool.query(`
+      UPDATE user_aqi_signals uas
+      SET
+        return_frequency_score = LEAST(100,
+          (uss.active_days_last_7::numeric / 7 * 60) +
+          (LEAST(uss.active_weeks_last_8, 8)::numeric / 8 * 40)
+        ),
+        session_depth_score = LEAST(100,
+          (uss.deep_session_ratio * 0.6) +
+          (LEAST(uss.avg_screens_per_session, 10) / 10 * 40)
+        ),
+        professional_hours_ratio = uss.professional_hours_session_ratio / 100,
+        updated_at = NOW()
+      FROM aqi_session_stats uss
+      WHERE uas.user_id = uss.user_id
+    `);
+
+    const statsCount = await pool.query(`SELECT COUNT(*) FROM aqi_session_stats`);
+    console.log(
+      `[DemographicLearning] Session stats complete: ${statsCount.rows[0].count} user(s) updated`
+    );
+  } catch (err) {
+    console.error('[DemographicLearning] calculateSessionStats error:', err.message);
+  }
+}
+
 module.exports = {
   runDemographicLearningJob,
   learnScoresForDimension,
@@ -449,4 +572,5 @@ module.exports = {
   learnGenderCategoryAffinity,
   detectAnomalousSignals,
   calculateNetworkQualityScores,
+  calculateSessionStats,
 };

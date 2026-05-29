@@ -380,22 +380,30 @@ async function calculateAqi(req, res) {
     const platformAvg = avgResult.rows[0];
 
     // --- Step 1: Calculate raw behavioral AQI (0-100) ---
-    const paidEventsScore = normalizeScore(signals.paid_events_attended, parseFloat(platformAvg.avg_paid_events));
-    const avgTicketPriceScore = normalizeScore(parseFloat(signals.avg_ticket_price_paid), parseFloat(platformAvg.avg_ticket_price));
-    const rsvpAttendRatio = parseFloat(signals.rsvp_to_attend_ratio) * 100;
-    const contentDepth = parseFloat(signals.content_depth_score);
-    const professionalHours = parseFloat(signals.professional_hours_ratio) * 100;
-    const networkQuality = parseFloat(signals.network_quality_avg);
-    const eventsHostedScore = normalizeScore(signals.events_hosted, parseFloat(platformAvg.avg_events_hosted));
+    const paidEventsScore       = normalizeScore(signals.paid_events_attended, parseFloat(platformAvg.avg_paid_events));
+    const avgTicketPriceScore   = normalizeScore(parseFloat(signals.avg_ticket_price_paid), parseFloat(platformAvg.avg_ticket_price));
+    const rsvpAttendRatio       = parseFloat(signals.rsvp_to_attend_ratio) * 100;
+    const contentDepth          = parseFloat(signals.content_depth_score);
+    const professionalHours     = parseFloat(signals.professional_hours_ratio) * 100;
+    const networkQuality        = parseFloat(signals.network_quality_avg);
+    const eventsHostedScore     = normalizeScore(signals.events_hosted, parseFloat(platformAvg.avg_events_hosted));
+    // Session-derived scores — populated by weekly calculateSessionStats job
+    const returnFrequencyScore  = parseFloat(signals.return_frequency_score ?? 0);
+    const sessionDepthScore     = parseFloat(signals.session_depth_score ?? 0);
 
+    // Weights must sum to 1.0
+    // returnFrequencyScore and sessionDepthScore are new — existing weights reduced slightly
+    // eventsHostedScore is 0.00 here (community-only signal, meaningful in community AQI only)
     const behavioralAqi =
-      paidEventsScore * 0.27 +
-      avgTicketPriceScore * 0.22 +
-      rsvpAttendRatio * 0.15 +
-      contentDepth * 0.13 +
-      professionalHours * 0.10 +
-      networkQuality * 0.08 +
-      eventsHostedScore * 0.05;
+      (paidEventsScore       * 0.22) +  // down from 0.27
+      (avgTicketPriceScore   * 0.18) +  // down from 0.22
+      (rsvpAttendRatio       * 0.12) +  // down from 0.15
+      (contentDepth          * 0.10) +  // down from 0.13
+      (returnFrequencyScore  * 0.14) +  // NEW — habitual return signal
+      (sessionDepthScore     * 0.10) +  // NEW — per-session engagement depth
+      (professionalHours     * 0.08) +  // down from 0.10
+      (networkQuality        * 0.06) +  // unchanged
+      (eventsHostedScore     * 0.00);   // community-only — not scored for members
 
     // --- Step 2: Calculate onboarding AQI from learned demographic scores ---
     // Fetch user's occupation and dob from members table
@@ -645,12 +653,54 @@ async function getBrandMatches(req, res) {
       [brandId, campaignId],
     );
 
-    // Apply the multiplier to the returned score so the client sees the adjusted value
-    const matches = result.rows.map((row) => ({
-      ...row,
-      total_match_score: parseFloat(row.total_match_score) * parseFloat(row.brand_match_multiplier),
-      _score_adjusted: parseFloat(row.brand_match_multiplier) < 1.0,
-    }));
+    // Enrich match scores:
+    //   1. Apply community health multiplier (existing fraud/quality penalty)
+    //   2. Blend in event quality history (new) — 6-month track record of how premium their events are
+    //
+    // Updated weights (must sum to 1.0 in brand_creator_matches, this is an additive enrichment):
+    //   We scale the base score down to 0.90 and add event quality (0.10 weight)
+    //   Default event quality = 50 (neutral) so communities with no history aren't penalised
+    const creatorIds = result.rows.map((r) => r.creator_id);
+    let eventQualityMap = {};
+
+    if (creatorIds.length > 0) {
+      try {
+        const eqResult = await pool.query(
+          `SELECT e.community_id, AVG(eqs.event_quality_score) AS avg_quality
+           FROM event_quality_scores eqs
+           JOIN events e ON e.id = eqs.event_id
+           WHERE e.community_id = ANY($1)
+             AND eqs.is_post_event = true
+             AND e.start_datetime >= NOW() - INTERVAL '6 months'
+           GROUP BY e.community_id`,
+          [creatorIds],
+        );
+        for (const row of eqResult.rows) {
+          eventQualityMap[row.community_id] = parseFloat(row.avg_quality ?? 50);
+        }
+      } catch (eqErr) {
+        // Non-fatal — event quality history is a bonus signal, not a blocker
+        console.warn('[AQI] getBrandMatches event quality enrichment failed:', eqErr.message);
+      }
+    }
+
+    const matches = result.rows.map((row) => {
+      const healthMultiplier = parseFloat(row.brand_match_multiplier);
+      const baseScore       = parseFloat(row.total_match_score);
+      // 50 = neutral default for communities with no scored events in last 6 months
+      const eventQuality    = eventQualityMap[row.creator_id] ?? 50;
+
+      // Blend: 90% existing score + 10% event quality track record
+      // then apply health fraud multiplier on top
+      const enrichedScore = ((baseScore * 0.90) + (eventQuality * 0.10)) * healthMultiplier;
+
+      return {
+        ...row,
+        total_match_score:    Math.round(enrichedScore * 100) / 100,
+        _score_adjusted:      healthMultiplier < 1.0,
+        _event_quality_score: eventQuality,
+      };
+    });
 
     res.json({ success: true, matches });
   } catch (error) {
@@ -1216,6 +1266,106 @@ async function getCommunityHealthScore(req, res) {
   }
 }
 
+// ============================================================
+// GET /events/:eventId/quality
+// Returns quality score for an event
+// Available to: community accounts (their own events) + brand accounts
+// ============================================================
+
+async function getEventQualityScore(req, res) {
+  try {
+    const { eventId } = req.params;
+
+    const result = await pool.query(
+      `SELECT
+         eqs.*,
+         e.title,
+         e.start_datetime,
+         e.category,
+         e.community_id
+       FROM event_quality_scores eqs
+       JOIN events e ON e.id = eqs.event_id
+       WHERE eqs.event_id = $1`,
+      [eventId],
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({
+        event_id: parseInt(eventId),
+        status: 'not_enough_data',
+        message: 'Quality score will be available once the event has 10+ RSVPs',
+      });
+    }
+
+    return res.json({ success: true, quality: result.rows[0] });
+  } catch (error) {
+    console.error('[AQI] getEventQualityScore error:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to fetch event quality score' });
+  }
+}
+
+// ============================================================
+// GET /community/:communityId/event-quality-history
+// Returns quality scores for all past events by a community
+// Brands use this to evaluate a community's track record
+// ============================================================
+
+async function getCommunityEventQualityHistory(req, res) {
+  try {
+    const { communityId } = req.params;
+
+    const [historyResult, aggregateResult] = await Promise.all([
+      pool.query(
+        `SELECT
+           eqs.event_quality_score,
+           eqs.event_quality_tier,
+           eqs.buying_class_density,
+           eqs.avg_attendee_aqi,
+           eqs.total_verified_attendees,
+           eqs.total_rsvps,
+           eqs.rsvp_to_attend_ratio,
+           eqs.is_post_event,
+           eqs.calculated_at,
+           e.id        AS event_id,
+           e.title,
+           e.start_datetime,
+           e.category
+         FROM event_quality_scores eqs
+         JOIN events e ON e.id = eqs.event_id
+         WHERE e.community_id = $1
+           AND eqs.is_post_event = true
+         ORDER BY e.start_datetime DESC
+         LIMIT 20`,
+        [communityId],
+      ),
+      pool.query(
+        `SELECT
+           ROUND(AVG(eqs.event_quality_score), 1)     AS avg_event_quality,
+           ROUND(AVG(eqs.buying_class_density), 1)    AS avg_buying_class_density,
+           ROUND(AVG(eqs.avg_attendee_aqi), 1)        AS avg_attendee_aqi,
+           COUNT(*)                                    AS total_scored_events,
+           MODE() WITHIN GROUP (
+             ORDER BY eqs.event_quality_tier
+           )                                           AS most_common_tier
+         FROM event_quality_scores eqs
+         JOIN events e ON e.id = eqs.event_id
+         WHERE e.community_id = $1
+           AND eqs.is_post_event = true`,
+        [communityId],
+      ),
+    ]);
+
+    return res.json({
+      success: true,
+      history:   historyResult.rows,
+      aggregate: aggregateResult.rows[0],
+    });
+  } catch (error) {
+    console.error('[AQI] getCommunityEventQualityHistory error:', error.message, error.stack);
+    res.status(500).json({ error: 'Failed to fetch community event quality history' });
+  }
+}
+
 module.exports = {
   trackFollow,
   trackEngagement,
@@ -1231,4 +1381,6 @@ module.exports = {
   getUserInterests,
   getGenderAffinityByCategory,
   getCommunityHealthScore,
+  getEventQualityScore,
+  getCommunityEventQualityHistory,
 };
