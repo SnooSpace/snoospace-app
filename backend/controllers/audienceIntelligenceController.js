@@ -515,9 +515,15 @@ async function getCreatorStats(req, res) {
     );
 
     if (result.rows.length === 0) {
-      // Return empty defaults if not calculated yet
+      // No row yet — kick off async recalculation so data populates on next load.
+      // Fire-and-forget: client gets zeros immediately, data ready on next refresh.
+      recalculateCreatorStats(creatorId).catch((err) =>
+        console.warn(`[AQI] Auto-recalc triggered for ${creatorId}:`, err.message)
+      );
+
       return res.json({
         success: true,
+        _recalculating: true, // hint to client that data is being built
         stats: {
           creator_id: parseInt(creatorId),
           total_followers: 0,
@@ -540,6 +546,7 @@ async function getCreatorStats(req, res) {
         },
       });
     }
+
 
     const stats = result.rows[0];
 

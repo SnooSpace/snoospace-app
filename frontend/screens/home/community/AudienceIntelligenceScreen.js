@@ -646,6 +646,7 @@ export default function AudienceIntelligenceScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -659,6 +660,8 @@ export default function AudienceIntelligenceScreen({ navigation }) {
       ]);
       if (statsRes?.success) {
         setStats(statsRes.stats);
+        // Backend flagged that recalculation was triggered (no row existed)
+        setRecalculating(statsRes._recalculating === true);
       } else {
         setError(true);
       }
@@ -704,6 +707,28 @@ export default function AudienceIntelligenceScreen({ navigation }) {
             contentContainerStyle={styles.scrollContent}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={MUTED_TEXT} />}
           >
+            {/* Recalculating banner — shown on first view before stats are ready */}
+            {recalculating && (
+              <Animated.View
+                entering={FadeInDown.delay(0).duration(400)}
+                style={{
+                  backgroundColor: "rgba(59,130,246,0.07)",
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: "rgba(59,130,246,0.18)",
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                }}
+              >
+                <Sparkles size={16} color={ACCENT_BLUE} />
+                <Text style={{ fontFamily: FONTS.regular, fontSize: 13, color: ACCENT_BLUE, flex: 1 }}>
+                  Building your audience profile — pull to refresh in a moment.
+                </Text>
+              </Animated.View>
+            )}
             {/* Community health status — shown only when data is available */}
             <CommunityHealthCard healthData={healthData} />
             <FollowQualityHero stats={stats} />

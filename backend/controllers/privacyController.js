@@ -34,6 +34,16 @@ async function updateConsent(req, res) {
     const userType = req.user?.type || "member";
     if (!userId) return res.status(401).json({ error: "Authentication required" });
 
+    // Fix D: Log exactly what req.user looks like for community accounts.
+    // If userType prints as "member" for a community toggle, the JWT is wrong
+    // and saves will write to a "member" row while loads read from "community".
+    console.log('[Privacy] updateConsent req.user:', {
+      id: req.user?.id,
+      type: req.user?.type,
+      email: req.user?.email,
+      derivedUserType: userType,
+    });
+
     const {
       behavioralTracking,
       brandTargeting,

@@ -291,14 +291,23 @@ function MemberPrivacyScreen({ navigation }) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // FIX: updateConsent now throws on failure — catch fires properly and reverts state
+  // Fix B: Optimistic update with explicit previousValue capture for safe revert.
+  // Fix C: updateConsent in api/privacy.js normalises field names — no silent drops.
   const handleToggle = async (field, apiField) => {
-    const newVal = !consents[field];
-    setConsents((prev) => ({ ...prev, [field]: newVal }));
+    const previousValue = consents[field];
+    const newVal = !previousValue;
+
+    console.log('[MemberPrivacy] Toggle fired:', apiField, '→', newVal);
+    setConsents((prev) => ({ ...prev, [field]: newVal })); // optimistic
+
     try {
+      console.log('[MemberPrivacy] Calling updateConsent...');
       await updateConsent({ [apiField]: newVal });
-    } catch (_) {
-      setConsents((prev) => ({ ...prev, [field]: !newVal }));
+      console.log('[MemberPrivacy] updateConsent resolved ✅');
+    } catch (err) {
+      console.error('[MemberPrivacy] updateConsent failed — reverting:', err?.message, 'status:', err?.status);
+      // Revert ONLY on actual API failure
+      setConsents((prev) => ({ ...prev, [field]: previousValue }));
     }
   };
 
@@ -719,14 +728,23 @@ function CommunityPrivacyScreen({ navigation }) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // FIX: updateConsent throws on failure — catch reverts state
+  // Fix B: Optimistic update with explicit previousValue capture for safe revert.
+  // Fix C: updateConsent in api/privacy.js normalises field names — no silent drops.
   const handleToggle = async (field, apiField) => {
-    const newVal = !consents[field];
-    setConsents((prev) => ({ ...prev, [field]: newVal }));
+    const previousValue = consents[field];
+    const newVal = !previousValue;
+
+    console.log('[CommunityPrivacy] Toggle fired:', apiField, '→', newVal);
+    setConsents((prev) => ({ ...prev, [field]: newVal })); // optimistic
+
     try {
+      console.log('[CommunityPrivacy] Calling updateConsent...');
       await updateConsent({ [apiField]: newVal });
-    } catch (_) {
-      setConsents((prev) => ({ ...prev, [field]: !newVal }));
+      console.log('[CommunityPrivacy] updateConsent resolved ✅');
+    } catch (err) {
+      console.error('[CommunityPrivacy] updateConsent failed — reverting:', err?.message, 'status:', err?.status);
+      // Revert ONLY on actual API failure
+      setConsents((prev) => ({ ...prev, [field]: previousValue }));
     }
   };
 

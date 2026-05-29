@@ -4,6 +4,7 @@
  */
 
 import { apiGet, apiPost } from "./client";
+import { getAuthToken } from "./auth";
 
 /**
  * Track a follow event with intent classification
@@ -81,7 +82,8 @@ export const calculateAqi = async (userId) => {
  */
 export const getCreatorStats = async (creatorId) => {
   try {
-    const response = await apiGet(`/audience/creator-stats/${creatorId}`);
+    const token = await getAuthToken();
+    const response = await apiGet(`/audience/creator-stats/${creatorId}`, 15000, token);
     return response;
   } catch (error) {
     console.error("[AudienceAPI] getCreatorStats error:", error);
@@ -139,7 +141,8 @@ export const getActiveCategories = async () => {
  */
 export const getUserInterests = async (userId) => {
   try {
-    const response = await apiGet(`/audience/user-interests/${userId}`);
+    const token = await getAuthToken();
+    const response = await apiGet(`/audience/user-interests/${userId}`, 15000, token);
     return response;
   } catch (error) {
     console.error("[AudienceAPI] getUserInterests error:", error);
@@ -214,7 +217,8 @@ export const formatAffinityInsight = (affinityData, targetGender) => {
  */
 export const getCommunityHealthScore = async () => {
   try {
-    const response = await apiGet("/community/health-score");
+    const token = await getAuthToken();
+    const response = await apiGet("/community/health-score", 15000, token);
     return response;
   } catch (error) {
     // 403 is expected for non-community accounts — silent fail
