@@ -50,7 +50,7 @@ const TEXT_COLOR = CONSTANTS_COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = CONSTANTS_COLORS.textSecondary;
 const PRIMARY_COLOR = CONSTANTS_COLORS.primaryBlue;
 
-// Goal Badge Presets
+// Spark Presets
 const GOAL_BADGE_PRESETS = [
   "Looking for a co-founder",
   "Seeking mentorship",
@@ -222,7 +222,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     if (goalBadges.length === 0) {
       Alert.alert(
         "Required",
-        "Please add at least 1 goal badge to appear in discovery",
+        "Please add at least 1 Spark to appear in discovery",
       );
       return;
     }
@@ -348,7 +348,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         return prev.filter((g) => g !== goal);
       } else {
         if (prev.length >= 3) {
-          Alert.alert("Limit Reached", "You can select up to 3 goals.");
+          Alert.alert("Limit Reached", "You can select up to 3 Sparks.");
           return prev;
         }
         return [...prev, goal];
@@ -360,11 +360,11 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     const trimmed = customGoal.trim();
     if (!trimmed) return;
     if (goalBadges.includes(trimmed)) {
-      Alert.alert("Already Added", "This goal badge is already selected.");
+      Alert.alert("Already Added", "This Spark is already selected.");
       return;
     }
     if (goalBadges.length >= 3) {
-      Alert.alert("Limit Reached", "You can select up to 3 goals.");
+      Alert.alert("Limit Reached", "You can select up to 3 Sparks.");
       return;
     }
     setGoalBadges((prev) => [...prev, trimmed]);
@@ -388,7 +388,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       else if (photoCount >= 6) pct += 10;
     }
 
-    // Goal Badges (30% max)
+    // Sparks (30% max)
     const badgeCount = goalBadges.length;
     if (badgeCount === 1) {
       pct += 20; // Min requirement met
@@ -664,7 +664,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           </View>
         </View>
 
-        {/* SECTION 3: Goal Badges (Edge-to-Edge Editorial) */}
+        {/* SECTION 3: Sparks (Edge-to-Edge Editorial) */}
         <View style={styles.sectionEditorial}>
           <View style={styles.sectionCardEditorial}>
             <View style={styles.cardHeader}>
@@ -677,14 +677,14 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                 >
                   <Sparkles size={18} color="#EA580C" />
                 </View>
-                <Text style={styles.cardTitle}>Goal Badges</Text>
+                <Text style={styles.cardTitle}>Sparks</Text>
               </View>
               <View style={styles.cardRequiredBadge}>
                 <Text style={styles.cardRequiredBadgeText}>REQUIRED</Text>
               </View>
             </View>
             <Text style={styles.sectionHint}>
-              What are you looking for? Select 1-3 goals.
+              What are you looking for? Select 1-3 sparks.
             </Text>
 
             <View style={styles.cardContent}>
@@ -729,7 +729,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                 <View style={styles.customGoalInputContainer}>
                   <TextInput
                     style={styles.customGoalInput}
-                    placeholder="Enter custom goal..."
+                    placeholder="Enter custom spark..."
                     placeholderTextColor={CONSTANTS_COLORS.textSecondary}
                     value={customGoal}
                     onChangeText={setCustomGoal}
@@ -762,7 +762,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                   }}
                 >
                   <Plus size={16} color={PRIMARY_COLOR} strokeWidth={2.5} />
-                  <Text style={styles.addCustomGoalTriggerText}>Add Custom Goal</Text>
+                  <Text style={styles.addCustomGoalTriggerText}>Add Custom Spark</Text>
                 </TouchableOpacity>
               )}
 
@@ -774,7 +774,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                     strokeWidth={2}
                   />
                   <Text style={styles.inlineWarningText}>
-                    Select at least 1 goal
+                    Select at least 1 Spark
                   </Text>
                 </View>
               )}

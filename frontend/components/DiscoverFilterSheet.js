@@ -22,7 +22,7 @@ import {
 } from "../screens/profile/member/EditProfileConstants";
 import RangeSlider from "./RangeSlider";
 
-// Goal Badge Color Logic (Semantic Grouping)
+// Spark Color Logic (Semantic Grouping)
 const GOAL_COLORS = {
   "looking for study partners": { bg: "#E0F2FE", text: "#075985" }, // Blue
   "new to the city": { bg: "#ECFDF5", text: "#065F46" }, // Mint
@@ -40,7 +40,7 @@ const getGoalStyle = (goal) => {
   return GOAL_COLORS.default;
 };
 
-// Goal Badge Presets
+// Spark Presets
 const GOAL_BADGE_PRESETS = [
   "Looking for a co-founder",
   "Seeking mentorship",
@@ -345,9 +345,9 @@ export default function DiscoverFilterSheet({
             >
               {/* GOALS SECTION */}
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Goals</Text>
+                <Text style={styles.sectionTitle}>Sparks</Text>
                 <Text style={styles.sectionSubtitle}>
-                  Find people with specific intentions
+                  Find people with specific sparks
                 </Text>
                 <View style={styles.chipGrid}>
                   {GOAL_BADGE_PRESETS.map((badge) => {

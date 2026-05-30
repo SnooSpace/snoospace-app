@@ -220,7 +220,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
             </Text>
             <View style={styles.gateRequirements}>
               <Text style={styles.gateRequirementItem}>📸  At least 3 photos</Text>
-              <Text style={styles.gateRequirementItem}>🎯  At least 1 goal badge</Text>
+              <Text style={styles.gateRequirementItem}>🎯  At least 1 Spark</Text>
               <Text style={styles.gateRequirementItem}>💬  At least 1 icebreaker</Text>
             </View>
             <TouchableOpacity
