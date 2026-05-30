@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Alert } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BarChart3, User, Calendar, Users, Clock, MapPin } from "lucide-react-native";
@@ -102,8 +102,12 @@ export default function DiscoverScreen({ navigation }) {
       if (token) {
         const response = await apiGet("/members/profile", 15000, token);
         const profile = response.profile || response;
+        // Minimum requirements: 3 discover photos, 1+ goal badge, 1+ opener
+        const photos = Array.isArray(profile.discover_photos) ? profile.discover_photos : [];
+        const badges = Array.isArray(profile.intent_badges) ? profile.intent_badges : [];
+        const openers = Array.isArray(profile.openers) ? profile.openers : [];
         setProfileComplete(
-          profile.intent_badges && profile.intent_badges.length > 0,
+          photos.length >= 3 && badges.length >= 1 && openers.length >= 1
         );
       }
     } catch (error) {
@@ -119,8 +123,22 @@ export default function DiscoverScreen({ navigation }) {
   );
 
   const handleEventPress = useCallback((event) => {
+    if (!profileComplete) {
+      Alert.alert(
+        "Complete Your Profile First",
+        "You need to set up your Discover Profile before you can connect with others.\n\nAdd at least 3 photos, 1 goal badge, and 1 icebreaker.",
+        [
+          { text: "Not Now", style: "cancel" },
+          {
+            text: "Set Up Profile",
+            onPress: () => navigation.navigate("EditDiscoverProfile"),
+          },
+        ]
+      );
+      return;
+    }
     navigation.navigate("ProfileFeed", { event });
-  }, [navigation]);
+  }, [navigation, profileComplete]);
 
   const handleCommunityPress = useCallback((communityId) => {
     navigation.navigate("CommunityPublicProfile", { communityId });

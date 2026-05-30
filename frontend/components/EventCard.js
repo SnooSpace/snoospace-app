@@ -132,18 +132,31 @@ export default function EventCard({
       );
   }, []);
 
+  // Reset view tracking flag if the event changes (e.g., same card slot reused after refresh)
+  useEffect(() => {
+    console.log(`[EventCard] Reset viewTrackedRef for event ${event?.id}, current view_count from prop: ${event?.view_count}`);
+    viewTrackedRef.current = false;
+  }, [event?.id]);
+
   // View tracking: record a view after the card has been visible for 2.5s
   useEffect(() => {
+    console.log(`[EventCard] Tracking effect fired for event ${event?.id}, tracked=${viewTrackedRef.current}`);
     if (!event?.id || viewTrackedRef.current) return;
     const timer = setTimeout(async () => {
       if (viewTrackedRef.current) return;
       viewTrackedRef.current = true;
+      console.log(`[EventCard] Calling recordEventView for event ${event.id}`);
       try {
         const res = await recordEventView(event.id);
-        if (res?.is_new) {
+        console.log(`[EventCard] recordEventView response for event ${event.id}:`, JSON.stringify(res));
+        if (res?.view_count !== undefined) {
+          setViewCount(res.view_count);
+        } else if (res?.is_new) {
           setViewCount((c) => c + 1);
         }
-      } catch (_) {}
+      } catch (err) {
+        console.error(`[EventCard] recordEventView failed for event ${event.id}:`, err?.message);
+      }
     }, 2500);
     return () => clearTimeout(timer);
   }, [event?.id]);
@@ -707,10 +720,10 @@ export default function EventCard({
               <MessageCircle size={22} color="#5e8d9b" strokeWidth={2} />
               {commentCount > 0 && <Text style={styles.engagementCount}>{commentCount}</Text>}
             </TouchableOpacity>
-            <TouchableOpacity style={styles.engagementBtn} onPress={() => onPress?.(event)}>
+            <View style={styles.engagementBtn}>
               <ChartNoAxesCombined size={22} color="#5e8d9b" strokeWidth={2} />
-              {viewCount > 0 && <Text style={styles.engagementCount}>{viewCount}</Text>}
-            </TouchableOpacity>
+              <Text style={styles.engagementCount}>{viewCount}</Text>
+            </View>
             <TouchableOpacity style={styles.engagementBtn} onPress={handleSharePress}>
               <Send size={22} color="#5e8d9b" strokeWidth={2} />
               {shareCount > 0 && <Text style={styles.engagementCount}>{shareCount}</Text>}

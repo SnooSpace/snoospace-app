@@ -8,6 +8,7 @@ import {
   MessageCircle,
   ArrowLeft,
   SlidersHorizontal,
+  User,
 } from "lucide-react-native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
@@ -63,39 +64,68 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const [selectedContent, setSelectedContent] = useState(null);
   const [activeFilters, setActiveFilters] = useState({});
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
+  const [profileGated, setProfileGated] = useState(false); // true if user's own profile is incomplete
 
   console.log("[ProfileFeedScreen] Render. event:", event?.id, "title:", event?.title, "loading:", loading, "attendees:", attendees.length);
 
-  const loadAttendees = useCallback(async (filters = activeFilters) => {
+  const checkAndLoadAttendees = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getAuthToken();
-      if (token) {
+      if (!token) { setLoading(false); return; }
+
+      // 1. Gate check: verify the viewer's own profile meets minimum requirements
+      const profileRes = await apiGet("/members/profile", 15000, token);
+      const profile = profileRes.profile || profileRes;
+      const ownPhotos = Array.isArray(profile.discover_photos) ? profile.discover_photos : [];
+      const ownBadges = Array.isArray(profile.intent_badges) ? profile.intent_badges : [];
+      const ownOpeners = Array.isArray(profile.openers) ? profile.openers : [];
+      const isComplete = ownPhotos.length >= 3 && ownBadges.length >= 1 && ownOpeners.length >= 1;
+
+      if (!isComplete) {
+        setProfileGated(true);
+        setLoading(false);
+        return;
+      }
+
+      // 2. Load attendees (backend already filters incomplete profiles)
+      if (event) {
         console.log("[ProfileFeedScreen] Fetching attendees for event ID:", event?.id);
-        const response = await apiGet(
-          `/events/${event.id}/attendees`,
-          15000,
-          token,
-        );
+        const response = await apiGet(`/events/${event.id}/attendees`, 15000, token);
         console.log("[ProfileFeedScreen] Fetch success. Count:", response?.attendees?.length);
+        setAttendees(response.attendees || []);
+      } else {
+        console.warn("[ProfileFeedScreen] Mounted without an event object in route params!");
+      }
+    } catch (error) {
+      console.error("[ProfileFeedScreen] Error:", error);
+      setAttendees([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [event]);
+
+  useEffect(() => {
+    checkAndLoadAttendees();
+  }, [checkAndLoadAttendees]);
+
+  // Reload when filters change (only if not gated)
+  const loadAttendees = useCallback(async (filters = activeFilters) => {
+    if (profileGated) return;
+    try {
+      setLoading(true);
+      const token = await getAuthToken();
+      if (token && event) {
+        const response = await apiGet(`/events/${event.id}/attendees`, 15000, token);
         setAttendees(response.attendees || []);
       }
     } catch (error) {
       console.error("[ProfileFeedScreen] Error loading attendees:", error);
-      setAttendees([]); // Fallback
+      setAttendees([]);
     } finally {
       setLoading(false);
     }
-  }, [event, activeFilters]);
-
-  useEffect(() => {
-    if (event) {
-      loadAttendees();
-    } else {
-      console.warn("[ProfileFeedScreen] Mounted without an event object in route params!");
-      setLoading(false);
-    }
-  }, [event, activeFilters, loadAttendees]);
+  }, [event, activeFilters, profileGated]);
 
   const currentAttendee = attendees[currentIndex];
 
@@ -166,6 +196,45 @@ export default function ProfileFeedScreen({ route, navigation }) {
         <View style={[styles.container, styles.center]}>
           <SnooLoader size="large" color={COLORS.primary} />
         </View>
+      );
+    }
+
+    // Profile gate — user hasn't completed their Discover Profile
+    if (profileGated) {
+      return (
+        <SafeAreaView style={styles.container} edges={EDGES}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
+              <ArrowLeft size={26} color={COLORS.editorial.textSecondary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Discover People</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <View style={styles.gateContainer}>
+            <View style={styles.gateIconCircle}>
+              <User size={36} color="#2962FF" strokeWidth={1.5} />
+            </View>
+            <Text style={styles.gateTitle}>Set Up Your Profile First</Text>
+            <Text style={styles.gateBody}>
+              To discover and connect with people at this event, you need to complete your Discover Profile.
+            </Text>
+            <View style={styles.gateRequirements}>
+              <Text style={styles.gateRequirementItem}>📸  At least 3 photos</Text>
+              <Text style={styles.gateRequirementItem}>🎯  At least 1 goal badge</Text>
+              <Text style={styles.gateRequirementItem}>💬  At least 1 icebreaker</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.gateButton}
+              onPress={() => navigation.navigate("EditDiscoverProfile")}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.gateButtonText}>Complete My Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleBack} style={styles.gateCancelLink}>
+              <Text style={styles.gateCancelText}>Go Back</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
       );
     }
 
@@ -401,6 +470,86 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#faf9f7", // Soft Off-White
   },
+  // Profile completion gate styles
+  gateContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+    paddingBottom: 60,
+  },
+  gateIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#EFF6FF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  gateTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 22,
+    color: "#0F172A",
+    textAlign: "center",
+    marginBottom: 12,
+    letterSpacing: -0.3,
+  },
+  gateBody: {
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  gateRequirements: {
+    width: "100%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 20,
+    gap: 12,
+    marginBottom: 28,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  gateRequirementItem: {
+    fontFamily: FONTS.medium,
+    fontSize: 15,
+    color: "#334155",
+    lineHeight: 22,
+  },
+  gateButton: {
+    width: "100%",
+    height: 52,
+    backgroundColor: "#2962FF",
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#2962FF",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 4,
+    marginBottom: 16,
+  },
+  gateButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: "#FFFFFF",
+  },
+  gateCancelLink: {
+    paddingVertical: 8,
+  },
+  gateCancelText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: "#94A3B8",
+  },
+
   center: {
     flex: 1,
     justifyContent: "center",
