@@ -16,7 +16,7 @@ import {
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { X, Search, Check, Send, Lock, Users } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import { searchShareRecipients, sharePost, shareOpportunity } from "../api/client";
+import { searchShareRecipients, sharePost, shareOpportunity, shareEvent } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 import SnooLoader from "./ui/SnooLoader";
@@ -109,8 +109,14 @@ export default function ShareModal({ visible, onClose, post }) {
         post?.itemType === "opportunity" ||
         !!post?.opportunity_types;
 
+      const isEvent =
+        post?.itemType === "event" ||
+        post?.post_type === "event";
+
       if (isOpportunity) {
         await shareOpportunity(post.id, recipients, "internal", null, token);
+      } else if (isEvent) {
+        await shareEvent(post.id, recipients, "internal", null, token);
       } else {
         await sharePost(post.id, recipients, "internal", null, token);
       }

@@ -703,6 +703,15 @@ export async function shareOpportunity(opportunityId, recipients, shareType, mes
   );
 }
 
+export async function shareEvent(eventId, recipients, shareType, message, token) {
+  return apiPost(
+    `/events/${eventId}/share`,
+    { recipients, shareType, message },
+    15000,
+    token,
+  );
+}
+
 /**
  * Get recent chat users for share modal
  */

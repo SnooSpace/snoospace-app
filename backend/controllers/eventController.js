@@ -1217,6 +1217,22 @@ const discoverEvents = async (req, res) => {
       return res.status(401).json({ error: "Authentication required" });
     }
 
+    // Ensure engagement columns/tables exist (self-healing — safe on repeated calls)
+    try {
+      await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS like_count    INTEGER NOT NULL DEFAULT 0`);
+      await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS view_count    INTEGER NOT NULL DEFAULT 0`);
+      await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS comment_count INTEGER NOT NULL DEFAULT 0`);
+      await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS share_count   INTEGER NOT NULL DEFAULT 0`);
+      await pool.query(`CREATE TABLE IF NOT EXISTS event_likes (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        liker_id INTEGER NOT NULL,
+        liker_type TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE (event_id, liker_id, liker_type)
+      )`);
+    } catch (_) { /* non-fatal: migration may have already applied */ }
+
     // Build query based on user type
     // For members: prioritize events from followed communities
     // For communities: show events from similar categories
@@ -1246,6 +1262,16 @@ const discoverEvents = async (req, res) => {
           e.created_at,
           e.access_type,
           e.invite_public_visibility,
+          -- Engagement counts (COALESCE guards against NULL before column was added)
+          COALESCE(e.like_count, 0)    AS like_count,
+          COALESCE(e.view_count, 0)    AS view_count,
+          COALESCE(e.comment_count, 0) AS comment_count,
+          COALESCE(e.share_count, 0)   AS share_count,
+          -- Whether the current user has liked this event
+          CASE WHEN EXISTS (
+            SELECT 1 FROM event_likes el
+            WHERE el.event_id = e.id AND el.liker_id = $1 AND el.liker_type = $2
+          ) THEN true ELSE false END AS is_liked,
           COALESCE(
             (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id AND is_active = true AND base_price > 0),
             e.ticket_price
@@ -1293,6 +1319,7 @@ const discoverEvents = async (req, res) => {
         FROM events e
         INNER JOIN communities c ON e.community_id = c.id
         LEFT JOIN followed_communities fc ON e.community_id = fc.following_id
+        -- event_likes may not exist yet on first boot; use a safe left join
         WHERE e.is_published = true
           AND e.start_datetime > NOW() -- Only future events
           AND (e.is_cancelled = false OR e.is_cancelled IS NULL) -- Exclude cancelled events
@@ -5637,6 +5664,10 @@ module.exports = {
   unlikeEvent,
   getEventComments,
   addEventComment,
+  replyToEventComment,
+  deleteEventComment,
+  likeEventComment,
+  unlikeEventComment,
   recordEventView,
   shareEvent,
 };
@@ -5684,15 +5715,25 @@ async function likeEvent(req, res) {
     const userId = req.user?.id;
     const userType = req.user?.type;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    // Ensure tables/columns exist (self-healing)
+    await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS like_count INTEGER NOT NULL DEFAULT 0`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS event_likes (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      liker_id INTEGER NOT NULL,
+      liker_type TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE (event_id, liker_id, liker_type)
+    )`);
     const eventCheck = await pool.query("SELECT id FROM events WHERE id = $1 AND is_cancelled = false", [eventId]);
     if (eventCheck.rows.length === 0) return res.status(404).json({ error: "Event not found" });
     const existing = await pool.query("SELECT id FROM event_likes WHERE event_id = $1 AND liker_id = $2 AND liker_type = $3", [eventId, userId, userType]);
     if (existing.rows.length > 0) {
-      const ev = await pool.query("SELECT like_count FROM events WHERE id = $1", [eventId]);
+      const ev = await pool.query("SELECT COALESCE(like_count,0) AS like_count FROM events WHERE id = $1", [eventId]);
       return res.json({ success: true, is_liked: true, like_count: ev.rows[0]?.like_count ?? 0 });
     }
-    await pool.query("INSERT INTO event_likes (event_id, liker_id, liker_type) VALUES ($1, $2, $3)", [eventId, userId, userType]);
-    const updated = await pool.query("UPDATE events SET like_count = like_count + 1 WHERE id = $1 RETURNING like_count", [eventId]);
+    await pool.query("INSERT INTO event_likes (event_id, liker_id, liker_type) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [eventId, userId, userType]);
+    const updated = await pool.query("UPDATE events SET like_count = COALESCE(like_count,0) + 1 WHERE id = $1 RETURNING like_count", [eventId]);
     return res.json({ success: true, is_liked: true, like_count: updated.rows[0]?.like_count ?? 0 });
   } catch (err) {
     console.error("[likeEvent]", err.message);
@@ -5707,12 +5748,14 @@ async function unlikeEvent(req, res) {
     const userId = req.user?.id;
     const userType = req.user?.type;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    // Ensure columns exist before querying
+    await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS like_count INTEGER NOT NULL DEFAULT 0`);
     const del = await pool.query("DELETE FROM event_likes WHERE event_id = $1 AND liker_id = $2 AND liker_type = $3 RETURNING id", [eventId, userId, userType]);
     if (del.rows.length > 0) {
-      const updated = await pool.query("UPDATE events SET like_count = GREATEST(like_count - 1, 0) WHERE id = $1 RETURNING like_count", [eventId]);
+      const updated = await pool.query("UPDATE events SET like_count = GREATEST(COALESCE(like_count,1) - 1, 0) WHERE id = $1 RETURNING like_count", [eventId]);
       return res.json({ success: true, is_liked: false, like_count: updated.rows[0]?.like_count ?? 0 });
     }
-    const ev = await pool.query("SELECT like_count FROM events WHERE id = $1", [eventId]);
+    const ev = await pool.query("SELECT COALESCE(like_count,0) AS like_count FROM events WHERE id = $1", [eventId]);
     return res.json({ success: true, is_liked: false, like_count: ev.rows[0]?.like_count ?? 0 });
   } catch (err) {
     console.error("[unlikeEvent]", err.message);
@@ -5726,11 +5769,31 @@ async function getEventComments(req, res) {
     const { eventId } = req.params;
     const userId = req.user?.id;
     const userType = req.user?.type;
+    // Ensure tables exist (self-healing)
+    await pool.query(`CREATE TABLE IF NOT EXISTS event_comments (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      parent_id INTEGER REFERENCES event_comments(id) ON DELETE CASCADE,
+      commenter_id INTEGER NOT NULL,
+      commenter_type TEXT NOT NULL,
+      comment_text TEXT NOT NULL,
+      like_count INTEGER NOT NULL DEFAULT 0,
+      tagged_entities JSONB,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS event_comment_likes (
+      id SERIAL PRIMARY KEY,
+      comment_id INTEGER NOT NULL REFERENCES event_comments(id) ON DELETE CASCADE,
+      liker_id INTEGER NOT NULL,
+      liker_type TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE (comment_id, liker_id, liker_type)
+    )`);
     const eventCheck = await pool.query("SELECT id, community_id FROM events WHERE id = $1", [eventId]);
     if (eventCheck.rows.length === 0) return res.status(404).json({ error: "Event not found" });
     const commentsRes = await pool.query(
       `SELECT ec.id, ec.event_id, ec.parent_id, ec.commenter_id, ec.commenter_type,
-        ec.comment_text, ec.like_count, ec.tagged_entities, ec.created_at,
+        ec.comment_text, COALESCE(ec.like_count,0) AS like_count, ec.tagged_entities, ec.created_at,
         CASE WHEN ec.commenter_type = 'member' THEN m.name ELSE c.name END AS commenter_name,
         CASE WHEN ec.commenter_type = 'member' THEN m.username ELSE c.username END AS commenter_username,
         CASE WHEN ec.commenter_type = 'member' THEN m.profile_photo_url ELSE c.logo_url END AS commenter_photo_url,
@@ -5744,7 +5807,7 @@ async function getEventComments(req, res) {
     );
     const repliesRes = await pool.query(
       `SELECT ec.id, ec.event_id, ec.parent_id, ec.commenter_id, ec.commenter_type,
-        ec.comment_text, ec.like_count, ec.tagged_entities, ec.created_at,
+        ec.comment_text, COALESCE(ec.like_count,0) AS like_count, ec.tagged_entities, ec.created_at,
         CASE WHEN ec.commenter_type = 'member' THEN m.name ELSE c.name END AS commenter_name,
         CASE WHEN ec.commenter_type = 'member' THEN m.username ELSE c.username END AS commenter_username,
         CASE WHEN ec.commenter_type = 'member' THEN m.profile_photo_url ELSE c.logo_url END AS commenter_photo_url,
@@ -5759,7 +5822,14 @@ async function getEventComments(req, res) {
     const replyMap = {};
     repliesRes.rows.forEach((r) => { if (!replyMap[r.parent_id]) replyMap[r.parent_id] = []; replyMap[r.parent_id].push(r); });
     const comments = commentsRes.rows.map((c) => ({ ...c, replies: replyMap[c.id] || [] }));
-    return res.json({ success: true, comments, total_comment_count: commentsRes.rows.length + repliesRes.rows.length, post_author_id: eventCheck.rows[0].community_id, post_author_type: "community" });
+    const totalCount = commentsRes.rows.length + repliesRes.rows.length;
+    return res.json({
+      success: true,
+      comments,
+      total_comment_count: totalCount,
+      post_author_id: eventCheck.rows[0].community_id,
+      post_author_type: "community",
+    });
   } catch (err) {
     console.error("[getEventComments]", err.message);
     return res.status(500).json({ error: "Failed to load comments" });
@@ -5775,15 +5845,15 @@ async function addEventComment(req, res) {
     const { commentText, parentId, taggedEntities } = req.body;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     if (!commentText?.trim()) return res.status(400).json({ error: "Comment text required" });
+    await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS comment_count INTEGER NOT NULL DEFAULT 0`);
     const eventCheck = await pool.query("SELECT id FROM events WHERE id = $1 AND is_cancelled = false", [eventId]);
     if (eventCheck.rows.length === 0) return res.status(404).json({ error: "Event not found" });
     const insertRes = await pool.query(
       "INSERT INTO event_comments (event_id, parent_id, commenter_id, commenter_type, comment_text, tagged_entities) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
       [eventId, parentId || null, userId, userType, commentText.trim(), JSON.stringify(taggedEntities || [])]
     );
-    if (!parentId) {
-      await pool.query("UPDATE events SET comment_count = comment_count + 1 WHERE id = $1", [eventId]);
-    }
+    // Always increment — both top-level and replies count
+    await pool.query("UPDATE events SET comment_count = COALESCE(comment_count,0) + 1 WHERE id = $1", [eventId]);
     return res.json({ success: true, comment: insertRes.rows[0] });
   } catch (err) {
     console.error("[addEventComment]", err.message);
@@ -5797,23 +5867,35 @@ async function recordEventView(req, res) {
     const { eventId } = req.params;
     const userId = req.user?.id;
     const userType = req.user?.type;
-    if (!userId) return res.json({ success: true, view_count: 0 });
+    if (!userId) return res.json({ success: true, is_new: false, view_count: 0 });
+    // Ensure tables/columns exist (self-healing)
+    await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS view_count INTEGER NOT NULL DEFAULT 0`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS event_views (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      viewer_id INTEGER NOT NULL,
+      viewer_type TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE (event_id, viewer_id, viewer_type)
+    )`);
     const insertRes = await pool.query(
       "INSERT INTO event_views (event_id, viewer_id, viewer_type) VALUES ($1, $2, $3) ON CONFLICT (event_id, viewer_id, viewer_type) DO NOTHING",
       [eventId, userId, userType]
     );
+    let is_new = false;
     let view_count = 0;
     if (insertRes.rowCount > 0) {
-      const updated = await pool.query("UPDATE events SET view_count = view_count + 1 WHERE id = $1 RETURNING view_count", [eventId]);
+      is_new = true;
+      const updated = await pool.query("UPDATE events SET view_count = COALESCE(view_count,0) + 1 WHERE id = $1 RETURNING view_count", [eventId]);
       view_count = updated.rows[0]?.view_count ?? 0;
     } else {
-      const ev = await pool.query("SELECT view_count FROM events WHERE id = $1", [eventId]);
+      const ev = await pool.query("SELECT COALESCE(view_count,0) AS view_count FROM events WHERE id = $1", [eventId]);
       view_count = ev.rows[0]?.view_count ?? 0;
     }
-    return res.json({ success: true, view_count });
+    return res.json({ success: true, is_new, view_count });
   } catch (err) {
     console.error("[recordEventView]", err.message);
-    return res.json({ success: true, view_count: 0 });
+    return res.json({ success: true, is_new: false, view_count: 0 });
   }
 };
 
@@ -5821,10 +5903,110 @@ async function recordEventView(req, res) {
 async function shareEvent(req, res) {
   try {
     const { eventId } = req.params;
-    await pool.query("UPDATE events SET share_count = share_count + 1 WHERE id = $1", [eventId]);
+    await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS share_count INTEGER NOT NULL DEFAULT 0`);
+    await pool.query("UPDATE events SET share_count = COALESCE(share_count,0) + 1 WHERE id = $1", [eventId]);
     return res.json({ success: true });
   } catch (err) {
     console.error("[shareEvent]", err.message);
     return res.json({ success: true });
+  }
+};
+
+/** POST /event-comments/:commentId/reply */
+async function replyToEventComment(req, res) {
+  try {
+    const { commentId } = req.params;
+    const { commentText, taggedEntities } = req.body;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    if (!commentText?.trim()) return res.status(400).json({ error: "Comment text required" });
+    const parentResult = await pool.query(
+      "SELECT event_id FROM event_comments WHERE id = $1",
+      [commentId]
+    );
+    if (parentResult.rows.length === 0) return res.status(404).json({ error: "Parent comment not found" });
+    const eventId = parentResult.rows[0].event_id;
+    const insertRes = await pool.query(
+      "INSERT INTO event_comments (event_id, parent_id, commenter_id, commenter_type, comment_text, tagged_entities) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+      [eventId, commentId, userId, userType, commentText.trim(), JSON.stringify(taggedEntities || [])]
+    );
+    await pool.query("UPDATE events SET comment_count = COALESCE(comment_count,0) + 1 WHERE id = $1", [eventId]);
+    return res.status(201).json({ success: true, comment: insertRes.rows[0] });
+  } catch (err) {
+    console.error("[replyToEventComment]", err.message);
+    return res.status(500).json({ error: "Failed to reply to comment" });
+  }
+};
+
+/** DELETE /event-comments/:commentId */
+async function deleteEventComment(req, res) {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const commentResult = await pool.query(
+      `SELECT ec.id, ec.event_id, ec.commenter_id, ec.commenter_type, e.community_id
+       FROM event_comments ec
+       JOIN events e ON ec.event_id = e.id
+       WHERE ec.id = $1`,
+      [commentId]
+    );
+    if (commentResult.rows.length === 0) return res.status(404).json({ error: "Comment not found" });
+    const comment = commentResult.rows[0];
+    const isAuthor = String(comment.commenter_id) === String(userId) && comment.commenter_type === userType;
+    const isOrganiser = String(comment.community_id) === String(userId) && userType === "community";
+    if (!isAuthor && !isOrganiser) return res.status(403).json({ error: "Not authorised to delete this comment" });
+    await pool.query("DELETE FROM event_comments WHERE id = $1", [commentId]);
+    await pool.query("UPDATE events SET comment_count = GREATEST(COALESCE(comment_count,0) - 1, 0) WHERE id = $1", [comment.event_id]);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("[deleteEventComment]", err.message);
+    return res.status(500).json({ error: "Failed to delete comment" });
+  }
+};
+
+/** POST /event-comments/:commentId/like */
+async function likeEventComment(req, res) {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    await pool.query(
+      "INSERT INTO event_comment_likes (comment_id, liker_id, liker_type) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+      [commentId, userId, userType]
+    );
+    const updated = await pool.query(
+      "UPDATE event_comments SET like_count = COALESCE(like_count,0) + 1 WHERE id = $1 RETURNING like_count",
+      [commentId]
+    );
+    return res.json({ success: true, like_count: updated.rows[0]?.like_count ?? 0 });
+  } catch (err) {
+    console.error("[likeEventComment]", err.message);
+    return res.status(500).json({ error: "Failed to like comment" });
+  }
+};
+
+/** DELETE /event-comments/:commentId/like */
+async function unlikeEventComment(req, res) {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    await pool.query(
+      "DELETE FROM event_comment_likes WHERE comment_id = $1 AND liker_id = $2 AND liker_type = $3",
+      [commentId, userId, userType]
+    );
+    const updated = await pool.query(
+      "UPDATE event_comments SET like_count = GREATEST(COALESCE(like_count,1) - 1, 0) WHERE id = $1 RETURNING like_count",
+      [commentId]
+    );
+    return res.json({ success: true, like_count: updated.rows[0]?.like_count ?? 0 });
+  } catch (err) {
+    console.error("[unlikeEventComment]", err.message);
+    return res.status(500).json({ error: "Failed to unlike comment" });
   }
 };

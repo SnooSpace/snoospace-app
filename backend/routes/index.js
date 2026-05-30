@@ -1498,6 +1498,11 @@ router.get("/events/:eventId/comments", authMiddleware, EventController.getEvent
 router.post("/events/:eventId/comments", authMiddleware, EventController.addEventComment);
 router.post("/events/:eventId/view", authMiddleware, EventController.recordEventView);
 router.post("/events/:eventId/share", authMiddleware, EventController.shareEvent);
+// Event comment threading (reply, delete, like/unlike) — mirrors opportunity-comments pattern
+router.post("/event-comments/:commentId/reply", authMiddleware, EventController.replyToEventComment);
+router.delete("/event-comments/:commentId", authMiddleware, EventController.deleteEventComment);
+router.post("/event-comments/:commentId/like", authMiddleware, EventController.likeEventComment);
+router.delete("/event-comments/:commentId/like", authMiddleware, EventController.unlikeEventComment);
 // Event registration routes
 router.post(
   "/events/:eventId/register",

@@ -536,9 +536,15 @@ const CommentsModal = ({
 
       try {
         const token = await getAuthToken();
-        const likeRoute = replyBaseRoute === "/opportunity-comments"
-          ? `/opportunity-comments/${commentId}/like`
-          : `/comments/${commentId}/like`;
+        // Route to the correct comment-like endpoint based on the entity type
+        let likeRoute;
+        if (replyBaseRoute === "/opportunity-comments") {
+          likeRoute = `/opportunity-comments/${commentId}/like`;
+        } else if (replyBaseRoute === "/event-comments") {
+          likeRoute = `/event-comments/${commentId}/like`;
+        } else {
+          likeRoute = `/comments/${commentId}/like`;
+        }
 
         if (isLiked) {
           await apiDelete(likeRoute, null, 15000, token);

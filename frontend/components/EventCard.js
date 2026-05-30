@@ -94,6 +94,7 @@ export default function EventCard({
   event,
   onPress,
   onInterestedPress,
+  onShare,
   style,
 }) {
   const [isInterested, setIsInterested] = useState(
@@ -130,6 +131,22 @@ export default function EventCard({
         console.error("[EventCard] Error fetching account:", err),
       );
   }, []);
+
+  // View tracking: record a view after the card has been visible for 2.5s
+  useEffect(() => {
+    if (!event?.id || viewTrackedRef.current) return;
+    const timer = setTimeout(async () => {
+      if (viewTrackedRef.current) return;
+      viewTrackedRef.current = true;
+      try {
+        const res = await recordEventView(event.id);
+        if (res?.is_new) {
+          setViewCount((c) => c + 1);
+        }
+      } catch (_) {}
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [event?.id]);
 
   // Listen for interest updates from other components (e.g., EventDetailsScreen)
   useEffect(() => {
@@ -308,11 +325,18 @@ export default function EventCard({
 
   const handleSharePress = async () => {
     HapticsService.triggerImpactLight();
-    try {
-      await Share.share({ message: 'Check out ' + title + ' on SnooSpace!', title });
-      setShareCount((c) => c + 1);
-      trackEventShare(id);
-    } catch (_) {}
+    if (onShare) {
+      // Use the app's custom ShareModal (same as other cards)
+      onShare(id);
+    } else {
+      // Fallback: native share sheet
+      try {
+        await Share.share({ message: 'Check out ' + title + ' on SnooSpace!', title });
+      } catch (_) {}
+    }
+    // Always track the share server-side
+    setShareCount((c) => c + 1);
+    trackEventShare(id);
   };
 
   const handleCommentPress = () => {
@@ -697,7 +721,7 @@ export default function EventCard({
             visible={commentsVisible}
             postId={id}
             baseRoute="/events"
-            replyBaseRoute="/comments"
+            replyBaseRoute="/event-comments"
             onCommentCountChange={(n) => setCommentCount(n)}
             onClose={() => setCommentsVisible(false)}
             navigation={navigation}

@@ -949,9 +949,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
 
   const handleSharePress = (postId) => {
-    const post =
-      posts.find((p) => p.id === postId) ||
-      opportunities.find((o) => o.id === postId);
+    const fromPosts = posts.find((p) => p.id === postId);
+    const fromOpps = !fromPosts && opportunities.find((o) => o.id === postId);
+    const fromEvents = !fromPosts && !fromOpps && events.find((e) => e.id === postId);
+
+    const post = fromPosts || fromOpps || (fromEvents ? { ...fromEvents, itemType: "event" } : null);
     if (post) {
       setSelectedSharePost(post);
       setShareModalVisible(true);
@@ -1083,6 +1085,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           event={item}
           onPress={handleEventPress}
           onInterestedPress={handleInterestedPress}
+          onShare={handleSharePress}
         />
       );
     }
