@@ -64,21 +64,24 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const [activeFilters, setActiveFilters] = useState({});
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
 
+  console.log("[ProfileFeedScreen] Render. event:", event?.id, "title:", event?.title, "loading:", loading, "attendees:", attendees.length);
+
   const loadAttendees = useCallback(async (filters = activeFilters) => {
     try {
       setLoading(true);
       const token = await getAuthToken();
       if (token) {
-        // Query param logic here (omitted for brevity, assume similar to before)
+        console.log("[ProfileFeedScreen] Fetching attendees for event ID:", event?.id);
         const response = await apiGet(
           `/events/${event.id}/attendees`,
           15000,
           token,
         );
+        console.log("[ProfileFeedScreen] Fetch success. Count:", response?.attendees?.length);
         setAttendees(response.attendees || []);
       }
     } catch (error) {
-      //   console.error("Error loading attendees:", error);
+      console.error("[ProfileFeedScreen] Error loading attendees:", error);
       setAttendees([]); // Fallback
     } finally {
       setLoading(false);
@@ -88,6 +91,9 @@ export default function ProfileFeedScreen({ route, navigation }) {
   useEffect(() => {
     if (event) {
       loadAttendees();
+    } else {
+      console.warn("[ProfileFeedScreen] Mounted without an event object in route params!");
+      setLoading(false);
     }
   }, [event, activeFilters, loadAttendees]);
 
@@ -154,33 +160,34 @@ export default function ProfileFeedScreen({ route, navigation }) {
     setFilterSheetVisible(false);
   }, []);
 
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.center]}>
-        <SnooLoader size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
+  try {
+    if (loading) {
+      return (
+        <View style={[styles.container, styles.center]}>
+          <SnooLoader size="large" color={COLORS.primary} />
+        </View>
+      );
+    }
 
-  if (!currentAttendee) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            onPress={handleBack}
-            style={styles.backBtn}
-          >
-            <ArrowLeft size={26} color={COLORS.editorial.textSecondary} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{event?.title}</Text>
-          <View style={{ width: 40 }} />
-        </View>
-        <View style={styles.center}>
-          <Text style={styles.emptyText}>No one here yet.</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+    if (!currentAttendee) {
+      return (
+        <SafeAreaView style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={handleBack}
+              style={styles.backBtn}
+            >
+              <ArrowLeft size={26} color={COLORS.editorial.textSecondary} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>{event?.title || "Attendees"}</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <View style={styles.center}>
+            <Text style={styles.emptyText}>No one here yet.</Text>
+          </View>
+        </SafeAreaView>
+      );
+    }
 
   return (
     <SafeAreaView style={styles.container} edges={EDGES}>
@@ -218,7 +225,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
           {/* Top Row: Demographics */}
           <View style={styles.vitalsRow}>
             {/* Age */}
-            {age && (
+            {!!age && (
               <View style={[styles.chip, styles.ageChip]}>
                 <Text style={styles.ageChipText}>
                   <Text style={styles.cakeEmoji}>🎂 </Text>
@@ -331,6 +338,22 @@ export default function ProfileFeedScreen({ route, navigation }) {
       )}
     </SafeAreaView>
   );
+  } catch (err) {
+    console.error("[ProfileFeedScreen] Render crash:", err);
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: "center", alignItems: "center", padding: 20 }]}>
+        <Text style={{ fontFamily: "Manrope-Bold", fontSize: 18, color: "#E53E3E", marginBottom: 12 }}>
+          An error occurred
+        </Text>
+        <Text style={{ fontFamily: "Manrope-Regular", fontSize: 14, color: "#6B7280", textAlign: "center", marginBottom: 20 }}>
+          {err.message}
+        </Text>
+        <TouchableOpacity style={{ backgroundColor: "#2962FF", paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 }} onPress={() => navigation.goBack()}>
+          <Text style={{ fontFamily: "Manrope-SemiBold", color: "#FFFFFF" }}>Go Back</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 }
 
 const ContentCard = React.memo(({ children, onPress, style }) => (

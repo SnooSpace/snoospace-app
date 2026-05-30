@@ -355,9 +355,10 @@ export async function addEventComment(eventId, commentText, taggedEntities = [])
 export async function recordEventView(eventId) {
   try {
     const token = await (await import("./auth")).getAuthToken();
-    return (await import("./client")).apiPost(`/events/${eventId}/view`, {}, 8000, token);
+    const result = await (await import("./client")).apiPost(`/events/${eventId}/view`, {}, 8000, token);
+    return result; // { success, is_new, view_count }
   } catch (_) {
-    // Non-fatal — view tracking should never crash the UI
+    return null; // non-fatal, caller checks for null
   }
 }
 

@@ -11,12 +11,11 @@
  * Migrated from expo-av → expo-video (SDK 55)
  */
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
-import { View, TouchableOpacity, StyleSheet, Dimensions, Text, Image } from "react-native";
+import { View, TouchableOpacity, StyleSheet, Dimensions, Text, Image, ActivityIndicator } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { RotateCcw } from "lucide-react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useVideoContext } from "../context/VideoContext";
-import SnooLoader from "./ui/SnooLoader";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import { WatchTracker } from "../utils/watchTracker";
@@ -486,7 +485,7 @@ const VideoPlayer = ({
         <View style={styles.overlay}>
           {isLoading && (
             <View style={styles.loadingContainer}>
-              <SnooLoader size="large" color="#fff" />
+              <ActivityIndicator size="large" color="#fff" />
             </View>
           )}
 

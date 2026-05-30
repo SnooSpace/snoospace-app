@@ -137,7 +137,7 @@ const AttendeeListItem = ({ attendee, onPress }) => {
               ({genderAbbrev})
             </Text>
           )}
-          {attendee.age && (
+          {!!attendee.age && (
             <Text style={styles.ageBadge}>{attendee.age}yrs</Text>
           )}
         </View>

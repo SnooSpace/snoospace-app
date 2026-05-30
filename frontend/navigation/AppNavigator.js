@@ -21,6 +21,7 @@ import CelebrationScreen from "../screens/signup/CelebrationScreen";
 import PeopleProfilePromptScreen from "../screens/signup/community/PeopleProfilePromptScreen";
 
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
+import ProfileFeedScreen from "../screens/discover/ProfileFeedScreen";
 import TicketSelectionScreen from "../screens/events/TicketSelectionScreen";
 import CheckoutScreen from "../screens/events/CheckoutScreen";
 import TicketViewScreen from "../screens/events/TicketViewScreen";
@@ -134,6 +135,14 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="EventDetails"
         component={EventDetailsScreen}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen
+        name="ProfileFeed"
+        component={ProfileFeedScreen}
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,

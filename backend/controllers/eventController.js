@@ -810,15 +810,20 @@ const getEventAttendees = async (req, res) => {
 
     // Calculate age for each member and format pronouns
     const attendees = result.rows.map((attendee) => {
-      const birthDate = new Date(attendee.dob);
-      const today = new Date();
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      if (
-        monthDiff < 0 ||
-        (monthDiff === 0 && today.getDate() < birthDate.getDate())
-      ) {
-        age--;
+      let age = null;
+      if (attendee.dob) {
+        const birthDate = new Date(attendee.dob);
+        if (!isNaN(birthDate.getTime())) {
+          const today = new Date();
+          age = today.getFullYear() - birthDate.getFullYear();
+          const monthDiff = today.getMonth() - birthDate.getMonth();
+          if (
+            monthDiff < 0 ||
+            (monthDiff === 0 && today.getDate() < birthDate.getDate())
+          ) {
+            age--;
+          }
+        }
       }
 
       // Format pronouns if visible
@@ -5903,12 +5908,125 @@ async function recordEventView(req, res) {
 async function shareEvent(req, res) {
   try {
     const { eventId } = req.params;
+    const { recipients, shareType, message } = req.body;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    // Ensure share_count column exists
     await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS share_count INTEGER NOT NULL DEFAULT 0`);
-    await pool.query("UPDATE events SET share_count = COALESCE(share_count,0) + 1 WHERE id = $1", [eventId]);
-    return res.json({ success: true });
+
+    // Fetch event details for the message preview
+    const eventResult = await pool.query(
+      `SELECT e.id, e.title, e.description, e.banner_url, e.start_datetime,
+              e.location_name, e.event_type, e.access_type,
+              c.id AS community_id, c.name AS community_name, c.username AS community_username, c.logo_url AS community_logo
+       FROM events e
+       INNER JOIN communities c ON e.community_id = c.id
+       WHERE e.id = $1`,
+      [eventId]
+    );
+    if (eventResult.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+    const event = eventResult.rows[0];
+
+    // Build the metadata payload for the chat message
+    const eventPreview = {
+      eventId: event.id,
+      title: event.title,
+      description: event.description ? event.description.substring(0, 120) + (event.description.length > 120 ? "..." : "") : "",
+      bannerUrl: event.banner_url,
+      eventDate: event.start_datetime,
+      locationName: event.location_name,
+      eventType: event.event_type,
+      communityId: event.community_id,
+      communityName: event.community_name,
+      communityUsername: event.community_username,
+      communityLogo: event.community_logo,
+    };
+
+    // copy_link — just increment share count
+    if (shareType === "copy_link" || !recipients || !Array.isArray(recipients) || recipients.length === 0) {
+      await pool.query("UPDATE events SET share_count = COALESCE(share_count,0) + 1 WHERE id = $1", [eventId]);
+      const updatedEvent = await pool.query("SELECT share_count FROM events WHERE id = $1", [eventId]);
+      return res.json({ success: true, shareCount: updatedEvent.rows[0]?.share_count ?? 0 });
+    }
+
+    // Internal sharing — create a message in each conversation
+    let successCount = 0;
+    for (const recipient of recipients) {
+      try {
+        let conversationId;
+
+        if (recipient.type === "group") {
+          conversationId = recipient.conversationId;
+          if (!conversationId) continue;
+          // Verify membership
+          const cpCheck = await pool.query(
+            `SELECT cp.role, c.messaging_restricted
+             FROM conversations c
+             JOIN conversation_participants cp
+               ON cp.conversation_id = c.id AND cp.participant_id = $1 AND cp.participant_type = $2
+             WHERE c.id = $3 AND c.is_group = true`,
+            [userId, userType, conversationId]
+          );
+          if (cpCheck.rows.length === 0) continue;
+          const { role, messaging_restricted } = cpCheck.rows[0];
+          if (messaging_restricted && role !== "admin") continue;
+        } else {
+          // DM — get or create conversation
+          const id1 = Number(userId);
+          const id2 = Number(recipient.id);
+          let p1Id, p1Type, p2Id, p2Type;
+          if (id1 < id2 || (id1 === id2 && userType < recipient.type)) {
+            p1Id = userId; p1Type = userType; p2Id = recipient.id; p2Type = recipient.type;
+          } else {
+            p1Id = recipient.id; p1Type = recipient.type; p2Id = userId; p2Type = userType;
+          }
+          const insertConv = await pool.query(
+            `INSERT INTO conversations (participant1_id, participant1_type, participant2_id, participant2_type)
+             VALUES ($1, $2, $3, $4) ON CONFLICT (participant1_id, participant1_type, participant2_id, participant2_type) DO NOTHING RETURNING id`,
+            [p1Id, p1Type, p2Id, p2Type]
+          );
+          if (insertConv.rows.length > 0) {
+            conversationId = insertConv.rows[0].id;
+          } else {
+            const selConv = await pool.query(
+              `SELECT id FROM conversations WHERE participant1_id=$1 AND participant1_type=$2 AND participant2_id=$3 AND participant2_type=$4`,
+              [p1Id, p1Type, p2Id, p2Type]
+            );
+            conversationId = selConv.rows[0]?.id;
+          }
+          if (!conversationId) continue;
+        }
+
+        const msgText = message || "Shared an event";
+        await pool.query(
+          `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type, metadata)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [conversationId, userId, userType, msgText, "event_share", JSON.stringify(eventPreview)]
+        );
+        await pool.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1`, [conversationId]);
+        successCount++;
+      } catch (recipientErr) {
+        console.error("[shareEvent] recipient error:", recipientErr.message);
+      }
+    }
+
+    if (successCount === 0) {
+      return res.status(403).json({ error: "Could not share to any recipients" });
+    }
+
+    // Increment share_count once per successful share
+    await pool.query(
+      "UPDATE events SET share_count = COALESCE(share_count,0) + $1 WHERE id = $2",
+      [successCount, eventId]
+    );
+    const updatedEvent = await pool.query("SELECT share_count FROM events WHERE id = $1", [eventId]);
+    return res.json({ success: true, shareCount: updatedEvent.rows[0]?.share_count ?? 0, recipientCount: successCount });
   } catch (err) {
     console.error("[shareEvent]", err.message);
-    return res.json({ success: true });
+    return res.status(500).json({ error: "Failed to share event" });
   }
 };
 

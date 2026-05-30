@@ -37,6 +37,7 @@ import KeyboardAwareToolbar from "../../components/KeyboardAwareToolbar";
 import TicketMessageCard from "../../components/TicketMessageCard";
 import SharedPostCard from "../../components/SharedPostCard";
 import SharedOpportunityCard from "../../components/SharedOpportunityCard";
+import SharedEventCard from "../../components/SharedEventCard";
 import ProfilePostFeed from "../../components/ProfilePostFeed";
 import SnooLoader from "../../components/ui/SnooLoader";
 import EmptyChatState from "../../components/EmptyChatState";
@@ -605,6 +606,7 @@ const MessageRow = React.memo(({
   onPressPostShare,
   onPressUser,
   onPressOpportunity,
+  onPressEvent,
   onPressReplyQuote,
   navigation,
 }) => {
@@ -757,6 +759,36 @@ const MessageRow = React.memo(({
             <SharedOpportunityCard
               metadata={msg.metadata}
               onPress={onPressOpportunity}
+            />
+          </View>
+        </SwipeableMessage>
+      </View>
+    );
+  }
+
+  if (msg.messageType === "event_share" && msg.metadata) {
+    return (
+      <View style={[styles.messageContainer, isMyMessage ? styles.myMessageContainer : styles.otherMessageContainer]}>
+        {avatarEl}
+        <SwipeableMessage
+          messageId={msg.id}
+          highlightedIdSV={highlightedIdSV}
+          isMyMessage={isMyMessage}
+          onReply={() => onReply(msg, isMyMessage)}
+          onLongPress={() => onLongPress(msg)}
+        >
+          <View collapsable={false}>
+            {showSenderName && <Text style={styles.groupSenderName}>{msg.senderName || "Unknown"}</Text>}
+            {msg.replyToMessageId && msg.replyPreview ? (
+              <ReplyQuote
+                replyPreview={msg.replyPreview}
+                isMyMessage={isMyMessage}
+                onPress={() => onPressReplyQuote(msg.replyToMessageId)}
+              />
+            ) : null}
+            <SharedEventCard
+              metadata={msg.metadata}
+              onPress={onPressEvent}
             />
           </View>
         </SwipeableMessage>
@@ -1063,6 +1095,11 @@ export default function ChatScreen({ route, navigation }) {
       opportunityId,
       opportunity: { id: opportunityId, ...metadata },
     });
+  }, [navigation]);
+
+  const handlePressEvent = useCallback((eventId) => {
+    const nav = navigation.getParent()?.getParent() || navigation;
+    nav.navigate("EventDetails", { eventId });
   }, [navigation]);
 
   // ΓöÇΓöÇ loadMessages ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
@@ -1660,6 +1697,7 @@ export default function ChatScreen({ route, navigation }) {
         onPressPostShare={handlePressPostShare}
         onPressUser={handlePressUser}
         onPressOpportunity={handlePressOpportunity}
+        onPressEvent={handlePressEvent}
         onPressReplyQuote={scrollToMessage}
         navigation={navigation}
       />
@@ -1680,6 +1718,7 @@ export default function ChatScreen({ route, navigation }) {
     handlePressPostShare,
     handlePressUser,
     handlePressOpportunity,
+    handlePressEvent,
     scrollToMessage,
     navigation,
   ]);

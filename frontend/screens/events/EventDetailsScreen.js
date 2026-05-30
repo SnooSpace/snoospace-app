@@ -603,14 +603,9 @@ const EventDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  // Navigate to Matching Screen for View Attendees
+  // Navigate to ProfileFeed screen for View Attendees
   const handleViewAttendees = () => {
-    // Matching is a tab in MemberHome's BottomTabNavigator
-    // Navigate to MemberHome, then to the Matching tab with eventId
-    navigation.navigate("MemberHome", {
-      screen: "Matching",
-      params: { eventId: event?.id },
-    });
+    navigation.navigate("ProfileFeed", { event });
   };
 
   // Trigger custom animated toast for locked View Attendees
