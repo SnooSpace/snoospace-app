@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image,
 } from 'react-native';
-import { BadgeCheck, Instagram, Calendar, FileText, Info } from 'lucide-react-native';
+import { BadgeCheck, Instagram, Calendar, FileText, Info, MessageCircle } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from '../../constants/theme';
 
 function monthsAgo(dateStr) {
@@ -15,10 +15,11 @@ function monthsAgo(dateStr) {
   return `${months} month${months !== 1 ? 's' : ''} ago`;
 }
 
-const HostRequestReviewCard = ({ request, onApprove, onDecline, onViewProfile }) => {
+const HostRequestReviewCard = ({ request, onApprove, onDecline, onOpenDm, onViewProfile }) => {
   const [loading, setLoading] = useState(null); // 'approve' | 'decline' | null
   const { requester } = request;
   const hasInstagram = requester.social_connections?.some(s => s.platform === 'instagram');
+  const isApproved = request.status === 'approved';
 
   const handleApprove = async () => {
     setLoading('approve');
@@ -34,11 +35,19 @@ const HostRequestReviewCard = ({ request, onApprove, onDecline, onViewProfile })
     <View style={styles.card}>
       {/* Header */}
       <View style={styles.header}>
-        <View style={styles.avatarCircle}>
-          <Text style={styles.avatarInitial}>
-            {(requester.name || '?')[0].toUpperCase()}
-          </Text>
-        </View>
+        {/* Avatar: real photo or initial fallback */}
+        {requester.profile_photo_url ? (
+          <Image
+            source={{ uri: requester.profile_photo_url }}
+            style={styles.avatarImage}
+          />
+        ) : (
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarInitial}>
+              {(requester.name || '?')[0].toUpperCase()}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.headerInfo}>
           <View style={styles.nameRow}>
@@ -108,36 +117,50 @@ const HostRequestReviewCard = ({ request, onApprove, onDecline, onViewProfile })
         </View>
       ) : null}
 
-      {/* Info */}
-      <View style={styles.infoRow}>
-        <Info size={13} color={COLORS.textMuted} strokeWidth={2} />
-        <Text style={styles.infoText}>
-          Approving opens a DM thread. Exact location is revealed to them. No contacts are shared automatically.
-        </Text>
-      </View>
+      {/* Info disclaimer — only for pending */}
+      {!isApproved && (
+        <View style={styles.infoRow}>
+          <Info size={13} color={COLORS.textMuted} strokeWidth={2} />
+          <Text style={styles.infoText}>
+            Approving opens a DM thread. Exact location is revealed to them. No contacts are shared automatically.
+          </Text>
+        </View>
+      )}
 
       {/* Actions */}
-      <View style={styles.actions}>
+      {isApproved ? (
+        /* Approved tab: just offer Open DM */
         <TouchableOpacity
-          style={[styles.declineBtn, loading && styles.btnDisabled]}
-          onPress={handleDecline}
-          disabled={!!loading}
+          style={styles.openDmBtn}
+          onPress={() => onOpenDm?.(request.conversation_id)}
         >
-          {loading === 'decline'
-            ? <ActivityIndicator size="small" color={COLORS.textSecondary} />
-            : <Text style={styles.declineBtnText}>Decline</Text>}
+          <MessageCircle size={16} color="#fff" strokeWidth={2} style={{ marginRight: 6 }} />
+          <Text style={styles.approveBtnText}>Open DM</Text>
         </TouchableOpacity>
+      ) : (
+        /* Pending tab: Decline + Approve & open DM */
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={[styles.declineBtn, loading && styles.btnDisabled]}
+            onPress={handleDecline}
+            disabled={!!loading}
+          >
+            {loading === 'decline'
+              ? <ActivityIndicator size="small" color={COLORS.textSecondary} />
+              : <Text style={styles.declineBtnText}>Decline</Text>}
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.approveBtn, loading && styles.btnDisabled]}
-          onPress={handleApprove}
-          disabled={!!loading}
-        >
-          {loading === 'approve'
-            ? <ActivityIndicator size="small" color="#fff" />
-            : <Text style={styles.approveBtnText}>Approve & open DM</Text>}
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            style={[styles.approveBtn, loading && styles.btnDisabled]}
+            onPress={handleApprove}
+            disabled={!!loading}
+          >
+            {loading === 'approve'
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <Text style={styles.approveBtnText}>Approve & open DM</Text>}
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 };
@@ -154,6 +177,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: 14,
+  },
+  avatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+    backgroundColor: '#EEF2FF',
   },
   avatarCircle: {
     width: 44,
@@ -303,6 +333,14 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#2962FF',
+  },
+  openDmBtn: {
+    height: 46,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
     backgroundColor: '#2962FF',
   },
   approveBtnText: {

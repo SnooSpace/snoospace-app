@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Modal, TouchableWithoutFeedback, KeyboardAvoidingView,
+  Modal, TouchableWithoutFeedback, Keyboard,
   Platform, ActivityIndicator, Alert,
 } from 'react-native';
+import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { Info } from 'lucide-react-native';
-import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
+import { COLORS, FONTS } from '../../constants/theme';
 import { getAuthToken } from '../../api/auth';
 import { sendRequest } from '../../api/plans';
 
@@ -39,58 +40,62 @@ export default function RequestBottomSheet({
     }
   };
 
+  const handleClose = () => {
+    setNote('');
+    onClose();
+  };
+
   return (
     <Modal
       visible={isVisible}
       animationType="slide"
       transparent
-      onRequestClose={() => { setNote(''); onClose(); }}
+      onRequestClose={handleClose}
       statusBarTranslucent
     >
-      <TouchableWithoutFeedback onPress={() => { setNote(''); onClose(); }}>
-        <View style={styles.backdrop} />
-      </TouchableWithoutFeedback>
+      <TouchableWithoutFeedback onPress={handleClose}>
+        <View style={styles.backdrop}>
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <KeyboardStickyView style={styles.keyboardView}>
+              <View style={styles.sheet}>
+                <View style={styles.handle} />
+                <Text style={styles.title}>Request to join</Text>
+                <Text style={styles.subtitle} numberOfLines={1}>{planTitle}</Text>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.sheetWrapper}
-      >
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
-          <Text style={styles.title}>Request to join</Text>
-          <Text style={styles.subtitle} numberOfLines={1}>{planTitle}</Text>
+                <TextInput
+                  style={styles.noteInput}
+                  placeholder="Add a note to the host (optional)"
+                  placeholderTextColor={COLORS.textMuted}
+                  multiline
+                  numberOfLines={3}
+                  maxLength={200}
+                  value={note}
+                  onChangeText={setNote}
+                  textAlignVertical="top"
+                />
 
-          <TextInput
-            style={styles.noteInput}
-            placeholder="Add a note to the host (optional)"
-            placeholderTextColor={COLORS.textMuted}
-            multiline
-            numberOfLines={3}
-            maxLength={200}
-            value={note}
-            onChangeText={setNote}
-            textAlignVertical="top"
-          />
+                <View style={styles.infoRow}>
+                  <Info size={14} color={COLORS.textMuted} strokeWidth={1.8} />
+                  <Text style={styles.infoText}>
+                    The host will review your profile before approving.{'\n'}
+                    Exact meetup details are shared only after approval.
+                  </Text>
+                </View>
 
-          <View style={styles.infoRow}>
-            <Info size={14} color={COLORS.textMuted} strokeWidth={1.8} />
-            <Text style={styles.infoText}>
-              The host will review your profile before approving.{'\n'}
-              Exact meetup details are shared only after approval.
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.sendBtn, loading && styles.sendBtnDisabled]}
-            onPress={handleSend}
-            disabled={loading}
-          >
-            {loading
-              ? <ActivityIndicator color="#FFF" />
-              : <Text style={styles.sendBtnText}>Send request</Text>}
-          </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.sendBtn, loading && styles.sendBtnDisabled]}
+                  onPress={handleSend}
+                  disabled={loading}
+                >
+                  {loading
+                    ? <ActivityIndicator color="#FFF" />
+                    : <Text style={styles.sendBtnText}>Send request</Text>}
+                </TouchableOpacity>
+              </View>
+            </KeyboardStickyView>
+          </TouchableWithoutFeedback>
         </View>
-      </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }
@@ -99,12 +104,10 @@ const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
   },
-  sheetWrapper: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+  keyboardView: {
+    width: '100%',
   },
   sheet: {
     backgroundColor: COLORS.surface,
@@ -174,5 +177,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 16,
     color: '#FFFFFF',
+    textAlign: 'center',
   },
 });
+

@@ -213,6 +213,8 @@ const CommentsModal = ({
 
             return {
               ...comment,
+              comment_text: comment.comment_text || comment.content || "",
+              commenter_photo_url: comment.commenter_photo_url || comment.commenter_photo || null,
               like_count:
                 typeof comment.like_count === "string"
                   ? parseInt(comment.like_count, 10) || 0
@@ -324,13 +326,18 @@ const CommentsModal = ({
     setPosting(true);
     try {
       const token = await getAuthToken();
+      const isPlans = baseRoute === "/plans";
+      const postBody = isPlans
+        ? { content: commentInput.trim() }
+        : {
+            commentText: commentInput.trim(),
+            taggedEntities:
+              taggedEntities.length > 0 ? taggedEntities : undefined,
+          };
+
       const result = await apiPost(
         `${baseRoute}/${postId}/comments`,
-        {
-          commentText: commentInput.trim(),
-          taggedEntities:
-            taggedEntities.length > 0 ? taggedEntities : undefined,
-        },
+        postBody,
         15000,
         token,
       );
@@ -360,11 +367,14 @@ const CommentsModal = ({
 
         const enrichedComment = {
           ...result.comment,
-          commenter_name: currentProfile?.name || "User",
-          commenter_username: currentProfile?.username || "",
+          comment_text: result.comment.comment_text || result.comment.content || "",
+          commenter_name: currentProfile?.name || result.comment.commenter_name || "User",
+          commenter_username: currentProfile?.username || result.comment.commenter_username || "",
           commenter_photo_url:
             currentProfile?.profile_photo_url ||
             currentProfile?.logo_url ||
+            result.comment.commenter_photo ||
+            result.comment.commenter_photo_url ||
             null,
           like_count: 0,
           is_liked: false,

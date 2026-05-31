@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Eye, Heart, MessageCircle, Share2 } from 'lucide-react-native';
+import { ChartNoAxesCombined, Heart, MessageCircle, Send } from 'lucide-react-native';
 import { COLORS, FONTS } from '../../constants/theme';
 
 function formatCount(n) {
@@ -19,31 +19,34 @@ const PlanEngagementRow = ({
   onShare,
 }) => (
   <View style={styles.row}>
-    <View style={styles.left}>
-      <View style={styles.item}>
-        <Eye size={16} color={COLORS.textMuted} strokeWidth={1.8} />
-        <Text style={styles.count}>{formatCount(viewCount)}</Text>
-      </View>
+    {/* Like */}
+    <Pressable onPress={onLike} style={styles.item} hitSlop={8}>
+      <Heart
+        size={20}
+        color={isLiked ? '#E53E3E' : '#6B7280'}
+        fill={isLiked ? '#E53E3E' : 'transparent'}
+        strokeWidth={2}
+      />
+      <Text style={[styles.count, isLiked && styles.likedCount]}>
+        {formatCount(likeCount)}
+      </Text>
+    </Pressable>
 
-      <Pressable onPress={onLike} style={styles.item} hitSlop={8}>
-        <Heart
-          size={16}
-          color={isLiked ? '#E53E3E' : COLORS.textMuted}
-          fill={isLiked ? '#E53E3E' : 'none'}
-          strokeWidth={1.8}
-        />
-        <Text style={styles.count}>{formatCount(likeCount)}</Text>
-      </Pressable>
+    {/* Comment */}
+    <Pressable onPress={onComment} style={styles.item} hitSlop={8}>
+      <MessageCircle size={20} color="#6B7280" strokeWidth={2} />
+      <Text style={styles.count}>{formatCount(commentCount)}</Text>
+    </Pressable>
 
-      <Pressable onPress={onComment} style={styles.item} hitSlop={8}>
-        <MessageCircle size={16} color={COLORS.textMuted} strokeWidth={1.8} />
-        <Text style={styles.count}>{formatCount(commentCount)}</Text>
-      </Pressable>
+    {/* View */}
+    <View style={styles.item}>
+      <ChartNoAxesCombined size={20} color="#6B7280" strokeWidth={2} />
+      <Text style={styles.count}>{formatCount(viewCount)}</Text>
     </View>
 
-    <Pressable onPress={onShare} style={styles.shareBtn} hitSlop={8}>
-      <Share2 size={16} color={COLORS.textSecondary} strokeWidth={1.8} />
-      <Text style={styles.shareText}>Share</Text>
+    {/* Share */}
+    <Pressable onPress={onShare} style={styles.item} hitSlop={8}>
+      <Send size={20} color="#6B7280" strokeWidth={2} />
     </Pressable>
   </View>
 );
@@ -53,31 +56,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  left: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
+    paddingHorizontal: 8,
   },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
+    minHeight: 40,
+    minWidth: 40,
   },
   count: {
     fontFamily: FONTS.medium,
     fontSize: 13,
-    color: COLORS.textMuted,
+    color: '#9CA3AF',
+    marginLeft: 6,
   },
-  shareBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  shareText: {
-    fontFamily: FONTS.medium,
-    fontSize: 13,
-    color: COLORS.textSecondary,
+  likedCount: {
+    color: '#E53E3E',
   },
 });
 

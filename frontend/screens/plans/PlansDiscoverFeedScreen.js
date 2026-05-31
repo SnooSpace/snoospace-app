@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Plus } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
-import { getAuthToken } from '../../api/auth';
+import { getAuthToken, getActiveAccount } from '../../api/auth';
 import { getPlans, likePlan, unlikePlan } from '../../api/plans';
 import OpenPlanCard from '../../components/plans/OpenPlanCard';
 import HostPlanBottomSheet from './HostPlanBottomSheet';
@@ -51,12 +51,28 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
     }
   }, [plans.length]);
 
-  useEffect(() => { loadPlans(); }, []);
+  useEffect(() => {
+    // Load userId and initial plans on mount
+    getActiveAccount().then(account => {
+      if (account?.id) setCurrentUserId(account.id);
+    }).catch(() => {});
+    loadPlans();
+  }, []);
 
   const handleLike = useCallback(async (planId, liked) => {
     const token = await getAuthToken();
     if (liked) await likePlan(planId, token);
     else await unlikePlan(planId, token);
+  }, []);
+
+  const handleShare = useCallback(async (plan) => {
+    try {
+      await Share.share({
+        message: `Check out this open plan "${plan?.title || 'Open Plan'}" on SnooSpace!`,
+      });
+    } catch (err) {
+      console.error('[PlansDiscoverFeedScreen] Share error:', err.message);
+    }
   }, []);
 
   const handleRequestSuccess = useCallback((planId) => {
@@ -72,10 +88,10 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
         onRequestPress={(id) => setRequestSheet({ planId: id, planTitle: item.title })}
         onLike={handleLike}
         onComment={(id) => navigation.navigate('PlanDetail', { planId: id, openComments: true })}
-        onShare={() => {}}
+        onShare={() => handleShare(item)}
       />
     </View>
-  ), [currentUserId, navigation, handleLike]);
+  ), [currentUserId, navigation, handleLike, handleShare]);
 
   return (
     <View style={styles.container}>

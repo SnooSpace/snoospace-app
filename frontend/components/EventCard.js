@@ -437,25 +437,27 @@ export default function EventCard({
         >
           {banners.length > 0 ? (
             banners.length > 1 ? (
-              <View style={{ flex: 1 }}>
+              <View style={StyleSheet.absoluteFill}>
                 <ScrollView
                   horizontal
                   pagingEnabled
                   showsHorizontalScrollIndicator={false}
                   onMomentumScrollEnd={(e) => {
                     const index = Math.round(
-                      e.nativeEvent.contentOffset.x / containerWidth,
+                      e.nativeEvent.contentOffset.x / (containerWidth || CARD_WIDTH),
                     );
                     setCurrentBannerIndex(index);
                   }}
                   nestedScrollEnabled={true}
                   disallowInterruption={true}
+                  style={StyleSheet.absoluteFill}
+                  contentContainerStyle={{ minWidth: "100%" }}
                 >
                   {banners.map((banner, index) => (
                     <Image
                       key={index}
                       source={{ uri: banner.image_url || banner.url }}
-                      style={{ width: containerWidth, height: "100%" }}
+                      style={{ width: containerWidth || CARD_WIDTH, height: "100%" }}
                       resizeMode="cover"
                     />
                   ))}
@@ -775,6 +777,8 @@ const styles = StyleSheet.create({
   imageContainer: {
     height: 200,
     position: "relative",
+    width: "100%",
+    overflow: "hidden",
   },
   bannerImage: {
     width: "100%",
@@ -1006,7 +1010,7 @@ const styles = StyleSheet.create({
   },
   interestedActiveText: {
     fontSize: 13,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.semiBold,
     color: "#16A34A",
   },
   interestedGradient: {
@@ -1020,7 +1024,7 @@ const styles = StyleSheet.create({
   },
   interestedText: {
     fontSize: 13,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
   },
   goingButton: {
@@ -1036,7 +1040,7 @@ const styles = StyleSheet.create({
   },
   goingText: {
     fontSize: 13,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.semiBold,
     color: "#16A34A",
   },
   engagementRow: {

@@ -499,12 +499,15 @@ const QnAPostCard = ({
 
             <View style={styles.topAnswerMeta}>
               <Text style={styles.topAnswerUsername} numberOfLines={1}>
-                @
-                {previewQuestion.author_username ||
-                  previewQuestion.author_name
-                    ?.toLowerCase()
-                    .replace(/\s+/g, "") ||
-                  "anonymous"}
+                {previewQuestion.is_anonymous
+                  ? "@anonymous"
+                  : `@${
+                      previewQuestion.author_username ||
+                      previewQuestion.author_name
+                        ?.toLowerCase()
+                        .replace(/\s+/g, "") ||
+                      "anonymous"
+                    }`}
               </Text>
             </View>
 
@@ -1108,9 +1111,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   topAnswerBadgeText: {
+    fontFamily: FONTS.semiBold,
     color: "#3B82F6", // Blue text
     fontSize: 10,
-    fontWeight: "700",
     letterSpacing: 0.5,
   },
   topAnswerMeta: {
@@ -1136,11 +1139,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   upvoteCount: {
+    fontFamily: FONTS.semiBold,
     fontSize: 14,
-    fontWeight: "600",
     color: "#8E8E93", // Default grey
   },
   answerText: {
+    fontFamily: FONTS.regular,
     fontSize: 14,
     color: "#5e8d9b",
     lineHeight: 22,

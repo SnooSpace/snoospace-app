@@ -214,31 +214,50 @@ async function updateRequest(req, res) {
         [reqId]
       );
 
-      // Find or create DM conversation
+      // Find or create DM conversation (using the same participant1/participant2 schema as messageController)
       let conversationId;
+
+      // Canonical ordering: lower id goes first to satisfy the unique constraint
+      const id1 = Number(userId);
+      const id2 = Number(request.requester_id);
+      const [p1Id, p2Id] = id1 < id2 ? [id1, id2] : [id2, id1];
+
+      // Try to find an existing DM first
       const existingConvR = await pool.query(
-        `SELECT c.id FROM conversations c
-         JOIN conversation_participants cp1
-           ON cp1.conversation_id = c.id AND cp1.participant_id = $1 AND cp1.participant_type = 'member'
-         JOIN conversation_participants cp2
-           ON cp2.conversation_id = c.id AND cp2.participant_id = $2 AND cp2.participant_type = 'member'
-         WHERE c.is_group = false
+        `SELECT id FROM conversations
+         WHERE is_group = false
+           AND participant1_id = $1 AND participant1_type = 'member'
+           AND participant2_id = $2 AND participant2_type = 'member'
          LIMIT 1`,
-        [userId, request.requester_id]
+        [p1Id, p2Id]
       );
 
       if (existingConvR.rows.length > 0) {
         conversationId = existingConvR.rows[0].id;
       } else {
-        const newConvR = await pool.query(
-          `INSERT INTO conversations (is_group) VALUES (false) RETURNING id`
+        // Create using the same schema as getOrCreateConversation in messageController
+        const insertResult = await pool.query(
+          `INSERT INTO conversations
+             (is_group, participant1_id, participant1_type, participant2_id, participant2_type)
+           VALUES (false, $1, 'member', $2, 'member')
+           ON CONFLICT (participant1_id, participant1_type, participant2_id, participant2_type)
+           DO NOTHING RETURNING id`,
+          [p1Id, p2Id]
         );
-        conversationId = newConvR.rows[0].id;
-        await pool.query(
-          `INSERT INTO conversation_participants (conversation_id, participant_id, participant_type, role)
-           VALUES ($1, $2, 'member', 'member'), ($1, $3, 'member', 'member')`,
-          [conversationId, userId, request.requester_id]
-        );
+        if (insertResult.rows.length > 0) {
+          conversationId = insertResult.rows[0].id;
+        } else {
+          // Race condition: another request just created it
+          const retryR = await pool.query(
+            `SELECT id FROM conversations
+             WHERE is_group = false
+               AND participant1_id = $1 AND participant1_type = 'member'
+               AND participant2_id = $2 AND participant2_type = 'member'
+             LIMIT 1`,
+            [p1Id, p2Id]
+          );
+          conversationId = retryR.rows[0].id;
+        }
       }
 
       try {

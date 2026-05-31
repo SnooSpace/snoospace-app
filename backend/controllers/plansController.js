@@ -12,6 +12,17 @@ async function getAcceptedCount(pool, planId) {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: get pending count for a plan
+// ---------------------------------------------------------------------------
+async function getPendingCount(pool, planId) {
+  const r = await pool.query(
+    `SELECT COUNT(*)::int AS count FROM open_plan_requests WHERE plan_id = $1 AND status = 'pending'`,
+    [planId]
+  );
+  return r.rows[0].count;
+}
+
+// ---------------------------------------------------------------------------
 // Helper: get current user's request status for a plan
 // ---------------------------------------------------------------------------
 async function getMyRequestStatus(pool, planId, userId) {
@@ -241,17 +252,29 @@ async function getPlans(req, res) {
     // Enrich each plan
     const plans = await Promise.all(
       rows.map(async (plan) => {
-        const [acceptedCount, myStatus, sharedCommunityName] = await Promise.all([
+        const [acceptedCount, myStatus, sharedCommunityName, hostR, pendingCount] = await Promise.all([
           getAcceptedCount(pool, plan.id),
           getMyRequestStatus(pool, plan.id, userId),
           getSharedCommunityName(pool, userId, plan.created_by),
+          pool.query(
+            `SELECT id, name, is_verified, profile_photo_url FROM members WHERE id = $1`,
+            [plan.created_by]
+          ),
+          getPendingCount(pool, plan.id),
         ]);
-        return { ...plan, accepted_count: acceptedCount, my_request_status: myStatus, shared_community_name: sharedCommunityName };
+        return {
+          ...plan,
+          accepted_count: acceptedCount,
+          my_request_status: myStatus,
+          shared_community_name: sharedCommunityName,
+          host_profile: hostR.rows[0] || null,
+          pending_count: pendingCount,
+        };
       })
     );
 
     const nextCursor = hasMore ? plans[plans.length - 1].id : null;
-    res.json({ plans, nextCursor });
+    res.json({ plans, next_cursor: nextCursor });
   } catch (err) {
     console.error('[plansController.getPlans]', err);
     res.status(500).json({ error: 'server_error' });
@@ -271,7 +294,7 @@ async function getPlanById(req, res) {
     if (planR.rows.length === 0) return res.status(404).json({ error: 'Plan not found' });
     const plan = planR.rows[0];
 
-    const [acceptedCount, myStatus, hostR, sharedCommunities, commentsR, approvedR] = await Promise.all([
+    const [acceptedCount, myStatus, hostR, sharedCommunities, commentsR, approvedR, pendingCount] = await Promise.all([
       getAcceptedCount(pool, planId),
       getMyRequestStatus(pool, planId, userId),
       pool.query(`SELECT id, name, is_verified, profile_photo_url, created_at FROM members WHERE id = $1`, [plan.created_by]),
@@ -288,6 +311,7 @@ async function getPlanById(req, res) {
         `SELECT 1 FROM open_plan_requests WHERE plan_id = $1 AND requester_id = $2 AND status = 'approved' LIMIT 1`,
         [planId, userId]
       ),
+      getPendingCount(pool, planId),
     ]);
 
     const isHost = plan.created_by === userId;
@@ -301,6 +325,7 @@ async function getPlanById(req, res) {
       host_profile: hostR.rows[0] || null,
       shared_communities: sharedCommunities,
       comments_preview: commentsR.rows,
+      pending_count: pendingCount,
     };
 
     res.json({ plan: response });

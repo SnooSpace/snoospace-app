@@ -95,6 +95,7 @@ export default function OpenPlansSection({ navigation, currentUserId }) {
 
     if (isFullWidth) {
       const formattedDate = formatScheduled(plan.scheduled_at);
+      const spotsLeft = plan.max_accepted - (plan.accepted_count ?? 0);
       const spotsStr = `${spotsLeft} spot${spotsLeft !== 1 ? 's' : ''} left`;
       const subtitleText = `${formattedDate} · ${spotsStr}`;
 
@@ -111,9 +112,11 @@ export default function OpenPlansSection({ navigation, currentUserId }) {
                 {activityLabel}
               </Text>
             </View>
-            <View style={styles.yourPlanBadge}>
-              <Text style={styles.yourPlanBadgeText}>Your plan</Text>
-            </View>
+            {isOwner && (
+              <View style={styles.yourPlanBadge}>
+                <Text style={styles.yourPlanBadgeText}>Your plan</Text>
+              </View>
+            )}
           </View>
 
           <Text style={styles.fullCardTitle} numberOfLines={2}>
@@ -134,7 +137,7 @@ export default function OpenPlansSection({ navigation, currentUserId }) {
         onPress={() => navigation.navigate('PlanDetail', { planId: plan.id })}
       >
         <View style={[styles.compactPill, { backgroundColor: activityStyle.bg }]}>
-          <ActivityIcon size={11} color={activityStyle.text} strokeWidth={2.5} style={{ marginRight: 4 }} />
+          <ActivityIcon size={11} color={activityStyle.text} strokeWidth={2.5} />
           <Text style={[styles.compactPillText, { color: activityStyle.text }]}>
             {activityLabel}
           </Text>
@@ -205,7 +208,7 @@ export default function OpenPlansSection({ navigation, currentUserId }) {
           onPress={() => setHostSheetOpen(true)}
           activeOpacity={0.8}
         >
-          <Plus size={13} color={COLORS.textPrimary} strokeWidth={2.5} />
+          <Plus size={13} color="#FFFFFF" strokeWidth={2.5} />
           <Text style={styles.hostBtnText}>Host</Text>
         </TouchableOpacity>
       </View>
@@ -297,16 +300,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     borderWidth: 1.5,
-    borderColor: COLORS.border,
+    borderColor: COLORS.primary,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
-    backgroundColor: 'transparent',
+    backgroundColor: COLORS.primary,
   },
   hostBtnText: {
     fontFamily: FONTS.semiBold,
     fontSize: 13,
-    color: COLORS.textPrimary,
+    color: '#FFFFFF',
   },
   grid: {
     paddingHorizontal: 16,
@@ -341,6 +344,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignSelf: 'flex-start',
     marginBottom: 10,
+    gap: 6,
   },
   compactPillText: {
     fontFamily: FONTS.semiBold,

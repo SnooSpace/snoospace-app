@@ -50,7 +50,11 @@ export default function HostRequestsScreen({ navigation, route }) {
       const approved = pendingRequests.find(r => r.id === reqId);
       if (approved) {
         setPendingRequests(prev => prev.filter(r => r.id !== reqId));
-        setApprovedRequests(prev => [{ ...approved, status: 'approved' }, ...prev]);
+        // Store conversation_id so the approved card can offer "Open DM"
+        setApprovedRequests(prev => [
+          { ...approved, status: 'approved', conversation_id: data.conversation_id },
+          ...prev,
+        ]);
         setPendingCount(v => Math.max(0, v - 1));
       }
       if (data.conversation_id) {
@@ -76,81 +80,102 @@ export default function HostRequestsScreen({ navigation, route }) {
     }
   }, [planId]);
 
+  const handleOpenDm = useCallback((conversationId) => {
+    if (conversationId) {
+      navigation.navigate('Chat', { conversationId });
+    }
+  }, [navigation]);
+
   const currentRequests = activeTab === 'pending' ? pendingRequests : approvedRequests;
 
   return (
-    <View style={styles.container}>
-      <SafeAreaView edges={['top']} style={styles.safeArea}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
-            <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
+          <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
+        </TouchableOpacity>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>
+            Manage Requests{pendingCount > 0 ? ` (${pendingCount})` : ''}
+          </Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>{planTitle}</Text>
+        </View>
+        <View style={{ width: 24 }} />
+      </View>
+
+      {/* Tabs */}
+      <View style={styles.tabs}>
+        {[
+          { key: 'pending', label: `Pending (${pendingCount})` },
+          { key: 'approved', label: `Approved (${approvedRequests.length})` },
+        ].map(tab => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tab, activeTab === tab.key && styles.tabActive]}
+            onPress={() => setActiveTab(tab.key)}
+          >
+            <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
+              {tab.label}
+            </Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>{planTitle}</Text>
-          <View style={{ width: 24 }} />
-        </View>
+        ))}
+      </View>
 
-        {/* Tabs */}
-        <View style={styles.tabs}>
-          {[
-            { key: 'pending', label: `Pending (${pendingCount})` },
-            { key: 'approved', label: `Approved (${approvedRequests.length})` },
-          ].map(tab => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[styles.tab, activeTab === tab.key && styles.tabActive]}
-              onPress={() => setActiveTab(tab.key)}
-            >
-              <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </SafeAreaView>
-
-      {loading ? (
-        <View style={styles.center}>
-          <SnooLoader size="large" color={COLORS.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={currentRequests}
-          keyExtractor={item => String(item.id)}
-          renderItem={({ item }) => (
-            <HostRequestReviewCard
-              request={item}
-              onApprove={handleApprove}
-              onDecline={handleDecline}
-              onViewProfile={(uid) => navigation.navigate('MemberPublicProfile', { memberId: uid })}
-            />
-          )}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => loadRequests(true)} tintColor={COLORS.primary} />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>
-                {activeTab === 'pending' ? 'No pending requests yet.' : 'No approved attendees yet.'}
-              </Text>
-            </View>
-          }
-        />
-      )}
-    </View>
+      <View style={styles.container}>
+        {loading ? (
+          <View style={styles.center}>
+            <SnooLoader size="large" color={COLORS.primary} />
+          </View>
+        ) : (
+          <FlatList
+            data={currentRequests}
+            keyExtractor={item => String(item.id)}
+            renderItem={({ item }) => (
+              <HostRequestReviewCard
+                request={item}
+                onApprove={activeTab === 'pending' ? handleApprove : null}
+                onDecline={activeTab === 'pending' ? handleDecline : null}
+                onOpenDm={activeTab === 'approved' ? handleOpenDm : null}
+                onViewProfile={(uid) => navigation.navigate('MemberPublicProfile', { memberId: uid })}
+              />
+            )}
+            contentContainerStyle={styles.listContent}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={() => loadRequests(true)} tintColor={COLORS.primary} />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyText}>
+                  {activeTab === 'pending' ? 'No pending requests yet.' : 'No approved attendees yet.'}
+                </Text>
+              </View>
+            }
+          />
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: COLORS.surface },
   container: { flex: 1, backgroundColor: '#F9FAFB' },
-  safeArea: { backgroundColor: COLORS.surface },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: 16, paddingVertical: 12,
+    paddingHorizontal: 16, paddingVertical: 8,
+  },
+  headerTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontFamily: FONTS.semiBold, fontSize: 17, color: COLORS.textPrimary,
-    flex: 1, textAlign: 'center',
+    fontFamily: FONTS.semiBold, fontSize: 16, color: COLORS.textPrimary,
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textSecondary,
+    textAlign: 'center', marginTop: 1,
   },
   tabs: {
     flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.border,

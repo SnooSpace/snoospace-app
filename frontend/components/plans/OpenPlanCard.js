@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Pressable,
 } from 'react-native';
-import { Clock, MapPin, Users, Heart, Eye, MessageCircle, Share2, BadgeCheck } from 'lucide-react-native';
+import { Clock, MapPin, Users, Heart, ChartNoAxesCombined, MessageCircle, Send, BadgeCheck } from 'lucide-react-native';
 import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -178,28 +178,34 @@ const OpenPlanCard = ({
 
       {/* Engagement row */}
       <View style={styles.engagementRow}>
-        <View style={styles.engLeft}>
-          <View style={styles.engItem}>
-            <Eye size={14} color={COLORS.textMuted} strokeWidth={1.8} />
-            <Text style={styles.engCount}>{formatCount(plan.view_count)}</Text>
-          </View>
-          <Pressable onPress={handleLike} style={styles.engItem}>
-            <Heart
-              size={14}
-              color={isLiked ? '#E53E3E' : COLORS.textMuted}
-              fill={isLiked ? '#E53E3E' : 'none'}
-              strokeWidth={1.8}
-            />
-            <Text style={styles.engCount}>{formatCount(likeCount)}</Text>
-          </Pressable>
-          <Pressable onPress={() => onComment(plan.id)} style={styles.engItem}>
-            <MessageCircle size={14} color={COLORS.textMuted} strokeWidth={1.8} />
-            <Text style={styles.engCount}>{formatCount(plan.comment_count)}</Text>
-          </Pressable>
+        {/* Like */}
+        <Pressable onPress={handleLike} style={styles.engItem}>
+          <Heart
+            size={18}
+            color={isLiked ? '#E53E3E' : '#6B7280'}
+            fill={isLiked ? '#E53E3E' : 'transparent'}
+            strokeWidth={2}
+          />
+          <Text style={[styles.engCount, isLiked && styles.likedCount]}>
+            {formatCount(likeCount)}
+          </Text>
+        </Pressable>
+
+        {/* Comment */}
+        <Pressable onPress={() => onComment(plan.id)} style={styles.engItem}>
+          <MessageCircle size={18} color="#6B7280" strokeWidth={2} />
+          <Text style={styles.engCount}>{formatCount(plan.comment_count)}</Text>
+        </Pressable>
+
+        {/* View */}
+        <View style={styles.engItem}>
+          <ChartNoAxesCombined size={18} color="#6B7280" strokeWidth={2} />
+          <Text style={styles.engCount}>{formatCount(plan.view_count)}</Text>
         </View>
-        <Pressable onPress={() => onShare(plan.id)} style={styles.shareBtn}>
-          <Share2 size={14} color={COLORS.textSecondary} strokeWidth={1.8} />
-          <Text style={styles.shareText}>Share</Text>
+
+        {/* Share */}
+        <Pressable onPress={() => onShare(plan.id)} style={styles.engItem}>
+          <Send size={18} color="#6B7280" strokeWidth={2} />
         </Pressable>
       </View>
 
@@ -356,31 +362,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 12,
-  },
-  engLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
+    paddingHorizontal: 4,
   },
   engItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    justifyContent: 'center',
+    minHeight: 36,
+    minWidth: 36,
   },
   engCount: {
     fontFamily: FONTS.medium,
     fontSize: 13,
-    color: COLORS.textMuted,
+    color: '#9CA3AF',
+    marginLeft: 6,
   },
-  shareBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  shareText: {
-    fontFamily: FONTS.medium,
-    fontSize: 13,
-    color: COLORS.textSecondary,
+  likedCount: {
+    color: '#E53E3E',
   },
   requestBtn: {
     height: 46,

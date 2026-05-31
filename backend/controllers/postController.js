@@ -887,6 +887,7 @@ const getFeed = async (req, res) => {
             const previewResult = await pool.query(
               `SELECT 
                 q.id, q.question as content, q.upvote_count, q.is_pinned,
+                q.is_anonymous,
                 q.answered_at IS NOT NULL as is_answered,
                 CASE 
                   WHEN $2::int IS NOT NULL AND $3::text IS NOT NULL THEN EXISTS (
@@ -896,10 +897,17 @@ const getFeed = async (req, res) => {
                   ELSE false
                 END as has_upvoted,
                 CASE 
+                  WHEN q.is_anonymous THEN NULL
                   WHEN q.author_type = 'member' THEN m.name
                   WHEN q.author_type = 'community' THEN c.name
                 END as author_name,
                 CASE 
+                  WHEN q.is_anonymous THEN NULL
+                  WHEN q.author_type = 'member' THEN m.username
+                  WHEN q.author_type = 'community' THEN c.username
+                END as author_username,
+                CASE 
+                  WHEN q.is_anonymous THEN NULL
                   WHEN q.author_type = 'member' THEN m.profile_photo_url
                   WHEN q.author_type = 'community' THEN c.logo_url
                 END as author_photo_url

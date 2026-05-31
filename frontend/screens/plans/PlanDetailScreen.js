@@ -1,23 +1,23 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  ActivityIndicator, TextInput, FlatList, Alert, KeyboardAvoidingView,
-  Platform, Pressable,
+  Share, Image, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
-  ArrowLeft, BadgeCheck, MapPin, Clock, Users,
-  Lock, MessageCircle, Send,
+  ArrowLeft, BadgeCheck, MapPin, Clock, Users, Lock,
+  Heart, MessageCircle, ChartNoAxesCombined, Send,
 } from 'lucide-react-native';
-import { COLORS, FONTS, SPACING, SHADOWS, BORDER_RADIUS } from '../../constants/theme';
-import { getAuthToken } from '../../api/auth';
+import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
+import { getAuthToken, getActiveAccount } from '../../api/auth';
 import {
-  getPlanById, recordView, getComments, addComment,
-  deleteComment, likePlan, unlikePlan,
+  getPlanById, recordView, likePlan, unlikePlan,
 } from '../../api/plans';
-import PlanEngagementRow from '../../components/plans/PlanEngagementRow';
 import RequestBottomSheet from './RequestBottomSheet';
+import CommentsModal from '../../components/CommentsModal';
 import SnooLoader from '../../components/ui/SnooLoader';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const ACTIVITY_COLORS = {
   sports: { bg: '#EEF2FF', text: '#3B5BDB' },
@@ -27,13 +27,22 @@ const ACTIVITY_COLORS = {
   other:  { bg: '#F5F5F5', text: '#555555' },
 };
 
-const REQUEST_BUTTON = {
-  null:      { label: 'Request to join',     bg: '#2962FF', textColor: '#FFFFFF', disabled: false },
-  pending:   { label: 'Requested · Pending', bg: '#F5F5F5', textColor: '#6B7280', disabled: true  },
-  approved:  { label: "Approved — You're in!", bg: '#E8F5E9', textColor: '#2E7D32', disabled: true },
-  declined:  { label: 'Request declined',    bg: '#F5F5F5', textColor: '#9E9E9E', disabled: true  },
-  withdrawn: { label: 'Request to join',     bg: '#2962FF', textColor: '#FFFFFF', disabled: false },
+const COST_LABELS = {
+  free:      { label: 'Free',     bg: '#E8F5E9', text: '#2E7D32' },
+  self_pay:  { label: 'Self-pay', bg: '#E8F5E9', text: '#2E7D32' },
+  split:     { label: 'We split', bg: '#EEF2FF', text: '#3B5BDB' },
+  entry_fee: { label: null,       bg: '#FFF8E1', text: '#B45309' },
 };
+
+const REQUEST_BUTTON = {
+  null:      { label: 'Request to join',       bg: '#2962FF', textColor: '#FFFFFF', disabled: false },
+  pending:   { label: 'Requested · Pending',   bg: '#F5F5F5', textColor: '#6B7280', disabled: true  },
+  approved:  { label: "Approved — You're in!", bg: '#E8F5E9', textColor: '#2E7D32', disabled: true  },
+  declined:  { label: 'Request declined',      bg: '#F5F5F5', textColor: '#9E9E9E', disabled: true  },
+  withdrawn: { label: 'Request to join',       bg: '#2962FF', textColor: '#FFFFFF', disabled: false },
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatScheduled(iso) {
   const d = new Date(iso);
@@ -44,43 +53,35 @@ function formatScheduled(iso) {
   return d.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' }) + ` · ${time}`;
 }
 
-function formatCommentTime(iso) {
-  const d = new Date(iso);
-  const diff = Date.now() - d.getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+function formatCount(n) {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n ?? 0);
 }
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PlanDetailScreen({ navigation, route }) {
   const { planId, openComments } = route.params;
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [comments, setComments] = useState([]);
-  const [commentsLoading, setCommentsLoading] = useState(false);
-  const [commentInput, setCommentInput] = useState('');
-  const [sendingComment, setSendingComment] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
-  const [requestSheetOpen, setRequestSheetOpen] = useState(openComments || false);
+  const [requestSheetOpen, setRequestSheetOpen] = useState(false);
+  const [commentsModalVisible, setCommentsModalVisible] = useState(openComments || false);
   const [currentUserId, setCurrentUserId] = useState(null);
-  const commentInputRef = useRef(null);
 
   const loadPlan = useCallback(async () => {
     try {
       setLoading(true);
-      const token = await getAuthToken();
-      const { authToken, userId } = await import('../../api/auth').then(m => m.getActiveAccount?.() || {});
-      const [data, commentsData] = await Promise.all([
-        getPlanById(planId, token),
-        getComments(planId, token),
+      const [token, account] = await Promise.all([
+        getAuthToken(),
+        getActiveAccount(),
       ]);
+      if (account?.id) setCurrentUserId(account.id);
+      const data = await getPlanById(planId, token);
       setPlan(data.plan);
       setLikeCount(data.plan.like_count ?? 0);
-      setComments(commentsData.comments || []);
-      // Fire and forget view
+      setIsLiked(data.plan.is_liked === true);
       recordView(planId, token).catch(() => {});
     } catch (err) {
       console.error('[PlanDetailScreen]', err.message);
@@ -89,12 +90,13 @@ export default function PlanDetailScreen({ navigation, route }) {
     }
   }, [planId]);
 
-  useEffect(() => { loadPlan(); }, [loadPlan]);
   useEffect(() => {
-    if (openComments) {
-      setTimeout(() => commentInputRef.current?.focus(), 600);
-    }
-  }, [openComments]);
+    loadPlan();
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadPlan();
+    });
+    return unsubscribe;
+  }, [loadPlan, navigation]);
 
   const handleLike = useCallback(async () => {
     const prev = { isLiked, likeCount };
@@ -110,41 +112,17 @@ export default function PlanDetailScreen({ navigation, route }) {
     }
   }, [isLiked, likeCount, planId]);
 
-  const handleSendComment = async () => {
-    if (!commentInput.trim()) return;
-    setSendingComment(true);
+  const handleShare = useCallback(async () => {
     try {
-      const token = await getAuthToken();
-      const data = await addComment(planId, commentInput.trim(), token);
-      setComments(prev => [...prev, data.comment]);
-      setCommentInput('');
+      await Share.share({
+        message: `Check out this open plan "${plan?.title || 'Open Plan'}" on SnooSpace!`,
+      });
     } catch (err) {
-      Alert.alert('Error', err.message || 'Could not post comment');
-    } finally {
-      setSendingComment(false);
+      console.error('[PlanDetailScreen] Share error:', err.message);
     }
-  };
+  }, [plan?.title]);
 
-  const handleDeleteComment = useCallback(async (cmtId) => {
-    Alert.alert('Delete comment', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const token = await getAuthToken();
-            await deleteComment(planId, cmtId, token);
-            setComments(prev => prev.map(c =>
-              c.id === cmtId ? { ...c, is_deleted: true, content: null } : c
-            ));
-          } catch (err) {
-            Alert.alert('Error', err.message);
-          }
-        },
-      },
-    ]);
-  }, [planId]);
+  // ─── Loading / error states ────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -165,108 +143,127 @@ export default function PlanDetailScreen({ navigation, route }) {
     );
   }
 
+  // ─── Derived values ────────────────────────────────────────────────────────
+
+  const isOwner = plan.created_by === currentUserId;
+  const isApproved = plan.my_request_status === 'approved';
+  const showPrivateLocation = isOwner || isApproved;
+
   const activityKey = plan.activity_type in ACTIVITY_COLORS ? plan.activity_type : 'other';
   const activityStyle = ACTIVITY_COLORS[activityKey];
   const activityLabel = plan.activity_type === 'other'
     ? (plan.custom_activity_label || 'Other')
     : plan.activity_type.charAt(0).toUpperCase() + plan.activity_type.slice(1);
 
-  const isOwner = plan.created_by === currentUserId;
-  const isApproved = plan.my_request_status === 'approved';
-  const showPrivateLocation = isOwner || isApproved;
+  const costCfg = COST_LABELS[plan.cost_type] || COST_LABELS.free;
+  const costLabel = plan.cost_type === 'entry_fee'
+    ? (plan.cost_amount_paise ? `₹${plan.cost_amount_paise / 100} entry` : 'Entry fee')
+    : costCfg.label;
 
   const reqStatus = plan.my_request_status;
   const btnCfg = REQUEST_BUTTON[reqStatus] || REQUEST_BUTTON['null'];
+
+  const spotsLeft = plan.max_accepted - (plan.accepted_count ?? 0);
   const progress = Math.min(1, (plan.accepted_count ?? 0) / (plan.max_accepted || 1));
 
-  return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={{ flex: 1 }}
-    >
-      <SafeAreaView style={styles.container} edges={['top']}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
-            <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>Open Plan</Text>
-          <View style={{ width: 24 }} />
-        </View>
+  const genderPref = plan.gender_preference;
+  const showGenderBadge = genderPref && genderPref !== 'all';
+  const genderBadgeStyle = genderPref === 'Female'
+    ? { bg: '#FCE4EC', text: '#C2185B', label: 'Women only' }
+    : { bg: '#E3F2FD', text: '#1565C0', label: 'Men only' };
 
+  // ─── Render ────────────────────────────────────────────────────────────────
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
+          <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle} numberOfLines={1}>Open Plans</Text>
+        <View style={{ width: 24 }} />
+      </View>
+
+      <View style={styles.container}>
         <ScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Activity + title */}
-          <View style={styles.topRow}>
-            <View style={[styles.pill, { backgroundColor: activityStyle.bg }]}>
-              <Text style={[styles.pillText, { color: activityStyle.text }]}>{activityLabel}</Text>
-            </View>
-            {plan.gender_preference && plan.gender_preference !== 'all' && (
-              <View style={[styles.pill, {
-                backgroundColor: plan.gender_preference === 'Female' ? '#FCE4EC' : '#E3F2FD',
-                marginLeft: 6,
-              }]}>
-                <Text style={[styles.pillText, {
-                  color: plan.gender_preference === 'Female' ? '#C2185B' : '#1565C0',
-                }]}>
-                  {plan.gender_preference === 'Female' ? 'Women only' : 'Men only'}
-                </Text>
-              </View>
-            )}
-          </View>
+          {/* Card */}
+          <View style={styles.card}>
 
-          <Text style={styles.title}>{plan.title}</Text>
-
-          {/* Host */}
-          <View style={styles.hostRow}>
-            <View style={styles.hostAvatar}>
-              <Text style={styles.hostInitial}>
-                {(plan.host_profile?.name || '?')[0].toUpperCase()}
-              </Text>
-            </View>
-            <View>
-              <View style={styles.hostNameRow}>
-                <Text style={styles.hostName}>{plan.host_profile?.name}</Text>
-                {plan.host_profile?.is_verified && (
-                  <BadgeCheck size={15} color="#2962FF" strokeWidth={2} />
+            {/* Top row: activity tag + gender + cost */}
+            <View style={styles.topRow}>
+              <View style={styles.topRowLeft}>
+                <View style={[styles.pill, { backgroundColor: activityStyle.bg }]}>
+                  <Text style={[styles.pillText, { color: activityStyle.text }]}>{activityLabel}</Text>
+                </View>
+                {showGenderBadge && (
+                  <View style={[styles.pill, { backgroundColor: genderBadgeStyle.bg, marginLeft: 6 }]}>
+                    <Text style={[styles.pillText, { color: genderBadgeStyle.text }]}>{genderBadgeStyle.label}</Text>
+                  </View>
                 )}
               </View>
-              {plan.shared_communities?.length > 0 && (
-                <Text style={styles.sharedComm}>
-                  Shared: {plan.shared_communities.map(c => c.name).join(', ')}
-                </Text>
+              <View style={[styles.pill, { backgroundColor: costCfg.bg }]}>
+                <Text style={[styles.pillText, { color: costCfg.text }]}>{costLabel}</Text>
+              </View>
+            </View>
+
+            {/* Title */}
+            <Text style={styles.title}>{plan.title}</Text>
+
+            {/* Host row — inline with avatar */}
+            <View style={styles.hostRow}>
+              {plan.host_profile?.profile_photo_url ? (
+                <Image
+                  source={{ uri: plan.host_profile.profile_photo_url }}
+                  style={styles.hostAvatar}
+                />
+              ) : (
+                <View style={styles.hostAvatarFallback}>
+                  <Text style={styles.hostInitial}>
+                    {(plan.host_profile?.name || '?')[0].toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <Text style={styles.hostedByText}>
+                Hosted by{' '}
+                <Text style={styles.hostNameBold}>{plan.host_profile?.name || 'Someone'}</Text>
+              </Text>
+              {plan.host_profile?.is_verified && (
+                <BadgeCheck size={14} color="#2962FF" strokeWidth={2} style={{ marginLeft: 4 }} />
               )}
             </View>
-          </View>
 
-          {/* Info */}
-          <View style={styles.infoBlock}>
-            <View style={styles.infoItem}>
-              <Clock size={15} color={COLORS.textSecondary} strokeWidth={1.8} />
-              <Text style={styles.infoText}>{formatScheduled(plan.scheduled_at)}</Text>
+            {/* Divider */}
+            <View style={styles.divider} />
+
+            {/* Time & location — inline */}
+            <View style={styles.metaRow}>
+              <View style={styles.metaItem}>
+                <Clock size={13} color={COLORS.textSecondary} strokeWidth={2} />
+                <Text style={styles.metaText}>{formatScheduled(plan.scheduled_at)}</Text>
+              </View>
+              {plan.location_public ? (
+                <View style={[styles.metaItem, { marginLeft: 14 }]}>
+                  <MapPin size={13} color={COLORS.textSecondary} strokeWidth={2} />
+                  <Text style={styles.metaText} numberOfLines={1}>{plan.location_public}</Text>
+                </View>
+              ) : null}
             </View>
-            {plan.location_public ? (
-              <View style={styles.infoItem}>
-                <MapPin size={15} color={COLORS.textSecondary} strokeWidth={1.8} />
-                <Text style={styles.infoText}>{plan.location_public}</Text>
+
+            {/* Private location */}
+            {showPrivateLocation && plan.location_private ? (
+              <View style={styles.privateLocationBox}>
+                <Lock size={13} color="#2962FF" strokeWidth={2} />
+                <Text style={styles.privateLocationText}>{plan.location_private}</Text>
               </View>
             ) : null}
-          </View>
 
-          {/* Private location revealed */}
-          {showPrivateLocation && plan.location_private ? (
-            <View style={styles.privateLocationBox}>
-              <Lock size={14} color="#2962FF" strokeWidth={2} />
-              <Text style={styles.privateLocationText}>{plan.location_private}</Text>
-            </View>
-          ) : null}
-
-          {/* Acceptance */}
-          <View style={styles.acceptanceSection}>
+            {/* Acceptance bar */}
             <View style={styles.acceptanceRow}>
               <Text style={styles.acceptanceLabel}>
                 <Text style={styles.acceptanceBold}>{plan.accepted_count ?? 0} / {plan.max_accepted}</Text> accepted
@@ -278,201 +275,379 @@ export default function PlanDetailScreen({ navigation, route }) {
             <View style={styles.progressTrack}>
               <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
             </View>
-          </View>
 
-          {/* Host manage button */}
-          {isOwner && (
-            <TouchableOpacity
-              style={styles.manageBtn}
-              onPress={() => navigation.navigate('HostRequests', { planId: plan.id, planTitle: plan.title })}
-            >
-              <Users size={16} color="#FFFFFF" strokeWidth={2} />
-              <Text style={styles.manageBtnText}>Manage requests</Text>
-              {plan.pending_count > 0 && (
-                <View style={styles.manageBadge}>
-                  <Text style={styles.manageBadgeText}>{plan.pending_count}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          )}
-
-          {/* Engagement */}
-          <View style={styles.engagementWrapper}>
-            <PlanEngagementRow
-              viewCount={plan.view_count}
-              likeCount={likeCount}
-              commentCount={comments.length}
-              isLiked={isLiked}
-              onLike={handleLike}
-              onComment={() => commentInputRef.current?.focus()}
-              onShare={() => {}}
-            />
-          </View>
-
-          {/* Request button */}
-          {!isOwner && (
-            <TouchableOpacity
-              style={[styles.requestBtn, { backgroundColor: btnCfg.bg }, btnCfg.disabled && { opacity: 0.85 }]}
-              onPress={() => !btnCfg.disabled && setRequestSheetOpen(true)}
-              disabled={btnCfg.disabled}
-            >
-              <Text style={[styles.requestBtnText, { color: btnCfg.textColor }]}>{btnCfg.label}</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Comments */}
-          <Text style={styles.commentsHeader}>Comments</Text>
-          {comments.map(comment => (
-            <Pressable
-              key={comment.id}
-              onLongPress={() => {
-                if (!comment.is_deleted) handleDeleteComment(comment.id);
-              }}
-              style={styles.commentRow}
-            >
-              <View style={styles.commentAvatar}>
-                <Text style={styles.commentAvatarText}>
-                  {(comment.commenter_name || '?')[0].toUpperCase()}
+            {/* Shared community pill */}
+            {!isOwner && plan.shared_communities?.length > 0 && (
+              <View style={styles.sharedPill}>
+                <Users size={12} color="#2962FF" strokeWidth={2} />
+                <Text style={styles.sharedText}>
+                  Shared community:{' '}
+                  <Text style={{ color: '#2962FF' }}>
+                    {plan.shared_communities.map(c => c.name).join(', ')}
+                  </Text>
                 </Text>
               </View>
-              <View style={styles.commentBody}>
-                <View style={styles.commentNameRow}>
-                  <Text style={styles.commentName}>{comment.commenter_name}</Text>
-                  <Text style={styles.commentTime}>{formatCommentTime(comment.created_at)}</Text>
-                </View>
-                {comment.is_deleted
-                  ? <Text style={styles.commentDeleted}>[Comment removed]</Text>
-                  : <Text style={styles.commentText}>{comment.content}</Text>}
+            )}
+
+            {/* Divider */}
+            <View style={styles.divider} />
+
+            {/* Engagement row */}
+            <View style={styles.engagementRow}>
+              {/* Like */}
+              <Pressable onPress={handleLike} style={styles.engItem}>
+                <Heart
+                  size={18}
+                  color={isLiked ? '#E53E3E' : '#6B7280'}
+                  fill={isLiked ? '#E53E3E' : 'transparent'}
+                  strokeWidth={2}
+                />
+                <Text style={[styles.engCount, isLiked && styles.likedCount]}>
+                  {formatCount(likeCount)}
+                </Text>
+              </Pressable>
+
+              {/* Comment */}
+              <Pressable onPress={() => setCommentsModalVisible(true)} style={styles.engItem}>
+                <MessageCircle size={18} color="#6B7280" strokeWidth={2} />
+                <Text style={styles.engCount}>{formatCount(plan.comment_count)}</Text>
+              </Pressable>
+
+              {/* Views */}
+              <View style={styles.engItem}>
+                <ChartNoAxesCombined size={18} color="#6B7280" strokeWidth={2} />
+                <Text style={styles.engCount}>{formatCount(plan.view_count)}</Text>
               </View>
-            </Pressable>
-          ))}
 
-          <View style={{ height: 100 }} />
+              {/* Share */}
+              <Pressable onPress={handleShare} style={styles.engItem}>
+                <Send size={18} color="#6B7280" strokeWidth={2} />
+              </Pressable>
+            </View>
+
+            {/* Host: manage requests button */}
+            {isOwner && (
+              <TouchableOpacity
+                style={styles.manageBtn}
+                onPress={() => navigation.navigate('HostRequests', { planId: plan.id, planTitle: plan.title })}
+              >
+                <Users size={16} color="#FFFFFF" strokeWidth={2} />
+                <Text style={styles.manageBtnText}>Manage requests</Text>
+                {plan.pending_count > 0 && (
+                  <View style={styles.manageBadge}>
+                    <Text style={styles.manageBadgeText}>{plan.pending_count}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+
+            {/* Request to join button — non-hosts only */}
+            {!isOwner && (
+              <TouchableOpacity
+                style={[styles.requestBtn, { backgroundColor: btnCfg.bg }, btnCfg.disabled && { opacity: 0.85 }]}
+                onPress={() => !btnCfg.disabled && setRequestSheetOpen(true)}
+                disabled={btnCfg.disabled}
+                activeOpacity={btnCfg.disabled ? 1 : 0.85}
+              >
+                <Text style={[styles.requestBtnText, { color: btnCfg.textColor }]}>{btnCfg.label}</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Fine print */}
+            {!isOwner && (
+              <Text style={styles.finePrint}>Exact location shared only after host approves</Text>
+            )}
+
+          </View>
+
+          <View style={{ height: 40 }} />
         </ScrollView>
+      </View>
 
-        {/* Comment input bar */}
-        <View style={styles.commentBar}>
-          <TextInput
-            ref={commentInputRef}
-            style={styles.commentInput}
-            placeholder="Write a comment…"
-            placeholderTextColor={COLORS.textMuted}
-            value={commentInput}
-            onChangeText={setCommentInput}
-            returnKeyType="send"
-            onSubmitEditing={handleSendComment}
-          />
-          <TouchableOpacity
-            onPress={handleSendComment}
-            disabled={!commentInput.trim() || sendingComment}
-            style={styles.sendBtn}
-          >
-            {sendingComment
-              ? <ActivityIndicator size="small" color={COLORS.primary} />
-              : <Send size={20} color={commentInput.trim() ? COLORS.primary : COLORS.textMuted} strokeWidth={2} />}
-          </TouchableOpacity>
-        </View>
+      <RequestBottomSheet
+        isVisible={requestSheetOpen}
+        planId={plan.id}
+        planTitle={plan.title}
+        onClose={() => setRequestSheetOpen(false)}
+        onRequested={() => {
+          setPlan(p => ({ ...p, my_request_status: 'pending' }));
+          setRequestSheetOpen(false);
+        }}
+      />
 
-        <RequestBottomSheet
-          isVisible={requestSheetOpen}
-          planId={plan.id}
-          planTitle={plan.title}
-          onClose={() => setRequestSheetOpen(false)}
-          onRequested={() => {
-            setPlan(p => ({ ...p, my_request_status: 'pending' }));
-            setRequestSheetOpen(false);
-          }}
-        />
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+      <CommentsModal
+        visible={commentsModalVisible}
+        postId={plan.id}
+        onClose={() => setCommentsModalVisible(false)}
+        baseRoute="/plans"
+        replyBaseRoute="/comments"
+        navigation={navigation}
+        onCommentCountChange={(newCount) => {
+          setPlan(p => ({ ...p, comment_count: newCount }));
+        }}
+      />
+    </SafeAreaView>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.screenBackground },
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.screenBackground },
+  safeArea: { flex: 1, backgroundColor: COLORS.surface },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB' },
   errorText: { fontFamily: FONTS.regular, fontSize: 16, color: COLORS.textSecondary },
   retryBtn: { marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, backgroundColor: COLORS.primary, borderRadius: 12 },
   retryText: { fontFamily: FONTS.semiBold, fontSize: 14, color: '#FFF' },
+
+  // Header
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12, backgroundColor: COLORS.surface,
     borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: COLORS.border,
   },
   headerTitle: { fontFamily: FONTS.semiBold, fontSize: 17, color: COLORS.textPrimary, flex: 1, textAlign: 'center' },
+
+  // Scroll
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: 16, paddingTop: 20 },
-  topRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
-  pillText: { fontFamily: FONTS.medium, fontSize: 12 },
-  title: { fontFamily: FONTS.primary, fontSize: 22, color: COLORS.textPrimary, lineHeight: 30, marginBottom: 14 },
-  hostRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  scrollContent: { padding: 16 },
+
+  // Card — matches OpenPlanCard exactly
+  card: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 18,
+    padding: 16,
+    ...SHADOWS.md,
+  },
+
+  // Top row
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  topRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  pill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  pillText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+  },
+
+  // Title
+  title: {
+    fontFamily: FONTS.primary,
+    fontSize: 17,
+    color: COLORS.textPrimary,
+    lineHeight: 23,
+    marginBottom: 8,
+  },
+
+  // Host row — inline style matching image 1
+  hostRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
   hostAvatar: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: '#EEF2FF',
-    alignItems: 'center', justifyContent: 'center',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 6,
+    overflow: 'hidden',
   },
-  hostInitial: { fontFamily: FONTS.primary, fontSize: 16, color: '#2962FF' },
-  hostNameRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  hostName: { fontFamily: FONTS.semiBold, fontSize: 15, color: COLORS.textPrimary },
-  sharedComm: { fontFamily: FONTS.regular, fontSize: 12, color: '#2962FF', marginTop: 2 },
-  infoBlock: {
-    backgroundColor: COLORS.surface, borderRadius: 14, padding: 14,
-    gap: 8, marginBottom: 12, ...SHADOWS.md, shadowOpacity: 0.04,
+  hostAvatarFallback: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
   },
-  infoItem: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  infoText: { fontFamily: FONTS.medium, fontSize: 14, color: COLORS.textSecondary },
+  hostInitial: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+    color: '#2962FF',
+  },
+  hostedByText: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  hostNameBold: {
+    fontFamily: FONTS.semiBold,
+    color: COLORS.textPrimary,
+  },
+
+  // Divider
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: COLORS.border,
+    marginVertical: 12,
+  },
+
+  // Meta row — time + location inline
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    flexWrap: 'wrap',
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  metaText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+
+  // Private location
   privateLocationBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: '#EEF2FF', borderRadius: 12, padding: 12, marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
   },
-  privateLocationText: { fontFamily: FONTS.semiBold, fontSize: 14, color: '#2962FF' },
-  acceptanceSection: { marginBottom: 16 },
-  acceptanceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  acceptanceLabel: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textSecondary },
-  acceptanceBold: { fontFamily: FONTS.semiBold, color: COLORS.textPrimary },
-  pendingText: { fontFamily: FONTS.medium, fontSize: 13, color: '#E65100' },
-  progressTrack: { height: 6, backgroundColor: '#EEF2FF', borderRadius: 3, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 3 },
+  privateLocationText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: '#2962FF',
+  },
+
+  // Acceptance
+  acceptanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  acceptanceLabel: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  acceptanceBold: {
+    fontFamily: FONTS.semiBold,
+    color: COLORS.textPrimary,
+  },
+  pendingText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: '#E65100',
+  },
+  progressTrack: {
+    height: 5,
+    backgroundColor: '#EEF2FF',
+    borderRadius: 3,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#2962FF',
+    borderRadius: 3,
+  },
+
+  // Shared community pill
+  sharedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    alignSelf: 'flex-start',
+    marginBottom: 4,
+  },
+  sharedText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+
+  // Engagement row
+  engagementRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  engItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 36,
+    minWidth: 36,
+  },
+  engCount: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginLeft: 6,
+  },
+  likedCount: {
+    color: '#E53E3E',
+  },
+
+  // Manage button (host)
   manageBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: COLORS.primary, borderRadius: 14, paddingVertical: 12,
-    paddingHorizontal: 16, marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.primary,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 8,
   },
   manageBtnText: { fontFamily: FONTS.semiBold, fontSize: 15, color: '#FFF', flex: 1 },
   manageBadge: {
-    backgroundColor: '#FFF', width: 22, height: 22, borderRadius: 11,
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#FFF',
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   manageBadgeText: { fontFamily: FONTS.semiBold, fontSize: 12, color: COLORS.primary },
-  engagementWrapper: {
-    paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderColor: COLORS.border, marginBottom: 16,
+
+  // Request button
+  requestBtn: {
+    height: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
-  requestBtn: { height: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
-  requestBtnText: { fontFamily: FONTS.semiBold, fontSize: 16 },
-  commentsHeader: { fontFamily: FONTS.primary, fontSize: 18, color: COLORS.textPrimary, marginBottom: 14 },
-  commentRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  commentAvatar: {
-    width: 34, height: 34, borderRadius: 17, backgroundColor: '#F0F4FF',
-    alignItems: 'center', justifyContent: 'center',
+  requestBtnText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
   },
-  commentAvatarText: { fontFamily: FONTS.semiBold, fontSize: 13, color: COLORS.primary },
-  commentBody: { flex: 1 },
-  commentNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 },
-  commentName: { fontFamily: FONTS.semiBold, fontSize: 14, color: COLORS.textPrimary },
-  commentTime: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textMuted },
-  commentText: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textPrimary, lineHeight: 20 },
-  commentDeleted: { fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textMuted, fontStyle: 'italic' },
-  commentBar: {
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
-    paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: COLORS.border, backgroundColor: COLORS.surface,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 10, gap: 10,
+
+  // Fine print
+  finePrint: {
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
   },
-  commentInput: {
-    flex: 1, height: 40, borderWidth: 1, borderColor: COLORS.border,
-    borderRadius: 20, paddingHorizontal: 14, fontFamily: FONTS.regular,
-    fontSize: 14, color: COLORS.textPrimary, backgroundColor: '#F9FAFB',
-  },
-  sendBtn: { padding: 6 },
 });

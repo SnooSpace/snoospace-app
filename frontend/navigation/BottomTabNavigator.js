@@ -310,6 +310,12 @@ const BottomTabNavigator = ({ navigation, route }) => {
             "Chat",
             "EditDiscoverProfile",
             "OpenerSelection",
+            "PlansDiscoverFeed",
+            "PlanDetail",
+            "HostRequests",
+            "MyPlans",
+            "BlockedUsers",
+            "VerificationSubmit",
           ]),
         })}
       />

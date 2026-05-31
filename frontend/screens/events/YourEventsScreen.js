@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, Animated, Pressable, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft, Calendar, Heart } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
@@ -34,13 +33,11 @@ const EventListCard = ({
   isPast,
 }) => {
   return (
-    <View style={isPast && { opacity: 0.65 }}>
-      <EventCard
-        event={item}
-        onPress={onPress}
-        style={{ marginBottom: 20 }}
-      />
-    </View>
+    <EventCard
+      event={item}
+      onPress={onPress}
+      style={{ marginBottom: 20 }}
+    />
   );
 };
 
@@ -262,7 +259,7 @@ const cardStyles = StyleSheet.create({
 });
 
 export default function YourEventsScreen({ navigation }) {
-  const [activeTab, setActiveTab] = useState("Going");
+  const [activeTab, setActiveTab] = useState("Hosted");
   const [events, setEvents] = useState([]);
   const [interestedEvents, setInterestedEvents] = useState([]);
   const [hostedPlans, setHostedPlans] = useState([]);
@@ -576,7 +573,7 @@ export default function YourEventsScreen({ navigation }) {
 
         {/* Tabs */}
         <View style={styles.tabs}>
-          {["Going", "Hosted", "Interested", "Past"].map((tab) => (
+          {["Hosted", "Going", "Interested", "Past"].map((tab) => (
             <TouchableOpacity
               key={tab}
               style={styles.tab}
@@ -644,8 +641,7 @@ export default function YourEventsScreen({ navigation }) {
                 {activeTab === "Interested" ? (
                   <View style={styles.emptyContent}>
                     <View style={styles.emptyIconCircle}>
-                      <Ionicons
-                        name="heart-outline"
+                      <Heart
                         size={32}
                         color={PRIMARY_COLOR}
                       />
@@ -664,8 +660,7 @@ export default function YourEventsScreen({ navigation }) {
                 ) : activeTab === "Past" ? (
                   <View style={styles.emptyContent}>
                     <View style={styles.emptyIconCircle}>
-                      <Ionicons
-                        name="calendar-outline"
+                      <Calendar
                         size={32}
                         color={LIGHT_TEXT_COLOR}
                       />
@@ -737,7 +732,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 15,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.semiBold,
     color: LIGHT_TEXT_COLOR,
   },
   activeTabText: {
