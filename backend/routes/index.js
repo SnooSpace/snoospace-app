@@ -43,6 +43,14 @@ const { requireBehavioralConsent, requireBrandConsent, requireBrandAcknowledgmen
 const { trackingRateLimit, followTrackingRateLimit, aqiCalculationRateLimit } = require("../middleware/rateLimiter");
 const { getCommunityHealthScore } = AudienceIntelligenceController;
 
+// ── Open Plans feature routers ──
+const plansRouter        = require('./plans');
+const planRequestsRouter = require('./planRequests');
+const planEngagementRouter = require('./planEngagement');
+const userPlansRouter    = require('./userPlans');
+const blocksRouter       = require('./blocks');
+const verificationsRouter = require('./verifications');
+
 const router = express.Router();
 
 // Health
@@ -1749,5 +1757,17 @@ router.post(
   authMiddleware,
   SessionController.trackSession
 );
+
+// ============================================
+// OPEN PLANS
+// ============================================
+// NOTE: planRequests and planEngagement use mergeParams:true so :planId
+// from the parent segment is forwarded correctly into those routers.
+router.use('/plans/:planId/requests', planRequestsRouter);
+router.use('/plans/:planId', planEngagementRouter);
+router.use('/plans', plansRouter);
+router.use('/users/me/plans', userPlansRouter);
+router.use('/users', blocksRouter);
+router.use('/verifications', verificationsRouter);
 
 module.exports = router;

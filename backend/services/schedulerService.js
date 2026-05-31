@@ -131,6 +131,28 @@ const init = (dbPool) => {
     }
   });
 
+  // ── Every 15 minutes: expire open plans past their scheduled time ──────────
+  cron.schedule("*/15 * * * *", async () => {
+    if (!pool) return;
+    try {
+      const result = await pool.query("SELECT expire_open_plans()");
+      // Function returns void; no rows to log
+    } catch (err) {
+      console.error("[Scheduler] expire_open_plans error:", err.message);
+    }
+  });
+
+  // ── Daily at 1am: generate next recurring plan instances ───────────────────
+  cron.schedule("0 1 * * *", async () => {
+    if (!pool) return;
+    try {
+      await pool.query("SELECT generate_recurring_plans()");
+      console.log("[Scheduler] generate_recurring_plans ran successfully");
+    } catch (err) {
+      console.error("[Scheduler] generate_recurring_plans error:", err.message);
+    }
+  });
+
   console.log("[Scheduler] Scheduler service initialized");
 };
 
