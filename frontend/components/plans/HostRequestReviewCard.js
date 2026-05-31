@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image,
 } from 'react-native';
-import { BadgeCheck, Instagram, Calendar, FileText, Info, MessageCircle } from 'lucide-react-native';
+import { BadgeCheck, Instagram, Calendar, FileText, Info, MessageCircle, MoveRight } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from '../../constants/theme';
 
 function monthsAgo(dateStr) {
@@ -61,8 +61,9 @@ const HostRequestReviewCard = ({ request, onApprove, onDecline, onOpenDm, onView
           </Text>
         </View>
 
-        <TouchableOpacity onPress={() => onViewProfile(requester.id)} hitSlop={8}>
-          <Text style={styles.viewProfile}>View profile →</Text>
+        <TouchableOpacity onPress={() => onViewProfile(requester.id)} hitSlop={8} style={styles.viewProfileBtn}>
+          <Text style={styles.viewProfile}>View profile</Text>
+          <MoveRight size={13} color="#2962FF" strokeWidth={2.2} />
         </TouchableOpacity>
       </View>
 
@@ -221,6 +222,11 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 12,
     color: '#2962FF',
+  },
+  viewProfileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   section: {
     marginBottom: 12,

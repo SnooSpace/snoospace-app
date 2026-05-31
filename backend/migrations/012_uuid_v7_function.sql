@@ -34,7 +34,7 @@ BEGIN
   unix_ms := EXTRACT(EPOCH FROM clock_timestamp())::BIGINT * 1000
              + (EXTRACT(MILLISECONDS FROM clock_timestamp())::INTEGER % 1000);
   hex_ms  := LPAD(TO_HEX(unix_ms), 12, '0');
-  rand_a  := LPAD(TO_HEX((gen_random_bytes(2)::TEXT::BIT(16))::INTEGER), 3, '0');
+  rand_a  := LPAD(TO_HEX((('x' || ENCODE(gen_random_bytes(2), 'hex'))::BIT(16))::INTEGER), 3, '0');
   rand_b  := ENCODE(gen_random_bytes(8), 'hex');
   RETURN (
     SUBSTRING(hex_ms, 1, 8)  || '-' ||
