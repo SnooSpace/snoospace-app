@@ -38,6 +38,8 @@ import MyDataScreen from "../screens/Privacy/MyDataScreen";
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
 import QRScannerScreen from "../screens/events/QRScannerScreen";
+import UniversalFollowersScreen from "../screens/profile/UniversalFollowersScreen";
+import UniversalFollowingScreen from "../screens/profile/UniversalFollowingScreen";
 
 const Stack = createStackNavigator();
 
@@ -293,6 +295,22 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="QRScanner"
         component={QRScannerScreen}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen
+        name="UniversalFollowersList"
+        component={UniversalFollowersScreen}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen
+        name="UniversalFollowingList"
+        component={UniversalFollowingScreen}
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,

@@ -618,8 +618,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   <TouchableOpacity
                     style={styles.statItem}
                     onPress={() => {
-                      navigation.push("FollowersList", {
-                        memberId,
+                      navigation.navigate("UniversalFollowersList", {
+                        userId: memberId,
+                        userType: "member",
                         title: "Followers",
                       });
                     }}
@@ -632,8 +633,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   <TouchableOpacity
                     style={styles.statItem}
                     onPress={() => {
-                      navigation.push("FollowingList", {
-                        memberId,
+                      navigation.navigate("UniversalFollowingList", {
+                        userId: memberId,
+                        userType: "member",
                         title: "Following",
                       });
                     }}

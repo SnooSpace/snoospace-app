@@ -23,6 +23,7 @@ import { Image as ExpoImage } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 
 import { useFocusEffect } from "@react-navigation/native";
+import { CommonActions } from "@react-navigation/native";
 import {
   Settings,
   MoreVertical,
@@ -1295,17 +1296,27 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               </Text>
               <Text style={styles.statLabel}>Events</Text>
             </TouchableOpacity>
-            <View style={styles.statItem}>
+            <TouchableOpacity
+              style={styles.statItem}
+              onPress={() => {
+                navigation.navigate("UniversalFollowersList", {
+                  userId: communityId,
+                  userType: "community",
+                  title: "Followers",
+                });
+              }}
+            >
               <Text style={styles.statNumber}>
                 {profile.followers_count || 0}
               </Text>
               <Text style={styles.statLabel}>Followers</Text>
-            </View>
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.statItem}
               onPress={() => {
-                navigation.push("CommunityFollowingList", {
-                  communityId,
+                navigation.navigate("UniversalFollowingList", {
+                  userId: communityId,
+                  userType: "community",
                   title: "Following",
                 });
               }}
@@ -1441,9 +1452,14 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
               onPress={() => {
                 HapticsService.triggerImpactLight();
-                const root = navigation.getParent()?.getParent()?.getParent();
-                if (root) {
-                  root.navigate("MemberHome", {
+                // Climb to the root navigator (AppNavigator) regardless of
+                // how many stacks deep this profile was opened from.
+                let rootNav = navigation;
+                while (rootNav.getParent && rootNav.getParent()) {
+                  rootNav = rootNav.getParent();
+                }
+                rootNav.dispatch(
+                  CommonActions.navigate("MemberHome", {
                     screen: "Home",
                     params: {
                       screen: "Chat",
@@ -1452,21 +1468,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                         recipientType: "community",
                       },
                     },
-                  });
-                } else {
-                  // Fallback: we're already inside the MemberHome tab navigator
-                  // navigate to the Home tab and push Chat from there
-                  const parent = navigation.getParent();
-                  if (parent) {
-                    parent.navigate("Home", {
-                      screen: "Chat",
-                      params: {
-                        recipientId: communityId,
-                        recipientType: "community",
-                      },
-                    });
-                  }
-                }
+                  })
+                );
               }}
             />
           </View>
