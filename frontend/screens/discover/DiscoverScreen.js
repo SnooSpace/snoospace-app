@@ -8,6 +8,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import SnooLoader from "../../components/ui/SnooLoader";
+import OpenPlansSection from "../plans/OpenPlansSection";
 import {
   COLORS,
   SPACING,
@@ -290,6 +291,9 @@ export default function DiscoverScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         {renderReconnectSection()}
+        <View style={styles.sectionDivider} />
+        <OpenPlansSection navigation={navigation} />
+        <View style={styles.sectionDivider} />
         {renderTribeSection()}
         {renderPeopleSection()}
         {renderEventsSection()}
@@ -840,5 +844,11 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 14,
     color: COLORS.textPrimary,
+  },
+  sectionDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#E5E7EB",
+    marginHorizontal: 16,
+    marginVertical: 4,
   },
 });

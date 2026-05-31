@@ -10,7 +10,7 @@ import {
   View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Alert, Platform, Pressable } from "react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { Image as ExpoImage } from "expo-image";
-import { ArrowLeft, Play, Pin } from "lucide-react-native";
+import { ArrowLeft, Play, Pin, BadgeCheck, Calendar, Users, Clock } from "lucide-react-native";
 import {
   getPublicMemberProfile,
   getMemberPosts,
@@ -530,16 +530,42 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     : [];
                   const hasBio = !!profile?.bio;
                   const hasPronouns = visiblePronouns.length > 0;
+
+                  // Trust signal helpers
+                  const memberSince = profile?.created_at
+                    ? (() => {
+                        const d = new Date(profile.created_at);
+                        const now = new Date();
+                        const diffDays = Math.floor((now - d) / 86400000);
+                        if (diffDays > 60) {
+                          return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+                        }
+                        if (diffDays > 7) return `${Math.floor(diffDays / 7)}w ago`;
+                        return `${diffDays}d ago`;
+                      })()
+                    : null;
+
+                  const trustSignals = [
+                    profile?.events_attended_count > 0 && { icon: Calendar, label: `${profile.events_attended_count} events` },
+                    profile?.communities_count > 0 && { icon: Users, label: `${profile.communities_count} communities` },
+                    memberSince && { icon: Clock, label: `Member ${memberSince}` },
+                  ].filter(Boolean);
+
                   return (
                     <View
                       style={[
                         styles.nameAndPronounsContainer,
-                        !hasBio && !hasPronouns && { marginBottom: 30 },
+                        !hasBio && !hasPronouns && { marginBottom: trustSignals.length > 0 ? 10 : 30 },
                       ]}
                     >
-                      <Text style={styles.profileName}>
-                        {profile?.full_name || "Member"}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        <Text style={styles.profileName}>
+                          {profile?.full_name || "Member"}
+                        </Text>
+                        {profile?.is_verified && (
+                          <BadgeCheck size={20} color="#2962FF" strokeWidth={2} />
+                        )}
+                      </View>
                       {hasPronouns ? (
                         <View style={styles.pronounsRowCentered}>
                           <View
@@ -556,6 +582,16 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                           </View>
                         </View>
                       ) : null}
+                      {trustSignals.length > 0 && (
+                        <View style={trustStyles.row}>
+                          {trustSignals.map((sig, idx) => (
+                            <View key={idx} style={trustStyles.pill}>
+                              <sig.icon size={11} color={COLORS.textSecondary} strokeWidth={2} />
+                              <Text style={trustStyles.pillText}>{sig.label}</Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
                     </View>
                   );
                 })()}
@@ -1023,5 +1059,29 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 14,
     color: "#6B7280",
+  },
+});
+
+const trustStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  pillText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textSecondary,
   },
 });

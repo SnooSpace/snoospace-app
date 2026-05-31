@@ -42,6 +42,10 @@ const MINUTES = Array.from({ length: 60 }, (_, i) =>
 );
 const PERIODS = ["AM", "PM"];
 
+const MULTIPLIER = 3;
+const INFINITE_HOURS = Array.from({ length: 12 * MULTIPLIER }, (_, i) => HOURS[i % 12]);
+const INFINITE_MINUTES = Array.from({ length: 60 * MULTIPLIER }, (_, i) => MINUTES[i % 60]);
+
 const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
   const [selectedHour, setSelectedHour] = useState(12);
   const [selectedMinute, setSelectedMinute] = useState("00");
@@ -73,6 +77,53 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
     }
   };
 
+  const handleScrollEnd = (ev, type) => {
+    const y = ev.nativeEvent.contentOffset.y;
+    const index = Math.round(y / ITEM_HEIGHT);
+
+    if (type === "hour") {
+      const safeIndex = Math.max(0, Math.min(index, INFINITE_HOURS.length - 1));
+      const val = INFINITE_HOURS[safeIndex];
+      if (val !== undefined) {
+        setSelectedHour(val);
+        // Silent infinite looping reset: keep index within middle copy [12, 23]
+        const actualIndex = safeIndex % 12;
+        const middleIndex = 12 + actualIndex;
+        if (safeIndex < 12 || safeIndex >= 24) {
+          setTimeout(() => {
+            hoursRef.current?.scrollToOffset({
+              offset: middleIndex * ITEM_HEIGHT,
+              animated: false,
+            });
+          }, 50);
+        }
+      }
+    } else if (type === "minute") {
+      const safeIndex = Math.max(0, Math.min(index, INFINITE_MINUTES.length - 1));
+      const val = INFINITE_MINUTES[safeIndex];
+      if (val !== undefined) {
+        setSelectedMinute(val);
+        // Silent infinite looping reset: keep index within middle copy [60, 119]
+        const actualIndex = safeIndex % 60;
+        const middleIndex = 60 + actualIndex;
+        if (safeIndex < 60 || safeIndex >= 120) {
+          setTimeout(() => {
+            minutesRef.current?.scrollToOffset({
+              offset: middleIndex * ITEM_HEIGHT,
+              animated: false,
+            });
+          }, 50);
+        }
+      }
+    } else if (type === "period") {
+      const safeIndex = Math.max(0, Math.min(index, PERIODS.length - 1));
+      const val = PERIODS[safeIndex];
+      if (val !== undefined) {
+        setSelectedPeriod(val);
+      }
+    }
+  };
+
   // Initialize state from props & Scroll to position
   useEffect(() => {
     if (visible && time) {
@@ -96,8 +147,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
         if (hoursRef.current) {
           const hourIndex = HOURS.indexOf(h);
           if (hourIndex !== -1) {
-            hoursRef.current.scrollToIndex({
-              index: hourIndex,
+            hoursRef.current.scrollToOffset({
+              offset: ITEM_HEIGHT * (12 * 1 + hourIndex),
               animated: false,
             });
           }
@@ -105,8 +156,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
         if (minutesRef.current) {
           const minuteIndex = MINUTES.indexOf(m.toString().padStart(2, "0"));
           if (minuteIndex !== -1) {
-            minutesRef.current.scrollToIndex({
-              index: minuteIndex,
+            minutesRef.current.scrollToOffset({
+              offset: ITEM_HEIGHT * (60 * 1 + minuteIndex),
               animated: false,
             });
           }
@@ -114,8 +165,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
         if (periodRef.current) {
           const periodIndex = PERIODS.indexOf(p);
           if (periodIndex !== -1) {
-            periodRef.current.scrollToIndex({
-              index: periodIndex,
+            periodRef.current.scrollToOffset({
+              offset: ITEM_HEIGHT * periodIndex,
               animated: false,
             });
           }
@@ -208,8 +259,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
             <View style={styles.column}>
               <FlatList
                 ref={hoursRef}
-                data={HOURS}
-                keyExtractor={(item) => `h-${item}`}
+                data={INFINITE_HOURS}
+                keyExtractor={(item, idx) => `h-${item}-${idx}`}
                 renderItem={({ item, index }) =>
                   renderItem({
                     item,
@@ -227,16 +278,12 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
                 }}
                 onScroll={(ev) => handleScroll(ev, lastHapticIndexHours)}
                 scrollEventThrottle={16}
-                onMomentumScrollEnd={(ev) => {
-                  const index = Math.round(
-                    ev.nativeEvent.contentOffset.y / ITEM_HEIGHT,
-                  );
-                  const val = HOURS[index];
-                  if (val !== undefined) {
-                    setSelectedHour(val);
-                  }
-                }}
+                onMomentumScrollEnd={(ev) => handleScrollEnd(ev, "hour")}
+                onScrollEndDrag={(ev) => handleScrollEnd(ev, "hour")}
                 getItemLayout={getItemLayout}
+                initialNumToRender={36}
+                maxToRenderPerBatch={36}
+                windowSize={5}
               />
             </View>
 
@@ -244,8 +291,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
             <View style={styles.column}>
               <FlatList
                 ref={minutesRef}
-                data={MINUTES}
-                keyExtractor={(item) => `m-${item}`}
+                data={INFINITE_MINUTES}
+                keyExtractor={(item, idx) => `m-${item}-${idx}`}
                 renderItem={({ item, index }) =>
                   renderItem({
                     item,
@@ -263,16 +310,12 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
                 }}
                 onScroll={(ev) => handleScroll(ev, lastHapticIndexMinutes)}
                 scrollEventThrottle={16}
-                onMomentumScrollEnd={(ev) => {
-                  const index = Math.round(
-                    ev.nativeEvent.contentOffset.y / ITEM_HEIGHT,
-                  );
-                  const val = MINUTES[index];
-                  if (val !== undefined) {
-                    setSelectedMinute(val);
-                  }
-                }}
+                onMomentumScrollEnd={(ev) => handleScrollEnd(ev, "minute")}
+                onScrollEndDrag={(ev) => handleScrollEnd(ev, "minute")}
                 getItemLayout={getItemLayout}
+                initialNumToRender={30}
+                maxToRenderPerBatch={30}
+                windowSize={5}
               />
             </View>
 
@@ -299,15 +342,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
                 }}
                 onScroll={(ev) => handleScroll(ev, lastHapticIndexPeriod)}
                 scrollEventThrottle={16}
-                onMomentumScrollEnd={(ev) => {
-                  const index = Math.round(
-                    ev.nativeEvent.contentOffset.y / ITEM_HEIGHT,
-                  );
-                  const val = PERIODS[index];
-                  if (val !== undefined) {
-                    setSelectedPeriod(val);
-                  }
-                }}
+                onMomentumScrollEnd={(ev) => handleScrollEnd(ev, "period")}
+                onScrollEndDrag={(ev) => handleScrollEnd(ev, "period")}
                 getItemLayout={getItemLayout}
               />
             </View>
@@ -438,13 +474,14 @@ const styles = StyleSheet.create({
     color: BRAND.textMuted,
     opacity: 0.4,
     textAlign: "center",
-    textAlignVertical: "center",
+    includeFontPadding: false,
   },
   wheelTextSelected: {
     fontFamily: FONTS.semibold,
     fontSize: 22,
     color: BRAND.textPrimary,
     opacity: 1,
+    includeFontPadding: false,
   },
   confirmButtonContainer: {
     width: "100%",

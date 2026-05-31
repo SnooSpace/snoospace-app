@@ -7,6 +7,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { getInterestedEvents, toggleEventInterest } from "../../api/events";
+import { getHostedPlans } from "../../api/plans";
 import HapticsService from "../../services/HapticsService";
 import EventBus from "../../utils/EventBus";
 import {
@@ -42,6 +43,72 @@ const EventListCard = ({
     </View>
   );
 };
+
+const HOSTED_ACTIVITY_COLORS = {
+  sports: { bg: '#EEF2FF', text: '#3B5BDB' },
+  study:  { bg: '#E8F5E9', text: '#2E7D32' },
+  food:   { bg: '#FFF8E1', text: '#B45309' },
+  gaming: { bg: '#FCE4EC', text: '#C2185B' },
+  other:  { bg: '#F5F5F5', text: '#555555' },
+};
+const HOSTED_STATUS_COLORS = {
+  active:    { bg: '#E8F5E9', text: '#2E7D32' },
+  closed:    { bg: '#F5F5F5', text: '#555555' },
+  cancelled: { bg: '#FFEBEE', text: '#C62828' },
+};
+
+const HostedPlanRow = ({ item, onPress }) => {
+  const actKey = HOSTED_ACTIVITY_COLORS[item.activity_type] ? item.activity_type : 'other';
+  const actStyle = HOSTED_ACTIVITY_COLORS[actKey];
+  const actLabel = item.activity_type === 'other'
+    ? (item.custom_activity_label || 'Other')
+    : item.activity_type.charAt(0).toUpperCase() + item.activity_type.slice(1);
+  const stStyle = HOSTED_STATUS_COLORS[item.status] || HOSTED_STATUS_COLORS.active;
+  const statusLabel = item.status.charAt(0).toUpperCase() + item.status.slice(1);
+  const d = new Date(item.scheduled_at);
+  const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) +
+    ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+  return (
+    <TouchableOpacity style={hostedStyles.row} onPress={onPress} activeOpacity={0.85}>
+      <View style={hostedStyles.rowLeft}>
+        <View style={hostedStyles.pillRow}>
+          <View style={[hostedStyles.pill, { backgroundColor: actStyle.bg }]}>
+            <Text style={[hostedStyles.pillText, { color: actStyle.text }]}>{actLabel}</Text>
+          </View>
+          <View style={[hostedStyles.pill, { backgroundColor: stStyle.bg }]}>
+            <Text style={[hostedStyles.pillText, { color: stStyle.text }]}>{statusLabel}</Text>
+          </View>
+        </View>
+        <Text style={hostedStyles.title} numberOfLines={1}>{item.title}</Text>
+        <Text style={hostedStyles.meta}>{dateStr}{item.location_public ? ` · ${item.location_public}` : ''}</Text>
+      </View>
+      <View style={hostedStyles.rowRight}>
+        <Text style={hostedStyles.accepted}>{item.accepted_count ?? 0}/{item.max_accepted} accepted</Text>
+        {(item.pending_count ?? 0) > 0 && (
+          <Text style={hostedStyles.pending}>{item.pending_count} pending</Text>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+const hostedStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: COLORS.surface, borderRadius: 16, padding: 14,
+    marginBottom: 10, ...SHADOWS.md, shadowOpacity: 0.04,
+  },
+  rowLeft: { flex: 1, gap: 4 },
+  rowRight: { alignItems: 'flex-end', gap: 4, marginLeft: 8 },
+  pillRow: { flexDirection: 'row', gap: 6, marginBottom: 2 },
+  pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  pillText: { fontFamily: FONTS.medium, fontSize: 11 },
+  title: { fontFamily: FONTS.semiBold, fontSize: 15, color: COLORS.textPrimary },
+  meta: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textSecondary },
+  accepted: { fontFamily: FONTS.semiBold, fontSize: 13, color: COLORS.primary },
+  pending: { fontFamily: FONTS.medium, fontSize: 12, color: '#E65100' },
+});
 
 // Card styles
 const cardStyles = StyleSheet.create({
@@ -198,6 +265,7 @@ export default function YourEventsScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState("Going");
   const [events, setEvents] = useState([]);
   const [interestedEvents, setInterestedEvents] = useState([]);
+  const [hostedPlans, setHostedPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -286,9 +354,13 @@ export default function YourEventsScreen({ navigation }) {
         setLoading(true);
       }
       const token = await getAuthToken();
-      const response = await apiGet("/events/my-events", 15000, token);
+      const [response, hostedData] = await Promise.all([
+        apiGet("/events/my-events", 15000, token),
+        getHostedPlans(token).catch(() => ({ plans: [] })),
+      ]);
       const allEvents = response?.events || [];
       setEvents(allEvents);
+      setHostedPlans(hostedData.plans || []);
     } catch (error) {
       console.error("Error loading events:", error);
     } finally {
@@ -353,6 +425,8 @@ export default function YourEventsScreen({ navigation }) {
             (e.registration_status === "attended" && eventDate >= now)
           );
         });
+      case "Hosted":
+        return hostedPlans;
       case "Interested":
         // Return bookmarked events that aren't past, making sure is_interested is explicitly true
         return interestedEvents
@@ -459,18 +533,23 @@ export default function YourEventsScreen({ navigation }) {
     }
   };
 
-  const renderEvent = useCallback(({ item }) => (
-    <EventListCard
-      item={item}
-      onPress={handleEventPress}
-      onRemoveInterest={handleRemoveInterest}
-      getLowestPrice={getLowestPrice}
-      formatDateBadge={formatDateBadge}
-      formatTime={formatTime}
-      showRemoveButton={activeTab === "Interested"}
-      isPast={activeTab === "Past"}
-    />
-  ), [handleEventPress, handleRemoveInterest, activeTab]);
+  const renderEvent = useCallback(({ item }) => {
+    if (activeTab === "Hosted") {
+      return <HostedPlanRow item={item} onPress={() => navigation.navigate("HostRequests", { planId: item.id, planTitle: item.title })} />;
+    }
+    return (
+      <EventListCard
+        item={item}
+        onPress={handleEventPress}
+        onRemoveInterest={handleRemoveInterest}
+        getLowestPrice={getLowestPrice}
+        formatDateBadge={formatDateBadge}
+        formatTime={formatTime}
+        showRemoveButton={activeTab === "Interested"}
+        isPast={activeTab === "Past"}
+      />
+    );
+  }, [handleEventPress, handleRemoveInterest, activeTab, navigation]);
 
   const filteredEvents = getFilteredEvents();
 
@@ -497,7 +576,7 @@ export default function YourEventsScreen({ navigation }) {
 
         {/* Tabs */}
         <View style={styles.tabs}>
-          {["Going", "Interested", "Past"].map((tab) => (
+          {["Going", "Hosted", "Interested", "Past"].map((tab) => (
             <TouchableOpacity
               key={tab}
               style={styles.tab}
