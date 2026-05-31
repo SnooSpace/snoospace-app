@@ -6,6 +6,7 @@ import React, {
   useRef,
 } from "react";
 import { useFocusEffect } from "@react-navigation/native";
+import { CommonActions } from "@react-navigation/native";
 import {
   View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Alert, Platform, Pressable } from "react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
@@ -811,27 +812,21 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     colors={["#111827", "#111827"]}
                     textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
                     onPress={() => {
-                      const root = navigation
-                        .getParent()
-                        ?.getParent()
-                        ?.getParent();
-                      if (root) {
-                        root.navigate("MemberHome", {
+                      // Climb to the root navigator (AppNavigator) regardless of
+                      // how many stacks deep this profile was opened from.
+                      let rootNav = navigation;
+                      while (rootNav.getParent && rootNav.getParent()) {
+                        rootNav = rootNav.getParent();
+                      }
+                      rootNav.dispatch(
+                        CommonActions.navigate("MemberHome", {
                           screen: "Home",
                           params: {
                             screen: "Chat",
-                            params: { recipientId: memberId },
+                            params: { recipientId: memberId, recipientType: "member" },
                           },
-                        });
-                      } else {
-                        const parent = navigation.getParent();
-                        if (parent) {
-                          parent.navigate("Home", {
-                            screen: "Chat",
-                            params: { recipientId: memberId },
-                          });
-                        }
-                      }
+                        })
+                      );
                     }}
                   />
                 </View>
