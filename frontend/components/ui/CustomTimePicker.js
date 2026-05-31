@@ -10,6 +10,7 @@ import {
   Dimensions,
   Animated,
   TouchableWithoutFeedback,
+  PixelRatio,
 } from "react-native";
 import { Clock } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -32,9 +33,10 @@ const FONTS = {
   semibold: "Manrope-SemiBold",
 };
 
-const ITEM_HEIGHT = 50;
+const BASE_ITEM_HEIGHT = 50;
+const ITEM_HEIGHT = PixelRatio.roundToNearestPixel(BASE_ITEM_HEIGHT);
 const VISIBLE_ITEMS = 3; // Number of items visible at once
-const PADDING_Vertical = ((VISIBLE_ITEMS - 1) * ITEM_HEIGHT) / 2;
+const CONTAINER_HEIGHT = ITEM_HEIGHT * VISIBLE_ITEMS;
 
 const HOURS = Array.from({ length: 12 }, (_, i) => i + 1);
 const MINUTES = Array.from({ length: 60 }, (_, i) =>
@@ -43,8 +45,14 @@ const MINUTES = Array.from({ length: 60 }, (_, i) =>
 const PERIODS = ["AM", "PM"];
 
 const MULTIPLIER = 3;
-const INFINITE_HOURS = Array.from({ length: 12 * MULTIPLIER }, (_, i) => HOURS[i % 12]);
-const INFINITE_MINUTES = Array.from({ length: 60 * MULTIPLIER }, (_, i) => MINUTES[i % 60]);
+const INFINITE_HOURS = Array.from(
+  { length: 12 * MULTIPLIER },
+  (_, i) => HOURS[i % 12],
+);
+const INFINITE_MINUTES = Array.from(
+  { length: 60 * MULTIPLIER },
+  (_, i) => MINUTES[i % 60],
+);
 
 const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
   const [selectedHour, setSelectedHour] = useState(12);
@@ -99,7 +107,10 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
         }
       }
     } else if (type === "minute") {
-      const safeIndex = Math.max(0, Math.min(index, INFINITE_MINUTES.length - 1));
+      const safeIndex = Math.max(
+        0,
+        Math.min(index, INFINITE_MINUTES.length - 1),
+      );
       const val = INFINITE_MINUTES[safeIndex];
       if (val !== undefined) {
         setSelectedMinute(val);
@@ -274,7 +285,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
                 showsVerticalScrollIndicator={false}
                 style={{ width: "100%" }}
                 contentContainerStyle={{
-                  paddingVertical: (150 - ITEM_HEIGHT) / 2,
+                  paddingTop: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
+                  paddingBottom: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
                 }}
                 onScroll={(ev) => handleScroll(ev, lastHapticIndexHours)}
                 scrollEventThrottle={16}
@@ -306,16 +318,17 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
                 showsVerticalScrollIndicator={false}
                 style={{ width: "100%" }}
                 contentContainerStyle={{
-                  paddingVertical: (150 - ITEM_HEIGHT) / 2,
+                  paddingTop: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
+                  paddingBottom: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
                 }}
                 onScroll={(ev) => handleScroll(ev, lastHapticIndexMinutes)}
                 scrollEventThrottle={16}
                 onMomentumScrollEnd={(ev) => handleScrollEnd(ev, "minute")}
                 onScrollEndDrag={(ev) => handleScrollEnd(ev, "minute")}
                 getItemLayout={getItemLayout}
-                initialNumToRender={30}
-                maxToRenderPerBatch={30}
-                windowSize={5}
+                initialNumToRender={180}
+                maxToRenderPerBatch={60}
+                windowSize={11}
               />
             </View>
 
@@ -338,7 +351,8 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
                 showsVerticalScrollIndicator={false}
                 style={{ width: "100%" }}
                 contentContainerStyle={{
-                  paddingVertical: (150 - ITEM_HEIGHT) / 2,
+                  paddingTop: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
+                  paddingBottom: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
                 }}
                 onScroll={(ev) => handleScroll(ev, lastHapticIndexPeriod)}
                 scrollEventThrottle={16}
@@ -439,7 +453,7 @@ const styles = StyleSheet.create({
   },
   wheelsContainer: {
     flexDirection: "row",
-    height: 150,
+    height: CONTAINER_HEIGHT,
     width: "100%",
     justifyContent: "space-around",
     alignItems: "center",
@@ -450,7 +464,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     height: ITEM_HEIGHT,
     width: "100%",
-    top: (150 - ITEM_HEIGHT) / 2,
+    top: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
     backgroundColor: BRAND.surface,
     borderRadius: 8,
     borderWidth: 1,
@@ -459,7 +473,7 @@ const styles = StyleSheet.create({
   },
   column: {
     flex: 1,
-    height: 150,
+    height: CONTAINER_HEIGHT,
     alignItems: "center",
   },
   wheelItem: {
@@ -474,14 +488,15 @@ const styles = StyleSheet.create({
     color: BRAND.textMuted,
     opacity: 0.4,
     textAlign: "center",
-    includeFontPadding: false,
+    lineHeight: ITEM_HEIGHT,
   },
   wheelTextSelected: {
     fontFamily: FONTS.semibold,
     fontSize: 22,
     color: BRAND.textPrimary,
     opacity: 1,
-    includeFontPadding: false,
+    textAlign: "center",
+    lineHeight: ITEM_HEIGHT,
   },
   confirmButtonContainer: {
     width: "100%",

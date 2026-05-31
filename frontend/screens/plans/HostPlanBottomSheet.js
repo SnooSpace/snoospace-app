@@ -202,7 +202,7 @@ export default function HostPlanBottomSheet({ isVisible, onClose, onPlanCreated,
               </View>
               {activityType === 'other' && (
                 <TextInput
-                  style={[styles.input, errors.customLabel && styles.inputError]}
+                  style={[styles.input, errors.customLabel && styles.inputError, { marginTop: 12 }]}
                   placeholder="e.g. Photography walk"
                   placeholderTextColor={COLORS.textMuted}
                   maxLength={25}
@@ -240,14 +240,17 @@ export default function HostPlanBottomSheet({ isVisible, onClose, onPlanCreated,
                 ))}
               </View>
               {(costType === 'entry_fee' || costType === 'split') && (
-                <TextInput
-                  style={styles.input}
-                  placeholder="₹ Approx. cost per person (optional)"
-                  placeholderTextColor={COLORS.textMuted}
-                  keyboardType="numeric"
-                  value={costAmount}
-                  onChangeText={setCostAmount}
-                />
+                <View style={[styles.input, styles.inputRow, { marginTop: 12 }]}>
+                  <Text style={{ fontFamily: FONTS.medium, fontSize: 16, color: COLORS.textPrimary, marginLeft: 2 }}>₹</Text>
+                  <TextInput
+                    style={styles.inputInner}
+                    placeholder="Approx. cost per person (optional)"
+                    placeholderTextColor={COLORS.textMuted}
+                    keyboardType="numeric"
+                    value={costAmount}
+                    onChangeText={setCostAmount}
+                  />
+                </View>
               )}
 
               {/* Visibility */}
