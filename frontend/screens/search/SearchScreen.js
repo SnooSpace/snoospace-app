@@ -24,8 +24,9 @@ import { getDiscoverFeed, getSuggestedCommunities } from "../../api/discover";
 import { searchCommunities } from "../../api/communities";
 import { followMember, unfollowMember } from "../../api/members";
 import { followCommunity, unfollowCommunity } from "../../api/communities";
+import { getBlockedUsers } from "../../api/plans";
 import EventBus from "../../utils/EventBus";
-import { getActiveAccount } from "../../api/auth";
+import { getActiveAccount, getAuthToken } from "../../api/auth";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 import { COLORS, BORDER_RADIUS, FONTS } from "../../constants/theme";
 import { DiscoverFeedV2 } from "../../components/discover";
@@ -57,6 +58,8 @@ export default function SearchScreen({ navigation }) {
   const [recents, setRecents] = useState([]);
   const [userId, setUserId] = useState(null);
   const [userType, setUserType] = useState(null);
+  // IDs of users the current account has blocked
+  const [blockedIds, setBlockedIds] = useState(new Set());
   const [activeFilter, setActiveFilter] = useState("all"); // 'all', 'member', 'community', 'sponsor', 'venue', 'event'
   const [eventResults, setEventResults] = useState([]); // Separate state for event results
 
@@ -268,11 +271,25 @@ export default function SearchScreen({ navigation }) {
     }
   }, []);
 
+  // Load blocked user IDs so we can anonymize them in recent searches
+  const loadBlockedIds = useCallback(async () => {
+    try {
+      const token = await getAuthToken();
+      if (!token) return;
+      const res = await getBlockedUsers(token);
+      const list = res?.blocked_users || res?.blocked || [];
+      if (Array.isArray(list)) {
+        setBlockedIds(new Set(list.map(b => String(b.id))));
+      }
+    } catch { /* non-fatal */ }
+  }, []);
+
   // Refresh userId on screen focus to handle account switches
   useFocusEffect(
     useCallback(() => {
       loadUserId();
-    }, [loadUserId]),
+      loadBlockedIds();
+    }, [loadUserId, loadBlockedIds]),
   );
 
   // Load discover feed and suggestions on mount
@@ -603,60 +620,53 @@ export default function SearchScreen({ navigation }) {
 
   const renderRecentItem = ({ item }) => {
     const entityType = item.type || "member";
-    const displayName = normalizeDisplayName(
-      item.full_name || item.name,
-      entityType,
-    );
+    // Anonymize if this member is blocked by the current user
+    const isBlocked = entityType === "member" && blockedIds.has(String(item.id));
+
+    const displayName = isBlocked
+      ? "Snoospace User"
+      : normalizeDisplayName(item.full_name || item.name, entityType);
     const photoUrl = item.profile_photo_url || item.logo_url;
-    const hasValidPhoto = photoUrl && /^https?:\/\//.test(photoUrl);
+    const hasValidPhoto = !isBlocked && photoUrl && /^https?:\/\//.test(photoUrl);
 
     return (
       <View style={styles.row}>
         <TouchableOpacity
-          style={styles.profileRowInner} // Use new style for increased gap
+          style={styles.profileRowInner}
           onPress={() => {
-            onPressProfile(item, true);
+            if (!isBlocked) onPressProfile(item, true);
           }}
-          activeOpacity={0.7}
+          activeOpacity={isBlocked ? 1 : 0.7}
         >
           {hasValidPhoto ? (
             <Image source={{ uri: photoUrl }} style={styles.avatar} />
-          ) : entityType === "community" ? (
+          ) : entityType === "community" && !isBlocked ? (
             <LinearGradient
-              colors={getGradientForName(
-                item.name || item.full_name || "Community",
-              )}
+              colors={getGradientForName(item.name || item.full_name || "Community")}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={[
-                styles.avatar,
-                { justifyContent: "center", alignItems: "center" },
-              ]}
+              style={[styles.avatar, { justifyContent: "center", alignItems: "center" }]}
             >
               <Text style={{ fontSize: 20, fontWeight: "bold", color: "#fff" }}>
                 {getInitials(item.name || item.full_name || "C")}
               </Text>
             </LinearGradient>
           ) : (
-            <Image
-              source={{ uri: "https://via.placeholder.com/64" }}
-              style={styles.avatar}
-            />
+            // Default user icon for blocked users or missing photos
+            <View style={[styles.avatar, { backgroundColor: "#EFEFF4", alignItems: "center", justifyContent: "center" }]}>
+              <Search size={20} color="#8E8E93" strokeWidth={1.5} />
+            </View>
           )}
           <View style={styles.meta}>
-            <Text style={styles.name} numberOfLines={1}>
-              {displayName}
-            </Text>
-            <Text style={styles.username} numberOfLines={1}>
-              @{item.username}
-            </Text>
+            <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
+            {!isBlocked && (
+              <Text style={styles.username} numberOfLines={1}>@{item.username}</Text>
+            )}
           </View>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => {
-            const next = recents.filter(
-              (r) => r.id !== item.id || r.type !== entityType,
-            );
+            const next = recents.filter((r) => r.id !== item.id || r.type !== entityType);
             setRecents(next);
             saveRecents(next);
           }}

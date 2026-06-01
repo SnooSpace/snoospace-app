@@ -805,6 +805,12 @@ const getEventAttendees = async (req, res) => {
         AND jsonb_array_length(COALESCE(m.discover_photos::jsonb, '[]'::jsonb)) >= 3
         AND array_length(m.intent_badges, 1) >= 1
         AND jsonb_array_length(COALESCE(m.openers::jsonb, '[]'::jsonb)) >= 1
+        -- Bidirectional block filter: hide blocked users from each other's feed
+        AND NOT EXISTS (
+          SELECT 1 FROM user_blocks ub
+          WHERE (ub.blocker_id = $2 AND ub.blocked_id = m.id)
+             OR (ub.blocker_id = m.id AND ub.blocked_id = $2)
+        )
         ${filterClause}
       GROUP BY m.id, m.name, m.dob, m.gender, m.bio, m.interests, m.profile_photo_url, m.username, m.intent_badges, m.pronouns, m.show_pronouns, m.discover_photos, m.openers
       ORDER BY m.name

@@ -93,6 +93,11 @@ async function globalSearch(req, res) {
                      FROM members m
                      WHERE (LOWER(COALESCE(m.username, '')) LIKE LOWER($1) OR LOWER(m.name) LIKE LOWER($1))
                        AND m.id <> $2
+                       AND NOT EXISTS (
+                         SELECT 1 FROM user_blocks
+                         WHERE (blocker_id = $2 AND blocked_id = m.id)
+                            OR (blocker_id = m.id AND blocked_id = $2)
+                       )
                      ORDER BY m.name ASC
                      LIMIT $3 OFFSET $4`;
       membersParams = [likeParam, userId, perTypeLimit, offset];

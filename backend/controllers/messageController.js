@@ -78,10 +78,20 @@ const getConversations = async (req, res) => {
           ELSE (SELECT COUNT(*) FROM messages msg
             WHERE msg.conversation_id = c.id
               AND (msg.sender_id != $1 OR msg.sender_type != $2)
-              AND msg.is_read = false)
+              AND msg.is_read = false
+              AND msg.is_hidden = false)
         END                                          AS unread_count,
         (cm.id IS NOT NULL)                          AS is_muted,
-        cm.muted_until                               AS muted_until
+        cm.muted_until                               AS muted_until,
+        -- Flag: the OTHER participant has blocked the current viewer
+        EXISTS (
+          SELECT 1 FROM user_blocks ub
+          WHERE ub.blocker_id = CASE
+              WHEN c.participant1_id = $1 AND c.participant1_type = $2 THEN c.participant2_id
+              ELSE c.participant1_id
+            END
+            AND ub.blocked_id = $1
+        )                                            AS is_blocked_by_other
       FROM conversations c
       LEFT JOIN members m ON (
         (c.participant1_id = $1 AND c.participant1_type = $2
@@ -183,9 +193,11 @@ const getConversations = async (req, res) => {
       otherParticipant: conv.is_group ? null : {
         id:             conv.other_participant_id,
         type:           conv.other_participant_type,
-        name:           conv.other_participant_name,
-        username:       conv.other_participant_username,
-        profilePhotoUrl: conv.other_participant_photo,
+        // Anonymize identity if the other user has blocked the viewer
+        name:           (conv.is_blocked_by_other === true || conv.is_blocked_by_other === 't') ? null : conv.other_participant_name,
+        username:       (conv.is_blocked_by_other === true || conv.is_blocked_by_other === 't') ? null : conv.other_participant_username,
+        profilePhotoUrl: (conv.is_blocked_by_other === true || conv.is_blocked_by_other === 't') ? null : conv.other_participant_photo,
+        isBlockedByOther: conv.is_blocked_by_other === true || conv.is_blocked_by_other === 't',
       },
       lastMessage:    formatLastMessage(conv.last_message_text, conv.last_message_type),
       lastMessageAt:  conv.last_message_at,
@@ -304,12 +316,14 @@ const getMessages = async (req, res) => {
       WHERE m.conversation_id = $1
         AND ($3::timestamptz IS NULL OR m.created_at < $3::timestamptz)
         AND ($4::timestamptz IS NULL OR m.created_at > $4::timestamptz)
+        -- Hidden messages are only visible to the sender, not the recipient
+        AND (m.is_hidden = false OR (m.sender_id = $5 AND m.sender_type = $6))
       ORDER BY m.created_at DESC
       LIMIT $2
     `;
 
     // Fetch limit+1 rows so we can detect whether more pages exist without a COUNT query
-    const result = await pool.query(query, [conversationId, limitNum + 1, beforeCursor, effectiveLowerBound]);
+    const result = await pool.query(query, [conversationId, limitNum + 1, beforeCursor, effectiveLowerBound, userId, userType]);
     const hasMore = result.rows.length > limitNum;
     const rawRows = hasMore ? result.rows.slice(0, limitNum) : result.rows;
 
@@ -431,9 +445,10 @@ const sendMessage = async (req, res) => {
           return res.status(403).json({ error: "Messaging is restricted to admins only" });
         }
       } else {
-        // DM: verify the user is one of the two participants
+        // DM via conversationId: verify participant + check block
         const dmCheck = await pool.query(
-          `SELECT id FROM conversations
+          `SELECT id, participant1_id, participant1_type, participant2_id, participant2_type
+           FROM conversations
            WHERE id = $1
              AND (
                (participant1_id = $2 AND participant1_type = $3)
@@ -443,6 +458,30 @@ const sendMessage = async (req, res) => {
         );
         if (dmCheck.rows.length === 0) {
           return res.status(403).json({ error: "Not a participant of this conversation" });
+        }
+        // Resolve the other participant and check blocks (member-to-member only)
+        if (userType === 'member') {
+          const conv = dmCheck.rows[0];
+          const otherId   = String(conv.participant1_id) === String(userId) ? conv.participant2_id   : conv.participant1_id;
+          const otherType = String(conv.participant1_id) === String(userId) ? conv.participant2_type : conv.participant1_type;
+          if (otherType === 'member') {
+            const blockCheck = await pool.query(
+              `SELECT blocker_id FROM user_blocks
+               WHERE (blocker_id = $1 AND blocked_id = $2)
+                  OR (blocker_id = $2 AND blocked_id = $1)
+               LIMIT 1`,
+              [userId, otherId]
+            );
+            if (blockCheck.rows.length > 0) {
+              const iAmTheBlocker = String(blockCheck.rows[0].blocker_id) === String(userId);
+              if (iAmTheBlocker) {
+                // Sender has blocked the recipient — tell frontend to show unblock prompt
+                return res.status(403).json({ error: 'you_have_blocked', message: "Unblock this user to send messages." });
+              }
+              // Sender is blocked BY recipient — silently accept, mark hidden
+              req.body._hiddenForRecipient = true;
+            }
+          }
         }
       }
       convId = conversationId;
@@ -460,26 +499,49 @@ const sendMessage = async (req, res) => {
       if (rCheck.rows.length === 0) {
         return res.status(404).json({ error: "Recipient not found" });
       }
+      // Block guard: distinguish who is the blocker
+      if (userType === 'member' && recipientType === 'member') {
+        const blockCheck = await pool.query(
+          `SELECT blocker_id FROM user_blocks
+           WHERE (blocker_id = $1 AND blocked_id = $2)
+              OR (blocker_id = $2 AND blocked_id = $1)
+           LIMIT 1`,
+          [userId, recipientId]
+        );
+        if (blockCheck.rows.length > 0) {
+          const iAmTheBlocker = String(blockCheck.rows[0].blocker_id) === String(userId);
+          if (iAmTheBlocker) {
+            // Sender has blocked recipient — prompt to unblock
+            return res.status(403).json({ error: 'you_have_blocked', message: "Unblock this user to send messages." });
+          }
+          // Sender is blocked by recipient — silently accept
+          req.body._hiddenForRecipient = true;
+        }
+      }
       convId = await getOrCreateConversation(userId, userType, recipientId, recipientType);
     }
 
     const finalText = messageText?.trim() || "";
     const metadataJson = metadata ? JSON.stringify(metadata) : null;
+    const isHidden = !!req.body._hiddenForRecipient;
 
-    // Insert message
+    // Insert message (is_hidden=true means stored but not shown to recipient while block is active)
     const msgResult = await pool.query(
       `INSERT INTO messages
-         (conversation_id, sender_id, sender_type, message_text, message_type, reply_to_message_id, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+         (conversation_id, sender_id, sender_type, message_text, message_type, reply_to_message_id, metadata, is_hidden)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id, created_at`,
-      [convId, userId, userType, finalText, messageType, reply_to_message_id || null, metadataJson],
+      [convId, userId, userType, finalText, messageType, reply_to_message_id || null, metadataJson, isHidden],
     );
     const message = msgResult.rows[0];
 
-    await pool.query(
-      `UPDATE conversations SET last_message_at = $1 WHERE id = $2`,
-      [message.created_at, convId],
-    );
+    // Only update last_message_at for non-hidden messages so conversation order isn't polluted
+    if (!isHidden) {
+      await pool.query(
+        `UPDATE conversations SET last_message_at = $1 WHERE id = $2`,
+        [message.created_at, convId],
+      );
+    }
 
     // Sender info
     const senderQ = userType === "member"

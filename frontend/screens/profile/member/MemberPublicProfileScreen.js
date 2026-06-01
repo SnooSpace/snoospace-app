@@ -8,10 +8,11 @@ import React, {
 import { useFocusEffect } from "@react-navigation/native";
 import { CommonActions } from "@react-navigation/native";
 import {
-  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Alert, Platform, Pressable } from "react-native";
+  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Platform, Pressable } from "react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { Image as ExpoImage } from "expo-image";
-import { ArrowLeft, Play, Pin, BadgeCheck, Calendar, Users, Clock } from "lucide-react-native";
+import { ArrowLeft, Play, Pin, BadgeCheck, Calendar, Users, Clock, MoreVertical, UserX, AlertTriangle, CheckCircle } from "lucide-react-native";
+import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import {
   getPublicMemberProfile,
   getMemberPosts,
@@ -21,6 +22,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import EventBus from "../../../utils/EventBus";
 import { getAuthToken, getAuthEmail } from "../../../api/auth";
+import { blockUser } from "../../../api/plans";
 import { apiPost, apiDelete } from "../../../api/client";
 import CommentsModal from "../../../components/CommentsModal";
 import LikeStateManager from "../../../utils/LikeStateManager";
@@ -188,7 +190,72 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [selectedPost, setSelectedPost] = useState(null);
   const [postModalVisible, setPostModalVisible] = useState(false);
   const [showCollegeHub, setShowCollegeHub] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [blocking, setBlocking] = useState(false);
+  const [blocked, setBlocked] = useState(false); // true when a block exists between viewer and this profile
   const pendingPostUpdateRef = useRef(null);
+
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    icon: null,
+    iconColor: undefined,
+    primaryAction: null,
+    secondaryAction: null,
+  });
+
+  const showAlert = useCallback((config) => setAlertConfig({ ...config, visible: true }), []);
+  const hideAlert = useCallback(() => setAlertConfig((p) => ({ ...p, visible: false })), []);
+
+  const handleBlockUser = useCallback(async () => {
+    setMenuVisible(false);
+    setTimeout(() => {
+      const recipientName = profile?.full_name || "this user";
+      showAlert({
+        title: `Block ${recipientName}?`,
+        message: "They won't be able to message you or find your profile. You can unblock them anytime from Settings → Blocked Users.",
+        icon: UserX,
+        iconColor: "#E53935",
+        secondaryAction: { text: "Cancel", onPress: hideAlert },
+        primaryAction: {
+          text: "Block",
+          style: "destructive",
+          onPress: async () => {
+            hideAlert();
+            try {
+              setBlocking(true);
+              const token = await getAuthToken();
+              await blockUser(memberId, token);
+              showAlert({
+                title: "Blocked",
+                message: `${recipientName} has been blocked.`,
+                icon: CheckCircle,
+                iconColor: "#34C759",
+                primaryAction: {
+                  text: "OK",
+                  onPress: () => {
+                    hideAlert();
+                    navigation.goBack();
+                  },
+                },
+              });
+            } catch (err) {
+              showAlert({
+                title: "Error",
+                message: err?.message || "Failed to block user. Please try again.",
+                primaryAction: { text: "OK", onPress: hideAlert },
+                icon: AlertTriangle,
+                iconColor: "#E53935",
+              });
+            } finally {
+              setBlocking(false);
+            }
+          },
+        },
+      });
+    }, 300);
+  }, [memberId, profile, navigation, showAlert, hideAlert]);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -224,7 +291,12 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       setProfile(normalized);
       setIsFollowing(!!p?.is_following);
     } catch (e) {
-      setError(e?.message || "Failed to load profile");
+      // 403 user_unavailable = block exists in either direction
+      if (e?.status === 403 && e?.data?.error === 'user_unavailable') {
+        setBlocked(true);
+      } else {
+        setError(e?.message || "Failed to load profile");
+      }
     }
   }, [memberId]);
 
@@ -472,13 +544,59 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         {profile?.username && (
           <Text style={styles.headerUsername}>@{profile.username}</Text>
         )}
+        {/* 3-dot menu — only for other users, not self */}
+        <TouchableOpacity
+          style={styles.menuBtn}
+          onPress={() => setMenuVisible(true)}
+          hitSlop={12}
+        >
+          <MoreVertical size={22} color={COLORS.textSecondary} strokeWidth={2} />
+        </TouchableOpacity>
       </View>
+
+      {/* Block / Options Bottom Sheet */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <Pressable style={menuStyles.overlay} onPress={() => setMenuVisible(false)}>
+          <Pressable style={menuStyles.sheet} onPress={(e) => e.stopPropagation()}>
+            <View style={menuStyles.handle} />
+            <TouchableOpacity
+              style={menuStyles.row}
+              onPress={handleBlockUser}
+              activeOpacity={0.7}
+              disabled={blocking}
+            >
+              <View style={menuStyles.iconBox}>
+                <UserX size={20} color="#E53935" strokeWidth={2.5} />
+              </View>
+              <View style={menuStyles.rowText}>
+                <Text style={menuStyles.rowLabel}>Block User</Text>
+                <Text style={menuStyles.rowSub}>They won't be able to message or find you</Text>
+              </View>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {loading ? (
         <ScrollView style={{ flex: 1, backgroundColor: "#fff" }}>
           <SkeletonProfileHeader type="member" />
           <SkeletonPostGrid />
         </ScrollView>
+      ) : blocked ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, backgroundColor: '#fff' }}>
+          <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(229,57,53,0.08)', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+            <UserX size={32} color="#E53935" strokeWidth={1.8} />
+          </View>
+          <Text style={{ fontFamily: FONTS.bold, fontSize: 18, color: COLORS.textPrimary, marginBottom: 8, textAlign: 'center' }}>Profile Unavailable</Text>
+          <Text style={{ fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 }}>
+            This profile isn't available.
+          </Text>
+        </View>
       ) : error ? (
         <View style={{ padding: 16 }}>
           <Text style={{ color: "#FF3B30" }}>{error}</Text>
@@ -914,6 +1032,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           navigation.push('CommunityPublicProfile', { communityId });
         }}
       />
+
+      <CustomAlertModal onClose={hideAlert} {...alertConfig} />
     </SafeAreaView>
   );
 }
@@ -924,16 +1044,26 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 10,
     marginBottom: 10,
   },
   headerUsername: {
+    flex: 1,
     fontFamily: FONTS.primary,
     fontSize: 18,
     color: "#3B82F6",
-    marginTop: 10,
     fontWeight: "600",
+    marginLeft: 8,
+  },
+  menuBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   backBtn: {
     width: 36,
@@ -1080,5 +1210,46 @@ const trustStyles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 12,
     color: COLORS.textSecondary,
+  },
+});
+
+const menuStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 40,
+  },
+  handle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: '#E0E0E0',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  iconBox: {
+    width: 44, height: 44, borderRadius: 12,
+    backgroundColor: 'rgba(229,57,53,0.08)',
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 14,
+  },
+  rowText: { flex: 1 },
+  rowLabel: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 16,
+    color: '#E53935',
+  },
+  rowSub: {
+    fontFamily: 'Manrope-Regular',
+    fontSize: 12,
+    color: '#8FA1B8',
+    marginTop: 2,
   },
 });

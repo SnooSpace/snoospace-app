@@ -16,7 +16,7 @@ import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle, Bell, BellOff, Image as ImageIcon, LockKeyhole, ImagePlus, Megaphone, Video } from "lucide-react-native";
+import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle, Bell, BellOff, Image as ImageIcon, LockKeyhole, ImagePlus, Megaphone, Video, UserX } from "lucide-react-native";
 import CustomImagePicker from "../../components/CustomImagePicker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import MediaViewerTimeline from "../../components/MediaViewerTimeline";
@@ -25,6 +25,7 @@ import { getVideoThumbnailAsync } from "expo-video-thumbnails";
 
 import { BlurView } from "expo-blur";
 import { getMessages, sendMessage, unsendMessage, getConversations, hideConversation, reportConversation, muteConversation, unmuteConversation, getGroupParticipants } from "../../api/messages";
+import { blockUser } from "../../api/plans";
 import { getActiveAccount } from "../../api/auth";
 import { uploadChatMedia } from "../../api/upload";
 import ChatMediaMessage from "../../components/ChatMediaMessage";
@@ -408,7 +409,7 @@ const REPORT_REASONS = [
 ];
 
 // ── ChatActionsSheet ──────────────────────────────────────────────────────
-const ChatActionsSheet = ({ visible, onClose, onDeleteChat, onReport, onMute, isMuted }) => (
+const ChatActionsSheet = ({ visible, onClose, onDeleteChat, onReport, onMute, isMuted, onBlock, isGroup }) => (
   <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
     <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
       <Pressable style={actionSheetStyles.sheet} onPress={(e) => e.stopPropagation()}>
@@ -452,6 +453,22 @@ const ChatActionsSheet = ({ visible, onClose, onDeleteChat, onReport, onMute, is
             <Text style={actionSheetStyles.rowSub}>Report abusive or harmful content</Text>
           </View>
         </TouchableOpacity>
+
+        {/* Block User — only for 1:1 DMs */}
+        {!isGroup && (
+          <>
+            <View style={actionSheetStyles.divider} />
+            <TouchableOpacity style={actionSheetStyles.row} onPress={onBlock} activeOpacity={0.7}>
+              <View style={[actionSheetStyles.iconBox, { backgroundColor: "rgba(229, 57, 53, 0.08)" }]}>
+                <UserX size={20} color="#E53935" strokeWidth={2.5} />
+              </View>
+              <View style={actionSheetStyles.rowText}>
+                <Text style={[actionSheetStyles.rowLabel, { color: "#E53935" }]}>Block User</Text>
+                <Text style={actionSheetStyles.rowSub}>They won't be able to message or find you</Text>
+              </View>
+            </TouchableOpacity>
+          </>
+        )}
       </Pressable>
     </Pressable>
   </Modal>
@@ -877,6 +894,9 @@ export default function ChatScreen({ route, navigation }) {
   const [reportSheetVisible,    setReportSheetVisible]    = useState(false);
   const [isMuted,               setIsMuted]               = useState(initialIsMuted);
   const [mutedUntil,            setMutedUntil]            = useState(initialMutedUntil);
+  // isBlockedByOther: true when the OTHER user (the one we are chatting with) has blocked US
+  // In that case we anonymize their identity in the header
+  const [isBlockedByOther,      setIsBlockedByOther]      = useState(false);
 
   // Group restriction + media state
   const [messagingRestricted,   setMessagingRestricted]   = useState(initialMessagingRestricted);
@@ -1171,6 +1191,8 @@ export default function ChatScreen({ route, navigation }) {
           setRecipient(conv.otherParticipant);
           if (conv.otherParticipant.id) setCurrentRecipientId(conv.otherParticipant.id);
           if (conv.otherParticipant.type) setCurrentRecipientType(conv.otherParticipant.type);
+          // Track if this user has blocked us — so we can anonymize their header
+          if (conv.otherParticipant.isBlockedByOther) setIsBlockedByOther(true);
         }
       } catch (err) { console.error("Error loading recipient:", err); }
     })();
@@ -1384,12 +1406,24 @@ export default function ChatScreen({ route, navigation }) {
       console.error("Error sending message:", err);
       setMessageText(text);
       setUploadingMedia(false);
-      showAlert({
-        title: "Error",
-        message: err?.message || "Failed to send message.",
-        primaryAction: { text: "OK", onPress: hideAlert },
-        icon: AlertTriangle,
-      });
+      // Special case: the current user has blocked the recipient
+      // Show a prompt to unblock first rather than a generic error
+      if (err?.status === 403 && err?.data?.error === 'you_have_blocked') {
+        showAlert({
+          title: "You've blocked this user",
+          message: "Unblock them first to send messages.",
+          primaryAction: { text: "Unblock", onPress: () => { hideAlert(); /* navigate to profile or directly trigger unblock */ } },
+          secondaryAction: { text: "Cancel", onPress: hideAlert },
+          icon: UserX,
+        });
+      } else {
+        showAlert({
+          title: "Error",
+          message: err?.message || "Failed to send message.",
+          primaryAction: { text: "OK", onPress: hideAlert },
+          icon: AlertTriangle,
+        });
+      }
     } finally {
       setSending(false);
       setUploadProgress(0);
@@ -1593,6 +1627,52 @@ export default function ChatScreen({ route, navigation }) {
     setTimeout(() => setReportSheetVisible(true), 300);
   };
 
+  // ——— handleBlockUser ———————————————————————————————————————————————————————————————
+  const handleBlockUser = () => {
+    setChatActionsVisible(false);
+    setTimeout(() => {
+      const recipientName = recipient?.name || "this user";
+      showAlert({
+        title: `Block ${recipientName}?`,
+        message: "They won't be able to message you or find your profile. You can unblock them anytime from Settings → Blocked Users.",
+        icon: UserX,
+        iconColor: "#E53935",
+        secondaryAction: { text: "Cancel", onPress: hideAlert },
+        primaryAction: {
+          text: "Block",
+          style: "destructive",
+          onPress: async () => {
+            hideAlert();
+            try {
+              const token = await (await import("../../api/auth")).getAuthToken();
+              await blockUser(currentRecipientId || recipientId || recipient?.id, token);
+              showAlert({
+                title: "Blocked",
+                message: `${recipientName} has been blocked.`,
+                icon: CheckCircle,
+                iconColor: "#34C759",
+                primaryAction: {
+                  text: "OK",
+                  onPress: () => {
+                    hideAlert();
+                    navigation.goBack();
+                  },
+                },
+              });
+            } catch (err) {
+              showAlert({
+                title: "Error",
+                message: err?.message || "Failed to block user. Please try again.",
+                primaryAction: { text: "OK", onPress: hideAlert },
+                icon: AlertTriangle,
+              });
+            }
+          },
+        },
+      });
+    }, 300);
+  };
+
   const handleReportReason = async (reason) => {
     setReportSheetVisible(false);
 
@@ -1770,13 +1850,35 @@ export default function ChatScreen({ route, navigation }) {
             ) : (
               <>
                 {recipient && (
-                  <>
-                    <Image source={{ uri: recipient.profilePhotoUrl }} style={styles.headerAvatar} contentFit="cover" cachePolicy="memory-disk" />
-                    <View style={styles.headerInfo}>
-                      <Text style={styles.headerName} numberOfLines={1}>{recipient.name || "User"}</Text>
-                      <Text style={styles.headerUsername} numberOfLines={1}>@{recipient.username || "user"}</Text>
+                  <TouchableOpacity
+                    style={styles.headerInfo}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      if (isBlockedByOther) return; // don't navigate to profile of user who blocked you
+                      const nav = navigation.getParent()?.getParent() || navigation;
+                      if (currentRecipientType === "community") {
+                        nav.navigate("CommunityPublicProfile", { communityId: currentRecipientId || recipientId, viewerRole: "member" });
+                      } else {
+                        nav.navigate("MemberPublicProfile", { memberId: currentRecipientId || recipientId });
+                      }
+                    }}
+                  >
+                    {isBlockedByOther ? (
+                      <View style={[styles.headerAvatar, { backgroundColor: "#EFEFF4", alignItems: "center", justifyContent: "center" }]}>
+                        <UserX size={18} color="#8E8E93" strokeWidth={1.5} />
+                      </View>
+                    ) : (
+                      <Image source={{ uri: recipient.profilePhotoUrl }} style={styles.headerAvatar} contentFit="cover" cachePolicy="memory-disk" />
+                    )}
+                    <View>
+                      <Text style={styles.headerName} numberOfLines={1}>
+                        {isBlockedByOther ? "Snoospace User" : (recipient.name || "User")}
+                      </Text>
+                      {!isBlockedByOther && (
+                        <Text style={styles.headerUsername} numberOfLines={1}>@{recipient.username || "user"}</Text>
+                      )}
                     </View>
-                  </>
+                  </TouchableOpacity>
                 )}
                 <View style={{ flex: 1 }} />
                 <TouchableOpacity
@@ -1991,6 +2093,8 @@ export default function ChatScreen({ route, navigation }) {
             onReport={handleStartReport}
             onMute={handleMuteChat}
             isMuted={isMuted}
+            onBlock={handleBlockUser}
+            isGroup={isGroup}
           />
         )}
 
@@ -2074,7 +2178,7 @@ const styles = StyleSheet.create({
   backButton:     { paddingVertical: 10, paddingHorizontal: 16, borderRadius: 22,
     flexDirection: "row", alignItems: "center", marginRight: 10 },
   headerAvatar:   { width: 32, height: 32, borderRadius: 16, marginRight: 8 },
-  headerInfo:     { flex: 1 },
+  headerInfo:     { flexDirection: "row", alignItems: "center" },
   headerName:     { fontFamily: "BasicCommercial-Black", fontSize: 16, color: "#1F3A5F" },
   headerUsername: { fontFamily: "Manrope-Medium", fontSize: 12, color: LIGHT_TEXT },
   loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },

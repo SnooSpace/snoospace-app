@@ -404,6 +404,11 @@ async function searchMembers(req, res) {
                          LIMIT 1) IS NOT NULL AS is_following
                FROM members m
                WHERE (LOWER(m.username) LIKE LOWER($1) OR LOWER(m.name) LIKE LOWER($1))
+                 AND NOT EXISTS (
+                   SELECT 1 FROM user_blocks
+                   WHERE (blocker_id = $2 AND blocked_id = m.id)
+                      OR (blocker_id = m.id AND blocked_id = $2)
+                 )
                ORDER BY m.name ASC
                LIMIT $3 OFFSET $4`;
       params = [likeParam, userId, limit, offset];
@@ -459,6 +464,20 @@ async function getPublicMember(req, res) {
     );
     if (memberR.rows.length === 0) {
       return res.status(404).json({ error: "Member not found" });
+    }
+
+    // Block guard: either party blocked the other → profile unavailable
+    if (String(authUserId) !== String(targetId) && userType === 'member') {
+      const blockCheck = await pool.query(
+        `SELECT 1 FROM user_blocks
+         WHERE (blocker_id = $1 AND blocked_id = $2)
+            OR (blocker_id = $2 AND blocked_id = $1)
+         LIMIT 1`,
+        [authUserId, targetId]
+      );
+      if (blockCheck.rows.length > 0) {
+        return res.status(403).json({ error: 'user_unavailable', message: "This profile isn't available." });
+      }
     }
     const profile = memberR.rows[0];
     // counts are now part of profile — no separate countsR query needed

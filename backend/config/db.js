@@ -686,7 +686,12 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE messages ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT NULL;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      -- is_hidden: message stored but not shown to recipient (used when sender is blocked by recipient)
+      DO $$ BEGIN
+        ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN NOT NULL DEFAULT false;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       CREATE INDEX IF NOT EXISTS idx_messages_message_type ON messages(message_type) WHERE message_type != 'text';
+      CREATE INDEX IF NOT EXISTS idx_messages_is_hidden ON messages(is_hidden) WHERE is_hidden = true;
       
       -- Indexes for conversations
       CREATE INDEX IF NOT EXISTS idx_conversations_participant1 ON conversations(participant1_id);

@@ -45,6 +45,20 @@ const follow = async (req, res) => {
       return res.status(400).json({ error: "Already following this entity" });
     }
 
+    // Block guard: members cannot follow each other if a block exists in either direction
+    if (followerType === 'member' && followingType === 'member') {
+      const blockCheck = await pool.query(
+        `SELECT 1 FROM user_blocks
+         WHERE (blocker_id = $1 AND blocked_id = $2)
+            OR (blocker_id = $2 AND blocked_id = $1)
+         LIMIT 1`,
+        [followerId, followingId]
+      );
+      if (blockCheck.rows.length > 0) {
+        return res.status(403).json({ error: 'user_blocked', message: "You can't follow this user." });
+      }
+    }
+
     // Add follow
     await pool.query(
       "INSERT INTO follows (follower_id, follower_type, following_id, following_type) VALUES ($1, $2, $3, $4)",

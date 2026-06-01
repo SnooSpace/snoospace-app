@@ -16,7 +16,7 @@ import * as Haptics from "expo-haptics";
 
 import {
   ChevronDown, PenSquare, Search, Users, Trash2, LogOut, X, ArrowLeft, AlertTriangle,
-  Bell, BellOff,
+  Bell, BellOff, User as UserIcon,
 } from "lucide-react-native";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 
@@ -59,21 +59,28 @@ function formatRelativeTime(dateString) {
 }
 
 // ── Avatar with optional unread ring ─────────────────────────────────────────
-function ConvAvatar({ uri, size = 52, hasUnread = false, isGroup = false }) {
+function ConvAvatar({ uri, size = 52, hasUnread = false, isGroup = false, isAnonymous = false }) {
   return (
     <View style={{ width: size, height: size, marginRight: 12 }}>
       {hasUnread && (
         <View style={[avatarStyles.unreadRing, { width: size + 4, height: size + 4, borderRadius: (size + 4) / 2, top: -2, left: -2 }]} />
       )}
-      <Image
-        source={{ uri: uri || "https://via.placeholder.com/52" }}
-        style={{ width: size, height: size, borderRadius: isGroup ? 14 : size / 2, backgroundColor: SURFACE2 }}
-      />
+      {isAnonymous ? (
+        <View style={[avatarStyles.anonContainer, { width: size, height: size, borderRadius: size / 2 }]}>
+          <UserIcon size={size * 0.48} color="#8E8E93" strokeWidth={1.5} />
+        </View>
+      ) : (
+        <Image
+          source={{ uri: uri || "https://via.placeholder.com/52" }}
+          style={{ width: size, height: size, borderRadius: isGroup ? 14 : size / 2, backgroundColor: SURFACE2 }}
+        />
+      )}
     </View>
   );
 }
 const avatarStyles = StyleSheet.create({
-  unreadRing: { position: "absolute", borderWidth: 2, borderColor: ACTIVE_RING, zIndex: 0 },
+  unreadRing:      { position: "absolute", borderWidth: 2, borderColor: ACTIVE_RING, zIndex: 0 },
+  anonContainer:   { backgroundColor: SURFACE2, alignItems: "center", justifyContent: "center" },
 });
 
 // ── Search result row ─────────────────────────────────────────────────────────
@@ -133,15 +140,23 @@ function SwipeableConvRow({ conv, onPress, onDelete, onLeave, onMute, currentUse
   const rowStyle    = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
   const actionWidth = SWIPE_FULL;
 
+  const isBlockedByOther = !isGroup && conv.otherParticipant?.isBlockedByOther;
+
   const name = isGroup
     ? (conv.groupName || "Group")
-    : (conv.otherParticipant?.name || "User");
+    : isBlockedByOther
+      ? "Snoospace User"
+      : (conv.otherParticipant?.name || "User");
   const username = isGroup
     ? `${conv.participantCount || "?"} members`
-    : (conv.otherParticipant?.username ? `@${conv.otherParticipant.username}` : "");
+    : isBlockedByOther
+      ? ""
+      : (conv.otherParticipant?.username ? `@${conv.otherParticipant.username}` : "");
   const uri = isGroup
     ? conv.groupAvatarUrl
-    : conv.otherParticipant?.profilePhotoUrl;
+    : isBlockedByOther
+      ? null  // will fall back to default user icon
+      : conv.otherParticipant?.profilePhotoUrl;
   const hasUnread    = (conv.unreadCount || 0) > 0;
 
   return (
@@ -181,7 +196,7 @@ function SwipeableConvRow({ conv, onPress, onDelete, onLeave, onMute, currentUse
       <GestureDetector gesture={pan}>
         <Reanimated.View style={rowStyle}>
           <Pressable style={swipeStyles.row} onPress={onPress} android_ripple={{ color: SURFACE2 }}>
-            <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} />
+            <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} isAnonymous={isBlockedByOther} />
             <View style={swipeStyles.content}>
               <View style={swipeStyles.topRow}>
                 <Text style={[swipeStyles.name, hasUnread && swipeStyles.nameUnread]} numberOfLines={1}>

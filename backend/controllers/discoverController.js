@@ -55,7 +55,15 @@ const getDiscoverFeed = async (req, res) => {
         FROM posts p
         LEFT JOIN members m ON p.author_id = m.id AND p.author_type = 'member'
         LEFT JOIN communities c ON p.author_id = c.id AND p.author_type = 'community'
-        WHERE p.author_id != $1 OR p.author_type != $2
+        WHERE (p.author_id != $1 OR p.author_type != $2)
+          AND (
+            p.author_type != 'member'
+            OR NOT EXISTS (
+              SELECT 1 FROM user_blocks
+              WHERE (blocker_id = $1 AND blocked_id = p.author_id)
+                 OR (blocker_id = p.author_id AND blocked_id = $1)
+            )
+          )
         ORDER BY score DESC, p.created_at DESC
         LIMIT $3 OFFSET $4
       `;

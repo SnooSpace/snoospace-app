@@ -20,6 +20,15 @@ async function blockUser(req, res) {
       [blockerId, blockedId]
     );
 
+    // Auto-remove follows in both directions so counts stay consistent
+    // and the blocked user doesn't silently keep following the blocker
+    await pool.query(
+      `DELETE FROM follows
+       WHERE (follower_id = $1 AND follower_type = 'member' AND following_id = $2 AND following_type = 'member')
+          OR (follower_id = $2 AND follower_type = 'member' AND following_id = $1 AND following_type = 'member')`,
+      [blockerId, blockedId]
+    );
+
     res.json({ blocked: true });
   } catch (err) {
     console.error('[blocksController.blockUser]', err);
