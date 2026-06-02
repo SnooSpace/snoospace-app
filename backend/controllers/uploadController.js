@@ -1,9 +1,59 @@
 const multer = require("multer");
+const uploadMiddleware = multer({ storage: multer.memoryStorage() });
 const {
   cloudinary,
   uploadImage,
   deleteImage,
 } = require("../config/cloudinary");
+
+/**
+ * Upload resume (PDF) to Cloudinary
+ * Used by applicants during opportunity application
+ */
+const uploadResume = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(403).json({ error: "Authentication required" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No file provided" });
+    }
+
+    // Validate PDF type
+    if (req.file.mimetype !== "application/pdf") {
+      return res.status(400).json({ error: "Only PDF files are accepted" });
+    }
+
+    // Upload buffer to Cloudinary as raw (PDF)
+    const uploadResult = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: "snoospace/resumes",
+          resource_type: "raw",
+          public_id: `resume_${userId}_${Date.now()}`,
+          format: "pdf",
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      stream.end(req.file.buffer);
+    });
+
+    res.json({
+      success: true,
+      url: uploadResult.secure_url,
+      public_id: uploadResult.public_id,
+    });
+  } catch (error) {
+    console.error("Error uploading resume:", error);
+    res.status(500).json({ error: "Failed to upload resume" });
+  }
+};
+
 
 /**
  * Upload event banner image
@@ -212,4 +262,6 @@ module.exports = {
   uploadPerformerPhoto,
   deleteUploadedImage,
   uploadCollegeLogo,
+  uploadResume,
+  resumeUploadMiddleware: uploadMiddleware.single("file"),
 };

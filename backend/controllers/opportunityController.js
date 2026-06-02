@@ -83,6 +83,7 @@ const createOpportunity = async (req, res) => {
       eligibility_mode,
       visibility,
       notify_talent,
+      requires_resume,
       skill_groups,
       questions,
       status, // 'draft' or 'active'
@@ -126,10 +127,10 @@ const createOpportunity = async (req, res) => {
         opportunity_types, work_type, work_mode, event_id,
         experience_level, availability, turnaround, timezone, expires_at,
         payment_type, budget_range, payment_nature, trial_type,
-        eligibility_mode, visibility, notify_talent,
+        eligibility_mode, visibility, notify_talent, requires_resume,
         about_role, responsibilities, who_can_apply, gains
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
       RETURNING *
     `;
 
@@ -154,6 +155,7 @@ const createOpportunity = async (req, res) => {
       eligibility_mode || "any_one",
       visibility || "public",
       notify_talent !== false,
+      requires_resume === true,
       about_role || null,
       responsibilities || [],
       who_can_apply || [],
@@ -453,6 +455,7 @@ const updateOpportunity = async (req, res) => {
       eligibility_mode,
       visibility,
       notify_talent,
+      requires_resume,
       skill_groups,
       questions,
       status,
@@ -491,6 +494,7 @@ const updateOpportunity = async (req, res) => {
     addUpdate("eligibility_mode", eligibility_mode);
     addUpdate("visibility", visibility);
     addUpdate("notify_talent", notify_talent);
+    addUpdate("requires_resume", requires_resume);
     addUpdate("status", status);
     addUpdate("about_role", about_role);
     addUpdate("responsibilities", responsibilities);
@@ -798,6 +802,10 @@ const applyToOpportunity = async (req, res) => {
       portfolio_link,
       portfolio_note,
       responses,
+      intro_pitch,
+      portfolio_links,
+      resume_url,
+      applicant_questions,
     } = req.body;
 
     if (!opportunity_id || !applied_role) {
@@ -843,8 +851,11 @@ const applyToOpportunity = async (req, res) => {
 
     // Insert application
     const appResult = await pool.query(
-      `INSERT INTO opportunity_applications (opportunity_id, applicant_id, applied_role, portfolio_link, portfolio_note)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO opportunity_applications (
+        opportunity_id, applicant_id, applied_role, portfolio_link, portfolio_note, 
+        intro_pitch, portfolio_links, resume_url, applicant_questions
+      )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         opportunity_id,
@@ -852,6 +863,10 @@ const applyToOpportunity = async (req, res) => {
         applied_role,
         portfolio_link || null,
         portfolio_note || null,
+        intro_pitch || null,
+        Array.isArray(portfolio_links) ? portfolio_links.filter(Boolean) : [],
+        resume_url || null,
+        Array.isArray(applicant_questions) ? applicant_questions.filter(Boolean) : [],
       ],
     );
 

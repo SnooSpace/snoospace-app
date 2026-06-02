@@ -1647,6 +1647,12 @@ router.delete(
   authMiddleware,
   UploadController.deleteUploadedImage,
 );
+router.post(
+  "/upload/resume",
+  authMiddleware,
+  UploadController.resumeUploadMiddleware,
+  UploadController.uploadResume,
+);
 
 // Admin Upload (College logos)
 router.post(

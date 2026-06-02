@@ -354,6 +354,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   // Step 10: Visibility
   const [visibility, setVisibility] = useState("public");
   const [notifyTalent, setNotifyTalent] = useState(true);
+  const [requiresResume, setRequiresResume] = useState(false);
 
   // Auto-scroll when keyboard inputs appear at the bottom
   useEffect(() => {
@@ -461,6 +462,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     setQuestions(data.questions || []);
     setVisibility(data.visibility || "public");
     setNotifyTalent(data.notify_talent !== false);
+    setRequiresResume(data.requires_resume === true);
 
     if (data.expires_at) {
       console.log(
@@ -517,6 +519,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     questions,
     visibility,
     notifyTalent,
+    requiresResume,
   });
 
   const saveDraft = async (silent = false) => {
@@ -570,6 +573,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         setQuestions(draft.data.questions || []);
         setVisibility(draft.data.visibility || "public");
         setNotifyTalent(draft.data.notifyTalent !== false);
+        setRequiresResume(draft.data.requiresResume === true);
         setCurrentStep(draft.currentStep || 1);
       }
       setShowDraftPrompt(false);
@@ -885,6 +889,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         gains,
         visibility,
         notify_talent: notifyTalent,
+        requires_resume: requiresResume,
         skill_groups: skillGroups.map((g) => ({
           ...g,
           // Serialize the sample_types array back to the string the backend stores
@@ -2529,6 +2534,21 @@ export default function CreateOpportunityScreen({ navigation, route }) {
             onValueChange={setNotifyTalent}
             trackColor={{ false: "#E2E8F0", true: "#BFDBFE" }}
             thumbColor={notifyTalent ? MODAL_TOKENS.primary : "#FFFFFF"}
+          />
+        </View>
+
+        <View style={[styles.notifyRow, { marginTop: 4 }]}>
+          <View style={styles.notifyInfo}>
+            <Text style={styles.notifyTitle}>Require resume</Text>
+            <Text style={styles.notifyDescription}>
+              Applicants must attach a PDF resume to apply
+            </Text>
+          </View>
+          <Switch
+            value={requiresResume}
+            onValueChange={setRequiresResume}
+            trackColor={{ false: "#E2E8F0", true: "#BFDBFE" }}
+            thumbColor={requiresResume ? MODAL_TOKENS.primary : "#FFFFFF"}
           />
         </View>
       </BlurView>
