@@ -63,7 +63,7 @@ const PITCH_PROMPTS = {
 };
 
 const PITCH_MIN = 80;
-const PITCH_MAX = 400;
+const PITCH_MAX = 700;
 
 function getDynamicPitchPrompt(role) {
   if (!role) return "Why are you the right person for this? Be specific.";
@@ -996,11 +996,8 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <KeyboardAvoidingView
-        style={styles.keyboardView}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+    <View style={styles.container}>
+      <SafeAreaView style={{ backgroundColor: COLORS.surface }} edges={["top"]}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={handleBack} activeOpacity={0.7}>
@@ -1009,7 +1006,13 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
           <Text style={styles.headerTitle}>{getStepTitle()}</Text>
           <View style={{ width: 36 }} />
         </View>
+      </SafeAreaView>
 
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+      >
         {/* Segmented progress dots */}
         <View style={styles.progressDotsContainer}>
           {STEPS.map((_, i) => (
@@ -1073,7 +1076,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
           )}
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1083,7 +1086,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.screenBackground,
   },
   keyboardView: {
     flex: 1,
