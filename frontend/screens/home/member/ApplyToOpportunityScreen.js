@@ -143,6 +143,29 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
   const TOTAL_STEPS = STEPS.length;
   const currentStepKey = STEPS[currentStep - 1];
 
+  const selectedRoleSkillGroup = opportunity?.skill_groups?.find((g) => g.role === selectedRole);
+  const selectedRoleTools = selectedRoleSkillGroup?.tools || [];
+  const isRoleSelectionValid = !!selectedRole && (selectedRoleTools.length === 0 || selectedSkills.length > 0);
+
+  const getIsStepValid = () => {
+    switch (currentStepKey) {
+      case "role":
+        return isRoleSelectionValid;
+      case "pitch":
+        return introPitch.trim().length >= PITCH_MIN;
+      case "attachments":
+        return !requiresResume || !!resumeFile;
+      case "questions":
+        return !(opportunity?.questions || []).some(
+          (q) => q.required && (!answers[q.id] || !answers[q.id].trim())
+        );
+      default:
+        return true;
+    }
+  };
+
+  const isNextDisabled = submitting || !getIsStepValid();
+
   const getStepTitle = () => {
     switch (currentStepKey) {
       case "role": return "Select Role";
@@ -159,7 +182,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
   const validateStep = () => {
     switch (currentStepKey) {
       case "role":
-        if (!selectedRole) {
+        if (!isRoleSelectionValid) {
           Alert.alert("Required", "Please select a role to apply for.");
           return false;
         }
@@ -167,6 +190,12 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
       case "pitch":
         if (introPitch.trim().length < PITCH_MIN) {
           Alert.alert("Too short", `Your pitch needs at least ${PITCH_MIN} characters. Be specific — it makes a difference.`);
+          return false;
+        }
+        return true;
+      case "attachments":
+        if (requiresResume && !resumeFile) {
+          Alert.alert("Required", "Please upload a resume (PDF) to proceed.");
           return false;
         }
         return true;
@@ -255,18 +284,30 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
       setSelectedRole(role);
       setSelectedSkills([skill]);
     } else {
-      setSelectedSkills(
-        selectedSkills.includes(skill)
-          ? selectedSkills.filter((s) => s !== skill)
-          : [...selectedSkills, skill]
-      );
+      const nextSkills = selectedSkills.includes(skill)
+        ? selectedSkills.filter((s) => s !== skill)
+        : [...selectedSkills, skill];
+      setSelectedSkills(nextSkills);
+      if (nextSkills.length === 0) {
+        setSelectedRole(null);
+      }
     }
   };
 
   const handleSelectRoleHeader = (role, allSkills) => {
     if (selectedRole === role) {
-      const allSelected = allSkills.every((s) => selectedSkills.includes(s));
-      setSelectedSkills(allSelected ? [] : [...allSkills]);
+      if (allSkills.length === 0) {
+        setSelectedRole(null);
+        setSelectedSkills([]);
+      } else {
+        const allSelected = allSkills.every((s) => selectedSkills.includes(s));
+        if (allSelected) {
+          setSelectedRole(null);
+          setSelectedSkills([]);
+        } else {
+          setSelectedSkills([...allSkills]);
+        }
+      }
     } else {
       setSelectedRole(role);
       setSelectedSkills([...allSkills]);
@@ -390,7 +431,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
                   onPress={() => handleSelectRoleHeader(role, tools)}
                 >
                   <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
-                    {isSelected && <View style={styles.radioInner} />}
+                    {isSelected && <Check size={12} color="#FFFFFF" strokeWidth={3} />}
                   </View>
                   <Text style={[styles.roleCardTitle, isSelected && styles.roleCardTitleActive]}>{role}</Text>
                 </TouchableOpacity>
@@ -418,7 +459,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
                 {isSelected && sampleType && (
                   <View style={styles.sampleTypeInfo}>
                     <View style={styles.iconMiniContainer}>
-                      <FileText size={14} color={COLORS.primary} />
+                      <FileText size={14} color={COLORS.textSecondary} />
                     </View>
                     <Text style={styles.sampleTypeText}>Work sample expected: {sampleType}</Text>
                   </View>
@@ -966,9 +1007,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
             <ArrowLeft size={22} color={COLORS.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{getStepTitle()}</Text>
-          <View style={styles.stepIndicator}>
-            <Text style={styles.stepText}>{currentStep}/{TOTAL_STEPS}</Text>
-          </View>
+          <View style={{ width: 36 }} />
         </View>
 
         {/* Segmented progress dots */}
@@ -991,9 +1030,12 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
         {/* Footer CTA */}
         <View style={styles.footer}>
           <TouchableOpacity
-            style={styles.nextButton}
+            style={[
+              styles.nextButton,
+              isNextDisabled && { opacity: 0.5 }
+            ]}
             onPress={handleNext}
-            disabled={submitting}
+            disabled={isNextDisabled}
             activeOpacity={0.85}
           >
             <LinearGradient
@@ -1007,7 +1049,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
               ) : (
                 <>
                   <Text style={styles.nextButtonText}>
-                    {currentStep === TOTAL_STEPS ? "Submit Application" : "Continue"}
+                    {currentStep === TOTAL_STEPS ? "Submit Application" : "Next"}
                   </Text>
                   {currentStep === TOTAL_STEPS ? (
                     <Check size={20} color="#FFFFFF" />
@@ -1041,10 +1083,11 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.screenBackground,
+    backgroundColor: COLORS.surface,
   },
   keyboardView: {
     flex: 1,
+    backgroundColor: COLORS.screenBackground,
   },
   errorContainer: {
     flex: 1,
@@ -1070,8 +1113,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
     backgroundColor: COLORS.surface,
   },
   backButton: {
@@ -1105,9 +1146,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 12,
     gap: 6,
-    backgroundColor: COLORS.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    backgroundColor: "transparent",
+    borderBottomWidth: 0,
   },
   progressDot: {
     width: 6,
@@ -1219,8 +1259,8 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   roleCardActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: "rgba(41, 98, 255, 0.015)",
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
   },
   roleCardHeader: {
     flexDirection: "row",
@@ -1237,7 +1277,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  radioOuterSelected: { borderColor: COLORS.primary },
+  radioOuterSelected: {
+    borderColor: COLORS.success,
+    backgroundColor: COLORS.success,
+  },
   radioInner: {
     width: 12,
     height: 12,
@@ -1268,8 +1311,8 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   roleToolChipSelected: {
-    backgroundColor: "rgba(41, 98, 255, 0.08)",
-    borderColor: COLORS.primary,
+    backgroundColor: "rgba(52, 199, 89, 0.08)",
+    borderColor: COLORS.success,
   },
   roleToolText: {
     fontFamily: FONTS.medium,
@@ -1278,14 +1321,14 @@ const styles = StyleSheet.create({
   },
   roleToolTextSelected: {
     fontFamily: FONTS.semiBold,
-    color: COLORS.primary,
+    color: COLORS.success,
   },
   sampleTypeInfo: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     marginLeft: 34,
-    backgroundColor: "rgba(41, 98, 255, 0.04)",
+    backgroundColor: "#F3F4F6",
     padding: 10,
     borderRadius: BORDER_RADIUS.m,
   },
@@ -1293,14 +1336,14 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    backgroundColor: "rgba(107, 114, 128, 0.1)",
     alignItems: "center",
     justifyContent: "center",
   },
   sampleTypeText: {
     fontFamily: FONTS.medium,
     fontSize: 13,
-    color: COLORS.primary,
+    color: COLORS.textSecondary,
   },
 
   // ── Pitch step
@@ -1657,23 +1700,35 @@ const styles = StyleSheet.create({
 
   // ── Footer
   footer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 24,
-    paddingTop: 14,
     paddingBottom: 32,
-    backgroundColor: COLORS.surface,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    backgroundColor: "transparent",
+    borderTopWidth: 0,
     gap: 10,
+    alignItems: "center",
   },
   nextButton: {
-    borderRadius: BORDER_RADIUS.pill,
+    height: 56,
+    minWidth: 160,
+    borderRadius: 28,
     overflow: "hidden",
+    alignSelf: "flex-end",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
   nextGradient: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
+    height: "100%",
+    paddingHorizontal: 32,
     gap: 8,
   },
   nextButtonText: {
