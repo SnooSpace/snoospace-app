@@ -11,6 +11,7 @@ import {
   Platform,
   Animated,
   Image,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -30,7 +31,11 @@ import {
   Sparkles,
   CheckCircle2,
   FileCheck,
+  AlertTriangle,
+  AlertCircle,
+  Info,
 } from "lucide-react-native";
+import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import { applyToOpportunity } from "../../../api/opportunities";
 import { BACKEND_BASE_URL } from "../../../api/client";
 import { getAuthToken } from "../../../api/auth";
@@ -128,6 +133,31 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
 
   const successAnim = useRef(new Animated.Value(0)).current;
 
+  // Custom Alert State
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    icon: null,
+    iconColor: "#E53E3E",
+    primaryAction: null,
+  });
+
+  const showAlert = (title, message, icon = AlertCircle, iconColor = "#E53E3E", primaryAction = null) => {
+    setAlertConfig({
+      visible: true,
+      title,
+      message,
+      icon,
+      iconColor,
+      primaryAction: primaryAction || { text: "OK", onPress: hideAlert },
+    });
+  };
+
+  const hideAlert = () => {
+    setAlertConfig((prev) => ({ ...prev, visible: false }));
+  };
+
   const hasQuestions = opportunity?.questions?.length > 0;
   const requiresResume = opportunity?.requires_resume === true;
 
@@ -153,8 +183,11 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
         return isRoleSelectionValid;
       case "pitch":
         return introPitch.trim().length >= PITCH_MIN;
-      case "attachments":
-        return !requiresResume || !!resumeFile;
+      case "attachments": {
+        const hasLink = portfolioLinks.some((l) => l.trim().length > 0);
+        const hasFile = !!resumeFile;
+        return requiresResume ? hasFile : (hasLink || hasFile);
+      }
       case "questions":
         return !(opportunity?.questions || []).some(
           (q) => q.required && (!answers[q.id] || !answers[q.id].trim())
@@ -183,28 +216,35 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
     switch (currentStepKey) {
       case "role":
         if (!isRoleSelectionValid) {
-          Alert.alert("Required", "Please select a role to apply for.");
+          showAlert("Required", "Please select a role to apply for.");
           return false;
         }
         return true;
       case "pitch":
         if (introPitch.trim().length < PITCH_MIN) {
-          Alert.alert("Too short", `Your pitch needs at least ${PITCH_MIN} characters. Be specific — it makes a difference.`);
+          showAlert("Too short", `Your pitch needs at least ${PITCH_MIN} characters. Be specific — it makes a difference.`);
           return false;
         }
         return true;
-      case "attachments":
-        if (requiresResume && !resumeFile) {
-          Alert.alert("Required", "Please upload a resume (PDF) to proceed.");
+      case "attachments": {
+        const hasLink = portfolioLinks.some((l) => l.trim().length > 0);
+        const hasFile = !!resumeFile;
+        if (requiresResume && !hasFile) {
+          showAlert("Required", "Please upload a resume (PDF) to proceed.");
+          return false;
+        }
+        if (!hasLink && !hasFile) {
+          showAlert("Required", "Please provide at least one portfolio link or upload a file.");
           return false;
         }
         return true;
+      }
       case "questions": {
         const required = (opportunity?.questions || []).find(
           (q) => q.required && (!answers[q.id] || !answers[q.id].trim())
         );
         if (required) {
-          Alert.alert("Required", "Please answer all required questions.");
+          showAlert("Required", "Please answer all required questions.");
           return false;
         }
         return true;
@@ -269,7 +309,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
         friction: 8,
       }).start();
     } catch (error) {
-      Alert.alert(
+      showAlert(
         "Submission Failed",
         error.message || "Failed to submit application. Please try again."
       );
@@ -338,6 +378,12 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
       const asset = result.assets?.[0];
       if (!asset) return;
 
+      // Validate size (10MB limit)
+      if (asset.size && asset.size > 10 * 1024 * 1024) {
+        showAlert("File too large", "The maximum file size allowed is 10MB.", AlertCircle, "#E53E3E");
+        return;
+      }
+
       setResumeUploading(true);
       try {
         const url = await uploadResumeToCloudinary(asset.uri, asset.name);
@@ -345,12 +391,22 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
       } catch (err) {
         // Store locally even if upload fails — will retry on submit
         setResumeFile({ name: asset.name, uri: asset.uri, url: null, localOnly: true });
-        Alert.alert("Upload notice", "Resume saved locally. We'll try uploading again on submit.");
+        showAlert("Upload notice", "Resume saved locally. We'll try uploading again on submit.", Info, COLORS.primary);
       } finally {
         setResumeUploading(false);
       }
     } catch (err) {
       console.error("Document picker error:", err);
+    }
+  };
+
+  const handlePreviewResume = async () => {
+    if (resumeFile?.url || resumeFile?.uri) {
+      try {
+        await Linking.openURL(resumeFile.url || resumeFile.uri);
+      } catch (err) {
+        showAlert("Error", "Unable to open document preview.", AlertTriangle, "#EF6C00");
+      }
     }
   };
 
@@ -580,10 +636,10 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
                 ]}
                 placeholder={
                   idx === 0
-                    ? "https://yourportfolio.com or drive link"
+                    ? "Example: https://yourportfolio.com or drive link"
                     : idx === 1
-                    ? "https://behance.net/yourprofile"
-                    : "https://github.com/yourhandle"
+                    ? "Example: https://behance.net/yourprofile"
+                    : "Example: https://github.com/yourhandle"
                 }
                 placeholderTextColor={COLORS.textMuted}
                 value={link}
@@ -613,39 +669,59 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
           )}
         </View>
 
-        {/* Resume — only if opportunity requires it */}
-        {requiresResume && (
-          <View style={[styles.attachSection, { marginTop: 20 }]}>
-            <View style={styles.attachSectionHeader}>
-              <View style={styles.attachSectionIconWrap}>
-                <FileCheck size={16} color={COLORS.primary} />
-              </View>
-              <Text style={styles.attachSectionTitle}>Resume</Text>
+        {/* Resume / Attachment Section */}
+        <View style={[styles.attachSection, { marginTop: 20 }]}>
+          <View style={styles.attachSectionHeader}>
+            <View style={styles.attachSectionIconWrap}>
+              <FileCheck size={16} color={COLORS.primary} />
+            </View>
+            <Text style={styles.attachSectionTitle}>
+              {requiresResume ? "Resume" : "Attachment / Resume"}
+            </Text>
+            {requiresResume ? (
               <View style={styles.requiredBadge}>
                 <Text style={styles.requiredText}>Required</Text>
               </View>
-            </View>
-
-            {resumeFile ? (
-              <View style={styles.resumeUploadedCard}>
-                <View style={styles.resumeFileIcon}>
-                  <FileText size={20} color={COLORS.primary} />
-                </View>
-                <View style={styles.resumeFileInfo}>
-                  <Text style={styles.resumeFileName} numberOfLines={1}>{resumeFile.name}</Text>
-                  <Text style={styles.resumeFileStatus}>
-                    {resumeFile.localOnly ? "⚠ Will upload on submit" : "✓ Uploaded"}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setResumeFile(null)}
-                  style={styles.resumeRemoveBtn}
-                  activeOpacity={0.7}
-                >
-                  <X size={16} color={COLORS.textMuted} />
-                </TouchableOpacity>
-              </View>
             ) : (
+              <View style={[styles.requiredBadge, { backgroundColor: "rgba(107, 114, 128, 0.08)" }]}>
+                <Text style={[styles.requiredText, { color: COLORS.textSecondary }]}>Optional</Text>
+              </View>
+            )}
+          </View>
+
+          {resumeFile ? (
+            <View style={styles.resumeUploadedCard}>
+              <View style={styles.resumeFileIcon}>
+                <FileText size={20} color={COLORS.primary} />
+              </View>
+              <View style={styles.resumeFileInfo}>
+                <Text style={styles.resumeFileName} numberOfLines={1}>{resumeFile.name}</Text>
+                {resumeFile.localOnly ? (
+                  <Text style={[styles.resumeFileStatus, { color: "#D84315" }]}>⚠ Will upload on submit</Text>
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                    <Check size={12} color={COLORS.success} strokeWidth={3} />
+                    <Text style={[styles.resumeFileStatus, { marginTop: 0 }]}>Uploaded</Text>
+                  </View>
+                )}
+              </View>
+              <TouchableOpacity
+                onPress={handlePreviewResume}
+                style={[styles.resumeRemoveBtn, { marginRight: 8 }]}
+                activeOpacity={0.7}
+              >
+                <Eye size={18} color={COLORS.primary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setResumeFile(null)}
+                style={styles.resumeRemoveBtn}
+                activeOpacity={0.7}
+              >
+                <X size={16} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View>
               <TouchableOpacity
                 style={styles.resumePickBtn}
                 onPress={handlePickResume}
@@ -657,13 +733,16 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
                 ) : (
                   <>
                     <Upload size={18} color={COLORS.primary} />
-                    <Text style={styles.resumePickText}>Upload Resume (PDF)</Text>
+                    <Text style={styles.resumePickText}>
+                      {requiresResume ? "Upload Resume (PDF)" : "Upload File (PDF)"}
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>
-            )}
-          </View>
-        )}
+              <Text style={styles.uploadLimitText}>Max file size: 10MB • PDF only</Text>
+            </View>
+          )}
+        </View>
       </ScrollView>
     );
   };
@@ -1076,6 +1155,17 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
           )}
         </View>
       </KeyboardAvoidingView>
+
+      {/* Custom Alert Modal */}
+      <CustomAlertModal
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={hideAlert}
+        icon={alertConfig.icon}
+        iconColor={alertConfig.iconColor}
+        primaryAction={alertConfig.primaryAction}
+      />
     </View>
   );
 }
@@ -1520,17 +1610,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
     borderRadius: BORDER_RADIUS.m,
-    borderStyle: "dashed",
-    paddingVertical: 18,
-    backgroundColor: "rgba(41, 98, 255, 0.02)",
+    paddingVertical: 16,
+    backgroundColor: "rgba(41, 98, 255, 0.05)",
   },
   resumePickText: {
     fontFamily: FONTS.semiBold,
     fontSize: 15,
     color: COLORS.primary,
+  },
+  uploadLimitText: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textMuted,
+    textAlign: "center",
+    marginTop: 8,
   },
   resumeUploadedCard: {
     flexDirection: "row",

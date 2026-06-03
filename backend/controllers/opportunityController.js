@@ -787,10 +787,10 @@ const getOpportunityById = async (id) => {
 // ============================================
 const applyToOpportunity = async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = parseInt(req.user?.id, 10);
     const userType = req.user?.type;
 
-    if (!userId || userType !== "member") {
+    if (!userId || isNaN(userId) || userType !== "member") {
       return res
         .status(403)
         .json({ error: "Only members can apply to opportunities" });
@@ -852,14 +852,15 @@ const applyToOpportunity = async (req, res) => {
     // Insert application
     const appResult = await pool.query(
       `INSERT INTO opportunity_applications (
-        opportunity_id, applicant_id, applied_role, portfolio_link, portfolio_note, 
+        opportunity_id, applicant_id, applicant_type, applied_role, portfolio_link, portfolio_note, 
         intro_pitch, portfolio_links, resume_url, applicant_questions
       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         opportunity_id,
         userId,
+        userType,
         applied_role,
         portfolio_link || null,
         portfolio_note || null,
@@ -876,7 +877,7 @@ const applyToOpportunity = async (req, res) => {
     if (responses && Array.isArray(responses) && responses.length > 0) {
       const responseInserts = responses.map((r) =>
         pool.query(
-          `INSERT INTO opportunity_application_responses (application_id, question_id, answer)
+          `INSERT INTO opportunity_application_responses (application_id, question_id, response_text)
            VALUES ($1, $2, $3)`,
           [applicationId, r.question_id, r.answer || ""],
         ),
