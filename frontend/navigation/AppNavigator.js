@@ -37,6 +37,8 @@ import ConsentScreen from "../screens/Privacy/ConsentScreen";
 import MyDataScreen from "../screens/Privacy/MyDataScreen";
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
+import ApplicantsListScreen from "../screens/home/community/ApplicantsListScreen";
+import ApplicantDetailScreen from "../screens/home/community/ApplicantDetailScreen";
 import QRScannerScreen from "../screens/events/QRScannerScreen";
 import UniversalFollowersScreen from "../screens/profile/UniversalFollowersScreen";
 import UniversalFollowingScreen from "../screens/profile/UniversalFollowingScreen";
@@ -287,6 +289,22 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="ApplyToOpportunity"
         component={ApplyToOpportunityScreen}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen
+        name="ApplicantsList"
+        component={ApplicantsListScreen}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen
+        name="ApplicantDetail"
+        component={ApplicantDetailScreen}
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,

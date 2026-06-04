@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -38,7 +38,9 @@ import {
   MoveRight,
   Coins,
 } from "lucide-react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { getOpportunityDetail } from "../../../api/opportunities";
+import { getActiveAccount } from "../../../api/auth";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import { COLORS, FONTS, SHADOWS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
 
@@ -167,23 +169,40 @@ export default function OpportunityViewScreen({ route, navigation }) {
   const [opportunity, setOpportunity] = useState(hasFullOpportunity ? passedOpportunity : null);
   const [loading, setLoading] = useState(!hasFullOpportunity);
   const [error, setError] = useState(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const [hasApplied, setHasApplied] = useState(false);
 
   const targetId = opportunityId || passedOpportunity?.id;
 
-  useEffect(() => {
-    if (targetId) {
-      fetchOpportunity();
-    }
-  }, [targetId]);
+  useFocusEffect(
+    useCallback(() => {
+      if (targetId) {
+        fetchOpportunity();
+      }
+    }, [targetId])
+  );
 
   const fetchOpportunity = async () => {
     try {
-      if (!hasFullOpportunity) {
+      if (!opportunity) {
         setLoading(true);
       }
-      const response = await getOpportunityDetail(targetId);
+      const [response, account] = await Promise.all([
+        getOpportunityDetail(targetId),
+        getActiveAccount(),
+      ]);
       if (response?.success && response?.opportunity) {
-        setOpportunity(response.opportunity);
+        const opp = response.opportunity;
+        setOpportunity(opp);
+        // Use backend's authoritative is_creator flag, fallback to local comparison
+        const backendIsCreator = response.is_creator === true;
+        const localIsCreator =
+          account?.id && opp.creator_id
+            ? String(account.id) === String(opp.creator_id)
+            : false;
+        setIsOwner(backendIsCreator || localIsCreator);
+        // Use backend has_applied flag
+        setHasApplied(response.has_applied === true);
       } else {
         setError("Failed to load opportunity");
       }
@@ -611,15 +630,15 @@ export default function OpportunityViewScreen({ route, navigation }) {
       </ScrollView>
 
       {/* Floating Apply Button Sticky Footer */}
-      <View style={styles.footer}>
-        {Platform.OS === "ios" ? (
+      <View style={[styles.footer, isOwner && { borderTopWidth: 0, backgroundColor: "transparent" }]}>
+        {!isOwner && (Platform.OS === "ios" ? (
           <BlurView intensity={95} style={StyleSheet.absoluteFill} tint="light" />
         ) : (
           <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(255, 255, 255, 0.95)" }]} />
-        )}
+        ))}
         
         <View style={styles.footerContent}>
-          {showSplitFooter ? (
+          {showSplitFooter && !isOwner ? (
             <View style={styles.footerLeft}>
               <Text style={styles.footerRateLabel}>
                 {getPaymentTypeLabel(opportunity.payment_type, opportunity.payment_nature, opportunity.trial_type)}
@@ -630,25 +649,71 @@ export default function OpportunityViewScreen({ route, navigation }) {
             </View>
           ) : null}
 
-          <TouchableOpacity 
-            style={[
-              styles.applyButton, 
-              showSplitFooter ? styles.applyButtonSplit : styles.applyButtonFull,
-              SOFT_SHADOWS.button
-            ]} 
-            onPress={handleApply}
-            activeOpacity={0.9}
-          >
-            <LinearGradient
-              colors={COLORS.primaryGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.applyGradient}
+          {isOwner ? (
+            // Owner CTA: Manage Submissions
+            <TouchableOpacity
+              style={[styles.applyButton, styles.applyButtonFull, SOFT_SHADOWS.button]}
+              onPress={() =>
+                navigation.navigate("ApplicantsList", {
+                  opportunityId: opportunity.id,
+                  opportunityTitle: opportunity.title,
+                })
+              }
+              activeOpacity={0.9}
             >
-              <Text style={styles.applyButtonText}>Apply Now</Text>
-              <ArrowRight size={16} color="#FFFFFF" />
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={["#10B981", "#059669"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.applyGradient}
+              >
+                <Text style={styles.applyButtonText}>Manage Submissions</Text>
+                <ArrowRight size={16} color="#FFFFFF" />
+              </LinearGradient>
+            </TouchableOpacity>
+          ) : hasApplied ? (
+            // Already applied CTA: disabled state
+            <View
+              style={[
+                styles.applyButton,
+                showSplitFooter ? styles.applyButtonSplit : styles.applyButtonFull,
+                { overflow: "hidden" },
+              ]}
+            >
+              <LinearGradient
+                colors={["#D1FAE5", "#A7F3D0"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.applyGradient, { justifyContent: "center", gap: 8 }]}
+              >
+                <CheckCircle2 size={18} color="#059669" strokeWidth={2.5} />
+                <Text style={[styles.applyButtonText, { color: "#065F46" }]}>
+                  {showSplitFooter ? "Applied" : "Application Submitted"}
+                </Text>
+              </LinearGradient>
+            </View>
+          ) : (
+            // Normal Apply CTA
+            <TouchableOpacity
+              style={[
+                styles.applyButton,
+                showSplitFooter ? styles.applyButtonSplit : styles.applyButtonFull,
+                SOFT_SHADOWS.button
+              ]}
+              onPress={handleApply}
+              activeOpacity={0.9}
+            >
+              <LinearGradient
+                colors={COLORS.primaryGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.applyGradient}
+              >
+                <Text style={styles.applyButtonText}>Apply Now</Text>
+                <ArrowRight size={16} color="#FFFFFF" />
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </SafeAreaView>

@@ -1,10 +1,20 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { 
+  ArrowLeft, 
+  Clock, 
+  Star, 
+  XCircle, 
+  Undo2, 
+  Link, 
+  ChevronRight, 
+  Users,
+} from "lucide-react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { getApplications } from "../../../api/opportunities";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import { FONTS } from "../../../constants/theme";
 
 const COLORS = {
   background: "#FAFAFA",
@@ -19,13 +29,13 @@ const COLORS = {
 };
 
 const STATUS_CONFIG = {
-  pending: { label: "New", color: COLORS.primary, icon: "time-outline" },
-  shortlisted: { label: "Shortlisted", color: COLORS.success, icon: "star" },
-  rejected: { label: "Rejected", color: COLORS.error, icon: "close-circle" },
+  pending: { label: "New", color: COLORS.primary, icon: Clock },
+  shortlisted: { label: "Shortlisted", color: COLORS.success, icon: Star },
+  rejected: { label: "Rejected", color: COLORS.error, icon: XCircle },
   withdrawn: {
     label: "Withdrawn",
     color: COLORS.textLight,
-    icon: "arrow-undo",
+    icon: Undo2,
   },
 };
 
@@ -91,6 +101,7 @@ export default function ApplicantsListScreen({ route, navigation }) {
 
   const renderApplicationCard = ({ item }) => {
     const statusConfig = STATUS_CONFIG[item.status] || STATUS_CONFIG.pending;
+    const StatusIcon = statusConfig.icon;
 
     return (
       <TouchableOpacity
@@ -135,9 +146,8 @@ export default function ApplicantsListScreen({ route, navigation }) {
               { backgroundColor: statusConfig.color + "15" },
             ]}
           >
-            <Ionicons
-              name={statusConfig.icon}
-              size={14}
+            <StatusIcon
+              size={12}
               color={statusConfig.color}
             />
             <Text style={[styles.statusText, { color: statusConfig.color }]}>
@@ -149,13 +159,13 @@ export default function ApplicantsListScreen({ route, navigation }) {
         {/* Portfolio indicator */}
         {item.portfolio_link && (
           <View style={styles.portfolioIndicator}>
-            <Ionicons name="link-outline" size={14} color={COLORS.primary} />
+            <Link size={14} color={COLORS.primary} />
             <Text style={styles.portfolioText}>Portfolio attached</Text>
           </View>
         )}
 
         <View style={styles.cardArrow}>
-          <Ionicons name="chevron-forward" size={20} color={COLORS.textLight} />
+          <ChevronRight size={20} color={COLORS.textLight} />
         </View>
       </TouchableOpacity>
     );
@@ -163,7 +173,7 @@ export default function ApplicantsListScreen({ route, navigation }) {
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="people-outline" size={64} color={COLORS.textLight} />
+      <Users size={64} color={COLORS.textLight} />
       <Text style={styles.emptyTitle}>
         {activeFilter === "all"
           ? "No applications yet"
@@ -190,7 +200,7 @@ export default function ApplicantsListScreen({ route, navigation }) {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          <ArrowLeft size={24} color={COLORS.text} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle}>Applications</Text>
@@ -275,11 +285,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: "600",
+    fontFamily: FONTS.black,
     color: COLORS.text,
   },
   headerSubtitle: {
     fontSize: 13,
+    fontFamily: FONTS.medium,
     color: COLORS.textLight,
     marginTop: 2,
   },
@@ -303,7 +314,7 @@ const styles = StyleSheet.create({
   },
   filterTabText: {
     fontSize: 14,
-    fontWeight: "500",
+    fontFamily: FONTS.semiBold,
     color: COLORS.textLight,
   },
   filterTabTextActive: {
@@ -348,7 +359,7 @@ const styles = StyleSheet.create({
   },
   avatarInitial: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: COLORS.primary,
   },
   infoContainer: {
@@ -356,17 +367,19 @@ const styles = StyleSheet.create({
   },
   applicantName: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: FONTS.primary,
     color: COLORS.text,
     marginBottom: 2,
   },
   applicantUsername: {
     fontSize: 13,
+    fontFamily: FONTS.medium,
     color: COLORS.textLight,
     marginBottom: 2,
   },
   appliedDate: {
     fontSize: 12,
+    fontFamily: FONTS.medium,
     color: COLORS.textLight,
   },
   statusBadge: {
@@ -379,7 +392,8 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: "600",
+    fontFamily: FONTS.medium,
+    color: COLORS.textLight,
   },
   portfolioIndicator: {
     flexDirection: "row",
@@ -392,6 +406,7 @@ const styles = StyleSheet.create({
   },
   portfolioText: {
     fontSize: 13,
+    fontFamily: FONTS.medium,
     color: COLORS.primary,
   },
   cardArrow: {
@@ -409,11 +424,12 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: FONTS.primary,
     color: COLORS.text,
   },
   emptySubtitle: {
     fontSize: 14,
+    fontFamily: FONTS.regular,
     color: COLORS.textLight,
     textAlign: "center",
     paddingHorizontal: 40,

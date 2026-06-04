@@ -45,6 +45,7 @@ import {
   Pin,
   Pencil,
   Trash2,
+  Users,
 } from "lucide-react-native";
 import { apiPost, apiDelete } from "../api/client";
 import { closeOpportunity } from "../api/opportunities";
@@ -79,17 +80,23 @@ const MarqueeChips = React.memo(({ chips, chipType, styles }) => {
   const [containerWidth, setContainerWidth] = useState(0);
   const translateX = useSharedValue(0);
 
+  // Use a stable string key so the effect only re-runs when chip content changes
+  const chipsKey = chips.join(",");
+
   useEffect(() => {
+    // Only start animation once both widths have been measured
+    if (contentWidth === 0 || containerWidth === 0) return;
+
     const maxScroll = contentWidth - containerWidth;
-    if (maxScroll > 0) {
+    if (maxScroll > 10) {
       translateX.value = 0;
       translateX.value = withRepeat(
         withSequence(
-          withDelay(1200, withTiming(-maxScroll, { duration: maxScroll * 50 })),
-          withDelay(1500, withTiming(0, { duration: maxScroll * 50 }))
+          withDelay(1200, withTiming(-maxScroll, { duration: maxScroll * 40 })),
+          withDelay(1500, withTiming(0, { duration: maxScroll * 40 }))
         ),
-        -1, // infinite loop
-        false // do not reverse automatically
+        -1,
+        false
       );
     } else {
       cancelAnimation(translateX);
@@ -98,13 +105,11 @@ const MarqueeChips = React.memo(({ chips, chipType, styles }) => {
     return () => {
       cancelAnimation(translateX);
     };
-  }, [contentWidth, containerWidth, chips]);
+  }, [contentWidth, containerWidth, chipsKey]);
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ translateX: translateX.value }],
-    };
-  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
 
   return (
     <View
@@ -621,33 +626,60 @@ const OpportunityFeedCard = React.memo(({
             )}
           </View>
  
-          {/* Apply Button */}
-          <TouchableOpacity
-            style={[styles.applyButton, isClosed && styles.applyButtonDisabled]}
-            onPress={() => {
-              if (!isClosed) onPress?.(opportunity);
-            }}
-            disabled={isClosed}
-          >
-            <LinearGradient
-              colors={isClosed ? ["#9CA3AF", "#6B7280"] : ["#448AFF", "#2962FF"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.applyButtonGradient}
+          {/* CTA Button — owner sees Submissions, others see View Details */}
+          {isCreator ? (
+            <TouchableOpacity
+              style={styles.applyButton}
+              onPress={() => {
+                navigation.navigate("ApplicantsList", {
+                  opportunityId: opportunity.id,
+                  opportunityTitle: opportunity.title,
+                });
+              }}
             >
-              <Text style={styles.applyButtonText}>
-                {isClosed ? "Closed" : "View Details"}
-              </Text>
-              {!isClosed && (
+              <LinearGradient
+                colors={["#10B981", "#059669"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.applyButtonGradient}
+              >
+                <Text style={styles.applyButtonText}>View Submissions</Text>
                 <ArrowRight
                   size={18}
                   color="#FFFFFF"
                   style={{ marginLeft: 6 }}
                   strokeWidth={2.5}
                 />
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
+              </LinearGradient>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.applyButton, isClosed && styles.applyButtonDisabled]}
+              onPress={() => {
+                if (!isClosed) onPress?.(opportunity);
+              }}
+              disabled={isClosed}
+            >
+              <LinearGradient
+                colors={isClosed ? ["#9CA3AF", "#6B7280"] : ["#448AFF", "#2962FF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.applyButtonGradient}
+              >
+                <Text style={styles.applyButtonText}>
+                  {isClosed ? "Closed" : "View Details"}
+                </Text>
+                {!isClosed && (
+                  <ArrowRight
+                    size={18}
+                    color="#FFFFFF"
+                    style={{ marginLeft: 6 }}
+                    strokeWidth={2.5}
+                  />
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
         </View>
  
         {/* ── Engagement Row ────────────────────────────────────────────── */}
@@ -726,6 +758,29 @@ const OpportunityFeedCard = React.memo(({
               },
             ]}
           >
+            {/* View Submissions */}
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                closeMenu();
+                navigation.navigate("ApplicantsList", {
+                  opportunityId: opportunity.id,
+                  opportunityTitle: opportunity.title,
+                });
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.menuIconWrap, { backgroundColor: "rgba(16, 185, 129, 0.08)" }]}>
+                <Users size={15} color="#10B981" strokeWidth={2} />
+              </View>
+              <View style={styles.menuItemTextContainer}>
+                <Text style={styles.menuItemTitle}>View Submissions</Text>
+                <Text style={styles.menuItemSub}>See all applicants & requests</Text>
+              </View>
+            </TouchableOpacity>
+
+            <View style={styles.menuDivider} />
+
             {/* Edit */}
             <TouchableOpacity
               style={styles.menuItem}

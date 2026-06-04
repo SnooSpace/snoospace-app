@@ -405,10 +405,27 @@ const getOpportunityDetail = async (req, res) => {
       );
     }
 
+    // Check if the current user has already applied (non-creators only)
+    let hasApplied = false;
+    if (!isCreator && userId && userType === "member") {
+      try {
+        const appliedCheck = await pool.query(
+          `SELECT id FROM opportunity_applications 
+           WHERE opportunity_id = $1 AND applicant_id = $2 AND applicant_type = $3
+           LIMIT 1`,
+          [id, userId, userType],
+        );
+        hasApplied = appliedCheck.rows.length > 0;
+      } catch (_) {
+        // table may not exist yet, default to false
+      }
+    }
+
     res.json({
       success: true,
       opportunity,
       is_creator: isCreator,
+      has_applied: hasApplied,
     });
   } catch (error) {
     console.error("Error getting opportunity detail:", error);

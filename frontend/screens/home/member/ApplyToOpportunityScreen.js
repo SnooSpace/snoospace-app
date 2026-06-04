@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -103,6 +103,21 @@ async function uploadResumeToCloudinary(fileUri, fileName) {
   return data.url;
 }
 
+function formatSubmittedTime(date) {
+  if (!date) return "";
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const formattedHours = hours % 12 || 12;
+  const formattedMinutes = minutes < 10 ? '0' + minutes : minutes;
+  
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthStr = months[date.getMonth()];
+  const day = date.getDate();
+  
+  return `${formattedHours}:${formattedMinutes} ${ampm} • ${monthStr} ${day}`;
+}
+
 export default function ApplyToOpportunityScreen({ route, navigation }) {
   const { opportunity } = route.params || {};
   const [currentStep, setCurrentStep] = useState(1);
@@ -132,6 +147,36 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
   const [focusedAQ, setFocusedAQ] = useState(null);
 
   const successAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
+  const [submittedAt, setSubmittedAt] = useState(null);
+
+  useEffect(() => {
+    if (submitted) {
+      // Animate success scale and opacity
+      Animated.spring(successAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 60,
+        friction: 8,
+      }).start();
+
+      // Loop glow pulse animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, {
+            toValue: 1,
+            duration: 1800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowAnim, {
+            toValue: 0,
+            duration: 1800,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }
+  }, [submitted]);
 
   // Custom Alert State
   const [alertConfig, setAlertConfig] = useState({
@@ -301,6 +346,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
       await applyToOpportunity(applicationData);
 
       // Animate success
+      setSubmittedAt(new Date());
       setSubmitted(true);
       Animated.spring(successAnim, {
         toValue: 1,
@@ -308,6 +354,21 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
         tension: 60,
         friction: 8,
       }).start();
+
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, {
+            toValue: 1,
+            duration: 1800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(glowAnim, {
+            toValue: 0,
+            duration: 1800,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
     } catch (error) {
       showAlert(
         "Submission Failed",
@@ -980,15 +1041,43 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
     });
     const opacity = successAnim;
 
+    const glowScale = glowAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1, 1.25],
+    });
+    const glowOpacity = glowAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.6, 0],
+    });
+
+    const checkScale = glowAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1, 1.06],
+    });
+
     return (
       <View style={styles.successContainer}>
         <Animated.View style={[styles.successContent, { transform: [{ scale }], opacity }]}>
-          <LinearGradient
-            colors={["rgba(41, 98, 255, 0.08)", "rgba(41, 98, 255, 0.02)"]}
-            style={styles.successCheckCircle}
-          >
-            <CheckCircle2 size={56} color={COLORS.primary} />
-          </LinearGradient>
+          {/* Celebratory Check Circle with pulsing glow & breathing effect */}
+          <View style={styles.successIconWrapper}>
+            <Animated.View
+              style={[
+                styles.successGlowRing,
+                {
+                  transform: [{ scale: glowScale }],
+                  opacity: glowOpacity,
+                },
+              ]}
+            />
+            <Animated.View style={{ transform: [{ scale: checkScale }] }}>
+              <LinearGradient
+                colors={["rgba(52, 199, 89, 0.12)", "rgba(52, 199, 89, 0.03)"]}
+                style={styles.successCheckCircle}
+              >
+                <CheckCircle2 size={52} color={COLORS.success} />
+              </LinearGradient>
+            </Animated.View>
+          </View>
 
           <Text style={styles.successTitle}>You're in the running.</Text>
           <Text style={styles.successSubtitle}>
@@ -998,18 +1087,32 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
             {" "}will review your application and get back to you.
           </Text>
 
-          <View style={styles.successRolePill}>
-            <Text style={styles.successRoleText}>Applied for {selectedRole}</Text>
+          {/* Standalone Chips */}
+          <View style={styles.successChipsRow}>
+            <View style={styles.successRolePill}>
+              <Text style={styles.successRoleText}>Applied for {selectedRole}</Text>
+            </View>
+            {selectedSkills && selectedSkills.map((skill, index) => (
+              <View key={index} style={styles.successSkillPill}>
+                <Text style={styles.successSkillText}>{skill}</Text>
+              </View>
+            ))}
           </View>
 
+          {/* Next-step message */}
+          <Text style={styles.successNextStep}>
+            You can continue exploring other opportunities while your application is being reviewed.
+          </Text>
+
+          {/* Button actions */}
           <View style={styles.successActions}>
             <TouchableOpacity
               style={styles.successSecondaryBtn}
               onPress={() => navigation.goBack()}
               activeOpacity={0.8}
             >
-              <Eye size={18} color={COLORS.primary} />
-              <Text style={styles.successSecondaryText}>View Opportunity</Text>
+              <Text style={styles.successSecondaryText}>Continue browsing</Text>
+              <ArrowRight size={18} color={COLORS.primary} />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -1855,13 +1958,29 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
   },
+  successIconWrapper: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 110,
+    height: 110,
+    marginBottom: 28,
+  },
+  successGlowRing: {
+    position: "absolute",
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 2,
+    borderColor: "rgba(52, 199, 89, 0.4)",
+    backgroundColor: "rgba(52, 199, 89, 0.04)",
+  },
   successCheckCircle: {
     width: 110,
     height: 110,
     borderRadius: 55,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 28,
   },
   successTitle: {
     fontFamily: FONTS.black,
@@ -1869,7 +1988,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     textAlign: "center",
     letterSpacing: -0.5,
-    marginBottom: 14,
+    marginBottom: 8,
   },
   successSubtitle: {
     fontFamily: FONTS.regular,
@@ -1877,33 +1996,64 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: "center",
     lineHeight: 22,
-    marginBottom: 20,
+    marginBottom: 16,
     paddingHorizontal: 8,
+  },
+  successChipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 24,
+    paddingHorizontal: 16,
   },
   successRolePill: {
     backgroundColor: "rgba(41, 98, 255, 0.08)",
-    paddingHorizontal: 18,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
     borderRadius: BORDER_RADIUS.pill,
-    marginBottom: 40,
   },
   successRoleText: {
     fontFamily: FONTS.medium,
-    fontSize: 14,
+    fontSize: 13,
     color: COLORS.primary,
+  },
+  successSkillPill: {
+    backgroundColor: "rgba(41, 98, 255, 0.04)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.pill,
+    borderWidth: 1,
+    borderColor: "rgba(41, 98, 255, 0.15)",
+  },
+  successSkillText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.primary,
+  },
+  successNextStep: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 28,
+    paddingHorizontal: 16,
   },
   successActions: {
     width: "100%",
     gap: 12,
   },
   successPrimaryBtn: {
+    height: 56,
     borderRadius: BORDER_RADIUS.pill,
     overflow: "hidden",
   },
   successPrimaryGradient: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 16,
+    height: "100%",
   },
   successPrimaryText: {
     fontFamily: FONTS.semiBold,
@@ -1914,12 +2064,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: BORDER_RADIUS.pill,
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-    backgroundColor: "rgba(41, 98, 255, 0.04)",
+    gap: 6,
+    paddingVertical: 12,
+    backgroundColor: "transparent",
   },
   successSecondaryText: {
     fontFamily: FONTS.semiBold,

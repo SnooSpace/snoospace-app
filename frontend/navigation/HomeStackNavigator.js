@@ -21,6 +21,8 @@ import ChallengeSubmitScreen from "../screens/home/ChallengeSubmitScreen";
 import ChallengeVideoRecorderScreen from "../screens/home/ChallengeVideoRecorderScreen";
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
+import ApplicantsListScreen from "../screens/home/community/ApplicantsListScreen";
+import ApplicantDetailScreen from "../screens/home/community/ApplicantDetailScreen";
 import CreateGroupScreen from "../screens/messages/CreateGroupScreen";
 import GroupInfoScreen from "../screens/messages/GroupInfoScreen";
 // [VIDEO INSIGHTS - DEFERRED] import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
@@ -168,6 +170,8 @@ export default function HomeStackNavigator() {
         name="ApplyToOpportunity"
         component={ApplyToOpportunityScreen}
       />
+      <Stack.Screen name="ApplicantsList" component={ApplicantsListScreen} />
+      <Stack.Screen name="ApplicantDetail" component={ApplicantDetailScreen} />
       {/* [VIDEO INSIGHTS - DEFERRED] <Stack.Screen name="VideoInsights" component={VideoInsightsScreen} options={{ headerShown: false }} /> */}
     </Stack.Navigator>
   );

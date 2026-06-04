@@ -2,13 +2,24 @@ import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import {
+  ArrowLeft,
+  Clock,
+  Star,
+  XCircle,
+  Undo2,
+  AlertCircle,
+  Link,
+  ExternalLink,
+  X,
+} from "lucide-react-native";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import {
   getApplicationDetail,
   updateApplicationStatus,
 } from "../../../api/opportunities";
 import { useToast } from "../../../context/ToastContext";
+import { FONTS } from "../../../constants/theme";
 
 const COLORS = {
   background: "#FAFAFA",
@@ -23,13 +34,13 @@ const COLORS = {
 };
 
 const STATUS_CONFIG = {
-  pending: { label: "New", color: COLORS.primary, icon: "time-outline" },
-  shortlisted: { label: "Shortlisted", color: COLORS.success, icon: "star" },
-  rejected: { label: "Rejected", color: COLORS.error, icon: "close-circle" },
+  pending: { label: "New", color: COLORS.primary, icon: Clock },
+  shortlisted: { label: "Shortlisted", color: COLORS.success, icon: Star },
+  rejected: { label: "Rejected", color: COLORS.error, icon: XCircle },
   withdrawn: {
     label: "Withdrawn",
     color: COLORS.textLight,
-    icon: "arrow-undo",
+    icon: Undo2,
   },
 };
 
@@ -129,8 +140,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.errorContainer}>
-          <Ionicons
-            name="alert-circle-outline"
+          <AlertCircle
             size={48}
             color={COLORS.textLight}
           />
@@ -147,6 +157,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
 
   const statusConfig =
     STATUS_CONFIG[application.status] || STATUS_CONFIG.pending;
+  const StatusIcon = statusConfig.icon;
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -156,7 +167,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+          <ArrowLeft size={24} color={COLORS.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Application</Text>
         <View style={{ width: 32 }} />
@@ -204,8 +215,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
               { backgroundColor: statusConfig.color + "15" },
             ]}
           >
-            <Ionicons
-              name={statusConfig.icon}
+            <StatusIcon
               size={16}
               color={statusConfig.color}
             />
@@ -232,7 +242,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
               onPress={openPortfolio}
             >
               <View style={styles.portfolioIcon}>
-                <Ionicons name="link" size={20} color={COLORS.primary} />
+                <Link size={20} color={COLORS.primary} />
               </View>
               <View style={styles.portfolioInfo}>
                 <Text style={styles.portfolioLink} numberOfLines={1}>
@@ -240,7 +250,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
                 </Text>
                 <Text style={styles.portfolioHint}>Tap to open</Text>
               </View>
-              <Ionicons name="open-outline" size={20} color={COLORS.primary} />
+              <ExternalLink size={20} color={COLORS.primary} />
             </TouchableOpacity>
           </View>
         )}
@@ -286,7 +296,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
             onPress={() => handleStatusUpdate("rejected")}
             disabled={updating}
           >
-            <Ionicons name="close" size={20} color={COLORS.error} />
+            <X size={20} color={COLORS.error} />
             <Text style={styles.rejectButtonText}>Reject</Text>
           </TouchableOpacity>
 
@@ -305,7 +315,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
                 <SnooLoader color="#FFFFFF" size="small" />
               ) : (
                 <>
-                  <Ionicons name="star" size={20} color="#FFFFFF" />
+                  <Star size={20} color="#FFFFFF" />
                   <Text style={[styles.shortlistButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Shortlist</Text>
                 </>
               )}
@@ -336,12 +346,13 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 15,
+    fontFamily: FONTS.regular,
     color: COLORS.textLight,
     textAlign: "center",
   },
   goBackText: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: COLORS.primary,
     marginTop: 8,
   },
@@ -360,7 +371,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: "600",
+    fontFamily: FONTS.black,
     color: COLORS.text,
   },
   scrollView: {
@@ -396,22 +407,24 @@ const styles = StyleSheet.create({
   },
   avatarInitial: {
     fontSize: 32,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: COLORS.primary,
   },
   applicantName: {
     fontSize: 22,
-    fontWeight: "700",
+    fontFamily: FONTS.primary,
     color: COLORS.text,
     marginBottom: 4,
   },
   applicantUsername: {
     fontSize: 15,
+    fontFamily: FONTS.medium,
     color: COLORS.textLight,
     marginBottom: 8,
   },
   applicantBio: {
     fontSize: 14,
+    fontFamily: FONTS.regular,
     color: COLORS.textLight,
     textAlign: "center",
     lineHeight: 20,
@@ -427,14 +440,14 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: FONTS.medium,
   },
   section: {
     marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: FONTS.primary,
     color: COLORS.textLight,
     marginBottom: 10,
     textTransform: "uppercase",
@@ -449,7 +462,7 @@ const styles = StyleSheet.create({
   },
   roleTagText: {
     fontSize: 15,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: COLORS.primary,
   },
   portfolioCard: {
@@ -475,11 +488,13 @@ const styles = StyleSheet.create({
   },
   portfolioLink: {
     fontSize: 14,
+    fontFamily: FONTS.medium,
     color: COLORS.text,
     marginBottom: 2,
   },
   portfolioHint: {
     fontSize: 12,
+    fontFamily: FONTS.medium,
     color: COLORS.primary,
   },
   noteCard: {
@@ -491,6 +506,7 @@ const styles = StyleSheet.create({
   },
   noteText: {
     fontSize: 15,
+    fontFamily: FONTS.regular,
     color: COLORS.text,
     lineHeight: 22,
   },
@@ -504,17 +520,19 @@ const styles = StyleSheet.create({
   },
   questionPrompt: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: FONTS.primary,
     color: COLORS.text,
     marginBottom: 8,
   },
   answerText: {
     fontSize: 15,
+    fontFamily: FONTS.regular,
     color: COLORS.textLight,
     lineHeight: 22,
   },
   appliedDate: {
     fontSize: 13,
+    fontFamily: FONTS.medium,
     color: COLORS.textLight,
     textAlign: "center",
     marginTop: 8,
@@ -544,7 +562,7 @@ const styles = StyleSheet.create({
   },
   rejectButtonText: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: COLORS.error,
   },
   shortlistButton: {
@@ -561,7 +579,7 @@ const styles = StyleSheet.create({
   },
   shortlistButtonText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
   },
 });
