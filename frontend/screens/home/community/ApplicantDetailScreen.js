@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking, Image, StatusBar, ActivityIndicator } from "react-native";
-import * as FileSystem from "expo-file-system";
-import * as MediaLibrary from "expo-media-library";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -127,26 +125,15 @@ export default function ApplicantDetailScreen({ route, navigation }) {
     if (!application?.resume_url) return;
     try {
       setDownloadingResume(true);
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      const filename = decodeURIComponent(
-        application.resume_url.split("/").pop().split("?")[0]
-      ) || "resume.pdf";
-      const fileUri = FileSystem.cacheDirectory + filename;
-      const download = await FileSystem.downloadAsync(application.resume_url, fileUri);
-      if (download.status === 200) {
-        if (status === "granted") {
-          await MediaLibrary.saveToLibraryAsync(download.uri);
-          Alert.alert("Downloaded", `${filename} saved to your device.`);
-        } else {
-          // Still open it from cache even without media library permission
-          await Linking.openURL(download.uri);
-        }
-      } else {
-        Alert.alert("Error", "Could not download the file.");
+      // Add fl_attachment flag to the Cloudinary URL to force a file download prompt
+      let downloadUrl = application.resume_url;
+      if (downloadUrl.includes("cloudinary.com") && downloadUrl.includes("/upload/")) {
+        downloadUrl = downloadUrl.replace("/upload/", "/upload/fl_attachment/");
       }
+      await Linking.openURL(downloadUrl);
     } catch (err) {
-      console.error("Resume download error:", err);
-      Alert.alert("Error", "Failed to download the file.");
+      console.error("Resume open error:", err);
+      Alert.alert("Error", "Could not open the file. Please try again.");
     } finally {
       setDownloadingResume(false);
     }
