@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Image } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Image, StatusBar } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { 
   ArrowLeft, 
@@ -194,6 +194,7 @@ export default function ApplicantsListScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.card} />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -213,57 +214,63 @@ export default function ApplicantsListScreen({ route, navigation }) {
         <View style={{ width: 32 }} />
       </View>
 
-      {/* Filter Tabs */}
-      <View style={styles.filterContainer}>
-        {filters.map((filter) => (
-          <TouchableOpacity
-            key={filter.key}
-            style={[
-              styles.filterTab,
-              activeFilter === filter.key && styles.filterTabActive,
-            ]}
-            onPress={() => setActiveFilter(filter.key)}
-          >
-            <Text
+      <View style={styles.contentWrapper}>
+        {/* Filter Tabs */}
+        <View style={styles.filterContainer}>
+          {filters.map((filter) => (
+            <TouchableOpacity
+              key={filter.key}
               style={[
-                styles.filterTabText,
-                activeFilter === filter.key && styles.filterTabTextActive,
+                styles.filterTab,
+                activeFilter === filter.key && styles.filterTabActive,
               ]}
+              onPress={() => setActiveFilter(filter.key)}
             >
-              {filter.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Content */}
-      {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <SnooLoader size="large" color={COLORS.primary} />
+              <Text
+                style={[
+                  styles.filterTabText,
+                  activeFilter === filter.key && styles.filterTabTextActive,
+                ]}
+              >
+                {filter.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
-      ) : (
-        <FlatList
-          data={applications}
-          renderItem={renderApplicationCard}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={renderEmptyState}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={COLORS.primary}
-            />
-          }
-        />
-      )}
+
+        {/* Content */}
+        {loading && !refreshing ? (
+          <View style={styles.loadingContainer}>
+            <SnooLoader size="large" color={COLORS.primary} />
+          </View>
+        ) : (
+          <FlatList
+            data={applications}
+            renderItem={renderApplicationCard}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={renderEmptyState}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={COLORS.primary}
+              />
+            }
+          />
+        )}
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: COLORS.card,
+  },
+  contentWrapper: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
@@ -272,8 +279,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
     backgroundColor: COLORS.card,
   },
   backButton: {
@@ -300,8 +305,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 8,
     backgroundColor: COLORS.card,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   filterTab: {
     paddingHorizontal: 16,
@@ -334,8 +337,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 16,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
   cardContent: {
     flexDirection: "row",
@@ -401,8 +402,6 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 10,
     paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
   },
   portfolioText: {
     fontSize: 13,

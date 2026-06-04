@@ -10,8 +10,6 @@ import ActivityInsightsScreen from "../screens/discover/ActivityInsightsScreen";
 import ChatScreen from "../screens/messages/ChatScreen";
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
-import ApplicantsListScreen from "../screens/home/community/ApplicantsListScreen";
-import ApplicantDetailScreen from "../screens/home/community/ApplicantDetailScreen";
 import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
 
 // Open Plans screens
@@ -57,8 +55,6 @@ export default function DiscoverStackNavigator() {
         name="ApplyToOpportunity"
         component={ApplyToOpportunityScreen}
       />
-      <Stack.Screen name="ApplicantsList" component={ApplicantsListScreen} />
-      <Stack.Screen name="ApplicantDetail" component={ApplicantDetailScreen} />
 
       {/* ── Open Plans ─────────────────────────────────────────────────── */}
       <Stack.Screen name="PlansDiscoverFeed" component={PlansDiscoverFeedScreen} />

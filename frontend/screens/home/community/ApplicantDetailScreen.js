@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking, Image } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking, Image, StatusBar } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -129,6 +129,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS.card} />
         <View style={styles.loadingContainer}>
           <SnooLoader size="large" color={COLORS.primary} />
         </View>
@@ -139,6 +140,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
   if (error || !application) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS.card} />
         <View style={styles.errorContainer}>
           <AlertCircle
             size={48}
@@ -161,6 +163,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
+      <StatusBar barStyle="dark-content" backgroundColor={COLORS.card} />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -173,10 +176,11 @@ export default function ApplicantDetailScreen({ route, navigation }) {
         <View style={{ width: 32 }} />
       </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-      >
+      <View style={styles.contentWrapper}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+        >
         {/* Applicant Card */}
         <View style={styles.applicantCard}>
           {/* Avatar */}
@@ -323,12 +327,17 @@ export default function ApplicantDetailScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
       )}
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    backgroundColor: COLORS.card,
+  },
+  contentWrapper: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
@@ -362,8 +371,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
     backgroundColor: COLORS.card,
   },
   backButton: {
@@ -386,8 +393,6 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: "center",
     marginBottom: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
   avatarContainer: {
     marginBottom: 12,
@@ -418,7 +423,7 @@ const styles = StyleSheet.create({
   },
   applicantUsername: {
     fontSize: 15,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.regular,
     color: COLORS.textLight,
     marginBottom: 8,
   },
@@ -471,8 +476,6 @@ const styles = StyleSheet.create({
     padding: 14,
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
   portfolioIcon: {
     width: 40,
@@ -501,8 +504,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card,
     borderRadius: 12,
     padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
   noteText: {
     fontSize: 15,
@@ -515,8 +516,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
-    borderWidth: 1,
-    borderColor: COLORS.border,
   },
   questionPrompt: {
     fontSize: 14,
@@ -547,8 +546,6 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 32,
     backgroundColor: COLORS.card,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
   },
   rejectButton: {
     flex: 1,
