@@ -1,5 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking, Image, StatusBar, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  Linking,
+  Image,
+  StatusBar,
+  ActivityIndicator,
+} from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
+import * as MediaLibrary from "expo-media-library";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -125,15 +138,30 @@ export default function ApplicantDetailScreen({ route, navigation }) {
     if (!application?.resume_url) return;
     try {
       setDownloadingResume(true);
-      // Add fl_attachment flag to the Cloudinary URL to force a file download prompt
-      let downloadUrl = application.resume_url;
-      if (downloadUrl.includes("cloudinary.com") && downloadUrl.includes("/upload/")) {
-        downloadUrl = downloadUrl.replace("/upload/", "/upload/fl_attachment/");
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      const filename =
+        decodeURIComponent(
+          application.resume_url.split("/").pop().split("?")[0],
+        ) || "resume.pdf";
+      const fileUri = FileSystem.cacheDirectory + filename;
+      const download = await FileSystem.downloadAsync(
+        application.resume_url,
+        fileUri,
+      );
+      if (download.status === 200) {
+        if (status === "granted") {
+          await MediaLibrary.saveToLibraryAsync(download.uri);
+          Alert.alert("Downloaded", `${filename} saved to your device.`);
+        } else {
+          // Still open it from cache even without media library permission
+          await Linking.openURL(download.uri);
+        }
+      } else {
+        Alert.alert("Error", "Could not download the file.");
       }
-      await Linking.openURL(downloadUrl);
     } catch (err) {
-      console.error("Resume open error:", err);
-      Alert.alert("Error", "Could not open the file. Please try again.");
+      console.error("Resume download error:", err);
+      Alert.alert("Error", "Failed to download the file.");
     } finally {
       setDownloadingResume(false);
     }
@@ -165,10 +193,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
       <SafeAreaView style={styles.container} edges={["top"]}>
         <StatusBar barStyle="dark-content" backgroundColor={COLORS.card} />
         <View style={styles.errorContainer}>
-          <AlertCircle
-            size={48}
-            color={COLORS.textLight}
-          />
+          <AlertCircle size={48} color={COLORS.textLight} />
           <Text style={styles.errorText}>
             {error || "Application not found"}
           </Text>
@@ -204,238 +229,274 @@ export default function ApplicantDetailScreen({ route, navigation }) {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
         >
-        {/* Applicant Card */}
-        <View style={styles.applicantCard}>
-          {/* Avatar */}
-          <View style={styles.avatarContainer}>
-            {application.applicant_photo ? (
-              <Image
-                source={{ uri: application.applicant_photo }}
-                style={styles.avatar}
-              />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarInitial}>
-                  {application.applicant_name?.charAt(0)?.toUpperCase() || "?"}
-                </Text>
-              </View>
+          {/* Applicant Card */}
+          <View style={styles.applicantCard}>
+            {/* Avatar */}
+            <View style={styles.avatarContainer}>
+              {application.applicant_photo ? (
+                <Image
+                  source={{ uri: application.applicant_photo }}
+                  style={styles.avatar}
+                />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarInitial}>
+                    {application.applicant_name?.charAt(0)?.toUpperCase() ||
+                      "?"}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <Text style={styles.applicantName}>
+              {application.applicant_name || "Unknown"}
+            </Text>
+            <Text style={styles.applicantUsername}>
+              @{application.applicant_username || "unknown"}
+            </Text>
+
+            {application.applicant_bio && (
+              <Text style={styles.applicantBio} numberOfLines={3}>
+                {application.applicant_bio}
+              </Text>
             )}
+
+            {/* Status Badge */}
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: statusConfig.color + "15" },
+              ]}
+            >
+              <StatusIcon size={16} color={statusConfig.color} />
+              <Text style={[styles.statusText, { color: statusConfig.color }]}>
+                {statusConfig.label}
+              </Text>
+            </View>
           </View>
 
-          <Text style={styles.applicantName}>
-            {application.applicant_name || "Unknown"}
-          </Text>
-          <Text style={styles.applicantUsername}>
-            @{application.applicant_username || "unknown"}
-          </Text>
-
-          {application.applicant_bio && (
-            <Text style={styles.applicantBio} numberOfLines={3}>
-              {application.applicant_bio}
-            </Text>
-          )}
-
-          {/* Status Badge */}
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: statusConfig.color + "15" },
-            ]}
-          >
-            <StatusIcon
-              size={16}
-              color={statusConfig.color}
-            />
-            <Text style={[styles.statusText, { color: statusConfig.color }]}>
-              {statusConfig.label}
-            </Text>
+          {/* Applied Role + Skills Chips */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Applied For</Text>
+            <View style={styles.roleTag}>
+              <Text style={styles.roleTagText}>{application.applied_role}</Text>
+            </View>
+            {/* Extract and show skills from portfolio_note */}
+            {(() => {
+              const note = application.portfolio_note || "";
+              const prefix = "Applied with skills: ";
+              if (!note.startsWith(prefix)) return null;
+              const skills = note
+                .replace(prefix, "")
+                .split(", ")
+                .filter(Boolean);
+              if (skills.length === 0) return null;
+              return (
+                <View style={styles.skillsRow}>
+                  {skills.map((skill, i) => (
+                    <View key={i} style={styles.skillChip}>
+                      <Text style={styles.skillChipText}>{skill}</Text>
+                    </View>
+                  ))}
+                </View>
+              );
+            })()}
           </View>
-        </View>
 
-        {/* Applied Role + Skills Chips */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Applied For</Text>
-          <View style={styles.roleTag}>
-            <Text style={styles.roleTagText}>{application.applied_role}</Text>
-          </View>
-          {/* Extract and show skills from portfolio_note */}
+          {/* Intro Pitch — applicant self-description */}
+          {application.intro_pitch ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>About Themselves</Text>
+              <View style={styles.noteCard}>
+                <Text style={styles.noteText}>{application.intro_pitch}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {/* Portfolio Links — supports multiple */}
           {(() => {
-            const note = application.portfolio_note || "";
-            const prefix = "Applied with skills: ";
-            if (!note.startsWith(prefix)) return null;
-            const skills = note.replace(prefix, "").split(", ").filter(Boolean);
-            if (skills.length === 0) return null;
+            const allLinks =
+              application.portfolio_links?.filter(Boolean).length > 0
+                ? application.portfolio_links.filter(Boolean)
+                : application.portfolio_link
+                  ? [application.portfolio_link]
+                  : [];
+            if (allLinks.length === 0) return null;
             return (
-              <View style={styles.skillsRow}>
-                {skills.map((skill, i) => (
-                  <View key={i} style={styles.skillChip}>
-                    <Text style={styles.skillChipText}>{skill}</Text>
-                  </View>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Portfolio</Text>
+                {allLinks.map((link, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.portfolioCard,
+                      index > 0 && { marginTop: 10 },
+                    ]}
+                    onPress={() => openPortfolio(link)}
+                  >
+                    <View style={styles.portfolioIcon}>
+                      <Link size={20} color={COLORS.primary} />
+                    </View>
+                    <View style={styles.portfolioInfo}>
+                      <Text style={styles.portfolioLink} numberOfLines={1}>
+                        {link}
+                      </Text>
+                      <Text style={styles.portfolioHint}>Tap to open</Text>
+                    </View>
+                    <ExternalLink size={20} color={COLORS.primary} />
+                  </TouchableOpacity>
                 ))}
               </View>
             );
           })()}
-        </View>
 
-        {/* Intro Pitch — applicant self-description */}
-        {application.intro_pitch ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>About Themselves</Text>
-            <View style={styles.noteCard}>
-              <Text style={styles.noteText}>{application.intro_pitch}</Text>
-            </View>
-          </View>
-        ) : null}
-
-        {/* Portfolio Links — supports multiple */}
-        {(() => {
-          const allLinks = application.portfolio_links?.filter(Boolean).length > 0
-            ? application.portfolio_links.filter(Boolean)
-            : application.portfolio_link ? [application.portfolio_link] : [];
-          if (allLinks.length === 0) return null;
-          return (
+          {/* Resume / Uploaded File — downloads to device */}
+          {application.resume_url ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Portfolio</Text>
-              {allLinks.map((link, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[styles.portfolioCard, index > 0 && { marginTop: 10 }]}
-                  onPress={() => openPortfolio(link)}
+              <Text style={styles.sectionTitle}>Resume / File</Text>
+              <TouchableOpacity
+                style={styles.portfolioCard}
+                onPress={openResume}
+                disabled={downloadingResume}
+              >
+                <View
+                  style={[
+                    styles.portfolioIcon,
+                    { backgroundColor: COLORS.error + "15" },
+                  ]}
                 >
-                  <View style={styles.portfolioIcon}>
-                    <Link size={20} color={COLORS.primary} />
-                  </View>
-                  <View style={styles.portfolioInfo}>
-                    <Text style={styles.portfolioLink} numberOfLines={1}>{link}</Text>
-                    <Text style={styles.portfolioHint}>Tap to open</Text>
-                  </View>
-                  <ExternalLink size={20} color={COLORS.primary} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          );
-        })()}
-
-        {/* Resume / Uploaded File — downloads to device */}
-        {application.resume_url ? (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Resume / File</Text>
-            <TouchableOpacity
-              style={styles.portfolioCard}
-              onPress={openResume}
-              disabled={downloadingResume}
-            >
-              <View style={[styles.portfolioIcon, { backgroundColor: COLORS.error + "15" }]}>
-                <FileText size={20} color={COLORS.error} />
-              </View>
-              <View style={styles.portfolioInfo}>
-                <Text style={styles.portfolioLink} numberOfLines={1}>
-                  {decodeURIComponent(
-                    application.resume_url.split("/").pop().split("?")[0]
-                  ) || "Attached File"}
-                </Text>
-                <Text style={[styles.portfolioHint, { color: COLORS.error }]}>
-                  {downloadingResume ? "Downloading..." : "Tap to download"}
-                </Text>
-              </View>
-              {downloadingResume
-                ? <ActivityIndicator size="small" color={COLORS.error} />
-                : <Download size={20} color={COLORS.error} />}
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        {/* Portfolio Note — only show if it's NOT a skills note (those are shown as chips above) */}
-        {application.portfolio_note && !application.portfolio_note.startsWith("Applied with skills:") && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Additional Notes</Text>
-            <View style={styles.noteCard}>
-              <Text style={styles.noteText}>{application.portfolio_note}</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Creator's Questions + Applicant's Answers */}
-        {application.responses?.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Questions &amp; Answers</Text>
-            {application.responses.map((response, index) => (
-              <View key={response.question_id || response.id || index} style={[styles.responseCard, index > 0 && { marginTop: 10 }]}>
-                <View style={styles.questionRow}>
-                  <View style={styles.questionBadge}>
-                    <Text style={styles.questionBadgeText}>Q{index + 1}</Text>
-                  </View>
-                  <Text style={styles.questionPrompt}>{response.prompt}</Text>
+                  <FileText size={20} color={COLORS.error} />
                 </View>
-                <View style={styles.answerBlock}>
-                  <Text style={styles.answerText}>
-                    {response.response_text || response.answer || "(No answer provided)"}
+                <View style={styles.portfolioInfo}>
+                  <Text style={styles.portfolioLink} numberOfLines={1}>
+                    {decodeURIComponent(
+                      application.resume_url.split("/").pop().split("?")[0],
+                    ) || "Attached File"}
+                  </Text>
+                  <Text style={[styles.portfolioHint, { color: COLORS.error }]}>
+                    {downloadingResume ? "Downloading..." : "Tap to download"}
+                  </Text>
+                </View>
+                {downloadingResume ? (
+                  <ActivityIndicator size="small" color={COLORS.error} />
+                ) : (
+                  <Download size={20} color={COLORS.error} />
+                )}
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {/* Portfolio Note — only show if it's NOT a skills note (those are shown as chips above) */}
+          {application.portfolio_note &&
+            !application.portfolio_note.startsWith("Applied with skills:") && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Additional Notes</Text>
+                <View style={styles.noteCard}>
+                  <Text style={styles.noteText}>
+                    {application.portfolio_note}
                   </Text>
                 </View>
               </View>
-            ))}
-          </View>
-        )}
+            )}
 
-        {/* Applicant's Questions for the Community */}
-        {application.applicant_questions?.filter(Boolean).length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Questions for You</Text>
-            {application.applicant_questions.filter(Boolean).map((q, i) => (
-              <View key={i} style={[styles.responseCard, i > 0 && { marginTop: 10 }]}>
-                <View style={styles.applicantQuestionHeader}>
-                  <MessageCircle size={14} color={COLORS.primary} />
-                  <Text style={styles.applicantQuestionLabel}>Question {i + 1}</Text>
+          {/* Creator's Questions + Applicant's Answers */}
+          {application.responses?.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Questions &amp; Answers</Text>
+              {application.responses.map((response, index) => (
+                <View
+                  key={response.question_id || response.id || index}
+                  style={[styles.responseCard, index > 0 && { marginTop: 10 }]}
+                >
+                  <View style={styles.questionRow}>
+                    <View style={styles.questionBadge}>
+                      <Text style={styles.questionBadgeText}>Q{index + 1}</Text>
+                    </View>
+                    <Text style={styles.questionPrompt}>{response.prompt}</Text>
+                  </View>
+                  <View style={styles.answerBlock}>
+                    <Text style={styles.answerText}>
+                      {response.response_text ||
+                        response.answer ||
+                        "(No answer provided)"}
+                    </Text>
+                  </View>
                 </View>
-                <Text style={styles.noteText}>{q}</Text>
-              </View>
-            ))}
+              ))}
+            </View>
+          )}
+
+          {/* Applicant's Questions for the Community */}
+          {application.applicant_questions?.filter(Boolean).length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Questions for You</Text>
+              {application.applicant_questions.filter(Boolean).map((q, i) => (
+                <View
+                  key={i}
+                  style={[styles.responseCard, i > 0 && { marginTop: 10 }]}
+                >
+                  <View style={styles.applicantQuestionHeader}>
+                    <MessageCircle size={14} color={COLORS.primary} />
+                    <Text style={styles.applicantQuestionLabel}>
+                      Question {i + 1}
+                    </Text>
+                  </View>
+                  <Text style={styles.noteText}>{q}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Applied Date */}
+          <Text style={styles.appliedDate}>
+            Applied {formatDate(application.created_at)}
+          </Text>
+
+          <View style={{ height: 120 }} />
+        </ScrollView>
+
+        {/* Action Buttons */}
+        {application.status === "pending" && (
+          <View style={styles.footer}>
+            <TouchableOpacity
+              style={styles.rejectButton}
+              onPress={() => handleStatusUpdate("rejected")}
+              disabled={updating}
+            >
+              <X size={20} color={COLORS.error} />
+              <Text style={styles.rejectButtonText}>Reject</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.shortlistButton}
+              onPress={() => handleStatusUpdate("shortlisted")}
+              disabled={updating}
+            >
+              <LinearGradient
+                colors={["#10B981", "#059669"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.shortlistGradient}
+              >
+                {updating ? (
+                  <SnooLoader color="#FFFFFF" size="small" />
+                ) : (
+                  <>
+                    <Star size={20} color="#FFFFFF" />
+                    <Text
+                      style={[
+                        styles.shortlistButtonText,
+                        { fontFamily: "Manrope-SemiBold" },
+                      ]}
+                    >
+                      Shortlist
+                    </Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
         )}
-
-        {/* Applied Date */}
-        <Text style={styles.appliedDate}>
-          Applied {formatDate(application.created_at)}
-        </Text>
-
-        <View style={{ height: 120 }} />
-      </ScrollView>
-
-      {/* Action Buttons */}
-      {application.status === "pending" && (
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.rejectButton}
-            onPress={() => handleStatusUpdate("rejected")}
-            disabled={updating}
-          >
-            <X size={20} color={COLORS.error} />
-            <Text style={styles.rejectButtonText}>Reject</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.shortlistButton}
-            onPress={() => handleStatusUpdate("shortlisted")}
-            disabled={updating}
-          >
-            <LinearGradient
-              colors={["#10B981", "#059669"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.shortlistGradient}
-            >
-              {updating ? (
-                <SnooLoader color="#FFFFFF" size="small" />
-              ) : (
-                <>
-                  <Star size={20} color="#FFFFFF" />
-                  <Text style={[styles.shortlistButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Shortlist</Text>
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
-      )}
       </View>
     </SafeAreaView>
   );
