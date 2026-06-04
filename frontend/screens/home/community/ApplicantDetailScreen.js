@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
-import * as MediaLibrary from "expo-media-library";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -138,30 +138,35 @@ export default function ApplicantDetailScreen({ route, navigation }) {
     if (!application?.resume_url) return;
     try {
       setDownloadingResume(true);
-      const { status } = await MediaLibrary.requestPermissionsAsync();
       const filename =
         decodeURIComponent(
           application.resume_url.split("/").pop().split("?")[0],
         ) || "resume.pdf";
       const fileUri = FileSystem.cacheDirectory + filename;
+
+      // Download to cache — don't check status strictly since Cloudinary may redirect
       const download = await FileSystem.downloadAsync(
         application.resume_url,
         fileUri,
       );
-      if (download.status === 200) {
-        if (status === "granted") {
-          await MediaLibrary.saveToLibraryAsync(download.uri);
-          Alert.alert("Downloaded", `${filename} saved to your device.`);
-        } else {
-          // Still open it from cache even without media library permission
-          await Linking.openURL(download.uri);
-        }
-      } else {
-        Alert.alert("Error", "Could not download the file.");
-      }
+
+      // Open the local cached file in the device's PDF viewer
+      await Linking.openURL(download.uri);
     } catch (err) {
       console.error("Resume download error:", err);
-      Alert.alert("Error", "Failed to download the file.");
+      // Fallback: open the URL directly in browser with fl_attachment to force download
+      try {
+        let fallbackUrl = application.resume_url;
+        if (
+          fallbackUrl.includes("cloudinary.com") &&
+          fallbackUrl.includes("/upload/")
+        ) {
+          fallbackUrl = fallbackUrl.replace("/upload/", "/upload/fl_attachment/");
+        }
+        await Linking.openURL(fallbackUrl);
+      } catch {
+        Alert.alert("Error", "Could not open the resume file.");
+      }
     } finally {
       setDownloadingResume(false);
     }
