@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking, Image, StatusBar } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking, Image, StatusBar, ActivityIndicator } from "react-native";
+import * as FileSystem from "expo-file-system";
+import * as MediaLibrary from "expo-media-library";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -12,6 +14,7 @@ import {
   Link,
   ExternalLink,
   FileText,
+  Download,
   MessageCircle,
   X,
 } from "lucide-react-native";
@@ -53,6 +56,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
   const [updating, setUpdating] = useState(false);
   const [application, setApplication] = useState(null);
   const [error, setError] = useState(null);
+  const [downloadingResume, setDownloadingResume] = useState(false);
 
   useEffect(() => {
     loadApplication();
@@ -119,11 +123,32 @@ export default function ApplicantDetailScreen({ route, navigation }) {
     }
   };
 
-  const openResume = () => {
-    if (application?.resume_url) {
-      Linking.openURL(application.resume_url).catch(() => {
-        Alert.alert("Error", "Could not open file");
-      });
+  const openResume = async () => {
+    if (!application?.resume_url) return;
+    try {
+      setDownloadingResume(true);
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      const filename = decodeURIComponent(
+        application.resume_url.split("/").pop().split("?")[0]
+      ) || "resume.pdf";
+      const fileUri = FileSystem.cacheDirectory + filename;
+      const download = await FileSystem.downloadAsync(application.resume_url, fileUri);
+      if (download.status === 200) {
+        if (status === "granted") {
+          await MediaLibrary.saveToLibraryAsync(download.uri);
+          Alert.alert("Downloaded", `${filename} saved to your device.`);
+        } else {
+          // Still open it from cache even without media library permission
+          await Linking.openURL(download.uri);
+        }
+      } else {
+        Alert.alert("Error", "Could not download the file.");
+      }
+    } catch (err) {
+      console.error("Resume download error:", err);
+      Alert.alert("Error", "Failed to download the file.");
+    } finally {
+      setDownloadingResume(false);
     }
   };
 
@@ -240,12 +265,29 @@ export default function ApplicantDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Applied Role */}
+        {/* Applied Role + Skills Chips */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Applied For</Text>
           <View style={styles.roleTag}>
             <Text style={styles.roleTagText}>{application.applied_role}</Text>
           </View>
+          {/* Extract and show skills from portfolio_note */}
+          {(() => {
+            const note = application.portfolio_note || "";
+            const prefix = "Applied with skills: ";
+            if (!note.startsWith(prefix)) return null;
+            const skills = note.replace(prefix, "").split(", ").filter(Boolean);
+            if (skills.length === 0) return null;
+            return (
+              <View style={styles.skillsRow}>
+                {skills.map((skill, i) => (
+                  <View key={i} style={styles.skillChip}>
+                    <Text style={styles.skillChipText}>{skill}</Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })()}
         </View>
 
         {/* Intro Pitch — applicant self-description */}
@@ -287,11 +329,15 @@ export default function ApplicantDetailScreen({ route, navigation }) {
           );
         })()}
 
-        {/* Resume / Uploaded File */}
+        {/* Resume / Uploaded File — downloads to device */}
         {application.resume_url ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Resume / File</Text>
-            <TouchableOpacity style={styles.portfolioCard} onPress={openResume}>
+            <TouchableOpacity
+              style={styles.portfolioCard}
+              onPress={openResume}
+              disabled={downloadingResume}
+            >
               <View style={[styles.portfolioIcon, { backgroundColor: COLORS.error + "15" }]}>
                 <FileText size={20} color={COLORS.error} />
               </View>
@@ -301,15 +347,19 @@ export default function ApplicantDetailScreen({ route, navigation }) {
                     application.resume_url.split("/").pop().split("?")[0]
                   ) || "Attached File"}
                 </Text>
-                <Text style={[styles.portfolioHint, { color: COLORS.error }]}>Tap to open</Text>
+                <Text style={[styles.portfolioHint, { color: COLORS.error }]}>
+                  {downloadingResume ? "Downloading..." : "Tap to download"}
+                </Text>
               </View>
-              <ExternalLink size={20} color={COLORS.error} />
+              {downloadingResume
+                ? <ActivityIndicator size="small" color={COLORS.error} />
+                : <Download size={20} color={COLORS.error} />}
             </TouchableOpacity>
           </View>
         ) : null}
 
-        {/* Portfolio Note */}
-        {application.portfolio_note && (
+        {/* Portfolio Note — only show if it's NOT a skills note (those are shown as chips above) */}
+        {application.portfolio_note && !application.portfolio_note.startsWith("Applied with skills:") && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Additional Notes</Text>
             <View style={styles.noteCard}>
@@ -318,16 +368,23 @@ export default function ApplicantDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Question Responses (creator's questions answered by applicant) */}
+        {/* Creator's Questions + Applicant's Answers */}
         {application.responses?.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Their Answers</Text>
+            <Text style={styles.sectionTitle}>Questions &amp; Answers</Text>
             {application.responses.map((response, index) => (
-              <View key={response.id || index} style={styles.responseCard}>
-                <Text style={styles.questionPrompt}>{response.prompt}</Text>
-                <Text style={styles.answerText}>
-                  {response.response_text || response.answer || "(No answer)"}
-                </Text>
+              <View key={response.question_id || response.id || index} style={[styles.responseCard, index > 0 && { marginTop: 10 }]}>
+                <View style={styles.questionRow}>
+                  <View style={styles.questionBadge}>
+                    <Text style={styles.questionBadgeText}>Q{index + 1}</Text>
+                  </View>
+                  <Text style={styles.questionPrompt}>{response.prompt}</Text>
+                </View>
+                <View style={styles.answerBlock}>
+                  <Text style={styles.answerText}>
+                    {response.response_text || response.answer || "(No answer provided)"}
+                  </Text>
+                </View>
               </View>
             ))}
           </View>
@@ -593,6 +650,46 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     color: COLORS.textLight,
     lineHeight: 22,
+  },
+  skillsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+  skillChip: {
+    backgroundColor: COLORS.primary + "12",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  skillChipText: {
+    fontSize: 13,
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
+  },
+  questionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 10,
+  },
+  questionBadge: {
+    backgroundColor: COLORS.primary + "15",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    flexShrink: 0,
+  },
+  questionBadgeText: {
+    fontSize: 12,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.primary,
+  },
+  answerBlock: {
+    backgroundColor: COLORS.background,
+    borderRadius: 8,
+    padding: 10,
   },
   appliedDate: {
     fontSize: 13,

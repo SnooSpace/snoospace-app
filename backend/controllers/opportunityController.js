@@ -1017,12 +1017,24 @@ const getApplicationDetail = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    // Fetch responses
+    // Fetch responses — LEFT JOIN from questions so ALL creator questions appear
+    // even if the applicant left an answer blank or the INSERT failed.
     const responsesResult = await pool.query(
-      `SELECT oar.*, oq.prompt, oq.question_type
-       FROM opportunity_application_responses oar
-       JOIN opportunity_questions oq ON oar.question_id = oq.id
-       WHERE oar.application_id = $1`,
+      `SELECT
+         oq.id            AS question_id,
+         oq.prompt,
+         oq.question_type,
+         oq.required,
+         oq.display_order,
+         oar.id           AS response_id,
+         oar.response_text
+       FROM opportunity_questions oq
+       LEFT JOIN opportunity_application_responses oar
+         ON oar.question_id = oq.id AND oar.application_id = $1
+       WHERE oq.opportunity_id = (
+         SELECT opportunity_id FROM opportunity_applications WHERE id = $1
+       )
+       ORDER BY oq.display_order`,
       [applicationId],
     );
 
