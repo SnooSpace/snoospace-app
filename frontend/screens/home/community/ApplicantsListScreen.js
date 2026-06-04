@@ -154,6 +154,11 @@ export default function ApplicantsListScreen({ route, navigation }) {
               {statusConfig.label}
             </Text>
           </View>
+
+          {/* Chevron Arrow */}
+          <View style={styles.cardArrow}>
+            <ChevronRight size={20} color={COLORS.textLight} />
+          </View>
         </View>
 
         {/* Portfolio indicator */}
@@ -163,10 +168,6 @@ export default function ApplicantsListScreen({ route, navigation }) {
             <Text style={styles.portfolioText}>Portfolio attached</Text>
           </View>
         )}
-
-        <View style={styles.cardArrow}>
-          <ChevronRight size={20} color={COLORS.textLight} />
-        </View>
       </TouchableOpacity>
     );
   };
@@ -341,7 +342,6 @@ const styles = StyleSheet.create({
   cardContent: {
     flexDirection: "row",
     alignItems: "center",
-    paddingRight: 28, // Leave room for absolute positioned cardArrow
   },
   avatarContainer: {
     marginRight: 12,
@@ -410,10 +410,7 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   cardArrow: {
-    position: "absolute",
-    right: 16,
-    top: "50%",
-    marginTop: -10,
+    marginLeft: 12,
   },
   emptyContainer: {
     flex: 1,
