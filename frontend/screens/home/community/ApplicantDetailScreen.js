@@ -11,6 +11,8 @@ import {
   AlertCircle,
   Link,
   ExternalLink,
+  FileText,
+  MessageCircle,
   X,
 } from "lucide-react-native";
 import SnooLoader from "../../../components/ui/SnooLoader";
@@ -108,10 +110,19 @@ export default function ApplicantDetailScreen({ route, navigation }) {
     );
   };
 
-  const openPortfolio = () => {
-    if (application?.portfolio_link) {
-      Linking.openURL(application.portfolio_link).catch(() => {
+  const openPortfolio = (url) => {
+    const target = url || application?.portfolio_link;
+    if (target) {
+      Linking.openURL(target).catch(() => {
         Alert.alert("Error", "Could not open link");
+      });
+    }
+  };
+
+  const openResume = () => {
+    if (application?.resume_url) {
+      Linking.openURL(application.resume_url).catch(() => {
+        Alert.alert("Error", "Could not open file");
       });
     }
   };
@@ -237,27 +248,65 @@ export default function ApplicantDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Portfolio */}
-        {application.portfolio_link && (
+        {/* Intro Pitch — applicant self-description */}
+        {application.intro_pitch ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Portfolio</Text>
-            <TouchableOpacity
-              style={styles.portfolioCard}
-              onPress={openPortfolio}
-            >
-              <View style={styles.portfolioIcon}>
-                <Link size={20} color={COLORS.primary} />
+            <Text style={styles.sectionTitle}>About Themselves</Text>
+            <View style={styles.noteCard}>
+              <Text style={styles.noteText}>{application.intro_pitch}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Portfolio Links — supports multiple */}
+        {(() => {
+          const allLinks = application.portfolio_links?.filter(Boolean).length > 0
+            ? application.portfolio_links.filter(Boolean)
+            : application.portfolio_link ? [application.portfolio_link] : [];
+          if (allLinks.length === 0) return null;
+          return (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Portfolio</Text>
+              {allLinks.map((link, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[styles.portfolioCard, index > 0 && { marginTop: 10 }]}
+                  onPress={() => openPortfolio(link)}
+                >
+                  <View style={styles.portfolioIcon}>
+                    <Link size={20} color={COLORS.primary} />
+                  </View>
+                  <View style={styles.portfolioInfo}>
+                    <Text style={styles.portfolioLink} numberOfLines={1}>{link}</Text>
+                    <Text style={styles.portfolioHint}>Tap to open</Text>
+                  </View>
+                  <ExternalLink size={20} color={COLORS.primary} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          );
+        })()}
+
+        {/* Resume / Uploaded File */}
+        {application.resume_url ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Resume / File</Text>
+            <TouchableOpacity style={styles.portfolioCard} onPress={openResume}>
+              <View style={[styles.portfolioIcon, { backgroundColor: COLORS.error + "15" }]}>
+                <FileText size={20} color={COLORS.error} />
               </View>
               <View style={styles.portfolioInfo}>
                 <Text style={styles.portfolioLink} numberOfLines={1}>
-                  {application.portfolio_link}
+                  {decodeURIComponent(
+                    application.resume_url.split("/").pop().split("?")[0]
+                  ) || "Attached File"}
                 </Text>
-                <Text style={styles.portfolioHint}>Tap to open</Text>
+                <Text style={[styles.portfolioHint, { color: COLORS.error }]}>Tap to open</Text>
               </View>
-              <ExternalLink size={20} color={COLORS.primary} />
+              <ExternalLink size={20} color={COLORS.error} />
             </TouchableOpacity>
           </View>
-        )}
+        ) : null}
 
         {/* Portfolio Note */}
         {application.portfolio_note && (
@@ -269,16 +318,32 @@ export default function ApplicantDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Question Responses */}
+        {/* Question Responses (creator's questions answered by applicant) */}
         {application.responses?.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Responses</Text>
+            <Text style={styles.sectionTitle}>Their Answers</Text>
             {application.responses.map((response, index) => (
               <View key={response.id || index} style={styles.responseCard}>
                 <Text style={styles.questionPrompt}>{response.prompt}</Text>
                 <Text style={styles.answerText}>
-                  {response.answer || "(No answer)"}
+                  {response.response_text || response.answer || "(No answer)"}
                 </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Applicant's Questions for the Community */}
+        {application.applicant_questions?.filter(Boolean).length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Questions for You</Text>
+            {application.applicant_questions.filter(Boolean).map((q, i) => (
+              <View key={i} style={[styles.responseCard, i > 0 && { marginTop: 10 }]}>
+                <View style={styles.applicantQuestionHeader}>
+                  <MessageCircle size={14} color={COLORS.primary} />
+                  <Text style={styles.applicantQuestionLabel}>Question {i + 1}</Text>
+                </View>
+                <Text style={styles.noteText}>{q}</Text>
               </View>
             ))}
           </View>
@@ -535,6 +600,19 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     textAlign: "center",
     marginTop: 8,
+  },
+  applicantQuestionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  applicantQuestionLabel: {
+    fontSize: 12,
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   footer: {
     position: "absolute",
