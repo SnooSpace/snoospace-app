@@ -341,6 +341,7 @@ const styles = StyleSheet.create({
   cardContent: {
     flexDirection: "row",
     alignItems: "center",
+    paddingRight: 28, // Leave room for absolute positioned cardArrow
   },
   avatarContainer: {
     marginRight: 12,
