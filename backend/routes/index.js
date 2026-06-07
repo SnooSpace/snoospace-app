@@ -818,6 +818,12 @@ router.patch(
   authMiddleware,
   OpportunityController.updateApplicationStatus,
 );
+// Resume proxy — fetches PDF from Cloudinary server-to-server and streams to client
+router.get(
+  "/opportunities/applications/:id/resume",
+  authMiddleware,
+  OpportunityController.proxyResume,
+);
 
 // Activity & Insights
 const ActivityController = require("../controllers/activityController");

@@ -5,10 +5,17 @@ const {
   uploadImage,
   deleteImage,
 } = require("../config/cloudinary");
+const path = require("path");
+const fs = require("fs");
+
+// Ensure the local resume upload directory exists
+const RESUME_DIR = path.join(__dirname, "../uploads/resumes");
+fs.mkdirSync(RESUME_DIR, { recursive: true });
 
 /**
- * Upload resume (PDF) to Cloudinary
- * Used by applicants during opportunity application
+ * Upload resume (PDF) — stored locally in uploads/resumes/
+ * Used by applicants during opportunity application.
+ * Returns just the filename (no path) which proxyResume serves directly.
  */
 const uploadResume = async (req, res) => {
   try {
@@ -26,31 +33,26 @@ const uploadResume = async (req, res) => {
       return res.status(400).json({ error: "Only PDF files are accepted" });
     }
 
-    // Upload buffer to Cloudinary as raw (PDF)
-    const uploadResult = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: "snoospace/resumes",
-          resource_type: "raw",
-          public_id: `resume_${userId}_${Date.now()}`,
-          format: "pdf",
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
-      stream.end(req.file.buffer);
-    });
+    // Validate file size server-side (10MB cap)
+    if (req.file.size > 10 * 1024 * 1024) {
+      return res.status(400).json({ error: "Resume must be under 10MB." });
+    }
 
-    res.json({
+    // Save to local disk — filename only stored in DB, not full path
+    const filename = `resume_${userId}_${Date.now()}.pdf`;
+    const filePath = path.join(RESUME_DIR, filename);
+
+    await fs.promises.writeFile(filePath, req.file.buffer);
+
+    return res.status(200).json({
       success: true,
-      url: uploadResult.secure_url,
-      public_id: uploadResult.public_id,
+      url: filename,                     // stored in opportunity_applications.resume_url
+      filename: req.file.originalname,
+      size_bytes: req.file.size,
     });
-  } catch (error) {
-    console.error("Error uploading resume:", error);
-    res.status(500).json({ error: "Failed to upload resume" });
+  } catch (err) {
+    console.error("uploadResume error:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -263,5 +265,6 @@ module.exports = {
   deleteUploadedImage,
   uploadCollegeLogo,
   uploadResume,
+  // resumeUploadMiddleware: used by routes/index.js — preserved for backward compat
   resumeUploadMiddleware: uploadMiddleware.single("file"),
 };

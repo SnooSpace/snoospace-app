@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Environment variables (sensitive keys)
+.env
+.env.local
+.env.production
+
+# Uploaded user files (sensitive — never commit actual files)
+uploads/**
+!uploads/**/.gitkeep
+
+# Logs
+*.log
+npm-debug.log*
+
+# Runtime
+.DS_Store

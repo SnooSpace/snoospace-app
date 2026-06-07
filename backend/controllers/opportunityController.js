@@ -822,6 +822,8 @@ const applyToOpportunity = async (req, res) => {
       intro_pitch,
       portfolio_links,
       resume_url,
+      resume_filename,
+      resume_size_bytes,
       applicant_questions,
     } = req.body;
 
@@ -870,9 +872,9 @@ const applyToOpportunity = async (req, res) => {
     const appResult = await pool.query(
       `INSERT INTO opportunity_applications (
         opportunity_id, applicant_id, applicant_type, applied_role, portfolio_link, portfolio_note, 
-        intro_pitch, portfolio_links, resume_url, applicant_questions
+        intro_pitch, portfolio_links, resume_url, resume_filename, resume_size_bytes, applicant_questions
       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
       [
         opportunity_id,
@@ -884,6 +886,8 @@ const applyToOpportunity = async (req, res) => {
         intro_pitch || null,
         Array.isArray(portfolio_links) ? portfolio_links.filter(Boolean) : [],
         resume_url || null,
+        resume_filename || null,
+        resume_size_bytes || null,
         Array.isArray(applicant_questions) ? applicant_questions.filter(Boolean) : [],
       ],
     );
@@ -985,6 +989,8 @@ const getApplicationDetail = async (req, res) => {
     const query = `
       SELECT 
         oa.*,
+        oa.resume_filename,
+        oa.resume_size_bytes,
         m.name as applicant_name,
         m.username as applicant_username,
         m.profile_photo_url as applicant_photo,
@@ -2147,6 +2153,91 @@ const shareOpportunity = async (req, res) => {
   }
 };
 
+// ============================================
+// PROXY RESUME (Authenticated PDF download)
+// Serves PDFs from the local uploads/resumes/ directory.
+// Auth-gated — only the creator or applicant can download.
+// ============================================
+const path = require("path");
+const fs = require("fs");
+const RESUME_DIR = path.join(__dirname, "../uploads/resumes");
+
+const proxyResume = async (req, res) => {
+  try {
+    const { id: applicationId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    // 1. Load the application row
+    const result = await pool.query(
+      `SELECT oa.resume_url, oa.resume_filename, oa.applicant_id, oa.applicant_type,
+              o.creator_id, o.creator_type
+       FROM opportunity_applications oa
+       JOIN opportunities o ON oa.opportunity_id = o.id
+       WHERE oa.id = $1`,
+      [applicationId],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Application not found" });
+    }
+
+    const app = result.rows[0];
+
+    // 2. Auth check — only the opportunity creator or the applicant themselves
+    const isCreator = String(app.creator_id) === String(userId) && app.creator_type === userType;
+    const isApplicant = String(app.applicant_id) === String(userId) && userType === "member";
+
+    if (!isCreator && !isApplicant) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // 3. Guard: missing URL
+    if (!app.resume_url) {
+      return res.status(410).json({
+        error: "resume_reupload_required",
+        message: "No resume attached to this application.",
+      });
+    }
+
+    // 4. Detect legacy Cloudinary URLs (full https:// → blocked, re-upload needed)
+    if (app.resume_url.startsWith("https://")) {
+      return res.status(410).json({
+        error: "resume_reupload_required",
+        message: "This PDF was uploaded before a storage migration. The applicant needs to re-apply to attach a new resume.",
+      });
+    }
+
+    // 5. Serve from local filesystem
+    //    resume_url contains just the filename, e.g. "resume_51_1718000000000.pdf"
+    const filePath = path.join(RESUME_DIR, app.resume_url);
+
+    // Prevent path traversal attacks
+    if (!filePath.startsWith(RESUME_DIR)) {
+      return res.status(400).json({ error: "Invalid file path" });
+    }
+
+    if (!fs.existsSync(filePath)) {
+      return res.status(410).json({
+        error: "resume_reupload_required",
+        message: "Resume file not found on server. The applicant may need to re-apply.",
+      });
+    }
+
+    const filename = app.resume_filename || app.resume_url;
+    const stat = fs.statSync(filePath);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Length", stat.size);
+
+    fs.createReadStream(filePath).pipe(res);
+  } catch (err) {
+    console.error("[proxyResume] error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   createOpportunity,
   getOpportunities,
@@ -2158,6 +2249,7 @@ module.exports = {
   getApplications,
   getApplicationDetail,
   updateApplicationStatus,
+  proxyResume,
   getFollowedOpportunities,
   getCommunityOpportunities,
   pinOpportunity,
