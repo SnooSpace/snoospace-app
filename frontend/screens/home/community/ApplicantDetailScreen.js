@@ -10,9 +10,13 @@ import {
   Image,
   StatusBar,
   ActivityIndicator,
+  Platform,
 } from "react-native";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import * as IntentLauncher from "expo-intent-launcher";
+import { BACKEND_BASE_URL } from "../../../api/client";
+
 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -29,8 +33,10 @@ import {
   Download,
   MessageCircle,
   X,
+  AlertTriangle,
 } from "lucide-react-native";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import {
   getApplicationDetail,
   updateApplicationStatus,
@@ -70,6 +76,19 @@ export default function ApplicantDetailScreen({ route, navigation }) {
   const [error, setError] = useState(null);
   const [downloadingResume, setDownloadingResume] = useState(false);
 
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    icon: null,
+    iconColor: undefined,
+    primaryAction: null,
+    secondaryAction: null,
+  });
+
+  const showAlert = (config) => setAlertConfig({ ...config, visible: true });
+  const hideAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
+
   useEffect(() => {
     loadApplication();
   }, [applicationId]);
@@ -91,46 +110,57 @@ export default function ApplicantDetailScreen({ route, navigation }) {
     }
   };
 
-  const handleStatusUpdate = async (newStatus) => {
-    const statusLabels = {
-      shortlisted: "shortlist",
-      rejected: "reject",
-    };
-
-    Alert.alert(
-      `${statusLabels[newStatus]?.charAt(0).toUpperCase()}${statusLabels[newStatus]?.slice(1)} Applicant`,
-      `Are you sure you want to ${statusLabels[newStatus]} this application?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Confirm",
-          onPress: async () => {
-            try {
-              setUpdating(true);
-              const response = await updateApplicationStatus(applicationId, {
-                status: newStatus,
-              });
-              if (response?.success) {
-                setApplication({ ...application, status: newStatus });
-                showToast("Success", `Application ${newStatus} successfully`);
-              }
-            } catch (err) {
-              console.error("Error updating status:", err);
-              Alert.alert("Error", "Failed to update application status");
-            } finally {
-              setUpdating(false);
+  const handleStatusUpdate = (newStatus) => {
+    const isShortlist = newStatus === "shortlisted";
+    
+    showAlert({
+      title: isShortlist ? "Shortlist Applicant" : "Reject Applicant",
+      message: `Are you sure you want to ${isShortlist ? "shortlist" : "reject"} this application?`,
+      icon: isShortlist ? Star : XCircle,
+      iconColor: isShortlist ? COLORS.success : COLORS.error,
+      secondaryAction: { text: "Cancel", onPress: hideAlert },
+      primaryAction: {
+        text: "Confirm",
+        style: isShortlist ? undefined : "destructive",
+        onPress: async () => {
+          hideAlert();
+          try {
+            setUpdating(true);
+            const response = await updateApplicationStatus(applicationId, {
+              status: newStatus,
+            });
+            if (response?.success) {
+              setApplication({ ...application, status: newStatus });
+              showToast("Success", `Application ${newStatus} successfully`);
             }
-          },
+          } catch (err) {
+            console.error("Error updating status:", err);
+            showAlert({
+              title: "Error",
+              message: "Failed to update application status",
+              icon: AlertTriangle,
+              iconColor: COLORS.error,
+              primaryAction: { text: "OK", onPress: hideAlert },
+            });
+          } finally {
+            setUpdating(false);
+          }
         },
-      ],
-    );
+      },
+    });
   };
 
   const openPortfolio = (url) => {
     const target = url || application?.portfolio_link;
     if (target) {
       Linking.openURL(target).catch(() => {
-        Alert.alert("Error", "Could not open link");
+        showAlert({
+          title: "Error",
+          message: "Could not open link",
+          icon: AlertCircle,
+          iconColor: COLORS.error,
+          primaryAction: { text: "OK", onPress: hideAlert },
+        });
       });
     }
   };
@@ -141,46 +171,76 @@ export default function ApplicantDetailScreen({ route, navigation }) {
     try {
       setDownloadingResume(true);
 
-      const filename =
-        application.resume_filename ||
-        decodeURIComponent(
-          application.resume_url.split("/").pop().split("?")[0],
-        ) ||
-        "resume.pdf";
-      const fileUri = FileSystem.cacheDirectory + filename;
+      // Get auth token for the backend proxy
+      const { getAuthToken } = await import("../../../api/auth");
+      const token = await getAuthToken();
 
-      // Check if already cached to avoid re-downloading
-      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      const filename = application.resume_filename || "resume.pdf";
+      const localUri = FileSystem.cacheDirectory + filename;
 
-      if (!fileInfo.exists) {
-        const downloadResult = await FileSystem.downloadAsync(
-          application.resume_url,
-          fileUri,
-        );
+      // Download via our authenticated backend proxy (avoids Cloudinary auth issues)
+      const downloadResult = await FileSystem.downloadAsync(
+        `${BACKEND_BASE_URL}/opportunities/applications/${application.id}/resume`,
+        localUri,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
 
-        if (downloadResult.status !== 200) {
-          throw new Error(
-            "Download failed with status " + downloadResult.status,
-          );
-        }
-      }
-
-      // Open with device's native PDF handler via expo-sharing
-      const canShare = await Sharing.isAvailableAsync();
-      if (!canShare) {
-        // Fallback for simulators/environments without sharing
-        await Linking.openURL(application.resume_url);
+      if (downloadResult.status === 410) {
+        showAlert({
+          title: "Resume Unavailable",
+          message: "This PDF was uploaded before a recent fix and can't be downloaded. The applicant needs to re-upload their resume when applying again.",
+          icon: AlertCircle,
+          iconColor: COLORS.error,
+          primaryAction: { text: "OK", onPress: hideAlert },
+        });
         return;
       }
 
-      await Sharing.shareAsync(fileUri, {
-        mimeType: "application/pdf",
-        dialogTitle: application.resume_filename || "View Resume",
-        UTI: "com.adobe.pdf",
-      });
+      if (downloadResult.status !== 200) {
+        throw new Error(`Download failed (${downloadResult.status})`);
+      }
+
+      if (Platform.OS === "android") {
+        // getContentUriAsync + IntentLauncher with FLAG_GRANT_READ_URI_PERMISSION
+        // gives the PDF viewer temporary read access to the file.
+        // Linking.openURL was missing this flag — which is why the PDF was blank.
+        const contentUri = await FileSystem.getContentUriAsync(localUri);
+        await IntentLauncher.startActivityAsync(
+          "android.intent.action.VIEW",
+          {
+            data: contentUri,
+            flags: 1,              // FLAG_GRANT_READ_URI_PERMISSION
+            type: "application/pdf",
+          },
+        );
+      } else {
+        // iOS: share sheet is the standard way to hand a file to another app
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(localUri, {
+            mimeType: "application/pdf",
+            dialogTitle: "Open Resume",
+            UTI: "com.adobe.pdf",
+          });
+        } else {
+          showAlert({
+            title: "Error",
+            message: "PDF viewer not available on this device.",
+            icon: AlertTriangle,
+            iconColor: COLORS.error,
+            primaryAction: { text: "OK", onPress: hideAlert },
+          });
+        }
+      }
     } catch (err) {
       console.error("Resume open error:", err);
-      Alert.alert("Error", "Could not open resume. Please try again.");
+      showAlert({
+        title: "Error",
+        message: "Could not open resume. Please try again.",
+        icon: AlertTriangle,
+        iconColor: COLORS.error,
+        primaryAction: { text: "OK", onPress: hideAlert },
+      });
     } finally {
       setDownloadingResume(false);
     }
@@ -517,6 +577,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
           </View>
         )}
       </View>
+      <CustomAlertModal onClose={hideAlert} {...alertConfig} />
     </SafeAreaView>
   );
 }
