@@ -8,6 +8,7 @@ import {
   XCircle, 
   Undo2, 
   Link, 
+  FileText,
   ChevronRight, 
   Users,
 } from "lucide-react-native";
@@ -162,10 +163,20 @@ export default function ApplicantsListScreen({ route, navigation }) {
         </View>
 
         {/* Portfolio indicator */}
-        {item.portfolio_link && (
-          <View style={styles.portfolioIndicator}>
-            <Link size={14} color={COLORS.primary} />
-            <Text style={styles.portfolioText}>Portfolio attached</Text>
+        {(item.portfolio_link || item.resume_url) && (
+          <View style={styles.attachmentIndicatorRow}>
+            {item.portfolio_link && (
+              <View style={styles.portfolioIndicator}>
+                <Link size={12} color={COLORS.primary} />
+                <Text style={styles.portfolioText}>Portfolio</Text>
+              </View>
+            )}
+            {item.resume_url && (
+              <View style={styles.resumeIndicator}>
+                <FileText size={12} color="#3B5BDB" />
+                <Text style={styles.resumeText}>Resume</Text>
+              </View>
+            )}
           </View>
         )}
       </TouchableOpacity>
@@ -397,17 +408,40 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     color: COLORS.textLight,
   },
-  portfolioIndicator: {
+  attachmentIndicatorRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 10,
     marginTop: 10,
     paddingTop: 10,
   },
+  portfolioIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary + "12",
+  },
   portfolioText: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: FONTS.medium,
     color: COLORS.primary,
+  },
+  resumeIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: "#EEF2FF",
+  },
+  resumeText: {
+    fontSize: 12,
+    fontFamily: FONTS.medium,
+    color: "#3B5BDB",
   },
   cardArrow: {
     marginLeft: 12,

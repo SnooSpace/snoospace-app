@@ -11,7 +11,8 @@ import {
   StatusBar,
   ActivityIndicator,
 } from "react-native";
-import * as FileSystem from "expo-file-system/legacy";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -136,37 +137,50 @@ export default function ApplicantDetailScreen({ route, navigation }) {
 
   const openResume = async () => {
     if (!application?.resume_url) return;
+
     try {
       setDownloadingResume(true);
+
       const filename =
+        application.resume_filename ||
         decodeURIComponent(
           application.resume_url.split("/").pop().split("?")[0],
-        ) || "resume.pdf";
+        ) ||
+        "resume.pdf";
       const fileUri = FileSystem.cacheDirectory + filename;
 
-      // Download to cache — don't check status strictly since Cloudinary may redirect
-      const download = await FileSystem.downloadAsync(
-        application.resume_url,
-        fileUri,
-      );
+      // Check if already cached to avoid re-downloading
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
 
-      // Open the local cached file in the device's PDF viewer
-      await Linking.openURL(download.uri);
-    } catch (err) {
-      console.error("Resume download error:", err);
-      // Fallback: open the URL directly in browser with fl_attachment to force download
-      try {
-        let fallbackUrl = application.resume_url;
-        if (
-          fallbackUrl.includes("cloudinary.com") &&
-          fallbackUrl.includes("/upload/")
-        ) {
-          fallbackUrl = fallbackUrl.replace("/upload/", "/upload/fl_attachment/");
+      if (!fileInfo.exists) {
+        const downloadResult = await FileSystem.downloadAsync(
+          application.resume_url,
+          fileUri,
+        );
+
+        if (downloadResult.status !== 200) {
+          throw new Error(
+            "Download failed with status " + downloadResult.status,
+          );
         }
-        await Linking.openURL(fallbackUrl);
-      } catch {
-        Alert.alert("Error", "Could not open the resume file.");
       }
+
+      // Open with device's native PDF handler via expo-sharing
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        // Fallback for simulators/environments without sharing
+        await Linking.openURL(application.resume_url);
+        return;
+      }
+
+      await Sharing.shareAsync(fileUri, {
+        mimeType: "application/pdf",
+        dialogTitle: application.resume_filename || "View Resume",
+        UTI: "com.adobe.pdf",
+      });
+    } catch (err) {
+      console.error("Resume open error:", err);
+      Alert.alert("Error", "Could not open resume. Please try again.");
     } finally {
       setDownloadingResume(false);
     }

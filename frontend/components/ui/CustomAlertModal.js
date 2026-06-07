@@ -10,6 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { BlurView } from "expo-blur";
+import { X } from "lucide-react-native";
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from "../../constants/theme";
 
 const { width } = Dimensions.get("window");
@@ -26,16 +27,17 @@ const CustomAlertModal = ({
   // Optional: mute duration picker
   durationOptions,
   onDurationSelect,
+  showClose = true,
 }) => {
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={onClose}
+      onRequestClose={() => onClose?.()}
       statusBarTranslucent
     >
-      <TouchableWithoutFeedback onPress={onClose}>
+      <TouchableWithoutFeedback onPress={() => onClose?.()}>
         <View style={styles.overlay}>
           {Platform.OS === "ios" && (
             <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
@@ -43,6 +45,17 @@ const CustomAlertModal = ({
           
           <TouchableWithoutFeedback onPress={() => {}}>
             <View style={styles.alertBox}>
+              {showClose && onClose && (
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={onClose}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                  <X size={18} color="#9CA3AF" strokeWidth={2} />
+                </TouchableOpacity>
+              )}
+              
               <View style={styles.content}>
                 {Icon && (
                   <View style={[styles.iconContainer, { backgroundColor: `${iconColor}15` }]}>
@@ -76,17 +89,26 @@ const CustomAlertModal = ({
 
                 {/* Standard Cancel + Confirm row */}
                 {!durationOptions && (
-                  <View style={{ flexDirection: "row", gap: 12 }}>
+                  <View style={styles.actionRow}>
                     {secondaryAction && (
                       <TouchableOpacity
-                        style={[styles.button, styles.secondaryButton]}
+                        style={[
+                          styles.button,
+                          styles.secondaryButton,
+                          secondaryAction.style === "destructive" && styles.destructiveButton,
+                        ]}
                         onPress={() => {
                           secondaryAction.onPress?.();
                           onClose();
                         }}
                         activeOpacity={0.6}
                       >
-                        <Text style={styles.secondaryButtonText}>
+                        <Text
+                          style={[
+                            styles.secondaryButtonText,
+                            secondaryAction.style === "destructive" && styles.destructiveButtonText,
+                          ]}
+                        >
                           {secondaryAction.text}
                         </Text>
                       </TouchableOpacity>
@@ -225,8 +247,25 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    marginHorizontal: 16,
-    marginBottom: 16,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    width: "100%",
+  },
+  closeButton: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0, 0, 0, 0.05)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
   },
   secondaryButton: {
     backgroundColor: "#F3F4F6",

@@ -64,7 +64,8 @@
           "isAccessMediaLocationEnabled": true
         }
       ],
-      "expo-image"
+      "expo-image",
+      "expo-sharing"
     ],
     "extra": {
       "eas": {

@@ -231,6 +231,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   const [currency, setCurrency] = useState("₹");
   const [minBudget, setMinBudget] = useState("");
   const [maxBudget, setMaxBudget] = useState("");
+  const [revenueSharePercent, setRevenueSharePercent] = useState("");
 
   const scrollViewRef = useRef(null);
 
@@ -250,13 +251,18 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     };
   }, []);
 
-  // Sync budgetRange string whenever currency, minBudget, maxBudget, paymentNature, or trialType changes
+  // Sync budgetRange string whenever relevant fields change
   useEffect(() => {
     if (
       paymentNature === "exposure" ||
       (paymentNature === "trial" && trialType === "free_trial")
     ) {
       setBudgetRange("");
+      return;
+    }
+    if (paymentNature === "revenue_share") {
+      // Store percentage as "25%" in budgetRange
+      setBudgetRange(revenueSharePercent ? `${revenueSharePercent}%` : "");
       return;
     }
     if (minBudget || maxBudget) {
@@ -270,7 +276,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     } else {
       setBudgetRange("");
     }
-  }, [currency, minBudget, maxBudget, paymentNature, trialType]);
+  }, [currency, minBudget, maxBudget, paymentNature, trialType, revenueSharePercent]);
 
   useEffect(() => {
     Animated.timing(progressPercent, {
@@ -335,8 +341,9 @@ export default function CreateOpportunityScreen({ navigation, route }) {
 
   const isBudgetRequired =
     paymentNature === "paid" ||
-    (paymentNature === "trial" && trialType === "paid_trial") ||
-    paymentNature === "revenue_share";
+    (paymentNature === "trial" && trialType === "paid_trial");
+
+  const isRevenueShare = paymentNature === "revenue_share";
 
   // Step 6 (new): Who Can Apply
   const [whoCanApply, setWhoCanApply] = useState([]);
@@ -452,13 +459,20 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     setWhoCanApply(data.who_can_apply || []);
     setGains(data.gains || []);
     setPaymentType(data.payment_type || "fixed");
-    const { currency: curr, min: minVal, max: maxVal } = parseBudgetRange(data.budget_range || "");
-    setCurrency(curr);
-    setMinBudget(minVal);
-    setMaxBudget(maxVal);
-    setBudgetRange(data.budget_range || "");
     setPaymentNature(data.payment_nature || "paid");
     setTrialType(data.trial_type || "paid_trial");
+    if ((data.payment_nature || "paid") === "revenue_share") {
+      // Restore percentage: budget_range stored as "25%"
+      const pctRaw = (data.budget_range || "").replace("%", "").trim();
+      setRevenueSharePercent(pctRaw);
+      setBudgetRange(data.budget_range || "");
+    } else {
+      const { currency: curr, min: minVal, max: maxVal } = parseBudgetRange(data.budget_range || "");
+      setCurrency(curr);
+      setMinBudget(minVal);
+      setMaxBudget(maxVal);
+      setBudgetRange(data.budget_range || "");
+    }
     setQuestions(data.questions || []);
     setVisibility(data.visibility || "public");
     setNotifyTalent(data.notify_talent !== false);
@@ -516,6 +530,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
     budgetRange,
     paymentNature,
     trialType,
+    revenueSharePercent,
     questions,
     visibility,
     notifyTalent,
@@ -568,6 +583,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         setMinBudget(minVal);
         setMaxBudget(maxVal);
         setBudgetRange(draft.data.budgetRange || "");
+        setRevenueSharePercent(draft.data.revenueSharePercent || "");
         setPaymentNature(draft.data.paymentNature || "paid");
         setTrialType(draft.data.trialType || "paid_trial");
         setQuestions(draft.data.questions || []);
@@ -787,7 +803,17 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         }
         return true;
       case 8: // Compensation
-        if (isBudgetRequired) {
+        if (isRevenueShare) {
+          if (!revenueSharePercent.trim()) {
+            Alert.alert("Required", "Please enter the revenue share percentage.");
+            return false;
+          }
+          const pct = parseFloat(revenueSharePercent);
+          if (isNaN(pct) || pct <= 0 || pct > 100) {
+            Alert.alert("Invalid", "Revenue share must be between 1 and 100.");
+            return false;
+          }
+        } else if (isBudgetRequired) {
           if (!minBudget.trim() || !maxBudget.trim()) {
             Alert.alert("Required", "Please specify both the minimum and maximum budget.");
             return false;
@@ -816,6 +842,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
       case 7:
         return true; // What You'll Gain — optional
       case 8:
+        if (isRevenueShare) return revenueSharePercent.trim() !== "";
         return !isBudgetRequired || (minBudget.trim() !== "" && maxBudget.trim() !== "");
       case 9:
         return questions.every((q) => q.prompt.trim() !== "");
@@ -1881,10 +1908,47 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           </>
         )}
 
-        {/* Budget range is shown for paid, paid trial, or revenue share */}
+        {/* Revenue Share: single % input */}
+        {paymentNature === "revenue_share" && (
+          <>
+            <Text style={styles.labelNew}>Revenue Share %</Text>
+            <View style={styles.budgetRowContainer}>
+              <View style={[styles.budgetInputsRow, { flex: 1 }]}>
+                <View style={[styles.budgetInputWrapper, { flex: 1 }]}>
+                  <TextInput
+                    style={[styles.budgetInput, { flex: 1 }]}
+                    value={revenueSharePercent}
+                    onChangeText={(val) => {
+                      // Allow only digits and at most one decimal
+                      const clean = val.replace(/[^0-9.]/g, "");
+                      setRevenueSharePercent(clean);
+                    }}
+                    placeholder="e.g. 20"
+                    placeholderTextColor={MODAL_TOKENS.textMuted}
+                    keyboardType="decimal-pad"
+                    maxLength={5}
+                  />
+                </View>
+                <View
+                  style={[
+                    styles.currencyTogglePill,
+                    styles.currencyTogglePillSelected,
+                    { paddingHorizontal: 14, marginLeft: 8 },
+                  ]}
+                >
+                  <Text style={[styles.currencyToggleTextSelected, { fontSize: 16 }]}>%</Text>
+                </View>
+              </View>
+            </View>
+            <Text style={[styles.hint, { marginTop: 6 }]}>
+              Enter a value between 1 and 100
+            </Text>
+          </>
+        )}
+
+        {/* Budget range is shown for paid or paid trial (NOT revenue share) */}
         {(paymentNature === "paid" || 
-          (paymentNature === "trial" && trialType === "paid_trial") || 
-          paymentNature === "revenue_share") && (
+          (paymentNature === "trial" && trialType === "paid_trial")) && (
           <>
             <Text style={styles.labelNew}>
               Budget Range{isBudgetRequired ? "" : " (Optional)"}
@@ -2619,9 +2683,9 @@ export default function CreateOpportunityScreen({ navigation, route }) {
                 : paymentNature === "trial"
                   ? `Trial-based · ${trialType === "paid_trial" ? `Paid Task · ${getPaymentTypeDisplayText(paymentType)}` : "Free Task"}`
                   : paymentNature === "revenue_share"
-                    ? "Revenue Share"
+                    ? `Revenue Share${revenueSharePercent ? ` · ${revenueSharePercent}%` : ""}`
                     : `${getPaymentTypeDisplayText(paymentType)} · Paid`}
-              {budgetRange && paymentNature !== "exposure" && !(paymentNature === "trial" && trialType === "free_trial") ? ` · ${budgetRange}` : ""}
+              {budgetRange && paymentNature !== "exposure" && paymentNature !== "revenue_share" && !(paymentNature === "trial" && trialType === "free_trial") ? ` · ${budgetRange}` : ""}
             </Text>
           </TouchableOpacity>
 

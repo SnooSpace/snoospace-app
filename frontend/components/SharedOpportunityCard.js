@@ -184,7 +184,11 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
   const compensationText = useMemo(() => {
     if (!opp) return "Negotiable";
     if (opp.payment_nature === "exposure") return "Exposure";
-    if (opp.payment_nature === "revenue_share") return "Rev Share";
+    if (opp.payment_nature === "revenue_share") {
+      return opp.budget_range
+        ? `Rev Share · ${opp.budget_range}`
+        : "Rev Share";
+    }
     if (opp.payment_nature === "trial") {
       const trialPrefix =
         opp.trial_type === "free_trial" ? "Free Trial" : "Paid Trial";

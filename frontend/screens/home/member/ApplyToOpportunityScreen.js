@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as DocumentPicker from "expo-document-picker";
+import * as Sharing from "expo-sharing";
 import {
   ArrowLeft,
   ArrowRight,
@@ -33,13 +34,13 @@ import {
   FileCheck,
   AlertTriangle,
   AlertCircle,
-  Info,
 } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import { applyToOpportunity } from "../../../api/opportunities";
 import { BACKEND_BASE_URL } from "../../../api/client";
 import { getAuthToken } from "../../../api/auth";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { COLORS, FONTS, BORDER_RADIUS } from "../../../constants/theme";
 
 // ──────────────────────────────────────────────────────
@@ -100,7 +101,8 @@ async function uploadResumeToCloudinary(fileUri, fileName) {
   });
   const data = await response.json();
   if (!data.success) throw new Error(data.error || "Upload failed");
-  return data.url;
+  // Return full response so caller can store filename + size alongside URL
+  return data;
 }
 
 function formatSubmittedTime(date) {
@@ -125,8 +127,17 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
   const [submitted, setSubmitted] = useState(false);
 
   // Step 1 — Role
-  const [selectedRole, setSelectedRole] = useState(null);
-  const [selectedSkills, setSelectedSkills] = useState([]);
+  // selectedRoles: string[]  — works for both single and multi mode
+  // selectedSkillsByRole: { [role: string]: string[] }
+  const [selectedRoles, setSelectedRoles] = useState([]);
+  const [selectedSkillsByRole, setSelectedSkillsByRole] = useState({});
+
+  // Derived compat helpers (used in pitch prompt, context pill, review, submit)
+  const eligibilityMode = opportunity?.eligibility_mode || "any_one";
+  const canApplyMultiple = eligibilityMode === "multiple";
+  // Primary role — first selected (for single mode it's the only one)
+  const selectedRole = selectedRoles[0] || null;
+  const selectedSkills = selectedRole ? (selectedSkillsByRole[selectedRole] || []) : [];
 
   // Step 2 — Pitch
   const [introPitch, setIntroPitch] = useState("");
@@ -149,6 +160,101 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
   const successAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
   const [submittedAt, setSubmittedAt] = useState(null);
+
+  // ── Draft state
+  const draftKey = opportunity?.id ? `apply_draft_${opportunity.id}` : null;
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [showDraftBanner, setShowDraftBanner] = useState(false);
+  const [draftSavedAnim] = useState(new Animated.Value(0));
+  const draftSaveTimer = useRef(null);
+  const draftSavingRef = useRef(false);
+
+  // Build a snapshot of all saveable form state
+  const buildDraftSnapshot = useCallback(() => ({
+    currentStep,
+    selectedRoles,
+    selectedSkillsByRole,
+    introPitch,
+    portfolioLinks,
+    answers,
+    applicantQuestions,
+  }), [currentStep, selectedRoles, selectedSkillsByRole, introPitch, portfolioLinks, answers, applicantQuestions]);
+
+  // Check if anything has been filled in (to avoid saving a blank draft)
+  const hasMeaningfulContent = useCallback(() => {
+    return (
+      selectedRoles.length > 0 ||
+      introPitch.trim().length > 0 ||
+      portfolioLinks.some((l) => l.trim().length > 0) ||
+      Object.keys(answers).length > 0
+    );
+  }, [selectedRoles, introPitch, portfolioLinks, answers]);
+
+  // Flash the "Draft saved" indicator
+  const flashDraftSaved = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(draftSavedAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.delay(1400),
+      Animated.timing(draftSavedAnim, { toValue: 0, duration: 400, useNativeDriver: true }),
+    ]).start();
+  }, [draftSavedAnim]);
+
+  // Persist draft to AsyncStorage
+  const saveDraft = useCallback(async (snapshot) => {
+    if (!draftKey || draftSavingRef.current) return;
+    draftSavingRef.current = true;
+    try {
+      await AsyncStorage.setItem(draftKey, JSON.stringify({ ...snapshot, savedAt: Date.now() }));
+      flashDraftSaved();
+    } catch (e) {
+      console.warn("Could not save draft:", e);
+    } finally {
+      draftSavingRef.current = false;
+    }
+  }, [draftKey, flashDraftSaved]);
+
+  // Remove draft (called on successful submit)
+  const clearDraft = useCallback(async () => {
+    if (!draftKey) return;
+    try { await AsyncStorage.removeItem(draftKey); } catch (_) {}
+  }, [draftKey]);
+
+  // Load draft on mount
+  useEffect(() => {
+    if (!draftKey) return;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(draftKey);
+        if (!raw) return;
+        const draft = JSON.parse(raw);
+        // Restore all fields
+        if (draft.selectedRoles?.length > 0) {
+          setSelectedRoles(draft.selectedRoles);
+          setSelectedSkillsByRole(draft.selectedSkillsByRole || {});
+          setShowDraftBanner(true);
+          setDraftRestored(true);
+        }
+        if (draft.introPitch) setIntroPitch(draft.introPitch);
+        if (draft.portfolioLinks?.length > 0) setPortfolioLinks(draft.portfolioLinks);
+        if (draft.answers && Object.keys(draft.answers).length > 0) setAnswers(draft.answers);
+        if (draft.applicantQuestions?.length > 0) setApplicantQuestions(draft.applicantQuestions);
+        if (draft.currentStep && draft.currentStep > 1) setCurrentStep(draft.currentStep);
+      } catch (e) {
+        console.warn("Could not load draft:", e);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+
+  // Auto-save draft 600ms after any form change
+  useEffect(() => {
+    if (submitted || !hasMeaningfulContent()) return;
+    if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+    draftSaveTimer.current = setTimeout(() => {
+      saveDraft(buildDraftSnapshot());
+    }, 600);
+    return () => { if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current); };
+  }, [selectedRoles, selectedSkillsByRole, introPitch, portfolioLinks, answers, applicantQuestions, currentStep]);
 
   useEffect(() => {
     if (submitted) {
@@ -218,9 +324,12 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
   const TOTAL_STEPS = STEPS.length;
   const currentStepKey = STEPS[currentStep - 1];
 
-  const selectedRoleSkillGroup = opportunity?.skill_groups?.find((g) => g.role === selectedRole);
-  const selectedRoleTools = selectedRoleSkillGroup?.tools || [];
-  const isRoleSelectionValid = !!selectedRole && (selectedRoleTools.length === 0 || selectedSkills.length > 0);
+  // Validation: at least one role selected; for each selected role that has tools, at least one skill must be picked
+  const isRoleSelectionValid = selectedRoles.length > 0 && selectedRoles.every((role) => {
+    const sg = opportunity?.skill_groups?.find((g) => g.role === role);
+    const tools = sg?.tools || [];
+    return tools.length === 0 || (selectedSkillsByRole[role] || []).length > 0;
+  });
 
   const getIsStepValid = () => {
     switch (currentStepKey) {
@@ -313,29 +422,76 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     } else {
+      handleCancel();
+    }
+  };
+
+  const handleCancel = () => {
+    if (hasMeaningfulContent()) {
+      setAlertConfig({
+        visible: true,
+        title: "Save draft?",
+        message: "You have an application in progress for this opportunity.",
+        icon: FileCheck,
+        iconColor: COLORS.primary,
+        primaryAction: {
+          text: "Save Draft",
+          onPress: async () => {
+            await saveDraft(buildDraftSnapshot());
+            navigation.goBack();
+          },
+        },
+        secondaryAction: {
+          text: "Discard",
+          style: "destructive",
+          onPress: async () => {
+            await clearDraft();
+            navigation.goBack();
+          },
+        },
+        onClose: hideAlert,
+      });
+    } else {
       navigation.goBack();
     }
   };
 
   // ── Submit ───────────────────────────────────────────
   const handleSubmit = async () => {
+    // Guard: if user picked a resume but the upload failed, block submission
+    if (resumeFile && !resumeFile.url) {
+      showAlert(
+        "Resume Not Uploaded",
+        "Your resume could not be uploaded. Please remove it and try again, or re-attach it.",
+        AlertCircle,
+        "#E53E3E",
+      );
+      return;
+    }
     setSubmitting(true);
     try {
       const validLinks = portfolioLinks.filter((l) => l.trim());
       const validAQ = applicantQuestions.filter((q) => q.trim());
 
+      // Build a flat skill list across all selected roles for legacy compat
+      const allSelectedSkills = Object.values(selectedSkillsByRole).flat();
       const applicationData = {
         opportunity_id: opportunity.id,
+        // Legacy single-role field (first selected role)
         applied_role: selectedRole,
+        // Multi-role field
+        applied_roles: selectedRoles,
         // Legacy fields for backward compat
         portfolio_link: validLinks[0] || null,
-        portfolio_note: selectedSkills.length > 0
-          ? `Applied with skills: ${selectedSkills.join(", ")}`
+        portfolio_note: allSelectedSkills.length > 0
+          ? `Applied with skills: ${allSelectedSkills.join(", ")}`
           : null,
         // New fields
         intro_pitch: introPitch.trim() || null,
         portfolio_links: validLinks,
         resume_url: resumeFile?.url || null,
+        resume_filename: resumeFile?.filename || null,
+        resume_size_bytes: resumeFile?.size_bytes || null,
         applicant_questions: validAQ,
         responses: Object.entries(answers).map(([questionId, answer]) => ({
           question_id: questionId,
@@ -344,6 +500,9 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
       };
 
       await applyToOpportunity(applicationData);
+
+      // Clear the draft on successful submission
+      await clearDraft();
 
       // Animate success
       setSubmittedAt(new Date());
@@ -381,37 +540,75 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
 
   // ── Role helpers ─────────────────────────────────────
   const handleToggleSkill = (role, skill) => {
-    if (selectedRole !== role) {
-      setSelectedRole(role);
-      setSelectedSkills([skill]);
-    } else {
-      const nextSkills = selectedSkills.includes(skill)
-        ? selectedSkills.filter((s) => s !== skill)
-        : [...selectedSkills, skill];
-      setSelectedSkills(nextSkills);
+    if (canApplyMultiple) {
+      // Multi mode: toggling a skill on any role doesn't deselect other roles
+      const currentSkills = selectedSkillsByRole[role] || [];
+      const nextSkills = currentSkills.includes(skill)
+        ? currentSkills.filter((s) => s !== skill)
+        : [...currentSkills, skill];
+      // Auto-add/remove role from selectedRoles based on skill presence
+      const nextByRole = { ...selectedSkillsByRole, [role]: nextSkills };
+      setSelectedSkillsByRole(nextByRole);
       if (nextSkills.length === 0) {
-        setSelectedRole(null);
+        // No skills left for this role — also deselect the role header
+        setSelectedRoles(selectedRoles.filter((r) => r !== role));
+      } else if (!selectedRoles.includes(role)) {
+        setSelectedRoles([...selectedRoles, role]);
+      }
+    } else {
+      // Single mode: selecting a skill on a new role replaces everything
+      const currentSkills = selectedSkillsByRole[role] || [];
+      if (!selectedRoles.includes(role)) {
+        setSelectedRoles([role]);
+        setSelectedSkillsByRole({ [role]: [skill] });
+      } else {
+        const nextSkills = currentSkills.includes(skill)
+          ? currentSkills.filter((s) => s !== skill)
+          : [...currentSkills, skill];
+        if (nextSkills.length === 0) {
+          setSelectedRoles([]);
+          setSelectedSkillsByRole({});
+        } else {
+          setSelectedSkillsByRole({ [role]: nextSkills });
+        }
       }
     }
   };
 
   const handleSelectRoleHeader = (role, allSkills) => {
-    if (selectedRole === role) {
-      if (allSkills.length === 0) {
-        setSelectedRole(null);
-        setSelectedSkills([]);
-      } else {
-        const allSelected = allSkills.every((s) => selectedSkills.includes(s));
-        if (allSelected) {
-          setSelectedRole(null);
-          setSelectedSkills([]);
+    const isSelected = selectedRoles.includes(role);
+    if (canApplyMultiple) {
+      // Multi mode: toggle this role independently
+      if (isSelected) {
+        const roleSkills = selectedSkillsByRole[role] || [];
+        if (allSkills.length === 0 || allSkills.every((s) => roleSkills.includes(s))) {
+          // Deselect
+          setSelectedRoles(selectedRoles.filter((r) => r !== role));
+          const next = { ...selectedSkillsByRole };
+          delete next[role];
+          setSelectedSkillsByRole(next);
         } else {
-          setSelectedSkills([...allSkills]);
+          // Select all skills
+          setSelectedSkillsByRole({ ...selectedSkillsByRole, [role]: [...allSkills] });
         }
+      } else {
+        setSelectedRoles([...selectedRoles, role]);
+        setSelectedSkillsByRole({ ...selectedSkillsByRole, [role]: [...allSkills] });
       }
     } else {
-      setSelectedRole(role);
-      setSelectedSkills([...allSkills]);
+      // Single mode: only one role at a time
+      if (isSelected) {
+        const roleSkills = selectedSkillsByRole[role] || [];
+        if (allSkills.length === 0 || allSkills.every((s) => roleSkills.includes(s))) {
+          setSelectedRoles([]);
+          setSelectedSkillsByRole({});
+        } else {
+          setSelectedSkillsByRole({ [role]: [...allSkills] });
+        }
+      } else {
+        setSelectedRoles([role]);
+        setSelectedSkillsByRole({ [role]: [...allSkills] });
+      }
     }
   };
 
@@ -447,12 +644,24 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
 
       setResumeUploading(true);
       try {
-        const url = await uploadResumeToCloudinary(asset.uri, asset.name);
-        setResumeFile({ name: asset.name, uri: asset.uri, url });
+        const uploadData = await uploadResumeToCloudinary(asset.uri, asset.name);
+        setResumeFile({
+          name: asset.name,
+          uri: asset.uri,
+          url: uploadData.url,
+          filename: uploadData.filename,
+          size_bytes: uploadData.size_bytes,
+        });
       } catch (err) {
-        // Store locally even if upload fails — will retry on submit
-        setResumeFile({ name: asset.name, uri: asset.uri, url: null, localOnly: true });
-        showAlert("Upload notice", "Resume saved locally. We'll try uploading again on submit.", Info, COLORS.primary);
+        // Do NOT silently store null — clear the file so user must re-pick
+        console.error("Resume upload failed:", err);
+        setResumeFile(null);
+        showAlert(
+          "Upload Failed",
+          "Could not upload your resume. Please check your connection and try again.",
+          AlertCircle,
+          "#E53E3E",
+        );
       } finally {
         setResumeUploading(false);
       }
@@ -462,12 +671,26 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
   };
 
   const handlePreviewResume = async () => {
-    if (resumeFile?.url || resumeFile?.uri) {
-      try {
-        await Linking.openURL(resumeFile.url || resumeFile.uri);
-      } catch (err) {
-        showAlert("Error", "Unable to open document preview.", AlertTriangle, "#EF6C00");
+    if (!resumeFile) return;
+    try {
+      // Prefer the local URI (freshly picked) for preview via sharing sheet
+      if (resumeFile.uri) {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(resumeFile.uri, {
+            mimeType: "application/pdf",
+            dialogTitle: "Preview Resume",
+            UTI: "com.adobe.pdf",
+          });
+          return;
+        }
       }
+      // Fallback: open the Cloudinary URL in browser
+      if (resumeFile.url) {
+        await Linking.openURL(resumeFile.url);
+      }
+    } catch (err) {
+      showAlert("Error", "Could not preview resume.", AlertTriangle, "#EF6C00");
     }
   };
 
@@ -521,22 +744,47 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
   // ─────────────────────────────────────────────────────
   const renderStep1 = () => {
     const roles = opportunity?.opportunity_types || [];
-    const eligibilityMode = opportunity?.eligibility_mode || "any_one";
 
     return (
       <ScrollView style={styles.stepScroll} contentContainerStyle={styles.stepInner} showsVerticalScrollIndicator={false}>
         {renderContextCard()}
         <Text style={styles.stepTitle}>Which role are you applying for?</Text>
         <Text style={styles.stepSubtitle}>
-          {eligibilityMode === "any_one"
-            ? "Select the role that best matches your skills"
-            : "Select your primary role for this application"}
+          {canApplyMultiple
+            ? "You can apply for multiple roles in this opportunity"
+            : "Select the one role that best matches your skills"}
         </Text>
+
+        {/* Eligibility mode banner */}
+        <View style={[
+          styles.eligibilityBanner,
+          canApplyMultiple ? styles.eligibilityBannerMultiple : styles.eligibilityBannerSingle,
+        ]}>
+          <View style={[
+            styles.eligibilityBannerIconWrap,
+            { backgroundColor: canApplyMultiple ? "rgba(139, 92, 246, 0.12)" : "rgba(41, 98, 255, 0.1)" },
+          ]}>
+            <CheckCircle2
+              size={16}
+              color={canApplyMultiple ? "#8B5CF6" : COLORS.primary}
+              strokeWidth={2}
+            />
+          </View>
+          <Text style={[
+            styles.eligibilityBannerText,
+            { color: canApplyMultiple ? "#6D28D9" : "#1D3FAD" },
+          ]}>
+            {canApplyMultiple
+              ? `You can apply for all ${roles.length} roles — select any or all`
+              : "You can only apply for 1 role — choose your strongest fit"}
+          </Text>
+        </View>
 
         <View style={styles.rolesContainer}>
           {roles.map((role, index) => {
             const skillGroup = opportunity.skill_groups?.find((g) => g.role === role);
-            const isSelected = selectedRole === role;
+            const isSelected = selectedRoles.includes(role);
+            const roleSkills = selectedSkillsByRole[role] || [];
             const tools = skillGroup?.tools || [];
             const sampleType = skillGroup?.sample_type;
 
@@ -556,7 +804,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
                 {tools.length > 0 && (
                   <View style={styles.roleToolsRow}>
                     {tools.map((tool, i) => {
-                      const isSkillSelected = isSelected && selectedSkills.includes(tool);
+                      const isSkillSelected = isSelected && roleSkills.includes(tool);
                       return (
                         <TouchableOpacity
                           key={i}
@@ -664,18 +912,59 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
   //  STEP 3 — Attachments
   // ─────────────────────────────────────────────────────
   const renderStep3 = () => {
-    const skillGroup = opportunity?.skill_groups?.find((g) => g.role === selectedRole);
-    const sampleType = skillGroup?.sample_type;
+    // Build work-sample info for each selected role
+    const workSamplesByRole = selectedRoles
+      .map((role) => {
+        const sg = opportunity?.skill_groups?.find((g) => g.role === role);
+        // sample_types is an array when loaded from CreateOpportunity,
+        // but the backend persists it as a comma-separated string in sample_type.
+        // Support both formats for robustness.
+        let samples = [];
+        if (sg?.sample_types && Array.isArray(sg.sample_types) && sg.sample_types.length > 0) {
+          samples = sg.sample_types;
+        } else if (sg?.sample_type) {
+          samples = sg.sample_type.split(",").map((s) => s.trim()).filter(Boolean);
+        }
+        return { role, samples };
+      })
+      .filter((r) => r.samples.length > 0);
 
     return (
       <ScrollView style={styles.stepScroll} contentContainerStyle={styles.stepInner} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {renderContextCard()}
         <Text style={styles.stepTitle}>Share your portfolio</Text>
         <Text style={styles.stepSubtitle}>
-          {sampleType
-            ? `Include a ${sampleType} if you have one. Links to your work get 3× more responses.`
-            : "Links to your work get 3× more responses."}
+          Links to your work get 3× more responses.
         </Text>
+
+        {/* Work samples expected — per role */}
+        {workSamplesByRole.length > 0 && (
+          <View style={styles.workSamplesCard}>
+            <View style={styles.workSamplesHeader}>
+              <View style={styles.workSamplesIconWrap}>
+                <FileText size={16} color={COLORS.primary} />
+              </View>
+              <Text style={styles.workSamplesTitle}>Work samples expected</Text>
+            </View>
+            {workSamplesByRole.map(({ role, samples }) => (
+              <View key={role} style={styles.workSamplesRoleBlock}>
+                {workSamplesByRole.length > 1 && (
+                  <Text style={styles.workSamplesRoleLabel}>{role}</Text>
+                )}
+                <View style={styles.workSamplesChipRow}>
+                  {samples.map((sample, i) => (
+                    <View key={i} style={styles.workSampleChip}>
+                      <Text style={styles.workSampleChipText}>{sample}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            ))}
+            <Text style={styles.workSamplesHint}>
+              Include at least one link or file that shows this type of work.
+            </Text>
+          </View>
+        )}
 
         {/* Portfolio links */}
         <View style={styles.attachSection}>
@@ -757,14 +1046,10 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
               </View>
               <View style={styles.resumeFileInfo}>
                 <Text style={styles.resumeFileName} numberOfLines={1}>{resumeFile.name}</Text>
-                {resumeFile.localOnly ? (
-                  <Text style={[styles.resumeFileStatus, { color: "#D84315" }]}>⚠ Will upload on submit</Text>
-                ) : (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                    <Check size={12} color={COLORS.success} strokeWidth={3} />
-                    <Text style={[styles.resumeFileStatus, { marginTop: 0 }]}>Uploaded</Text>
-                  </View>
-                )}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                  <Check size={12} color={COLORS.success} strokeWidth={3} />
+                  <Text style={[styles.resumeFileStatus, { marginTop: 0 }]}>Uploaded</Text>
+                </View>
               </View>
               <TouchableOpacity
                 onPress={handlePreviewResume}
@@ -933,7 +1218,6 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
   const renderStepReview = () => {
     const validLinks = portfolioLinks.filter((l) => l.trim());
     const validAQ = applicantQuestions.filter((q) => q.trim());
-    const skillGroup = opportunity?.skill_groups?.find((g) => g.role === selectedRole);
 
     return (
       <ScrollView style={styles.stepScroll} contentContainerStyle={styles.stepInner} showsVerticalScrollIndicator={false}>
@@ -944,13 +1228,20 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
         </Text>
 
         <View style={styles.reviewCard}>
-          {/* Role */}
+          {/* Role(s) */}
           <View style={styles.reviewSection}>
             <Text style={styles.reviewSectionLabel}>APPLYING FOR</Text>
-            <Text style={styles.reviewSectionValue}>{selectedRole}</Text>
-            {selectedSkills.length > 0 && (
-              <Text style={styles.reviewSectionSub}>Skills: {selectedSkills.join(", ")}</Text>
-            )}
+            {selectedRoles.map((role) => {
+              const roleSkills = selectedSkillsByRole[role] || [];
+              return (
+                <View key={role} style={{ marginBottom: 6 }}>
+                  <Text style={styles.reviewSectionValue}>{role}</Text>
+                  {roleSkills.length > 0 && (
+                    <Text style={styles.reviewSectionSub}>Skills: {roleSkills.join(", ")}</Text>
+                  )}
+                </View>
+              );
+            })}
           </View>
 
           <View style={styles.reviewDivider} />
@@ -1186,7 +1477,24 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
             <ArrowLeft size={22} color={COLORS.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{getStepTitle()}</Text>
-          <View style={{ width: 36 }} />
+          {/* Right slot: Cancel button + transient "Saved" flash */}
+          <View style={styles.headerRightSlot}>
+            {/* "Saved" flash — fades in/out over the cancel button */}
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.draftSavedBadge, { opacity: draftSavedAnim }]}
+            >
+              <Check size={11} color={COLORS.success} strokeWidth={3} />
+              <Text style={styles.draftSavedText}>Saved</Text>
+            </Animated.View>
+            <TouchableOpacity
+              onPress={handleCancel}
+              activeOpacity={0.7}
+              style={styles.cancelButton}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
 
@@ -1209,6 +1517,19 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
           ))}
         </View>
 
+        {/* Draft restored banner */}
+        {showDraftBanner && (
+          <View style={styles.draftRestoredBanner}>
+            <CheckCircle2 size={15} color={COLORS.success} />
+            <Text style={styles.draftRestoredText}>Draft restored — continue where you left off</Text>
+            <TouchableOpacity
+              onPress={() => setShowDraftBanner(false)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <X size={14} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          </View>
+        )}
         {/* Step content */}
         {renderCurrentStep()}
 
@@ -1245,17 +1566,6 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
               )}
             </LinearGradient>
           </TouchableOpacity>
-
-          {/* Skip for optional steps */}
-          {(currentStepKey === "ask") && (
-            <TouchableOpacity
-              style={styles.skipButton}
-              onPress={() => setCurrentStep(currentStep + 1)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.skipText}>Skip — no questions</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </KeyboardAvoidingView>
 
@@ -1264,10 +1574,11 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
         visible={alertConfig.visible}
         title={alertConfig.title}
         message={alertConfig.message}
-        onClose={hideAlert}
+        onClose={alertConfig.onClose || hideAlert}
         icon={alertConfig.icon}
         iconColor={alertConfig.iconColor}
         primaryAction={alertConfig.primaryAction}
+        secondaryAction={alertConfig.secondaryAction}
       />
     </View>
   );
@@ -1323,16 +1634,55 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.textPrimary,
   },
-  stepIndicator: {
-    backgroundColor: "rgba(41, 98, 255, 0.06)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.pill,
+  draftSavedBadge: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    justifyContent: "flex-end",
   },
-  stepText: {
+  draftSavedText: {
     fontFamily: FONTS.medium,
     fontSize: 12,
-    color: COLORS.primary,
+    color: COLORS.success,
+  },
+  headerRightSlot: {
+    position: "relative",
+    alignItems: "flex-end",
+    justifyContent: "center",
+    minWidth: 64,
+  },
+  cancelButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BORDER_RADIUS.m,
+    backgroundColor: "rgba(229, 62, 62, 0.07)",
+  },
+  cancelButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: "#E53E3E",
+  },
+
+  // ── Draft restored banner
+  draftRestoredBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(52, 199, 89, 0.08)",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(52, 199, 89, 0.2)",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  draftRestoredText: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: "#2E7D32",
   },
 
   // ── Progress dots
@@ -1443,6 +1793,40 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     lineHeight: 20,
     marginBottom: 24,
+  },
+
+  // ── Eligibility mode banner
+  eligibilityBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: BORDER_RADIUS.l,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+  },
+  eligibilityBannerSingle: {
+    backgroundColor: "rgba(41, 98, 255, 0.05)",
+    borderColor: "rgba(41, 98, 255, 0.15)",
+  },
+  eligibilityBannerMultiple: {
+    backgroundColor: "rgba(139, 92, 246, 0.05)",
+    borderColor: "rgba(139, 92, 246, 0.15)",
+  },
+  eligibilityBannerIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  eligibilityBannerText: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    lineHeight: 18,
   },
 
   // ── Role cards
@@ -1644,6 +2028,71 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#D84315",
     lineHeight: 18,
+  },
+
+  // ── Work samples card (attachments step)
+  workSamplesCard: {
+    backgroundColor: "rgba(41, 98, 255, 0.04)",
+    borderRadius: BORDER_RADIUS.l,
+    borderWidth: 1,
+    borderColor: "rgba(41, 98, 255, 0.15)",
+    padding: 16,
+    marginBottom: 20,
+  },
+  workSamplesHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+  },
+  workSamplesIconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(41, 98, 255, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  workSamplesTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.primary,
+  },
+  workSamplesRoleBlock: {
+    marginBottom: 10,
+  },
+  workSamplesRoleLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  workSamplesChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  workSampleChip: {
+    backgroundColor: "rgba(41, 98, 255, 0.1)",
+    borderRadius: BORDER_RADIUS.m,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: "rgba(41, 98, 255, 0.2)",
+  },
+  workSampleChipText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.primary,
+  },
+  workSamplesHint: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 10,
+    lineHeight: 17,
   },
 
   // ── Attachments step

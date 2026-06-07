@@ -130,6 +130,7 @@ const formatDeadline = (dateStr) => {
 const getPaymentTypeLabel = (paymentType, paymentNature, trialType) => {
   if (paymentNature === "exposure") return "Compensation Mode";
   if (paymentNature === "trial" && trialType === "free_trial") return "Compensation Mode";
+  if (paymentNature === "revenue_share") return "Revenue Share";
   
   switch (paymentType) {
     case "fixed":

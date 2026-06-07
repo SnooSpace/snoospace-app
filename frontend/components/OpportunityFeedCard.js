@@ -198,7 +198,11 @@ const OpportunityFeedCard = React.memo(({
 
   const compensationText = useMemo(() => {
     if (opportunity.payment_nature === "exposure") return "Exposure";
-    if (opportunity.payment_nature === "revenue_share") return "Rev Share";
+    if (opportunity.payment_nature === "revenue_share") {
+      return opportunity.budget_range
+        ? `Rev Share · ${opportunity.budget_range}`
+        : "Rev Share";
+    }
     if (opportunity.payment_nature === "trial") {
       const trialPrefix =
         opportunity.trial_type === "free_trial" ? "Free Trial" : "Paid Trial";
