@@ -30,7 +30,6 @@ import {
   Link,
   ExternalLink,
   FileText,
-  Download,
   MessageCircle,
   X,
   AlertTriangle,
@@ -171,33 +170,36 @@ export default function ApplicantDetailScreen({ route, navigation }) {
     try {
       setDownloadingResume(true);
 
-      // Get auth token for the backend proxy
-      const { getAuthToken } = await import("../../../api/auth");
-      const token = await getAuthToken();
-
       const filename = application.resume_filename || "resume.pdf";
       const localUri = FileSystem.cacheDirectory + filename;
 
-      // Download via our authenticated backend proxy (avoids Cloudinary auth issues)
-      const downloadResult = await FileSystem.downloadAsync(
-        `${BACKEND_BASE_URL}/opportunities/applications/${application.id}/resume`,
-        localUri,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+      // Only download if not already cached — makes second tap instant
+      const fileInfo = await FileSystem.getInfoAsync(localUri);
+      if (!fileInfo.exists) {
+        // Get auth token for the backend proxy
+        const { getAuthToken } = await import("../../../api/auth");
+        const token = await getAuthToken();
 
-      if (downloadResult.status === 410) {
-        showAlert({
-          title: "Resume Unavailable",
-          message: "This PDF was uploaded before a recent fix and can't be downloaded. The applicant needs to re-upload their resume when applying again.",
-          icon: AlertCircle,
-          iconColor: COLORS.error,
-          primaryAction: { text: "OK", onPress: hideAlert },
-        });
-        return;
-      }
+        const downloadResult = await FileSystem.downloadAsync(
+          `${BACKEND_BASE_URL}/opportunities/applications/${application.id}/resume`,
+          localUri,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
 
-      if (downloadResult.status !== 200) {
-        throw new Error(`Download failed (${downloadResult.status})`);
+        if (downloadResult.status === 410) {
+          showAlert({
+            title: "Resume Unavailable",
+            message: "This PDF was uploaded before a recent fix and can't be downloaded. The applicant needs to re-upload their resume when applying again.",
+            icon: AlertCircle,
+            iconColor: COLORS.error,
+            primaryAction: { text: "OK", onPress: hideAlert },
+          });
+          return;
+        }
+
+        if (downloadResult.status !== 200) {
+          throw new Error(`Download failed (${downloadResult.status})`);
+        }
       }
 
       if (Platform.OS === "android") {
@@ -453,13 +455,13 @@ export default function ApplicantDetailScreen({ route, navigation }) {
                     ) || "Attached File"}
                   </Text>
                   <Text style={[styles.portfolioHint, { color: COLORS.error }]}>
-                    {downloadingResume ? "Downloading..." : "Tap to download"}
+                    {downloadingResume ? "Opening..." : "Tap to open"}
                   </Text>
                 </View>
                 {downloadingResume ? (
                   <ActivityIndicator size="small" color={COLORS.error} />
                 ) : (
-                  <Download size={20} color={COLORS.error} />
+                  <ExternalLink size={20} color={COLORS.error} />
                 )}
               </TouchableOpacity>
             </View>
