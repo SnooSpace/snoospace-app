@@ -27,6 +27,7 @@ import { getAuthToken, getAuthEmail } from "../../../api/auth";
 import { blockUser, unblockUser } from "../../../api/plans";
 import { apiPost, apiDelete } from "../../../api/client";
 import CommentsModal from "../../../components/CommentsModal";
+import EventCard from "../../../components/EventCard";
 import LikeStateManager from "../../../utils/LikeStateManager";
 
 import ThemeChip from "../../../components/ThemeChip";
@@ -1119,33 +1120,13 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                         {profileEvents.length > 0 && (
                           <>
                             <Text style={pubTabStyles.sectionHeader}>Events Attended</Text>
-                            {profileEvents.map((ev) => {
-                              const d = ev.start_datetime ? new Date(ev.start_datetime) : null;
-                              const dateStr = d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-                              return (
-                                <TouchableOpacity
-                                  key={`ev-${ev.id}`}
-                                  style={pubTabStyles.eventRow}
-                                  onPress={() => navigation.navigate('EventDetails', { eventId: ev.id, eventData: ev })}
-                                  activeOpacity={0.82}
-                                >
-                                  {ev.banner_url ? (
-                                    <Image source={{ uri: ev.banner_url }} style={pubTabStyles.eventThumb} />
-                                  ) : (
-                                    <View style={[pubTabStyles.eventThumb, pubTabStyles.eventThumbPlaceholder]}>
-                                      <Ticket size={20} color={COLORS.primary} strokeWidth={2} />
-                                    </View>
-                                  )}
-                                  <View style={pubTabStyles.eventRowInfo}>
-                                    <Text style={pubTabStyles.eventRowTitle} numberOfLines={1}>{ev.title}</Text>
-                                    {dateStr ? <Text style={pubTabStyles.eventRowMeta}>{dateStr}</Text> : null}
-                                    {ev.community_name ? (
-                                      <Text style={pubTabStyles.eventRowSub} numberOfLines={1}>{ev.community_name}</Text>
-                                    ) : null}
-                                  </View>
-                                </TouchableOpacity>
-                              );
-                            })}
+                            {profileEvents.map((ev) => (
+                              <EventCard
+                                key={`ev-${ev.id}`}
+                                event={ev}
+                                onPress={(eventData) => navigation.navigate('EventDetails', { eventId: eventData.id, eventData })}
+                              />
+                            ))}
                           </>
                         )}
 
@@ -1322,7 +1303,6 @@ const pubTabStyles = StyleSheet.create({
   },
   eventsContainer: {
     marginHorizontal: -20,
-    paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 16,
   },

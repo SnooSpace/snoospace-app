@@ -16,7 +16,7 @@ import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle, Bell, BellOff, Image as ImageIcon, LockKeyhole, ImagePlus, Megaphone, Video, UserX } from "lucide-react-native";
+import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle, Bell, BellOff, Image as ImageIcon, LockKeyhole, ImagePlus, Megaphone, Video, UserX, User } from "lucide-react-native";
 import CustomImagePicker from "../../components/CustomImagePicker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import MediaViewerTimeline from "../../components/MediaViewerTimeline";
@@ -614,6 +614,7 @@ const MessageRow = React.memo(({
   currentUser,
   recipient,
   recipientId,
+  isBlockedByOther,
   rsvpLoading,
   highlightedIdSV,
   onReply,
@@ -637,11 +638,19 @@ const MessageRow = React.memo(({
   }
 
   // Pre-compute avatar element once.
+  // Show a Lucide User icon when: the user is blocked, or no photo URL is available.
+  const showUserIcon = !isGroup && (!recipient?.profilePhotoUrl || isBlockedByOther);
   const avatarEl = !isMyMessage && (
     showAvatar
       ? (isGroup
           ? <GroupAvatar photoUrl={msg.senderPhotoUrl} name={msg.senderName} />
-          : <Image source={{ uri: recipient?.profilePhotoUrl || "https://via.placeholder.com/30" }} style={styles.messageAvatar} />)
+          : showUserIcon
+            ? (
+                <View style={styles.messageAvatarFallback}>
+                  <User size={16} color="#8FA1B8" strokeWidth={1.5} />
+                </View>
+              )
+            : <Image source={{ uri: recipient.profilePhotoUrl }} style={styles.messageAvatar} contentFit="cover" cachePolicy="memory-disk" />)
       : <View style={{ width: 30, marginRight: 8 }} />
   );
 
@@ -1768,6 +1777,7 @@ export default function ChatScreen({ route, navigation }) {
         currentUser={currentUser}
         recipient={recipient}
         recipientId={recipientId}
+        isBlockedByOther={isBlockedByOther}
         rsvpLoading={rsvpLoading[msg.id]}
         highlightedIdSV={highlightedIdSV}
         onReply={handleReply}
@@ -1787,6 +1797,7 @@ export default function ChatScreen({ route, navigation }) {
     currentUser,
     recipient,
     recipientId,
+    isBlockedByOther,
     flatListData,
     shouldShowAvatar,
     rsvpLoading,
@@ -2188,6 +2199,11 @@ const styles = StyleSheet.create({
   myMessageContainer:    { justifyContent: "flex-end" },
   otherMessageContainer: { justifyContent: "flex-start" },
   messageAvatar:  { width: 30, height: 30, borderRadius: 15, marginRight: 8 },
+  messageAvatarFallback: {
+    width: 30, height: 30, borderRadius: 15, marginRight: 8,
+    backgroundColor: "#EFEFF4",
+    alignItems: "center", justifyContent: "center",
+  },
   messageBubble:  { maxWidth: "100%", paddingHorizontal: 14, paddingTop: 8, paddingBottom: 6, borderRadius: 18 },
   myMessageBubble:    { backgroundColor: OUTGOING_MESSAGE_BG, borderBottomRightRadius: 4 },
   otherMessageBubble: { backgroundColor: INCOMING_MESSAGE_BG, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: INCOMING_BORDER,

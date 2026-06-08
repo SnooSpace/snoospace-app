@@ -32,6 +32,7 @@ import PostCard from "../../../components/PostCard"; // Assuming PostCard exists
 import ProfilePostFeed from "../../../components/ProfilePostFeed";
 import VideoPlayer from "../../../components/VideoPlayer";
 import CommentsModal from "../../../components/CommentsModal";
+import EventCard from "../../../components/EventCard";
 import SettingsModal from "../../../components/modals/SettingsModal";
 import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModal";
 import AddAccountModal from "../../../components/modals/AddAccountModal";
@@ -1425,33 +1426,13 @@ export default function MemberProfileScreen({ navigation }) {
                     {profileEvents.length > 0 && (
                       <>
                         <Text style={profileTabStyles.sectionHeader}>Events Attended</Text>
-                        {profileEvents.map((ev) => {
-                          const d = ev.start_datetime ? new Date(ev.start_datetime) : null;
-                          const dateStr = d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-                          return (
-                            <TouchableOpacity
-                              key={`ev-${ev.id}`}
-                              style={profileTabStyles.eventRow}
-                              onPress={() => navigation.navigate('EventDetails', { eventId: ev.id, eventData: ev })}
-                              activeOpacity={0.82}
-                            >
-                              {ev.banner_url ? (
-                                <Image source={{ uri: ev.banner_url }} style={profileTabStyles.eventThumb} />
-                              ) : (
-                                <View style={[profileTabStyles.eventThumb, profileTabStyles.eventThumbPlaceholder]}>
-                                  <Ticket size={20} color={COLORS.primary} strokeWidth={2} />
-                                </View>
-                              )}
-                              <View style={profileTabStyles.eventRowInfo}>
-                                <Text style={profileTabStyles.eventRowTitle} numberOfLines={1}>{ev.title}</Text>
-                                {dateStr ? <Text style={profileTabStyles.eventRowMeta}>{dateStr}</Text> : null}
-                                {ev.community_name ? (
-                                  <Text style={profileTabStyles.eventRowSub} numberOfLines={1}>{ev.community_name}</Text>
-                                ) : null}
-                              </View>
-                            </TouchableOpacity>
-                          );
-                        })}
+                        {profileEvents.map((ev) => (
+                          <EventCard
+                            key={`ev-${ev.id}`}
+                            event={ev}
+                            onPress={(eventData) => navigation.navigate('EventDetails', { eventId: eventData.id, eventData })}
+                          />
+                        ))}
                       </>
                     )}
 
@@ -1873,7 +1854,6 @@ const profileTabStyles = StyleSheet.create({
   },
   eventsContainer: {
     marginHorizontal: -20,
-    paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 16,
   },
