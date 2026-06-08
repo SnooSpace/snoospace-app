@@ -1844,7 +1844,7 @@ export default function ChatScreen({ route, navigation }) {
             {isGroup ? (
               <>
                 <TouchableOpacity
-                  style={styles.headerInfo}
+                  style={[styles.headerInfo, { flex: 1, flexDirection: "column", alignItems: "flex-start" }]}
                   onPress={() => navigation.navigate("GroupInfo", { conversationId: currentConversationId, groupName })}
                   activeOpacity={0.7}
                 >

@@ -624,8 +624,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         >
           <ArrowLeft size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        {profile?.username && (
+        {profile?.username ? (
           <Text style={styles.headerUsername}>@{profile.username}</Text>
+        ) : (
+          <View style={{ flex: 1 }} />
         )}
         {/* 3-dot menu — only for other users, not self */}
         <TouchableOpacity
@@ -722,7 +724,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(229,57,53,0.08)', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
             <UserX size={32} color="#E53935" strokeWidth={1.8} />
           </View>
-          <Text style={{ fontFamily: FONTS.bold, fontSize: 18, color: COLORS.textPrimary, marginBottom: 8, textAlign: 'center' }}>Profile Unavailable</Text>
+          <Text style={{ fontFamily: FONTS.primary, fontSize: 18, color: COLORS.textPrimary, marginBottom: 8, textAlign: 'center' }}>Profile Unavailable</Text>
           <Text style={{ fontFamily: FONTS.regular, fontSize: 14, color: COLORS.textSecondary, textAlign: 'center', lineHeight: 20 }}>
             This profile isn't available.
           </Text>
@@ -781,8 +783,14 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   const hasPronouns = visiblePronouns.length > 0;
 
                   const trustSignals = [
-                    profile?.events_attended_count > 0 && { icon: Ticket, label: `${profile.events_attended_count} events` },
-                    profile?.communities_count > 0 && { icon: Users, label: `${profile.communities_count} communities` },
+                    profile?.events_attended_count > 0 && {
+                      icon: Ticket,
+                      label: `${profile.events_attended_count} ${profile.events_attended_count === 1 ? "event" : "events"}`,
+                    },
+                    profile?.communities_count > 0 && {
+                      icon: Users,
+                      label: `${profile.communities_count} ${profile.communities_count === 1 ? "community" : "communities"}`,
+                    },
                   ].filter(Boolean);
 
                   return (
@@ -1311,7 +1319,7 @@ const pubTabStyles = StyleSheet.create({
     alignItems: 'center',
   },
   sectionHeader: {
-    fontFamily: FONTS.bold || FONTS.semiBold,
+    fontFamily: FONTS.primary,
     fontSize: 15,
     color: COLORS.textPrimary,
     marginTop: 16,
