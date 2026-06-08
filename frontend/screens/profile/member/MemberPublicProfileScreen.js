@@ -9,7 +9,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { CommonActions } from "@react-navigation/native";
 import {
   View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Platform, Pressable } from "react-native";
-import Reanimated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Image as ExpoImage } from "expo-image";
 import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, AlertTriangle, CheckCircle, ShieldOff, CalendarDays } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
@@ -205,6 +205,37 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [profilePlans, setProfilePlans] = useState({ hosted: [], attending: [] });
   const [loadingEvents, setLoadingEvents] = useState(false);
   const eventsFetchedRef = useRef(false);
+
+  // Underline sliding animation (Reanimated)
+  const tabUnderlineX = useSharedValue(0);
+  const tabUnderlineScale = useSharedValue(0);
+  const tabWidths = useRef({}).current;
+  const tabOffsets = useRef({}).current;
+
+  const animatedUnderlineStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: tabUnderlineX.value }],
+      width: tabUnderlineScale.value,
+    };
+  });
+
+  useEffect(() => {
+    if (tabOffsets[activeProfileTab] !== undefined) {
+      tabUnderlineX.value = withTiming(tabOffsets[activeProfileTab], { duration: 200 });
+      tabUnderlineScale.value = withTiming(tabWidths[activeProfileTab], { duration: 200 });
+    }
+  }, [activeProfileTab]);
+
+  const handleTabLayout = (tab, event) => {
+    const { x, width } = event.nativeEvent.layout;
+    tabOffsets[tab] = x;
+    tabWidths[tab] = width;
+
+    if (tab === activeProfileTab) {
+      tabUnderlineX.value = x;
+      tabUnderlineScale.value = width;
+    }
+  };
 
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -1048,10 +1079,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   {['posts', 'events'].map((tab) => (
                     <TouchableOpacity
                       key={tab}
-                      style={[
-                        pubTabStyles.tab,
-                        activeProfileTab === tab && pubTabStyles.tabActive,
-                      ]}
+                      style={pubTabStyles.tab}
+                      onLayout={(e) => handleTabLayout(tab, e)}
                       onPress={() => {
                         HapticsService.triggerImpactLight();
                         setActiveProfileTab(tab);
@@ -1069,6 +1098,12 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                       </Text>
                     </TouchableOpacity>
                   ))}
+                  <Reanimated.View
+                    style={[
+                      pubTabStyles.activeTabIndicator,
+                      animatedUnderlineStyle,
+                    ]}
+                  />
                 </View>
 
                 {/* Events Tab Content */}
@@ -1260,21 +1295,22 @@ const pubTabStyles = StyleSheet.create({
     flexDirection: 'row',
     marginTop: 20,
     marginHorizontal: -20,
-    borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#F0F0F5',
-    backgroundColor: COLORS.surface || '#FFFFFF',
-    width: '100%',
-    alignSelf: 'center',
+    borderBottomColor: '#E5E5EA',
+    backgroundColor: COLORS.background,
+    position: 'relative',
   },
   tab: {
     flex: 1,
     paddingVertical: 12,
     alignItems: 'center',
   },
-  tabActive: {
-    borderBottomWidth: 2,
-    borderBottomColor: COLORS.primary,
+  activeTabIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    height: 2,
+    backgroundColor: COLORS.primary,
+    borderRadius: 1,
   },
   tabText: {
     fontFamily: FONTS.semiBold,
@@ -1289,9 +1325,6 @@ const pubTabStyles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 16,
-    backgroundColor: '#F9FAFB',
-    width: '100%',
-    alignSelf: 'center',
   },
   loadingWrap: {
     paddingVertical: 48,
