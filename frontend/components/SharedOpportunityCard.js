@@ -112,6 +112,7 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
   const navigation = useNavigation();
   const [opp, setOpp] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [deleted, setDeleted] = useState(false);
 
   if (!metadata) return null;
 
@@ -146,9 +147,12 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
         const data = response.opportunity || response;
         if (isMounted && data) {
           setOpp(data);
+        } else if (isMounted) {
+          setDeleted(true);
         }
       } catch (err) {
-        console.error("Error fetching opportunity detail in SharedOpportunityCard:", err);
+        console.warn("[SharedOpportunityCard] Opportunity unavailable (likely deleted):", err?.message);
+        if (isMounted) setDeleted(true);
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -246,6 +250,36 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
     if (onPress && targetId) onPress(targetId, opp);
   }, [onPress, targetId, opp]);
 
+  // ── Deleted / not-found state ─────────────────────────────────────────────
+  if (!loading && deleted) {
+    const hasMetaInfo = metaCreatorName || metaCreatorUsername || metaTitle;
+    return (
+      <View style={[styles.container, style]}>
+        <View style={[styles.card, styles.deletedCard]}>
+          <Text style={styles.deletedIcon}>📭</Text>
+          <Text style={styles.deletedText}>Opportunity no longer available</Text>
+          {hasMetaInfo ? (
+            <Text style={styles.deletedSubtext} numberOfLines={2}>
+              {metaTitle || ""}
+              {metaTitle && metaCreatorName ? "\n" : ""}
+              {metaCreatorName
+                ? metaCreatorUsername
+                  ? `${metaCreatorName} (@${metaCreatorUsername})`
+                  : metaCreatorName
+                : metaCreatorUsername
+                ? `@${metaCreatorUsername}`
+                : ""}
+            </Text>
+          ) : (
+            <Text style={styles.deletedSubtext}>
+              This opportunity may have been deleted
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <TouchableOpacity
       style={[styles.container, style]}
@@ -342,7 +376,7 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
             <View style={styles.footerRow}>
               <View style={styles.footerLeft}>
                 <View style={styles.applicantStack}>
-                  {opp.applicants && opp.applicants.length > 0 ? (
+                  {opp?.applicants && opp.applicants.length > 0 ? (
                     <>
                       {opp.applicants.slice(0, 3).map((applicant, index) => (
                         <Image
@@ -354,13 +388,13 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
                            ]}
                         />
                       ))}
-                      {opp.applicant_count > 3 && (
+                      {opp?.applicant_count > 3 && (
                         <Text style={styles.applicantCount}>
                           +{opp.applicant_count - 3}
                         </Text>
                       )}
                     </>
-                  ) : opp.applicant_count > 0 ? (
+                  ) : opp?.applicant_count > 0 ? (
                     <Text style={styles.applicantCountText}>
                       {opp.applicant_count}
                     </Text>
@@ -427,6 +461,33 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     width: "100%",
+  },
+  deletedCard: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
+    padding: 28,
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  deletedIcon: {
+    fontSize: 32,
+    marginBottom: 10,
+  },
+  deletedText: {
+    fontSize: 14,
+    fontFamily: FONTS.semiBold,
+    color: "#374151",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  deletedSubtext: {
+    fontSize: 12,
+    fontFamily: FONTS.regular || FONTS.medium,
+    color: "#9CA3AF",
+    textAlign: "center",
   },
   headerRow: {
     flexDirection: "row",

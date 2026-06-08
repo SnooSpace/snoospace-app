@@ -691,9 +691,24 @@ const getMyEvents = async (req, res) => {
       }),
     );
 
+    // Count active open plans — hosted + approved attending (distinct from event registrations)
+    const plansCountResult = await pool.query(
+      `SELECT
+         (SELECT COUNT(*) FROM open_plans WHERE created_by = $1 AND status = 'active')
+         +
+         (SELECT COUNT(*) FROM open_plan_requests opr
+            JOIN open_plans op ON op.id = opr.plan_id
+            WHERE opr.requester_id = $1 AND opr.status = 'approved' AND op.created_by != $1)
+       AS plans_count`,
+      [userId]
+    );
+    const plansCount = parseInt(plansCountResult.rows[0]?.plans_count || 0, 10);
+
     res.json({
       success: true,
       events: eventsWithDetails,
+      total_events: eventsWithDetails.length + plansCount,
+      plans_count: plansCount,
     });
   } catch (error) {
     console.error("Error getting user events:", error);

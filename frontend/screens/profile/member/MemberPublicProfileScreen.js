@@ -11,18 +11,20 @@ import {
   View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Platform, Pressable } from "react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { Image as ExpoImage } from "expo-image";
-import { ArrowLeft, Play, Pin, BadgeCheck, Calendar, Users, Clock, MoreVertical, UserX, AlertTriangle, CheckCircle } from "lucide-react-native";
+import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, AlertTriangle, CheckCircle, ShieldOff, CalendarDays } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import {
   getPublicMemberProfile,
   getMemberPosts,
   followMember,
   unfollowMember,
+  getMemberPublicEvents,
+  getMemberPublicPlans,
 } from "../../../api/members";
 import { SafeAreaView } from "react-native-safe-area-context";
 import EventBus from "../../../utils/EventBus";
 import { getAuthToken, getAuthEmail } from "../../../api/auth";
-import { blockUser } from "../../../api/plans";
+import { blockUser, unblockUser } from "../../../api/plans";
 import { apiPost, apiDelete } from "../../../api/client";
 import CommentsModal from "../../../components/CommentsModal";
 import LikeStateManager from "../../../utils/LikeStateManager";
@@ -192,8 +194,17 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [showCollegeHub, setShowCollegeHub] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [blocking, setBlocking] = useState(false);
-  const [blocked, setBlocked] = useState(false); // true when a block exists between viewer and this profile
+  const [unblocking, setUnblocking] = useState(false);
+  const [blocked, setBlocked] = useState(false);
+  const [youHaveBlocked, setYouHaveBlocked] = useState(false);
   const pendingPostUpdateRef = useRef(null);
+
+  // Events tab state
+  const [activeProfileTab, setActiveProfileTab] = useState('posts');
+  const [profileEvents, setProfileEvents] = useState([]);
+  const [profilePlans, setProfilePlans] = useState({ hosted: [], attending: [] });
+  const [loadingEvents, setLoadingEvents] = useState(false);
+  const eventsFetchedRef = useRef(false);
 
   const [alertConfig, setAlertConfig] = useState({
     visible: false,
@@ -257,6 +268,25 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     }, 300);
   }, [memberId, profile, navigation, showAlert, hideAlert]);
 
+  const handleUnblockUser = useCallback(async () => {
+    try {
+      setUnblocking(true);
+      const token = await getAuthToken();
+      await unblockUser(memberId, token);
+      setYouHaveBlocked(false);
+    } catch (err) {
+      showAlert({
+        title: "Error",
+        message: err?.message || "Failed to unblock. Please try again.",
+        primaryAction: { text: "OK", onPress: hideAlert },
+        icon: AlertTriangle,
+        iconColor: "#E53935",
+      });
+    } finally {
+      setUnblocking(false);
+    }
+  }, [memberId, showAlert, hideAlert]);
+
   const loadProfile = useCallback(async () => {
     try {
       const p = await getPublicMemberProfile(memberId);
@@ -290,8 +320,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       };
       setProfile(normalized);
       setIsFollowing(!!p?.is_following);
+      setYouHaveBlocked(!!p?.you_have_blocked);
     } catch (e) {
-      // 403 user_unavailable = block exists in either direction
       if (e?.status === 403 && e?.data?.error === 'user_unavailable') {
         setBlocked(true);
       } else {
@@ -299,6 +329,27 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       }
     }
   }, [memberId]);
+
+  // Lazy load events/plans for public profile when Events tab is first opened
+  const loadPublicMemberEvents = useCallback(async () => {
+    if (loadingEvents) return;
+    try {
+      setLoadingEvents(true);
+      const [eventsRes, plansRes] = await Promise.all([
+        getMemberPublicEvents(memberId).catch(() => ({ events: [] })),
+        getMemberPublicPlans(memberId).catch(() => ({ hosted: [], attending: [] })),
+      ]);
+      setProfileEvents(eventsRes?.events || []);
+      setProfilePlans({
+        hosted: plansRes?.hosted || [],
+        attending: plansRes?.attending || [],
+      });
+    } catch (err) {
+      console.error('[MemberPublicProfile] loadPublicMemberEvents error:', err);
+    } finally {
+      setLoadingEvents(false);
+    }
+  }, [memberId, loadingEvents]);
 
   const loadPosts = useCallback(
     async (reset = false) => {
@@ -564,23 +615,70 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         <Pressable style={menuStyles.overlay} onPress={() => setMenuVisible(false)}>
           <Pressable style={menuStyles.sheet} onPress={(e) => e.stopPropagation()}>
             <View style={menuStyles.handle} />
+            {profile?.created_at && (() => {
+              const createdDate = new Date(profile.created_at);
+              const accountAge = Math.floor((Date.now() - createdDate.getTime()) / 86400000);
+              const joinDate = createdDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+              return (
+                <>
+                  <View style={menuStyles.row}>
+                    <View style={[menuStyles.iconBox, { backgroundColor: 'rgba(59,130,246,0.08)' }]}>
+                      <CalendarDays size={20} color="#3B82F6" strokeWidth={2} />
+                    </View>
+                    <View style={menuStyles.rowText}>
+                      <Text style={[menuStyles.rowLabel, { color: COLORS.textPrimary }]}>
+                        {accountAge}d
+                      </Text>
+                      <Text style={menuStyles.rowSub}>
+                        Joined on {joinDate}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ height: 1, backgroundColor: '#F3F4F6', marginVertical: 8 }} />
+                </>
+              );
+            })()}
             <TouchableOpacity
               style={menuStyles.row}
-              onPress={handleBlockUser}
+              onPress={youHaveBlocked ? () => { setMenuVisible(false); handleUnblockUser(); } : handleBlockUser}
               activeOpacity={0.7}
-              disabled={blocking}
+              disabled={blocking || unblocking}
             >
-              <View style={menuStyles.iconBox}>
-                <UserX size={20} color="#E53935" strokeWidth={2.5} />
+              <View style={[menuStyles.iconBox, youHaveBlocked && { backgroundColor: 'rgba(53,101,242,0.08)' }]}>
+                {youHaveBlocked
+                  ? <ShieldOff size={20} color="#3565F2" strokeWidth={2.5} />
+                  : <UserX    size={20} color="#E53935" strokeWidth={2.5} />}
               </View>
               <View style={menuStyles.rowText}>
-                <Text style={menuStyles.rowLabel}>Block User</Text>
-                <Text style={menuStyles.rowSub}>They won't be able to message or find you</Text>
+                <Text style={[menuStyles.rowLabel, youHaveBlocked && { color: '#3565F2' }]}>
+                  {youHaveBlocked ? 'Unblock User' : 'Block User'}
+                </Text>
+                <Text style={menuStyles.rowSub}>
+                  {youHaveBlocked ? 'Remove block and restore access' : "They won't be able to message or find you"}
+                </Text>
               </View>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* "You've blocked this user" banner */}
+      {youHaveBlocked && !loading && (
+        <View style={blockBannerStyles.banner}>
+          <View style={blockBannerStyles.left}>
+            <ShieldOff size={18} color="#E11D48" strokeWidth={2} style={{ marginRight: 8 }} />
+            <Text style={blockBannerStyles.text}>You've blocked this user</Text>
+          </View>
+          <TouchableOpacity
+            style={blockBannerStyles.btn}
+            onPress={handleUnblockUser}
+            disabled={unblocking}
+            activeOpacity={0.75}
+          >
+            <Text style={blockBannerStyles.btnText}>{unblocking ? 'Unblocking…' : 'Unblock'}</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {loading ? (
         <ScrollView style={{ flex: 1, backgroundColor: "#fff" }}>
@@ -602,35 +700,35 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           <Text style={{ color: "#FF3B30" }}>{error}</Text>
         </View>
       ) : (
-        <>
           <FlatList
-            data={posts}
+            key={activeProfileTab === 'posts' ? 'posts-3col' : 'events-1col'}
+            data={activeProfileTab === 'posts' ? posts : []}
             keyExtractor={(item) => String(item.id)}
-            renderItem={renderGridItem}
-            numColumns={3}
-            columnWrapperStyle={{
-              justifyContent: "flex-start",
-              marginBottom: GAP,
-              gap: GAP,
-            }}
+            renderItem={activeProfileTab === 'posts' ? renderGridItem : null}
+            numColumns={activeProfileTab === 'posts' ? 3 : 1}
+            columnWrapperStyle={
+              activeProfileTab === 'posts'
+                ? { justifyContent: "flex-start", marginBottom: GAP, gap: GAP }
+                : undefined
+            }
             contentContainerStyle={{
               paddingHorizontal: 0,
               paddingTop: 0,
               paddingBottom: 120,
-              flexGrow: posts.length === 0 ? 1 : 0,
+              flexGrow: 1,
             }}
             initialNumToRender={12}
             maxToRenderPerBatch={6}
             windowSize={5}
             removeClippedSubviews={Platform.OS === 'android'}
             updateCellsBatchingPeriod={50}
-            getItemLayout={(data, index) => ({
+            getItemLayout={activeProfileTab === 'posts' ? (data, index) => ({
               length: ITEM_SIZE * 1.35,
               offset: (ITEM_SIZE * 1.35 + GAP) * Math.floor(index / 3),
               index,
-            })}
+            }) : undefined}
             onEndReachedThreshold={0.5}
-            onEndReached={() => loadPosts(false)}
+            onEndReached={() => activeProfileTab === 'posts' && loadPosts(false)}
             ListHeaderComponent={
               <View style={styles.profileSection}>
                 <View style={styles.profileImageContainer}>
@@ -650,24 +748,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   const hasBio = !!profile?.bio;
                   const hasPronouns = visiblePronouns.length > 0;
 
-                  // Trust signal helpers
-                  const memberSince = profile?.created_at
-                    ? (() => {
-                        const d = new Date(profile.created_at);
-                        const now = new Date();
-                        const diffDays = Math.floor((now - d) / 86400000);
-                        if (diffDays > 60) {
-                          return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
-                        }
-                        if (diffDays > 7) return `${Math.floor(diffDays / 7)}w ago`;
-                        return `${diffDays}d ago`;
-                      })()
-                    : null;
-
                   const trustSignals = [
-                    profile?.events_attended_count > 0 && { icon: Calendar, label: `${profile.events_attended_count} events` },
+                    profile?.events_attended_count > 0 && { icon: Ticket, label: `${profile.events_attended_count} events` },
                     profile?.communities_count > 0 && { icon: Users, label: `${profile.communities_count} communities` },
-                    memberSince && { icon: Clock, label: `Member ${memberSince}` },
                   ].filter(Boolean);
 
                   return (
@@ -694,7 +777,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                             <Text style={styles.chipText}>
                               {visiblePronouns
                                 .map((p) =>
-                                  String(p).replace(/^[{\"]+|[}\"]+$/g, ""),
+                                  String(p).replace(/^[{"]+|[}"]+$/g, ""),
                                 )
                                 .join(" / ")}
                             </Text>
@@ -733,6 +816,21 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     </Text>
                     <Text style={styles.statLabel}>Posts</Text>
                   </View>
+                  <TouchableOpacity
+                    style={styles.statItem}
+                    onPress={() => {
+                      setActiveProfileTab('events');
+                      if (!eventsFetchedRef.current) {
+                        eventsFetchedRef.current = true;
+                        loadPublicMemberEvents();
+                      }
+                    }}
+                  >
+                    <Text style={styles.statNumber}>
+                      {profile?.events_attended_count || 0}
+                    </Text>
+                    <Text style={styles.statLabel}>Events</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.statItem}
                     onPress={() => {
@@ -838,7 +936,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                         const next = false;
                         setIsFollowing(next);
                         HapticsService.triggerImpactLight();
-                        // Optimistic update
                         setProfile((prev) =>
                           prev
                             ? {
@@ -857,7 +954,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                         try {
                           await unfollowMember(memberId);
                         } catch (e) {
-                          // Revert
                           setIsFollowing(true);
                           setProfile((prev) =>
                             prev
@@ -892,7 +988,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                         const next = true;
                         setIsFollowing(next);
                         HapticsService.triggerImpactLight();
-                        // Optimistic update
                         setProfile((prev) =>
                           prev
                             ? {
@@ -908,7 +1003,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                         try {
                           await followMember(memberId);
                         } catch (e) {
-                          // Revert
                           setIsFollowing(false);
                           setProfile((prev) =>
                             prev
@@ -932,8 +1026,6 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     colors={["#111827", "#111827"]}
                     textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
                     onPress={() => {
-                      // Climb to the root navigator (AppNavigator) regardless of
-                      // how many stacks deep this profile was opened from.
                       let rootNav = navigation;
                       while (rootNav.getParent && rootNav.getParent()) {
                         rootNav = rootNav.getParent();
@@ -950,20 +1042,144 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     }}
                   />
                 </View>
+
+                {/* Posts / Events Tab Bar */}
+                <View style={pubTabStyles.tabBar}>
+                  {['posts', 'events'].map((tab) => (
+                    <TouchableOpacity
+                      key={tab}
+                      style={[
+                        pubTabStyles.tab,
+                        activeProfileTab === tab && pubTabStyles.tabActive,
+                      ]}
+                      onPress={() => {
+                        HapticsService.triggerImpactLight();
+                        setActiveProfileTab(tab);
+                        if (tab === 'events' && !eventsFetchedRef.current) {
+                          eventsFetchedRef.current = true;
+                          loadPublicMemberEvents();
+                        }
+                      }}
+                    >
+                      <Text style={[
+                        pubTabStyles.tabText,
+                        activeProfileTab === tab && pubTabStyles.tabTextActive,
+                      ]}>
+                        {tab === 'posts' ? 'Posts' : 'Events'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Events Tab Content */}
+                {activeProfileTab === 'events' && (
+                  <View style={pubTabStyles.eventsContainer}>
+                    {loadingEvents ? (
+                      <View style={pubTabStyles.loadingWrap}>
+                        <SnooLoader size="large" color={PRIMARY_COLOR} />
+                      </View>
+                    ) : (
+                      <>
+                        {/* Attended Events */}
+                        {profileEvents.length > 0 && (
+                          <>
+                            <Text style={pubTabStyles.sectionHeader}>Events Attended</Text>
+                            {profileEvents.map((ev) => {
+                              const d = ev.start_datetime ? new Date(ev.start_datetime) : null;
+                              const dateStr = d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+                              return (
+                                <TouchableOpacity
+                                  key={`ev-${ev.id}`}
+                                  style={pubTabStyles.eventRow}
+                                  onPress={() => navigation.navigate('EventDetails', { eventId: ev.id, eventData: ev })}
+                                  activeOpacity={0.82}
+                                >
+                                  {ev.banner_url ? (
+                                    <Image source={{ uri: ev.banner_url }} style={pubTabStyles.eventThumb} />
+                                  ) : (
+                                    <View style={[pubTabStyles.eventThumb, pubTabStyles.eventThumbPlaceholder]}>
+                                      <Ticket size={20} color={COLORS.primary} strokeWidth={2} />
+                                    </View>
+                                  )}
+                                  <View style={pubTabStyles.eventRowInfo}>
+                                    <Text style={pubTabStyles.eventRowTitle} numberOfLines={1}>{ev.title}</Text>
+                                    {dateStr ? <Text style={pubTabStyles.eventRowMeta}>{dateStr}</Text> : null}
+                                    {ev.community_name ? (
+                                      <Text style={pubTabStyles.eventRowSub} numberOfLines={1}>{ev.community_name}</Text>
+                                    ) : null}
+                                  </View>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          </>
+                        )}
+
+                        {/* Open Plans */}
+                        {(profilePlans.hosted.length > 0 || profilePlans.attending.length > 0) && (
+                          <>
+                            <Text style={pubTabStyles.sectionHeader}>Open Plans</Text>
+                            {[...profilePlans.hosted, ...profilePlans.attending].map((plan) => {
+                              const d = plan.scheduled_at ? new Date(plan.scheduled_at) : null;
+                              const dateStr = d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
+                              const actColors = { sports: '#EEF2FF', study: '#E8F5E9', food: '#FFF8E1', gaming: '#FCE4EC', other: '#F5F5F5' };
+                              const actTextColors = { sports: '#3B5BDB', study: '#2E7D32', food: '#B45309', gaming: '#C2185B', other: '#555555' };
+                              const actKey = actColors[plan.activity_type] ? plan.activity_type : 'other';
+                              const actLabel = plan.activity_type === 'other' ? (plan.custom_activity_label || 'Other') : plan.activity_type.charAt(0).toUpperCase() + plan.activity_type.slice(1);
+                              const isHost = plan.role === 'host';
+                              return (
+                                <View
+                                  key={`plan-${plan.id}-${plan.role}`}
+                                  style={pubTabStyles.planRow}
+                                >
+                                  {/* Icon avatar */}
+                                  <View style={[pubTabStyles.planIconWrap, { backgroundColor: actColors[actKey] }]}>
+                                    <CalendarDays size={18} color={actTextColors[actKey]} strokeWidth={2} />
+                                  </View>
+                                  <View style={pubTabStyles.planLeft}>
+                                    <View style={pubTabStyles.planPillRow}>
+                                      <View style={[pubTabStyles.planPill, { backgroundColor: isHost ? '#EEF2FF' : '#E8F5E9' }]}>
+                                        <Text style={[pubTabStyles.planPillText, { color: isHost ? '#3B5BDB' : '#2E7D32' }]}>{isHost ? 'Hosting' : 'Attending'}</Text>
+                                      </View>
+                                      <View style={[pubTabStyles.planPill, { backgroundColor: actColors[actKey] + '99' }]}>
+                                        <Text style={[pubTabStyles.planPillText, { color: actTextColors[actKey] }]}>{actLabel}</Text>
+                                      </View>
+                                    </View>
+                                    <Text style={pubTabStyles.planTitle} numberOfLines={1}>{plan.title}</Text>
+                                    <Text style={pubTabStyles.planMeta}>
+                                      {dateStr}{plan.location_public ? ` · ${plan.location_public}` : ''}
+                                    </Text>
+                                  </View>
+                                </View>
+                              );
+                            })}
+                          </>
+                        )}
+
+                        {/* Empty state */}
+                        {profileEvents.length === 0 && profilePlans.hosted.length === 0 && profilePlans.attending.length === 0 && (
+                          <View style={pubTabStyles.emptyWrap}>
+                            <Ticket size={36} color={COLORS.textSecondary} strokeWidth={1.5} />
+                            <Text style={pubTabStyles.emptyText}>No events yet</Text>
+                            <Text style={pubTabStyles.emptySubText}>Events and plans this member attends will show here.</Text>
+                          </View>
+                        )}
+                      </>
+                    )}
+                  </View>
+                )}
               </View>
             }
             ListEmptyComponent={
-              !loading && (
+              !loading && activeProfileTab === 'posts' && (
                 <EmptyPostsState isOwnProfile={false} />
               )
             }
             ListFooterComponent={
-              loadingMore ? (
+              loadingMore && activeProfileTab === 'posts' ? (
                 <SnooLoader style={{ marginVertical: 12 }} />
               ) : null
             }
           />
-        </>
       )}
 
       {selectedPost && (
@@ -1037,6 +1253,124 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     </SafeAreaView>
   );
 }
+
+// ─── Public profile tab bar & events feed styles ────────────────────────────
+const pubTabStyles = StyleSheet.create({
+  tabBar: {
+    flexDirection: 'row',
+    marginTop: 20,
+    marginHorizontal: -20,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#F0F0F5',
+    backgroundColor: COLORS.surface || '#FFFFFF',
+    width: '100%',
+    alignSelf: 'center',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  tabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.primary,
+  },
+  tabText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
+  tabTextActive: {
+    color: COLORS.primary,
+  },
+  eventsContainer: {
+    marginHorizontal: -20,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
+    backgroundColor: '#F9FAFB',
+    width: '100%',
+    alignSelf: 'center',
+  },
+  loadingWrap: {
+    paddingVertical: 48,
+    alignItems: 'center',
+  },
+  sectionHeader: {
+    fontFamily: FONTS.bold || FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+    marginTop: 16,
+    marginBottom: 10,
+    letterSpacing: 0.1,
+  },
+  eventRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface || '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  eventThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    marginRight: 12,
+    backgroundColor: '#EEF2FF',
+  },
+  eventThumbPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  eventRowInfo: { flex: 1, gap: 3 },
+  eventRowTitle: { fontFamily: FONTS.semiBold, fontSize: 14, color: COLORS.textPrimary },
+  eventRowMeta: { fontFamily: FONTS.medium, fontSize: 12, color: COLORS.textSecondary },
+  eventRowSub: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textSecondary },
+  planRow: {
+    backgroundColor: COLORS.surface || '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  planIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  planLeft: { flex: 1, gap: 4 },
+  planPillRow: { flexDirection: 'row', gap: 6, marginBottom: 2 },
+  planPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  planPillText: { fontFamily: FONTS.medium, fontSize: 11 },
+  planTitle: { fontFamily: FONTS.semiBold, fontSize: 15, color: COLORS.textPrimary },
+  planMeta: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textSecondary },
+  emptyWrap: { paddingVertical: 48, alignItems: 'center', gap: 10 },
+  emptyText: { fontFamily: FONTS.semiBold, fontSize: 16, color: COLORS.textPrimary },
+  emptySubText: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -1251,5 +1585,41 @@ const menuStyles = StyleSheet.create({
     fontSize: 12,
     color: '#8FA1B8',
     marginTop: 2,
+  },
+});
+
+const blockBannerStyles = StyleSheet.create({
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF1F2',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FFE4E6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  left: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  text: {
+    fontFamily: 'Manrope-Medium',
+    fontSize: 13,
+    color: '#BE123C',
+    flexShrink: 1,
+  },
+  btn: {
+    backgroundColor: '#E11D48',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginLeft: 12,
+  },
+  btnText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 13,
+    color: '#FFFFFF',
   },
 });

@@ -690,6 +690,8 @@ const discoverOpportunities = async (req, res) => {
         o.created_at,
         o.creator_id,
         o.creator_type,
+        o.expires_at,
+        o.closed_at,
         CASE 
           WHEN o.creator_type = 'community' THEN c.name
           WHEN o.creator_type = 'member' THEN m.name
@@ -1168,6 +1170,8 @@ const getFollowedOpportunities = async (req, res) => {
         o.payment_nature,
         o.trial_type,
         o.budget_range,
+        o.expires_at,
+        o.closed_at,
         COALESCE(o.applicant_count, 0) as applicant_count,
         COALESCE(o.like_count, 0) as like_count,
         COALESCE(o.view_count, 0) as view_count,

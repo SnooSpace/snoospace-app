@@ -470,6 +470,17 @@ router.post(
   MemberController.verifyEmailChange,
 );
 router.get("/members/search", authMiddleware, MemberController.searchMembers);
+// Member public events & plans (must be before :id/public wildcard)
+router.get(
+  "/members/:id/events",
+  authMiddleware,
+  MemberController.getMemberPublicEvents,
+);
+router.get(
+  "/members/:id/plans",
+  authMiddleware,
+  MemberController.getMemberPublicPlans,
+);
 router.get(
   "/members/:id/public",
   authMiddleware,

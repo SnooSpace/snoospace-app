@@ -198,3 +198,22 @@ export async function updateSignupDraft(profileId, data, completedStep) {
 export async function completeSignup(profileId) {
   return apiPost(`/members/signup/complete/${profileId}`, {}, 10000);
 }
+
+/**
+ * Fetch public events attended by a member (for their public profile Events tab)
+ * Returns { events: [...] }
+ */
+export async function getMemberPublicEvents(memberId) {
+  const token = await getAuthToken();
+  return apiGet(`/members/${memberId}/events`, 15000, token);
+}
+
+/**
+ * Fetch public open plans hosted/attended by a member (for their public profile Events tab)
+ * Returns { hosted: [...], attending: [...] }
+ * NOTE: Only location_public (general area) is returned — never the exact location.
+ */
+export async function getMemberPublicPlans(memberId) {
+  const token = await getAuthToken();
+  return apiGet(`/members/${memberId}/plans`, 15000, token);
+}

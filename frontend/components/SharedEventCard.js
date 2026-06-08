@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,11 +8,13 @@ import {
   Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Calendar, MapPin, Video, ArrowRight } from "lucide-react-native";
-import { COLORS, FONTS } from "../constants/theme";
+import { Calendar, Clock, MapPin, Video, MoveRight } from "lucide-react-native";
+import { COLORS, FONTS, SHADOWS } from "../constants/theme";
+import { getEventDetails } from "../api/events";
+import SnooLoader from "./ui/SnooLoader";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_WIDTH = SCREEN_WIDTH * 0.72;
+const CARD_WIDTH = SCREEN_WIDTH * 0.65; // Scaled down to match SharedPostCard and fit nicely in chat
 
 const formatEventDate = (dateStr) => {
   if (!dateStr) return null;
@@ -27,137 +29,342 @@ const formatEventDate = (dateStr) => {
   }
 };
 
+const formatEventTime = (dateStr) => {
+  if (!dateStr) return null;
+  try {
+    return new Date(dateStr).toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Parses a display date string into distinct Month and Day values
+ * @param {string} dateStr - e.g. "Sun, May 31" or "May 31"
+ * @returns {Object} { month: string, day: string }
+ */
+const parseDisplayDate = (dateStr) => {
+  if (!dateStr) return { month: "EVT", day: "•" };
+  const cleanStr = dateStr.replace(/,/g, "").trim();
+  const parts = cleanStr.split(/\s+/);
+
+  let month = "EVT";
+  let day = "•";
+
+  const monthNames = [
+    "jan", "feb", "mar", "apr", "may", "jun",
+    "jul", "aug", "sep", "oct", "nov", "dec"
+  ];
+
+  for (let part of parts) {
+    const lower = part.toLowerCase();
+    if (monthNames.some((m) => lower.startsWith(m))) {
+      month = part.substring(0, 3).toUpperCase();
+    } else if (/^\d+$/.test(part)) {
+      day = part;
+    }
+  }
+
+  if (day === "•") {
+    for (let part of parts) {
+      const match = part.match(/^(\d+)(st|nd|rd|th)?$/i);
+      if (match) {
+        day = match[1];
+        break;
+      }
+    }
+  }
+
+  return { month, day };
+};
+
 /**
  * SharedEventCard — premium preview rendered in chat when
  * someone shares an event (message_type === "event_share").
  *
- * Metadata shape (from shareEvent backend):
- *   { eventId, title, description, bannerUrl, eventDate, locationName,
- *     eventType, communityId, communityName, communityUsername, communityLogo }
+ * Matches the layout and style of EventCard in a compact view.
  */
 const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
+  const [event, setEvent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [deleted, setDeleted] = useState(false);
+
   if (!metadata) return null;
 
   const {
     eventId,
-    title,
-    description,
-    bannerUrl,
-    eventDate,
-    locationName,
-    eventType,
-    communityName,
-    communityLogo,
-    communityUsername,
+    title: metaTitle,
+    bannerUrl: metaBannerUrl,
+    eventDate: metaEventDate,
+    locationName: metaLocationName,
+    eventType: metaEventType,
+    communityName: metaCommunityName,
+    communityLogo: metaCommunityLogo,
+    communityUsername: metaCommunityUsername,
   } = metadata;
 
   const targetId = eventId || metadata.event_id || metadata.id;
-  const displayTitle = title || "Untitled Event";
-  const displayCommunity = communityName || communityUsername || "Community";
-  const formattedDate = formatEventDate(eventDate);
-  const isVirtual = eventType === "virtual" || eventType === "hybrid";
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchEvent = async () => {
+      if (!targetId) {
+        setDeleted(true);
+        setLoading(false);
+        return;
+      }
+      try {
+        const response = await getEventDetails(targetId);
+        const data = response?.event || response;
+        if (isMounted && data && (data.id || data.title)) {
+          setEvent(data);
+        } else if (isMounted) {
+          setDeleted(true);
+        }
+      } catch (err) {
+        console.warn("[SharedEventCard] Event unavailable (likely deleted):", err?.message);
+        if (isMounted) setDeleted(true);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    fetchEvent();
+    return () => { isMounted = false; };
+  }, [targetId]);
+
+  // Resolve display values — prefer live data, fall back to metadata
+  const displayTitle = event?.title || metaTitle || "Untitled Event";
+  const displayCommunity =
+    event?.community_name ||
+    event?.organizer_name ||
+    metaCommunityName ||
+    metaCommunityUsername ||
+    "Community";
+  const displayBannerUrl = event?.banner_url || metaBannerUrl || null;
+  const displayDate =
+    event?.start_datetime || event?.event_date || metaEventDate || null;
+  const displayLocation =
+    event?.location_name || event?.venue_name || metaLocationName || null;
+  const displayEventType = event?.event_type || metaEventType || null;
+  const displayCommunityLogo =
+    event?.community_logo || event?.organizer_logo || metaCommunityLogo || null;
+
+  const formattedDate = formatEventDate(displayDate);
+  const formattedTime = event?.formatted_time || formatEventTime(displayDate);
+  const isVirtual =
+    displayEventType === "virtual" || displayEventType === "hybrid";
+
+  const getLowestPrice = () => {
+    if (!event) return 0;
+
+    let parsedTickets = [];
+    if (event.ticket_types) {
+      if (typeof event.ticket_types === "string") {
+        try {
+          parsedTickets = JSON.parse(event.ticket_types);
+        } catch (err) {
+          parsedTickets = [];
+        }
+      } else if (Array.isArray(event.ticket_types)) {
+        parsedTickets = event.ticket_types;
+      }
+    }
+
+    if (parsedTickets && parsedTickets.length > 0) {
+      const prices = parsedTickets
+        .map((t) => parseFloat(t.base_price) || 0)
+        .filter((p) => p > 0);
+      if (prices.length > 0) return Math.min(...prices);
+    }
+
+    if (event.ticket_price && parseFloat(event.ticket_price) > 0) {
+      return parseFloat(event.ticket_price);
+    }
+    if (event.min_price && parseFloat(event.min_price) > 0) {
+      return parseFloat(event.min_price);
+    }
+    if (event.base_price && parseFloat(event.base_price) > 0) {
+      return parseFloat(event.base_price);
+    }
+
+    return 0;
+  };
+
+  const lowestPrice = getLowestPrice();
+  const isFree = lowestPrice <= 0;
+  const displayPrice = isFree ? "Free" : `₹${lowestPrice.toLocaleString("en-IN")} onwards`;
+
+  const { month, day } = parseDisplayDate(formattedDate);
 
   const handlePress = useCallback(() => {
     if (onPress && targetId) onPress(targetId);
   }, [onPress, targetId]);
 
+  // ── Loading state ──────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <View style={[styles.container, style]}>
+        <View style={styles.eventLabel}>
+          <Calendar size={12} color={COLORS.primary} strokeWidth={2} />
+          <Text style={styles.eventLabelText}>Event</Text>
+        </View>
+        <View style={[styles.card, styles.loadingCard]}>
+          <SnooLoader size="small" color={COLORS.primary} />
+        </View>
+      </View>
+    );
+  }
+
+  // ── Deleted / not-found state ──────────────────────────────────────────────
+  if (deleted) {
+    const hasMetaInfo = metaTitle || metaCommunityName || metaCommunityUsername;
+    return (
+      <View style={[styles.container, style]}>
+        <View style={styles.eventLabel}>
+          <Calendar size={12} color={COLORS.primary} strokeWidth={2} />
+          <Text style={styles.eventLabelText}>Event</Text>
+        </View>
+        <View style={styles.deletedCard}>
+          <Text style={styles.deletedIcon}>📭</Text>
+          <Text style={styles.deletedText}>Event no longer available</Text>
+          {hasMetaInfo ? (
+            <Text style={styles.deletedSubtext} numberOfLines={2}>
+              {metaTitle || ""}
+              {metaTitle && (metaCommunityName || metaCommunityUsername)
+                ? "\n"
+                : ""}
+              {metaCommunityName
+                ? metaCommunityUsername
+                  ? `${metaCommunityName} (@${metaCommunityUsername})`
+                  : metaCommunityName
+                : metaCommunityUsername
+                ? `@${metaCommunityUsername}`
+                : ""}
+            </Text>
+          ) : (
+            <Text style={styles.deletedSubtext}>
+              This event may have been deleted
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  }
+
+  // ── Normal card ────────────────────────────────────────────────────────────
   return (
-    <TouchableOpacity
-      style={[styles.container, style]}
-      onPress={handlePress}
-      activeOpacity={0.9}
-    >
-      <LinearGradient
-        colors={["#1A1826", "#2D2640"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+    <View style={[styles.container, style]}>
+      {/* Event Label */}
+      <View style={styles.eventLabel}>
+        <Calendar size={12} color={COLORS.primary} strokeWidth={2} />
+        <Text style={styles.eventLabelText}>Event</Text>
+      </View>
+
+      <TouchableOpacity
         style={styles.card}
+        onPress={handlePress}
+        activeOpacity={0.9}
       >
-        {/* ── Header badge ─────────────────────────────────────── */}
-        <View style={styles.headerRow}>
-          <View style={styles.typeBadge}>
-            <Text style={styles.typeBadgeText}>EVENT</Text>
-          </View>
-          <View style={styles.iconContainer}>
-            <Calendar size={14} color="#A78BFA" strokeWidth={2} />
-          </View>
-        </View>
+        {/* Banner image */}
+        <View style={styles.imageContainer}>
+          {displayBannerUrl ? (
+            <Image
+              source={{ uri: displayBannerUrl }}
+              style={styles.bannerImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <LinearGradient
+              colors={COLORS.primaryGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.placeholderBanner}
+            >
+              <Calendar size={24} color="rgba(255,255,255,0.7)" strokeWidth={1.8} />
+            </LinearGradient>
+          )}
 
-        {/* ── Banner image ──────────────────────────────────────── */}
-        {bannerUrl ? (
-          <Image
-            source={{ uri: bannerUrl }}
-            style={styles.banner}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[styles.banner, styles.bannerPlaceholder]}>
-            <Calendar size={28} color="rgba(167, 139, 250, 0.4)" strokeWidth={1.5} />
-          </View>
-        )}
-
-        {/* ── Community row ─────────────────────────────────────── */}
-        <View style={styles.communityRow}>
-          <Image
-            source={
-              communityLogo
-                ? { uri: communityLogo }
-                : {
-                    uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                      displayCommunity
-                    )}&background=7C3AED&color=FFFFFF&size=88`,
-                  }
-            }
-            style={styles.communityAvatar}
-          />
-          <Text style={styles.communityName} numberOfLines={1}>
-            {displayCommunity}
-          </Text>
-        </View>
-
-        {/* ── Title ─────────────────────────────────────────────── */}
-        <Text style={styles.title} numberOfLines={2}>
-          {displayTitle}
-        </Text>
-
-        {/* ── Meta row ─────────────────────────────────────────── */}
-        <View style={styles.metaRow}>
+          {/* Date Badge */}
           {formattedDate && (
-            <View style={styles.metaItem}>
-              <Calendar size={11} color="#A78BFA" strokeWidth={2} />
-              <Text style={styles.metaText}>{formattedDate}</Text>
+            <View style={styles.dateBadge}>
+              <Text style={styles.dateBadgeHeader}>{month}</Text>
+              <Text style={styles.dateBadgeNumber}>{day}</Text>
             </View>
           )}
-          {(locationName || isVirtual) && (
+
+          {/* Gradient Overlay */}
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.3)"]}
+            style={styles.imageOverlay}
+          />
+        </View>
+
+        {/* Content */}
+        <View style={styles.content}>
+          {/* Organizer/Community Row */}
+          <View style={styles.communityRow}>
+            <Image
+              source={
+                displayCommunityLogo
+                  ? { uri: displayCommunityLogo }
+                  : {
+                      uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                        displayCommunity
+                      )}&background=7C3AED&color=FFFFFF&size=88`,
+                    }
+              }
+              style={styles.communityAvatar}
+            />
+            <Text style={styles.communityName} numberOfLines={1}>
+              {displayCommunity}
+            </Text>
+          </View>
+
+          {/* Title */}
+          <Text style={styles.title} numberOfLines={2}>
+            {displayTitle}
+          </Text>
+
+          {/* Metadata Grid */}
+          <View style={styles.metaGrid}>
             <View style={styles.metaItem}>
-              {isVirtual ? (
-                <Video size={11} color="#A78BFA" strokeWidth={2} />
-              ) : (
-                <MapPin size={11} color="#A78BFA" strokeWidth={2} />
-              )}
+              <Clock size={12} color={COLORS.textSecondary} strokeWidth={2} />
               <Text style={styles.metaText} numberOfLines={1}>
-                {isVirtual ? "Virtual" : locationName}
+                {formattedDate || "TBD"}{formattedTime ? ` • ${formattedTime}` : ""}
               </Text>
             </View>
-          )}
-        </View>
+            {(displayLocation || isVirtual) && (
+              <View style={styles.metaItem}>
+                {isVirtual ? (
+                  <Video size={12} color={COLORS.textSecondary} strokeWidth={2} />
+                ) : (
+                  <MapPin size={12} color={COLORS.textSecondary} strokeWidth={2} />
+                )}
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {isVirtual ? "Virtual Event" : displayLocation}
+                </Text>
+              </View>
+            )}
+          </View>
 
-        {/* ── Footer CTA ───────────────────────────────────────── */}
-        <View style={styles.footerRow}>
-          <View style={styles.viewButton}>
-            <LinearGradient
-              colors={["#7C3AED", "#5B21B6"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.viewButtonGradient}
-            >
-              <Text style={styles.viewButtonText}>View Event</Text>
-              <ArrowRight size={11} color="#FFFFFF" style={{ marginLeft: 4 }} strokeWidth={2.5} />
-            </LinearGradient>
+          {/* Price & Explicit View Details CTA Row */}
+          <View style={styles.priceDetailsRow}>
+            <Text style={[styles.priceText, isFree && styles.freePriceText]} numberOfLines={1}>
+              {displayPrice}
+            </Text>
+
+            <View style={styles.viewDetailsRow}>
+              <Text style={styles.viewDetailsText}>View details</Text>
+              <MoveRight size={12} color={COLORS.primary} strokeWidth={2.2} />
+            </View>
           </View>
         </View>
-      </LinearGradient>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
   );
 });
 
@@ -167,110 +374,180 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     marginVertical: 8,
   },
+  eventLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  eventLabelText: {
+    fontSize: 11,
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
   card: {
+    backgroundColor: COLORS.surface,
     borderRadius: 16,
-    padding: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.04)",
+    ...SHADOWS.sm,
     width: "100%",
   },
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  typeBadge: {
-    backgroundColor: "rgba(124, 58, 237, 0.2)",
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: "rgba(124, 58, 237, 0.4)",
-  },
-  typeBadgeText: {
-    fontSize: 9,
-    fontFamily: FONTS.semiBold,
-    color: "#A78BFA",
-    letterSpacing: 0.8,
-  },
-  iconContainer: {
-    backgroundColor: "rgba(124, 58, 237, 0.15)",
-    borderRadius: 16,
+  loadingCard: {
+    minHeight: 120,
     alignItems: "center",
     justifyContent: "center",
-    width: 30,
-    height: 30,
   },
-  banner: {
+  // ── Deleted state ──────────────────────────────────────────────────────────
+  deletedCard: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
+    padding: 24,
     width: "100%",
-    height: 110,
-    borderRadius: 10,
-    marginBottom: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  deletedIcon: {
+    fontSize: 28,
+    marginBottom: 8,
+  },
+  deletedText: {
+    fontSize: 13,
+    fontFamily: FONTS.medium,
+    color: "#374151",
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  deletedSubtext: {
+    fontSize: 11,
+    fontFamily: FONTS.regular,
+    color: "#9CA3AF",
+    textAlign: "center",
+  },
+  // ── Normal card ────────────────────────────────────────────────────────────
+  imageContainer: {
+    height: 100,
+    position: "relative",
+    width: "100%",
     overflow: "hidden",
   },
-  bannerPlaceholder: {
-    backgroundColor: "rgba(124, 58, 237, 0.1)",
-    alignItems: "center",
+  bannerImage: {
+    width: "100%",
+    height: "100%",
+  },
+  placeholderBanner: {
+    width: "100%",
+    height: "100%",
     justifyContent: "center",
+    alignItems: "center",
+  },
+  dateBadge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignItems: "center",
+    minWidth: 36,
+    ...SHADOWS.sm,
+  },
+  dateBadgeHeader: {
+    fontSize: 8,
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
+    textTransform: "uppercase",
+    marginBottom: 1,
+  },
+  dateBadgeNumber: {
+    fontSize: 13,
+    fontFamily: FONTS.primary,
+    color: COLORS.textPrimary,
+  },
+  imageOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 30,
+  },
+  content: {
+    padding: 12,
   },
   communityRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 6,
     marginBottom: 6,
   },
   communityAvatar: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    marginRight: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
   },
   communityName: {
     fontSize: 11,
-    color: "rgba(167, 139, 250, 0.8)",
     fontFamily: FONTS.medium,
+    color: "#5e8d9b",
     flex: 1,
   },
   title: {
+    fontSize: 14,
     fontFamily: FONTS.primary,
-    fontSize: 15,
-    color: "#FFFFFF",
+    color: COLORS.textPrimary,
+    lineHeight: 18,
     marginBottom: 8,
-    lineHeight: 20,
   },
-  metaRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 12,
+  metaGrid: {
+    gap: 4,
+    marginBottom: 10,
   },
   metaItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 6,
   },
   metaText: {
     fontSize: 11,
-    color: "rgba(167, 139, 250, 0.8)",
     fontFamily: FONTS.medium,
-    maxWidth: 120,
+    color: COLORS.textSecondary,
+    flex: 1,
   },
-  footerRow: {
+  priceDetailsRow: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 6,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
   },
-  viewButton: {
-    borderRadius: 10,
-    overflow: "hidden",
+  priceText: {
+    fontSize: 13,
+    fontFamily: FONTS.medium,
+    color: COLORS.textPrimary,
+    flex: 1,
+    marginRight: 4,
   },
-  viewButtonGradient: {
+  freePriceText: {
+    color: "#2E7D32",
+  },
+  viewDetailsRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    gap: 4,
   },
-  viewButtonText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontFamily: FONTS.semiBold,
+  viewDetailsText: {
+    fontSize: 12,
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
   },
 });
 

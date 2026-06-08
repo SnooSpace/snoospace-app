@@ -17,7 +17,7 @@ import {
   Linking,
   Pressable,
 } from "react-native";
-import Reanimated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { BlurView } from "expo-blur";
 import { Image as ExpoImage } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -641,8 +641,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   useEffect(() => {
     const layout = tabLayouts[activeTab];
     if (layout) {
-      tabUnderlineX.value = withSpring(layout.x, { damping: 15, stiffness: 120 });
-      tabUnderlineScale.value = withSpring(layout.width, { damping: 15, stiffness: 120 });
+      tabUnderlineX.value = withTiming(layout.x, { duration: 200 });
+      tabUnderlineScale.value = withTiming(layout.width, { duration: 200 });
     }
   }, [activeTab, tabLayouts]);
 

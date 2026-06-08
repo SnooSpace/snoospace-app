@@ -209,7 +209,9 @@ function SwipeableConvRow({ conv, onPress, onDelete, onLeave, onMute, currentUse
               </View>
               <View style={swipeStyles.bottomRow}>
                 <Text style={[swipeStyles.preview, hasUnread && !isMuted && swipeStyles.previewUnread]} numberOfLines={1}>
-                  {conv.lastMessage || username || "No messages yet"}
+                  {isBlockedByOther
+                    ? (conv.lastMessage || "")
+                    : (conv.lastMessage || username || "No messages yet")}
                 </Text>
                 {hasUnread && !isMuted && (
                   <View style={swipeStyles.badge}>

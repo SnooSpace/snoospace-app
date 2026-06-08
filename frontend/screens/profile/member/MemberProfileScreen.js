@@ -10,7 +10,8 @@ import {
   useRoute,
   useFocusEffect,
 } from "@react-navigation/native";
-import { Settings, Bookmark, ChevronDown, Play, AlertCircle, Image as LucideImage, Pin } from "lucide-react-native";
+import { Settings, Bookmark, ChevronDown, Play, AlertCircle, Image as LucideImage, Pin, Ticket, MapPin, Users, CalendarDays } from "lucide-react-native";
+import { getHostedPlans, getAttendingPlans } from "../../../api/plans";
 import {
   clearAuthSession,
   getAuthToken,
@@ -380,6 +381,13 @@ export default function MemberProfileScreen({ navigation }) {
   const [hasMorePosts, setHasMorePosts] = useState(true);
   const [loadingMorePosts, setLoadingMorePosts] = useState(false);
 
+  // Events tab state
+  const [activeProfileTab, setActiveProfileTab] = useState('posts');
+  const [profileEvents, setProfileEvents] = useState([]);
+  const [profilePlans, setProfilePlans] = useState({ hosted: [], attending: [] });
+  const [loadingEvents, setLoadingEvents] = useState(false);
+  const eventsFetchedRef = useRef(false);
+
   // Real-time counts polling (5-second interval)
   // Pauses when modals are open to avoid distracting updates
   const isAnyModalOpen =
@@ -591,9 +599,10 @@ export default function MemberProfileScreen({ navigation }) {
       }
       const userId = fullProfile.id;
       const userType = "member";
-      const [countsResponse, postsResponse] = await Promise.all([
+      const [countsResponse, postsResponse, eventsResponse] = await Promise.all([
         apiGet(`/follow/counts/${userId}/${userType}`, 15000, token),
         apiGet(`/posts/user/${userId}/${userType}?limit=20`, 15000, token),
+        apiGet('/events/my-events', 15000, token).catch(() => ({ events: [], total_events: 0 })),
       ]);
       console.log("[Profile] countsResponse:", countsResponse);
       console.log("[Profile] postsResponse:", postsResponse);
@@ -642,6 +651,7 @@ export default function MemberProfileScreen({ navigation }) {
         college_info: fullProfile.college_info || null,
         follower_count: followerCount,
         following_count: followingCount,
+        events_attended_count: eventsResponse?.total_events ?? (eventsResponse?.events?.length ?? 0),
       };
       setProfile(mappedProfile);
 
@@ -669,6 +679,12 @@ export default function MemberProfileScreen({ navigation }) {
         following_count: followingCount,
         post_count: userPosts.length,
       });
+      // Pre-populate events — but do NOT set eventsFetchedRef here.
+      // Plans are fetched by loadProfileEvents() which runs on first Events tab tap.
+      // Setting the ref here would skip the plan fetch.
+      if (Array.isArray(eventsResponse?.events) && eventsResponse.events.length > 0) {
+        setProfileEvents(eventsResponse.events);
+      }
       console.log("[Profile] loadProfile: setProfile & setPosts");
     } catch (err) {
       console.log("[Profile] loadProfile: error caught:", err);
@@ -685,11 +701,38 @@ export default function MemberProfileScreen({ navigation }) {
     }
   };
 
+  // Lazy load events/plans when user first taps the Events tab (own profile)
+  const loadProfileEvents = useCallback(async () => {
+    if (loadingEvents) return;
+    try {
+      setLoadingEvents(true);
+      const token = await getAuthToken();
+      const [eventsRes, hostedRes, attendingRes] = await Promise.all([
+        apiGet('/events/my-events', 15000, token).catch(() => ({ events: [] })),
+        getHostedPlans(token).catch(() => ({ plans: [] })),
+        getAttendingPlans(token).catch(() => ({ plans: [] })),
+      ]);
+      setProfileEvents(eventsRes?.events || []);
+      setProfilePlans({
+        hosted: (hostedRes?.plans || []).map((p) => ({ ...p, role: 'host' })),
+        attending: (attendingRes?.plans || []).map((p) => ({ ...p, role: 'attendee' })),
+      });
+    } catch (err) {
+      console.error('[MemberProfile] loadProfileEvents error:', err);
+    } finally {
+      setLoadingEvents(false);
+    }
+  }, [loadingEvents]);
+
   // Handle pull-to-refresh
   const onRefresh = useCallback(() => {
     console.log("[Profile] onRefresh: user pulled to refresh");
     loadProfile(true);
-  }, []);
+    if (activeProfileTab === 'events') {
+      eventsFetchedRef.current = false;
+      loadProfileEvents();
+    }
+  }, [activeProfileTab, loadProfileEvents]);
 
   // Store loadProfile in ref so it can be accessed in navigation listener
   loadProfileRef.current = loadProfile;
@@ -1147,29 +1190,30 @@ export default function MemberProfileScreen({ navigation }) {
       </View>
 
       <FlatList
-        data={posts}
+        key={activeProfileTab === 'posts' ? 'posts-3col' : 'events-1col'}
+        data={activeProfileTab === 'posts' ? posts : []}
         keyExtractor={(item) => String(item.id)}
-        renderItem={renderGridItem}
-        numColumns={3}
-        columnWrapperStyle={{
-          justifyContent: "flex-start",
-          marginBottom: gap,
-          gap: gap,
-        }}
+        renderItem={activeProfileTab === 'posts' ? renderGridItem : null}
+        numColumns={activeProfileTab === 'posts' ? 3 : 1}
+        columnWrapperStyle={
+          activeProfileTab === 'posts'
+            ? { justifyContent: "flex-start", marginBottom: gap, gap: gap }
+            : undefined
+        }
         contentContainerStyle={{
           paddingBottom: 120,
-          flexGrow: posts.length === 0 ? 1 : 0,
+          flexGrow: 1,
         }}
         initialNumToRender={12}
         maxToRenderPerBatch={6}
         windowSize={5}
         removeClippedSubviews={Platform.OS === 'android'}
         updateCellsBatchingPeriod={50}
-        getItemLayout={(data, index) => ({
+        getItemLayout={activeProfileTab === 'posts' ? (data, index) => ({
           length: itemSize * 1.35,
           offset: (itemSize * 1.35 + gap) * Math.floor(index / 3),
           index,
-        })}
+        }) : undefined}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1179,7 +1223,7 @@ export default function MemberProfileScreen({ navigation }) {
           />
         }
         onEndReached={() => {
-          if (!loading && !loadingMorePosts && hasMorePosts) {
+          if (activeProfileTab === 'posts' && !loading && !loadingMorePosts && hasMorePosts) {
             loadMorePosts();
           }
         }}
@@ -1200,7 +1244,19 @@ export default function MemberProfileScreen({ navigation }) {
               <TouchableOpacity
                 style={styles.statItem}
                 onPress={() => {
-                  // Navigate to FollowersList (same stack - ProfileStackNavigator)
+                  setActiveProfileTab('events');
+                  if (!eventsFetchedRef.current) {
+                    eventsFetchedRef.current = true;
+                    loadProfileEvents();
+                  }
+                }}
+              >
+                <Text style={styles.statNumber}>{profile.events_attended_count ?? 0}</Text>
+                <Text style={styles.statLabel}>Events</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.statItem}
+                onPress={() => {
                   navigation.navigate("FollowersList", {
                     memberId: profile.id,
                     title: "Followers",
@@ -1215,7 +1271,6 @@ export default function MemberProfileScreen({ navigation }) {
               <TouchableOpacity
                 style={styles.statItem}
                 onPress={() => {
-                  // Navigate to FollowingList (same stack - ProfileStackNavigator)
                   navigation.navigate("FollowingList", {
                     memberId: profile.id,
                     title: "Following",
@@ -1262,7 +1317,7 @@ export default function MemberProfileScreen({ navigation }) {
                     overflow: "hidden",
                   }}
                   gradientStyle={{
-                    borderRadius: 0, // Let container handle rounding
+                    borderRadius: 0,
                     paddingHorizontal: 20,
                   }}
                   colors={["transparent", "transparent"]}
@@ -1293,13 +1348,143 @@ export default function MemberProfileScreen({ navigation }) {
                 textStyle={{ fontFamily: FONTS.semiBold }}
               />
             )}
+
+            {/* Posts / Events Tab Bar */}
+            <View style={profileTabStyles.tabBar}>
+              {['posts', 'events'].map((tab) => (
+                <TouchableOpacity
+                  key={tab}
+                  style={[
+                    profileTabStyles.tab,
+                    activeProfileTab === tab && profileTabStyles.tabActive,
+                  ]}
+                  onPress={() => {
+                    HapticsService.triggerImpactLight();
+                    setActiveProfileTab(tab);
+                    if (tab === 'events' && !eventsFetchedRef.current) {
+                      eventsFetchedRef.current = true;
+                      loadProfileEvents();
+                    }
+                  }}
+                >
+                  <Text style={[
+                    profileTabStyles.tabText,
+                    activeProfileTab === tab && profileTabStyles.tabTextActive,
+                  ]}>
+                    {tab === 'posts' ? 'Posts' : 'Events'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Events Tab Content */}
+            {activeProfileTab === 'events' && (
+              <View style={profileTabStyles.eventsContainer}>
+                {loadingEvents ? (
+                  <View style={profileTabStyles.loadingWrap}>
+                    <SnooLoader size="large" color={PRIMARY_COLOR} />
+                  </View>
+                ) : (
+                  <>
+                    {/* Attended Events */}
+                    {profileEvents.length > 0 && (
+                      <>
+                        <Text style={profileTabStyles.sectionHeader}>Events Attended</Text>
+                        {profileEvents.map((ev) => {
+                          const d = ev.start_datetime ? new Date(ev.start_datetime) : null;
+                          const dateStr = d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+                          return (
+                            <TouchableOpacity
+                              key={`ev-${ev.id}`}
+                              style={profileTabStyles.eventRow}
+                              onPress={() => navigation.navigate('EventDetails', { eventId: ev.id, eventData: ev })}
+                              activeOpacity={0.82}
+                            >
+                              {ev.banner_url ? (
+                                <Image source={{ uri: ev.banner_url }} style={profileTabStyles.eventThumb} />
+                              ) : (
+                                <View style={[profileTabStyles.eventThumb, profileTabStyles.eventThumbPlaceholder]}>
+                                  <Ticket size={20} color={COLORS.primary} strokeWidth={2} />
+                                </View>
+                              )}
+                              <View style={profileTabStyles.eventRowInfo}>
+                                <Text style={profileTabStyles.eventRowTitle} numberOfLines={1}>{ev.title}</Text>
+                                {dateStr ? <Text style={profileTabStyles.eventRowMeta}>{dateStr}</Text> : null}
+                                {ev.community_name ? (
+                                  <Text style={profileTabStyles.eventRowSub} numberOfLines={1}>{ev.community_name}</Text>
+                                ) : null}
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </>
+                    )}
+
+                    {/* Open Plans */}
+                    {(profilePlans.hosted.length > 0 || profilePlans.attending.length > 0) && (
+                      <>
+                        <Text style={profileTabStyles.sectionHeader}>Open Plans</Text>
+                        {[...profilePlans.hosted, ...profilePlans.attending].map((plan) => {
+                          const d = plan.scheduled_at ? new Date(plan.scheduled_at) : null;
+                          const dateStr = d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
+                          const actColors = { sports: '#EEF2FF', study: '#E8F5E9', food: '#FFF8E1', gaming: '#FCE4EC', other: '#F5F5F5' };
+                          const actTextColors = { sports: '#3B5BDB', study: '#2E7D32', food: '#B45309', gaming: '#C2185B', other: '#555555' };
+                          const actKey = actColors[plan.activity_type] ? plan.activity_type : 'other';
+                          const actLabel = plan.activity_type === 'other' ? (plan.custom_activity_label || 'Other') : plan.activity_type.charAt(0).toUpperCase() + plan.activity_type.slice(1);
+                          const isHost = plan.role === 'host';
+                          return (
+                            <TouchableOpacity
+                              key={`plan-${plan.id}-${plan.role}`}
+                              style={profileTabStyles.planRow}
+                              onPress={() => isHost
+                                ? navigation.navigate('HostRequests', { planId: plan.id, planTitle: plan.title })
+                                : navigation.navigate('PlanDetail', { planId: plan.id })
+                              }
+                              activeOpacity={0.82}
+                            >
+                              {/* Icon avatar */}
+                              <View style={[profileTabStyles.planIconWrap, { backgroundColor: actColors[actKey] }]}>
+                                <CalendarDays size={18} color={actTextColors[actKey]} strokeWidth={2} />
+                              </View>
+                              <View style={profileTabStyles.planLeft}>
+                                <View style={profileTabStyles.planPillRow}>
+                                  <View style={[profileTabStyles.planPill, { backgroundColor: isHost ? '#EEF2FF' : '#E8F5E9' }]}>
+                                    <Text style={[profileTabStyles.planPillText, { color: isHost ? '#3B5BDB' : '#2E7D32' }]}>{isHost ? 'Hosting' : 'Attending'}</Text>
+                                  </View>
+                                  <View style={[profileTabStyles.planPill, { backgroundColor: actColors[actKey] + '99' }]}>
+                                    <Text style={[profileTabStyles.planPillText, { color: actTextColors[actKey] }]}>{actLabel}</Text>
+                                  </View>
+                                </View>
+                                <Text style={profileTabStyles.planTitle} numberOfLines={1}>{plan.title}</Text>
+                                <Text style={profileTabStyles.planMeta}>
+                                  {dateStr}{plan.location_public ? ` · ${plan.location_public}` : ''}
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </>
+                    )}
+
+                    {/* Empty state */}
+                    {profileEvents.length === 0 && profilePlans.hosted.length === 0 && profilePlans.attending.length === 0 && (
+                      <View style={profileTabStyles.emptyWrap}>
+                        <Ticket size={36} color={COLORS.textSecondary} strokeWidth={1.5} />
+                        <Text style={profileTabStyles.emptyText}>No events yet</Text>
+                        <Text style={profileTabStyles.emptySubText}>Events and plans you attend will show here.</Text>
+                      </View>
+                    )}
+                  </>
+                )}
+              </View>
+            )}
           </View>
         }
         ListEmptyComponent={
-          <EmptyPostsState isOwnProfile={isOwnProfile} />
+          activeProfileTab === 'posts' ? <EmptyPostsState isOwnProfile={isOwnProfile} /> : null
         }
         ListFooterComponent={
-          loadingMorePosts ? (
+          loadingMorePosts && activeProfileTab === 'posts' ? (
             <View style={{ paddingVertical: 20, alignItems: "center" }}>
               <SnooLoader size="small" color={COLORS.primary} />
             </View>
@@ -1619,6 +1804,146 @@ export default function MemberProfileScreen({ navigation }) {
     </SafeAreaView>
   );
 }
+
+// ─── Profile tab bar & events feed styles ───────────────────────────────────
+const profileTabStyles = StyleSheet.create({
+  tabBar: {
+    flexDirection: 'row',
+    marginTop: 20,
+    marginHorizontal: -20, // extend to screen edge (cancel profileSection padding)
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#F0F0F5',
+    backgroundColor: COLORS.surface || '#FFFFFF',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  tabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.primary,
+  },
+  tabText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
+  tabTextActive: {
+    color: COLORS.primary,
+  },
+  eventsContainer: {
+    marginHorizontal: -20,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 16,
+    backgroundColor: '#F9FAFB',
+  },
+  loadingWrap: {
+    paddingVertical: 48,
+    alignItems: 'center',
+  },
+  sectionHeader: {
+    fontFamily: FONTS.bold || FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+    marginTop: 16,
+    marginBottom: 10,
+    letterSpacing: 0.1,
+  },
+  // Event row
+  eventRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.surface || '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  eventThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    marginRight: 12,
+    backgroundColor: '#EEF2FF',
+  },
+  eventThumbPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  eventRowInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  eventRowTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+  },
+  eventRowMeta: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  eventRowSub: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  // Plan row
+  planRow: {
+    backgroundColor: COLORS.surface || '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  planIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  planLeft: { flex: 1, gap: 4 },
+  planPillRow: { flexDirection: 'row', gap: 6, marginBottom: 2 },
+  planPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  planPillText: { fontFamily: FONTS.medium, fontSize: 11 },
+  planTitle: { fontFamily: FONTS.semiBold, fontSize: 15, color: COLORS.textPrimary },
+  planMeta: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textSecondary },
+  // Empty
+  emptyWrap: {
+    paddingVertical: 48,
+    alignItems: 'center',
+    gap: 10,
+  },
+  emptyText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+  },
+  emptySubText: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+});
 
 const styles = StyleSheet.create({
   container: {

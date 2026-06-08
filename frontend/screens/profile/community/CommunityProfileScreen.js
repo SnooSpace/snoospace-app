@@ -18,7 +18,7 @@ import {
   Linking,
   Pressable,
 } from "react-native";
-import Reanimated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Image as ExpoImage } from "expo-image";
 import {
   SafeAreaView,
@@ -841,8 +841,8 @@ export default function CommunityProfileScreen({ navigation }) {
   useEffect(() => {
     // Underline sliding animation
     if (tabOffsets[activeTab] !== undefined) {
-      tabUnderlineX.value = withSpring(tabOffsets[activeTab], { damping: 15, stiffness: 120 });
-      tabUnderlineScale.value = withSpring(tabWidths[activeTab], { damping: 15, stiffness: 120 });
+      tabUnderlineX.value = withTiming(tabOffsets[activeTab], { duration: 200 });
+      tabUnderlineScale.value = withTiming(tabWidths[activeTab], { duration: 200 });
     }
   }, [activeTab]);
 

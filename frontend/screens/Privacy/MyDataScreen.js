@@ -23,7 +23,7 @@ import {
   Sparkles, Handshake, Users, Trash2, Zap,
   ShieldCheck, Calendar, BarChart2, CheckCircle,
   ChevronRight, Info, ThumbsUp, HelpCircle, MessageSquare, Share2, Play,
-  AlertTriangle, XCircle, FileText,
+  AlertTriangle, XCircle, FileText, CalendarDays, Ticket,
 } from "lucide-react-native";
 import { FONTS, COLORS } from "../../constants/theme";
 import {
@@ -458,7 +458,7 @@ function MemberPrivacyScreen({ navigation }) {
                   onPress={() => openInfo("Events Attended", "The number of events you have RSVPd to or registered for through SnooSpace.\n\nAttending events helps us understand what experiences matter to you and improves the recommendations you see.")}
                 >
                   <View style={styles.statHeader}>
-                    <View style={[styles.statIconWrap, { backgroundColor: "rgba(245,158,11,0.1)" }]}><Calendar size={14} color="#F59E0B" strokeWidth={2} /></View>
+                    <View style={[styles.statIconWrap, { backgroundColor: "rgba(245,158,11,0.1)" }]}><Ticket size={14} color="#F59E0B" strokeWidth={2} /></View>
                     <Info size={13} color="#D1D5DB" strokeWidth={2} />
                   </View>
                   <Text style={styles.statValue}>{eventsAttended}</Text>
@@ -494,7 +494,7 @@ function MemberPrivacyScreen({ navigation }) {
                   onPress={() => openInfo("Member Since", `You joined SnooSpace on ${joinDate} — ${accountAge} day${accountAge !== 1 ? "s" : ""} ago.\n\nLonger membership paired with consistent activity builds a stronger audience profile over time.`)}
                 >
                   <View style={styles.statHeader}>
-                    <View style={[styles.statIconWrap, { backgroundColor: "rgba(59,130,246,0.1)" }]}><TrendingUp size={14} color="#3B82F6" strokeWidth={2} /></View>
+                    <View style={[styles.statIconWrap, { backgroundColor: "rgba(59,130,246,0.1)" }]}><CalendarDays size={14} color="#3B82F6" strokeWidth={2} /></View>
                     <Info size={13} color="#D1D5DB" strokeWidth={2} />
                   </View>
                   <Text style={styles.statValue}>{accountAge}d</Text>
@@ -901,7 +901,7 @@ function CommunityPrivacyScreen({ navigation }) {
 
                 <View style={styles.statCard}>
                   <View style={styles.statHeader}>
-                    <View style={[styles.statIconWrap, { backgroundColor: "rgba(245,158,11,0.1)" }]}><Calendar size={14} color="#F59E0B" strokeWidth={2} /></View>
+                    <View style={[styles.statIconWrap, { backgroundColor: "rgba(245,158,11,0.1)" }]}><Ticket size={14} color="#F59E0B" strokeWidth={2} /></View>
                   </View>
                   <Text style={styles.statValue}>{eventsHosted}</Text>
                   <Text style={styles.statLabel}>Events Hosted</Text>
@@ -925,7 +925,7 @@ function CommunityPrivacyScreen({ navigation }) {
 
                 <View style={styles.statCard}>
                   <View style={styles.statHeader}>
-                    <View style={[styles.statIconWrap, { backgroundColor: "rgba(16,185,129,0.1)" }]}><TrendingUp size={14} color="#10B981" strokeWidth={2} /></View>
+                    <View style={[styles.statIconWrap, { backgroundColor: "rgba(16,185,129,0.1)" }]}><CalendarDays size={14} color="#10B981" strokeWidth={2} /></View>
                   </View>
                   <Text style={styles.statValue}>{accountAge}d</Text>
                   <Text style={styles.statLabel}>Since {joinDate}</Text>

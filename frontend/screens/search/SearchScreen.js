@@ -24,9 +24,9 @@ import { getDiscoverFeed, getSuggestedCommunities } from "../../api/discover";
 import { searchCommunities } from "../../api/communities";
 import { followMember, unfollowMember } from "../../api/members";
 import { followCommunity, unfollowCommunity } from "../../api/communities";
-import { getBlockedUsers } from "../../api/plans";
+
 import EventBus from "../../utils/EventBus";
-import { getActiveAccount, getAuthToken } from "../../api/auth";
+import { getActiveAccount } from "../../api/auth";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 import { COLORS, BORDER_RADIUS, FONTS } from "../../constants/theme";
 import { DiscoverFeedV2 } from "../../components/discover";
@@ -58,8 +58,6 @@ export default function SearchScreen({ navigation }) {
   const [recents, setRecents] = useState([]);
   const [userId, setUserId] = useState(null);
   const [userType, setUserType] = useState(null);
-  // IDs of users the current account has blocked
-  const [blockedIds, setBlockedIds] = useState(new Set());
   const [activeFilter, setActiveFilter] = useState("all"); // 'all', 'member', 'community', 'sponsor', 'venue', 'event'
   const [eventResults, setEventResults] = useState([]); // Separate state for event results
 
@@ -271,25 +269,15 @@ export default function SearchScreen({ navigation }) {
     }
   }, []);
 
-  // Load blocked user IDs so we can anonymize them in recent searches
-  const loadBlockedIds = useCallback(async () => {
-    try {
-      const token = await getAuthToken();
-      if (!token) return;
-      const res = await getBlockedUsers(token);
-      const list = res?.blocked_users || res?.blocked || [];
-      if (Array.isArray(list)) {
-        setBlockedIds(new Set(list.map(b => String(b.id))));
-      }
-    } catch { /* non-fatal */ }
-  }, []);
+  // loadBlockedIds removed — the blocker sees real names for users they've blocked.
+  // The blocked user (B) cannot see the blocker (A) in search results at all
+  // because the backend already filters blocked/blocker relationships from search.
 
   // Refresh userId on screen focus to handle account switches
   useFocusEffect(
     useCallback(() => {
       loadUserId();
-      loadBlockedIds();
-    }, [loadUserId, loadBlockedIds]),
+    }, [loadUserId]),
   );
 
   // Load discover feed and suggestions on mount
@@ -620,27 +608,20 @@ export default function SearchScreen({ navigation }) {
 
   const renderRecentItem = ({ item }) => {
     const entityType = item.type || "member";
-    // Anonymize if this member is blocked by the current user
-    const isBlocked = entityType === "member" && blockedIds.has(String(item.id));
-
-    const displayName = isBlocked
-      ? "Snoospace User"
-      : normalizeDisplayName(item.full_name || item.name, entityType);
+    const displayName = normalizeDisplayName(item.full_name || item.name, entityType);
     const photoUrl = item.profile_photo_url || item.logo_url;
-    const hasValidPhoto = !isBlocked && photoUrl && /^https?:\/\//.test(photoUrl);
+    const hasValidPhoto = photoUrl && /^https?:\/\//.test(photoUrl);
 
     return (
       <View style={styles.row}>
         <TouchableOpacity
           style={styles.profileRowInner}
-          onPress={() => {
-            if (!isBlocked) onPressProfile(item, true);
-          }}
-          activeOpacity={isBlocked ? 1 : 0.7}
+          onPress={() => onPressProfile(item, true)}
+          activeOpacity={0.7}
         >
           {hasValidPhoto ? (
             <Image source={{ uri: photoUrl }} style={styles.avatar} />
-          ) : entityType === "community" && !isBlocked ? (
+          ) : entityType === "community" ? (
             <LinearGradient
               colors={getGradientForName(item.name || item.full_name || "Community")}
               start={{ x: 0, y: 0 }}
@@ -652,16 +633,13 @@ export default function SearchScreen({ navigation }) {
               </Text>
             </LinearGradient>
           ) : (
-            // Default user icon for blocked users or missing photos
             <View style={[styles.avatar, { backgroundColor: "#EFEFF4", alignItems: "center", justifyContent: "center" }]}>
               <Search size={20} color="#8E8E93" strokeWidth={1.5} />
             </View>
           )}
           <View style={styles.meta}>
             <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
-            {!isBlocked && (
-              <Text style={styles.username} numberOfLines={1}>@{item.username}</Text>
-            )}
+            <Text style={styles.username} numberOfLines={1}>@{item.username}</Text>
           </View>
         </TouchableOpacity>
         <TouchableOpacity

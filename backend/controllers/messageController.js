@@ -69,10 +69,20 @@ const getConversations = async (req, res) => {
         COALESCE(m.profile_photo_url, comm.logo_url) AS other_participant_photo,
         (SELECT msg.message_text FROM messages msg
          WHERE msg.conversation_id = c.id
+           AND (msg.is_hidden = false OR (msg.sender_id = $1 AND msg.sender_type = $2))
          ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_text,
         (SELECT msg.message_type FROM messages msg
          WHERE msg.conversation_id = c.id
+           AND (msg.is_hidden = false OR (msg.sender_id = $1 AND msg.sender_type = $2))
          ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_type,
+        (SELECT msg.sender_id FROM messages msg
+         WHERE msg.conversation_id = c.id
+           AND (msg.is_hidden = false OR (msg.sender_id = $1 AND msg.sender_type = $2))
+         ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_sender_id,
+        (SELECT msg.sender_type FROM messages msg
+         WHERE msg.conversation_id = c.id
+           AND (msg.is_hidden = false OR (msg.sender_id = $1 AND msg.sender_type = $2))
+         ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_sender_type,
         -- For muted convos: suppress unread count (Instagram behaviour)
         CASE WHEN cm.id IS NOT NULL THEN 0
           ELSE (SELECT COUNT(*) FROM messages msg
@@ -180,32 +190,47 @@ const getConversations = async (req, res) => {
       return text || null;
     };
 
-    const mapConv = (conv) => ({
-      id:                  conv.conversation_id,
-      isGroup:             conv.is_group,
-      groupName:           conv.group_name      || null,
-      groupAvatarUrl:      conv.group_avatar_url || null,
-      messagingRestricted: conv.messaging_restricted || false,
-      myRole:              conv.my_role           || null,
-      groupOwnerId:        conv.group_owner_id    || null,
-      groupOwnerType:      conv.group_owner_type  || null,
-      participantCount:    parseInt(conv.participant_count) || null,
-      otherParticipant: conv.is_group ? null : {
-        id:             conv.other_participant_id,
-        type:           conv.other_participant_type,
-        // Anonymize identity if the other user has blocked the viewer
-        name:           (conv.is_blocked_by_other === true || conv.is_blocked_by_other === 't') ? null : conv.other_participant_name,
-        username:       (conv.is_blocked_by_other === true || conv.is_blocked_by_other === 't') ? null : conv.other_participant_username,
-        profilePhotoUrl: (conv.is_blocked_by_other === true || conv.is_blocked_by_other === 't') ? null : conv.other_participant_photo,
-        isBlockedByOther: conv.is_blocked_by_other === true || conv.is_blocked_by_other === 't',
-      },
-      lastMessage:    formatLastMessage(conv.last_message_text, conv.last_message_type),
-      lastMessageAt:  conv.last_message_at,
-      unreadCount:    parseInt(conv.unread_count) || 0,
-      isMuted:        conv.is_muted === true || conv.is_muted === 't',
-      mutedUntil:     conv.muted_until || null,
-      createdAt:      conv.created_at,
-    });
+    const mapConv = (conv) => {
+      const isBlockedByOther = conv.is_blocked_by_other === true || conv.is_blocked_by_other === 't';
+      // Check if the current user sent the last message
+      const iAmLastSender =
+        conv.last_message_sender_id != null &&
+        String(conv.last_message_sender_id) === String(userId) &&
+        conv.last_message_sender_type === userType;
+      // Hide last message only when blocked by other AND current user did NOT send it
+      // (B sent it → show to B in their list; A blocked B → A should not see B's messages)
+      const shouldHideLastMessage = isBlockedByOther && !iAmLastSender;
+
+      return {
+        id:                  conv.conversation_id,
+        isGroup:             conv.is_group,
+        groupName:           conv.group_name      || null,
+        groupAvatarUrl:      conv.group_avatar_url || null,
+        messagingRestricted: conv.messaging_restricted || false,
+        myRole:              conv.my_role           || null,
+        groupOwnerId:        conv.group_owner_id    || null,
+        groupOwnerType:      conv.group_owner_type  || null,
+        participantCount:    parseInt(conv.participant_count) || null,
+        otherParticipant: conv.is_group ? null : {
+          id:             conv.other_participant_id,
+          type:           conv.other_participant_type,
+          // Anonymize identity if the other user has blocked the viewer
+          name:           isBlockedByOther ? null : conv.other_participant_name,
+          username:       isBlockedByOther ? null : conv.other_participant_username,
+          profilePhotoUrl: isBlockedByOther ? null : conv.other_participant_photo,
+          isBlockedByOther,
+        },
+        // Hide the last message from A (who blocked B) — but show B their own sent message
+        lastMessage:    shouldHideLastMessage
+          ? null
+          : formatLastMessage(conv.last_message_text, conv.last_message_type),
+        lastMessageAt:  conv.last_message_at,
+        unreadCount:    parseInt(conv.unread_count) || 0,
+        isMuted:        conv.is_muted === true || conv.is_muted === 't',
+        mutedUntil:     conv.muted_until || null,
+        createdAt:      conv.created_at,
+      };
+    };
 
     const conversations = [
       ...dmResult.rows.map(mapConv),
@@ -639,6 +664,7 @@ const getUnreadCount = async (req, res) => {
        )
        AND (m.sender_id != $1 OR m.sender_type != $2)
        AND m.is_read = false
+       AND m.is_hidden = false
        AND (ch.id IS NULL OR c.last_message_at > ch.hidden_at)
        AND cm.id IS NULL`,
       [userId, userType],

@@ -47,7 +47,7 @@ const SharedPostCard = ({ metadata, onPress, onUserPress, style }) => {
         setPostData(mergedPost);
         setError(false);
       } catch (err) {
-        console.error("Failed to fetch post details:", err);
+        console.warn("[SharedPostCard] Post unavailable (likely deleted):", err?.message);
         setError(true);
       } finally {
         setLoading(false);

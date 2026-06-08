@@ -457,7 +457,20 @@ async function getPublicMember(req, res) {
       `SELECT id, username, name as full_name, bio, profile_photo_url, created_at, interests, pronouns, occupation,
               occupation_details, occupation_category, portfolio_link, education, campus_id, show_college,
               follower_count AS followers_count, following_count,
-              (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member')::int AS posts_count
+              (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member')::int AS posts_count,
+              (
+                (SELECT COUNT(*) FROM event_registrations WHERE member_id = $1
+                   AND registration_status IN ('attended', 'confirmed', 'registered'))
+                +
+                (SELECT COUNT(*) FROM open_plans WHERE created_by = $1 AND status = 'active')
+                +
+                (SELECT COUNT(*) FROM open_plan_requests opr
+                   JOIN open_plans op ON op.id = opr.plan_id
+                   WHERE opr.requester_id = $1 AND opr.status = 'approved' AND op.created_by != $1)
+              )::int AS events_attended_count,
+              (SELECT COUNT(*) FROM follows f
+                 JOIN communities c ON c.id = f.following_id AND f.following_type = 'community'
+                 WHERE f.follower_id = $1 AND f.follower_type = 'member')::int AS communities_count
        FROM members
        WHERE id = $1`,
       [targetId]
@@ -466,17 +479,27 @@ async function getPublicMember(req, res) {
       return res.status(404).json({ error: "Member not found" });
     }
 
-    // Block guard: either party blocked the other → profile unavailable
+    // Block guard:
+    //   • Viewer blocked the target (A blocked B) → show profile with you_have_blocked flag
+    //   • Target blocked the viewer (B blocked A) → profile unavailable (403)
+    let youHaveBlocked = false;
     if (String(authUserId) !== String(targetId) && userType === 'member') {
       const blockCheck = await pool.query(
-        `SELECT 1 FROM user_blocks
+        `SELECT blocker_id FROM user_blocks
          WHERE (blocker_id = $1 AND blocked_id = $2)
             OR (blocker_id = $2 AND blocked_id = $1)
          LIMIT 1`,
         [authUserId, targetId]
       );
       if (blockCheck.rows.length > 0) {
-        return res.status(403).json({ error: 'user_unavailable', message: "This profile isn't available." });
+        const iAmBlocker = String(blockCheck.rows[0].blocker_id) === String(authUserId);
+        if (iAmBlocker) {
+          // A blocked B → show profile, but flag it
+          youHaveBlocked = true;
+        } else {
+          // B blocked A → profile is unavailable
+          return res.status(403).json({ error: 'user_unavailable', message: "This profile isn't available." });
+        }
       }
     }
     const profile = memberR.rows[0];
@@ -505,9 +528,12 @@ async function getPublicMember(req, res) {
       profile_photo_url: profile.profile_photo_url,
       created_at: profile.created_at,
       posts_count: parseInt(profile.posts_count || 0, 10),
+      events_attended_count: parseInt(profile.events_attended_count || 0, 10),
+      communities_count: parseInt(profile.communities_count || 0, 10),
       followers_count: parseInt(profile.followers_count || 0, 10),
       following_count: parseInt(profile.following_count || 0, 10),
       is_following: isFollowing,
+      you_have_blocked: youHaveBlocked,
       interests:
         typeof profile.interests === "string"
           ? JSON.parse(profile.interests)
@@ -1429,6 +1455,141 @@ async function completeSignup(req, res) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// GET /members/:id/events — public events attended by a member
+// Returns attended/confirmed events (no ticket details, public data only)
+// ---------------------------------------------------------------------------
+async function getMemberPublicEvents(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const authUserId = req.user?.id;
+    const userType = req.user?.type;
+    const targetId = req.params.id;
+
+    if (!authUserId || !userType) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Block guard
+    if (String(authUserId) !== String(targetId) && userType === 'member') {
+      const blockCheck = await pool.query(
+        `SELECT 1 FROM user_blocks
+         WHERE (blocker_id = $1 AND blocked_id = $2)
+            OR (blocker_id = $2 AND blocked_id = $1)
+         LIMIT 1`,
+        [authUserId, targetId]
+      );
+      if (blockCheck.rows.length > 0) {
+        return res.status(403).json({ error: 'user_unavailable' });
+      }
+    }
+
+    const result = await pool.query(
+      `SELECT
+         e.id,
+         e.title,
+         e.banner_url,
+         e.start_datetime,
+         e.location_name,
+         c.name AS community_name,
+         c.logo_url AS community_logo,
+         er.registration_status
+       FROM event_registrations er
+       JOIN events e ON e.id = er.event_id
+       LEFT JOIN communities c ON c.id = e.community_id
+       WHERE er.member_id = $1
+         AND er.registration_status IN ('attended', 'confirmed', 'registered')
+         AND e.status != 'cancelled'
+       ORDER BY e.start_datetime DESC
+       LIMIT 50`,
+      [targetId]
+    );
+
+    res.json({ events: result.rows });
+  } catch (err) {
+    console.error('[getMemberPublicEvents]', err && err.stack ? err.stack : err);
+    res.status(500).json({ error: 'Failed to load member events' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /members/:id/plans — public open plans hosted or attended by a member
+// Never exposes location_private — only location_public (general area)
+// ---------------------------------------------------------------------------
+async function getMemberPublicPlans(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const authUserId = req.user?.id;
+    const userType = req.user?.type;
+    const targetId = req.params.id;
+
+    if (!authUserId || !userType) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Block guard
+    if (String(authUserId) !== String(targetId) && userType === 'member') {
+      const blockCheck = await pool.query(
+        `SELECT 1 FROM user_blocks
+         WHERE (blocker_id = $1 AND blocked_id = $2)
+            OR (blocker_id = $2 AND blocked_id = $1)
+         LIMIT 1`,
+        [authUserId, targetId]
+      );
+      if (blockCheck.rows.length > 0) {
+        return res.status(403).json({ error: 'user_unavailable' });
+      }
+    }
+
+    // Hosted plans
+    const hostedResult = await pool.query(
+      `SELECT
+         op.id,
+         op.title,
+         op.activity_type,
+         op.custom_activity_label,
+         op.scheduled_at,
+         op.location_public,
+         op.status,
+         'host' AS role
+       FROM open_plans op
+       WHERE op.created_by = $1
+       ORDER BY op.scheduled_at DESC
+       LIMIT 30`,
+      [targetId]
+    );
+
+    // Attending plans (approved requests, not their own)
+    const attendingResult = await pool.query(
+      `SELECT
+         op.id,
+         op.title,
+         op.activity_type,
+         op.custom_activity_label,
+         op.scheduled_at,
+         op.location_public,
+         op.status,
+         'attendee' AS role
+       FROM open_plan_requests opr
+       JOIN open_plans op ON op.id = opr.plan_id
+       WHERE opr.requester_id = $1
+         AND opr.status = 'approved'
+         AND op.created_by != $1
+       ORDER BY op.scheduled_at DESC
+       LIMIT 30`,
+      [targetId]
+    );
+
+    res.json({
+      hosted: hostedResult.rows,
+      attending: attendingResult.rows,
+    });
+  } catch (err) {
+    console.error('[getMemberPublicPlans]', err && err.stack ? err.stack : err);
+    res.status(500).json({ error: 'Failed to load member plans' });
+  }
+}
+
 module.exports = {
   signup,
   getProfile,
@@ -1445,4 +1606,7 @@ module.exports = {
   updateDraft,
   resumeSignup,
   completeSignup,
+  // Public profile events & plans
+  getMemberPublicEvents,
+  getMemberPublicPlans,
 };
