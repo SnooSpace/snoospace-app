@@ -119,6 +119,23 @@ export default function EventCard({
   // Ref to track if we're the source of an EventBus event (prevent self-listening)
   const isEmittingRef = useRef(false);
 
+  // Sync engagement state when parent passes updated event prop (e.g. after a feed refresh)
+  useEffect(() => {
+    if (event?.is_liked !== undefined) setIsLiked(Boolean(event.is_liked));
+  }, [event?.is_liked]);
+
+  useEffect(() => {
+    if (event?.like_count !== undefined) setLikeCount(event.like_count);
+  }, [event?.like_count]);
+
+  useEffect(() => {
+    if (event?.comment_count !== undefined) setCommentCount(event.comment_count);
+  }, [event?.comment_count]);
+
+  useEffect(() => {
+    if (event?.share_count !== undefined) setShareCount(event.share_count);
+  }, [event?.share_count]);
+
   // Fetch current user role
   useEffect(() => {
     getActiveAccount()
@@ -133,9 +150,12 @@ export default function EventCard({
   }, []);
 
   // Reset view tracking flag if the event changes (e.g., same card slot reused after refresh)
+  // Also sync view_count from prop when the event ID changes (new card load), but NOT on every
+  // prop change — to avoid clobbering mid-session server-tracked view increments.
   useEffect(() => {
     console.log(`[EventCard] Reset viewTrackedRef for event ${event?.id}, current view_count from prop: ${event?.view_count}`);
     viewTrackedRef.current = false;
+    if (event?.view_count !== undefined) setViewCount(event.view_count);
   }, [event?.id]);
 
   // View tracking: record a view after the card has been visible for 2.5s
@@ -185,6 +205,19 @@ export default function EventCard({
       setIsInterested(Boolean(event.is_interested));
     }
   }, [event?.is_interested]);
+
+  // Listen for like updates from other EventCard instances showing the same event
+  useEffect(() => {
+    if (!event?.id) return;
+    const unsubscribe = EventBus.on('event-like-updated', (payload) => {
+      if (isEmittingRef.current) return;
+      if (payload?.eventId === event.id) {
+        setIsLiked(Boolean(payload.isLiked));
+        if (payload.likeCount !== undefined) setLikeCount(payload.likeCount);
+      }
+    });
+    return () => { if (unsubscribe) unsubscribe(); };
+  }, [event?.id]);
 
   // Check if user is registered for this event
   const isRegistered = Boolean(
@@ -323,7 +356,10 @@ export default function EventCard({
       if (resp?.success) {
         setIsLiked(resp.is_liked);
         setLikeCount(resp.like_count ?? nextCount);
-        EventBus.emit('event-like-updated', { eventId: id, isLiked: resp.is_liked, likeCount: resp.like_count });
+        // Emit so other EventCard instances of the same event stay in sync
+        isEmittingRef.current = true;
+        EventBus.emit('event-like-updated', { eventId: id, isLiked: resp.is_liked, likeCount: resp.like_count ?? nextCount });
+        setTimeout(() => { isEmittingRef.current = false; }, 0);
       } else {
         setIsLiked(!nextLiked);
         setLikeCount(likeCount);

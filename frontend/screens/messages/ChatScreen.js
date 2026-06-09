@@ -16,7 +16,7 @@ import { useKeyboardHandler } from "react-native-keyboard-controller";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle, Bell, BellOff, Image as ImageIcon, LockKeyhole, ImagePlus, Megaphone, Video, UserX, User } from "lucide-react-native";
+import { ArrowLeft, Send, X, Reply, TriangleAlert, Trash2, AlertTriangle, PartyPopper, MoreVertical, Flag, CheckCircle, Bell, BellOff, Image as ImageIcon, LockKeyhole, ImagePlus, Megaphone, Video, UserX, User, ShieldOff } from "lucide-react-native";
 import CustomImagePicker from "../../components/CustomImagePicker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import MediaViewerTimeline from "../../components/MediaViewerTimeline";
@@ -25,7 +25,7 @@ import { getVideoThumbnailAsync } from "expo-video-thumbnails";
 
 import { BlurView } from "expo-blur";
 import { getMessages, sendMessage, unsendMessage, getConversations, hideConversation, reportConversation, muteConversation, unmuteConversation, getGroupParticipants } from "../../api/messages";
-import { blockUser } from "../../api/plans";
+import { blockUser, unblockUser } from "../../api/plans";
 import { getActiveAccount } from "../../api/auth";
 import { uploadChatMedia } from "../../api/upload";
 import ChatMediaMessage from "../../components/ChatMediaMessage";
@@ -409,7 +409,7 @@ const REPORT_REASONS = [
 ];
 
 // ── ChatActionsSheet ──────────────────────────────────────────────────────
-const ChatActionsSheet = ({ visible, onClose, onDeleteChat, onReport, onMute, isMuted, onBlock, isGroup }) => (
+const ChatActionsSheet = ({ visible, onClose, onDeleteChat, onReport, onMute, isMuted, onBlock, onUnblock, youHaveBlocked, isGroup }) => (
   <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
     <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
       <Pressable style={actionSheetStyles.sheet} onPress={(e) => e.stopPropagation()}>
@@ -458,13 +458,19 @@ const ChatActionsSheet = ({ visible, onClose, onDeleteChat, onReport, onMute, is
         {!isGroup && (
           <>
             <View style={actionSheetStyles.divider} />
-            <TouchableOpacity style={actionSheetStyles.row} onPress={onBlock} activeOpacity={0.7}>
-              <View style={[actionSheetStyles.iconBox, { backgroundColor: "rgba(229, 57, 53, 0.08)" }]}>
-                <UserX size={20} color="#E53935" strokeWidth={2.5} />
+            <TouchableOpacity style={actionSheetStyles.row} onPress={youHaveBlocked ? onUnblock : onBlock} activeOpacity={0.7}>
+              <View style={[actionSheetStyles.iconBox, { backgroundColor: youHaveBlocked ? "rgba(53, 101, 242, 0.08)" : "rgba(229, 57, 53, 0.08)" }]}>
+                {youHaveBlocked
+                  ? <ShieldOff size={20} color="#3565F2" strokeWidth={2.5} />
+                  : <UserX size={20} color="#E53935" strokeWidth={2.5} />}
               </View>
               <View style={actionSheetStyles.rowText}>
-                <Text style={[actionSheetStyles.rowLabel, { color: "#E53935" }]}>Block User</Text>
-                <Text style={actionSheetStyles.rowSub}>They won't be able to message or find you</Text>
+                <Text style={[actionSheetStyles.rowLabel, youHaveBlocked && { color: "#3565F2" }, !youHaveBlocked && { color: "#E53935" }]}>
+                  {youHaveBlocked ? 'Unblock User' : 'Block User'}
+                </Text>
+                <Text style={actionSheetStyles.rowSub}>
+                  {youHaveBlocked ? 'Remove block and restore access' : "They won't be able to message or find you"}
+                </Text>
               </View>
             </TouchableOpacity>
           </>
@@ -906,6 +912,8 @@ export default function ChatScreen({ route, navigation }) {
   // isBlockedByOther: true when the OTHER user (the one we are chatting with) has blocked US
   // In that case we anonymize their identity in the header
   const [isBlockedByOther,      setIsBlockedByOther]      = useState(false);
+  const [youHaveBlocked,         setYouHaveBlocked]         = useState(false);
+  const [unblocking,             setUnblocking]             = useState(false);
 
   // Group restriction + media state
   const [messagingRestricted,   setMessagingRestricted]   = useState(initialMessagingRestricted);
@@ -1172,6 +1180,7 @@ export default function ChatScreen({ route, navigation }) {
           } else {
             const p = await getPublicMemberProfile(recipientId);
             setRecipient({ id: p.id, name: p.full_name || p.name, username: p.username, profilePhotoUrl: p.profile_photo_url });
+            setYouHaveBlocked(!!p?.you_have_blocked);
           }
         }
       } catch (err) {
@@ -1198,10 +1207,17 @@ export default function ChatScreen({ route, navigation }) {
         const conv = res.conversations?.find(c => c.id === conversationId);
         if (conv?.otherParticipant) {
           setRecipient(conv.otherParticipant);
-          if (conv.otherParticipant.id) setCurrentRecipientId(conv.otherParticipant.id);
-          if (conv.otherParticipant.type) setCurrentRecipientType(conv.otherParticipant.type);
+          const rId = conv.otherParticipant.id;
+          const rType = conv.otherParticipant.type || "member";
+          if (rId) setCurrentRecipientId(rId);
+          if (rType) setCurrentRecipientType(rType);
           // Track if this user has blocked us — so we can anonymize their header
           if (conv.otherParticipant.isBlockedByOther) setIsBlockedByOther(true);
+
+          if (rId && rType === "member") {
+            const p = await getPublicMemberProfile(rId);
+            setYouHaveBlocked(!!p?.you_have_blocked);
+          }
         }
       } catch (err) { console.error("Error loading recipient:", err); }
     })();
@@ -1415,13 +1431,11 @@ export default function ChatScreen({ route, navigation }) {
       console.error("Error sending message:", err);
       setMessageText(text);
       setUploadingMedia(false);
-      // Special case: the current user has blocked the recipient
-      // Show a prompt to unblock first rather than a generic error
       if (err?.status === 403 && err?.data?.error === 'you_have_blocked') {
         showAlert({
           title: "You've blocked this user",
           message: "Unblock them first to send messages.",
-          primaryAction: { text: "Unblock", onPress: () => { hideAlert(); /* navigate to profile or directly trigger unblock */ } },
+          primaryAction: { text: "Unblock", onPress: () => { hideAlert(); handleUnblockUser(); } },
           secondaryAction: { text: "Cancel", onPress: hideAlert },
           icon: UserX,
         });
@@ -1682,6 +1696,28 @@ export default function ChatScreen({ route, navigation }) {
     }, 300);
   };
 
+  // ——— handleUnblockUser —————————————————————————————————————————————————————————————
+  const handleUnblockUser = useCallback(async () => {
+    const finalRecipientId = currentRecipientId || recipientId || recipient?.id;
+    if (!finalRecipientId) return;
+    try {
+      setUnblocking(true);
+      const token = await (await import("../../api/auth")).getAuthToken();
+      await unblockUser(finalRecipientId, token);
+      setYouHaveBlocked(false);
+    } catch (err) {
+      showAlert({
+        title: "Error",
+        message: err?.message || "Failed to unblock user. Please try again.",
+        primaryAction: { text: "OK", onPress: hideAlert },
+        icon: AlertTriangle,
+        iconColor: "#E53935",
+      });
+    } finally {
+      setUnblocking(false);
+    }
+  }, [currentRecipientId, recipientId, recipient?.id, showAlert, hideAlert]);
+
   const handleReportReason = async (reason) => {
     setReportSheetVisible(false);
 
@@ -1901,6 +1937,22 @@ export default function ChatScreen({ route, navigation }) {
               </>
             )}
           </View>
+          {youHaveBlocked && (
+            <View style={blockBannerStyles.banner}>
+              <View style={blockBannerStyles.left}>
+                <ShieldOff size={18} color="#E11D48" strokeWidth={2} style={{ marginRight: 8 }} />
+                <Text style={blockBannerStyles.text}>You've blocked this user</Text>
+              </View>
+              <TouchableOpacity
+                style={blockBannerStyles.btn}
+                onPress={handleUnblockUser}
+                disabled={unblocking}
+                activeOpacity={0.75}
+              >
+                <Text style={blockBannerStyles.btnText}>{unblocking ? 'Unblocking…' : 'Unblock'}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         <KeyboardAvoidingView
@@ -2105,6 +2157,11 @@ export default function ChatScreen({ route, navigation }) {
             onMute={handleMuteChat}
             isMuted={isMuted}
             onBlock={handleBlockUser}
+            onUnblock={() => {
+              setChatActionsVisible(false);
+              handleUnblockUser();
+            }}
+            youHaveBlocked={youHaveBlocked}
             isGroup={isGroup}
           />
         )}
@@ -2304,11 +2361,47 @@ const styles = StyleSheet.create({
     maxHeight: 80,
   },
 
-  // ΓöÇΓöÇ Attachment button ΓöÇΓöÇ
+  // ── Attachment button ──
   attachBtn: {
     width: 40, height: 44,
     alignItems: "center", justifyContent: "center",
     marginRight: 4,
+  },
+});
+
+const blockBannerStyles = StyleSheet.create({
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF1F2',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FFE4E6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  left: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  text: {
+    fontFamily: 'Manrope-Medium',
+    fontSize: 13,
+    color: '#BE123C',
+    flexShrink: 1,
+  },
+  btn: {
+    backgroundColor: '#E11D48',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginLeft: 12,
+  },
+  btnText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 13,
+    color: '#FFFFFF',
   },
 });
 

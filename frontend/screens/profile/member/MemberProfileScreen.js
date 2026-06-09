@@ -1425,7 +1425,6 @@ export default function MemberProfileScreen({ navigation }) {
                     {/* Attended Events */}
                     {profileEvents.length > 0 && (
                       <>
-                        <Text style={profileTabStyles.sectionHeader}>Events Attended</Text>
                         {profileEvents.map((ev) => (
                           <EventCard
                             key={`ev-${ev.id}`}
@@ -1439,7 +1438,6 @@ export default function MemberProfileScreen({ navigation }) {
                     {/* Open Plans */}
                     {(profilePlans.hosted.length > 0 || profilePlans.attending.length > 0) && (
                       <>
-                        <Text style={profileTabStyles.sectionHeader}>Open Plans</Text>
                         {[...profilePlans.hosted, ...profilePlans.attending].map((plan) => {
                           const d = plan.scheduled_at ? new Date(plan.scheduled_at) : null;
                           const dateStr = d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
@@ -1449,34 +1447,39 @@ export default function MemberProfileScreen({ navigation }) {
                           const actLabel = plan.activity_type === 'other' ? (plan.custom_activity_label || 'Other') : plan.activity_type.charAt(0).toUpperCase() + plan.activity_type.slice(1);
                           const isHost = plan.role === 'host';
                           return (
-                            <TouchableOpacity
-                              key={`plan-${plan.id}-${plan.role}`}
-                              style={profileTabStyles.planRow}
-                              onPress={() => isHost
-                                ? navigation.navigate('HostRequests', { planId: plan.id, planTitle: plan.title })
-                                : navigation.navigate('PlanDetail', { planId: plan.id })
-                              }
-                              activeOpacity={0.82}
-                            >
-                              {/* Icon avatar */}
-                              <View style={[profileTabStyles.planIconWrap, { backgroundColor: actColors[actKey] }]}>
-                                <CalendarDays size={18} color={actTextColors[actKey]} strokeWidth={2} />
+                            <View key={`plan-${plan.id}-${plan.role}`} style={{ marginBottom: 12 }}>
+                              <View style={profileTabStyles.planLabel}>
+                                <CalendarDays size={13} color={COLORS.primary} strokeWidth={2} />
+                                <Text style={profileTabStyles.planLabelText}>Open Plan</Text>
                               </View>
-                              <View style={profileTabStyles.planLeft}>
-                                <View style={profileTabStyles.planPillRow}>
-                                  <View style={[profileTabStyles.planPill, { backgroundColor: isHost ? '#EEF2FF' : '#E8F5E9' }]}>
-                                    <Text style={[profileTabStyles.planPillText, { color: isHost ? '#3B5BDB' : '#2E7D32' }]}>{isHost ? 'Hosting' : 'Attending'}</Text>
-                                  </View>
-                                  <View style={[profileTabStyles.planPill, { backgroundColor: actColors[actKey] + '99' }]}>
-                                    <Text style={[profileTabStyles.planPillText, { color: actTextColors[actKey] }]}>{actLabel}</Text>
-                                  </View>
+                              <TouchableOpacity
+                                style={profileTabStyles.planRow}
+                                onPress={() => isHost
+                                  ? navigation.navigate('HostRequests', { planId: plan.id, planTitle: plan.title })
+                                  : navigation.navigate('PlanDetail', { planId: plan.id })
+                                }
+                                activeOpacity={0.82}
+                              >
+                                {/* Icon avatar */}
+                                <View style={[profileTabStyles.planIconWrap, { backgroundColor: actColors[actKey] }]}>
+                                  <CalendarDays size={18} color={actTextColors[actKey]} strokeWidth={2} />
                                 </View>
-                                <Text style={profileTabStyles.planTitle} numberOfLines={1}>{plan.title}</Text>
-                                <Text style={profileTabStyles.planMeta}>
-                                  {dateStr}{plan.location_public ? ` · ${plan.location_public}` : ''}
-                                </Text>
-                              </View>
-                            </TouchableOpacity>
+                                <View style={profileTabStyles.planLeft}>
+                                  <View style={profileTabStyles.planPillRow}>
+                                    <View style={[profileTabStyles.planPill, { backgroundColor: isHost ? '#EEF2FF' : '#E8F5E9' }]}>
+                                      <Text style={[profileTabStyles.planPillText, { color: isHost ? '#3B5BDB' : '#2E7D32' }]}>{isHost ? 'Hosting' : 'Attending'}</Text>
+                                    </View>
+                                    <View style={[profileTabStyles.planPill, { backgroundColor: actColors[actKey] + '99' }]}>
+                                      <Text style={[profileTabStyles.planPillText, { color: actTextColors[actKey] }]}>{actLabel}</Text>
+                                    </View>
+                                  </View>
+                                  <Text style={profileTabStyles.planTitle} numberOfLines={1}>{plan.title}</Text>
+                                  <Text style={profileTabStyles.planMeta}>
+                                    {dateStr}{plan.location_public ? ` · ${plan.location_public}` : ''}
+                                  </Text>
+                                </View>
+                              </TouchableOpacity>
+                            </View>
                           );
                         })}
                       </>
@@ -1853,6 +1856,7 @@ const profileTabStyles = StyleSheet.create({
     color: COLORS.primary,
   },
   eventsContainer: {
+    alignSelf: 'stretch',
     marginHorizontal: -20,
     paddingTop: 8,
     paddingBottom: 16,
@@ -1918,6 +1922,7 @@ const profileTabStyles = StyleSheet.create({
     backgroundColor: COLORS.surface || '#FFFFFF',
     borderRadius: 16,
     padding: 14,
+    marginHorizontal: 20,
     marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1927,6 +1932,21 @@ const profileTabStyles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
+  },
+  planLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+    marginHorizontal: 20,
+    paddingHorizontal: 4,
+  },
+  planLabelText: {
+    fontSize: 12,
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   planIconWrap: {
     width: 44,

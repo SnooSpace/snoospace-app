@@ -1488,12 +1488,55 @@ async function getMemberPublicEvents(req, res) {
       `SELECT
          e.id,
          e.title,
+         e.description,
          e.banner_url,
+         COALESCE(e.start_datetime, e.event_date) AS event_date,
          e.start_datetime,
+         e.end_datetime,
+         e.location_url,
          e.location_name,
+         e.event_type,
+         e.access_type,
+         e.invite_public_visibility,
+         CASE WHEN COALESCE(e.start_datetime, e.event_date) < NOW() THEN true ELSE false END AS is_past,
+         -- Engagement counts
+         COALESCE(e.like_count, 0)    AS like_count,
+         COALESCE(e.view_count, 0)    AS view_count,
+         COALESCE(e.comment_count, 0) AS comment_count,
+         COALESCE(e.share_count, 0)   AS share_count,
+         -- Viewer-specific flags (authUserId = $2)
+         CASE WHEN EXISTS (
+           SELECT 1 FROM event_likes el WHERE el.event_id = e.id AND el.liker_id = $2 AND el.liker_type = $3
+         ) THEN true ELSE false END AS is_liked,
+         CASE WHEN EXISTS (
+           SELECT 1 FROM event_interests ei WHERE ei.event_id = e.id AND ei.member_id = $2 AND $3 = 'member'
+         ) THEN true ELSE false END AS is_interested,
+         -- Community
+         c.id   AS community_id,
          c.name AS community_name,
+         c.username AS community_username,
          c.logo_url AS community_logo,
-         er.registration_status
+         -- Lowest ticket price
+         COALESCE(
+           (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id AND is_active = true AND base_price > 0),
+           e.ticket_price
+         ) AS ticket_price,
+         -- Registration status of the profile owner
+         er.registration_status,
+         -- Attendee count + avatars
+         (SELECT COUNT(*) FROM event_registrations er3
+          WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')) AS attendee_count,
+         (
+           SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
+           FROM (
+             SELECT m3.name, m3.profile_photo_url
+             FROM event_registrations er3
+             INNER JOIN members m3 ON er3.member_id = m3.id
+             WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')
+             ORDER BY er3.created_at DESC
+             LIMIT 3
+           ) m2
+         ) AS attendee_avatars
        FROM event_registrations er
        JOIN events e ON e.id = er.event_id
        LEFT JOIN communities c ON c.id = e.community_id
@@ -1502,10 +1545,31 @@ async function getMemberPublicEvents(req, res) {
          AND e.status != 'cancelled'
        ORDER BY e.start_datetime DESC
        LIMIT 50`,
-      [targetId]
+      [targetId, authUserId, userType]
     );
 
-    res.json({ events: result.rows });
+    // Enrich each event with its banner carousel
+    const eventsWithBanners = await Promise.all(
+      result.rows.map(async (event) => {
+        const bannersResult = await pool.query(
+          `SELECT image_url, image_order
+           FROM event_banners
+           WHERE event_id = $1
+           ORDER BY image_order ASC
+           LIMIT 3`,
+          [event.id]
+        );
+        return {
+          ...event,
+          banner_carousel: bannersResult.rows.map((b) => ({
+            url: b.image_url,
+            order: b.image_order,
+          })),
+        };
+      })
+    );
+
+    res.json({ events: eventsWithBanners });
   } catch (err) {
     console.error('[getMemberPublicEvents]', err && err.stack ? err.stack : err);
     res.status(500).json({ error: 'Failed to load member events' });

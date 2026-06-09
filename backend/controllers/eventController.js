@@ -366,11 +366,11 @@ const getCommunityEvents = async (req, res) => {
 
     // Get main events
     const eventsQuery = `
-      SELECT 
+      SELECT
         e.id,
         e.title,
         e.description,
-        e.start_datetime as event_date,
+        e.start_datetime AS event_date,
         e.end_datetime,
         e.gates_open_time,
         e.schedule_description,
@@ -388,12 +388,20 @@ const getCommunityEvents = async (req, res) => {
         e.ticket_price,
         e.access_type,
         e.invite_public_visibility,
-        c.id as community_id,
-        c.name as community_name,
-        c.username as community_username,
-        c.logo_url as community_logo,
-        COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) as current_attendees,
-        (SELECT COUNT(*) FROM event_registrations er3 WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')) as attendee_count,
+        -- Engagement counts
+        COALESCE(e.like_count, 0)    AS like_count,
+        COALESCE(e.view_count, 0)    AS view_count,
+        COALESCE(e.comment_count, 0) AS comment_count,
+        COALESCE(e.share_count, 0)   AS share_count,
+        -- is_liked: community owners always see their own event as not liked by themselves
+        false AS is_liked,
+        -- Community
+        c.id   AS community_id,
+        c.name AS community_name,
+        c.username AS community_username,
+        c.logo_url AS community_logo,
+        COALESCE(COUNT(DISTINCT er.member_id) FILTER (WHERE er.registration_status = 'registered'), 0) AS current_attendees,
+        (SELECT COUNT(*) FROM event_registrations er3 WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')) AS attendee_count,
         (
           SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
           FROM (
@@ -404,8 +412,8 @@ const getCommunityEvents = async (req, res) => {
             ORDER BY er3.created_at DESC
             LIMIT 3
           ) m2
-        ) as attendee_avatars,
-        (e.start_datetime < NOW()) as is_past,
+        ) AS attendee_avatars,
+        (e.start_datetime < NOW()) AS is_past,
         e.created_at
       FROM events e
       LEFT JOIN event_registrations er ON e.id = er.event_id
@@ -618,26 +626,52 @@ const getMyEvents = async (req, res) => {
     }
 
     const query = `
-      SELECT 
+      SELECT
         e.id,
         e.title,
         e.description,
-        COALESCE(e.start_datetime, e.event_date) as event_date,
+        COALESCE(e.start_datetime, e.event_date) AS event_date,
         e.start_datetime,
         e.end_datetime,
         e.location_url,
         e.location_name,
         e.max_attendees,
         e.banner_url,
-        CASE WHEN COALESCE(e.start_datetime, e.event_date) < NOW() THEN true ELSE false END as is_past,
-        c.id as community_id,
-        c.name as community_name,
-        c.logo_url as community_logo,
-        v.name as venue_name,
+        e.event_type,
+        e.access_type,
+        e.invite_public_visibility,
+        CASE WHEN COALESCE(e.start_datetime, e.event_date) < NOW() THEN true ELSE false END AS is_past,
+        -- Engagement counts
+        COALESCE(e.like_count, 0)    AS like_count,
+        COALESCE(e.view_count, 0)    AS view_count,
+        COALESCE(e.comment_count, 0) AS comment_count,
+        COALESCE(e.share_count, 0)   AS share_count,
+        -- Viewer-specific flags
+        CASE WHEN EXISTS (
+          SELECT 1 FROM event_likes el WHERE el.event_id = e.id AND el.liker_id = $1 AND el.liker_type = 'member'
+        ) THEN true ELSE false END AS is_liked,
+        CASE WHEN EXISTS (
+          SELECT 1 FROM event_interests ei WHERE ei.event_id = e.id AND ei.member_id = $1
+        ) THEN true ELSE false END AS is_interested,
+        -- Community
+        c.id   AS community_id,
+        c.name AS community_name,
+        c.username AS community_username,
+        c.logo_url AS community_logo,
+        -- Venue
+        v.name AS venue_name,
+        -- Registration
         er.registration_status,
-        er.created_at as registration_date,
-        (SELECT COUNT(*) FROM event_registrations er3 
-         WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')) as attendee_count,
+        er.created_at AS registration_date,
+        true AS is_registered,
+        -- Lowest ticket price
+        COALESCE(
+          (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id AND is_active = true AND base_price > 0),
+          e.ticket_price
+        ) AS ticket_price,
+        -- Attendee count + avatars
+        (SELECT COUNT(*) FROM event_registrations er3
+         WHERE er3.event_id = e.id AND er3.registration_status IN ('registered', 'attended', 'confirmed')) AS attendee_count,
         (
           SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
           FROM (
@@ -648,11 +682,11 @@ const getMyEvents = async (req, res) => {
             ORDER BY er3.created_at DESC
             LIMIT 3
           ) m2
-        ) as attendee_avatars
+        ) AS attendee_avatars
       FROM events e
       LEFT JOIN communities c ON e.community_id = c.id
       LEFT JOIN venues v ON e.venue_id = v.id
-      INNER JOIN event_registrations er ON e.id = er.event_id AND er.member_id = $1 
+      INNER JOIN event_registrations er ON e.id = er.event_id AND er.member_id = $1
         AND er.registration_status IN ('registered', 'attended', 'confirmed')
       ORDER BY COALESCE(e.start_datetime, e.event_date) DESC
     `;
@@ -3098,28 +3132,50 @@ const getInterestedEvents = async (req, res) => {
     }
 
     const query = `
-      SELECT 
+      SELECT
         e.id,
         e.title,
         e.description,
-        e.start_datetime as event_date,
+        e.start_datetime AS event_date,
         e.end_datetime,
         e.location_url,
         e.location_name,
         e.max_attendees,
         e.banner_url,
         e.event_type,
+        e.access_type,
+        e.invite_public_visibility,
         e.is_cancelled,
-        c.id as community_id,
-        c.name as community_name,
-        c.username as community_username,
-        c.logo_url as community_logo,
-        ei.created_at as interested_at,
-        (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id AND is_active = true AND base_price > 0) as min_price,
+        e.ticket_price,
+        c.id   AS community_id,
+        c.name AS community_name,
+        c.username AS community_username,
+        c.logo_url AS community_logo,
+        ei.created_at AS interested_at,
+        -- Engagement counts
+        COALESCE(e.like_count, 0)    AS like_count,
+        COALESCE(e.view_count, 0)    AS view_count,
+        COALESCE(e.comment_count, 0) AS comment_count,
+        COALESCE(e.share_count, 0)   AS share_count,
+        -- Viewer-specific flags
+        CASE WHEN EXISTS (
+          SELECT 1 FROM event_likes el WHERE el.event_id = e.id AND el.liker_id = $1 AND el.liker_type = 'member'
+        ) THEN true ELSE false END AS is_liked,
+        true AS is_interested,
+        -- Check if member is registered
+        CASE WHEN EXISTS (
+          SELECT 1 FROM event_registrations er2
+          WHERE er2.event_id = e.id AND er2.member_id = $1 AND er2.registration_status IN ('registered', 'attended', 'confirmed')
+        ) THEN true ELSE false END AS is_registered,
+        -- Lowest ticket price
+        COALESCE(
+          (SELECT MIN(base_price) FROM ticket_types WHERE event_id = e.id AND is_active = true AND base_price > 0),
+          e.ticket_price
+        ) AS min_price,
         COALESCE(
           (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id AND registration_status = 'registered'),
           0
-        ) as attendee_count,
+        ) AS attendee_count,
         (
           SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
           FROM (
@@ -3130,7 +3186,7 @@ const getInterestedEvents = async (req, res) => {
             ORDER BY er3.created_at DESC
             LIMIT 3
           ) m2
-        ) as attendee_avatars
+        ) AS attendee_avatars
       FROM event_interests ei
       INNER JOIN events e ON ei.event_id = e.id
       INNER JOIN communities c ON e.community_id = c.id
@@ -3142,14 +3198,14 @@ const getInterestedEvents = async (req, res) => {
 
     const result = await pool.query(query, [userId]);
 
-    // Fetch banners for each event
+    // Fetch banners for each event (single batch query)
     const eventIds = result.rows.map((e) => e.id);
     let bannersMap = {};
     if (eventIds.length > 0) {
       const bannersResult = await pool.query(
-        `SELECT event_id, image_url, image_order 
-         FROM event_banners 
-         WHERE event_id = ANY($1) 
+        `SELECT event_id, image_url, image_order
+         FROM event_banners
+         WHERE event_id = ANY($1)
          ORDER BY event_id, image_order ASC`,
         [eventIds],
       );
@@ -3157,7 +3213,8 @@ const getInterestedEvents = async (req, res) => {
         if (!bannersMap[banner.event_id]) {
           bannersMap[banner.event_id] = [];
         }
-        bannersMap[banner.event_id].push({ image_url: banner.image_url });
+        // Use `url` key to match EventCard expectation
+        bannersMap[banner.event_id].push({ url: banner.image_url, order: banner.image_order });
       });
     }
 
@@ -5044,11 +5101,11 @@ const getCommunityPublicEvents = async (req, res) => {
     }
 
     const query = `
-      SELECT 
+      SELECT
         e.id,
         e.title,
         e.description,
-        COALESCE(e.start_datetime, e.event_date) as event_date,
+        COALESCE(e.start_datetime, e.event_date) AS event_date,
         e.start_datetime,
         e.end_datetime,
         e.location_url,
@@ -5059,22 +5116,34 @@ const getCommunityPublicEvents = async (req, res) => {
         e.virtual_link,
         e.ticket_price,
         e.is_cancelled,
-        c.id as community_id,
-        c.name as community_name,
-        c.username as community_username,
-        c.logo_url as community_logo,
-        -- Check if user is interested in this event
+        e.access_type,
+        e.invite_public_visibility,
+        CASE WHEN COALESCE(e.start_datetime, e.event_date) < NOW() THEN true ELSE false END AS is_past,
+        -- Engagement counts
+        COALESCE(e.like_count, 0)    AS like_count,
+        COALESCE(e.view_count, 0)    AS view_count,
+        COALESCE(e.comment_count, 0) AS comment_count,
+        COALESCE(e.share_count, 0)   AS share_count,
+        -- Viewer-specific flags (viewer = $4 / $5)
         CASE WHEN EXISTS (
-          SELECT 1 FROM event_interests ei 
+          SELECT 1 FROM event_likes el WHERE el.event_id = e.id AND el.liker_id = $4 AND el.liker_type = $5
+        ) THEN true ELSE false END AS is_liked,
+        -- Check if viewer is interested in this event
+        CASE WHEN EXISTS (
+          SELECT 1 FROM event_interests ei
           WHERE ei.event_id = e.id AND ei.member_id = $4 AND $5 = 'member'
-        ) THEN true ELSE false END as is_interested,
-        -- Check if user is registered for this event
+        ) THEN true ELSE false END AS is_interested,
+        -- Check if viewer is registered for this event
         CASE WHEN EXISTS (
-          SELECT 1 FROM event_registrations er2 
+          SELECT 1 FROM event_registrations er2
           WHERE er2.event_id = e.id AND er2.member_id = $4 AND er2.registration_status IN ('registered', 'attended', 'confirmed') AND $5 = 'member'
-        ) THEN true ELSE false END as is_registered,
-        (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status IN ('registered', 'attended', 'confirmed')) as current_attendees,
-        (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status IN ('registered', 'attended', 'confirmed')) as attendee_count,
+        ) THEN true ELSE false END AS is_registered,
+        c.id   AS community_id,
+        c.name AS community_name,
+        c.username AS community_username,
+        c.logo_url AS community_logo,
+        (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status IN ('registered', 'attended', 'confirmed')) AS current_attendees,
+        (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status IN ('registered', 'attended', 'confirmed')) AS attendee_count,
         (
           SELECT COALESCE(json_agg(json_build_object('name', m2.name, 'profile_photo_url', m2.profile_photo_url)), '[]'::json)
           FROM (
@@ -5085,7 +5154,7 @@ const getCommunityPublicEvents = async (req, res) => {
             ORDER BY er3.created_at DESC
             LIMIT 3
           ) m2
-        ) as attendee_avatars
+        ) AS attendee_avatars
       FROM events e
       LEFT JOIN communities c ON e.community_id = c.id OR e.creator_id = c.id
       WHERE (e.creator_id = $1 OR e.community_id = $1) ${dateFilter}
@@ -5102,7 +5171,6 @@ const getCommunityPublicEvents = async (req, res) => {
       type,
       dateFilter,
     });
-    console.log("[getCommunityPublicEvents] Full query:", query);
 
     const result = await pool.query(query, [
       communityId,
@@ -5114,23 +5182,35 @@ const getCommunityPublicEvents = async (req, res) => {
 
     console.log("[getCommunityPublicEvents] Query result:", {
       rowCount: result.rowCount,
-      rows: result.rows,
     });
 
-    // Fetch ticket price ranges for each event
+    // Fetch ticket price ranges and banner carousel for each event
     const eventsWithDetails = await Promise.all(
       result.rows.map(async (event) => {
         // Get ticket types with prices
         const ticketsResult = await pool.query(
-          `SELECT id, base_price, name FROM ticket_types 
-           WHERE event_id = $1 AND is_active = true 
+          `SELECT id, base_price, name FROM ticket_types
+           WHERE event_id = $1 AND is_active = true
            ORDER BY base_price ASC`,
+          [event.id],
+        );
+
+        // Get banner carousel
+        const bannerResult = await pool.query(
+          `SELECT image_url, image_order FROM event_banners
+           WHERE event_id = $1
+           ORDER BY image_order ASC
+           LIMIT 3`,
           [event.id],
         );
 
         return {
           ...event,
           ticket_types: ticketsResult.rows,
+          banner_carousel: bannerResult.rows.map((b) => ({
+            url: b.image_url,
+            order: b.image_order,
+          })),
         };
       }),
     );
