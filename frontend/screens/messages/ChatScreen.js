@@ -1705,6 +1705,10 @@ export default function ChatScreen({ route, navigation }) {
       const token = await (await import("../../api/auth")).getAuthToken();
       await unblockUser(finalRecipientId, token);
       setYouHaveBlocked(false);
+      // Re-fetch messages so B's messages that were hidden during the block now appear for A
+      if (currentConversationId) {
+        await loadInitial(currentConversationId);
+      }
     } catch (err) {
       showAlert({
         title: "Error",
@@ -1716,7 +1720,7 @@ export default function ChatScreen({ route, navigation }) {
     } finally {
       setUnblocking(false);
     }
-  }, [currentRecipientId, recipientId, recipient?.id, showAlert, hideAlert]);
+  }, [currentRecipientId, recipientId, recipient?.id, currentConversationId, loadInitial, showAlert, hideAlert]);
 
   const handleReportReason = async (reason) => {
     setReportSheetVisible(false);

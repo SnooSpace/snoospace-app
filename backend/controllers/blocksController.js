@@ -50,6 +50,30 @@ async function unblockUser(req, res) {
       [blockerId, blockedId]
     );
 
+    // Reveal messages that blockedId sent while blocked:
+    // Find all 1:1 conversations between blockerId and blockedId, then
+    // set is_hidden = false on messages from blockedId that were hidden
+    // solely because of this block (i.e. stored-but-invisible-to-blocker).
+    await pool.query(
+      `UPDATE messages
+       SET is_hidden = false
+       WHERE is_hidden = true
+         AND sender_id   = $2
+         AND sender_type = 'member'
+         AND conversation_id IN (
+           SELECT id FROM conversations
+           WHERE is_group = false
+             AND (
+               (participant1_id = $1 AND participant1_type = 'member'
+                AND participant2_id = $2 AND participant2_type = 'member')
+               OR
+               (participant1_id = $2 AND participant1_type = 'member'
+                AND participant2_id = $1 AND participant2_type = 'member')
+             )
+         )`,
+      [blockerId, blockedId]
+    );
+
     res.json({ blocked: false });
   } catch (err) {
     console.error('[blocksController.unblockUser]', err);
