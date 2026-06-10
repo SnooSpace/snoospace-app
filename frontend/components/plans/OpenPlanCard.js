@@ -1,54 +1,187 @@
-import React, { useState, useCallback } from 'react';
+/**
+ * OpenPlanCard — Premium event discovery card for Open Plans feed.
+ *
+ * Layout (360–380px total):
+ *   ┌──────────────────────────────────────┐  borderRadius: 20
+ *   │                                      │
+ *   │     Hero Illustration (240px)        │
+ *   │                  [👥 14 / 20]        │  ← top-right overlay
+ *   │  [🏀 Sports]                         │  ← bottom-left pill
+ *   │                                      │
+ *   ├──────────────────────────────────────┤
+ *   │  Saturday Football Match             │  BasicCommercialBold 16px
+ *   │  📍 Cubbon Park                      │  Manrope Medium 13px
+ *   │  🗓 Sat • 6:00 PM         ₹199       │  Manrope Medium 13px (inline)
+ *   │  Hosted by Aarav Singh               │  Manrope Regular 12px (muted)
+ *   ├──────────────────────────────────────┤  hairline divider
+ *   │  ♡ 24    💬 8    📊 132    ➤         │  engagement row
+ *   └──────────────────────────────────────┘
+ */
+
+import React, { useState, useRef, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Pressable,
+  View, Text, TouchableOpacity, StyleSheet, Image,
+  Dimensions, Share,
 } from 'react-native';
-import { Clock, MapPin, Users, Heart, ChartNoAxesCombined, MessageCircle, Send, BadgeCheck } from 'lucide-react-native';
-import { COLORS, FONTS, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
+import {
+  Users, MapPin, Calendar, Heart, MessageCircle,
+  ChartNoAxesCombined, Send,
+} from 'lucide-react-native';
+import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
+import { useNavigation } from '@react-navigation/native';
+import CommentsModal from '../CommentsModal';
+import HapticsService from '../../services/HapticsService';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CARD_WIDTH = SCREEN_WIDTH - 32;  // 16px padding each side
 
-const ACTIVITY_COLORS = {
-  sports: { bg: '#EEF2FF', text: '#3B5BDB' },
-  study:  { bg: '#E8F5E9', text: '#2E7D32' },
-  food:   { bg: '#FFF8E1', text: '#B45309' },
-  gaming: { bg: '#FCE4EC', text: '#C2185B' },
-  other:  { bg: '#F5F5F5', text: '#555555' },
+// ─── Master illustration asset ──────────────────────────────────────────────
+
+const MASTER_IMAGE = require('../../assets/Open_Plans.webp');
+const MASTER_SIZE  = 1254; // pixel width & height of the source image
+
+/**
+ * Crop map: each entry is { left, top, right, bottom } in source-image pixels.
+ * These were verified visually against the 1254×1254 illustration.
+ */
+const CROP_MAP = {
+  sports:       { l: 130, t: 130, r: 470, b: 348 },
+  movies:       { l: 360, t:  10, r: 720, b: 240 },
+  bar:          { l: 870, t:   0, r: 1200, b: 200 },
+  food:         { l: 810, t: 310, r: 1150, b: 530 },
+  cafe:         { l: 330, t: 290, r: 670,  b: 490 },
+  yoga:         { l: 480, t: 420, r: 820,  b: 650 },
+  gym:          { l: 860, t: 530, r: 1190, b: 730 },
+  walk:         { l:  10, t: 620, r: 350,  b: 870 },
+  rides:        { l: 520, t: 910, r: 870,  b: 1120 },
+  live_music:   { l: 580, t: 280, r: 880,  b: 450 },
+  study:        { l: 900, t: 680, r: 1230, b: 920 },
+  creative:     { l: 230, t: 820, r: 580,  b: 1060 },
+  games:        { l: 130, t: 440, r: 470,  b: 690 },
+  gaming:       { l: 130, t: 440, r: 470,  b: 690 },  // alias for gaming key
+  pet_friendly: { l: 140, t: 680, r: 490,  b: 900 },
+  hangout:      { l: 450, t: 570, r: 790,  b: 790 },
+  // fallback / other
+  other:        { l: 300, t: 350, r: 660,  b: 570 },
 };
 
-const COST_LABELS = {
-  free:      { label: 'Free',     bg: '#E8F5E9', text: '#2E7D32' },
-  self_pay:  { label: 'Self-pay', bg: '#E8F5E9', text: '#2E7D32' },
-  split:     { label: 'We split', bg: '#EEF2FF', text: '#3B5BDB' },
-  entry_fee: { label: null,       bg: '#FFF8E1', text: '#B45309' },
+// ─── Activity colour palette (muted, instantly recognisable) ─────────────────
+
+const PILL_COLORS = {
+  sports:       { bg: '#FFF3E0', text: '#E65100' },
+  movies:       { bg: '#F3E5F5', text: '#6A1B9A' },
+  bar:          { bg: '#E8EAF6', text: '#303F9F' },
+  food:         { bg: '#FFF8E1', text: '#F57F17' },
+  cafe:         { bg: '#EFEBE9', text: '#4E342E' },
+  yoga:         { bg: '#E8F5E9', text: '#2E7D32' },
+  gym:          { bg: '#FCE4EC', text: '#880E4F' },
+  walk:         { bg: '#E0F2F1', text: '#00695C' },
+  rides:        { bg: '#E3F2FD', text: '#1565C0' },
+  live_music:   { bg: '#FCE4EC', text: '#C62828' },
+  study:        { bg: '#EDE7F6', text: '#4527A0' },
+  creative:     { bg: '#FFF9C4', text: '#F57F17' },
+  games:        { bg: '#E1F5FE', text: '#01579B' },
+  gaming:       { bg: '#E1F5FE', text: '#01579B' },
+  pet_friendly: { bg: '#F1F8E9', text: '#33691E' },
+  hangout:      { bg: '#E8F5E9', text: '#1B5E20' },
+  other:        { bg: '#F5F5F5', text: '#424242' },
 };
 
-const REQUEST_BUTTON = {
-  null:      { label: 'Request to join',     bg: '#2962FF', textColor: '#FFFFFF', disabled: false },
-  pending:   { label: 'Requested · Pending', bg: '#F5F5F5', textColor: '#6B7280', disabled: true  },
-  approved:  { label: "Approved — You're in!", bg: '#E8F5E9', textColor: '#2E7D32', disabled: true },
-  declined:  { label: 'Request declined',    bg: '#F5F5F5', textColor: '#9E9E9E', disabled: true  },
-  withdrawn: { label: 'Request to join',     bg: '#2962FF', textColor: '#FFFFFF', disabled: false },
+const ACTIVITY_LABELS = {
+  sports:       'Sports',
+  movies:       'Movies',
+  bar:          'Bar',
+  food:         'Food',
+  cafe:         'Cafe',
+  yoga:         'Yoga',
+  gym:          'Gym',
+  walk:         'Walk',
+  rides:        'Rides',
+  live_music:   'Live Music',
+  study:        'Study / Co-work',
+  creative:     'Creative',
+  games:        'Games',
+  gaming:       'Games',
+  pet_friendly: 'Pet Friendly',
+  hangout:      'Hangout',
+  other:        null,  // falls back to custom_activity_label
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Cost helpers ─────────────────────────────────────────────────────────────
+
+function getCostLabel(plan) {
+  if (plan.cost_type === 'free')      return 'Free';
+  if (plan.cost_type === 'self_pay')  return 'Self-pay';
+  if (plan.cost_type === 'split')     return 'We split';
+  if (plan.cost_type === 'entry_fee') {
+    return plan.cost_amount_paise
+      ? `₹${plan.cost_amount_paise / 100}`
+      : 'Entry fee';
+  }
+  return null;
+}
+
+// ─── Date formatter ───────────────────────────────────────────────────────────
 
 function formatScheduled(iso) {
-  const d = new Date(iso);
+  const d   = new Date(iso);
   const now = new Date();
-  const todayStr = now.toDateString();
-  const tomorrowStr = new Date(now.getTime() + 86400000).toDateString();
-  const time = d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
-  if (d.toDateString() === todayStr) return `Today, ${time}`;
-  if (d.toDateString() === tomorrowStr) return `Tomorrow, ${time}`;
-  return d.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' }) + ` · ${time}`;
+  const today    = now.toDateString();
+  const tomorrow = new Date(now.getTime() + 86400000).toDateString();
+  const time = d.toLocaleTimeString('en-IN', {
+    hour: 'numeric', minute: '2-digit', hour12: true,
+  });
+  if (d.toDateString() === today)    return `Today • ${time}`;
+  if (d.toDateString() === tomorrow) return `Tomorrow • ${time}`;
+  const dayPart = d.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
+  return `${dayPart} • ${time}`;
 }
 
-function formatCount(n) {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n ?? 0);
+// ─── Count formatter ──────────────────────────────────────────────────────────
+
+function fmt(n) {
+  const v = Number(n) || 0;
+  if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
+  return String(v);
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// ─── CropImage ────────────────────────────────────────────────────────────────
+
+/**
+ * Renders the master illustration cropped to a given bounding box,
+ * scaled to fill containerW × 240px exactly (cover-fill semantics).
+ */
+function CropImage({ activityType, containerW }) {
+  const box   = CROP_MAP[activityType] || CROP_MAP.other;
+  const boxW  = box.r - box.l;
+  const boxH  = box.b - box.t;
+  const H     = 240;
+
+  const scale   = Math.max(containerW / boxW, H / boxH);
+  const imgSize = MASTER_SIZE * scale;
+
+  // Centre the crop inside the container
+  const offsetX = -(box.l * scale) + (containerW - boxW * scale) / 2;
+  const offsetY = -(box.t * scale) + (H - boxH * scale) / 2;
+
+  return (
+    <View style={{ width: containerW, height: H, overflow: 'hidden' }}>
+      <Image
+        source={MASTER_IMAGE}
+        style={{
+          position: 'absolute',
+          width:  imgSize,
+          height: imgSize,
+          left:   offsetX,
+          top:    offsetY,
+        }}
+        resizeMode="cover"
+      />
+    </View>
+  );
+}
+
+// ─── OpenPlanCard ─────────────────────────────────────────────────────────────
 
 const OpenPlanCard = ({
   plan,
@@ -56,329 +189,413 @@ const OpenPlanCard = ({
   onPress,
   onRequestPress,
   onLike,
-  onComment,
   onShare,
+  navigation: navProp,
 }) => {
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(plan.like_count ?? 0);
+  const navHook = useNavigation();
+  const navigation = navProp || navHook;
+
+  // Engagement state
+  const [isLiked,       setIsLiked]       = useState(Boolean(plan?.is_liked));
+  const [likeCount,     setLikeCount]     = useState(plan?.like_count ?? 0);
+  const [isLiking,      setIsLiking]      = useState(false);
+  const [commentCount,  setCommentCount]  = useState(plan?.comment_count ?? 0);
+  const [viewCount]                       = useState(plan?.view_count ?? 0);
+  const [commentsVisible, setCommentsVisible] = useState(false);
+
+  // Layout width for CropImage
+  const [cardW, setCardW] = useState(CARD_WIDTH);
+
+  // ── Derived plan fields ──────────────────────────────────────────────────
+
+  const activityKey   = plan?.activity_type || 'other';
+  const pillColors    = PILL_COLORS[activityKey]  || PILL_COLORS.other;
+  const activityLabel =
+    activityKey === 'other'
+      ? (plan?.custom_activity_label || 'Other')
+      : (ACTIVITY_LABELS[activityKey] || activityKey);
+
+  const hostName    = plan?.host_profile?.name || 'Someone';
+  const costLabel   = getCostLabel(plan);
+  const acceptedN   = plan?.accepted_count   ?? 0;
+  const maxAccepted = plan?.max_accepted      ?? 0;
+  const spotsLeft   = maxAccepted - acceptedN;
+  const isFull      = spotsLeft <= 0;
+  const scheduledAt = plan?.scheduled_at;
+  const location    = plan?.location_public;
+
+  const isOwner   = plan?.created_by === currentUserId;
+  const reqStatus = plan?.my_request_status || null;
+
+  // ── Like handler ─────────────────────────────────────────────────────────
 
   const handleLike = useCallback(async () => {
-    const prev = { isLiked, likeCount };
-    setIsLiked(v => !v);
-    setLikeCount(v => isLiked ? v - 1 : v + 1);
+    if (isLiking) return;
+    HapticsService.triggerImpactLight();
+    const nextLiked = !isLiked;
+    const nextCount = Math.max(0, likeCount + (nextLiked ? 1 : -1));
+    setIsLiked(nextLiked);
+    setLikeCount(nextCount);
+    setIsLiking(true);
     try {
-      await onLike(plan.id, !isLiked);
+      await onLike?.(plan.id, nextLiked);
     } catch {
-      setIsLiked(prev.isLiked);
-      setLikeCount(prev.likeCount);
+      setIsLiked(!nextLiked);
+      setLikeCount(likeCount);
+    } finally {
+      setIsLiking(false);
     }
-  }, [isLiked, likeCount, plan.id, onLike]);
+  }, [isLiking, isLiked, likeCount, plan?.id, onLike]);
 
-  const isOwner = plan.created_by === currentUserId;
-  const activityKey = plan.activity_type in ACTIVITY_COLORS ? plan.activity_type : 'other';
-  const activityStyle = ACTIVITY_COLORS[activityKey];
-  const activityLabel = plan.activity_type === 'other'
-    ? (plan.custom_activity_label || 'Other')
-    : plan.activity_type.charAt(0).toUpperCase() + plan.activity_type.slice(1);
+  // ── Share handler ────────────────────────────────────────────────────────
 
-  const costCfg = COST_LABELS[plan.cost_type] || COST_LABELS.free;
-  const costLabel = plan.cost_type === 'entry_fee'
-    ? (plan.cost_amount_paise ? `₹${plan.cost_amount_paise / 100} entry` : 'Entry fee')
-    : costCfg.label;
+  const handleShare = useCallback(async () => {
+    HapticsService.triggerImpactLight();
+    if (onShare) {
+      onShare(plan);
+    } else {
+      try {
+        await Share.share({
+          message: `Check out this open plan "${plan?.title || 'Open Plan'}" on SnooSpace!`,
+        });
+      } catch (_) {}
+    }
+  }, [onShare, plan]);
 
-  const reqStatus = plan.my_request_status;
-  const btnCfg = REQUEST_BUTTON[reqStatus] || REQUEST_BUTTON['null'];
+  // ── Comment handler ──────────────────────────────────────────────────────
 
-  const spotsLeft = plan.max_accepted - (plan.accepted_count ?? 0);
-  const progress = Math.min(1, (plan.accepted_count ?? 0) / (plan.max_accepted || 1));
+  const handleComment = useCallback(() => {
+    HapticsService.triggerImpactLight();
+    setCommentsVisible(true);
+  }, []);
 
-  const genderPref = plan.gender_preference;
-  const showGenderBadge = genderPref && genderPref !== 'all';
-  const genderBadgeStyle = genderPref === 'Female'
-    ? { bg: '#FCE4EC', text: '#C2185B', label: 'Women only' }
-    : { bg: '#E3F2FD', text: '#1565C0', label: 'Men only' };
+  // ── Request button config ────────────────────────────────────────────────
+
+  const REQUEST_BTNS = {
+    null:      { label: 'Request to join',     bg: COLORS.primary, color: '#FFF',   disabled: false },
+    pending:   { label: 'Pending…',            bg: '#F5F5F5',       color: '#9CA3AF', disabled: true },
+    approved:  { label: "You're in! ✓",        bg: '#E8F5E9',       color: '#2E7D32', disabled: true },
+    declined:  { label: 'Request declined',    bg: '#F5F5F5',       color: '#9CA3AF', disabled: true },
+    withdrawn: { label: 'Request to join',     bg: COLORS.primary, color: '#FFF',   disabled: false },
+  };
+  const btnCfg = REQUEST_BTNS[reqStatus] || REQUEST_BTNS['null'];
+
+  // ── Spots pill ────────────────────────────────────────────────────────────
+
+  const spotsText = isFull
+    ? 'Full'
+    : spotsLeft === 1
+      ? '1 spot left!'
+      : null;
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.93} onPress={() => onPress(plan.id)}>
-      {/* Top row: activity tag + gender + cost */}
-      <View style={styles.topRow}>
-        <View style={styles.topRowLeft}>
-          <View style={[styles.pill, { backgroundColor: activityStyle.bg }]}>
-            <Text style={[styles.pillText, { color: activityStyle.text }]}>{activityLabel}</Text>
+    <TouchableOpacity
+      style={styles.card}
+      activeOpacity={0.95}
+      onPress={() => onPress?.(plan?.id)}
+      onLayout={(e) => setCardW(e.nativeEvent.layout.width)}
+    >
+      {/* ── Hero Illustration ─────────────────────────────────────────── */}
+      <View style={styles.heroContainer}>
+        <CropImage activityType={activityKey} containerW={cardW} />
+
+        {/* Attendee count overlay — top-right */}
+        <View style={styles.attendeeBubble}>
+          <Users size={12} color="#FFF" strokeWidth={2.2} />
+          <Text style={styles.attendeeText}>
+            {acceptedN} / {maxAccepted}
+          </Text>
+        </View>
+
+        {/* Activity pill overlay — bottom-left */}
+        <View style={[styles.activityPill, { backgroundColor: pillColors.bg }]}>
+          <Text style={[styles.activityPillText, { color: pillColors.text }]}>
+            {activityLabel}
+          </Text>
+        </View>
+
+        {/* Spots-full / spots-left warning — bottom-right */}
+        {spotsText && (
+          <View style={[styles.spotsBubble, isFull && styles.spotsBubbleFull]}>
+            <Text style={styles.spotsText}>{spotsText}</Text>
           </View>
-          {showGenderBadge && (
-            <View style={[styles.pill, { backgroundColor: genderBadgeStyle.bg, marginLeft: 6 }]}>
-              <Text style={[styles.pillText, { color: genderBadgeStyle.text }]}>{genderBadgeStyle.label}</Text>
-            </View>
-          )}
-        </View>
-        <View style={[styles.pill, { backgroundColor: costCfg.bg }]}>
-          <Text style={[styles.pillText, { color: costCfg.text }]}>{costLabel}</Text>
-        </View>
-      </View>
-
-      {/* Title */}
-      <Text style={styles.title} numberOfLines={2}>{plan.title}</Text>
-
-      {/* Host */}
-      <View style={styles.hostRow}>
-        <Text style={styles.hostedBy}>
-          Hosted by{' '}
-          <Text style={styles.hostName}>{plan.host_profile?.name || 'Someone'}</Text>
-        </Text>
-        {plan.host_profile?.is_verified && (
-          <BadgeCheck size={14} color="#2962FF" strokeWidth={2} style={{ marginLeft: 4 }} />
         )}
       </View>
 
-      {/* Divider */}
-      <View style={styles.divider} />
+      {/* ── Content area ─────────────────────────────────────────────── */}
+      <View style={styles.content}>
 
-      {/* Time & location */}
-      <View style={styles.metaRow}>
-        <View style={styles.metaItem}>
-          <Clock size={13} color={COLORS.textSecondary} strokeWidth={2} />
-          <Text style={styles.metaText}>{formatScheduled(plan.scheduled_at)}</Text>
-        </View>
-        {plan.location_public ? (
-          <View style={[styles.metaItem, { marginLeft: 12 }]}>
+        {/* Title */}
+        <Text style={styles.title} numberOfLines={2}>{plan?.title}</Text>
+
+        {/* Location row */}
+        {location ? (
+          <View style={styles.metaRow}>
             <MapPin size={13} color={COLORS.textSecondary} strokeWidth={2} />
-            <Text style={styles.metaText} numberOfLines={1}>{plan.location_public}</Text>
+            <Text style={styles.metaText} numberOfLines={1}>{location}</Text>
           </View>
         ) : null}
-      </View>
 
-      {/* Acceptance bar */}
-      <View style={styles.acceptanceRow}>
-        <Text style={styles.acceptanceLabel}>
-          <Text style={styles.acceptanceBold}>{plan.accepted_count ?? 0} / {plan.max_accepted}</Text> accepted
-        </Text>
-        {spotsLeft <= 2 && spotsLeft > 0 && (
-          <View style={styles.spotsLeftPill}>
-            <Text style={styles.spotsLeftText}>{spotsLeft} spot{spotsLeft !== 1 ? 's' : ''} left</Text>
+        {/* Date + cost row (inline) */}
+        <View style={styles.dateRow}>
+          <View style={styles.dateLeft}>
+            <Calendar size={13} color={COLORS.textSecondary} strokeWidth={2} />
+            <Text style={styles.metaText}>
+              {scheduledAt ? formatScheduled(scheduledAt) : '—'}
+            </Text>
           </View>
-        )}
-      </View>
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
-      </View>
+          {costLabel ? (
+            <Text style={styles.costText}>{costLabel}</Text>
+          ) : null}
+        </View>
 
-      {/* Shared community */}
-      {plan.shared_community_name ? (
-        <View style={styles.sharedPill}>
-          <Users size={12} color="#2962FF" strokeWidth={2} />
-          <Text style={styles.sharedText}>
-            Shared community: <Text style={{ color: '#2962FF' }}>{plan.shared_community_name}</Text>
+        {/* Host row */}
+        <Text style={styles.hostText}>
+          Hosted by <Text style={styles.hostName}>{hostName}</Text>
+        </Text>
+
+        {/* Engagement divider */}
+        <View style={styles.divider} />
+
+        {/* Engagement row */}
+        <View style={styles.engRow}>
+          {/* Like */}
+          <TouchableOpacity style={styles.engBtn} onPress={handleLike} disabled={isLiking}>
+            <Heart
+              size={20}
+              color={isLiked ? COLORS.error : '#5e8d9b'}
+              fill={isLiked ? COLORS.error : 'transparent'}
+              strokeWidth={2}
+            />
+            {likeCount > 0 && (
+              <Text style={[styles.engCount, isLiked && { color: COLORS.error }]}>
+                {fmt(likeCount)}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Comment */}
+          <TouchableOpacity style={styles.engBtn} onPress={handleComment}>
+            <MessageCircle size={20} color="#5e8d9b" strokeWidth={2} />
+            {commentCount > 0 && (
+              <Text style={styles.engCount}>{fmt(commentCount)}</Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Views */}
+          <View style={styles.engBtn}>
+            <ChartNoAxesCombined size={20} color="#5e8d9b" strokeWidth={2} />
+            <Text style={styles.engCount}>{fmt(viewCount)}</Text>
+          </View>
+
+          {/* Share */}
+          <TouchableOpacity style={styles.engBtn} onPress={handleShare}>
+            <Send size={20} color="#5e8d9b" strokeWidth={2} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Request / Owner section */}
+        <View style={styles.actionSection}>
+          {isOwner ? (
+            <View style={styles.ownerBadge}>
+              <Text style={styles.ownerBadgeText}>Your plan</Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[
+                styles.requestBtn,
+                { backgroundColor: btnCfg.bg },
+                btnCfg.disabled && styles.requestBtnDisabled,
+              ]}
+              onPress={() => !btnCfg.disabled && onRequestPress?.(plan?.id)}
+              disabled={btnCfg.disabled}
+              activeOpacity={btnCfg.disabled ? 1 : 0.85}
+            >
+              <Text style={[styles.requestBtnText, { color: btnCfg.color }]}>
+                {btnCfg.label}
+              </Text>
+            </TouchableOpacity>
+          )}
+          <Text style={styles.finePrint}>
+            Exact location shared only after host approves
           </Text>
         </View>
-      ) : null}
-
-      {/* Divider */}
-      <View style={styles.divider} />
-
-      {/* Engagement row */}
-      <View style={styles.engagementRow}>
-        {/* Like */}
-        <Pressable onPress={handleLike} style={styles.engItem}>
-          <Heart
-            size={18}
-            color={isLiked ? '#E53E3E' : '#6B7280'}
-            fill={isLiked ? '#E53E3E' : 'transparent'}
-            strokeWidth={2}
-          />
-          <Text style={[styles.engCount, isLiked && styles.likedCount]}>
-            {formatCount(likeCount)}
-          </Text>
-        </Pressable>
-
-        {/* Comment */}
-        <Pressable onPress={() => onComment(plan.id)} style={styles.engItem}>
-          <MessageCircle size={18} color="#6B7280" strokeWidth={2} />
-          <Text style={styles.engCount}>{formatCount(plan.comment_count)}</Text>
-        </Pressable>
-
-        {/* View */}
-        <View style={styles.engItem}>
-          <ChartNoAxesCombined size={18} color="#6B7280" strokeWidth={2} />
-          <Text style={styles.engCount}>{formatCount(plan.view_count)}</Text>
-        </View>
-
-        {/* Share */}
-        <Pressable onPress={() => onShare(plan.id)} style={styles.engItem}>
-          <Send size={18} color="#6B7280" strokeWidth={2} />
-        </Pressable>
       </View>
 
-      {/* Request button or owner badge */}
-      {isOwner ? (
-        <View style={styles.ownerBadge}>
-          <Text style={styles.ownerBadgeText}>Your plan</Text>
-        </View>
-      ) : (
-        <TouchableOpacity
-          style={[styles.requestBtn, { backgroundColor: btnCfg.bg }, btnCfg.disabled && styles.requestBtnDisabled]}
-          onPress={() => !btnCfg.disabled && onRequestPress(plan.id)}
-          disabled={btnCfg.disabled}
-          activeOpacity={btnCfg.disabled ? 1 : 0.85}
-        >
-          <Text style={[styles.requestBtnText, { color: btnCfg.textColor }]}>{btnCfg.label}</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Fine print */}
-      <Text style={styles.finePrint}>Exact location shared only after host approves</Text>
+      {/* CommentsModal */}
+      <CommentsModal
+        visible={commentsVisible}
+        postId={plan?.id}
+        baseRoute="/plans"
+        replyBaseRoute="/plan-comments"
+        onCommentCountChange={(n) => setCommentCount(n)}
+        onClose={() => setCommentsVisible(false)}
+        navigation={navigation}
+      />
     </TouchableOpacity>
   );
 };
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 20,
+    marginBottom: 16,
+    overflow: 'hidden',
     ...SHADOWS.md,
   },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
+
+  // ── Hero ──────────────────────────────────────────────────────────────────
+  heroContainer: {
+    width: '100%',
+    height: 240,
+    position: 'relative',
   },
-  topRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  pill: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  pillText: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-  },
-  title: {
-    fontFamily: FONTS.primary,
-    fontSize: 17,
-    color: COLORS.textPrimary,
-    lineHeight: 23,
-    marginBottom: 6,
-  },
-  hostRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  hostedBy: {
-    fontFamily: FONTS.regular,
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  hostName: {
-    fontFamily: FONTS.semiBold,
-    color: COLORS.textPrimary,
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: COLORS.border,
-    marginVertical: 12,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    flexWrap: 'wrap',
-  },
-  metaItem: {
+
+  attendeeBubble: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: 'rgba(26, 45, 74, 0.78)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  attendeeText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: '#FFF',
+  },
+
+  activityPill: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  activityPillText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    letterSpacing: 0.2,
+  },
+
+  spotsBubble: {
+    position: 'absolute',
+    bottom: 12,
+    right: 12,
+    backgroundColor: '#FFF3E0',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  spotsBubbleFull: {
+    backgroundColor: '#FFEBEE',
+  },
+  spotsText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+    color: '#B71C1C',
+  },
+
+  // ── Content ───────────────────────────────────────────────────────────────
+  content: {
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 4,
+  },
+
+  title: {
+    fontFamily: FONTS.primary,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 5,
   },
   metaText: {
     fontFamily: FONTS.medium,
     fontSize: 13,
     color: COLORS.textSecondary,
+    flex: 1,
   },
-  acceptanceRow: {
+
+  dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    marginBottom: 5,
+    gap: 8,
   },
-  acceptanceLabel: {
-    fontFamily: FONTS.regular,
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  acceptanceBold: {
-    fontFamily: FONTS.semiBold,
-    color: COLORS.textPrimary,
-  },
-  spotsLeftPill: {
-    backgroundColor: '#FFF3E0',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  spotsLeftText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 11,
-    color: '#E65100',
-  },
-  progressTrack: {
-    height: 5,
-    backgroundColor: '#EEF2FF',
-    borderRadius: 3,
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#2962FF',
-    borderRadius: 3,
-  },
-  sharedPill: {
+  dateLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-    marginBottom: 4,
+    flex: 1,
   },
-  sharedText: {
-    fontFamily: FONTS.medium,
+  costText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: COLORS.textPrimary,
+  },
+
+  hostText: {
+    fontFamily: FONTS.regular,
     fontSize: 12,
+    color: COLORS.textMuted,
+    marginBottom: 10,
+  },
+  hostName: {
+    fontFamily: FONTS.medium,
     color: COLORS.textSecondary,
   },
-  engagementRow: {
+
+  // ── Divider ───────────────────────────────────────────────────────────────
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: COLORS.border,
+    marginBottom: 10,
+  },
+
+  // ── Engagement row ────────────────────────────────────────────────────────
+  engRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 2,
     marginBottom: 12,
-    paddingHorizontal: 4,
   },
-  engItem: {
+  engBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 36,
     minWidth: 36,
+    minHeight: 36,
+    justifyContent: 'center',
+    gap: 5,
   },
   engCount: {
     fontFamily: FONTS.medium,
     fontSize: 13,
     color: '#9CA3AF',
-    marginLeft: 6,
   },
-  likedCount: {
-    color: '#E53E3E',
+
+  // ── Action section ────────────────────────────────────────────────────────
+  actionSection: {
+    marginBottom: 8,
   },
   requestBtn: {
     height: 46,
@@ -388,7 +605,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   requestBtnDisabled: {
-    opacity: 0.85,
+    opacity: 0.8,
   },
   requestBtnText: {
     fontFamily: FONTS.semiBold,
@@ -398,7 +615,7 @@ const styles = StyleSheet.create({
     height: 38,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#2962FF',
+    borderColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
@@ -406,7 +623,7 @@ const styles = StyleSheet.create({
   ownerBadgeText: {
     fontFamily: FONTS.semiBold,
     fontSize: 14,
-    color: '#2962FF',
+    color: COLORS.primary,
   },
   finePrint: {
     fontFamily: FONTS.regular,

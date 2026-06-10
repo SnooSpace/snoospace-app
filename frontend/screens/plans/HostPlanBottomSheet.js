@@ -17,11 +17,22 @@ import CustomTimePicker from '../../components/ui/CustomTimePicker';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const ACTIVITIES = [
-  { key: 'sports', label: '🏅 Sports' },
-  { key: 'study',  label: '📚 Study'  },
-  { key: 'food',   label: '🍜 Food'   },
-  { key: 'gaming', label: '🎮 Gaming' },
-  { key: 'other',  label: '+ Other…'  },
+  { key: 'sports',       label: '🏅 Sports'         },
+  { key: 'food',         label: '🍜 Food'            },
+  { key: 'cafe',         label: '☕ Cafe'            },
+  { key: 'bar',          label: '🍸 Bar'             },
+  { key: 'movies',       label: '🎬 Movies'          },
+  { key: 'live_music',   label: '🎵 Live Music'      },
+  { key: 'games',        label: '🎮 Games'           },
+  { key: 'gym',          label: '💪 Gym'             },
+  { key: 'yoga',         label: '🧘 Yoga'            },
+  { key: 'walk',         label: '🚶 Walk'            },
+  { key: 'rides',        label: '🏍 Rides'           },
+  { key: 'hangout',      label: '🌳 Hangout'         },
+  { key: 'creative',     label: '🎨 Creative'        },
+  { key: 'study',        label: '📚 Study / Co-work' },
+  { key: 'pet_friendly', label: '🐾 Pet Friendly'    },
+  { key: 'other',        label: '＋ Other…'          },
 ];
 
 const COST_OPTS = [

@@ -87,8 +87,8 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
         onPress={(id) => navigation.navigate('PlanDetail', { planId: id })}
         onRequestPress={(id) => setRequestSheet({ planId: id, planTitle: item.title })}
         onLike={handleLike}
-        onComment={(id) => navigation.navigate('PlanDetail', { planId: id, openComments: true })}
         onShare={() => handleShare(item)}
+        navigation={navigation}
       />
     </View>
   ), [currentUserId, navigation, handleLike, handleShare]);

@@ -102,12 +102,16 @@ async function createPlan(req, res) {
     if (title.trim().length > 100) {
       return res.status(400).json({ error: 'title must be 100 characters or less' });
     }
-    const validActivityTypes = ['sports', 'study', 'food', 'gaming', 'other'];
+    const validActivityTypes = [
+      'sports', 'study', 'food', 'gaming', 'other',
+      'cafe', 'walk', 'pet_friendly', 'hangout', 'rides',
+      'creative', 'gym', 'yoga', 'live_music', 'movies', 'bar',
+    ];
     if (!validActivityTypes.includes(activity_type)) {
       return res.status(400).json({ error: `activity_type must be one of: ${validActivityTypes.join(', ')}` });
     }
     if (activity_type === 'other' && !custom_activity_label) {
-      return res.status(400).json({ error: 'custom_activity_label is required when activity_type is other' });
+      return res.status(400).json({ error: 'custom_activity_label is required when activity_type is "other"' });
     }
     if (custom_activity_label && custom_activity_label.length > 25) {
       return res.status(400).json({ error: 'custom_activity_label must be 25 characters or less' });
