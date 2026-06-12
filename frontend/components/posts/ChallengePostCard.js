@@ -14,6 +14,7 @@ import {
   Modal,
   Pressable,
   Dimensions,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -68,6 +69,7 @@ import CountdownTimer from "../CountdownTimer";
 import SnooLoader from "../ui/SnooLoader";
 import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
+import HapticsService from "../../services/HapticsService";
 import {
   getExtensionBadgeText,
   getTimeRemaining,
@@ -473,6 +475,19 @@ const ChallengePostCard = ({
     }
   }, [isExpired, pulseAnim]);
 
+  const lastTapRef = useRef(0);
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (!isLiked) {
+        handleLike();
+      } else {
+        HapticsService.triggerImpactLight();
+      }
+    }
+    lastTapRef.current = now;
+  };
+
   const handleUserPress = () => {
     if (onUserPress) {
       onUserPress(post.author_id, post.author_type);
@@ -676,6 +691,7 @@ const ChallengePostCard = ({
 
   return (
     <>
+    <TouchableWithoutFeedback onPress={handleDoubleTap}>
       <View style={styles.container}>
         {/* Header Row: Badge & Trophy Icon */}
         <View style={styles.headerRow}>
@@ -1243,6 +1259,7 @@ const ChallengePostCard = ({
         )}
 
       </View>
+    </TouchableWithoutFeedback>
       <ChallengeEditModal
         visible={showEditModal}
         onClose={() => setShowEditModal(false)}

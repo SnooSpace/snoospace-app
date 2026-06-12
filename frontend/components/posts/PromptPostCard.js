@@ -17,6 +17,7 @@ import {
   ScrollView,
   Dimensions,
   Pressable,
+  TouchableWithoutFeedback,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
@@ -357,6 +358,19 @@ const PromptPostCard = ({
     return `${(count / 1000000).toFixed(1)}m`;
   };
 
+  const lastTapRef = useRef(0);
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (!isLiked) {
+        handleLike();
+      } else {
+        HapticsService.triggerImpactLight();
+      }
+    }
+    lastTapRef.current = now;
+  };
+
   const handleUserPress = () => {
     if (onUserPress) {
       onUserPress(post.author_id, post.author_type);
@@ -514,7 +528,9 @@ const PromptPostCard = ({
   };
 
   return (
-    <View style={styles.container}>
+    <>
+      <TouchableWithoutFeedback onPress={handleDoubleTap}>
+        <View style={styles.container}>
       {/* Header with Type Indicator & Star */}
       <View style={styles.headerRow}>
         <View style={styles.leftHeaderContent}>
@@ -771,7 +787,9 @@ const PromptPostCard = ({
             <Text style={styles.engagementCount}>{formatCount(saveCount)}</Text>
           )}
         </TouchableOpacity>
+        </View>
       </View>
+    </TouchableWithoutFeedback>
 
       {/* Submit Modal */}
       <Modal
@@ -938,7 +956,7 @@ const PromptPostCard = ({
         icon={alertConfig.icon}
         iconColor={alertConfig.iconColor}
       />
-    </View>
+    </>
   );
 };
 

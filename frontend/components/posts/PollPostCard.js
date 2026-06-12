@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet, Modal, Pressable, Dimensions } from "react-native";
+import { View, Text, Image, TouchableOpacity, StyleSheet, Modal, Pressable, Dimensions, TouchableWithoutFeedback } from "react-native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import HapticsService from "../../services/HapticsService";
 import { apiPost, apiDelete, savePost, unsavePost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import {
@@ -375,6 +376,19 @@ const PollPostCard = ({
     }
   };
 
+  const lastTapRef = useRef(0);
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (!isLiked) {
+        handleLike();
+      } else {
+        HapticsService.triggerImpactLight();
+      }
+    }
+    lastTapRef.current = now;
+  };
+
   const handleUserPress = () => {
     if (onUserPress) {
       onUserPress(post.author_id, post.author_type);
@@ -478,7 +492,8 @@ const PollPostCard = ({
   // Return array or fragment to include modal
   return (
     <>
-      <View style={styles.container}>
+      <TouchableWithoutFeedback onPress={handleDoubleTap}>
+        <View style={styles.container}>
         {/* Header with Type Indicator & Ellipsis Menu */}
         <View style={styles.headerRow}>
           <View style={styles.pollBadge}>
@@ -742,7 +757,8 @@ const PollPostCard = ({
           </TouchableOpacity>
         </View>
       </View>
-      {renderModal()}
+    </TouchableWithoutFeedback>
+    {renderModal()}
 
       {/* Poll Voters Modal */}
       <PollVotersModal

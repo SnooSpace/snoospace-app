@@ -83,6 +83,14 @@ export async function getAttendingPlans(token) {
   return apiGet('/users/me/plans/attending', 15000, token);
 }
 
+export async function getInterestedPlans(token) {
+  return apiGet('/users/me/plans/interested', 15000, token);
+}
+
+export async function togglePlanInterest(planId, token) {
+  return apiPost(`/plans/${planId}/interest`, {}, 10000, token);
+}
+
 // ─── Blocks ─────────────────────────────────────────────────────────────────
 
 export async function blockUser(userId, token) {

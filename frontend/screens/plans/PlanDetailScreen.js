@@ -19,12 +19,45 @@ import SnooLoader from '../../components/ui/SnooLoader';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
+// Matches OpenPlanCard PILL_COLORS — all 16 activity types
 const ACTIVITY_COLORS = {
-  sports: { bg: '#EEF2FF', text: '#3B5BDB' },
-  study:  { bg: '#E8F5E9', text: '#2E7D32' },
-  food:   { bg: '#FFF8E1', text: '#B45309' },
-  gaming: { bg: '#FCE4EC', text: '#C2185B' },
-  other:  { bg: '#F5F5F5', text: '#555555' },
+  sports:       { bg: '#FFF3E0', text: '#E65100' },
+  movies:       { bg: '#F3E5F5', text: '#6A1B9A' },
+  bar:          { bg: '#E8EAF6', text: '#303F9F' },
+  food:         { bg: '#FFF8E1', text: '#F57F17' },
+  cafe:         { bg: '#EFEBE9', text: '#4E342E' },
+  yoga:         { bg: '#E8F5E9', text: '#2E7D32' },
+  gym:          { bg: '#FCE4EC', text: '#880E4F' },
+  walk:         { bg: '#E0F2F1', text: '#00695C' },
+  rides:        { bg: '#E3F2FD', text: '#1565C0' },
+  live_music:   { bg: '#FCE4EC', text: '#C62828' },
+  study:        { bg: '#EDE7F6', text: '#4527A0' },
+  creative:     { bg: '#FFF9C4', text: '#F57F17' },
+  games:        { bg: '#E1F5FE', text: '#01579B' },
+  gaming:       { bg: '#E1F5FE', text: '#01579B' },
+  pet_friendly: { bg: '#F1F8E9', text: '#33691E' },
+  hangout:      { bg: '#E8F5E9', text: '#1B5E20' },
+  other:        { bg: '#F5F5F5', text: '#424242' },
+};
+
+const ACTIVITY_EMOJIS = {
+  sports:       '🏀',
+  food:         '🍜',
+  cafe:         '☕',
+  bar:          '🍸',
+  movies:       '🎬',
+  live_music:   '🎵',
+  games:        '🎮',
+  gaming:       '🎮',
+  gym:          '💪',
+  yoga:         '🧘',
+  walk:         '🚶',
+  rides:        '🏍',
+  hangout:      '🌳',
+  creative:     '🎨',
+  study:        '📚',
+  pet_friendly: '🐾',
+  other:        '＋',
 };
 
 const COST_LABELS = {
@@ -151,9 +184,16 @@ export default function PlanDetailScreen({ navigation, route }) {
 
   const activityKey = plan.activity_type in ACTIVITY_COLORS ? plan.activity_type : 'other';
   const activityStyle = ACTIVITY_COLORS[activityKey];
+  const ACTIVITY_LABELS = {
+    sports: 'Sports', movies: 'Movies', bar: 'Bar', food: 'Food',
+    cafe: 'Cafe', yoga: 'Yoga', gym: 'Gym', walk: 'Walk',
+    rides: 'Rides', live_music: 'Live Music', study: 'Study / Co-work',
+    creative: 'Creative', games: 'Games', gaming: 'Games',
+    pet_friendly: 'Pet Friendly', hangout: 'Hangout',
+  };
   const activityLabel = plan.activity_type === 'other'
     ? (plan.custom_activity_label || 'Other')
-    : plan.activity_type.charAt(0).toUpperCase() + plan.activity_type.slice(1);
+    : (ACTIVITY_LABELS[plan.activity_type] || plan.activity_type.charAt(0).toUpperCase() + plan.activity_type.slice(1));
 
   const costCfg = COST_LABELS[plan.cost_type] || COST_LABELS.free;
   const costLabel = plan.cost_type === 'entry_fee'
@@ -199,7 +239,9 @@ export default function PlanDetailScreen({ navigation, route }) {
             <View style={styles.topRow}>
               <View style={styles.topRowLeft}>
                 <View style={[styles.pill, { backgroundColor: activityStyle.bg }]}>
-                  <Text style={[styles.pillText, { color: activityStyle.text }]}>{activityLabel}</Text>
+                  <Text style={[styles.pillText, { color: activityStyle.text }]}>
+                    {`${ACTIVITY_EMOJIS[activityKey] || ACTIVITY_EMOJIS.other} ${activityLabel}`}
+                  </Text>
                 </View>
                 {showGenderBadge && (
                   <View style={[styles.pill, { backgroundColor: genderBadgeStyle.bg, marginLeft: 6 }]}>

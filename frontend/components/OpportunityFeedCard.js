@@ -52,6 +52,7 @@ import { closeOpportunity } from "../api/opportunities";
 import CountdownTimer from "./CountdownTimer";
 import CommentsModal from "./CommentsModal";
 import EventBus from "../utils/EventBus";
+import HapticsService from "../services/HapticsService";
 
 // Static Helper Functions (Extracted outside the component scope)
 const formatTimeAgo = (dateStr) => {
@@ -425,9 +426,40 @@ const OpportunityFeedCard = React.memo(({
     if (onShare) onShare(opportunity.id);
   }, [onShare, opportunity.id]);
 
+  const lastTapRef = useRef(0);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
   const handleCardPress = useCallback(() => {
-    onPress?.(opportunity);
-  }, [onPress, opportunity]);
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      if (!isLiked) {
+        handleLike();
+      } else {
+        HapticsService.triggerImpactLight();
+      }
+    } else {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        onPress?.(opportunity);
+      }, 250);
+    }
+    lastTapRef.current = now;
+  }, [onPress, opportunity, isLiked, handleLike]);
 
   const handlePinPress = useCallback(() => {
     onPinToggle?.(opportunity, true);

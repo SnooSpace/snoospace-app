@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, Animated, Pressable, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, Calendar, Heart } from "lucide-react-native";
+import { ArrowLeft, Calendar, Heart, Bookmark } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { getInterestedEvents, toggleEventInterest } from "../../api/events";
-import { getHostedPlans } from "../../api/plans";
+import { getHostedPlans, getAttendingPlans, getInterestedPlans, togglePlanInterest } from "../../api/plans";
 import HapticsService from "../../services/HapticsService";
 import EventBus from "../../utils/EventBus";
 import {
@@ -48,6 +48,27 @@ const HOSTED_ACTIVITY_COLORS = {
   gaming: { bg: '#FCE4EC', text: '#C2185B' },
   other:  { bg: '#F5F5F5', text: '#555555' },
 };
+
+const ACTIVITY_EMOJIS = {
+  sports:       '🏀',
+  food:         '🍜',
+  cafe:         '☕',
+  bar:          '🍸',
+  movies:       '🎬',
+  live_music:   '🎵',
+  games:        '🎮',
+  gaming:       '🎮',
+  gym:          '💪',
+  yoga:         '🧘',
+  walk:         '🚶',
+  rides:        '🏍',
+  hangout:      '🌳',
+  creative:     '🎨',
+  study:        '📚',
+  pet_friendly: '🐾',
+  other:        '＋',
+};
+
 const HOSTED_STATUS_COLORS = {
   active:    { bg: '#E8F5E9', text: '#2E7D32' },
   closed:    { bg: '#F5F5F5', text: '#555555' },
@@ -66,12 +87,14 @@ const HostedPlanRow = ({ item, onPress }) => {
   const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) +
     ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
 
+  const emoji = ACTIVITY_EMOJIS[item.activity_type] || ACTIVITY_EMOJIS.other;
+
   return (
     <TouchableOpacity style={hostedStyles.row} onPress={onPress} activeOpacity={0.85}>
       <View style={hostedStyles.rowLeft}>
         <View style={hostedStyles.pillRow}>
           <View style={[hostedStyles.pill, { backgroundColor: actStyle.bg }]}>
-            <Text style={[hostedStyles.pillText, { color: actStyle.text }]}>{actLabel}</Text>
+            <Text style={[hostedStyles.pillText, { color: actStyle.text }]}>{`${emoji} ${actLabel}`}</Text>
           </View>
           <View style={[hostedStyles.pill, { backgroundColor: stStyle.bg }]}>
             <Text style={[hostedStyles.pillText, { color: stStyle.text }]}>{statusLabel}</Text>
@@ -105,6 +128,102 @@ const hostedStyles = StyleSheet.create({
   meta: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textSecondary },
   accepted: { fontFamily: FONTS.semiBold, fontSize: 13, color: COLORS.primary },
   pending: { fontFamily: FONTS.medium, fontSize: 12, color: '#E65100' },
+});
+
+// ─── AttendingPlanCard ────────────────────────────────────────────────────────
+const FULL_ACTIVITY_COLORS = {
+  sports:       { bg: '#FFF3E0', text: '#E65100' },
+  movies:       { bg: '#F3E5F5', text: '#6A1B9A' },
+  bar:          { bg: '#E8EAF6', text: '#303F9F' },
+  food:         { bg: '#FFF8E1', text: '#F57F17' },
+  cafe:         { bg: '#EFEBE9', text: '#4E342E' },
+  yoga:         { bg: '#E8F5E9', text: '#2E7D32' },
+  gym:          { bg: '#FCE4EC', text: '#880E4F' },
+  walk:         { bg: '#E0F2F1', text: '#00695C' },
+  rides:        { bg: '#E3F2FD', text: '#1565C0' },
+  live_music:   { bg: '#FCE4EC', text: '#C62828' },
+  study:        { bg: '#EDE7F6', text: '#4527A0' },
+  creative:     { bg: '#FFF9C4', text: '#F57F17' },
+  games:        { bg: '#E1F5FE', text: '#01579B' },
+  gaming:       { bg: '#E1F5FE', text: '#01579B' },
+  pet_friendly: { bg: '#F1F8E9', text: '#33691E' },
+  hangout:      { bg: '#E8F5E9', text: '#1B5E20' },
+  other:        { bg: '#F5F5F5', text: '#424242' },
+};
+
+const AttendingPlanCard = ({ item, onPress, onToggleInterest, isInterested }) => {
+  const actKey = FULL_ACTIVITY_COLORS[item.activity_type] ? item.activity_type : 'other';
+  const actStyle = FULL_ACTIVITY_COLORS[actKey];
+  const emoji = ACTIVITY_EMOJIS[item.activity_type] || ACTIVITY_EMOJIS.other;
+  const actLabel = item.activity_type === 'other'
+    ? (item.custom_activity_label || 'Other')
+    : item.activity_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+  const d = new Date(item.scheduled_at);
+  const isPast = d < new Date();
+  const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) +
+    ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+  const hostName = item.host_profile?.name || item.host_name || 'Host';
+
+  const getCostLabel = () => {
+    if (item.cost_type === 'free') return 'Free';
+    if (item.cost_type === 'self_pay') return 'Self-pay';
+    if (item.cost_type === 'split') return item.cost_amount_paise ? `~₹${Math.round(item.cost_amount_paise / 100)} split` : 'Split';
+    if (item.cost_type === 'entry_fee') return item.cost_amount_paise ? `₹${Math.round(item.cost_amount_paise / 100)}` : 'Entry fee';
+    return null;
+  };
+  const costLabel = getCostLabel();
+
+  return (
+    <TouchableOpacity style={planCardStyles.card} onPress={() => onPress(item)} activeOpacity={0.88}>
+      <View style={planCardStyles.cardTop}>
+        <View style={planCardStyles.pillRow}>
+          <View style={[planCardStyles.pill, { backgroundColor: actStyle.bg }]}>
+            <Text style={[planCardStyles.pillText, { color: actStyle.text }]}>{`${emoji} ${actLabel}`}</Text>
+          </View>
+          {isPast && (
+            <View style={[planCardStyles.pill, { backgroundColor: '#F5F5F5' }]}>
+              <Text style={[planCardStyles.pillText, { color: '#616161' }]}>Past</Text>
+            </View>
+          )}
+        </View>
+        <TouchableOpacity onPress={() => onToggleInterest(item)} hitSlop={10} style={planCardStyles.bookmarkBtn}>
+          <Bookmark
+            size={18}
+            color={isInterested ? COLORS.primary : COLORS.textMuted}
+            fill={isInterested ? COLORS.primary : 'transparent'}
+            strokeWidth={2}
+          />
+        </TouchableOpacity>
+      </View>
+      <Text style={planCardStyles.title} numberOfLines={2}>{item.title}</Text>
+      <Text style={planCardStyles.meta}>{dateStr}{item.location_public ? ` · ${item.location_public}` : ''}</Text>
+      <View style={planCardStyles.footer}>
+        <Text style={planCardStyles.host}>Hosted by <Text style={planCardStyles.hostName}>{hostName}</Text></Text>
+        {costLabel ? <Text style={planCardStyles.cost}>{costLabel}</Text> : null}
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+const planCardStyles = StyleSheet.create({
+  card: {
+    backgroundColor: COLORS.surface, borderRadius: 16, padding: 14,
+    marginBottom: 12, ...SHADOWS.md, shadowOpacity: 0.05,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
+  pillRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', flex: 1 },
+  pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  pillText: { fontFamily: FONTS.medium, fontSize: 11 },
+  bookmarkBtn: { padding: 4, marginLeft: 8 },
+  title: { fontFamily: FONTS.semiBold, fontSize: 15, color: COLORS.textPrimary, marginBottom: 4 },
+  meta: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textSecondary, marginBottom: 6 },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  host: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textMuted, flex: 1 },
+  hostName: { fontFamily: FONTS.medium, color: COLORS.textSecondary },
+  cost: { fontFamily: FONTS.semiBold, fontSize: 13, color: COLORS.textPrimary },
 });
 
 // Card styles
@@ -263,6 +382,8 @@ export default function YourEventsScreen({ navigation }) {
   const [events, setEvents] = useState([]);
   const [interestedEvents, setInterestedEvents] = useState([]);
   const [hostedPlans, setHostedPlans] = useState([]);
+  const [attendingPlans, setAttendingPlans] = useState([]);
+  const [interestedPlans, setInterestedPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -351,13 +472,17 @@ export default function YourEventsScreen({ navigation }) {
         setLoading(true);
       }
       const token = await getAuthToken();
-      const [response, hostedData] = await Promise.all([
+      const [response, hostedData, attendingData, interestedPlansData] = await Promise.all([
         apiGet("/events/my-events", 15000, token),
         getHostedPlans(token).catch(() => ({ plans: [] })),
+        getAttendingPlans(token).catch(() => ({ plans: [] })),
+        getInterestedPlans(token).catch(() => ({ plans: [] })),
       ]);
       const allEvents = response?.events || [];
       setEvents(allEvents);
       setHostedPlans(hostedData.plans || []);
+      setAttendingPlans(attendingData.plans || []);
+      setInterestedPlans(interestedPlansData.plans || []);
     } catch (error) {
       console.error("Error loading events:", error);
     } finally {
@@ -404,39 +529,66 @@ export default function YourEventsScreen({ navigation }) {
 
   const getFilteredEvents = () => {
     const now = new Date();
-    // Create a Set of interested event IDs for quick lookup
     const interestedIds = new Set(interestedEvents.map((e) => e.id));
+    const interestedPlanIds = new Set(interestedPlans.map((p) => p.id));
 
-    // Map events to inject is_interested correctly based on interestedIds
     const mappedEvents = events.map((e) => ({
       ...e,
+      _type: 'event',
       is_interested: interestedIds.has(e.id),
     }));
 
     switch (activeTab) {
-      case "Going":
-        return mappedEvents.filter((e) => {
+      case "Going": {
+        const goingEvents = mappedEvents.filter((e) => {
           const eventDate = new Date(e.start_datetime || e.event_date);
           return (
             (e.registration_status === "registered" && eventDate >= now) ||
             (e.registration_status === "attended" && eventDate >= now)
           );
         });
+        const goingPlans = attendingPlans
+          .filter(p => new Date(p.scheduled_at) >= now)
+          .map(p => ({ ...p, _type: 'plan', is_interested: interestedPlanIds.has(p.id) }));
+        return [
+          ...goingEvents,
+          ...goingPlans,
+        ].sort((a, b) => {
+          const da = new Date(a.scheduled_at || a.start_datetime || a.event_date);
+          const db = new Date(b.scheduled_at || b.start_datetime || b.event_date);
+          return da - db;
+        });
+      }
       case "Hosted":
         return hostedPlans;
-      case "Interested":
-        // Return bookmarked events that aren't past, making sure is_interested is explicitly true
-        return interestedEvents
+      case "Interested": {
+        const intEvents = interestedEvents
           .filter((e) => !e.is_past)
-          .map((e) => ({ ...e, is_interested: true }));
-      case "Past":
-        return mappedEvents.filter((e) => {
+          .map((e) => ({ ...e, _type: 'event', is_interested: true }));
+        const intPlans = interestedPlans
+          .map(p => ({ ...p, _type: 'plan', is_interested: true }));
+        return [...intPlans, ...intEvents];
+      }
+      case "Past": {
+        const pastEvents = mappedEvents.filter((e) => {
           const eventDate = new Date(e.start_datetime || e.event_date);
           return (
             e.is_past ||
             (eventDate < now && e.registration_status === "attended")
           );
         });
+        const pastPlans = attendingPlans
+          .filter(p => new Date(p.scheduled_at) < now)
+          .map(p => ({ ...p, _type: 'plan', is_interested: interestedPlanIds.has(p.id) }));
+        return [
+          ...pastEvents,
+          ...pastPlans,
+        ].sort((a, b) => {
+          const da = new Date(a.scheduled_at || a.start_datetime || a.event_date);
+          const db = new Date(b.scheduled_at || b.start_datetime || b.event_date);
+          return db - da;
+        });
+      }
       default:
         return [];
     }
@@ -530,9 +682,42 @@ export default function YourEventsScreen({ navigation }) {
     }
   };
 
+  const handleTogglePlanInterest = useCallback(async (plan) => {
+    HapticsService.triggerImpactLight();
+    const isCurrentlyInterested = interestedPlans.some(p => p.id === plan.id);
+    // Optimistic update
+    if (isCurrentlyInterested) {
+      setInterestedPlans(prev => prev.filter(p => p.id !== plan.id));
+    } else {
+      setInterestedPlans(prev => [{ ...plan }, ...prev]);
+    }
+    try {
+      const token = await getAuthToken();
+      await togglePlanInterest(plan.id, token);
+    } catch (e) {
+      // Revert on error
+      if (isCurrentlyInterested) {
+        setInterestedPlans(prev => [{ ...plan }, ...prev]);
+      } else {
+        setInterestedPlans(prev => prev.filter(p => p.id !== plan.id));
+      }
+    }
+  }, [interestedPlans]);
+
   const renderEvent = useCallback(({ item }) => {
     if (activeTab === "Hosted") {
       return <HostedPlanRow item={item} onPress={() => navigation.navigate("HostRequests", { planId: item.id, planTitle: item.title })} />;
+    }
+    if (item._type === 'plan') {
+      const isPlanInterested = interestedPlans.some(p => p.id === item.id);
+      return (
+        <AttendingPlanCard
+          item={item}
+          isInterested={item.is_interested || isPlanInterested}
+          onPress={(plan) => navigation.navigate('PlanDetail', { planId: plan.id })}
+          onToggleInterest={handleTogglePlanInterest}
+        />
+      );
     }
     return (
       <EventListCard
@@ -546,7 +731,7 @@ export default function YourEventsScreen({ navigation }) {
         isPast={activeTab === "Past"}
       />
     );
-  }, [handleEventPress, handleRemoveInterest, activeTab, navigation]);
+  }, [handleEventPress, handleRemoveInterest, handleTogglePlanInterest, interestedPlans, activeTab, navigation]);
 
   const filteredEvents = getFilteredEvents();
 
@@ -621,7 +806,7 @@ export default function YourEventsScreen({ navigation }) {
         >
           <FlatList
             data={filteredEvents}
-            keyExtractor={(item) => String(item.id)}
+            keyExtractor={(item) => `${item._type || 'event'}-${item.id}`}
             renderItem={renderEvent}
             initialNumToRender={8}
             maxToRenderPerBatch={5}
@@ -646,9 +831,9 @@ export default function YourEventsScreen({ navigation }) {
                         color={PRIMARY_COLOR}
                       />
                     </View>
-                    <Text style={styles.emptyTitle}>No saved events</Text>
+                    <Text style={styles.emptyTitle}>No saved events or plans</Text>
                     <Text style={styles.emptyDescription}>
-                      Keep track of events you're interested in by saving them.
+                      Save events and Open Plans you're interested in — they'll appear here.
                     </Text>
                     <TouchableOpacity
                       style={styles.emptyCTA}

@@ -17,7 +17,7 @@ import CustomTimePicker from '../../components/ui/CustomTimePicker';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 const ACTIVITIES = [
-  { key: 'sports',       label: '🏅 Sports'         },
+  { key: 'sports',       label: '🏀 Sports'         },
   { key: 'food',         label: '🍜 Food'            },
   { key: 'cafe',         label: '☕ Cafe'            },
   { key: 'bar',          label: '🍸 Bar'             },

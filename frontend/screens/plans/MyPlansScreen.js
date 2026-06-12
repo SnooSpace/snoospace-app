@@ -1,21 +1,56 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl,
+  View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Plus } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from '../../constants/theme';
-import { getAuthToken } from '../../api/auth';
-import { getHostedPlans, getAttendingPlans } from '../../api/plans';
+import { getAuthToken, getActiveAccount } from '../../api/auth';
+import { getHostedPlans, getAttendingPlans, likePlan, unlikePlan } from '../../api/plans';
 import SnooLoader from '../../components/ui/SnooLoader';
 import HostPlanBottomSheet from './HostPlanBottomSheet';
+import OpenPlanCard from '../../components/plans/OpenPlanCard';
+import RequestBottomSheet from './RequestBottomSheet';
 
+// Matches OpenPlanCard PILL_COLORS — all 16 activity types
 const ACTIVITY_COLORS = {
-  sports: { bg: '#EEF2FF', text: '#3B5BDB' },
-  study:  { bg: '#E8F5E9', text: '#2E7D32' },
-  food:   { bg: '#FFF8E1', text: '#B45309' },
-  gaming: { bg: '#FCE4EC', text: '#C2185B' },
-  other:  { bg: '#F5F5F5', text: '#555555' },
+  sports:       { bg: '#FFF3E0', text: '#E65100' },
+  movies:       { bg: '#F3E5F5', text: '#6A1B9A' },
+  bar:          { bg: '#E8EAF6', text: '#303F9F' },
+  food:         { bg: '#FFF8E1', text: '#F57F17' },
+  cafe:         { bg: '#EFEBE9', text: '#4E342E' },
+  yoga:         { bg: '#E8F5E9', text: '#2E7D32' },
+  gym:          { bg: '#FCE4EC', text: '#880E4F' },
+  walk:         { bg: '#E0F2F1', text: '#00695C' },
+  rides:        { bg: '#E3F2FD', text: '#1565C0' },
+  live_music:   { bg: '#FCE4EC', text: '#C62828' },
+  study:        { bg: '#EDE7F6', text: '#4527A0' },
+  creative:     { bg: '#FFF9C4', text: '#F57F17' },
+  games:        { bg: '#E1F5FE', text: '#01579B' },
+  gaming:       { bg: '#E1F5FE', text: '#01579B' },
+  pet_friendly: { bg: '#F1F8E9', text: '#33691E' },
+  hangout:      { bg: '#E8F5E9', text: '#1B5E20' },
+  other:        { bg: '#F5F5F5', text: '#424242' },
+};
+
+const ACTIVITY_EMOJIS = {
+  sports:       '🏀',
+  food:         '🍜',
+  cafe:         '☕',
+  bar:          '🍸',
+  movies:       '🎬',
+  live_music:   '🎵',
+  games:        '🎮',
+  gaming:       '🎮',
+  gym:          '💪',
+  yoga:         '🧘',
+  walk:         '🚶',
+  rides:        '🏍',
+  hangout:      '🌳',
+  creative:     '🎨',
+  study:        '📚',
+  pet_friendly: '🐾',
+  other:        '＋',
 };
 
 const STATUS_COLORS = {
@@ -39,7 +74,7 @@ function HostedPlanRow({ item, onPress }) {
   const activityStyle = ACTIVITY_COLORS[activityKey];
   const activityLabel = item.activity_type === 'other'
     ? (item.custom_activity_label || 'Other')
-    : item.activity_type.charAt(0).toUpperCase() + item.activity_type.slice(1);
+    : (activityStyle.label || item.activity_type);
   const statusStyle = STATUS_COLORS[item.status] || STATUS_COLORS.active;
 
   return (
@@ -47,7 +82,9 @@ function HostedPlanRow({ item, onPress }) {
       <View style={styles.planRowLeft}>
         <View style={styles.pillRow}>
           <View style={[styles.pill, { backgroundColor: activityStyle.bg }]}>
-            <Text style={[styles.pillText, { color: activityStyle.text }]}>{activityLabel}</Text>
+            <Text style={[styles.pillText, { color: activityStyle.text }]}>
+              {`${ACTIVITY_EMOJIS[activityKey] || ACTIVITY_EMOJIS.other} ${activityLabel}`}
+            </Text>
           </View>
           <View style={[styles.pill, { backgroundColor: statusStyle.bg }]}>
             <Text style={[styles.pillText, { color: statusStyle.text }]}>
@@ -89,12 +126,18 @@ export default function MyPlansScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hostSheetOpen, setHostSheetOpen] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [requestSheet, setRequestSheet] = useState(null);
 
   const loadData = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
-      const token = await getAuthToken();
+      const [token, account] = await Promise.all([
+        getAuthToken(),
+        getActiveAccount(),
+      ]);
+      if (account?.id) setCurrentUserId(account.id);
       const [hostedData, attendingData] = await Promise.all([
         getHostedPlans(token),
         getAttendingPlans(token),
@@ -111,7 +154,41 @@ export default function MyPlansScreen({ navigation }) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const handleLike = useCallback(async (planId, liked) => {
+    const token = await getAuthToken();
+    if (liked) await likePlan(planId, token);
+    else await unlikePlan(planId, token);
+  }, []);
+
+  const handleShare = useCallback(async (plan) => {
+    try {
+      await Share.share({
+        message: `Check out this open plan "${plan?.title || 'Open Plan'}" on SnooSpace!`,
+      });
+    } catch (_) {}
+  }, []);
+
   const currentData = activeTab === 'Hosted' ? hostedPlans : attendingPlans;
+
+  const renderItem = useCallback(({ item }) => {
+    if (activeTab === 'Hosted') {
+      return <HostedPlanRow item={item} onPress={(p) => navigation.navigate('HostRequests', { planId: p.id, planTitle: p.title })} />;
+    }
+    // Attending tab — full OpenPlanCard
+    return (
+      <View style={styles.cardWrapper}>
+        <OpenPlanCard
+          plan={item}
+          currentUserId={currentUserId}
+          onPress={(id) => navigation.navigate('PlanDetail', { planId: id })}
+          onRequestPress={(id) => setRequestSheet({ planId: id, planTitle: item.title })}
+          onLike={handleLike}
+          onShare={() => handleShare(item)}
+          navigation={navigation}
+        />
+      </View>
+    );
+  }, [activeTab, currentUserId, navigation, handleLike, handleShare]);
 
   return (
     <View style={styles.container}>
@@ -150,12 +227,11 @@ export default function MyPlansScreen({ navigation }) {
         <FlatList
           data={currentData}
           keyExtractor={item => String(item.id)}
-          renderItem={({ item }) =>
-            activeTab === 'Hosted'
-              ? <HostedPlanRow item={item} onPress={(p) => navigation.navigate('HostRequests', { planId: p.id, planTitle: p.title })} />
-              : <AttendingPlanRow item={item} onPress={(p) => navigation.navigate('PlanDetail', { planId: p.id })} />
-          }
-          contentContainerStyle={styles.listContent}
+          renderItem={renderItem}
+          contentContainerStyle={[
+            styles.listContent,
+            activeTab === 'Attending' && styles.cardListContent,
+          ]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => loadData(true)} tintColor={COLORS.primary} />
           }
@@ -183,6 +259,20 @@ export default function MyPlansScreen({ navigation }) {
         onPlanCreated={(plan) => setHostedPlans(prev => [plan, ...prev])}
         navigation={navigation}
       />
+      {requestSheet && (
+        <RequestBottomSheet
+          isVisible={!!requestSheet}
+          planId={requestSheet.planId}
+          planTitle={requestSheet.planTitle}
+          onClose={() => setRequestSheet(null)}
+          onRequested={() => {
+            setAttendingPlans(prev => prev.map(p =>
+              p.id === requestSheet.planId ? { ...p, my_request_status: 'pending' } : p
+            ));
+            setRequestSheet(null);
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -224,4 +314,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14,
   },
   emptyCTAText: { fontFamily: FONTS.semiBold, fontSize: 14, color: '#FFF' },
+  cardWrapper: { marginHorizontal: 0 },
+  cardListContent: { padding: 16, paddingBottom: 80 },
 });

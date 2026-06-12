@@ -173,4 +173,70 @@ async function deleteComment(req, res) {
   }
 }
 
-module.exports = { likePlan, unlikePlan, recordView, getComments, addComment, deleteComment };
+// ---------------------------------------------------------------------------
+// POST /plans/:planId/interest  — toggle save/unsave
+// ---------------------------------------------------------------------------
+async function togglePlanInterest(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user.id;
+    const planId = parseInt(req.params.planId, 10);
+
+    const existing = await pool.query(
+      `SELECT 1 FROM open_plan_interests WHERE plan_id = $1 AND user_id = $2`,
+      [planId, userId]
+    );
+
+    if (existing.rows.length > 0) {
+      await pool.query(
+        `DELETE FROM open_plan_interests WHERE plan_id = $1 AND user_id = $2`,
+        [planId, userId]
+      );
+      return res.json({ success: true, is_interested: false });
+    } else {
+      await pool.query(
+        `INSERT INTO open_plan_interests (plan_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+        [planId, userId]
+      );
+      return res.json({ success: true, is_interested: true });
+    }
+  } catch (err) {
+    console.error('[planEngagementController.togglePlanInterest]', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GET /users/me/plans/interested
+// ---------------------------------------------------------------------------
+async function getInterestedPlans(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `SELECT op.*,
+         (SELECT COUNT(*)::int FROM open_plan_requests WHERE plan_id = op.id AND status = 'approved') as accepted_count,
+         json_build_object(
+           'id', m.id,
+           'name', m.name,
+           'is_verified', m.is_verified,
+           'profile_photo_url', m.profile_photo_url
+         ) as host_profile,
+         opi.created_at as saved_at
+       FROM open_plan_interests opi
+       JOIN open_plans op ON op.id = opi.plan_id
+       JOIN members m ON m.id = op.created_by
+       WHERE opi.user_id = $1
+       ORDER BY opi.created_at DESC`,
+      [userId]
+    );
+
+    res.json({ plans: result.rows });
+  } catch (err) {
+    console.error('[planEngagementController.getInterestedPlans]', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+}
+
+module.exports = { likePlan, unlikePlan, recordView, getComments, addComment, deleteComment, togglePlanInterest, getInterestedPlans };

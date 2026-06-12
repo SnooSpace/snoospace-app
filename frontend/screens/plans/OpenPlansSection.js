@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native';
-import { ChevronRight, Plus, Trophy, BookOpen, Star, Gamepad2, Sparkles, Clock, MapPin } from 'lucide-react-native';
+import { ChevronRight, Plus, Clock, MapPin } from 'lucide-react-native';
 import { COLORS, FONTS, SPACING, SHADOWS } from '../../constants/theme';
 import { getAuthToken, getActiveAccount } from '../../api/auth';
 import { getPlans, likePlan, unlikePlan } from '../../api/plans';
@@ -11,12 +11,45 @@ import RequestBottomSheet from './RequestBottomSheet';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
+// Matches OpenPlanCard PILL_COLORS — all 16 activity types
 const ACTIVITY_COLORS = {
-  sports: { bg: '#EEF2FF', text: '#3B5BDB', label: 'Sports', icon: Trophy },
-  study:  { bg: '#E8F5E9', text: '#2E7D32', label: 'Study', icon: BookOpen },
-  food:   { bg: '#FFF8E1', text: '#B45309', label: 'Food', icon: Star },
-  gaming: { bg: '#FCE4EC', text: '#C2185B', label: 'Gaming', icon: Gamepad2 },
-  other:  { bg: '#F5F5F5', text: '#555555', label: 'Other', icon: Sparkles },
+  sports:       { bg: '#FFF3E0', text: '#E65100', label: 'Sports' },
+  movies:       { bg: '#F3E5F5', text: '#6A1B9A', label: 'Movies' },
+  bar:          { bg: '#E8EAF6', text: '#303F9F', label: 'Bar' },
+  food:         { bg: '#FFF8E1', text: '#F57F17', label: 'Food' },
+  cafe:         { bg: '#EFEBE9', text: '#4E342E', label: 'Cafe' },
+  yoga:         { bg: '#E8F5E9', text: '#2E7D32', label: 'Yoga' },
+  gym:          { bg: '#FCE4EC', text: '#880E4F', label: 'Gym' },
+  walk:         { bg: '#E0F2F1', text: '#00695C', label: 'Walk' },
+  rides:        { bg: '#E3F2FD', text: '#1565C0', label: 'Rides' },
+  live_music:   { bg: '#FCE4EC', text: '#C62828', label: 'Live Music' },
+  study:        { bg: '#EDE7F6', text: '#4527A0', label: 'Study / Co-work' },
+  creative:     { bg: '#FFF9C4', text: '#F57F17', label: 'Creative' },
+  games:        { bg: '#E1F5FE', text: '#01579B', label: 'Games' },
+  gaming:       { bg: '#E1F5FE', text: '#01579B', label: 'Games' },
+  pet_friendly: { bg: '#F1F8E9', text: '#33691E', label: 'Pet Friendly' },
+  hangout:      { bg: '#E8F5E9', text: '#1B5E20', label: 'Hangout' },
+  other:        { bg: '#F5F5F5', text: '#424242', label: 'Other' },
+};
+
+const ACTIVITY_EMOJIS = {
+  sports:       '🏀',
+  food:         '🍜',
+  cafe:         '☕',
+  bar:          '🍸',
+  movies:       '🎬',
+  live_music:   '🎵',
+  games:        '🎮',
+  gaming:       '🎮',
+  gym:          '💪',
+  yoga:         '🧘',
+  walk:         '🚶',
+  rides:        '🏍',
+  hangout:      '🌳',
+  creative:     '🎨',
+  study:        '📚',
+  pet_friendly: '🐾',
+  other:        '＋',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -73,7 +106,6 @@ export default function OpenPlansSection({ navigation, currentUserId }) {
     const activityLabel = plan.activity_type === 'other'
       ? (plan.custom_activity_label || 'Other')
       : activityStyle.label;
-    const ActivityIcon = activityStyle.icon;
 
     const spotsLeft = plan.max_accepted - (plan.accepted_count ?? 0);
     const spotsLeftColor = spotsLeft <= 1 ? '#EF6C00' : COLORS.textSecondary;
@@ -107,7 +139,6 @@ export default function OpenPlansSection({ navigation, currentUserId }) {
         >
           <View style={styles.fullCardHeader}>
             <View style={[styles.compactPill, { backgroundColor: activityStyle.bg }]}>
-              <ActivityIcon size={12} color={activityStyle.text} strokeWidth={2.5} />
               <Text style={[styles.compactPillText, { color: activityStyle.text }]}>
                 {activityLabel}
               </Text>
@@ -137,9 +168,8 @@ export default function OpenPlansSection({ navigation, currentUserId }) {
         onPress={() => navigation.navigate('PlanDetail', { planId: plan.id })}
       >
         <View style={[styles.compactPill, { backgroundColor: activityStyle.bg }]}>
-          <ActivityIcon size={11} color={activityStyle.text} strokeWidth={2.5} />
           <Text style={[styles.compactPillText, { color: activityStyle.text }]}>
-            {activityLabel}
+            {`${ACTIVITY_EMOJIS[activityKey] || ACTIVITY_EMOJIS.other} ${activityLabel}`}
           </Text>
         </View>
 

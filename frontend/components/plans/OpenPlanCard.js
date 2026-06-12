@@ -18,19 +18,21 @@
  *   └──────────────────────────────────────┘
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Image,
   Dimensions, Share,
 } from 'react-native';
 import {
-  Users, MapPin, Calendar, Heart, MessageCircle,
-  ChartNoAxesCombined, Send,
+  Users, User, Check, MapPin, Calendar, Heart, MessageCircle,
+  ChartNoAxesCombined, Send, Bookmark,
 } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { useNavigation } from '@react-navigation/native';
 import CommentsModal from '../CommentsModal';
 import HapticsService from '../../services/HapticsService';
+import { recordView, togglePlanInterest } from '../../api/plans';
+import { getAuthToken } from '../../api/auth';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 32;  // 16px padding each side
@@ -107,15 +109,39 @@ const ACTIVITY_LABELS = {
   other:        null,  // falls back to custom_activity_label
 };
 
+const ACTIVITY_EMOJIS = {
+  sports:       '🏀',
+  food:         '🍜',
+  cafe:         '☕',
+  bar:          '🍸',
+  movies:       '🎬',
+  live_music:   '🎵',
+  games:        '🎮',
+  gaming:       '🎮',
+  gym:          '💪',
+  yoga:         '🧘',
+  walk:         '🚶',
+  rides:        '🏍',
+  hangout:      '🌳',
+  creative:     '🎨',
+  study:        '📚',
+  pet_friendly: '🐾',
+  other:        '＋',
+};
+
 // ─── Cost helpers ─────────────────────────────────────────────────────────────
 
 function getCostLabel(plan) {
-  if (plan.cost_type === 'free')      return 'Free';
-  if (plan.cost_type === 'self_pay')  return 'Self-pay';
-  if (plan.cost_type === 'split')     return 'We split';
+  if (plan.cost_type === 'free')     return 'Free';
+  if (plan.cost_type === 'self_pay') return 'Self-pay';
+  if (plan.cost_type === 'split') {
+    return plan.cost_amount_paise
+      ? `~₹${Math.round(plan.cost_amount_paise / 100)} split`
+      : 'Split cost';
+  }
   if (plan.cost_type === 'entry_fee') {
     return plan.cost_amount_paise
-      ? `₹${plan.cost_amount_paise / 100}`
+      ? `₹${Math.round(plan.cost_amount_paise / 100)}`
       : 'Entry fee';
   }
   return null;
@@ -190,6 +216,8 @@ const OpenPlanCard = ({
   onRequestPress,
   onLike,
   onShare,
+  isInterested: isInterestedProp = false,
+  onInterest,
   navigation: navProp,
 }) => {
   const navHook = useNavigation();
@@ -202,6 +230,8 @@ const OpenPlanCard = ({
   const [commentCount,  setCommentCount]  = useState(plan?.comment_count ?? 0);
   const [viewCount]                       = useState(plan?.view_count ?? 0);
   const [commentsVisible, setCommentsVisible] = useState(false);
+  const [isSaved,       setIsSaved]       = useState(isInterestedProp);
+  const [isSaving,      setIsSaving]      = useState(false);
 
   // Layout width for CropImage
   const [cardW, setCardW] = useState(CARD_WIDTH);
@@ -215,7 +245,15 @@ const OpenPlanCard = ({
       ? (plan?.custom_activity_label || 'Other')
       : (ACTIVITY_LABELS[activityKey] || activityKey);
 
-  const hostName    = plan?.host_profile?.name || 'Someone';
+  const hostName = plan?.host_profile?.name
+    || plan?.host_name
+    || plan?.creator_name
+    || 'the host';
+  const hostPhoto = plan?.host_profile?.profile_photo_url
+    || plan?.host_photo
+    || plan?.host_avatar
+    || plan?.creator_photo_url
+    || null;
   const costLabel   = getCostLabel(plan);
   const acceptedN   = plan?.accepted_count   ?? 0;
   const maxAccepted = plan?.max_accepted      ?? 0;
@@ -224,8 +262,8 @@ const OpenPlanCard = ({
   const scheduledAt = plan?.scheduled_at;
   const location    = plan?.location_public;
 
-  const isOwner   = plan?.created_by === currentUserId;
-  const reqStatus = plan?.my_request_status || null;
+  const isOwner   = currentUserId && (plan?.created_by === currentUserId || plan?.created_by === String(currentUserId));
+  const reqStatus = plan?.my_request_status ?? plan?.request_status ?? null;
 
   // ── Like handler ─────────────────────────────────────────────────────────
 
@@ -269,12 +307,34 @@ const OpenPlanCard = ({
     setCommentsVisible(true);
   }, []);
 
+  // ── Bookmark / Interest handler ──────────────────────────────────────────
+
+  const handleInterest = useCallback(async () => {
+    if (isSaving) return;
+    HapticsService.triggerImpactLight();
+    const next = !isSaved;
+    setIsSaved(next);
+    setIsSaving(true);
+    try {
+      if (onInterest) {
+        await onInterest(plan?.id, next);
+      } else {
+        const token = await getAuthToken();
+        await togglePlanInterest(plan?.id, token);
+      }
+    } catch {
+      setIsSaved(!next); // revert
+    } finally {
+      setIsSaving(false);
+    }
+  }, [isSaving, isSaved, plan?.id, onInterest]);
+
   // ── Request button config ────────────────────────────────────────────────
 
   const REQUEST_BTNS = {
     null:      { label: 'Request to join',     bg: COLORS.primary, color: '#FFF',   disabled: false },
     pending:   { label: 'Pending…',            bg: '#F5F5F5',       color: '#9CA3AF', disabled: true },
-    approved:  { label: "You're in! ✓",        bg: '#E8F5E9',       color: '#2E7D32', disabled: true },
+    approved:  { label: "You're in!",          bg: '#E8F5E9',       color: '#2E7D32', disabled: true },
     declined:  { label: 'Request declined',    bg: '#F5F5F5',       color: '#9CA3AF', disabled: true },
     withdrawn: { label: 'Request to join',     bg: COLORS.primary, color: '#FFF',   disabled: false },
   };
@@ -287,6 +347,47 @@ const OpenPlanCard = ({
     : spotsLeft === 1
       ? '1 spot left!'
       : null;
+  const lastTapRef = useRef(0);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  // ── Card press: navigate + record view ──────────────────────────────────
+
+  const handleCardPress = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      if (!isLiked) {
+        handleLike();
+      } else {
+        HapticsService.triggerImpactLight();
+      }
+    } else {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      timerRef.current = setTimeout(async () => {
+        timerRef.current = null;
+        onPress?.(plan?.id);
+        // Fire-and-forget view recording
+        try {
+          const token = await getAuthToken();
+          await recordView(plan.id, token);
+        } catch (_) {}
+      }, 250);
+    }
+    lastTapRef.current = now;
+  }, [onPress, plan?.id, isLiked, handleLike]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -294,7 +395,7 @@ const OpenPlanCard = ({
     <TouchableOpacity
       style={styles.card}
       activeOpacity={0.95}
-      onPress={() => onPress?.(plan?.id)}
+      onPress={handleCardPress}
       onLayout={(e) => setCardW(e.nativeEvent.layout.width)}
     >
       {/* ── Hero Illustration ─────────────────────────────────────────── */}
@@ -312,7 +413,7 @@ const OpenPlanCard = ({
         {/* Activity pill overlay — bottom-left */}
         <View style={[styles.activityPill, { backgroundColor: pillColors.bg }]}>
           <Text style={[styles.activityPillText, { color: pillColors.text }]}>
-            {activityLabel}
+            {`${ACTIVITY_EMOJIS[activityKey] || ACTIVITY_EMOJIS.other} ${activityLabel}`}
           </Text>
         </View>
 
@@ -352,9 +453,20 @@ const OpenPlanCard = ({
         </View>
 
         {/* Host row */}
-        <Text style={styles.hostText}>
-          Hosted by <Text style={styles.hostName}>{hostName}</Text>
-        </Text>
+        <View style={styles.hostRow}>
+          <View style={styles.hostAvatarContainer}>
+            {hostPhoto ? (
+              <Image source={{ uri: hostPhoto }} style={styles.hostAvatar} />
+            ) : (
+              <View style={styles.hostAvatarFallback}>
+                <User size={16} color={COLORS.textSecondary} strokeWidth={2.2} />
+              </View>
+            )}
+          </View>
+          <Text style={styles.hostText}>
+            Hosted by <Text style={styles.hostName}>{hostName}</Text>
+          </Text>
+        </View>
 
         {/* Engagement divider */}
         <View style={styles.divider} />
@@ -390,6 +502,16 @@ const OpenPlanCard = ({
             <Text style={styles.engCount}>{fmt(viewCount)}</Text>
           </View>
 
+          {/* Bookmark/Save */}
+          <TouchableOpacity style={styles.engBtn} onPress={handleInterest} disabled={isSaving}>
+            <Bookmark
+              size={20}
+              color={isSaved ? COLORS.primary : '#5e8d9b'}
+              fill={isSaved ? COLORS.primary : 'transparent'}
+              strokeWidth={2}
+            />
+          </TouchableOpacity>
+
           {/* Share */}
           <TouchableOpacity style={styles.engBtn} onPress={handleShare}>
             <Send size={20} color="#5e8d9b" strokeWidth={2} />
@@ -399,9 +521,13 @@ const OpenPlanCard = ({
         {/* Request / Owner section */}
         <View style={styles.actionSection}>
           {isOwner ? (
-            <View style={styles.ownerBadge}>
-              <Text style={styles.ownerBadgeText}>Your plan</Text>
-            </View>
+            <TouchableOpacity
+              style={styles.ownerBadge}
+              onPress={() => navigation.navigate('HostRequests', { planId: plan?.id, planTitle: plan?.title })}
+              activeOpacity={0.82}
+            >
+              <Text style={styles.ownerBadgeText}>Your plan →</Text>
+            </TouchableOpacity>
           ) : (
             <TouchableOpacity
               style={[
@@ -413,9 +539,20 @@ const OpenPlanCard = ({
               disabled={btnCfg.disabled}
               activeOpacity={btnCfg.disabled ? 1 : 0.85}
             >
-              <Text style={[styles.requestBtnText, { color: btnCfg.color }]}>
-                {btnCfg.label}
-              </Text>
+              {reqStatus === 'approved' ? (
+                <View style={styles.approvedBtnContent}>
+                  <View style={styles.checkCircle}>
+                    <Check size={10} color="#FFF" strokeWidth={3} />
+                  </View>
+                  <Text style={[styles.requestBtnText, { color: btnCfg.color }]}>
+                    {btnCfg.label}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={[styles.requestBtnText, { color: btnCfg.color }]}>
+                  {btnCfg.label}
+                </Text>
+              )}
             </TouchableOpacity>
           )}
           <Text style={styles.finePrint}>
@@ -424,12 +561,11 @@ const OpenPlanCard = ({
         </View>
       </View>
 
-      {/* CommentsModal */}
+      {/* CommentsModal — plan comments (no threaded replies) */}
       <CommentsModal
         visible={commentsVisible}
         postId={plan?.id}
         baseRoute="/plans"
-        replyBaseRoute="/plan-comments"
         onCommentCountChange={(n) => setCommentCount(n)}
         onClose={() => setCommentsVisible(false)}
         navigation={navigation}
@@ -515,9 +651,9 @@ const styles = StyleSheet.create({
 
   title: {
     fontFamily: FONTS.primary,
-    fontSize: 16,
+    fontSize: 18,
     color: COLORS.textPrimary,
-    lineHeight: 22,
+    lineHeight: 24,
     marginBottom: 8,
   },
 
@@ -529,7 +665,7 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: 14,
     color: COLORS.textSecondary,
     flex: 1,
   },
@@ -549,15 +685,41 @@ const styles = StyleSheet.create({
   },
   costText: {
     fontFamily: FONTS.semiBold,
-    fontSize: 13,
+    fontSize: 16,
     color: COLORS.textPrimary,
   },
 
+  hostRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  hostAvatarContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2.5,
+    borderColor: COLORS.primary,
+    overflow: 'hidden',
+    backgroundColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  hostAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  hostAvatarFallback: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   hostText: {
     fontFamily: FONTS.regular,
-    fontSize: 12,
+    fontSize: 14,
     color: COLORS.textMuted,
-    marginBottom: 10,
   },
   hostName: {
     fontFamily: FONTS.medium,
@@ -610,6 +772,20 @@ const styles = StyleSheet.create({
   requestBtnText: {
     fontFamily: FONTS.semiBold,
     fontSize: 15,
+  },
+  approvedBtnContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  checkCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#2E7D32', // matches approved text color
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   ownerBadge: {
     height: 38,

@@ -11,7 +11,7 @@ import {
   useFocusEffect,
 } from "@react-navigation/native";
 import { Settings, Bookmark, ChevronDown, Play, AlertCircle, Image as LucideImage, Pin, Ticket, MapPin, Users, CalendarDays } from "lucide-react-native";
-import { getHostedPlans, getAttendingPlans } from "../../../api/plans";
+import { getHostedPlans, getAttendingPlans, likePlan, unlikePlan } from "../../../api/plans";
 import {
   clearAuthSession,
   getAuthToken,
@@ -60,6 +60,8 @@ import SnooLoader from "../../../components/ui/SnooLoader";
 import EmptyPostsState from "../../../components/EmptyPostsState";
 import { useToast } from "../../../context/ToastContext";
 import ActionModal from "../../../components/modals/ActionModal";
+import OpenPlanCard from "../../../components/plans/OpenPlanCard";
+import RequestBottomSheet from "../../plans/RequestBottomSheet";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -386,6 +388,7 @@ export default function MemberProfileScreen({ navigation }) {
   const [activeProfileTab, setActiveProfileTab] = useState('posts');
   const [profileEvents, setProfileEvents] = useState([]);
   const [profilePlans, setProfilePlans] = useState({ hosted: [], attending: [] });
+  const [planRequestSheet, setPlanRequestSheet] = useState(null);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const eventsFetchedRef = useRef(false);
 
@@ -1435,53 +1438,25 @@ export default function MemberProfileScreen({ navigation }) {
                       </>
                     )}
 
-                    {/* Open Plans */}
+                    {/* Open Plans — full OpenPlanCard */}
                     {(profilePlans.hosted.length > 0 || profilePlans.attending.length > 0) && (
                       <>
-                        {[...profilePlans.hosted, ...profilePlans.attending].map((plan) => {
-                          const d = plan.scheduled_at ? new Date(plan.scheduled_at) : null;
-                          const dateStr = d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
-                          const actColors = { sports: '#EEF2FF', study: '#E8F5E9', food: '#FFF8E1', gaming: '#FCE4EC', other: '#F5F5F5' };
-                          const actTextColors = { sports: '#3B5BDB', study: '#2E7D32', food: '#B45309', gaming: '#C2185B', other: '#555555' };
-                          const actKey = actColors[plan.activity_type] ? plan.activity_type : 'other';
-                          const actLabel = plan.activity_type === 'other' ? (plan.custom_activity_label || 'Other') : plan.activity_type.charAt(0).toUpperCase() + plan.activity_type.slice(1);
-                          const isHost = plan.role === 'host';
-                          return (
-                            <View key={`plan-${plan.id}-${plan.role}`} style={{ marginBottom: 12 }}>
-                              <View style={profileTabStyles.planLabel}>
-                                <CalendarDays size={13} color={COLORS.primary} strokeWidth={2} />
-                                <Text style={profileTabStyles.planLabelText}>Open Plan</Text>
-                              </View>
-                              <TouchableOpacity
-                                style={profileTabStyles.planRow}
-                                onPress={() => isHost
-                                  ? navigation.navigate('HostRequests', { planId: plan.id, planTitle: plan.title })
-                                  : navigation.navigate('PlanDetail', { planId: plan.id })
-                                }
-                                activeOpacity={0.82}
-                              >
-                                {/* Icon avatar */}
-                                <View style={[profileTabStyles.planIconWrap, { backgroundColor: actColors[actKey] }]}>
-                                  <CalendarDays size={18} color={actTextColors[actKey]} strokeWidth={2} />
-                                </View>
-                                <View style={profileTabStyles.planLeft}>
-                                  <View style={profileTabStyles.planPillRow}>
-                                    <View style={[profileTabStyles.planPill, { backgroundColor: isHost ? '#EEF2FF' : '#E8F5E9' }]}>
-                                      <Text style={[profileTabStyles.planPillText, { color: isHost ? '#3B5BDB' : '#2E7D32' }]}>{isHost ? 'Hosting' : 'Attending'}</Text>
-                                    </View>
-                                    <View style={[profileTabStyles.planPill, { backgroundColor: actColors[actKey] + '99' }]}>
-                                      <Text style={[profileTabStyles.planPillText, { color: actTextColors[actKey] }]}>{actLabel}</Text>
-                                    </View>
-                                  </View>
-                                  <Text style={profileTabStyles.planTitle} numberOfLines={1}>{plan.title}</Text>
-                                  <Text style={profileTabStyles.planMeta}>
-                                    {dateStr}{plan.location_public ? ` · ${plan.location_public}` : ''}
-                                  </Text>
-                                </View>
-                              </TouchableOpacity>
-                            </View>
-                          );
-                        })}
+                        {[...profilePlans.hosted, ...profilePlans.attending].map((plan) => (
+                          <View key={`plan-${plan.id}-${plan.role}`} style={{ paddingHorizontal: 16 }}>
+                            <OpenPlanCard
+                              plan={plan}
+                              currentUserId={profile?.id}
+                              onPress={(id) => navigation.navigate('PlanDetail', { planId: id })}
+                              onRequestPress={(id) => setPlanRequestSheet({ planId: id, planTitle: plan.title })}
+                              onLike={async (planId, liked) => {
+                                const token = await getAuthToken();
+                                if (liked) await likePlan(planId, token);
+                                else await unlikePlan(planId, token);
+                              }}
+                              navigation={navigation}
+                            />
+                          </View>
+                        ))}
                       </>
                     )}
 
@@ -1496,6 +1471,24 @@ export default function MemberProfileScreen({ navigation }) {
                   </>
                 )}
               </View>
+            )}
+
+            {planRequestSheet && (
+              <RequestBottomSheet
+                isVisible={!!planRequestSheet}
+                planId={planRequestSheet.planId}
+                planTitle={planRequestSheet.planTitle}
+                onClose={() => setPlanRequestSheet(null)}
+                onRequested={() => {
+                  setProfilePlans(prev => ({
+                    ...prev,
+                    attending: prev.attending.map(p =>
+                      p.id === planRequestSheet.planId ? { ...p, my_request_status: 'pending' } : p
+                    ),
+                  }));
+                  setPlanRequestSheet(null);
+                }}
+              />
             )}
           </View>
         }

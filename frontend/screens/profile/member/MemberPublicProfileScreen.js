@@ -24,7 +24,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import EventBus from "../../../utils/EventBus";
 import { getAuthToken, getAuthEmail } from "../../../api/auth";
-import { blockUser, unblockUser } from "../../../api/plans";
+import { blockUser, unblockUser, likePlan, unlikePlan } from "../../../api/plans";
 import { apiPost, apiDelete } from "../../../api/client";
 import CommentsModal from "../../../components/CommentsModal";
 import EventCard from "../../../components/EventCard";
@@ -56,6 +56,8 @@ import EditorialPostCard from "../../../components/EditorialPostCard";
 import ProfilePostFeed from "../../../components/ProfilePostFeed";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import CollegeChip from "../../../components/CollegeChip";
+import OpenPlanCard from "../../../components/plans/OpenPlanCard";
+import RequestBottomSheet from "../../plans/RequestBottomSheet";
 
 const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPress }) => {
   const scale = useSharedValue(1);
@@ -204,6 +206,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [activeProfileTab, setActiveProfileTab] = useState('posts');
   const [profileEvents, setProfileEvents] = useState([]);
   const [profilePlans, setProfilePlans] = useState({ hosted: [], attending: [] });
+  const [planRequestSheet, setPlanRequestSheet] = useState(null);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const eventsFetchedRef = useRef(false);
 
@@ -1137,50 +1140,25 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                           </>
                         )}
 
-                        {/* Open Plans */}
+                        {/* Open Plans — full OpenPlanCard */}
                         {(profilePlans.hosted.length > 0 || profilePlans.attending.length > 0) && (
                           <>
-                            {[...profilePlans.hosted, ...profilePlans.attending].map((plan) => {
-                              const d = plan.scheduled_at ? new Date(plan.scheduled_at) : null;
-                              const dateStr = d ? d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
-                              const actColors = { sports: '#EEF2FF', study: '#E8F5E9', food: '#FFF8E1', gaming: '#FCE4EC', other: '#F5F5F5' };
-                              const actTextColors = { sports: '#3B5BDB', study: '#2E7D32', food: '#B45309', gaming: '#C2185B', other: '#555555' };
-                              const actKey = actColors[plan.activity_type] ? plan.activity_type : 'other';
-                              const actLabel = plan.activity_type === 'other' ? (plan.custom_activity_label || 'Other') : plan.activity_type.charAt(0).toUpperCase() + plan.activity_type.slice(1);
-                              const isHost = plan.role === 'host';
-                              return (
-                                <View key={`plan-${plan.id}-${plan.role}`} style={{ marginBottom: 12 }}>
-                                  <View style={pubTabStyles.planLabel}>
-                                    <CalendarDays size={13} color={COLORS.primary} strokeWidth={2} />
-                                    <Text style={pubTabStyles.planLabelText}>Open Plan</Text>
-                                  </View>
-                                  <TouchableOpacity
-                                    style={pubTabStyles.planRow}
-                                    onPress={() => navigation.navigate('PlanDetail', { planId: plan.id })}
-                                    activeOpacity={0.82}
-                                  >
-                                    {/* Icon avatar */}
-                                    <View style={[pubTabStyles.planIconWrap, { backgroundColor: actColors[actKey] }]}>
-                                      <CalendarDays size={18} color={actTextColors[actKey]} strokeWidth={2} />
-                                    </View>
-                                    <View style={pubTabStyles.planLeft}>
-                                      <View style={pubTabStyles.planPillRow}>
-                                        <View style={[pubTabStyles.planPill, { backgroundColor: isHost ? '#EEF2FF' : '#E8F5E9' }]}>
-                                          <Text style={[pubTabStyles.planPillText, { color: isHost ? '#3B5BDB' : '#2E7D32' }]}>{isHost ? 'Hosting' : 'Attending'}</Text>
-                                        </View>
-                                        <View style={[pubTabStyles.planPill, { backgroundColor: actColors[actKey] + '99' }]}>
-                                          <Text style={[pubTabStyles.planPillText, { color: actTextColors[actKey] }]}>{actLabel}</Text>
-                                        </View>
-                                      </View>
-                                      <Text style={pubTabStyles.planTitle} numberOfLines={1}>{plan.title}</Text>
-                                      <Text style={pubTabStyles.planMeta}>
-                                        {dateStr}{plan.location_public ? ` · ${plan.location_public}` : ''}
-                                      </Text>
-                                    </View>
-                                  </TouchableOpacity>
-                                </View>
-                              );
-                            })}
+                            {[...profilePlans.hosted, ...profilePlans.attending].map((plan) => (
+                              <View key={`plan-${plan.id}-${plan.role ?? 'member'}`} style={{ paddingHorizontal: 16 }}>
+                                <OpenPlanCard
+                                  plan={plan}
+                                  currentUserId={null}
+                                  onPress={(id) => navigation.navigate('PlanDetail', { planId: id })}
+                                  onRequestPress={(id) => setPlanRequestSheet({ planId: id, planTitle: plan.title })}
+                                  onLike={async (planId, liked) => {
+                                    const token = await getAuthToken();
+                                    if (liked) await likePlan(planId, token);
+                                    else await unlikePlan(planId, token);
+                                  }}
+                                  navigation={navigation}
+                                />
+                              </View>
+                            ))}
                           </>
                         )}
 
@@ -1210,6 +1188,17 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
             }
           />
       )}
+
+      {planRequestSheet && (
+        <RequestBottomSheet
+          isVisible={!!planRequestSheet}
+          planId={planRequestSheet.planId}
+          planTitle={planRequestSheet.planTitle}
+          onClose={() => setPlanRequestSheet(null)}
+          onRequested={() => setPlanRequestSheet(null)}
+        />
+      )}
+
 
       {selectedPost && (
         <ProfilePostFeed

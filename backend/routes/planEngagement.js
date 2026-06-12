@@ -6,6 +6,7 @@ const planEngagementController = require('../controllers/planEngagementControlle
 router.post('/likes', authMiddleware, planEngagementController.likePlan);
 router.delete('/likes', authMiddleware, planEngagementController.unlikePlan);
 router.post('/views', authMiddleware, planEngagementController.recordView);
+router.post('/interest', authMiddleware, planEngagementController.togglePlanInterest);
 router.get('/comments', authMiddleware, planEngagementController.getComments);
 router.post('/comments', authMiddleware, planEngagementController.addComment);
 router.delete('/comments/:cmtId', authMiddleware, planEngagementController.deleteComment);

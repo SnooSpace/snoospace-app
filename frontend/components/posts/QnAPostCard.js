@@ -17,6 +17,7 @@ import {
   Switch,
   Pressable,
   Dimensions,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -58,6 +59,7 @@ import CountdownTimer from "../CountdownTimer";
 import SnooLoader from "../ui/SnooLoader";
 import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
+import HapticsService from "../../services/HapticsService";
 
 const QnAPostCard = ({
   post,
@@ -431,6 +433,19 @@ const QnAPostCard = ({
     return `${(count / 1000000).toFixed(1)}m`;
   };
 
+  const lastTapRef = useRef(0);
+  const handleDoubleTap = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (!isLiked) {
+        handleLike();
+      } else {
+        HapticsService.triggerImpactLight();
+      }
+    }
+    lastTapRef.current = now;
+  };
+
   const handleUserPress = () => {
     if (onUserPress) {
       onUserPress(post.author_id, post.author_type);
@@ -546,6 +561,7 @@ const QnAPostCard = ({
 
   return (
     <>
+      <TouchableWithoutFeedback onPress={handleDoubleTap}>
       <View style={styles.container}>
         {/* Header Row: Q&A Badge + Avatar Stack + Question Icon */}
         <View style={styles.headerRow}>
@@ -867,6 +883,7 @@ const QnAPostCard = ({
           </TouchableOpacity>
         </View>
       </View>
+    </TouchableWithoutFeedback>
       <QnAEditModal
         visible={showEditModal}
         onClose={() => setShowEditModal(false)}

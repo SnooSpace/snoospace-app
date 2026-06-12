@@ -119,6 +119,41 @@ export default function EventCard({
   // Ref to track if we're the source of an EventBus event (prevent self-listening)
   const isEmittingRef = useRef(false);
 
+  const lastTapRef = useRef(0);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, []);
+
+  const handleCardPress = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      if (!isLiked) {
+        handleLikePress();
+      } else {
+        HapticsService.triggerImpactLight();
+      }
+    } else {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        onPress?.(event);
+      }, 250);
+    }
+    lastTapRef.current = now;
+  };
+
   // Sync engagement state when parent passes updated event prop (e.g. after a feed refresh)
   useEffect(() => {
     if (event?.is_liked !== undefined) setIsLiked(Boolean(event.is_liked));
@@ -463,7 +498,7 @@ export default function EventCard({
       </View>
 
       {/* Main Card */}
-      <View style={styles.card}>
+      <TouchableOpacity style={styles.card} activeOpacity={1} onPress={handleCardPress}>
         {/* Banner Image */}
         <View 
           style={styles.imageContainer}
@@ -594,10 +629,7 @@ export default function EventCard({
           </View>
 
           {/* Clickable Content Area */}
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => onPress?.(event)}
-          >
+          <View>
             {/* Title */}
             <Text style={styles.title} numberOfLines={2}>
               {title}
@@ -624,7 +656,7 @@ export default function EventCard({
                 </View>
               )}
             </View>
-          </TouchableOpacity>
+          </View>
 
           {/* Price & Explicit View Details CTA Row */}
           <View style={styles.priceDetailsRow}>
@@ -778,7 +810,7 @@ export default function EventCard({
             navigation={navigation}
           />
         </View>
-      </View>
+      </TouchableOpacity>
     </View>
   );
 }
