@@ -8,7 +8,9 @@ import {
   Modal,
   Pressable,
   Dimensions,
+  Animated as RNAnimated,
 } from "react-native";
+import { GradientHeart } from "./ui/GradientHeart";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -429,6 +431,49 @@ const OpportunityFeedCard = React.memo(({
   const lastTapRef = useRef(0);
   const timerRef = useRef(null);
 
+  const heartScale = useRef(new RNAnimated.Value(0)).current;
+  const [heartPos, setHeartPos] = useState({ x: 0, y: 0 });
+  const [heartRot, setHeartRot] = useState(0);
+  const [showHeart, setShowHeart] = useState(false);
+
+  const triggerHeartAnimation = useCallback((x, y) => {
+    setHeartPos({ x, y });
+    setHeartRot(Math.random() * 30 - 15);
+    setShowHeart(true);
+    heartScale.setValue(0);
+    
+    RNAnimated.sequence([
+      RNAnimated.timing(heartScale, {
+        toValue: 1.2,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(heartScale, {
+        toValue: 0.9,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(heartScale, {
+        toValue: 1.05,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      RNAnimated.timing(heartScale, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      RNAnimated.delay(800),
+      RNAnimated.timing(heartScale, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowHeart(false);
+    });
+  }, [heartScale]);
+
   useEffect(() => {
     return () => {
       if (timerRef.current) {
@@ -437,13 +482,15 @@ const OpportunityFeedCard = React.memo(({
     };
   }, []);
 
-  const handleCardPress = useCallback(() => {
+  const handleCardPress = useCallback((event) => {
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
       }
+      const { locationX, locationY } = event.nativeEvent;
+      triggerHeartAnimation(locationX, locationY);
       if (!isLiked) {
         handleLike();
       } else {
@@ -459,7 +506,7 @@ const OpportunityFeedCard = React.memo(({
       }, 250);
     }
     lastTapRef.current = now;
-  }, [onPress, opportunity, isLiked, handleLike]);
+  }, [onPress, opportunity, isLiked, handleLike, triggerHeartAnimation]);
 
   const handlePinPress = useCallback(() => {
     onPinToggle?.(opportunity, true);
@@ -609,6 +656,28 @@ const OpportunityFeedCard = React.memo(({
               <Text style={styles.detailText}>{compensationText}</Text>
             </View>
           </View>
+
+          {showHeart && (
+            <RNAnimated.View
+              style={{
+                position: 'absolute',
+                top: heartPos.y - 75,
+                left: heartPos.x - 75,
+                transform: [
+                  { scale: heartScale },
+                  { rotate: `${heartRot}deg` }
+                ],
+                opacity: heartScale.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 1],
+                }),
+                zIndex: 9999,
+              }}
+              pointerEvents="none"
+            >
+              <GradientHeart />
+            </RNAnimated.View>
+          )}
         </TouchableOpacity>
  
         {/* ── Footer Row ────────────────────────────────────────────────── */}

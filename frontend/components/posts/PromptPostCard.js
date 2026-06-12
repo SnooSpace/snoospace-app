@@ -18,7 +18,9 @@ import {
   Dimensions,
   Pressable,
   TouchableWithoutFeedback,
+  Animated,
 } from "react-native";
+import { GradientHeart } from "../ui/GradientHeart";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -359,9 +361,54 @@ const PromptPostCard = ({
   };
 
   const lastTapRef = useRef(0);
-  const handleDoubleTap = () => {
+  const heartScale = useRef(new Animated.Value(0)).current;
+  const [heartPos, setHeartPos] = useState({ x: 0, y: 0 });
+  const [heartRot, setHeartRot] = useState(0);
+  const [showHeart, setShowHeart] = useState(false);
+
+  const triggerHeartAnimation = (x, y) => {
+    setHeartPos({ x, y });
+    setHeartRot(Math.random() * 30 - 15);
+    setShowHeart(true);
+    heartScale.setValue(0);
+    
+    Animated.sequence([
+      Animated.timing(heartScale, {
+        toValue: 1.2,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(heartScale, {
+        toValue: 0.9,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(heartScale, {
+        toValue: 1.05,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(heartScale, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.delay(800),
+      Animated.timing(heartScale, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowHeart(false);
+    });
+  };
+
+  const handleDoubleTap = (event) => {
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
+      const { locationX, locationY } = event.nativeEvent;
+      triggerHeartAnimation(locationX, locationY);
       if (!isLiked) {
         handleLike();
       } else {
@@ -788,6 +835,28 @@ const PromptPostCard = ({
           )}
         </TouchableOpacity>
         </View>
+
+        {showHeart && (
+          <Animated.View
+            style={{
+              position: 'absolute',
+              top: heartPos.y - 75,
+              left: heartPos.x - 75,
+              transform: [
+                { scale: heartScale },
+                { rotate: `${heartRot}deg` }
+              ],
+              opacity: heartScale.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 1],
+              }),
+              zIndex: 9999,
+            }}
+            pointerEvents="none"
+          >
+            <GradientHeart />
+          </Animated.View>
+        )}
       </View>
     </TouchableWithoutFeedback>
 
