@@ -8,6 +8,7 @@ import {
   Modal,
   View,
   Text,
+  Image,
   TouchableOpacity,
   StyleSheet,
   FlatList,
@@ -202,16 +203,27 @@ export default function AccountPickerModal({
           </View>
         )}
 
-        <LinearGradient
-          colors={gradient}
-          style={[styles.avatar, isAlreadyLoggedIn && styles.avatarDisabled]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.avatarText}>
-            {getInitials(item.name || item.username)}
-          </Text>
-        </LinearGradient>
+        {item.avatar ? (
+          <Image
+            source={{ uri: item.avatar }}
+            style={[
+              styles.avatar,
+              styles.avatarImage,
+              isAlreadyLoggedIn && styles.avatarDisabled,
+            ]}
+          />
+        ) : (
+          <LinearGradient
+            colors={gradient}
+            style={[styles.avatar, isAlreadyLoggedIn && styles.avatarDisabled]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Text style={styles.avatarText}>
+              {getInitials(item.name || item.username)}
+            </Text>
+          </LinearGradient>
+        )}
 
         <View style={styles.accountInfo}>
           <Text
@@ -478,6 +490,9 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
+  },
+  avatarImage: {
+    backgroundColor: "#E5E5EA",
   },
   avatarDisabled: {
     opacity: 0.6,
