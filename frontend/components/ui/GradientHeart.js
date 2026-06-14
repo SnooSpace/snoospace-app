@@ -2,7 +2,7 @@ import React from 'react';
 import Svg, { Defs, LinearGradient, Stop, Path } from "react-native-svg";
 
 export const GradientHeart = ({ width = 150, height = 150 }) => (
-  <Svg width={width} height={height} viewBox="0 0 48 48" style={{ filter: 'none' }}>
+  <Svg width={width} height={height} viewBox="0 0 48 48">
     <Defs>
       <LinearGradient id="blueGradient" x1="5%" y1="5%" x2="95%" y2="95%">
         <Stop offset="0%" stopColor="#00f2fe" stopOpacity="1" />

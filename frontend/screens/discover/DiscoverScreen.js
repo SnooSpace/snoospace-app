@@ -125,22 +125,8 @@ export default function DiscoverScreen({ navigation }) {
   );
 
   const handleEventPress = useCallback((event) => {
-    if (!profileComplete) {
-      Alert.alert(
-        "Complete Your Profile First",
-        "You need to set up your Discover Profile before you can connect with others.\n\nAdd at least 3 photos, 1 Spark, and 1 icebreaker.",
-        [
-          { text: "Not Now", style: "cancel" },
-          {
-            text: "Set Up Profile",
-            onPress: () => navigation.navigate("EditDiscoverProfile"),
-          },
-        ]
-      );
-      return;
-    }
     navigation.navigate("ProfileFeed", { event });
-  }, [navigation, profileComplete]);
+  }, [navigation]);
 
   const handleCommunityPress = useCallback((communityId) => {
     navigation.navigate("CommunityPublicProfile", { communityId });

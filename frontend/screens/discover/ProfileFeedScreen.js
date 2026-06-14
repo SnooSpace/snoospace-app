@@ -9,9 +9,14 @@ import {
   ArrowLeft,
   SlidersHorizontal,
   User,
+  Lock,
+  Camera,
+  Target,
+  Check,
 } from "lucide-react-native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
+import { getEventDetails } from "../../api/events";
 import { COLORS, SPACING, SHADOWS, FONTS } from "../../constants/theme";
 import DiscoverFilterSheet from "../../components/DiscoverFilterSheet";
 import HapticsService from "../../services/HapticsService";
@@ -56,7 +61,8 @@ const getGoalStyle = (goal) => {
 const EDGES = ["top"];
 
 export default function ProfileFeedScreen({ route, navigation }) {
-  const { event } = route.params || {};
+  const { event: initialEvent } = route.params || {};
+  const [eventData, setEventData] = useState(initialEvent || null);
   const [attendees, setAttendees] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -65,14 +71,34 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const [activeFilters, setActiveFilters] = useState({});
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
   const [profileGated, setProfileGated] = useState(false); // true if user's own profile is incomplete
+  const [profileProgress, setProfileProgress] = useState({
+    photos: 0,
+    sparks: 0,
+    icebreakers: 0,
+  });
 
-  console.log("[ProfileFeedScreen] Render. event:", event?.id, "title:", event?.title, "loading:", loading, "attendees:", attendees.length);
+  console.log("[ProfileFeedScreen] Render. event:", eventData?.id, "title:", eventData?.title, "loading:", loading, "attendees:", attendees.length);
 
   const checkAndLoadAttendees = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getAuthToken();
       if (!token) { setLoading(false); return; }
+
+      // 0. Fetch full event details if title is missing
+      let currentEvent = eventData;
+      if (initialEvent?.id && (!currentEvent || !currentEvent.title)) {
+        try {
+          console.log("[ProfileFeedScreen] Fetching full event details for ID:", initialEvent.id);
+          const response = await getEventDetails(initialEvent.id);
+          if (response?.event) {
+            currentEvent = response.event;
+            setEventData(response.event);
+          }
+        } catch (err) {
+          console.error("[ProfileFeedScreen] Error fetching event details:", err);
+        }
+      }
 
       // 1. Gate check: verify the viewer's own profile meets minimum requirements
       const profileRes = await apiGet("/members/profile", 15000, token);
@@ -82,6 +108,12 @@ export default function ProfileFeedScreen({ route, navigation }) {
       const ownOpeners = Array.isArray(profile.openers) ? profile.openers : [];
       const isComplete = ownPhotos.length >= 3 && ownBadges.length >= 1 && ownOpeners.length >= 1;
 
+      setProfileProgress({
+        photos: ownPhotos.length,
+        sparks: ownBadges.length,
+        icebreakers: ownOpeners.length,
+      });
+
       if (!isComplete) {
         setProfileGated(true);
         setLoading(false);
@@ -89,9 +121,9 @@ export default function ProfileFeedScreen({ route, navigation }) {
       }
 
       // 2. Load attendees (backend already filters incomplete profiles)
-      if (event) {
-        console.log("[ProfileFeedScreen] Fetching attendees for event ID:", event?.id);
-        const response = await apiGet(`/events/${event.id}/attendees`, 15000, token);
+      if (currentEvent) {
+        console.log("[ProfileFeedScreen] Fetching attendees for event ID:", currentEvent.id);
+        const response = await apiGet(`/events/${currentEvent.id}/attendees`, 15000, token);
         console.log("[ProfileFeedScreen] Fetch success. Count:", response?.attendees?.length);
         setAttendees(response.attendees || []);
       } else {
@@ -103,7 +135,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
     } finally {
       setLoading(false);
     }
-  }, [event]);
+  }, [initialEvent, eventData]);
 
   useEffect(() => {
     checkAndLoadAttendees();
@@ -115,8 +147,8 @@ export default function ProfileFeedScreen({ route, navigation }) {
     try {
       setLoading(true);
       const token = await getAuthToken();
-      if (token && event) {
-        const response = await apiGet(`/events/${event.id}/attendees`, 15000, token);
+      if (token && eventData) {
+        const response = await apiGet(`/events/${eventData.id}/attendees`, 15000, token);
         setAttendees(response.attendees || []);
       }
     } catch (error) {
@@ -125,7 +157,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
     } finally {
       setLoading(false);
     }
-  }, [event, activeFilters, profileGated]);
+  }, [eventData, activeFilters, profileGated]);
 
   const currentAttendee = attendees[currentIndex];
 
@@ -201,37 +233,132 @@ export default function ProfileFeedScreen({ route, navigation }) {
 
     // Profile gate — user hasn't completed their Discover Profile
     if (profileGated) {
+      const dateStr = eventData?.formatted_date || (eventData?.event_date && new Date(eventData.event_date).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }));
+      const subtitle = eventData?.title ? `${eventData.title}${dateStr ? ` • ${dateStr}` : ""}` : (dateStr || "");
+      
+      const photosMet = profileProgress.photos >= 3;
+      const sparksMet = profileProgress.sparks >= 1;
+      const icebreakersMet = profileProgress.icebreakers >= 1;
+      const metCount = (photosMet ? 1 : 0) + (sparksMet ? 1 : 0) + (icebreakersMet ? 1 : 0);
+      const attendeeCount = eventData?.attendee_count || 0;
+
       return (
-        <SafeAreaView style={styles.container} edges={EDGES}>
-          <View style={styles.header}>
-            <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
-              <ArrowLeft size={26} color={COLORS.editorial.textSecondary} />
+        <SafeAreaView style={styles.gateScreenContainer} edges={EDGES}>
+          <View style={styles.gateHeader}>
+            <TouchableOpacity onPress={handleBack} style={styles.gateBackBtn}>
+              <ArrowLeft size={26} color="#0F172A" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Discover People</Text>
+            <View style={styles.headerTitleContainer}>
+              <Text style={styles.gateHeaderTitle}>Discover People</Text>
+              {subtitle ? (
+                <Text style={styles.gateHeaderSubtitle} numberOfLines={1}>
+                  {subtitle}
+                </Text>
+              ) : null}
+            </View>
             <View style={{ width: 40 }} />
           </View>
           <View style={styles.gateContainer}>
-            <View style={styles.gateIconCircle}>
-              <User size={36} color="#2962FF" strokeWidth={1.5} />
+            {/* Locked Card Stack Illustration */}
+            <View style={styles.lockIllustrationContainer}>
+              <View style={[styles.lockedCard, styles.lockedCardLeft]}>
+                <View style={styles.cardAvatarPlaceholder} />
+                <View style={styles.cardTextPlaceholderLong} />
+                <View style={styles.cardTextPlaceholderShort} />
+              </View>
+              <View style={[styles.lockedCard, styles.lockedCardRight]}>
+                <View style={styles.cardAvatarPlaceholder} />
+                <View style={styles.cardTextPlaceholderLong} />
+                <View style={styles.cardTextPlaceholderShort} />
+              </View>
+              <View style={styles.lockBadge}>
+                <Lock size={20} color="#FFFFFF" strokeWidth={2.5} />
+              </View>
             </View>
-            <Text style={styles.gateTitle}>Set Up Your Profile First</Text>
-            <Text style={styles.gateBody}>
-              To discover and connect with people at this event, you need to complete your Discover Profile.
+
+            <Text style={styles.gateTitle}>
+              {attendeeCount > 0 
+                ? `${attendeeCount} ${attendeeCount === 1 ? 'person is' : 'people are'} waiting to connect`
+                : "People are waiting to connect"}
             </Text>
-            <View style={styles.gateRequirements}>
-              <Text style={styles.gateRequirementItem}>📸  At least 3 photos</Text>
-              <Text style={styles.gateRequirementItem}>🎯  At least 1 Spark</Text>
-              <Text style={styles.gateRequirementItem}>💬  At least 1 icebreaker</Text>
+            <Text style={styles.gateBody}>
+              Complete your Discover Profile to start matching with people from this event.
+            </Text>
+
+            {/* Checklist Container */}
+            <View style={styles.checklistCard}>
+              <View style={styles.checklistHeader}>
+                <Text style={styles.checklistTitle}>Profile completion</Text>
+                <Text style={styles.checklistProgressText}>{metCount} of 3</Text>
+              </View>
+              
+              <View style={styles.progressBarBg}>
+                <View style={[styles.progressBarFill, { width: `${(metCount / 3) * 100}%` }]} />
+              </View>
+
+              <View style={styles.checklistItems}>
+                {/* Item 1: Photos */}
+                <View style={styles.checklistItem}>
+                  <View style={[styles.checkIconContainer, photosMet && styles.checkIconContainerMet]}>
+                    {photosMet ? (
+                      <Check size={18} color="#16A34A" strokeWidth={3} />
+                    ) : (
+                      <Camera size={18} color="#64748B" strokeWidth={2} />
+                    )}
+                  </View>
+                  <Text style={[styles.checkItemText, photosMet && styles.checkItemTextMet]}>
+                    At least 3 photos
+                  </Text>
+                  <Text style={[styles.checkItemCount, photosMet && styles.checkItemCountMet]}>
+                    {Math.min(profileProgress.photos, 3)}/3
+                  </Text>
+                </View>
+
+                {/* Item 2: Spark */}
+                <View style={styles.checklistItem}>
+                  <View style={[styles.checkIconContainer, sparksMet && styles.checkIconContainerMet]}>
+                    {sparksMet ? (
+                      <Check size={18} color="#16A34A" strokeWidth={3} />
+                    ) : (
+                      <Target size={18} color="#64748B" strokeWidth={2} />
+                    )}
+                  </View>
+                  <Text style={[styles.checkItemText, sparksMet && styles.checkItemTextMet]}>
+                    At least 1 Spark
+                  </Text>
+                  <Text style={[styles.checkItemCount, sparksMet && styles.checkItemCountMet]}>
+                    {Math.min(profileProgress.sparks, 1)}/1
+                  </Text>
+                </View>
+
+                {/* Item 3: Icebreaker */}
+                <View style={styles.checklistItem}>
+                  <View style={[styles.checkIconContainer, icebreakersMet && styles.checkIconContainerMet]}>
+                    {icebreakersMet ? (
+                      <Check size={18} color="#16A34A" strokeWidth={3} />
+                    ) : (
+                      <MessageCircle size={18} color="#64748B" strokeWidth={2} />
+                    )}
+                  </View>
+                  <Text style={[styles.checkItemText, icebreakersMet && styles.checkItemTextMet]}>
+                    At least 1 icebreaker
+                  </Text>
+                  <Text style={[styles.checkItemCount, icebreakersMet && styles.checkItemCountMet]}>
+                    {Math.min(profileProgress.icebreakers, 1)}/1
+                  </Text>
+                </View>
+              </View>
             </View>
+
             <TouchableOpacity
               style={styles.gateButton}
               onPress={() => navigation.navigate("EditDiscoverProfile")}
               activeOpacity={0.85}
             >
               <Text style={styles.gateButtonText}>Complete My Profile</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleBack} style={styles.gateCancelLink}>
-              <Text style={styles.gateCancelText}>Go Back</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
@@ -248,7 +375,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
             >
               <ArrowLeft size={26} color={COLORS.editorial.textSecondary} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>{event?.title || "Attendees"}</Text>
+            <Text style={styles.headerTitle}>{eventData?.title || "Attendees"}</Text>
             <View style={{ width: 40 }} />
           </View>
           <View style={styles.center}>
@@ -470,29 +597,117 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#faf9f7", // Soft Off-White
   },
-  // Profile completion gate styles
+  // Profile completion gate styles (Premium Light Theme)
+  gateScreenContainer: {
+    flex: 1,
+    backgroundColor: "#faf9f7",
+  },
+  gateHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: SPACING.l,
+    paddingVertical: SPACING.m,
+    backgroundColor: "#faf9f7",
+  },
+  gateHeaderTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 18,
+    color: "#0F172A",
+    textAlign: "center",
+  },
+  gateHeaderSubtitle: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+    textAlign: "center",
+  },
+  gateBackBtn: {
+    padding: 4,
+  },
+  headerTitleContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
+  },
   gateContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 32,
-    paddingBottom: 60,
+    paddingHorizontal: 28,
+    paddingBottom: 40,
   },
-  gateIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#EFF6FF",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 24,
+  lockIllustrationContainer: {
+    height: 120,
+    width: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 28,
+    position: 'relative',
+  },
+  lockedCard: {
+    width: 90,
+    height: 120,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 10,
+    position: 'absolute',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  lockedCardLeft: {
+    transform: [{ rotate: '-12deg' }, { translateX: -20 }],
+  },
+  lockedCardRight: {
+    transform: [{ rotate: '12deg' }, { translateX: 20 }],
+  },
+  cardAvatarPlaceholder: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+    marginBottom: 8,
+  },
+  cardTextPlaceholderLong: {
+    width: '80%',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#F1F5F9',
+    marginBottom: 6,
+  },
+  cardTextPlaceholderShort: {
+    width: '50%',
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#F1F5F9',
+  },
+  lockBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#2962FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'absolute',
+    zIndex: 10,
+    shadowColor: '#2962FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
   gateTitle: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
     fontSize: 22,
     color: "#0F172A",
     textAlign: "center",
-    marginBottom: 12,
+    marginBottom: 8,
     letterSpacing: -0.3,
   },
   gateBody: {
@@ -503,24 +718,85 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 28,
   },
-  gateRequirements: {
+  checklistCard: {
     width: "100%",
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
-    gap: 12,
-    marginBottom: 28,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.03,
+    shadowRadius: 16,
     elevation: 2,
   },
-  gateRequirementItem: {
-    fontFamily: FONTS.medium,
+  checklistHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  checklistTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
     fontSize: 15,
-    color: "#334155",
-    lineHeight: 22,
+    color: "#0F172A",
+  },
+  checklistProgressText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: "#2962FF",
+  },
+  progressBarBg: {
+    width: "100%",
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#F1F5F9",
+    marginBottom: 20,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    borderRadius: 3,
+    backgroundColor: "#2962FF",
+  },
+  checklistItems: {
+    gap: 16,
+  },
+  checklistItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  checkIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  checkIconContainerMet: {
+    backgroundColor: "#DCFCE7",
+  },
+  checkItemText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: "#64748B",
+    flex: 1,
+  },
+  checkItemTextMet: {
+    color: "#0F172A",
+  },
+  checkItemCount: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: "#64748B",
+  },
+  checkItemCountMet: {
+    color: "#16A34A",
   },
   gateButton: {
     width: "100%",
@@ -534,20 +810,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 16,
     elevation: 4,
-    marginBottom: 16,
   },
   gateButtonText: {
     fontFamily: FONTS.semiBold,
     fontSize: 16,
     color: "#FFFFFF",
-  },
-  gateCancelLink: {
-    paddingVertical: 8,
-  },
-  gateCancelText: {
-    fontFamily: FONTS.medium,
-    fontSize: 14,
-    color: "#94A3B8",
   },
 
   center: {
