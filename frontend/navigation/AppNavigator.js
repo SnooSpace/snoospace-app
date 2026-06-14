@@ -87,7 +87,11 @@ export default function AppNavigator({ initialRouteName }) {
       initialRouteName={initialRouteName}
     >
       <Stack.Screen name="AuthGate" component={AuthGate} />
-      <Stack.Screen name="Landing" component={LandingScreen} />
+      <Stack.Screen
+        name="Landing"
+        component={LandingScreen}
+        options={{ gestureEnabled: false }}
+      />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="LoginOtp" component={LoginOtpScreen} />
       <Stack.Screen name="MemberSignup" component={MemberSignupNavigator} />

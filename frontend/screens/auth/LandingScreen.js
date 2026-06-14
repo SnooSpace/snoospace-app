@@ -10,6 +10,7 @@ import {
   Pressable,
   ImageBackground,
 } from "react-native";
+import { FlatList as GHFlatList } from "react-native-gesture-handler";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -43,6 +44,10 @@ import {
   getCommunityResumeScreen,
   getCommunityResumeStack,
 } from "../../utils/signupDraftManager";
+
+// RNGH-compatible animated FlatList — ensures carousel swipe gestures
+// win over the stack navigator's horizontal swipe-back recogniser.
+const AnimatedGHFlatList = Animated.createAnimatedComponent(GHFlatList);
 
 const SnooSpaceIconSvg = `<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M66.667 0.5C103.181 0.500189 132.833 31.9995 132.833 70.9219C132.833 109.844 103.181 141.344 66.667 141.344C30.1528 141.344 0.5 109.844 0.5 70.9219C0.500058 31.9993 30.1529 0.5 66.667 0.5Z" fill="#3565F2" stroke="#3D79F2"/>
@@ -416,10 +421,7 @@ const LandingScreen = ({ navigation, route }) => {
         ...activeDraft.data,
         isResumingDraft: true,
       };
-      console.log(
-        "[LandingScreen] Resuming member draft. Stack:",
-        screenStack,
-      );
+      console.log("[LandingScreen] Resuming member draft. Stack:", screenStack);
       navigation.reset({
         index: 0,
         routes: [
@@ -544,8 +546,8 @@ const LandingScreen = ({ navigation, route }) => {
           </View>
 
           {/* ── Carousel ── */}
-          <View style={styles.carouselContainer}>
-            <Animated.FlatList
+          <View style={[styles.carouselContainer, { overflow: "visible" }]}>
+            <AnimatedGHFlatList
               ref={flatListRef}
               data={PARTICIPATION_ROLES}
               keyExtractor={(item) => item.id}
@@ -559,9 +561,8 @@ const LandingScreen = ({ navigation, route }) => {
               contentContainerStyle={{
                 paddingHorizontal: (width - ITEM_SIZE) / 2,
                 alignItems: "center",
-                overflow: "visible",
               }}
-              style={{ overflow: "visible" }}
+              style={{ height: CARD_BASE_HEIGHT + 140 }}
             />
           </View>
 

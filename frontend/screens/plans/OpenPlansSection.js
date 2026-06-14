@@ -1,17 +1,40 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions,
 } from 'react-native';
-import { ChevronRight, Plus, Clock, MapPin } from 'lucide-react-native';
+import { Image } from 'expo-image';
+import { Plus, Clock, MapPin, Users, ArrowRight } from 'lucide-react-native';
 import { COLORS, FONTS, SPACING, SHADOWS } from '../../constants/theme';
 import { getAuthToken, getActiveAccount } from '../../api/auth';
-import { getPlans, likePlan, unlikePlan } from '../../api/plans';
+import { getPlans } from '../../api/plans';
 import HostPlanBottomSheet from './HostPlanBottomSheet';
 import RequestBottomSheet from './RequestBottomSheet';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-// Matches OpenPlanCard PILL_COLORS — all 16 activity types
+const MASTER_IMAGE = require('../../assets/Open_Plans.webp');
+const MASTER_SIZE  = 1254; // pixel width & height of the source image
+
+const CROP_MAP = {
+  sports:       { l: 130, t: 130, r: 470, b: 348 },
+  movies:       { l: 360, t:  10, r: 720, b: 240 },
+  bar:          { l: 870, t:   0, r: 1200, b: 200 },
+  food:         { l: 810, t: 310, r: 1150, b: 530 },
+  cafe:         { l: 330, t: 290, r: 670,  b: 490 },
+  yoga:         { l: 480, t: 420, r: 820,  b: 650 },
+  gym:          { l: 860, t: 530, r: 1190, b: 730 },
+  walk:         { l:  10, t: 620, r: 350,  b: 870 },
+  rides:        { l: 520, t: 910, r: 870,  b: 1120 },
+  live_music:   { l: 580, t: 280, r: 880,  b: 450 },
+  study:        { l: 900, t: 680, r: 1230, b: 920 },
+  creative:     { l: 230, t: 820, r: 580,  b: 1060 },
+  games:        { l: 130, t: 440, r: 470,  b: 690 },
+  gaming:       { l: 130, t: 440, r: 470,  b: 690 },
+  pet_friendly: { l: 140, t: 680, r: 490,  b: 900 },
+  hangout:      { l: 450, t: 570, r: 790,  b: 790 },
+  other:        { l: 300, t: 350, r: 660,  b: 570 },
+};
+
 const ACTIVITY_COLORS = {
   sports:       { bg: '#FFF3E0', text: '#E65100', label: 'Sports' },
   movies:       { bg: '#F3E5F5', text: '#6A1B9A', label: 'Movies' },
@@ -32,26 +55,6 @@ const ACTIVITY_COLORS = {
   other:        { bg: '#F5F5F5', text: '#424242', label: 'Other' },
 };
 
-const ACTIVITY_EMOJIS = {
-  sports:       '🏀',
-  food:         '🍜',
-  cafe:         '☕',
-  bar:          '🍸',
-  movies:       '🎬',
-  live_music:   '🎵',
-  games:        '🎮',
-  gaming:       '🎮',
-  gym:          '💪',
-  yoga:         '🧘',
-  walk:         '🚶',
-  rides:        '🏍',
-  hangout:      '🌳',
-  creative:     '🎨',
-  study:        '📚',
-  pet_friendly: '🐾',
-  other:        '＋',
-};
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatScheduled(iso) {
@@ -63,6 +66,66 @@ function formatScheduled(iso) {
   if (d.toDateString() === todayStr) return `Today, ${time}`;
   if (d.toDateString() === tomorrowStr) return `Tomorrow, ${time}`;
   return d.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' }) + ` · ${time}`;
+}
+
+function formatTimeAgo(isoString) {
+  if (!isoString) return '';
+  const created = new Date(isoString);
+  const now = new Date();
+  const diffMs = now.getTime() - created.getTime();
+  const diffMins = Math.max(1, Math.floor(diffMs / 60000));
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return created.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+}
+
+function getCostLabel(plan) {
+  if (plan.cost_type === 'free')     return 'Free';
+  if (plan.cost_type === 'self_pay') return 'Self-pay';
+  if (plan.cost_type === 'split') {
+    return plan.cost_amount_paise
+      ? `~₹${Math.round(plan.cost_amount_paise / 100)} split`
+      : 'Split cost';
+  }
+  if (plan.cost_type === 'entry_fee') {
+    return plan.cost_amount_paise
+      ? `₹${Math.round(plan.cost_amount_paise / 100)}`
+      : 'Entry fee';
+  }
+  return null;
+}
+
+function CropImage({ activityType, containerW, height = 110 }) {
+  const box   = CROP_MAP[activityType] || CROP_MAP.other;
+  const boxW  = box.r - box.l;
+  const boxH  = box.b - box.t;
+  const H     = height;
+
+  const scale   = Math.max(containerW / boxW, H / boxH);
+  const imgSize = MASTER_SIZE * scale;
+
+  // Centre the crop inside the container
+  const offsetX = -(box.l * scale) + (containerW - boxW * scale) / 2;
+  const offsetY = -(box.t * scale) + (H - boxH * scale) / 2;
+
+  return (
+    <View style={{ width: containerW, height: H, overflow: 'hidden' }}>
+      <Image
+        source={MASTER_IMAGE}
+        style={{
+          position: 'absolute',
+          width:  imgSize,
+          height: imgSize,
+          left:   offsetX,
+          top:    offsetY,
+        }}
+        contentFit="cover"
+      />
+    </View>
+  );
 }
 
 export default function OpenPlansSection({ navigation, currentUserId }) {
@@ -85,7 +148,7 @@ export default function OpenPlansSection({ navigation, currentUserId }) {
       setLoading(true);
       const token = await getAuthToken();
       const data = await getPlans(null, token);
-      setPlans((data.plans || []).slice(0, 3));
+      setPlans((data.plans || []).slice(0, 6));
     } catch (err) {
       console.error('[OpenPlansSection] load error:', err.message);
     } finally {
@@ -96,135 +159,126 @@ export default function OpenPlansSection({ navigation, currentUserId }) {
   useEffect(() => { loadPlans(); }, [loadPlans]);
 
   const handlePlanCreated = useCallback((newPlan) => {
-    setPlans(prev => [newPlan, ...prev].slice(0, 3));
+    setPlans(prev => [newPlan, ...prev].slice(0, 6));
   }, []);
 
-  const renderCompactCard = useCallback((plan, isFullWidth) => {
-    const isOwner = plan.created_by === currentUserIdState;
+  const renderOpenPlanCard = useCallback((plan) => {
+    const isOwner = currentUserIdState && (plan.created_by === currentUserIdState || plan.created_by === String(currentUserIdState));
     const activityKey = plan.activity_type in ACTIVITY_COLORS ? plan.activity_type : 'other';
     const activityStyle = ACTIVITY_COLORS[activityKey];
     const activityLabel = plan.activity_type === 'other'
       ? (plan.custom_activity_label || 'Other')
       : activityStyle.label;
 
-    const spotsLeft = plan.max_accepted - (plan.accepted_count ?? 0);
-    const spotsLeftColor = spotsLeft <= 1 ? '#EF6C00' : COLORS.textSecondary;
+    const reqStatus = plan.my_request_status ?? plan.request_status ?? null;
+    const acceptedN = plan.accepted_count ?? 0;
+    const maxAccepted = plan.max_accepted ?? 0;
+    const costLabel = getCostLabel(plan);
+    const createdTime = plan.created_at || plan.createdAt || plan.scheduled_at;
 
-    const reqStatus = plan.my_request_status;
-
-    let btnLabel = 'Join';
-    let btnDisabled = false;
+    // Overlay statuses
+    let bottomPillLabel = null;
     if (isOwner) {
-      btnLabel = 'Your plan';
-      btnDisabled = true;
-    } else if (reqStatus === 'pending') {
-      btnLabel = 'Requested';
-      btnDisabled = true;
+      bottomPillLabel = 'Hosting';
     } else if (reqStatus === 'approved') {
-      btnLabel = 'Joined';
-      btnDisabled = true;
-    }
-
-    if (isFullWidth) {
-      const formattedDate = formatScheduled(plan.scheduled_at);
-      const spotsLeft = plan.max_accepted - (plan.accepted_count ?? 0);
-      const spotsStr = `${spotsLeft} spot${spotsLeft !== 1 ? 's' : ''} left`;
-      const subtitleText = `${formattedDate} · ${spotsStr}`;
-
-      return (
-        <TouchableOpacity
-          style={styles.fullCard}
-          activeOpacity={0.9}
-          onPress={() => navigation.navigate('PlanDetail', { planId: plan.id })}
-        >
-          <View style={styles.fullCardHeader}>
-            <View style={[styles.compactPill, { backgroundColor: activityStyle.bg }]}>
-              <Text style={[styles.compactPillText, { color: activityStyle.text }]}>
-                {activityLabel}
-              </Text>
-            </View>
-            {isOwner && (
-              <View style={styles.yourPlanBadge}>
-                <Text style={styles.yourPlanBadgeText}>Your plan</Text>
-              </View>
-            )}
-          </View>
-
-          <Text style={styles.fullCardTitle} numberOfLines={2}>
-            {plan.title}
-          </Text>
-
-          <Text style={styles.fullCardSubtitle}>
-            {subtitleText}
-          </Text>
-        </TouchableOpacity>
-      );
+      bottomPillLabel = 'Joined';
+    } else if (reqStatus === 'pending') {
+      bottomPillLabel = 'Requested';
     }
 
     return (
       <TouchableOpacity
-        style={styles.compactCard}
+        key={plan.id}
+        style={[
+          styles.planCard,
+          isOwner && styles.planCardHostingOutline
+        ]}
         activeOpacity={0.9}
         onPress={() => navigation.navigate('PlanDetail', { planId: plan.id })}
       >
-        <View style={[styles.compactPill, { backgroundColor: activityStyle.bg }]}>
-          <Text style={[styles.compactPillText, { color: activityStyle.text }]}>
-            {`${ACTIVITY_EMOJIS[activityKey] || ACTIVITY_EMOJIS.other} ${activityLabel}`}
-          </Text>
-        </View>
-
-        <Text style={styles.compactTitle} numberOfLines={2}>
-          {plan.title}
-        </Text>
-
-        <View style={styles.compactMetaRow}>
-          <Clock size={12} color={COLORS.textSecondary} strokeWidth={2} />
-          <Text style={styles.compactMetaText} numberOfLines={1}>
-            {formatScheduled(plan.scheduled_at)}
-          </Text>
-        </View>
-        {plan.location_public ? (
-          <View style={styles.compactMetaRow}>
-            <MapPin size={12} color={COLORS.textSecondary} strokeWidth={2} />
-            <Text style={styles.compactMetaText} numberOfLines={1}>
-              {plan.location_public}
+        {/* Upper Poster Half */}
+        <View style={styles.cardPosterContainer}>
+          <CropImage activityType={activityKey} containerW={170} height={110} />
+          
+          {/* Top-Left Category Badge */}
+          <View style={[styles.cardCategoryPill, { backgroundColor: activityStyle.bg }]}>
+            <Text style={[styles.cardCategoryPillText, { color: activityStyle.text }]}>
+              {activityLabel}
             </Text>
           </View>
-        ) : null}
 
-        <View style={{ flex: 1, minHeight: 12 }} />
+          {/* Top-Right Count Badge */}
+          <View style={styles.cardCountPill}>
+            <Users size={10} color="#FFFFFF" style={{ marginRight: 3 }} />
+            <Text style={styles.cardCountPillText}>
+              {`${acceptedN}/${maxAccepted}`}
+            </Text>
+          </View>
 
-        <View style={styles.compactBottomRow}>
-          <Text style={[styles.spotsLeftText, { color: spotsLeftColor }]}>
-            {spotsLeft === 1 ? '1 spot left' : `${spotsLeft} spots left`}
+          {/* Bottom-Left Status Badge (Hosting / Joined / Requested) */}
+          {bottomPillLabel && (
+            <View style={styles.cardStatusPill}>
+              <View style={[styles.statusDot, bottomPillLabel === 'Hosting' ? styles.statusDotHosting : styles.statusDotJoined]} />
+              <Text style={styles.cardStatusPillText}>
+                {bottomPillLabel}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Lower Content Half */}
+        <View style={styles.cardContentContainer}>
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {plan.title}
           </Text>
-          <TouchableOpacity
-            style={[
-              styles.compactJoinBtn,
-              btnDisabled && styles.compactJoinBtnDisabled
-            ]}
-            onPress={() => !btnDisabled && setRequestSheet({ planId: plan.id, planTitle: plan.title })}
-            disabled={btnDisabled}
-          >
-            <Text style={styles.compactJoinBtnText}>{btnLabel}</Text>
-          </TouchableOpacity>
+
+          <View style={styles.cardMetaRow}>
+            <MapPin size={12} color="#94A3B8" />
+            <Text style={styles.cardMetaText} numberOfLines={1}>
+              {plan.location_public || 'Location TBD'}
+            </Text>
+          </View>
+
+          <View style={styles.cardMetaRow}>
+            <Clock size={12} color="#94A3B8" />
+            <Text style={styles.cardMetaText} numberOfLines={1}>
+              {formatScheduled(plan.scheduled_at)}
+            </Text>
+          </View>
+
+          <View style={styles.cardBottomRow}>
+            {/* Price tag */}
+            <View style={[styles.costPill, costLabel === 'Free' ? styles.costPillFree : styles.costPillPaid]}>
+              <Text style={[styles.costPillText, costLabel === 'Free' ? styles.costPillTextFree : styles.costPillTextPaid]}>
+                {costLabel || 'Free'}
+              </Text>
+            </View>
+            
+            {/* Posted time ago */}
+            <Text style={styles.timeAgoText}>
+              {formatTimeAgo(createdTime)}
+            </Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
   }, [currentUserIdState, navigation]);
 
-  // Layout selection logic based on number of plans
-  let halfPlans = [];
-  let fullPlan = null;
-
-  if (plans.length === 1) {
-    fullPlan = plans[0];
-  } else if (plans.length === 2) {
-    halfPlans = plans;
-  } else if (plans.length >= 3) {
-    halfPlans = plans.slice(0, 2);
-    fullPlan = plans[2];
-  }
+  const renderSeeAllCard = () => {
+    return (
+      <TouchableOpacity
+        key="see-all"
+        style={styles.seeAllCard}
+        activeOpacity={0.8}
+        onPress={() => navigation.navigate('PlansDiscoverFeed')}
+      >
+        <View style={styles.seeAllIconContainer}>
+          <ArrowRight size={18} color="#2962FF" strokeWidth={2.5} />
+        </View>
+        <Text style={styles.seeAllCardText}>See all</Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.section}>
@@ -253,33 +307,17 @@ export default function OpenPlansSection({ navigation, currentUserId }) {
           </Text>
         </View>
       ) : (
-        <View style={styles.grid}>
-          {halfPlans.length > 0 && (
-            <View style={styles.gridRow}>
-              {halfPlans.map(plan => (
-                <View key={plan.id} style={styles.halfCardWrapper}>
-                  {renderCompactCard(plan, false)}
-                </View>
-              ))}
-            </View>
-          )}
-          {fullPlan && (
-            <View style={styles.fullCardWrapper}>
-              {renderCompactCard(fullPlan, true)}
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* See all */}
-      {plans.length > 0 && (
-        <TouchableOpacity
-          style={styles.seeAllRow}
-          onPress={() => navigation.navigate('PlansDiscoverFeed')}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={182} // Card width 170 + Gap 12
+          decelerationRate="fast"
+          snapToAlignment="start"
+          contentContainerStyle={styles.horizontalScrollContent}
         >
-          <Text style={styles.seeAllText}>See all plans</Text>
-          <ChevronRight size={14} color={COLORS.primary} strokeWidth={2} />
-        </TouchableOpacity>
+          {plans.map(plan => renderOpenPlanCard(plan))}
+          {renderSeeAllCard()}
+        </ScrollView>
       )}
 
       {/* Sheets */}
@@ -329,138 +367,194 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#2962FF',
+    shadowColor: '#2962FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
   },
   hostBtnText: {
     fontFamily: FONTS.semiBold,
     fontSize: 13,
     color: '#FFFFFF',
   },
-  grid: {
-    paddingHorizontal: 16,
-  },
-  gridRow: {
-    flexDirection: 'row',
+  horizontalScrollContent: {
+    paddingHorizontal: 24,
     gap: 12,
-    marginBottom: 12,
+    paddingBottom: 8, // space for shadows
   },
-  halfCardWrapper: {
+  // New Open Plan Card styles
+  planCard: {
+    width: 170,
+    height: 240,
+    backgroundColor: '#1E293B',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  planCardHostingOutline: {
+    borderColor: '#2962FF',
+  },
+  cardPosterContainer: {
+    width: 170,
+    height: 110,
+    position: 'relative',
+    backgroundColor: '#0F172A',
+  },
+  cardCategoryPill: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  cardCategoryPillText: {
+    fontFamily: FONTS.medium,
+    fontSize: 10,
+  },
+  cardCountPill: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  cardCountPillText: {
+    fontFamily: FONTS.medium,
+    fontSize: 10,
+    color: '#FFFFFF',
+  },
+  cardStatusPill: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  cardStatusPillText: {
+    fontFamily: FONTS.medium,
+    fontSize: 9,
+    color: '#FFFFFF',
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 4,
+  },
+  statusDotHosting: {
+    backgroundColor: '#38BDF8',
+  },
+  statusDotJoined: {
+    backgroundColor: '#34D399',
+  },
+  cardContentContainer: {
+    padding: 12,
+    backgroundColor: '#1E293B',
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  cardTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 14,
+    color: '#FFFFFF',
+    lineHeight: 18,
+    marginBottom: 4,
+  },
+  cardMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  cardMetaText: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: '#CBD5E1',
     flex: 1,
   },
-  fullCardWrapper: {
-    width: '100%',
+  cardBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 6,
   },
-  // Compact Card styles
-  compactCard: {
-    backgroundColor: COLORS.surface,
+  costPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  costPillFree: {
+    backgroundColor: '#064E3B',
+  },
+  costPillPaid: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  costPillText: {
+    fontFamily: FONTS.medium,
+    fontSize: 10,
+  },
+  costPillTextFree: {
+    color: '#34D399',
+  },
+  costPillTextPaid: {
+    color: '#E2E8F0',
+  },
+  timeAgoText: {
+    fontFamily: FONTS.medium,
+    fontSize: 10,
+    color: '#94A3B8',
+  },
+  // See all Card styles
+  seeAllCard: {
+    width: 170,
+    height: 240,
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    padding: 14,
-    minHeight: 180,
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  compactPill: {
-    flexDirection: 'row',
+    borderColor: '#E2E8F0',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-    marginBottom: 10,
-    gap: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.03,
+    shadowRadius: 12,
+    elevation: 1,
   },
-  compactPillText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 12,
-  },
-  compactTitle: {
-    fontFamily: FONTS.primary,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    lineHeight: 20,
-    marginBottom: 8,
-  },
-  compactMetaRow: {
-    flexDirection: 'row',
+  seeAllIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
+    marginBottom: 12,
   },
-  compactMetaText: {
+  seeAllCardText: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-  compactBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  spotsLeftText: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-  },
-  compactJoinBtn: {
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: COLORS.surface,
-  },
-  compactJoinBtnDisabled: {
-    borderColor: 'transparent',
-    backgroundColor: '#F3F4F6',
-  },
-  compactJoinBtnText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 12,
-    color: COLORS.textPrimary,
-  },
-  // Full width Card styles
-  fullCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: COLORS.primary,
-    padding: 16,
-  },
-  fullCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  yourPlanBadge: {
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  yourPlanBadgeText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 11,
-    color: COLORS.primary,
-  },
-  fullCardTitle: {
-    fontFamily: FONTS.primary,
-    fontSize: 16,
-    color: COLORS.textPrimary,
-    lineHeight: 22,
-    marginBottom: 6,
-  },
-  fullCardSubtitle: {
-    fontFamily: FONTS.medium,
-    fontSize: 13,
-    color: COLORS.textSecondary,
+    fontSize: 14,
+    color: '#1E293B',
   },
   emptyState: {
     marginHorizontal: 24,
@@ -475,18 +569,5 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
-  },
-  seeAllRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 24,
-    marginTop: 12,
-    gap: 4,
-  },
-  seeAllText: {
-    fontFamily: FONTS.medium,
-    fontSize: 14,
-    color: COLORS.primary,
   },
 });
