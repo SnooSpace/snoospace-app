@@ -98,6 +98,13 @@ export default function EventCard({
   onInterestedPress,
   onShare,
   style,
+  hideEngagement = false,
+  hideRsvp = false,
+  hideQr = false,
+  hidePriceDetails = false,
+  showStatusLabel = false,
+  onAttendeesPress,
+  compact = false,
 }) {
   const [isInterested, setIsInterested] = useState(
     Boolean(event?.is_interested),
@@ -123,6 +130,7 @@ export default function EventCard({
 
   const lastTapRef = useRef(0);
   const timerRef = useRef(null);
+  const cardRef = useRef(null);
 
   const heartScale = useRef(new Animated.Value(0)).current;
   const [heartPos, setHeartPos] = useState({ x: 0, y: 0 });
@@ -182,8 +190,12 @@ export default function EventCard({
         clearTimeout(timerRef.current);
         timerRef.current = null;
       }
-      const { locationX, locationY } = event.nativeEvent;
-      triggerHeartAnimation(locationX, locationY);
+      const { pageX, pageY } = event.nativeEvent;
+      cardRef.current?.measure((x, y, width, height, cardPageX, cardPageY) => {
+        const relativeX = pageX - cardPageX;
+        const relativeY = pageY - cardPageY;
+        triggerHeartAnimation(relativeX, relativeY);
+      });
       if (!isLiked) {
         handleLikePress();
       } else {
@@ -481,11 +493,15 @@ export default function EventCard({
   };
 
   const handleAttendeesPress = () => {
-    navigation.navigate("EventDetails", {
-      eventId: id,
-      eventData: event,
-      scrollToAttendees: true,
-    });
+    if (onAttendeesPress) {
+      onAttendeesPress();
+    } else {
+      navigation.navigate("EventDetails", {
+        eventId: id,
+        eventData: event,
+        scrollToAttendees: true,
+      });
+    }
   };
 
   const getLowestPrice = () => {
@@ -535,20 +551,22 @@ export default function EventCard({
   const displayPrice = isFree ? "Free" : `₹${lowestPrice.toLocaleString("en-IN")} onwards`;
 
   const { month, day } = parseDisplayDate(displayDate);
+  const eventDateObj = event_date ? new Date(event_date) : null;
+  const isPast = eventDateObj ? eventDateObj.getTime() < Date.now() : false;
 
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, compact && styles.containerCompact, style]}>
       {/* Event Label */}
-      <View style={styles.eventLabel}>
-        <Calendar size={13} color={COLORS.primary} strokeWidth={2} />
-        <Text style={styles.eventLabelText}>Event</Text>
+      <View style={[styles.eventLabel, compact && styles.eventLabelCompact]}>
+        <Calendar size={compact ? 11 : 13} color={COLORS.primary} strokeWidth={2} />
+        <Text style={[styles.eventLabelText, compact && styles.eventLabelTextCompact]}>Event</Text>
       </View>
 
       {/* Main Card */}
-      <TouchableOpacity style={styles.card} activeOpacity={1} onPress={handleCardPress}>
+      <TouchableOpacity ref={cardRef} style={styles.card} activeOpacity={1} onPress={handleCardPress}>
         {/* Banner Image */}
         <View 
-          style={styles.imageContainer}
+          style={[styles.imageContainer, compact && styles.imageContainerCompact]}
           onLayout={(e) => {
             setContainerWidth(e.nativeEvent.layout.width);
           }}
@@ -607,15 +625,28 @@ export default function EventCard({
               end={{ x: 1, y: 1 }}
               style={styles.placeholderBanner}
             >
-              <Calendar size={40} color="rgba(255,255,255,0.7)" strokeWidth={1.8} />
+              <Calendar size={compact ? 24 : 40} color="rgba(255,255,255,0.7)" strokeWidth={1.8} />
             </LinearGradient>
           )}
 
           {/* Date Badge */}
-          <View style={styles.dateBadge}>
-            <Text style={styles.dateBadgeHeader}>{month}</Text>
-            <Text style={styles.dateBadgeNumber}>{day}</Text>
+          <View style={[styles.dateBadge, compact && styles.dateBadgeCompact]}>
+            <Text style={[styles.dateBadgeHeader, compact && styles.dateBadgeHeaderCompact]}>{month}</Text>
+            <Text style={[styles.dateBadgeNumber, compact && styles.dateBadgeNumberCompact]}>{day}</Text>
           </View>
+
+          {/* Status Badge overlay inside image container */}
+          {showStatusLabel && (
+            <View style={[
+              styles.statusBadge, 
+              compact && styles.statusBadgeCompact,
+              isPast ? styles.pastBadge : styles.upcomingBadge
+            ]}>
+              <Text style={[styles.statusBadgeNumber, compact && styles.statusBadgeNumberCompact]}>
+                {isPast ? "PAST" : "UPCOMING"}
+              </Text>
+            </View>
+          )}
 
           {/* Gradient Overlay */}
           <LinearGradient
@@ -625,9 +656,9 @@ export default function EventCard({
         </View>
 
         {/* Content */}
-        <View style={styles.content}>
+        <View style={[styles.content, compact && styles.contentCompact]}>
           {/* Organizer/Community Row + QR Ticket shortcut */}
-          <View style={styles.communityQrRow}>
+          <View style={[styles.communityQrRow, compact && styles.communityQrRowCompact]}>
             <TouchableOpacity
               style={styles.communityRow}
               onPress={() => {
@@ -639,21 +670,21 @@ export default function EventCard({
               {hasValidPhoto ? (
                 <Image
                   source={{ uri: community_logo }}
-                  style={styles.communityAvatar}
+                  style={[styles.communityAvatar, compact && styles.communityAvatarCompact]}
                 />
               ) : (
                 <LinearGradient
                   colors={getGradientForName(community_name || "Community")}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={[styles.communityAvatar, styles.communityAvatarGradient]}
+                  style={[styles.communityAvatar, styles.communityAvatarGradient, compact && styles.communityAvatarCompact]}
                 >
-                  <Text style={styles.communityInitials}>
+                  <Text style={[styles.communityInitials, compact && styles.communityInitialsCompact]}>
                     {getInitials(community_name || "C")}
                   </Text>
                 </LinearGradient>
               )}
-              <Text style={styles.communityName} numberOfLines={1}>
+              <Text style={[styles.communityName, compact && styles.communityNameCompact]} numberOfLines={1}>
                 {community_name}
               </Text>
               {is_following_community && (
@@ -663,7 +694,7 @@ export default function EventCard({
               )}
             </TouchableOpacity>
 
-            {isRegistered && (
+            {isRegistered && !hideQr && (
               <TouchableOpacity
                 onPress={handleQrPress}
                 style={styles.qrButton}
@@ -678,53 +709,66 @@ export default function EventCard({
           {/* Clickable Content Area */}
           <View>
             {/* Title */}
-            <Text style={styles.title} numberOfLines={2}>
+            <Text style={[styles.title, compact && styles.titleCompact]} numberOfLines={2}>
               {title}
             </Text>
 
             {/* Metadata Grid */}
-            <View style={styles.metaGrid}>
-              {/* Combined Date & Time Row */}
-              <View style={styles.metaItem}>
-                <Clock size={14} color={COLORS.textSecondary} strokeWidth={2} />
-                <Text style={styles.metaText}>{displayDate} • {displayTime}</Text>
-              </View>
-
-              {locationName && (
-                <View style={styles.metaItem}>
-                  {event_type === "virtual" ? (
-                    <Video size={14} color={COLORS.textSecondary} strokeWidth={2} />
-                  ) : (
-                    <MapPin size={14} color={COLORS.textSecondary} strokeWidth={2} />
-                  )}
-                  <Text style={styles.metaText} numberOfLines={1}>
-                    {locationName}
+            {compact ? (
+              <View style={styles.metaGridCompact}>
+                <View style={styles.metaItemCompact}>
+                  <Clock size={13} color={COLORS.textSecondary} strokeWidth={2} />
+                  <Text style={styles.metaTextCompact} numberOfLines={1}>
+                    {displayDate} • {displayTime}{locationName ? ` • ${locationName}` : ""}
                   </Text>
                 </View>
-              )}
-            </View>
+              </View>
+            ) : (
+              <View style={styles.metaGrid}>
+                {/* Combined Date & Time Row */}
+                <View style={styles.metaItem}>
+                  <Clock size={14} color={COLORS.textSecondary} strokeWidth={2} />
+                  <Text style={styles.metaText}>{displayDate} • {displayTime}</Text>
+                </View>
+
+                {locationName && (
+                  <View style={styles.metaItem}>
+                    {event_type === "virtual" ? (
+                      <Video size={14} color={COLORS.textSecondary} strokeWidth={2} />
+                    ) : (
+                      <MapPin size={14} color={COLORS.textSecondary} strokeWidth={2} />
+                    )}
+                    <Text style={styles.metaText} numberOfLines={1}>
+                      {locationName}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
 
           {/* Price & Explicit View Details CTA Row */}
-          <View style={styles.priceDetailsRow}>
-            <View style={styles.priceContainer}>
-              <Text style={[styles.priceText, isFree && styles.freePriceText]}>
-                {displayPrice}
-              </Text>
-            </View>
+          {!hidePriceDetails && (
+            <View style={styles.priceDetailsRow}>
+              <View style={styles.priceContainer}>
+                <Text style={[styles.priceText, isFree && styles.freePriceText]}>
+                  {displayPrice}
+                </Text>
+              </View>
 
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => onPress?.(event)}
-              style={styles.viewDetailsRow}
-            >
-              <Text style={styles.viewDetailsText}>View details</Text>
-              <MoveRight size={14} color={COLORS.primary} strokeWidth={2.2} />
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => onPress?.(event)}
+                style={styles.viewDetailsRow}
+              >
+                <Text style={styles.viewDetailsText}>View details</Text>
+                <MoveRight size={14} color={COLORS.primary} strokeWidth={2.2} />
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Bottom Row: Attendees Stack + RSVP CTA Button */}
-          <View style={styles.bottomRow}>
+          <View style={[styles.bottomRow, compact && styles.bottomRowCompact]}>
             {/* Attendee Stack */}
             <TouchableOpacity 
               style={styles.attendeesContainer}
@@ -732,63 +776,72 @@ export default function EventCard({
               activeOpacity={0.7}
             >
               {attendee_count > 0 ? (
-                <>
-                  <View style={styles.avatarStack}>
-                    {Array.isArray(event.attendee_avatars) && event.attendee_avatars.length > 0 ? (
-                      event.attendee_avatars.slice(0, 3).map((avatarData, index) => {
-                        const hasPhoto = avatarData?.profile_photo_url && /^https?:\/\//.test(avatarData.profile_photo_url);
-                        const zIndex = 3 - index;
-                        const marginLeft = index > 0 ? -8 : 0;
-                        if (hasPhoto) {
-                          return (
-                            <Image
-                              key={`attendee-avatar-${index}`}
-                              source={{ uri: avatarData.profile_photo_url }}
-                              style={[styles.avatar, { marginLeft, zIndex }]}
-                            />
-                          );
-                        } else {
-                          const initials = getInitials(avatarData?.name || "U");
-                          const gradientColors = getGradientForName(avatarData?.name || "U");
-                          return (
-                            <LinearGradient
-                              key={`attendee-avatar-${index}`}
-                              colors={gradientColors}
-                              start={{ x: 0, y: 0 }}
-                              end={{ x: 1, y: 1 }}
-                              style={[styles.avatar, styles.avatarGradient, { marginLeft, zIndex }]}
-                            >
-                              <Text style={styles.avatarInitials}>{initials}</Text>
-                            </LinearGradient>
-                          );
-                        }
-                      })
-                    ) : (
-                      // Fallback placeholders when no actual attendee profiles are loaded
-                      <>
-                        {attendee_count >= 1 && (
-                          <View style={[styles.avatar, { backgroundColor: "#E5E7EB", zIndex: 3 }]} />
+                (() => {
+                  const hasAvatars = Array.isArray(event.attendee_avatars) && event.attendee_avatars.length > 0;
+                  const shownCount = hasAvatars ? Math.min(event.attendee_avatars.length, 3) : Math.min(attendee_count, 3);
+                  const remainingCount = attendee_count - shownCount;
+                  return (
+                    <>
+                      <View style={[styles.avatarStack, compact && styles.avatarStackCompact]}>
+                        {hasAvatars ? (
+                          event.attendee_avatars.slice(0, 3).map((avatarData, index) => {
+                            const hasPhoto = avatarData?.profile_photo_url && /^https?:\/\//.test(avatarData.profile_photo_url);
+                            const zIndex = 3 - index;
+                            const marginLeft = index > 0 ? (compact ? -6 : -8) : 0;
+                            if (hasPhoto) {
+                              return (
+                                <Image
+                                  key={`attendee-avatar-${index}`}
+                                  source={{ uri: avatarData.profile_photo_url }}
+                                  style={[styles.avatar, compact && styles.avatarCompact, { marginLeft, zIndex }]}
+                                />
+                              );
+                            } else {
+                              const initials = getInitials(avatarData?.name || "U");
+                              const gradientColors = getGradientForName(avatarData?.name || "U");
+                              return (
+                                <LinearGradient
+                                  key={`attendee-avatar-${index}`}
+                                  colors={gradientColors}
+                                  start={{ x: 0, y: 0 }}
+                                  end={{ x: 1, y: 1 }}
+                                  style={[styles.avatar, styles.avatarGradient, compact && styles.avatarCompact, { marginLeft, zIndex }]}
+                                >
+                                  <Text style={styles.avatarInitials}>{initials}</Text>
+                                </LinearGradient>
+                              );
+                            }
+                          })
+                        ) : (
+                          // Fallback placeholders when no actual attendee profiles are loaded
+                          <>
+                            {attendee_count >= 1 && (
+                              <View style={[styles.avatar, compact && styles.avatarCompact, { backgroundColor: "#E5E7EB", zIndex: 3 }]} />
+                            )}
+                            {attendee_count >= 2 && (
+                              <View style={[styles.avatar, compact && styles.avatarCompact, { backgroundColor: "#D1D5DB", marginLeft: compact ? -6 : -8, zIndex: 2 }]} />
+                            )}
+                            {attendee_count >= 3 && (
+                              <View style={[styles.avatar, compact && styles.avatarCompact, { backgroundColor: "#9CA3AF", marginLeft: compact ? -6 : -8, zIndex: 1 }]} />
+                            )}
+                          </>
                         )}
-                        {attendee_count >= 2 && (
-                          <View style={[styles.avatar, { backgroundColor: "#D1D5DB", marginLeft: -8, zIndex: 2 }]} />
-                        )}
-                        {attendee_count >= 3 && (
-                          <View style={[styles.avatar, { backgroundColor: "#9CA3AF", marginLeft: -8, zIndex: 1 }]} />
-                        )}
-                      </>
-                    )}
-                  </View>
-                  <Text style={styles.attendeeCount}>
-                    {`+${attendee_count}`}
-                  </Text>
-                </>
+                      </View>
+                      {remainingCount > 0 && (
+                        <Text style={styles.attendeeCount}>
+                          {`+${remainingCount}`}
+                        </Text>
+                      )}
+                    </>
+                  );
+                })()
               ) : (
-                <View style={{ height: 24 }} />
+                <View style={{ height: compact ? 20 : 24 }} />
               )}
             </TouchableOpacity>
 
             {/* Action CTA Button */}
-            {userRole !== "community" && (
+            {userRole !== "community" && !hideRsvp && (
               <>
                 {isRegistered ? (
                   <View style={[styles.interestedButton, styles.goingButton]}>
@@ -828,24 +881,26 @@ export default function EventCard({
           </View>
 
           {/* Engagement Row */}
-          <View style={styles.engagementRow}>
-            <TouchableOpacity style={styles.engagementBtn} onPress={handleLikePress} disabled={isLiking}>
-              <Heart size={22} color={isLiked ? COLORS.error : '#5e8d9b'} fill={isLiked ? COLORS.error : 'transparent'} strokeWidth={2} />
-              {likeCount > 0 && <Text style={[styles.engagementCount, isLiked && { color: COLORS.error }]}>{likeCount}</Text>}
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.engagementBtn} onPress={handleCommentPress}>
-              <MessageCircle size={22} color="#5e8d9b" strokeWidth={2} />
-              {commentCount > 0 && <Text style={styles.engagementCount}>{commentCount}</Text>}
-            </TouchableOpacity>
-            <View style={styles.engagementBtn}>
-              <ChartNoAxesCombined size={22} color="#5e8d9b" strokeWidth={2} />
-              <Text style={styles.engagementCount}>{viewCount}</Text>
+          {!hideEngagement && (
+            <View style={styles.engagementRow}>
+              <TouchableOpacity style={styles.engagementBtn} onPress={handleLikePress} disabled={isLiking}>
+                <Heart size={22} color={isLiked ? COLORS.error : '#5e8d9b'} fill={isLiked ? COLORS.error : 'transparent'} strokeWidth={2} />
+                {likeCount > 0 && <Text style={[styles.engagementCount, isLiked && { color: COLORS.error }]}>{likeCount}</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.engagementBtn} onPress={handleCommentPress}>
+                <MessageCircle size={22} color="#5e8d9b" strokeWidth={2} />
+                {commentCount > 0 && <Text style={styles.engagementCount}>{commentCount}</Text>}
+              </TouchableOpacity>
+              <View style={styles.engagementBtn}>
+                <ChartNoAxesCombined size={22} color="#5e8d9b" strokeWidth={2} />
+                <Text style={styles.engagementCount}>{viewCount}</Text>
+              </View>
+              <TouchableOpacity style={styles.engagementBtn} onPress={handleSharePress}>
+                <Send size={22} color="#5e8d9b" strokeWidth={2} />
+                {shareCount > 0 && <Text style={styles.engagementCount}>{shareCount}</Text>}
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.engagementBtn} onPress={handleSharePress}>
-              <Send size={22} color="#5e8d9b" strokeWidth={2} />
-              {shareCount > 0 && <Text style={styles.engagementCount}>{shareCount}</Text>}
-            </TouchableOpacity>
-          </View>
+          )}
 
           {showHeart && (
             <Animated.View
@@ -894,6 +949,29 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 8,
     paddingHorizontal: 4,
+  },
+  statusBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 54,
+    height: 38,
+    ...SHADOWS.sm,
+  },
+  pastBadge: {
+    backgroundColor: "rgba(229, 62, 62, 0.85)",
+  },
+  upcomingBadge: {
+    backgroundColor: "rgba(22, 163, 74, 0.85)",
+  },
+  statusBadgeNumber: {
+    fontSize: 13,
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    color: "#FFFFFF",
   },
   eventLabelText: {
     fontSize: 12,
@@ -1200,5 +1278,93 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: FONTS.medium,
     color: '#5e8d9b',
+  },
+  containerCompact: {
+    marginVertical: 6,
+  },
+  eventLabelCompact: {
+    marginBottom: 4,
+  },
+  eventLabelTextCompact: {
+    fontSize: 10,
+  },
+  imageContainerCompact: {
+    height: 90,
+  },
+  dateBadgeCompact: {
+    top: 8,
+    left: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    minWidth: 36,
+    borderRadius: 8,
+  },
+  dateBadgeHeaderCompact: {
+    fontSize: 8,
+    marginBottom: 1,
+  },
+  dateBadgeNumberCompact: {
+    fontSize: 12,
+  },
+  statusBadgeCompact: {
+    top: 8,
+    right: 8,
+    height: 26,
+    minWidth: 46,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  statusBadgeNumberCompact: {
+    fontSize: 10,
+  },
+  contentCompact: {
+    padding: 12,
+  },
+  communityQrRowCompact: {
+    marginBottom: 4,
+  },
+  communityAvatarCompact: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+  },
+  communityInitialsCompact: {
+    fontSize: 7,
+  },
+  communityNameCompact: {
+    fontSize: 11,
+  },
+  titleCompact: {
+    fontSize: 15,
+    lineHeight: 18,
+    marginBottom: 6,
+  },
+  metaGridCompact: {
+    marginBottom: 8,
+  },
+  metaItemCompact: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  metaTextCompact: {
+    fontSize: 12,
+    fontFamily: FONTS.medium,
+    color: COLORS.textSecondary,
+    flex: 1,
+  },
+  bottomRowCompact: {
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+  },
+  avatarStackCompact: {
+    // Add any adjustments for compact avatar stack if needed
+  },
+  avatarCompact: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
   },
 });

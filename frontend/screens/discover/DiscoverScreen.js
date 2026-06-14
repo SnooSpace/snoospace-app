@@ -9,6 +9,7 @@ import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import SnooLoader from "../../components/ui/SnooLoader";
 import OpenPlansSection from "../plans/OpenPlansSection";
+import EventCard from "../../components/EventCard";
 import {
   COLORS,
   SPACING,
@@ -165,7 +166,7 @@ export default function DiscoverScreen({ navigation }) {
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Reconnect with Peers</Text>
+          <Text style={styles.sectionTitle}>Catch the Ones You Missed</Text>
           <TouchableOpacity onPress={handleSearchPress}>
             <Text style={styles.seeAllText}>See all</Text>
           </TouchableOpacity>
@@ -176,11 +177,18 @@ export default function DiscoverScreen({ navigation }) {
           contentContainerStyle={styles.horizontalList}
         >
           {slicedEvents.map((event) => (
-            <ReconnectCard
+            <EventCard
               key={event.id}
               event={event}
               onPress={handleEventPress}
-              formatDate={formatDate}
+              onAttendeesPress={() => handleEventPress(event)}
+              hideEngagement={true}
+              hideRsvp={true}
+              hideQr={true}
+              hidePriceDetails={true}
+              showStatusLabel={true}
+              compact={true}
+              style={{ width: 312, marginHorizontal: 0, marginVertical: 4 }}
             />
           ))}
         </ScrollView>
@@ -241,11 +249,18 @@ export default function DiscoverScreen({ navigation }) {
       <View style={styles.section}>
         <Text style={styles.sectionTitleContainer}>Recommended Events</Text>
         {slicedExploreEvents.map((event) => (
-          <RecommendedEventCard
+          <EventCard
             key={event.id}
             event={event}
             onPress={handleEventPress}
-            formatDate={formatDate}
+            onAttendeesPress={() => handleEventPress(event)}
+            hideEngagement={true}
+            hideRsvp={true}
+            hideQr={true}
+            hidePriceDetails={true}
+            showStatusLabel={true}
+            compact={true}
+            style={{ marginHorizontal: 16, marginVertical: 8 }}
           />
         ))}
       </View>
@@ -310,58 +325,7 @@ const ExpoImageBackground = ({ source, style, children }) => (
   </View>
 );
 
-const ReconnectCard = React.memo(({ event, onPress, formatDate }) => (
-  <TouchableOpacity
-    style={styles.reconnectCard}
-    activeOpacity={0.9}
-    onPress={() => onPress(event)}
-  >
-    <View style={styles.reconnectImageContainer}>
-      <ExpoImageBackground
-        source={{
-          uri:
-            event.cover_image ||
-            "https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
-        }}
-        style={{ flex: 1 }}
-      >
-        <LinearGradient
-          colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.45)"]}
-          start={{ x: 0.5, y: 0.0 }}
-          end={{ x: 0.5, y: 1.0 }}
-          style={styles.imageGradient}
-        />
-        <View style={styles.pastBadge}>
-          <Text style={styles.pastBadgeText}>Past Event</Text>
-        </View>
-      </ExpoImageBackground>
-    </View>
-    <View style={styles.reconnectContent}>
-      <Text style={styles.reconnectTitle} numberOfLines={2}>
-        {event.title}
-      </Text>
 
-      <View style={styles.reconnectMeta}>
-        <Calendar size={14} color="#64748B" strokeWidth={2} />
-        <Text style={styles.metaText}>
-          {formatDate(event.event_date)}
-        </Text>
-
-        <View style={styles.attendeeRow}>
-          <Users size={14} color="#64748B" strokeWidth={2} />
-          <Text style={styles.metaText}>
-            {event.attendee_count || 0} attended
-          </Text>
-        </View>
-      </View>
-
-      <TouchableOpacity style={styles.revisitButton} onPress={() => onPress(event)}>
-        <Clock size={16} color="#2962FF" strokeWidth={2} />
-        <Text style={styles.revisitButtonText}>Revisit</Text>
-      </TouchableOpacity>
-    </View>
-  </TouchableOpacity>
-));
 
 const TribeCard = React.memo(({ community, onPress }) => (
   <TouchableOpacity
@@ -423,65 +387,7 @@ const DiscoverScreenPersonCard = React.memo(({ person }) => (
   </TouchableOpacity>
 ));
 
-const RecommendedEventCard = React.memo(({ event, onPress, formatDate }) => (
-  <TouchableOpacity
-    style={styles.recommendedCard}
-    onPress={() => onPress(event)}
-    activeOpacity={0.9}
-  >
-    <ExpoImageBackground
-      source={{
-        uri:
-          event.cover_image ||
-          "https://images.unsplash.com/photo-1551818255-e6e10975bc17?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80",
-      }}
-      style={styles.recommendedImage}
-    >
-      <LinearGradient
-        colors={["transparent", "rgba(0,0,0,0.6)"]}
-        style={styles.imageGradient}
-      />
-      <View style={styles.priceBadge}>
-        <Text style={styles.priceText}>Free</Text>
-      </View>
-    </ExpoImageBackground>
 
-    <View style={styles.recommendedContent}>
-      <Text style={styles.recommendedTitle}>{event.title}</Text>
-      <Text style={styles.recommendedHost}>
-        Hosted by {event.organizer || "Community"}
-      </Text>
-
-      <View style={styles.recommendedMetaRow}>
-        <Calendar
-          size={14}
-          color={COLORS.textSecondary}
-          strokeWidth={2}
-        />
-        <Text style={styles.recommendedMetaText}>
-          {formatDate(event.event_date)}
-        </Text>
-      </View>
-      <View style={styles.recommendedMetaRow}>
-        <MapPin
-          size={14}
-          color={COLORS.textSecondary}
-          strokeWidth={2}
-        />
-        <Text style={styles.recommendedMetaText} numberOfLines={1}>
-          {event.venue_name || event.location}
-        </Text>
-      </View>
-
-      <TouchableOpacity
-        style={styles.viewEventButton}
-        onPress={() => onPress(event)}
-      >
-        <Text style={styles.viewEventText}>View Event</Text>
-      </TouchableOpacity>
-    </View>
-  </TouchableOpacity>
-));
 
 const styles = StyleSheet.create({
   container: {
@@ -582,90 +488,6 @@ const styles = StyleSheet.create({
   },
 
   // Reconnect Section
-  reconnectCard: {
-    width: 312,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    ...SHADOWS.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 24,
-    elevation: 3,
-    overflow: "hidden",
-    marginBottom: 4, // Space for shadow
-  },
-  reconnectImageContainer: {
-    height: 140,
-    backgroundColor: "#eee",
-  },
-  imageGradient: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: "100%",
-  },
-  pastBadge: {
-    position: "absolute",
-    top: 12,
-    left: 12,
-    backgroundColor: "rgba(0,0,0,0.65)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    height: 24,
-    borderRadius: 999,
-    justifyContent: "center",
-  },
-  pastBadgeText: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-    color: "#FFFFFF",
-  },
-  reconnectContent: {
-    padding: 16,
-  },
-  reconnectTitle: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 16,
-    lineHeight: 22,
-    color: "#0F172A",
-    marginBottom: 8, // Spacing between title and meta
-  },
-  reconnectMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  metaText: {
-    fontFamily: FONTS.medium,
-    fontSize: 13,
-    color: "#64748B",
-    marginLeft: 6,
-  },
-  attendeeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginLeft: 12, // Space between date and attendees
-  },
-  revisitButton: {
-    width: "100%",
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#EFF6FF",
-    borderRadius: 10,
-    marginTop: 12,
-    flexDirection: "row",
-    gap: 6,
-  },
-  revisitButtonText: {
-    fontFamily: FONTS.medium,
-    fontSize: 14,
-    color: "#2962FF",
-  },
-
-  // Tribe Section
   tribeCard: {
     width: 156,
     backgroundColor: "#FFFFFF",
@@ -781,70 +603,6 @@ const styles = StyleSheet.create({
   },
 
   // Recommended Events Section
-  recommendedCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.xl,
-    marginHorizontal: SPACING.l,
-    marginBottom: SPACING.l,
-    ...SHADOWS.md,
-    overflow: "hidden",
-  },
-  recommendedImage: {
-    height: 180, // Taller image
-    width: "100%",
-    justifyContent: "space-between",
-    padding: SPACING.s,
-  },
-  priceBadge: {
-    alignSelf: "flex-end",
-    backgroundColor: "#FFF",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 100,
-  },
-  priceText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 12,
-    color: COLORS.textPrimary,
-  },
-  recommendedContent: {
-    padding: SPACING.m,
-  },
-  recommendedTitle: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 18,
-    color: COLORS.textPrimary,
-    marginBottom: 4,
-  },
-  recommendedHost: {
-    fontFamily: FONTS.regular,
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.m,
-  },
-  recommendedMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-    gap: 8,
-  },
-  recommendedMetaText: {
-    fontFamily: FONTS.regular,
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  viewEventButton: {
-    marginTop: SPACING.m,
-    backgroundColor: "#F5F7FA",
-    paddingVertical: 12,
-    borderRadius: BORDER_RADIUS.l,
-    alignItems: "center",
-  },
-  viewEventText: {
-    fontFamily: FONTS.medium,
-    fontSize: 14,
-    color: COLORS.textPrimary,
-  },
   sectionDivider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: "#E5E7EB",

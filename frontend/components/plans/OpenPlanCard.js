@@ -350,6 +350,7 @@ const OpenPlanCard = ({
       : null;
   const lastTapRef = useRef(0);
   const timerRef = useRef(null);
+  const cardRef = useRef(null);
 
   const heartScale = useRef(new Animated.Value(0)).current;
   const [heartPos, setHeartPos] = useState({ x: 0, y: 0 });
@@ -411,8 +412,12 @@ const OpenPlanCard = ({
         clearTimeout(timerRef.current);
         timerRef.current = null;
       }
-      const { locationX, locationY } = event.nativeEvent;
-      triggerHeartAnimation(locationX, locationY);
+      const { pageX, pageY } = event.nativeEvent;
+      cardRef.current?.measure((x, y, width, height, cardPageX, cardPageY) => {
+        const relativeX = pageX - cardPageX;
+        const relativeY = pageY - cardPageY;
+        triggerHeartAnimation(relativeX, relativeY);
+      });
       if (!isLiked) {
         handleLike();
       } else {
@@ -439,6 +444,7 @@ const OpenPlanCard = ({
 
   return (
     <TouchableOpacity
+      ref={cardRef}
       style={styles.card}
       activeOpacity={0.95}
       onPress={handleCardPress}

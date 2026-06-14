@@ -430,6 +430,7 @@ const OpportunityFeedCard = React.memo(({
 
   const lastTapRef = useRef(0);
   const timerRef = useRef(null);
+  const cardRef = useRef(null);
 
   const heartScale = useRef(new RNAnimated.Value(0)).current;
   const [heartPos, setHeartPos] = useState({ x: 0, y: 0 });
@@ -489,8 +490,12 @@ const OpportunityFeedCard = React.memo(({
         clearTimeout(timerRef.current);
         timerRef.current = null;
       }
-      const { locationX, locationY } = event.nativeEvent;
-      triggerHeartAnimation(locationX, locationY);
+      const { pageX, pageY } = event.nativeEvent;
+      cardRef.current?.measure((x, y, width, height, cardPageX, cardPageY) => {
+        const relativeX = pageX - cardPageX;
+        const relativeY = pageY - cardPageY;
+        triggerHeartAnimation(relativeX, relativeY);
+      });
       if (!isLiked) {
         handleLike();
       } else {
@@ -619,7 +624,7 @@ const OpportunityFeedCard = React.memo(({
         </TouchableOpacity>
  
         {/* ── Tappable Middle Content (navigates to details) ──────────────── */}
-        <TouchableOpacity onPress={handleCardPress} activeOpacity={0.95}>
+        <TouchableOpacity ref={cardRef} onPress={handleCardPress} activeOpacity={0.95}>
           {/* ── Title ─────────────────────────────────────────────────────── */}
           <Text style={styles.title} numberOfLines={2}>
             {opportunity.title}

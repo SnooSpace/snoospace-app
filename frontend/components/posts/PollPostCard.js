@@ -378,6 +378,7 @@ const PollPostCard = ({
   };
 
   const lastTapRef = useRef(0);
+  const cardRef = useRef(null);
   const heartScale = useRef(new Animated.Value(0)).current;
   const [heartPos, setHeartPos] = useState({ x: 0, y: 0 });
   const [heartRot, setHeartRot] = useState(0);
@@ -424,8 +425,12 @@ const PollPostCard = ({
   const handleDoubleTap = (event) => {
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
-      const { locationX, locationY } = event.nativeEvent;
-      triggerHeartAnimation(locationX, locationY);
+      const { pageX, pageY } = event.nativeEvent;
+      cardRef.current?.measure((x, y, width, height, cardPageX, cardPageY) => {
+        const relativeX = pageX - cardPageX;
+        const relativeY = pageY - cardPageY;
+        triggerHeartAnimation(relativeX, relativeY);
+      });
       if (!isLiked) {
         handleLike();
       } else {
@@ -539,7 +544,7 @@ const PollPostCard = ({
   return (
     <>
       <TouchableWithoutFeedback onPress={handleDoubleTap}>
-        <View style={styles.container}>
+        <View ref={cardRef} style={styles.container}>
         {/* Header with Type Indicator & Ellipsis Menu */}
         <View style={styles.headerRow}>
           <View style={styles.pollBadge}>
