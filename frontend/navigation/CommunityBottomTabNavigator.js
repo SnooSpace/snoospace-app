@@ -190,7 +190,8 @@ const CommunityBottomTabNavigator = ({ navigation, route }) => {
           tabBarStyle: getTabBarStyle(route, [
             "EditProfile",
             "EditCommunityProfile",
-            "CommunityHosts"
+            "CommunityHosts",
+            "CommunityMonetization"
           ]),
         })}
       />

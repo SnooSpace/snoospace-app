@@ -217,12 +217,29 @@ const cardStyles = StyleSheet.create({
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function SettingsScreen({ route, navigation }) {
   const {
-    profile,
+    profile: initialProfile,
     accountType,
     hapticsEnabled: initialHaptics,
     onLogoutPress,
     onAddAccountPress,
   } = route?.params || {};
+
+  const [profile, setProfile] = useState(initialProfile);
+
+  useEffect(() => {
+    if (route.params?.profile) {
+      setProfile(route.params.profile);
+    }
+  }, [route.params?.profile]);
+
+  useEffect(() => {
+    const unsub = EventBus.on("profile:updated", ({ profile: updatedProfile }) => {
+      setProfile(updatedProfile);
+    });
+    return () => {
+      if (unsub) unsub();
+    };
+  }, []);
 
   const isCommunity = accountType === "community" || profile?.community_type != null;
 
@@ -307,6 +324,7 @@ export default function SettingsScreen({ route, navigation }) {
   useEffect(() => {
     const unsub = EventBus.on("instagram:updated", ({ username }) => {
       setInstagramUsername(username || null);
+      setProfile((prev) => prev ? { ...prev, instagram_username: username || null } : prev);
     });
     return () => {
       if (unsub) unsub();

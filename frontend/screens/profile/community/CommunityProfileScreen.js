@@ -729,6 +729,14 @@ export default function CommunityProfileScreen({ navigation }) {
     return () => { if (unsub) unsub(); };
   }, []);
 
+  // Keep profile in sync when user updates sponsorship preferences
+  useEffect(() => {
+    const unsub = EventBus.on('profile:updated', ({ profile: updatedProfile }) => {
+      setProfile(updatedProfile);
+    });
+    return () => { if (unsub) unsub(); };
+  }, []);
+
   const handleShowAccountSwitcher = useCallback(() => {
     setShowAccountSwitcher(true);
   }, []);

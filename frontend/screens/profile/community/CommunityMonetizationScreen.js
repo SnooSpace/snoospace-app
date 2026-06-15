@@ -34,6 +34,7 @@ import { getSponsorTypes } from "../../../api/client";
 import { updateCommunityProfile } from "../../../api/communities";
 import { getAuthToken } from "../../../api/auth";
 import HapticsService from "../../../services/HapticsService";
+import EventBus from "../../../utils/EventBus";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import DynamicStatusBar from "../../../components/DynamicStatusBar";
 import { getSponsorTypeStyle } from "./EditCommunityProfileConstants";
@@ -95,9 +96,11 @@ export default function CommunityMonetizationScreen({ route, navigation }) {
   }, []);
 
   useEffect(() => {
-    const sortedNew = [...sponsorTypes].sort().join(",");
-    const sortedOld = [...originalTypes].sort().join(",");
-    setHasChanges(sponsoringEnabled !== originalEnabled || sortedNew !== sortedOld);
+    const currentSaved = sponsoringEnabled ? sponsorTypes : [];
+    const originalSaved = originalEnabled ? originalTypes : [];
+    const sortedNew = [...currentSaved].sort().join(",");
+    const sortedOld = [...originalSaved].sort().join(",");
+    setHasChanges(sortedNew !== sortedOld);
   }, [sponsoringEnabled, sponsorTypes]);
 
   const toggleType = (type) => {
@@ -130,6 +133,12 @@ export default function CommunityMonetizationScreen({ route, navigation }) {
         { sponsor_types: sponsoringEnabled ? sponsorTypes : [] },
         token
       );
+      EventBus.emit("profile:updated", {
+        profile: {
+          ...profile,
+          sponsor_types: sponsoringEnabled ? sponsorTypes : [],
+        },
+      });
       HapticsService.triggerNotificationSuccess();
       setHasChanges(false);
       navigation.goBack();
@@ -139,6 +148,8 @@ export default function CommunityMonetizationScreen({ route, navigation }) {
       setSaving(false);
     }
   };
+
+  const isSponsorTypesValid = !sponsoringEnabled || sponsorTypes.includes("Open to All") || sponsorTypes.length >= 3;
 
   return (
     <View style={styles.container}>
@@ -156,8 +167,11 @@ export default function CommunityMonetizationScreen({ route, navigation }) {
           <Text style={styles.headerTitle}>Monetization</Text>
           <TouchableOpacity
             onPress={handleSave}
-            disabled={!hasChanges || saving}
-            style={[styles.saveBtn, (!hasChanges || saving) && styles.saveBtnDisabled]}
+            disabled={!hasChanges || saving || !isSponsorTypesValid}
+            style={[
+              styles.saveBtn,
+              (!hasChanges || saving || !isSponsorTypesValid) && styles.saveBtnDisabled
+            ]}
           >
             {saving ? (
               <SnooLoader size="small" color="#FFFFFF" />
@@ -280,7 +294,7 @@ export default function CommunityMonetizationScreen({ route, navigation }) {
           <View style={styles.infoCard}>
             <Sparkles size={15} color="#8B5CF6" strokeWidth={1.8} />
             <Text style={styles.infoText}>
-              Your sponsorship preferences will appear on your public profile and help brands discover relevant communities to partner with.
+              Your sponsorship preferences will be shown only to brands and sponsors looking to partner with your community. They are completely hidden from regular members and other communities.
             </Text>
           </View>
         </ScrollView>

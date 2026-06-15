@@ -65,7 +65,7 @@ import {
 } from "react-native-safe-area-context";
 import EventBus from "../../../utils/EventBus";
 import CommentsModal from "../../../components/CommentsModal";
-import { getAuthToken, getAuthEmail } from "../../../api/auth";
+import { getAuthToken, getAuthEmail, getActiveAccount } from "../../../api/auth";
 import { apiPost, apiDelete, apiGet } from "../../../api/client";
 import LikeStateManager from "../../../utils/LikeStateManager";
 import {
@@ -593,6 +593,21 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [posts, setPosts] = useState([]);
+  const [currentUserRole, setCurrentUserRole] = useState(null);
+
+  useEffect(() => {
+    async function checkUserRole() {
+      try {
+        const account = await getActiveAccount();
+        if (account?.type) {
+          setCurrentUserRole(account.type.toLowerCase());
+        }
+      } catch (e) {
+        console.warn("[CommunityPublicProfile] Error getting active account:", e);
+      }
+    }
+    checkUserRole();
+  }, []);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -1548,8 +1563,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
           {profile?.sponsor_types &&
             profile.sponsor_types.length > 0 &&
-            viewerRole !== "member" &&
-            viewerRole !== "venue" && (
+            (viewerRole === "sponsor" || currentUserRole === "sponsor") && (
               <View style={styles.sectionCard}>
                 <View style={styles.sectionHeader}>
                   <Text style={styles.sectionTitle}>Looking for Sponsors</Text>
