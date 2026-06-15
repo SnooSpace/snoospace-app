@@ -62,6 +62,7 @@ import { useToast } from "../../../context/ToastContext";
 import ActionModal from "../../../components/modals/ActionModal";
 import OpenPlanCard from "../../../components/plans/OpenPlanCard";
 import RequestBottomSheet from "../../plans/RequestBottomSheet";
+import InstagramRow from "../../../components/InstagramRow";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -133,13 +134,16 @@ const ProfileBioHeader = React.memo(({ profile, setShowCollegeHub }) => {
 
       {/* College chip — only shown when member has linked a college and show_college is on */}
       {profile.college_info && profile.show_college !== false ? (
-        <View style={{ marginTop: 10, marginBottom: 16, alignItems: 'center' }}>
+        <View style={{ marginTop: 10, marginBottom: 8, alignItems: 'center' }}>
           <CollegeChip
             collegeInfo={profile.college_info}
             onPress={() => setShowCollegeHub(true)}
           />
         </View>
       ) : null}
+
+      {/* Instagram trust signal */}
+      <InstagramRow username={profile.instagram_username} />
     </>
   );
 });
@@ -352,7 +356,7 @@ export default function MemberProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isOwnProfile, setIsOwnProfile] = useState(true);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  // Settings is now a Screen — no modal state needed
   const [selectedPost, setSelectedPost] = useState(null);
   const [postModalVisible, setPostModalVisible] = useState(false);
   const [showAllInterests, setShowAllInterests] = useState(false);
@@ -427,7 +431,6 @@ export default function MemberProfileScreen({ navigation }) {
   // Pauses when modals are open to avoid distracting updates
   const isAnyModalOpen =
     postModalVisible ||
-    showSettingsModal ||
     showAccountSwitcher ||
     showAddAccountModal ||
     showLogoutModal ||
@@ -517,6 +520,33 @@ export default function MemberProfileScreen({ navigation }) {
       showToast("Failed to update pin", "error");
     }
   };
+
+  // Handle actions triggered from SettingsScreen via EventBus
+  useEffect(() => {
+    const handleSettingsAction = ({ action } = {}) => {
+      if (action === 'logout') {
+        handleLogout();
+      } else if (action === 'add_account') {
+        setShowAddAccountModal(true);
+      } else if (action === 'switch_account') {
+        setShowAccountSwitcher(true);
+      } else if (action === 'my_activity') {
+        let rootNav = navigation;
+        try {
+          if (navigation.getParent) {
+            const p1 = navigation.getParent();
+            if (p1 && p1.getParent) {
+              const p2 = p1.getParent();
+              if (p2) rootNav = p2;
+            }
+          }
+        } catch (_) {}
+        rootNav.navigate('MyDataScreen');
+      }
+    };
+    const unsub = EventBus.on('settings:action', handleSettingsAction);
+    return () => { if (unsub) unsub(); };
+  }, [navigation, handleLogout]);
 
   // Real-time sync: view, share, save counts from EventBus
   useEffect(() => {
@@ -892,7 +922,6 @@ export default function MemberProfileScreen({ navigation }) {
 
   const handleRelogin = async () => {
     try {
-      setShowSettingsModal(false);
       setShowLogoutModal(false);
 
       // Simple cleanup before re-login flow
@@ -945,7 +974,6 @@ export default function MemberProfileScreen({ navigation }) {
   const performLogout = async (logoutAll = false) => {
     try {
       // Close modals first
-      setShowSettingsModal(false);
       setShowLogoutModal(false);
 
       if (logoutAll) {
@@ -1216,7 +1244,10 @@ export default function MemberProfileScreen({ navigation }) {
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.settingsButton}
-            onPress={() => setShowSettingsModal(true)}
+            onPress={() => {
+              HapticsService.triggerImpactLight();
+              navigation.navigate('Settings', { profile, hapticsEnabled });
+            }}
             hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
             <Settings size={26} color={COLORS.editorial.textSecondary} />
@@ -1754,36 +1785,7 @@ export default function MemberProfileScreen({ navigation }) {
         />
       )}
 
-      <SettingsModal
-        visible={showSettingsModal}
-        onClose={() => setShowSettingsModal(false)}
-        onNotificationsPress={handleEditProfile}
-        onPrivacyPress={() => {
-          setShowSettingsModal(false);
-          // Navigate to MyDataScreen via root navigator (AppNavigator level)
-          let rootNav = navigation;
-          try {
-            if (navigation.getParent) {
-              const p1 = navigation.getParent();
-              if (p1 && p1.getParent) {
-                const p2 = p1.getParent();
-                if (p2) rootNav = p2;
-              }
-            }
-          } catch (_) {}
-          rootNav.navigate("MyDataScreen");
-        }}
-        onHelpPress={() =>
-          Alert.alert("Help", "Help & Support will be implemented soon!")
-        }
-        onAddAccountPress={() => setShowAddAccountModal(true)}
-        onLogoutPress={handleLogout}
-        onDeleteAccountPress={() => navigation.navigate("DeleteAccount")}
-        hapticsEnabled={hapticsEnabled}
-        onToggleHaptics={handleToggleHaptics}
-        textColor={TEXT_COLOR}
-        lightTextColor={LIGHT_TEXT_COLOR}
-      />
+      {/* Settings is now a Screen — navigated via navigation.navigate('Settings') */}
 
       {showLogoutModal && (
         <LogoutModal

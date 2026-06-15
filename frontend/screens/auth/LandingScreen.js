@@ -75,7 +75,7 @@ const PARTICIPATION_ROLES = [
     buttonText: "Start Building",
     animation: require("../../assets/animations/Community svg.json"),
     icon: Building2,
-    accentColor: "#06D6A0",
+    accentColor: "#CEF2F2",
   },
 ];
 
@@ -250,12 +250,23 @@ const AnimatedCard = memo(
                         },
                       ]}
                     >
-                      <Text style={styles.cardContinueButtonText}>
+                      <Text
+                        style={[
+                          styles.cardContinueButtonText,
+                          item.id === "community" && {
+                            color: COLORS.textPrimary,
+                          },
+                        ]}
+                      >
                         {item.buttonText}
                       </Text>
                       <ArrowRight
                         size={18}
-                        color={COLORS.surface}
+                        color={
+                          item.id === "community"
+                            ? COLORS.textPrimary
+                            : COLORS.surface
+                        }
                         strokeWidth={2.5}
                       />
                     </TouchableOpacity>
@@ -467,6 +478,17 @@ const LandingScreen = ({ navigation, route }) => {
     },
   });
 
+  const carouselHeightStyle = useAnimatedStyle(() => {
+    const isExpanded = selectedIndex !== -1;
+    const targetHeight = isExpanded ? CARD_BASE_HEIGHT + 140 : CARD_BASE_HEIGHT + 40;
+    return {
+      height: withTiming(targetHeight, {
+        duration: 420,
+        easing: Easing.bezier(0.33, 1, 0.68, 1),
+      }),
+    };
+  });
+
   const handleSelect = useCallback(
     (index) => {
       HapticsService.triggerImpactLight();
@@ -562,7 +584,7 @@ const LandingScreen = ({ navigation, route }) => {
                 paddingHorizontal: (width - ITEM_SIZE) / 2,
                 alignItems: "center",
               }}
-              style={{ height: CARD_BASE_HEIGHT + 140 }}
+              style={carouselHeightStyle}
             />
           </View>
 
@@ -588,12 +610,7 @@ const LandingScreen = ({ navigation, route }) => {
           </View>
 
           {/* ── Footer ── */}
-          <View
-            style={[
-              styles.footerContainer,
-              { bottom: insets.bottom > 0 ? insets.bottom + 32 : 56 },
-            ]}
-          >
+          <View style={styles.footerContainer}>
             <View style={styles.loginPromptContainer}>
               <Text style={styles.loginPromptText}>
                 Already have an account?{" "}
@@ -639,17 +656,17 @@ const styles = StyleSheet.create({
   // ── Header ──
   headerContainer: {
     alignItems: "center",
-    paddingTop: 24,
+    paddingTop: 16,
     paddingHorizontal: 24,
     position: "relative",
   },
   closeButtonAbsolute: {
     position: "absolute",
-    top: 24,
+    top: 16,
     left: 24,
     zIndex: 10,
   },
-  logoContainer: { marginBottom: 20 },
+  logoContainer: { marginBottom: 12 },
   headerTitle: {
     fontFamily: FONTS.black,
     fontSize: 34,
@@ -668,7 +685,7 @@ const styles = StyleSheet.create({
   // ── Carousel ──
   carouselContainer: {
     justifyContent: "center",
-    marginTop: 44,
+    marginTop: 24,
   },
   cardContainer: {
     backgroundColor: "transparent",
@@ -831,10 +848,10 @@ const styles = StyleSheet.create({
 
   // ── Footer ──
   footerContainer: {
-    position: "absolute",
-    left: 0,
-    right: 0,
     paddingHorizontal: 24,
+    marginTop: "auto",
+    paddingBottom: 20,
+    alignItems: "center",
   },
   loginPromptContainer: {
     flexDirection: "row",

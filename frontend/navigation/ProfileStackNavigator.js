@@ -9,6 +9,9 @@ import CreatePostScreen from "../components/CreatePostScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import CommunityFollowersListScreen from "../screens/profile/community/CommunityFollowersListScreen";
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
+import SettingsScreen from "../screens/profile/member/SettingsScreen";
+import LinkedAccountsScreen from "../screens/profile/member/LinkedAccountsScreen";
+import BlockedAccountsScreen from "../screens/profile/member/BlockedAccountsScreen";
 // [VIDEO INSIGHTS - DEFERRED] import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
 
 const Stack = createStackNavigator();
@@ -69,6 +72,9 @@ export default function ProfileStackNavigator() {
       />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="LinkedAccounts" component={LinkedAccountsScreen} />
+      <Stack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
       {/* [VIDEO INSIGHTS - DEFERRED] <Stack.Screen name="VideoInsights" component={VideoInsightsScreen} options={{ headerShown: false }} /> */}
     </Stack.Navigator>
   );

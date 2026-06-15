@@ -275,28 +275,11 @@ export default function AccountSwitcherModal({
     } catch (error) {
       console.error("[AccountSwitcher] Error switching account:", error);
 
-      // If it's a logged-out account error, navigate to login
-      if (error.message && error.message.includes("logged out")) {
-        console.log(
-          "[AccountSwitcher] Caught logged-out error, navigating to login",
-        );
-        onClose();
-        if (onLoginRequired) {
-          onLoginRequired(account);
-        }
-      } else if (
-        error.message &&
-        (error.message.includes("Unauthorized") ||
-          error.message.includes("Invalid"))
-      ) {
-        // Token refresh failed
-        console.log(
-          "[AccountSwitcher] Token refresh failed, prompting re-auth",
-        );
-        promptReAuthentication(account);
-      } else {
-        Alert.alert("Error", "Failed to switch account. Please try again.");
-      }
+      // All error cases — logged-out, Unauthorized, Invalid token, or any
+      // unexpected failure — mark the account as logged out and redirect the
+      // user to the Login screen with their email pre-filled. No blocking
+      // alert dialogs.
+      promptReAuthentication(account);
     } finally {
       setSwitchingTo(null);
     }

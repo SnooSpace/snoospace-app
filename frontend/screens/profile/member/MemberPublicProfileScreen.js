@@ -179,6 +179,7 @@ const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPre
 });
 import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
 import EmptyPostsState from "../../../components/EmptyPostsState";
+import InstagramRow from "../../../components/InstagramRow";
 
 export default function MemberPublicProfileScreen({ route, navigation }) {
   const memberId = route?.params?.memberId;
@@ -844,13 +845,16 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 
                 {/* College chip — only shown when show_college is enabled */}
                 {profile?.college_info && profile?.show_college !== false ? (
-                  <View style={{ marginTop: 10, marginBottom: 16, alignItems: 'center' }}>
+                  <View style={{ marginTop: 10, marginBottom: 8, alignItems: 'center' }}>
                     <CollegeChip
                       collegeInfo={profile.college_info}
                       onPress={() => setShowCollegeHub(true)}
                     />
                   </View>
                 ) : null}
+
+                {/* Instagram trust signal */}
+                <InstagramRow username={profile?.instagram_username} />
 
                 <View style={styles.statsContainer}>
                   <View style={styles.statItem}>

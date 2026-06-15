@@ -10,6 +10,9 @@ import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicPro
 import FollowersListScreen from "../screens/profile/member/FollowersListScreen";
 import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
+import SettingsScreen from "../screens/profile/member/SettingsScreen";
+import LinkedAccountsScreen from "../screens/profile/member/LinkedAccountsScreen";
+import BlockedAccountsScreen from "../screens/profile/member/BlockedAccountsScreen";
 
 const Stack = createStackNavigator();
 
@@ -76,6 +79,9 @@ export default function CommunityProfileStackNavigator() {
       <Stack.Screen name="FollowersList" component={FollowersListScreen} />
       <Stack.Screen name="FollowingList" component={FollowingListScreen} />
       <Stack.Screen name="OpportunityView" component={OpportunityViewScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="LinkedAccounts" component={LinkedAccountsScreen} />
+      <Stack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
     </Stack.Navigator>
   );
 }

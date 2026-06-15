@@ -169,7 +169,7 @@ async function getProfile(req, res) {
               intent_badges, available_today, available_this_week, prompt_question, prompt_answer, appear_in_discover,
               discover_photos, openers, show_pronouns, occupation, campus_id, show_college,
               occupation_details, occupation_category, portfolio_link, education,
-              follower_count, following_count
+              follower_count, following_count, instagram_username
        FROM members WHERE id = $1`,
       [userId]
     );
@@ -298,6 +298,7 @@ async function getProfile(req, res) {
       occupation_category: member.occupation_category || null,
       portfolio_link: member.portfolio_link || null,
       education: member.education || null,
+      instagram_username: member.instagram_username || null,
     };
 
     // Fetch college info if member has campus_id
@@ -456,6 +457,7 @@ async function getPublicMember(req, res) {
     const memberR = await pool.query(
       `SELECT id, username, name as full_name, bio, profile_photo_url, created_at, interests, pronouns, occupation,
               occupation_details, occupation_category, portfolio_link, education, campus_id, show_college,
+              instagram_username,
               follower_count AS followers_count, following_count,
               (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member')::int AS posts_count,
               (
@@ -544,6 +546,7 @@ async function getPublicMember(req, res) {
       occupation_category: profile.occupation_category || null,
       portfolio_link: profile.portfolio_link || null,
       education: profile.education || null,
+      instagram_username: profile.instagram_username || null,
       college_info: null, // populated below if show_college is true
     };
 
@@ -862,7 +865,27 @@ async function patchProfile(req, res) {
       }
     }
 
-    // College linking
+    // Instagram username linking (no OAuth — store clean username only)
+    if (req.body.hasOwnProperty('instagram_username')) {
+      const raw = req.body.instagram_username;
+      if (raw === null || raw === '') {
+        updates.push(`instagram_username = NULL`);
+      } else if (typeof raw === 'string') {
+        // Strip URL prefix and @ on the server side for safety
+        let clean = raw.trim();
+        const urlMatch = clean.match(/^https?:\/\/(?:www\.)?instagram\.com\/([a-zA-Z0-9._]{1,30})\/?(?:\?.*)?$/i);
+        if (urlMatch) {
+          clean = urlMatch[1];
+        } else {
+          clean = clean.startsWith('@') ? clean.slice(1) : clean;
+        }
+        if (!/^[a-zA-Z0-9._]{1,30}$/.test(clean)) {
+          return res.status(400).json({ error: 'Invalid Instagram username. Only letters, numbers, dots, and underscores are allowed.' });
+        }
+        updates.push(`instagram_username = $${paramIndex++}`);
+        values.push(clean);
+      }
+    }
     if (req.body.hasOwnProperty('campus_id')) {
       const campusId = req.body.campus_id;
       if (campusId === null) {

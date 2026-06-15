@@ -96,7 +96,7 @@ import EditorialPostCard from "../../../components/EditorialPostCard";
 import OpportunityFeedCard from "../../../components/OpportunityFeedCard";
 import VideoPlayer from "../../../components/VideoPlayer";
 import CommentsModal from "../../../components/CommentsModal";
-import SettingsModal from "../../../components/modals/SettingsModal";
+// SettingsModal deprecated — replaced by SettingsScreen
 import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModal";
 import ActionSheet from "../../../components/modals/ActionSheet";
 import AddAccountModal from "../../../components/modals/AddAccountModal";
@@ -602,7 +602,7 @@ export default function CommunityProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [initialLoadCompleted, setInitialLoadCompleted] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  // Settings is now a Screen — no modal state needed
   const [showHeadsModal, setShowHeadsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
@@ -674,7 +674,6 @@ export default function CommunityProfileScreen({ navigation }) {
   // Pauses when modals are open to avoid distracting updates
   const isAnyModalOpen =
     postModalVisible ||
-    showSettingsModal ||
     showAccountSwitcher ||
     showAddAccountModal ||
     showLogoutModal ||
@@ -704,6 +703,23 @@ export default function CommunityProfileScreen({ navigation }) {
     setHapticsEnabled(value);
     await HapticsService.setEnabled(value);
   };
+
+  // Handle actions triggered from SettingsScreen via EventBus
+  useEffect(() => {
+    const handleSettingsAction = ({ action } = {}) => {
+      if (action === 'logout') {
+        handleLogout();
+      } else if (action === 'add_account') {
+        setShowAddAccountModal(true);
+      } else if (action === 'switch_account') {
+        setShowAccountSwitcher(true);
+      } else if (action === 'my_activity') {
+        navigation.navigate('MyDataScreen');
+      }
+    };
+    const unsub = EventBus.on('settings:action', handleSettingsAction);
+    return () => { if (unsub) unsub(); };
+  }, [navigation]);
 
   const handleShowAccountSwitcher = useCallback(() => {
     setShowAccountSwitcher(true);
@@ -1335,7 +1351,6 @@ export default function CommunityProfileScreen({ navigation }) {
 
   const handleRelogin = async () => {
     try {
-      setShowSettingsModal(false);
       setShowLogoutModal(false);
 
       // Simple cleanup before re-login flow
@@ -1436,7 +1451,6 @@ export default function CommunityProfileScreen({ navigation }) {
 
   const performLogout = async (logoutAll = false) => {
     try {
-      setShowSettingsModal(false);
       setShowLogoutModal(false);
 
       if (logoutAll) {
@@ -1743,7 +1757,10 @@ export default function CommunityProfileScreen({ navigation }) {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.headerIconButton}
-                onPress={() => setShowSettingsModal(true)}
+                onPress={() => {
+                  HapticsService.triggerImpactLight();
+                  navigation.navigate('Settings', { profile, hapticsEnabled });
+                }}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 <Settings size={24} color="#0F172A" />
@@ -1776,7 +1793,10 @@ export default function CommunityProfileScreen({ navigation }) {
           onBannerAction={handleBannerAction}
           onShowAccountSwitcher={handleShowAccountSwitcher}
           onShowCollegeHub={handleShowCollegeHub}
-          onShowSettings={() => setShowSettingsModal(true)}
+          onShowSettings={() => {
+            HapticsService.triggerImpactLight();
+            navigation.navigate('Settings', { profile, hapticsEnabled });
+          }}
           onShowBookmark={() => navigation.navigate("SavedPostsScreen")}
         />
 
@@ -2141,32 +2161,7 @@ export default function CommunityProfileScreen({ navigation }) {
         </View>
       </Animated.ScrollView>
 
-      {showSettingsModal && (
-        <SettingsModal
-          visible={showSettingsModal}
-          onClose={() => setShowSettingsModal(false)}
-          onNotificationsPress={() =>
-            Alert.alert(
-              "Notifications",
-              "Notifications settings will be implemented soon!",
-            )
-          }
-          onPrivacyPress={() => {
-            setShowSettingsModal(false);
-            navigation.navigate("MyDataScreen");
-          }}
-          onHelpPress={() =>
-            Alert.alert("Help", "Help & Support will be implemented soon!")
-          }
-          onAddAccountPress={() => setShowAddAccountModal(true)}
-          onLogoutPress={handleLogout}
-          onDeleteAccountPress={() => navigation.navigate("DeleteAccount")}
-          hapticsEnabled={hapticsEnabled}
-          onToggleHaptics={handleToggleHaptics}
-          textColor={TEXT_COLOR}
-          lightTextColor={LIGHT_TEXT_COLOR}
-        />
-      )}
+      {/* Settings is now a Screen — navigated via navigation.navigate('Settings') */}
 
       {showLogoutModal && (
         <LogoutModal

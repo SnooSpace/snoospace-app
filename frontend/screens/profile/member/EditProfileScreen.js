@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+﻿import React, { useState, useEffect, useCallback, useRef } from "react";
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, LayoutAnimation, UIManager, Platform, Image, Keyboard, TouchableWithoutFeedback } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -40,6 +40,8 @@ import {
   Briefcase,
   Check,
   Trash2,
+  Instagram,
+  Link,
 } from "lucide-react-native";
 
 import { getAuthToken } from "../../../api/auth";
@@ -95,6 +97,7 @@ import { OCCUPATION_CATEGORIES, getOccupationLabel, getOccupationCategory } from
 import { getSubFieldsForOccupation, getSubFieldsForCategory, shouldShowPortfolio, CATEGORY_GENERIC_FIELDS } from "../../../constants/OccupationSubFields";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import FormTextInput from "../../../components/ui/FormTextInput";
+import { normaliseInstagramInput, validateInstagramUsername } from "../../../utils/instagramUtils";
 
 // Pronoun Category Tints
 const PRONOUN_STYLE_CONFIG = {
@@ -180,6 +183,10 @@ export default function EditProfileScreen({ route, navigation }) {
   const [occupationCategory, setOccupationCategory] = useState(profile?.occupation_category || null);
   const [portfolioLink, setPortfolioLink] = useState(profile?.portfolio_link || "");
 
+  // Instagram linking
+  const [instagramInput, setInstagramInput] = useState(profile?.instagram_username ? `@${profile.instagram_username}` : "");
+  const [instagramError, setInstagramError] = useState("");
+
   // College state
   const [campusId, setCampusId] = useState(profile?.campus_id || null);
   const [showCollege, setShowCollege] = useState(profile?.show_college !== false);
@@ -192,7 +199,7 @@ export default function EditProfileScreen({ route, navigation }) {
     profile?.college_info?.campus_name || ""
   );
   const [showCollegePicker, setShowCollegePicker] = useState(false);
-  // Degree picker — shared between Education card (non-student) and Student degree sub-field
+  // Degree picker â€” shared between Education card (non-student) and Student degree sub-field
   const [showDegreePicker, setShowDegreePicker] = useState(false);
   // 'education' = non-student education card, 'student' = student occupation sub-field
   const [degreePickerTarget, setDegreePickerTarget] = useState('education');
@@ -234,7 +241,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     checkForChanges();
-  }, [name, bio, username, phone, pronouns, interests, email, educationDegree, educationYear, selectedOccupation, customOccupation, occupationDetails, occupationCategory, portfolioLink, campusId, showCollege, pendingPhotoUri]);
+  }, [name, bio, username, phone, pronouns, interests, email, educationDegree, educationYear, selectedOccupation, customOccupation, occupationDetails, occupationCategory, portfolioLink, campusId, showCollege, pendingPhotoUri, instagramInput]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -313,6 +320,8 @@ export default function EditProfileScreen({ route, navigation }) {
       ? `other:${customOccupation.trim()}`
       : selectedOccupation;
 
+    const originalInstagram = profile?.instagram_username ? `@${profile.instagram_username}` : "";
+
     const changed =
       name !== originalName ||
       bio !== originalBio ||
@@ -329,6 +338,7 @@ export default function EditProfileScreen({ route, navigation }) {
       showCollege !== (profile?.show_college !== false) ||
       educationDegree !== originalEducationDegree ||
       educationYear !== originalEducationYear ||
+      instagramInput !== originalInstagram ||
       !!pendingPhotoUri;
 
     setHasChanges(!!changed);
@@ -390,7 +400,7 @@ export default function EditProfileScreen({ route, navigation }) {
     try {
       const result = await pickAndCrop("avatar");
       if (!result) return;
-      // Stage the photo locally — it will be uploaded when the user taps Save
+      // Stage the photo locally â€” it will be uploaded when the user taps Save
       setPendingPhotoUri(result.uri);
       setPhotoUrl(result.uri);
       HapticsService.triggerSelection();
@@ -436,12 +446,32 @@ export default function EditProfileScreen({ route, navigation }) {
       });
 
       // Merge structured education fields into occupation_details for non-student occupations
-      // (Students already store degree/year via occupationDetails — no double-write needed)
+      // (Students already store degree/year via occupationDetails â€” no double-write needed)
       if (selectedOccupation !== 'student') {
         if (educationDegree.trim()) cleanDetails.edu_degree = educationDegree.trim();
         else delete cleanDetails.edu_degree;
         if (educationYear.trim()) cleanDetails.edu_year = educationYear.trim();
         else delete cleanDetails.edu_year;
+      }
+
+      // Validate Instagram before save
+      let cleanInstagram = null;
+      if (instagramInput.trim()) {
+        try {
+          cleanInstagram = normaliseInstagramInput(instagramInput);
+          if (cleanInstagram) {
+            const { valid, error: igErr } = validateInstagramUsername(cleanInstagram);
+            if (!valid) {
+              setInstagramError(igErr);
+              setSaving(false);
+              return;
+            }
+          }
+        } catch (err) {
+          setInstagramError(err.message);
+          setSaving(false);
+          return;
+        }
       }
 
       const updates = {
@@ -456,6 +486,7 @@ export default function EditProfileScreen({ route, navigation }) {
         interests: interests.length > 0 ? interests : [],
         campus_id: campusId,
         show_college: showCollege,
+        instagram_username: cleanInstagram,
       };
 
       await updateMemberProfile(updates, token);
@@ -751,7 +782,7 @@ export default function EditProfileScreen({ route, navigation }) {
                         // For students: replace the institution text field with the CollegePickerModal button
                         if (selectedOccupation === 'student' && field.key === 'institution') {
                           const displayLabel = collegeDisplayName
-                            ? `${collegeDisplayName}${collegeCampusName ? ` • ${collegeCampusName}` : ''}`
+                            ? `${collegeDisplayName}${collegeCampusName ? ` â€¢ ${collegeCampusName}` : ''}`
                             : null;
                           return (
                             <View key={field.key} style={{ marginBottom: 14 }}>
@@ -959,7 +990,7 @@ export default function EditProfileScreen({ route, navigation }) {
               })}
             </View>
 
-            <Text style={styles.helperText}>Optional • Shown on your profile</Text>
+            <Text style={styles.helperText}>Optional â€¢ Shown on your profile</Text>
           </View>
         </View>
 
@@ -986,7 +1017,7 @@ export default function EditProfileScreen({ route, navigation }) {
                   numberOfLines={1}
                 >
                   {collegeDisplayName
-                    ? `${collegeDisplayName}${collegeCampusName ? ` • ${collegeCampusName}` : ''}`
+                    ? `${collegeDisplayName}${collegeCampusName ? ` â€¢ ${collegeCampusName}` : ''}`
                     : 'Select your college...'}
                 </Text>
                 <ChevronRight size={16} color={TEXT_SECONDARY} strokeWidth={2} />
@@ -1346,7 +1377,7 @@ export default function EditProfileScreen({ route, navigation }) {
                 onPress={() => setEmailChangeModalVisible(true)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.helperText, { color: ACCENT_COLOR, fontFamily: 'Manrope-SemiBold' }]}>Tap to change →</Text>
+                <Text style={[styles.helperText, { color: ACCENT_COLOR, fontFamily: 'Manrope-SemiBold' }]}>Tap to change â†’</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1377,9 +1408,43 @@ export default function EditProfileScreen({ route, navigation }) {
                 onPress={() => phoneInputRef.current?.focus()}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.helperText, { color: ACCENT_COLOR, fontFamily: 'Manrope-SemiBold' }]}>Tap to change →</Text>
+                <Text style={[styles.helperText, { color: ACCENT_COLOR, fontFamily: 'Manrope-SemiBold' }]}>Tap to change â†’</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+
+        {/* Card: Social Profiles */}
+        <View style={styles.card}>
+          {renderSectionHeader("SOCIAL PROFILES", Instagram)}
+
+          <View style={styles.inputGroupLast}>
+            <Text style={styles.inputLabel}>INSTAGRAM</Text>
+            <View style={[styles.input, styles.rowInput]}>
+              <Instagram size={16} color={TEXT_SECONDARY} style={{ marginRight: 6 }} />
+              <FormTextInput
+                style={styles.flexInput}
+                value={instagramInput}
+                onChangeText={(val) => {
+                  setInstagramInput(val);
+                  setInstagramError("");
+                }}
+                autoCapitalize="none"
+                autoCorrect={false}
+                placeholder="@username"
+                placeholderTextColor={TEXT_SECONDARY}
+                returnKeyType="done"
+              />
+            </View>
+            {instagramError ? (
+              <Text style={[styles.helperText, { color: '#EF4444', marginTop: 6 }]}>
+                {instagramError}
+              </Text>
+            ) : (
+              <Text style={styles.helperText}>
+                Optional Â· Opens your Instagram profile when tapped
+              </Text>
+            )}
           </View>
         </View>
 
