@@ -43,7 +43,7 @@ const InstagramRow = React.memo(function InstagramRow({ username }) {
 
   return (
     <TouchableOpacity
-      style={styles.row}
+      style={styles.iconCircle}
       onPress={handlePress}
       activeOpacity={0.7}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -51,20 +51,7 @@ const InstagramRow = React.memo(function InstagramRow({ username }) {
       accessibilityLabel={`View Instagram profile @${username}`}
       accessibilityRole="link"
     >
-      {/* Pink icon circle */}
-      <View style={styles.iconCircle}>
-        <Instagram size={20} color="#EC4899" strokeWidth={1.8} />
-      </View>
-
-      {/* Username */}
-      <Text style={styles.handle} numberOfLines={1}>
-        @{username}
-      </Text>
-
-      {/* Trust badge */}
-      <View style={styles.badge}>
-        <Text style={styles.badgeText}>Instagram Linked</Text>
-      </View>
+      <Instagram size={18} color="#EC4899" strokeWidth={1.8} />
     </TouchableOpacity>
   );
 });
@@ -72,38 +59,14 @@ const InstagramRow = React.memo(function InstagramRow({ username }) {
 export default InstagramRow;
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 10,
-    marginBottom: 6,
-    alignSelf: 'center',
-  },
   iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(244, 114, 182, 0.12)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(244, 114, 182, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 114, 182, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  handle: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    flexShrink: 1,
-  },
-  badge: {
-    backgroundColor: 'rgba(236, 72, 153, 0.10)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  badgeText: {
-    fontFamily: FONTS.medium,
-    fontSize: 11,
-    color: '#EC4899',
-    letterSpacing: 0.1,
   },
 });

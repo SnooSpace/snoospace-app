@@ -843,18 +843,20 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 })()}
                 {!!profile?.bio && renderBio(profile.bio)}
 
-                {/* College chip — only shown when show_college is enabled */}
-                {profile?.college_info && profile?.show_college !== false ? (
-                  <View style={{ marginTop: 10, marginBottom: 8, alignItems: 'center' }}>
-                    <CollegeChip
-                      collegeInfo={profile.college_info}
-                      onPress={() => setShowCollegeHub(true)}
-                    />
+                {/* College & Socials Row */}
+                {(profile?.instagram_username || (profile?.college_info && profile?.show_college !== false)) ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 10, marginBottom: 8 }}>
+                    {profile?.college_info && profile?.show_college !== false && (
+                      <CollegeChip
+                        collegeInfo={profile.college_info}
+                        onPress={() => setShowCollegeHub(true)}
+                      />
+                    )}
+                    {profile?.instagram_username && (
+                      <InstagramRow username={profile.instagram_username} />
+                    )}
                   </View>
                 ) : null}
-
-                {/* Instagram trust signal */}
-                <InstagramRow username={profile?.instagram_username} />
 
                 <View style={styles.statsContainer}>
                   <View style={styles.statItem}>
