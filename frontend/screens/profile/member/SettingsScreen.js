@@ -31,6 +31,7 @@ import {
   Info,
   LogOut,
   Trash2,
+  TrendingUp,
 } from "lucide-react-native";
 import {
   COLORS,
@@ -217,10 +218,13 @@ const cardStyles = StyleSheet.create({
 export default function SettingsScreen({ route, navigation }) {
   const {
     profile,
+    accountType,
     hapticsEnabled: initialHaptics,
     onLogoutPress,
     onAddAccountPress,
   } = route?.params || {};
+
+  const isCommunity = accountType === "community" || profile?.community_type != null;
 
   const [hapticsEnabled, setHapticsEnabled] = React.useState(
     initialHaptics ?? true,
@@ -358,6 +362,26 @@ export default function SettingsScreen({ route, navigation }) {
               isLast
             />
           </Card>
+
+          {/* ── MONETIZATION (community accounts only) ──── */}
+          {isCommunity && (
+            <>
+              <SectionLabel title="Monetization" />
+              <Card>
+                <SettingsRow
+                  icon={TrendingUp}
+                  iconColor="#8B5CF6"
+                  label="Sponsorship Preferences"
+                  sublabel="Configure what kind of sponsors you're open to"
+                  onPress={() =>
+                    navigation.navigate("CommunityMonetization", { profile })
+                  }
+                  isFirst
+                  isLast
+                />
+              </Card>
+            </>
+          )}
 
           {/* ── BLOCKED ACCOUNTS ────────────────────────── */}
           <SectionLabel title="Blocked Accounts" />

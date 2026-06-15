@@ -343,43 +343,54 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
         );
       }
 
-      // Step 5: Build the prefill data for a potential People-profile
-      const effectiveHeadPhoto =
-        userData?.head_photo_url ?? null;
+      const isPage = userData.community_type === "individual_organizer";
 
-      const primaryHead = (userData?.heads || []).find((h) => h.is_primary);
-      const peoplePrefill = {
-        name: primaryHead?.name ?? userData?.heads?.[0]?.name ?? "",
-        photo: effectiveHeadPhoto ?? userData?.logo_url ?? null,
-        phone: userData?.phone ?? "",
-        location: userData?.location ?? null,
-        email: userData?.email ?? null,
-      };
+      if (isPage) {
+        // Page accounts go directly to Celebration — no People-profile prompt
+        console.log("[CommunityUsername] Page type — navigating to Celebration directly");
+        navigation.navigate("Celebration", {
+          role: "Community",
+          fromCommunitySignup: true,
+          createdPeopleProfile: false,
+        });
+      } else {
+        // College / Organization: offer the People-profile prompt
+        // Step 5: Build the prefill data for a potential People-profile
+        const effectiveHeadPhoto =
+          userData?.head_photo_url ?? null;
 
-      // Step 6: Create a People-profile draft NOW so AuthGate can recover it
-      // if the app is killed while the user is on PeopleProfilePromptScreen.
-      // We use startStep "PeopleProfilePrompt" so AuthGate knows to send the user
-      // BACK to PeopleProfilePromptScreen (to let them choose), not MemberName.
-      try {
-        const activeAccount = await getActiveAccount();
-        await createPeopleProfileDraft(
-          peoplePrefill,
-          activeAccount?.id ?? communityId,
-          "PeopleProfilePrompt" // ← key: user hasn't chosen "Set up now" yet
-        );
-        console.log("[CommunityUsername] People-profile draft created (step=PeopleProfilePrompt)");
-      } catch (e) {
-        console.warn("[CommunityUsername] Could not create People-profile draft:", e.message);
+        const primaryHead = (userData?.heads || []).find((h) => h.is_primary);
+        const peoplePrefill = {
+          name: primaryHead?.name ?? userData?.heads?.[0]?.name ?? "",
+          photo: effectiveHeadPhoto ?? userData?.logo_url ?? null,
+          phone: userData?.phone ?? "",
+          location: userData?.location ?? null,
+          email: userData?.email ?? null,
+        };
+
+        // Step 6: Create a People-profile draft NOW so AuthGate can recover it
+        // if the app is killed while the user is on PeopleProfilePromptScreen.
+        try {
+          const activeAccount = await getActiveAccount();
+          await createPeopleProfileDraft(
+            peoplePrefill,
+            activeAccount?.id ?? communityId,
+            "PeopleProfilePrompt"
+          );
+          console.log("[CommunityUsername] People-profile draft created (step=PeopleProfilePrompt)");
+        } catch (e) {
+          console.warn("[CommunityUsername] Could not create People-profile draft:", e.message);
+        }
+
+        // Step 7: Navigate to PeopleProfilePromptScreen
+        navigation.navigate("PeopleProfilePromptScreen", {
+          userData: {
+            ...userData,
+            username: username.toLowerCase().trim(),
+            head_photo_url: effectiveHeadPhoto,
+          },
+        });
       }
-
-      // Step 7: Navigate to PeopleProfilePromptScreen
-      navigation.navigate("PeopleProfilePromptScreen", {
-        userData: {
-          ...userData,
-          username: username.toLowerCase().trim(),
-          head_photo_url: effectiveHeadPhoto,
-        },
-      });
     } catch (error) {
       console.error("Error completing signup:", error);
       Alert.alert(

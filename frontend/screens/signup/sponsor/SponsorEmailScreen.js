@@ -171,15 +171,9 @@ const SponsorEmailScreen = ({ navigation, route }) => {
             onBlur={() => setIsFocused(false)}
             selectionColor={COLORS.primary}
             underlineColorAndroid="transparent"
+            placeholder="Enter your email"
+            placeholderTextColor={COLORS.textSecondary}
           />
-          {!email && (
-            <Text
-              pointerEvents="none"
-              style={[styles.placeholderAbsolute, { color: COLORS.textSecondary }]}
-            >
-              Enter your email
-            </Text>
-          )}
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -291,13 +285,6 @@ const styles = StyleSheet.create({
   },
   progressBarContainer: {
     marginBottom: 20,
-  },
-  placeholderAbsolute: {
-    position: "absolute",
-    left: 17,
-    top: 15,
-    fontFamily: "Manrope-Medium",
-    fontSize: 16,
   },
 });
 

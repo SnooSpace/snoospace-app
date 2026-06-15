@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, Image, Modal, LayoutAnimation, UIManager, Switch } from "react-native";
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, Image, Modal, LayoutAnimation, UIManager } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import {
@@ -11,7 +11,6 @@ import {
   Mail,
   Phone,
   Tag,
-  Award,
   ChevronRight,
   ChevronDown,
   X,
@@ -33,15 +32,13 @@ import {
 } from "../../../api/communities";
 import { useCrop } from "../../../components/MediaCrop";
 import { uploadImage } from "../../../api/cloudinary";
-import { getSponsorTypes, apiGet } from "../../../api/client";
+import { apiGet } from "../../../api/client";
 import EmailChangeModal from "../../../components/EmailChangeModal";
 import LocationPicker from "../../../components/LocationPicker/LocationPicker";
 import ActionSheet from "../../../components/modals/ActionSheet";
 import {
   COMMUNITY_CATEGORIES_CONFIG,
   getCategoryStyle,
-  getSponsorTypeStyle,
-  SPONSOR_TYPES_CONFIG,
 } from "./EditCommunityProfileConstants";
 
 import {
@@ -72,14 +69,6 @@ if (
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const FALLBACK_SPONSOR_TYPES = [
-  "Protein brands",
-  "Energy Drinks",
-  "Supplements",
-  "Apparel",
-  "Tech Gadgets",
-  "Local Businesses",
-];
 
 const CATEGORIES = [
   "Sports",
@@ -146,20 +135,8 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         : [];
   const [categories, setCategories] = useState(initialCategories);
   const [expandedCategory, setExpandedCategory] = useState(null);
-  const [sponsorTypes, setSponsorTypes] = useState(
-    profile?.sponsor_types || [],
-  );
-  // sponsoringEnabled: true if community is actively seeking sponsors
-  const [sponsoringEnabled, setSponsoringEnabled] = useState(
-    Array.isArray(profile?.sponsor_types) && profile.sponsor_types.length > 0,
-  );
-
   const [location, setLocation] = useState(profile?.location || null);
 
-
-  const [availableSponsorTypes, setAvailableSponsorTypes] = useState(
-    FALLBACK_SPONSOR_TYPES,
-  );
   const [usernameAvailable, setUsernameAvailable] = useState(null);
   const [usernameChecking, setUsernameChecking] = useState(false);
   const [emailChangeModalVisible, setEmailChangeModalVisible] = useState(false);
@@ -191,17 +168,6 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   const allowLeaveRef = useRef(false);
   const scrollViewRef = useRef(null);
 
-  useEffect(() => {
-    const loadSponsorTypes = async () => {
-      try {
-        const types = await getSponsorTypes();
-        setAvailableSponsorTypes(types.map((t) => t.name));
-      } catch (error) {
-        console.error("Failed to load sponsor types:", error);
-      }
-    };
-    loadSponsorTypes();
-  }, []);
 
   useEffect(() => {
     checkForChanges();
@@ -212,8 +178,6 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     primaryPhone,
     secondaryPhone,
     categories,
-    sponsorTypes,
-    sponsoringEnabled,
     email,
     location,
   ]);
@@ -268,8 +232,6 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
       email !== (sourceProfile?.email || "") ||
       JSON.stringify(normalizeArray(categories)) !==
         JSON.stringify(normalizeArray(originalCategories)) ||
-      JSON.stringify(normalizeArray(sponsorTypes)) !==
-        JSON.stringify(normalizeArray(sourceProfile?.sponsor_types || [])) ||
       JSON.stringify(location) !==
         JSON.stringify(sourceProfile?.location || null);
 
@@ -437,15 +399,6 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   const handleSave = async () => {
     if (!hasChanges) return;
 
-    // If sponsoring is enabled, require at least 3 types before saving
-    if (sponsoringEnabled && sponsorTypes.length < 3) {
-      Alert.alert(
-        "Select more sponsor types",
-        "Please select at least 3 sponsor types before saving.",
-      );
-      return;
-    }
-
     try {
       setIsSaving(true);
       const token = await getAuthToken();
@@ -481,8 +434,6 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         secondary_phone: secondaryPhone || null,
         category: normalizedCategories[0],
         categories: normalizedCategories,
-        // If sponsoring is disabled, send empty array; otherwise send selected types
-        sponsor_types: sponsoringEnabled ? sponsorTypes : [],
         location: location,
       };
 
@@ -536,10 +487,10 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
         <TouchableOpacity
           onPress={handleSave}
-          disabled={!hasChanges || isSaving || (sponsoringEnabled && sponsorTypes.length < 3)}
+          disabled={!hasChanges || isSaving}
           style={[
             styles.saveButton,
-            (!hasChanges || isSaving || (sponsoringEnabled && sponsorTypes.length < 3)) && styles.saveButtonDisabled,
+            (!hasChanges || isSaving) && styles.saveButtonDisabled,
           ]}
         >
           {isSaving ? (
@@ -825,108 +776,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Sponsor Types */}
-        <View style={styles.card}>
-          {renderSectionHeader("SPONSOR TYPES", Award)}
 
-          {/* Toggle row */}
-          <View style={styles.sponsorToggleRow}>
-            <View style={styles.sponsorToggleTextGroup}>
-              <Text style={styles.sponsorToggleLabel}>Looking for Sponsors</Text>
-              <Text style={styles.sponsorToggleSubLabel}>
-                {sponsoringEnabled ? "Select the types you want" : "Not seeking sponsors right now"}
-              </Text>
-            </View>
-            <Switch
-              value={sponsoringEnabled}
-              onValueChange={(val) => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                setSponsoringEnabled(val);
-                // Do NOT clear sponsorTypes — preserve silently so selections restore on re-enable
-                HapticsService.triggerSelection();
-              }}
-              trackColor={{ false: "rgba(0,0,0,0.08)", true: ACCENT_COLOR }}
-              thumbColor="#FFFFFF"
-              ios_backgroundColor="rgba(0,0,0,0.08)"
-            />
-          </View>
-
-          {/* Picker (only shown when looking for sponsors) */}
-          {sponsoringEnabled && (
-          <View style={[styles.inputGroupLast, { paddingTop: 10 }]}>
-            <View style={styles.vibesContainer}>
-              {["Open to All", ...availableSponsorTypes].map((type) => {
-                const isSelected = sponsorTypes.includes(type);
-                const style = getSponsorTypeStyle(type);
-                return (
-                  <TouchableOpacity
-                    key={type}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      let newTypes;
-                      if (type === "Open to All") {
-                        // If selecting Open, clear others
-                        newTypes = isSelected ? [] : ["Open to All"];
-                      } else {
-                        // If selecting others, remove Open
-                        newTypes = isSelected
-                          ? sponsorTypes.filter((t) => t !== type)
-                          : [
-                              ...sponsorTypes.filter(
-                                (t) => t !== "Open to All",
-                              ),
-                              type,
-                            ];
-                      }
-                      setSponsorTypes(newTypes);
-                      HapticsService.triggerSelection();
-                    }}
-                    style={[
-                      isSelected ? styles.vibeChip : styles.optionChip,
-                      isSelected && {
-                        backgroundColor: style.bg,
-                        paddingRight: 8,
-                        borderColor: "transparent",
-                      },
-                    ]}
-                  >
-                    {isSelected ? (
-                      <>
-                        <View style={styles.vibeContent}>
-                          <Text
-                            style={[
-                              styles.vibeText,
-                              { color: style.text, marginLeft: 0 },
-                            ]}
-                          >
-                            {type}
-                          </Text>
-                        </View>
-                        <View style={styles.removeIconContainer}>
-                          <X size={12} color={style.text} strokeWidth={3} />
-                        </View>
-                      </>
-                    ) : (
-                      <>
-                        <Text style={styles.optionText}>{type}</Text>
-                        <Plus size={14} color={TEXT_SECONDARY} />
-                      </>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            {/* Inline hint — only shown when toggle is ON and fewer than 3 types selected */}
-            {sponsorTypes.length < 3 && (
-              <Text style={styles.sponsorHintText}>
-                Select at least 3 sponsor types
-              </Text>
-            )}
-          </View>
-          )}
-        </View>
-
-        {/* Contact Details */}
         <View style={styles.card}>
           {renderSectionHeader("CONTACT DETAILS", Phone)}
 

@@ -1767,7 +1767,7 @@ export default function CommunityProfileScreen({ navigation }) {
                 style={styles.headerIconButton}
                 onPress={() => {
                   HapticsService.triggerImpactLight();
-                  navigation.navigate('Settings', { profile, hapticsEnabled });
+                  navigation.navigate('Settings', { profile, hapticsEnabled, accountType: 'community' });
                 }}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
@@ -1803,7 +1803,7 @@ export default function CommunityProfileScreen({ navigation }) {
           onShowCollegeHub={handleShowCollegeHub}
           onShowSettings={() => {
             HapticsService.triggerImpactLight();
-            navigation.navigate('Settings', { profile, hapticsEnabled });
+            navigation.navigate('Settings', { profile, hapticsEnabled, accountType: 'community' });
           }}
           onShowBookmark={() => navigation.navigate("SavedPostsScreen")}
         />

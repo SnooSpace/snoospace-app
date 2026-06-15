@@ -58,6 +58,8 @@ import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
 import EditorialPostCard from "../../../components/EditorialPostCard";
 import ProfilePostFeed from "../../../components/ProfilePostFeed";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import EmptyPostsState from "../../../components/EmptyPostsState";
+import EmptyEventsState from "../../../components/EmptyEventsState";
 import CollegeChip from "../../../components/CollegeChip";
 import OpenPlanCard from "../../../components/plans/OpenPlanCard";
 import RequestBottomSheet from "../../plans/RequestBottomSheet";
@@ -181,7 +183,6 @@ const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPre
   );
 });
 import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
-import EmptyPostsState from "../../../components/EmptyPostsState";
 import InstagramRow from "../../../components/InstagramRow";
 
 export default function MemberPublicProfileScreen({ route, navigation }) {
@@ -1218,11 +1219,11 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 
                         {/* Empty state */}
                         {profileEvents.length === 0 && profilePlans.hosted.length === 0 && profilePlans.attending.length === 0 && (
-                          <View style={pubTabStyles.emptyWrap}>
-                            <Ticket size={36} color={COLORS.textSecondary} strokeWidth={1.5} />
-                            <Text style={pubTabStyles.emptyText}>No events yet</Text>
-                            <Text style={pubTabStyles.emptySubText}>Events and plans this member attends will show here.</Text>
-                          </View>
+                          <EmptyEventsState
+                            isOwnProfile={false}
+                            title="No events yet"
+                            subtitle="Events and plans this member attends will show here."
+                          />
                         )}
                       </>
                     )}

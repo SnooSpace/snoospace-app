@@ -254,6 +254,19 @@ const IndividualLocationScreen = ({ navigation, route }) => {
     }
   };
 
+  const handleSkip = async () => {
+    // Save null location to draft so resume knows we skipped
+    try {
+      await updateCommunitySignupDraft("IndividualLocation", { location: null });
+    } catch (e) {
+      console.log("[IndividualLocationScreen] Draft update failed (skip):", e.message);
+    }
+    navigation.navigate("CommunityPhone", {
+      ...params,
+      location: null,
+    });
+  };
+
   const handleNext = async () => {
     // Update draft
     try {
@@ -263,8 +276,8 @@ const IndividualLocationScreen = ({ navigation, route }) => {
       console.log("[IndividualLocationScreen] Draft update failed:", e.message);
     }
 
-    // Individual organizers now go to Head Name screen first
-    navigation.navigate("CommunityHeadName", {
+    // Page flow: go directly to CommunityPhone
+    navigation.navigate("CommunityPhone", {
       ...params,
       location,
     });
@@ -272,6 +285,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
 
   // Check if location is set
   const hasLocation = location.city && location.city.trim().length > 0;
+  // isButtonDisabled is used by the animation useEffect to trigger bounce on enable
   const isButtonDisabled = !hasLocation;
 
   return (
@@ -366,36 +380,50 @@ const IndividualLocationScreen = ({ navigation, route }) => {
               </View>
             </Animated.View>
 
-            {/* Next button - visible when location is set */}
-            {hasLocation && (
-              <View
-                style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
+            {/* Next button - always visible; disabled until location is detected */}
+            <View
+              style={{ width: "100%", alignItems: "flex-end", marginTop: 40 }}
+            >
+              <Animated.View 
+                entering={FadeInDown.delay(500).duration(600).springify()}
+                style={animatedButtonStyle}
               >
-                <Animated.View 
-                  entering={FadeInDown.delay(500).duration(600).springify()}
-                  style={animatedButtonStyle}
+                <TouchableOpacity
+                  style={[
+                    styles.nextButtonContainer,
+                    !hasLocation && styles.disabledButton,
+                    { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
+                  ]}
+                  onPress={handleNext}
+                  disabled={!hasLocation}
+                  activeOpacity={0.8}
                 >
-                  <TouchableOpacity
-                    style={[
-                      styles.nextButtonContainer,
-                      isButtonDisabled && styles.disabledButton,
-                      { minWidth: 160, paddingHorizontal: 32, marginRight: -33 },
-                    ]}
-                    onPress={handleNext}
-                    disabled={isButtonDisabled}
-                    activeOpacity={0.8}
+                  <LinearGradient
+                    colors={COLORS.primaryGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.nextButton}
                   >
-                    <LinearGradient
-                      colors={COLORS.primaryGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={styles.nextButton}
-                    >
-                      <Text style={styles.buttonText}>Next</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </Animated.View>
-              </View>
+                    <Text style={styles.buttonText}>Next</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+
+            {/* Skip for now — only shown when no location yet */}
+            {!hasLocation && (
+              <Animated.View
+                entering={FadeInDown.delay(600).duration(500).springify()}
+                style={{ alignItems: "center", marginTop: 20 }}
+              >
+                <TouchableOpacity
+                  onPress={handleSkip}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 12, bottom: 12, left: 24, right: 24 }}
+                >
+                  <Text style={styles.skipText}>Skip for now</Text>
+                </TouchableOpacity>
+              </Animated.View>
             )}
           </View>
         </ScrollView>
@@ -532,6 +560,13 @@ const styles = StyleSheet.create({
     color: COLORS.textInverted,
     fontSize: 16,
     fontFamily: "Manrope-SemiBold",
+  },
+  skipText: {
+    fontSize: 14,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textSecondary,
+    textDecorationLine: "underline",
+    opacity: 0.7,
   },
 });
 

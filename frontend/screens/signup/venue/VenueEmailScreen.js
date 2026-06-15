@@ -165,15 +165,9 @@ const VenueEmailScreen = ({ navigation, route }) => {
                 backgroundColor: "#fff",
               },
             ]}
+            placeholder="Enter your email"
+            placeholderTextColor={COLORS.textSecondary}
           />
-          {!email && (
-            <Text
-              pointerEvents="none"
-              style={[styles.placeholderAbsolute, { color: COLORS.textSecondary }]}
-            >
-              Enter your email
-            </Text>
-          )}
         </View>
 
         {error ? (
@@ -307,13 +301,6 @@ const styles = StyleSheet.create({
     color: COLORS.textInverted,
     fontSize: 14,
     fontWeight: "600",
-  },
-  placeholderAbsolute: {
-    position: "absolute",
-    left: 17,
-    top: 15,
-    fontFamily: "Manrope-Medium",
-    fontSize: 16,
   },
 });
 

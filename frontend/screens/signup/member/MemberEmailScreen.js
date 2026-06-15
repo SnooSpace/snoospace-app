@@ -214,15 +214,9 @@ const MemberEmailScreen = ({ navigation }) => {
                       spellCheck={false}
                       selectionColor={COLORS.primary}
                       underlineColorAndroid="transparent"
+                      placeholder="name@example.com"
+                      placeholderTextColor="#8AADC4"
                     />
-                    {!email && (
-                      <Text
-                        pointerEvents="none"
-                        style={[styles.placeholderAbsolute, { color: "#8AADC4" }]}
-                      >
-                        name@example.com
-                      </Text>
-                    )}
                   </Pressable>
                 </Animated.View>
 
@@ -405,12 +399,6 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     textAlign: "center",
     marginTop: 4,
-  },
-  placeholderAbsolute: {
-    position: "absolute",
-    left: 48,
-    fontFamily: "Manrope-Medium",
-    fontSize: 16,
   },
 });
 

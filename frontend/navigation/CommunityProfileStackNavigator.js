@@ -6,6 +6,7 @@ import CommunityFollowingListScreen from "../screens/profile/community/Community
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import EditCommunityProfileScreen from "../screens/profile/community/EditCommunityProfileScreen";
 import CommunityHostsScreen from "../screens/profile/community/CommunityHostsScreen";
+import CommunityMonetizationScreen from "../screens/profile/community/CommunityMonetizationScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import FollowersListScreen from "../screens/profile/member/FollowersListScreen";
 import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
@@ -73,6 +74,10 @@ export default function CommunityProfileStackNavigator() {
       <Stack.Screen
         name="CommunityHosts"
         component={CommunityHostsScreen}
+      />
+      <Stack.Screen
+        name="CommunityMonetization"
+        component={CommunityMonetizationScreen}
       />
       <Stack.Screen
         name="MemberPublicProfile"

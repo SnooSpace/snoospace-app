@@ -24,28 +24,29 @@ import {
 import SignupHeader from "../../../components/SignupHeader";
 import { updateCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
 import { triggerTransitionHaptic } from "../../../hooks/useCelebrationHaptics";
+import { COMMUNITY_TYPE_LABELS } from "../../../constants/communityTypeLabels";
 
 const COMMUNITY_TYPES = [
   {
     id: "individual_organizer",
-    title: "Creator",
-    subtitle: "For solo creators & independent event hosts",
+    title: COMMUNITY_TYPE_LABELS.individual_organizer.label,
+    subtitle: COMMUNITY_TYPE_LABELS.individual_organizer.description,
     icon: "Sparkles",
     gradientColors: ["#FF6B6B", "#FF8E53"],
-    nextScreen: "CommunityName", // Same flow, simplified
+    nextScreen: "CommunityName",
   },
   {
     id: "college_affiliated",
-    title: "College",
-    subtitle: "For college clubs, fests & student communities",
+    title: COMMUNITY_TYPE_LABELS.college_affiliated.label,
+    subtitle: COMMUNITY_TYPE_LABELS.college_affiliated.description,
     icon: "School",
     gradientColors: ["#667eea", "#764ba2"],
     nextScreen: "CollegeSearch",
   },
   {
     id: "organization",
-    title: "Community / Organization",
-    subtitle: "For NGOs, startups, run clubs, brands & more",
+    title: COMMUNITY_TYPE_LABELS.organization.label,
+    subtitle: COMMUNITY_TYPE_LABELS.organization.description,
     icon: "Briefcase",
     gradientColors: ["#11998e", "#38ef7d"],
     nextScreen: "CommunityName",

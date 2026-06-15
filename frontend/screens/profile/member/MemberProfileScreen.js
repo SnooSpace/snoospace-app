@@ -58,6 +58,7 @@ import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling"
 import UnexpectedLogoutBanner from "../../../components/UnexpectedLogoutBanner";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import EmptyPostsState from "../../../components/EmptyPostsState";
+import EmptyEventsState from "../../../components/EmptyEventsState";
 import { useToast } from "../../../context/ToastContext";
 import ActionModal from "../../../components/modals/ActionModal";
 import OpenPlanCard from "../../../components/plans/OpenPlanCard";
@@ -1517,11 +1518,11 @@ export default function MemberProfileScreen({ navigation }) {
 
                     {/* Empty state */}
                     {profileEvents.length === 0 && profilePlans.hosted.length === 0 && profilePlans.attending.length === 0 && (
-                      <View style={profileTabStyles.emptyWrap}>
-                        <Ticket size={36} color={COLORS.textSecondary} strokeWidth={1.5} />
-                        <Text style={profileTabStyles.emptyText}>No events yet</Text>
-                        <Text style={profileTabStyles.emptySubText}>Events and plans you attend will show here.</Text>
-                      </View>
+                      <EmptyEventsState
+                        isOwnProfile={false}
+                        title="No events yet"
+                        subtitle="Events and plans you attend will show here."
+                      />
                     )}
                   </>
                 )}

@@ -201,7 +201,9 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
   }, []);
 
   const handleSkip = () => {
-    navigation.navigate("CommunityHeadName", {
+    // Skip for non-individual types is no longer needed (sponsor types removed)
+    // For Page type, go directly to CommunityUsername
+    navigation.navigate("CommunityUsername", {
       ...params,
       phone: null,
       secondary_phone: null,
@@ -246,22 +248,13 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
       );
     }
 
-    // Creators collect sponsor types before location, so they skip it here.
-    // College and Creator both go directly to Username; only Organization goes to SponsorType.
-    const isCollege = params.community_type === "college_affiliated";
-    if (isIndividual || isCollege) {
-      navigation.navigate("CommunityUsername", {
-        ...params,
-        phone: phoneDigits,
-        secondary_phone: secondaryPhoneDigits || null,
-      });
-    } else {
-      navigation.navigate("CommunitySponsorType", {
-        ...params,
-        phone: phoneDigits,
-        secondary_phone: secondaryPhoneDigits || null,
-      });
-    }
+    // All community types now go directly to CommunityUsername
+    // (CommunitySponsorType has been moved to post-signup Settings)
+    navigation.navigate("CommunityUsername", {
+      ...params,
+      phone: phoneDigits,
+      secondary_phone: secondaryPhoneDigits || null,
+    });
   };
 
   const handleCancel = async () => {
@@ -290,12 +283,13 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
-              // College communities come from CollegeHeads (which includes photos)
-              // Org/Individual come from CommunityHeadName (which now includes photos)
+              // Determine correct previous screen by community type
               const isCollege = params.community_type === "college_affiliated";
               const prevScreen = isCollege
                 ? "CollegeHeads"
-                : "CommunityHeadName";
+                : isIndividual
+                  ? "IndividualLocation"
+                  : "CommunityHeadName";
               navigation.replace(prevScreen, {
                 ...params,
               });

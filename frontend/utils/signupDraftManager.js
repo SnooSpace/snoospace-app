@@ -479,12 +479,11 @@ export function getCommunityNextScreenForStep(currentStep) {
     CommunityLogo: "CommunityBio",
     CommunityBio: "CommunityCategory",
     CommunityCategory: "CollegeHeads", // Default for college; org goes to CommunityLocation separately
-    IndividualLocation: "CommunityHeadName",
+    IndividualLocation: "CommunityPhone",
     CommunityLocation: "CommunityHeadName",
     CollegeHeads: "CommunityPhone", // College heads now includes photos inline
     CommunityHeadName: "CommunityPhone", // Photos now collected inline on CommunityHeadName
-    CommunityPhone: "CommunitySponsorType", // Default, varies by type
-    CommunitySponsorType: "CommunityUsername",
+    CommunityPhone: "CommunityUsername", // All types now go directly to Username (SponsorType moved to Settings)
     CommunityUsername: "COMPLETE",
   };
   return stepToNextScreen[currentStep] || "CommunityTypeSelect";
@@ -515,7 +514,6 @@ export function getCommunityResumeScreen(lastStep) {
     "CollegeHeads",
     "CommunityHeadName",
     "CommunityPhone",
-    "CommunitySponsorType",
     "CommunityUsername",
   ];
 
@@ -586,18 +584,17 @@ export function getCommunityResumeStack(lastStep, draftData = {}) {
   }
 
   // Post-location screens vary by type:
-  // - College -> CollegeHeads (w/ inline photos) -> CommunityPhone -> CommunitySponsorType -> CommunityUsername
-  // - Organization -> CommunityHeadName (w/ inline photos) -> CommunityPhone -> CommunitySponsorType -> CommunityUsername
-  // - Creator (individual) -> CommunitySponsorType -> IndividualLocation -> CommunityHeadName (w/ inline photos) -> CommunityPhone -> CommunityUsername
+  // - College -> CollegeHeads (w/ inline photos) -> CommunityPhone -> CommunityUsername
+  // - Organization -> CommunityHeadName (w/ inline photos) -> CommunityPhone -> CommunityUsername
+  // - Page (individual) -> IndividualLocation (skippable) -> CommunityPhone -> CommunityUsername
+  // Note: CommunitySponsorType has been moved to post-signup Settings (Monetization section)
   const orgPostStack = [
     "CommunityHeadName",
     "CommunityPhone",
-    "CommunitySponsorType",
   ];
   // College: photos are inline on CollegeHeads now, so HeadProfilePic is NOT in the stack
   const collegePostStack = ["CollegeHeads", "CommunityPhone"];
   const individualPostStack = [
-    "CommunityHeadName",
     "CommunityPhone",
   ];
 
@@ -625,11 +622,10 @@ export function getCommunityResumeStack(lastStep, draftData = {}) {
       "CommunityUsername",
     ];
   } else {
-    // Creator — SponsorType comes right after Category, before IndividualLocation
+    // Page (individual_organizer) — no HeadName, no SponsorType
     fullPath = [
       ...baseStack,
       ...coreStack,
-      "CommunitySponsorType",
       "IndividualLocation",
       ...individualPostStack,
       "CommunityUsername",

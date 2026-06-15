@@ -239,9 +239,9 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       categories: selectedCategories,
     };
 
-    // Creators (individual_organizer) select sponsor types right after category
     if (params.community_type === "individual_organizer") {
-      navigation.navigate("CommunitySponsorType", categoryParams);
+      // Page flow: go directly to IndividualLocation (sponsor types moved to post-signup Settings)
+      navigation.navigate("IndividualLocation", categoryParams);
     } else if (params.community_type === "college_affiliated") {
       // College communities skip the Location screen entirely — location is not required for them
       navigation.navigate("CollegeHeads", {
@@ -249,7 +249,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
         location: null,
       });
     } else {
-      // Organizations go to CommunityLocation
+      // Organizations go to CommunityLocation (sponsor types moved to post-signup Settings)
       navigation.navigate("CommunityLocation", categoryParams);
     }
   };

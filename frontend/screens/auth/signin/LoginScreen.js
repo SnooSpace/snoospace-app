@@ -170,15 +170,9 @@ const LoginScreen = ({ navigation, route }) => {
                   spellCheck={false}
                   selectionColor={COLORS.primary}
                   underlineColorAndroid="transparent"
+                  placeholder="name@example.com"
+                  placeholderTextColor={COLORS.textMuted}
                 />
-                {!emailOrUsername && (
-                  <Text
-                    pointerEvents="none"
-                    style={[styles.placeholderAbsolute, { color: COLORS.textMuted }]}
-                  >
-                    name@example.com
-                  </Text>
-                )}
               </Pressable>
 
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -364,13 +358,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.primary, // Used COLORS.primary for consistent blue
   },
-  placeholderAbsolute: {
-    position: "absolute",
-    left: 48,
-    fontFamily: "Manrope-Medium",
-    fontSize: 16,
-  },
-
 });
 
 export default LoginScreen;

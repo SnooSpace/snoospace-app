@@ -5,7 +5,7 @@ import { COLORS, FONTS } from "../constants/theme";
 import { useNavigation } from "@react-navigation/native";
 import HapticsService from "../services/HapticsService";
 
-export default function EmptyEventsState({ isOwnProfile = true, onCreateEvent }) {
+export default function EmptyEventsState({ isOwnProfile = true, onCreateEvent, title, subtitle }) {
   const floatAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current; // Button scale
   const navigation = useNavigation();
@@ -53,6 +53,11 @@ export default function EmptyEventsState({ isOwnProfile = true, onCreateEvent })
     }
   };
 
+  const displayTitle = title || (isOwnProfile ? "No events found" : "No upcoming events");
+  const displaySubtitle = subtitle || (isOwnProfile
+    ? "The stage is set, but the calendar is quiet. Host a meetup or a webinar to get started."
+    : "There are no events scheduled right now. Check back later!");
+
   return (
     <View style={styles.container}>
       <View style={styles.illustrationContainer}>
@@ -93,14 +98,8 @@ export default function EmptyEventsState({ isOwnProfile = true, onCreateEvent })
       </View>
 
       <View style={styles.textContainer}>
-        <Text style={styles.title}>
-          {isOwnProfile ? "No events found" : "No upcoming events"}
-        </Text>
-        <Text style={styles.subtitle}>
-          {isOwnProfile
-            ? "The stage is set, but the calendar is quiet. Host a meetup or a webinar to get started."
-            : "There are no events scheduled right now. Check back later!"}
-        </Text>
+        <Text style={styles.title}>{displayTitle}</Text>
+        <Text style={styles.subtitle}>{displaySubtitle}</Text>
       </View>
 
       {isOwnProfile && (
