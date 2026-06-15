@@ -376,7 +376,7 @@ function MemberPrivacyScreen({ navigation }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
             <ArrowLeft size={22} color="#4B5563" strokeWidth={2} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Your Privacy</Text>
+          <Text style={styles.headerTitle}>My Activity</Text>
           <View style={{ width: 40 }} />
         </View>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -700,7 +700,7 @@ function SponsorPrivacyScreen({ navigation }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
             <ArrowLeft size={22} color="#4B5563" strokeWidth={2} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Your Privacy</Text>
+          <Text style={styles.headerTitle}>My Activity</Text>
           <View style={{ width: 40 }} />
         </View>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -873,7 +873,7 @@ function CommunityPrivacyScreen({ navigation }) {
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} activeOpacity={0.7}>
             <ArrowLeft size={22} color="#4B5563" strokeWidth={2} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Your Privacy</Text>
+          <Text style={styles.headerTitle}>My Activity</Text>
           <View style={{ width: 40 }} />
         </View>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>

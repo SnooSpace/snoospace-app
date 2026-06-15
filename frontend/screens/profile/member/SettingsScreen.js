@@ -37,6 +37,9 @@ import HapticsService from '../../../services/HapticsService';
 import EventBus from '../../../utils/EventBus';
 import Constants from 'expo-constants';
 import DynamicStatusBar from '../../../components/DynamicStatusBar';
+import AccountSwitcherModal from '../../../components/modals/AccountSwitcherModal';
+import AddAccountModal from '../../../components/modals/AddAccountModal';
+import { getActiveAccount } from '../../../api/auth';
 
 // ─── Animated toggle (same premium switch from SettingsModal) ─────────────────
 function AnimatedSwitch({ value, onValueChange, activeColor = '#2962FF' }) {
@@ -207,6 +210,22 @@ export default function SettingsScreen({ route, navigation }) {
 
   const appVersion = Constants.expoConfig?.version || Constants.manifest?.version || '—';
 
+  const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+  const [activeAccount, setActiveAccount] = useState(null);
+
+  useEffect(() => {
+    async function loadActive() {
+      try {
+        const acc = await getActiveAccount();
+        setActiveAccount(acc);
+      } catch (err) {
+        console.error("Error loading active account:", err);
+      }
+    }
+    loadActive();
+  }, [showAccountSwitcher]);
+
   const handleToggleHaptics = async (val) => {
     setHapticsEnabled(val);
     await HapticsService.setEnabled(val);
@@ -228,8 +247,7 @@ export default function SettingsScreen({ route, navigation }) {
 
   const handleSwitchAccount = () => {
     HapticsService.triggerImpactLight();
-    navigation.goBack();
-    setTimeout(() => EventBus.emit('settings:action', { action: 'switch_account' }), 150);
+    setShowAccountSwitcher(true);
   };
 
   const handleDeleteAccount = () => {
@@ -336,8 +354,7 @@ export default function SettingsScreen({ route, navigation }) {
               sublabel="How SnooSpace understands you"
               onPress={() => {
                 HapticsService.triggerImpactLight();
-                navigation.goBack();
-                setTimeout(() => EventBus.emit('settings:action', { action: 'my_activity' }), 150);
+                navigation.navigate('MyDataScreen');
               }}
               isFirst
               isLast
@@ -416,6 +433,67 @@ export default function SettingsScreen({ route, navigation }) {
           </Card>
         </ScrollView>
       </SafeAreaView>
+
+      {showAccountSwitcher && (
+        <AccountSwitcherModal
+          visible={showAccountSwitcher}
+          onClose={() => setShowAccountSwitcher(false)}
+          currentAccountId={activeAccount?.id ? `${activeAccount.type || 'member'}_${activeAccount.id}` : undefined}
+          currentProfile={profile ? { ...profile, type: activeAccount?.type || 'member' } : null}
+          onAccountSwitch={(account) => {
+            // Navigate to correct home screen based on account type
+            const routeName =
+              account.type === "member"
+                ? "MemberHome"
+                : account.type === "community"
+                  ? "CommunityHome"
+                  : account.type === "sponsor"
+                    ? "SponsorHome"
+                    : account.type === "venue"
+                      ? "VenueHome"
+                      : "Landing";
+
+            // Get the ROOT navigator (go up the parent chain)
+            let rootNavigator = navigation;
+            while (rootNavigator.getParent && rootNavigator.getParent()) {
+              rootNavigator = rootNavigator.getParent();
+            }
+
+            console.log("[AccountSwitch] Resetting to:", routeName);
+            rootNavigator.reset({
+              index: 0,
+              routes: [{ name: routeName }],
+            });
+          }}
+          onAddAccount={() => {
+            setShowAddAccountModal(true);
+          }}
+          onLoginRequired={(account) => {
+            setShowAccountSwitcher(false);
+            let rootNavigator = navigation;
+            while (rootNavigator.getParent && rootNavigator.getParent()) {
+              rootNavigator = rootNavigator.getParent();
+            }
+            rootNavigator.navigate("Login", {
+              isAddingAccount: true,
+              email: account.email,
+            });
+          }}
+        />
+      )}
+
+      {showAddAccountModal && (
+        <AddAccountModal
+          visible={showAddAccountModal}
+          onClose={() => setShowAddAccountModal(false)}
+          onLoginExisting={() => {
+            navigation.navigate("Login", { isAddingAccount: true });
+          }}
+          onCreateNew={() => {
+            navigation.navigate("Landing", { fromSwitcher: true });
+          }}
+        />
+      )}
     </View>
   );
 }
