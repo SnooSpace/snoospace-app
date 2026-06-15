@@ -234,19 +234,43 @@ function DeleteModal({ visible, deleting, onConfirm, onCancel }) {
   );
 }
 
+// In-memory cache for fast re-entry (stale-while-revalidate pattern)
+const dataCache = {
+  accountType: null,
+  member: null,
+  community: null,
+  sponsor: null,
+  timestamps: {
+    member: 0,
+    community: 0,
+    sponsor: 0,
+  }
+};
+const CACHE_DURATION = 15000; // Cache valid for 15 seconds
+
 // ── MyDataScreen — router shell ───────────────────────────────────────────────
 
 const MyDataScreen = ({ navigation }) => {
-  const [accountType, setAccountType] = useState("member");
-  const [loading, setLoading] = useState(true);
+  const [accountType, setAccountType] = useState(dataCache.accountType || "member");
+  const [loading, setLoading] = useState(!dataCache.accountType);
 
   useEffect(() => {
+    if (dataCache.accountType) return;
     let isMounted = true;
     getActiveAccount()
       .then((account) => {
-        if (isMounted) setAccountType(account?.type || "member");
+        if (isMounted) {
+          const type = account?.type || "member";
+          dataCache.accountType = type;
+          setAccountType(type);
+        }
       })
-      .catch(() => { /* default to member */ })
+      .catch(() => {
+        if (isMounted) {
+          dataCache.accountType = "member";
+          setAccountType("member");
+        }
+      })
       .finally(() => { if (isMounted) setLoading(false); });
     return () => { isMounted = false; };
   }, []);
@@ -260,20 +284,35 @@ const MyDataScreen = ({ navigation }) => {
 // ── MemberPrivacyScreen ───────────────────────────────────────────────────────
 
 function MemberPrivacyScreen({ navigation }) {
-  const [summary, setSummary]     = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [consents, setConsents]   = useState({
-    behavioral: false, brand: false, dataSharing: false,
+  const cacheKey = 'member';
+  const cachedData = dataCache[cacheKey];
+  const cacheAge = cachedData ? Date.now() - dataCache.timestamps[cacheKey] : Infinity;
+  const isCacheFresh = cacheAge < CACHE_DURATION;
+  const hasCachedData = !!cachedData;
+
+  const [summary, setSummary]     = useState(cachedData);
+  const [loading, setLoading]     = useState(!hasCachedData);
+  const [consents, setConsents]   = useState(() => {
+    const cached = cachedData;
+    return {
+      behavioral: cached?.consentState?.behavioral ?? false,
+      brand: cached?.consentState?.brand ?? false,
+      dataSharing: cached?.consentState?.dataSharing ?? false,
+    };
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting]   = useState(false);
   const [infoModal, setInfoModal] = useState({ visible: false, title: "", body: "", breakdown: null, showTiers: false });
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(hasCachedData ? 1 : 0)).current;
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (showLoading = true) => {
     try {
+      if (showLoading) setLoading(true);
       const result = await getMyDataSummary();
       if (result?.success) {
+        dataCache[cacheKey] = result.summary;
+        dataCache.timestamps[cacheKey] = Date.now();
+
         setSummary(result.summary);
         setConsents({
           behavioral: result.summary.consentState?.behavioral ?? false,
@@ -289,10 +328,12 @@ function MemberPrivacyScreen({ navigation }) {
     }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    if (!isCacheFresh) {
+      loadData(!hasCachedData);
+    }
+  }, [loadData, isCacheFresh, hasCachedData]);
 
-  // Fix B: Optimistic update with explicit previousValue capture for safe revert.
-  // Fix C: updateConsent in api/privacy.js normalises field names — no silent drops.
   const handleToggle = async (field, apiField) => {
     const previousValue = consents[field];
     const newVal = !previousValue;
@@ -300,14 +341,21 @@ function MemberPrivacyScreen({ navigation }) {
     console.log('[MemberPrivacy] Toggle fired:', apiField, '→', newVal);
     setConsents((prev) => ({ ...prev, [field]: newVal })); // optimistic
 
+    if (dataCache[cacheKey]) {
+      if (!dataCache[cacheKey].consentState) dataCache[cacheKey].consentState = {};
+      dataCache[cacheKey].consentState[field] = newVal;
+    }
+
     try {
       console.log('[MemberPrivacy] Calling updateConsent...');
       await updateConsent({ [apiField]: newVal });
       console.log('[MemberPrivacy] updateConsent resolved ✅');
     } catch (err) {
       console.error('[MemberPrivacy] updateConsent failed — reverting:', err?.message, 'status:', err?.status);
-      // Revert ONLY on actual API failure
       setConsents((prev) => ({ ...prev, [field]: previousValue }));
+      if (dataCache[cacheKey] && dataCache[cacheKey].consentState) {
+        dataCache[cacheKey].consentState[field] = previousValue;
+      }
     }
   };
 
@@ -316,8 +364,11 @@ function MemberPrivacyScreen({ navigation }) {
     try {
       const result = await requestDataDeletion();
       if (result?.success) {
+        dataCache[cacheKey] = null;
+        dataCache.timestamps[cacheKey] = 0;
+
         setShowDeleteModal(false);
-        loadData();
+        loadData(true);
       }
     } catch (e) {
       console.error("[MemberPrivacyScreen] deletion error:", e);
@@ -669,34 +720,49 @@ function MemberPrivacyScreen({ navigation }) {
 // ── SponsorPrivacyScreen ──────────────────────────────────────────────────────
 
 function SponsorPrivacyScreen({ navigation }) {
-  const [summary, setSummary]   = useState(null);
-  const [loading, setLoading]   = useState(true);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const cacheKey = 'sponsor';
+  const cachedData = dataCache[cacheKey];
+  const cacheAge = cachedData ? Date.now() - dataCache.timestamps[cacheKey] : Infinity;
+  const isCacheFresh = cacheAge < CACHE_DURATION;
+  const hasCachedData = !!cachedData;
+
+  const [summary, setSummary]   = useState(cachedData);
+  const [loading, setLoading]   = useState(!hasCachedData);
+  const fadeAnim = useRef(new Animated.Value(hasCachedData ? 1 : 0)).current;
+
+  const loadData = useCallback(async (showLoading = true) => {
+    try {
+      if (showLoading) setLoading(true);
+      const result = await getMyDataSummary();
+      if (result?.success) {
+        dataCache[cacheKey] = result.summary;
+        dataCache.timestamps[cacheKey] = Date.now();
+        setSummary(result.summary);
+      }
+    } catch (e) {
+      console.error("[SponsorPrivacyScreen] load error:", e);
+    } finally {
+      setLoading(false);
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+    }
+  }, []);
 
   useEffect(() => {
-    let isMounted = true;
-    getMyDataSummary()
-      .then((result) => {
-        if (isMounted && result?.success) setSummary(result.summary);
-      })
-      .catch((e) => console.error("[SponsorPrivacyScreen] load error:", e))
-      .finally(() => {
-        if (isMounted) {
-          setLoading(false);
-          Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
-        }
-      });
-    return () => { isMounted = false; };
-  }, []);
+    if (!isCacheFresh) {
+      loadData(!hasCachedData);
+    }
+  }, [loadData, isCacheFresh, hasCachedData]);
 
   const handleSponsorAcknowledge = async () => {
     try {
       await updateConsent({ brandDataAcknowledged: true });
-      setSummary((prev) => ({
-        ...prev,
+      const updated = {
+        ...summary,
         brandDataAcknowledged: true,
-        consentState: { ...prev?.consentState, brandDataAcknowledged: true },
-      }));
+        consentState: { ...summary?.consentState, brandDataAcknowledged: true },
+      };
+      setSummary(updated);
+      dataCache[cacheKey] = updated;
     } catch (e) {
       console.error("[SponsorPrivacyScreen] ack error:", e);
     }
@@ -787,19 +853,35 @@ function SponsorPrivacyScreen({ navigation }) {
 // ── CommunityPrivacyScreen ────────────────────────────────────────────────────
 
 function CommunityPrivacyScreen({ navigation }) {
-  const [data, setData]           = useState(null);
-  const [loading, setLoading]     = useState(true);
-  const [consents, setConsents]   = useState({
-    behavioral: false, brand: false, dataSharing: false, eventAudienceIntelligence: false,
+  const cacheKey = 'community';
+  const cachedData = dataCache[cacheKey];
+  const cacheAge = cachedData ? Date.now() - dataCache.timestamps[cacheKey] : Infinity;
+  const isCacheFresh = cacheAge < CACHE_DURATION;
+  const hasCachedData = !!cachedData;
+
+  const [data, setData]           = useState(cachedData);
+  const [loading, setLoading]     = useState(!hasCachedData);
+  const [consents, setConsents]   = useState(() => {
+    const cached = cachedData;
+    return {
+      behavioral: cached?.consentState?.behavioral ?? false,
+      brand: cached?.consentState?.brand ?? false,
+      dataSharing: cached?.consentState?.dataSharing ?? false,
+      eventAudienceIntelligence: cached?.consentState?.eventAudienceIntelligence ?? false,
+    };
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting]   = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(hasCachedData ? 1 : 0)).current;
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (showLoading = true) => {
     try {
+      if (showLoading) setLoading(true);
       const result = await getCommunityDataSummary();
       if (result?.success) {
+        dataCache[cacheKey] = result;
+        dataCache.timestamps[cacheKey] = Date.now();
+
         setData(result);
         setConsents({
           behavioral: result.consentState?.behavioral ?? false,
@@ -816,7 +898,11 @@ function CommunityPrivacyScreen({ navigation }) {
     }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    if (!isCacheFresh) {
+      loadData(!hasCachedData);
+    }
+  }, [loadData, isCacheFresh, hasCachedData]);
 
   // Fix B: Optimistic update with explicit previousValue capture for safe revert.
   // Fix C: updateConsent in api/privacy.js normalises field names — no silent drops.
@@ -827,14 +913,21 @@ function CommunityPrivacyScreen({ navigation }) {
     console.log('[CommunityPrivacy] Toggle fired:', apiField, '→', newVal);
     setConsents((prev) => ({ ...prev, [field]: newVal })); // optimistic
 
+    if (dataCache[cacheKey]) {
+      if (!dataCache[cacheKey].consentState) dataCache[cacheKey].consentState = {};
+      dataCache[cacheKey].consentState[field] = newVal;
+    }
+
     try {
       console.log('[CommunityPrivacy] Calling updateConsent...');
       await updateConsent({ [apiField]: newVal });
       console.log('[CommunityPrivacy] updateConsent resolved ✅');
     } catch (err) {
       console.error('[CommunityPrivacy] updateConsent failed — reverting:', err?.message, 'status:', err?.status);
-      // Revert ONLY on actual API failure
       setConsents((prev) => ({ ...prev, [field]: previousValue }));
+      if (dataCache[cacheKey] && dataCache[cacheKey].consentState) {
+        dataCache[cacheKey].consentState[field] = previousValue;
+      }
     }
   };
 
@@ -843,8 +936,11 @@ function CommunityPrivacyScreen({ navigation }) {
     try {
       const result = await requestDataDeletion();
       if (result?.success) {
+        dataCache[cacheKey] = null;
+        dataCache.timestamps[cacheKey] = 0;
+
         setShowDeleteModal(false);
-        loadData();
+        loadData(true);
       }
     } catch (e) {
       console.error("[CommunityPrivacyScreen] deletion error:", e);
