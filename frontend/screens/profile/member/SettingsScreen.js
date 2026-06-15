@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,15 +9,15 @@ import {
   Alert,
   Linking,
   Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
   useAnimatedStyle,
   withSpring,
   useSharedValue,
   interpolateColor,
-} from 'react-native-reanimated';
-import { Pressable } from 'react-native';
+} from "react-native-reanimated";
+import { Pressable } from "react-native";
 import {
   ArrowLeft,
   ChevronRight,
@@ -31,18 +31,23 @@ import {
   Info,
   LogOut,
   Trash2,
-} from 'lucide-react-native';
-import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from '../../../constants/theme';
-import HapticsService from '../../../services/HapticsService';
-import EventBus from '../../../utils/EventBus';
-import Constants from 'expo-constants';
-import DynamicStatusBar from '../../../components/DynamicStatusBar';
-import AccountSwitcherModal from '../../../components/modals/AccountSwitcherModal';
-import AddAccountModal from '../../../components/modals/AddAccountModal';
-import { getActiveAccount } from '../../../api/auth';
+} from "lucide-react-native";
+import {
+  COLORS,
+  FONTS,
+  SHADOWS,
+  BORDER_RADIUS,
+} from "../../../constants/theme";
+import HapticsService from "../../../services/HapticsService";
+import EventBus from "../../../utils/EventBus";
+import Constants from "expo-constants";
+import DynamicStatusBar from "../../../components/DynamicStatusBar";
+import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModal";
+import AddAccountModal from "../../../components/modals/AddAccountModal";
+import { getActiveAccount } from "../../../api/auth";
 
 // ─── Animated toggle (same premium switch from SettingsModal) ─────────────────
-function AnimatedSwitch({ value, onValueChange, activeColor = '#2962FF' }) {
+function AnimatedSwitch({ value, onValueChange, activeColor = "#2962FF" }) {
   const translateX = useSharedValue(value ? 22 : 2);
 
   useEffect(() => {
@@ -54,7 +59,11 @@ function AnimatedSwitch({ value, onValueChange, activeColor = '#2962FF' }) {
   }, [value]);
 
   const trackStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(translateX.value, [2, 22], ['#E5E5EA', activeColor]),
+    backgroundColor: interpolateColor(
+      translateX.value,
+      [2, 22],
+      ["#E5E5EA", activeColor],
+    ),
   }));
   const thumbStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
@@ -74,15 +83,15 @@ const switchStyles = StyleSheet.create({
     width: 48,
     height: 28,
     borderRadius: 14,
-    justifyContent: 'center',
+    justifyContent: "center",
     padding: 2,
   },
   thumb: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 2,
@@ -90,7 +99,16 @@ const switchStyles = StyleSheet.create({
   },
 });
 
-function SettingsRow({ icon: Icon, iconColor = COLORS.textPrimary, label, sublabel, onPress, rightElement, isFirst, isLast }) {
+function SettingsRow({
+  icon: Icon,
+  iconColor = COLORS.textPrimary,
+  label,
+  sublabel,
+  onPress,
+  rightElement,
+  isFirst,
+  isLast,
+}) {
   return (
     <Pressable
       style={({ pressed }) => [
@@ -98,7 +116,7 @@ function SettingsRow({ icon: Icon, iconColor = COLORS.textPrimary, label, sublab
         isFirst && rowStyles.rowFirst,
         isLast && rowStyles.rowLast,
         !isLast && rowStyles.rowWithBorder,
-        pressed && onPress && { backgroundColor: '#F2F2F7' }
+        pressed && onPress && { backgroundColor: "#F2F2F7" },
       ]}
       onPress={onPress}
       disabled={!onPress}
@@ -110,21 +128,23 @@ function SettingsRow({ icon: Icon, iconColor = COLORS.textPrimary, label, sublab
         <Text style={rowStyles.label}>{label}</Text>
         {sublabel ? <Text style={rowStyles.sublabel}>{sublabel}</Text> : null}
       </View>
-      {rightElement !== undefined ? rightElement : (
-        onPress ? <ChevronRight size={18} color={COLORS.textSecondary} strokeWidth={2} /> : null
-      )}
+      {rightElement !== undefined ? (
+        rightElement
+      ) : onPress ? (
+        <ChevronRight size={18} color={COLORS.textSecondary} strokeWidth={2} />
+      ) : null}
     </Pressable>
   );
 }
 
 const rowStyles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 14,
     paddingHorizontal: 16,
     gap: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   rowFirst: {
     borderTopLeftRadius: BORDER_RADIUS.xl,
@@ -136,14 +156,14 @@ const rowStyles = StyleSheet.create({
   },
   rowWithBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    borderBottomColor: "rgba(0,0,0,0.05)",
   },
   iconBox: {
     width: 36,
     height: 36,
     borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
   },
   labelWrap: {
@@ -171,7 +191,7 @@ const sectionStyles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 11,
     color: COLORS.textSecondary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.6,
     marginBottom: 8,
     marginLeft: 4,
@@ -179,18 +199,16 @@ const sectionStyles = StyleSheet.create({
 });
 
 function Card({ children, style }) {
-  return (
-    <View style={[cardStyles.card, style]}>
-      {children}
-    </View>
-  );
+  return <View style={[cardStyles.card, style]}>{children}</View>;
 }
 
 const cardStyles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: BORDER_RADIUS.xl,
-    overflow: 'hidden',
+    overflow: "hidden",
+    ...SHADOWS.sm,
+    shadowOpacity: 0.04,
     marginBottom: 24,
   },
 });
@@ -204,9 +222,12 @@ export default function SettingsScreen({ route, navigation }) {
     onAddAccountPress,
   } = route?.params || {};
 
-  const [hapticsEnabled, setHapticsEnabled] = React.useState(initialHaptics ?? true);
+  const [hapticsEnabled, setHapticsEnabled] = React.useState(
+    initialHaptics ?? true,
+  );
 
-  const appVersion = Constants.expoConfig?.version || Constants.manifest?.version || '—';
+  const appVersion =
+    Constants.expoConfig?.version || Constants.manifest?.version || "—";
 
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
@@ -234,13 +255,19 @@ export default function SettingsScreen({ route, navigation }) {
     HapticsService.triggerImpactLight();
     navigation.goBack();
     // Small delay so the screen pops before the modal appears
-    setTimeout(() => EventBus.emit('settings:action', { action: 'logout' }), 150);
+    setTimeout(
+      () => EventBus.emit("settings:action", { action: "logout" }),
+      150,
+    );
   };
 
   const handleAddAccount = () => {
     HapticsService.triggerImpactLight();
     navigation.goBack();
-    setTimeout(() => EventBus.emit('settings:action', { action: 'add_account' }), 150);
+    setTimeout(
+      () => EventBus.emit("settings:action", { action: "add_account" }),
+      150,
+    );
   };
 
   const handleSwitchAccount = () => {
@@ -250,40 +277,42 @@ export default function SettingsScreen({ route, navigation }) {
 
   const handleDeleteAccount = () => {
     HapticsService.triggerImpactLight();
-    navigation.navigate('DeleteAccount');
+    navigation.navigate("DeleteAccount");
   };
 
   const handleHelp = () => {
     HapticsService.triggerImpactLight();
-    Alert.alert('Help & Support', 'Help & Support will be available soon.');
+    Alert.alert("Help & Support", "Help & Support will be available soon.");
   };
 
   const handleAbout = () => {
     HapticsService.triggerImpactLight();
     Alert.alert(
       `SnooSpace v${appVersion}`,
-      'Terms of Service, Privacy Policy, and Community Guidelines will be available soon.',
-      [{ text: 'OK' }]
+      "Terms of Service, Privacy Policy, and Community Guidelines will be available soon.",
+      [{ text: "OK" }],
     );
   };
 
   // Local reactive instagram state — updated via EventBus when LinkedAccountsScreen saves
   const [instagramUsername, setInstagramUsername] = useState(
-    profile?.instagram_username || null
+    profile?.instagram_username || null,
   );
 
   // Keep in sync when LinkedAccountsScreen links/unlinks
   useEffect(() => {
-    const unsub = EventBus.on('instagram:updated', ({ username }) => {
+    const unsub = EventBus.on("instagram:updated", ({ username }) => {
       setInstagramUsername(username || null);
     });
-    return () => { if (unsub) unsub(); };
+    return () => {
+      if (unsub) unsub();
+    };
   }, []);
 
   return (
     <View style={styles.container}>
       <DynamicStatusBar style="dark" />
-      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
+      <SafeAreaView edges={["top"]} style={{ backgroundColor: "#FFFFFF" }}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
@@ -298,7 +327,7 @@ export default function SettingsScreen({ route, navigation }) {
         </View>
       </SafeAreaView>
 
-      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+      <SafeAreaView edges={["bottom"]} style={{ flex: 1 }}>
         <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
@@ -318,9 +347,11 @@ export default function SettingsScreen({ route, navigation }) {
               icon={Instagram}
               iconColor="#EC4899"
               label="Linked Accounts"
-              sublabel={instagramUsername ? `@${instagramUsername}` : 'Not linked'}
+              sublabel={
+                instagramUsername ? `@${instagramUsername}` : "Not linked"
+              }
               onPress={() =>
-                navigation.navigate('LinkedAccounts', {
+                navigation.navigate("LinkedAccounts", {
                   instagramUsername,
                 })
               }
@@ -336,7 +367,7 @@ export default function SettingsScreen({ route, navigation }) {
               iconColor="#E53E3E"
               label="Blocked Accounts"
               sublabel="Manage who you've blocked"
-              onPress={() => navigation.navigate('BlockedAccounts')}
+              onPress={() => navigation.navigate("BlockedAccounts")}
               isFirst
               isLast
             />
@@ -352,7 +383,7 @@ export default function SettingsScreen({ route, navigation }) {
               sublabel="How SnooSpace understands you"
               onPress={() => {
                 HapticsService.triggerImpactLight();
-                navigation.navigate('MyDataScreen');
+                navigation.navigate("MyDataScreen");
               }}
               isFirst
               isLast
@@ -366,7 +397,12 @@ export default function SettingsScreen({ route, navigation }) {
               icon={Bell}
               iconColor="#F59E0B"
               label="Notifications"
-              onPress={() => Alert.alert('Notifications', 'Notification settings coming soon.')}
+              onPress={() =>
+                Alert.alert(
+                  "Notifications",
+                  "Notification settings coming soon.",
+                )
+              }
               isFirst
             />
             <SettingsRow
@@ -426,7 +462,9 @@ export default function SettingsScreen({ route, navigation }) {
               onPress={handleDeleteAccount}
               isFirst
               isLast
-              rightElement={<ChevronRight size={18} color="#FF3B30" strokeWidth={2} />}
+              rightElement={
+                <ChevronRight size={18} color="#FF3B30" strokeWidth={2} />
+              }
             />
           </Card>
         </ScrollView>
@@ -436,8 +474,16 @@ export default function SettingsScreen({ route, navigation }) {
         <AccountSwitcherModal
           visible={showAccountSwitcher}
           onClose={() => setShowAccountSwitcher(false)}
-          currentAccountId={activeAccount?.id ? `${activeAccount.type || 'member'}_${activeAccount.id}` : undefined}
-          currentProfile={profile ? { ...profile, type: activeAccount?.type || 'member' } : null}
+          currentAccountId={
+            activeAccount?.id
+              ? `${activeAccount.type || "member"}_${activeAccount.id}`
+              : undefined
+          }
+          currentProfile={
+            profile
+              ? { ...profile, type: activeAccount?.type || "member" }
+              : null
+          }
           onAccountSwitch={(account) => {
             // Navigate to correct home screen based on account type
             const routeName =
@@ -504,14 +550,14 @@ const styles = StyleSheet.create({
 
   // Header
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 8,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-    backgroundColor: '#FFFFFF',
+    borderBottomColor: "rgba(0,0,0,0.05)",
+    backgroundColor: "#FFFFFF",
     minHeight: 56,
   },
   backBtn: {
