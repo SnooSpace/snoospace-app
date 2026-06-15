@@ -325,7 +325,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
       resizeMode="cover"
       blurRadius={10}
     >
-      <SafeAreaView style={styles.safeArea}>
+      <SafeAreaView style={styles.safeArea} importantForAutofill="noExcludeDescendants">
         {/* Cancel Confirmation Modal */}
         <CancelSignupModal
           visible={showCancelModal}
@@ -379,6 +379,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
                           styles.inputWrapper,
                           isFocused && styles.inputWrapperFocused,
                         ]}
+                        importantForAutofill="noExcludeDescendants"
                       >
                         <TextInput
                           style={styles.textInput}
@@ -388,12 +389,15 @@ const MemberUsernameScreen = ({ navigation, route }) => {
                           placeholderTextColor={COLORS.textSecondary}
                           autoCapitalize="none"
                           autoCorrect={false}
-                          textContentType="username"
+                          textContentType="none"
                           autoComplete="off"
                           importantForAutofill="no"
+                          spellCheck={false}
                           maxLength={30}
                           onFocus={() => setIsFocused(true)}
                           onBlur={() => setIsFocused(false)}
+                          selectionColor={COLORS.primary}
+                          underlineColorAndroid="transparent"
                         />
                         {isChecking && (
                           <SnooLoader size="small" color={COLORS.primary} />
@@ -567,6 +571,7 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-Medium",
     color: COLORS.textPrimary,
     height: "100%",
+    includeFontPadding: false,
   },
   statusText: {
     fontFamily: "Manrope-SemiBold",

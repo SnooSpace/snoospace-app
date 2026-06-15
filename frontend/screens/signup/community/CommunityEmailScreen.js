@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, ScrollView, ImageBackground } from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, ScrollView, Pressable, ImageBackground } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
 import { Mail } from "lucide-react-native";
@@ -49,10 +49,6 @@ const CommunityEmailScreen = ({ navigation, route }) => {
     setTouched(true);
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     setIsValidEmail(emailRegex.test(text));
-    // Clear Android autofill yellow highlight using setNativeProps
-    if (Platform.OS === "android" && inputRef.current) {
-      inputRef.current.setNativeProps({ style: { backgroundColor: "transparent" } });
-    }
   };
 
   // Send OTP and navigate to OTP screen
@@ -159,24 +155,36 @@ const CommunityEmailScreen = ({ navigation, route }) => {
               <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
               <View style={styles.cardContent}>
                 <Text style={styles.inputLabel}>Email address</Text>
-                <View style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}>
+                <Pressable
+                  onPress={() => inputRef.current?.focus()}
+                  style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}
+                >
                   <Mail size={20} color="#8AADC4" style={styles.inputIcon} strokeWidth={2.5} />
                   <TextInput
                     ref={inputRef}
                     style={styles.input}
-                    placeholder="name@example.com"
-                    placeholderTextColor="#8AADC4"
                     value={email}
                     onChangeText={validateEmail}
                     onFocus={() => setIsFocused(true)}
                     onBlur={() => setIsFocused(false)}
                     keyboardType="email-address"
                     autoCapitalize="none"
-                    autoCorrect={false}
-                    importantForAutofill="no"
-                    autoComplete="off"
+                    autoComplete="email"
+                    textContentType="emailAddress"
+                    importantForAutofill="yes"
+                    spellCheck={false}
+                    selectionColor={COLORS.primary}
+                    underlineColorAndroid="transparent"
                   />
-                </View>
+                  {!email && (
+                    <Text
+                      pointerEvents="none"
+                      style={[styles.placeholderAbsolute, { color: "#8AADC4" }]}
+                    >
+                      name@example.com
+                    </Text>
+                  )}
+                </Pressable>
 
                 {/* Inline error message for invalid email when touched */}
                 {touched && email.length > 0 && !isValidEmail && (
@@ -307,6 +315,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     height: "100%",
     backgroundColor: "transparent",
+    includeFontPadding: false,
   },
   validationErrorText: {
     fontFamily: "Manrope-Medium",
@@ -354,6 +363,12 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     textAlign: "center",
     marginTop: 4,
+  },
+  placeholderAbsolute: {
+    position: "absolute",
+    left: 48,
+    fontFamily: "Manrope-Medium",
+    fontSize: 16,
   },
 });
 

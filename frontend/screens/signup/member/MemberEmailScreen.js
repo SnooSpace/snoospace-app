@@ -102,10 +102,6 @@ const MemberEmailScreen = ({ navigation }) => {
     setTouched(true);
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     setIsValidEmail(emailRegex.test(text));
-    // Clear Android autofill yellow highlight using setNativeProps
-    if (Platform.OS === "android" && inputRef.current) {
-      inputRef.current.setNativeProps({ style: { backgroundColor: "transparent" } });
-    }
   };
 
   const sendOtpAndNavigate = async () => {
@@ -199,8 +195,6 @@ const MemberEmailScreen = ({ navigation }) => {
                     <TextInput
                       ref={inputRef}
                       style={styles.input}
-                      placeholder="name@example.com"
-                      placeholderTextColor="#8AADC4"
                       value={email}
                       onChangeText={validateEmail}
                       onFocus={() => {
@@ -214,9 +208,21 @@ const MemberEmailScreen = ({ navigation }) => {
                       keyboardType="email-address"
                       autoCapitalize="none"
                       autoCorrect={false}
-                      importantForAutofill="no"
-                      autoComplete="off"
+                      autoComplete="email"
+                      textContentType="emailAddress"
+                      importantForAutofill="yes"
+                      spellCheck={false}
+                      selectionColor={COLORS.primary}
+                      underlineColorAndroid="transparent"
                     />
+                    {!email && (
+                      <Text
+                        pointerEvents="none"
+                        style={[styles.placeholderAbsolute, { color: "#8AADC4" }]}
+                      >
+                        name@example.com
+                      </Text>
+                    )}
                   </Pressable>
                 </Animated.View>
 
@@ -351,6 +357,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     height: "100%",
     backgroundColor: "transparent",
+    includeFontPadding: false,
   },
   validationErrorText: {
     fontFamily: "Manrope-Medium",
@@ -398,6 +405,12 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     textAlign: "center",
     marginTop: 4,
+  },
+  placeholderAbsolute: {
+    position: "absolute",
+    left: 48,
+    fontFamily: "Manrope-Medium",
+    fontSize: 16,
   },
 });
 

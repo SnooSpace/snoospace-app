@@ -118,9 +118,6 @@ const LoginScreen = ({ navigation, route }) => {
   // Clear Android autofill yellow highlight immediately on text change
   const handleEmailChange = (text) => {
     setEmailOrUsername(text);
-    if (Platform.OS === "android" && inputRef.current) {
-      inputRef.current.setNativeProps({ style: { backgroundColor: "transparent" } });
-    }
   };
 
   return (
@@ -160,8 +157,6 @@ const LoginScreen = ({ navigation, route }) => {
                 <TextInput
                   ref={inputRef}
                   style={styles.input}
-                  placeholder="name@example.com"
-                  placeholderTextColor={COLORS.textMuted}
                   value={emailOrUsername}
                   onChangeText={handleEmailChange}
                   onFocus={() => setIsFocused(true)}
@@ -169,9 +164,21 @@ const LoginScreen = ({ navigation, route }) => {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  importantForAutofill="no"
-                  autoComplete="off"
+                  autoComplete="username"
+                  textContentType="username"
+                  importantForAutofill="yes"
+                  spellCheck={false}
+                  selectionColor={COLORS.primary}
+                  underlineColorAndroid="transparent"
                 />
+                {!emailOrUsername && (
+                  <Text
+                    pointerEvents="none"
+                    style={[styles.placeholderAbsolute, { color: COLORS.textMuted }]}
+                  >
+                    name@example.com
+                  </Text>
+                )}
               </Pressable>
 
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -304,6 +311,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     height: "100%",
     backgroundColor: "transparent",
+    includeFontPadding: false,
   },
   errorText: {
     color: COLORS.error,
@@ -355,6 +363,12 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-SemiBold",
     fontSize: 14,
     color: COLORS.primary, // Used COLORS.primary for consistent blue
+  },
+  placeholderAbsolute: {
+    position: "absolute",
+    left: 48,
+    fontFamily: "Manrope-Medium",
+    fontSize: 16,
   },
 
 });

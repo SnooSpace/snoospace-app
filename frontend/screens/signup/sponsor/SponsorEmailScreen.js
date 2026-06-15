@@ -24,9 +24,6 @@ const SponsorEmailScreen = ({ navigation, route }) => {
   // Clear Android autofill yellow highlight immediately on text change
   const handleEmailChange = (text) => {
     setEmail(text);
-    if (Platform.OS === "android" && inputRef.current) {
-      inputRef.current.setNativeProps({ style: { backgroundColor: "transparent" } });
-    }
   };
 
   // Send OTP and navigate to OTP screen
@@ -161,18 +158,28 @@ const SponsorEmailScreen = ({ navigation, route }) => {
                 backgroundColor: "#fff",
               },
             ]}
-            placeholder="Enter your email"
-            placeholderTextColor={COLORS.textSecondary}
             value={email}
             onChangeText={handleEmailChange}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
-            importantForAutofill="no"
-            autoComplete="off"
+            autoComplete="email"
+            textContentType="emailAddress"
+            importantForAutofill="yes"
+            spellCheck={false}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
+            selectionColor={COLORS.primary}
+            underlineColorAndroid="transparent"
           />
+          {!email && (
+            <Text
+              pointerEvents="none"
+              style={[styles.placeholderAbsolute, { color: COLORS.textSecondary }]}
+            >
+              Enter your email
+            </Text>
+          )}
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -248,6 +255,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: COLORS.inputBackground || "#f8f9fa",
     color: COLORS.textPrimary,
+    includeFontPadding: false,
   },
   buttonContainer: {
     marginTop: 20,
@@ -283,6 +291,13 @@ const styles = StyleSheet.create({
   },
   progressBarContainer: {
     marginBottom: 20,
+  },
+  placeholderAbsolute: {
+    position: "absolute",
+    left: 17,
+    top: 15,
+    fontFamily: "Manrope-Medium",
+    fontSize: 16,
   },
 });
 

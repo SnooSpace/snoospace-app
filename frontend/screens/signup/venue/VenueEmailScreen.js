@@ -23,9 +23,6 @@ const VenueEmailScreen = ({ navigation, route }) => {
   // Clear Android autofill yellow highlight immediately on text change
   const handleEmailChange = (text) => {
     setEmail(text);
-    if (Platform.OS === "android" && inputRef.current) {
-      inputRef.current.setNativeProps({ style: { backgroundColor: "transparent" } });
-    }
   };
 
   // Send OTP and navigate to OTP screen
@@ -148,17 +145,19 @@ const VenueEmailScreen = ({ navigation, route }) => {
         <View style={styles.inputContainer}>
           <TextInput
             ref={inputRef}
-            placeholderTextColor={COLORS.textSecondary}
-            placeholder="Enter your email"
             value={email}
             onChangeText={handleEmailChange}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
-            importantForAutofill="no"
-            autoComplete="off"
+            autoComplete="email"
+            textContentType="emailAddress"
+            importantForAutofill="yes"
+            spellCheck={false}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
+            selectionColor={COLORS.primary}
+            underlineColorAndroid="transparent"
             style={[
               styles.input,
               isFocused && {
@@ -167,6 +166,14 @@ const VenueEmailScreen = ({ navigation, route }) => {
               },
             ]}
           />
+          {!email && (
+            <Text
+              pointerEvents="none"
+              style={[styles.placeholderAbsolute, { color: COLORS.textSecondary }]}
+            >
+              Enter your email
+            </Text>
+          )}
         </View>
 
         {error ? (
@@ -258,6 +265,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: COLORS.inputBackground,
     color: COLORS.textPrimary,
+    includeFontPadding: false,
   },
   buttonContainer: {
     borderRadius: BORDER_RADIUS.pill,
@@ -299,6 +307,13 @@ const styles = StyleSheet.create({
     color: COLORS.textInverted,
     fontSize: 14,
     fontWeight: "600",
+  },
+  placeholderAbsolute: {
+    position: "absolute",
+    left: 17,
+    top: 15,
+    fontFamily: "Manrope-Medium",
+    fontSize: 16,
   },
 });
 
