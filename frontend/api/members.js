@@ -115,6 +115,12 @@ export async function removeFromCircle(userId) {
   return apiDelete(`/circles/${userId}`, null, 15000, token);
 }
 
+/** Get another member's circle list (public/read-only view). */
+export async function getPublicCircleMembers(userId, { page = 1, limit = 20 } = {}) {
+  const token = await getAuthToken();
+  return apiGet(`/circles/${userId}/members?page=${page}&limit=${limit}`, 15000, token);
+}
+
 export async function updateMemberProfile(updates, token) {
   if (!token) token = await getAuthToken();
   return apiPatch("/members/profile", updates, 15000, token);

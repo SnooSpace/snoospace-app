@@ -558,6 +558,22 @@ export default function MemberProfileScreen({ navigation }) {
     return () => { if (unsub) unsub(); };
   }, []);
 
+  // Instantly update circle count when a circle request is accepted
+  useEffect(() => {
+    const unsub = EventBus.on('circle-request-responded', ({ action }) => {
+      if (action !== 'accepted') return;
+      // Bump the polled circles count immediately without waiting for next poll tick
+      initializeCounts({
+        follower_count: polledCounts.followers,
+        following_count: polledCounts.following,
+        post_count: polledCounts.posts,
+        circle_count: (polledCounts.circles || 0) + 1,
+      });
+    });
+    return () => { if (unsub) unsub(); };
+  }, [polledCounts, initializeCounts]);
+
+
   // Real-time sync: view, share, save counts from EventBus
   useEffect(() => {
     const handlePostViewUpdate = (payload) => {
@@ -727,6 +743,7 @@ export default function MemberProfileScreen({ navigation }) {
         // Social profiles
         instagram_username: fullProfile.instagram_username || null,
         circle_count: fullProfile.circle_count || 0,
+        following_count: fullProfile.following_count || 0,
         events_attended_count: eventsResponse?.total_events ?? (eventsResponse?.events?.length ?? 0),
       };
       setProfile(mappedProfile);
@@ -1340,6 +1357,20 @@ export default function MemberProfileScreen({ navigation }) {
                   {polledCounts.circles || profile.circle_count || 0}
                 </Text>
                 <Text style={styles.statLabel}>Circle</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.statItem}
+                onPress={() => {
+                  navigation.navigate('FollowingList', {
+                    memberId: profile.id,
+                    title: 'Following',
+                  });
+                }}
+              >
+                <Text style={styles.statNumber}>
+                  {polledCounts.following || profile.following_count || 0}
+                </Text>
+                <Text style={styles.statLabel}>Following</Text>
               </TouchableOpacity>
             </View>
 

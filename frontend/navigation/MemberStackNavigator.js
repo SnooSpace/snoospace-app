@@ -9,6 +9,8 @@ import NotificationsScreen from "../screens/notifications/NotificationsScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import SponsorProfileScreen from "../screens/profile/sponsor/SponsorProfileScreen";
 import VenueProfileScreen from "../screens/profile/venue/VenueProfileScreen";
+import CircleListScreen from "../screens/profile/member/CircleListScreen";
+import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
 
 const Stack = createStackNavigator();
 
@@ -23,6 +25,8 @@ export default function MemberStackNavigator() {
       <Stack.Screen name="FollowingList" component={FollowingListScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: true }} />
+      <Stack.Screen name="CircleList" component={CircleListScreen} />
+      <Stack.Screen name="CircleRequests" component={CircleRequestsScreen} />
     </Stack.Navigator>
   );
 }

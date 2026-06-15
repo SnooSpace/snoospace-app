@@ -458,7 +458,7 @@ async function getPublicMember(req, res) {
       `SELECT id, username, name as full_name, bio, profile_photo_url, created_at, interests, pronouns, occupation,
               occupation_details, occupation_category, portfolio_link, education, campus_id, show_college,
               instagram_username,
-              follower_count AS followers_count, following_count,
+              follower_count AS followers_count, following_count, circle_count,
               (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member')::int AS posts_count,
               (
                 (SELECT COUNT(*) FROM event_registrations WHERE member_id = $1
@@ -534,6 +534,7 @@ async function getPublicMember(req, res) {
       communities_count: parseInt(profile.communities_count || 0, 10),
       followers_count: parseInt(profile.followers_count || 0, 10),
       following_count: parseInt(profile.following_count || 0, 10),
+      circle_count: parseInt(profile.circle_count || 0, 10),
       is_following: isFollowing,
       you_have_blocked: youHaveBlocked,
       interests:

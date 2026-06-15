@@ -11,6 +11,8 @@ import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
 import CommunityFollowersListScreen from "../screens/profile/community/CommunityFollowersListScreen";
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
+import CircleListScreen from "../screens/profile/member/CircleListScreen";
+import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
 
 import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
 
@@ -79,6 +81,8 @@ export default function CommunitySearchStackNavigator() {
         name="CommunityFollowingList"
         component={CommunityFollowingListScreen}
       />
+      <Stack.Screen name="CircleList" component={CircleListScreen} />
+      <Stack.Screen name="CircleRequests" component={CircleRequestsScreen} />
     </Stack.Navigator>
   );
 }

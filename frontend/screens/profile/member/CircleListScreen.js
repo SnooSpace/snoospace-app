@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
   Image, ActivityIndicator, Pressable,
@@ -7,14 +8,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Users, Bell, X, UserMinus, AlertTriangle, CheckCircle } from 'lucide-react-native';
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, FadeInDown } from 'react-native-reanimated';
 import { COLORS, FONTS, BORDER_RADIUS, SPACING } from '../../../constants/theme';
-import { getCircleMembers, removeFromCircle, getIncomingCircleRequestCount } from '../../../api/members';
+import { getCircleMembers, removeFromCircle, getIncomingCircleRequestCount, getPublicCircleMembers } from '../../../api/members';
 import CustomAlertModal from '../../../components/ui/CustomAlertModal';
 import HapticsService from '../../../services/HapticsService';
+import EventBus from '../../../utils/EventBus';
 
 // ─────────────────────────────────────────────────────────
 // Single circle member row
 // ─────────────────────────────────────────────────────────
-const CircleMemberRow = React.memo(({ item, onPress, onRemove }) => {
+const CircleMemberRow = React.memo(({ item, onPress, onRemove, readOnly }) => {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
@@ -36,13 +38,15 @@ const CircleMemberRow = React.memo(({ item, onPress, onRemove }) => {
             <Text style={styles.rowUsername} numberOfLines={1}>@{item.username}</Text>
           ) : null}
         </View>
-        <TouchableOpacity
-          style={styles.removeBtn}
-          onPress={() => onRemove(item)}
-          hitSlop={8}
-        >
-          <UserMinus size={18} color={COLORS.textSecondary} strokeWidth={2} />
-        </TouchableOpacity>
+        {!readOnly && (
+          <TouchableOpacity
+            style={styles.removeBtn}
+            onPress={() => onRemove(item)}
+            hitSlop={8}
+          >
+            <UserMinus size={18} color={COLORS.textSecondary} strokeWidth={2} />
+          </TouchableOpacity>
+        )}
       </Pressable>
     </Reanimated.View>
   );
@@ -52,6 +56,10 @@ const CircleMemberRow = React.memo(({ item, onPress, onRemove }) => {
 // Screen
 // ─────────────────────────────────────────────────────────
 export default function CircleListScreen({ route, navigation }) {
+  const readOnly = route?.params?.readOnly === true;
+  const targetMemberId = route?.params?.memberId;  // only used in readOnly mode
+  const memberName = route?.params?.memberName || null;
+
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -68,8 +76,14 @@ export default function CircleListScreen({ route, navigation }) {
   const fetchMembers = useCallback(async (pageNum = 1, searchQuery = '', reset = false) => {
     try {
       if (pageNum === 1) setLoading(true); else setLoadingMore(true);
-      const data = await getCircleMembers({ page: pageNum, limit: 20, search: searchQuery });
-      const fetched = data?.members || [];
+      let fetched;
+      if (readOnly && targetMemberId) {
+        const data = await getPublicCircleMembers(targetMemberId, { page: pageNum, limit: 20 });
+        fetched = data?.members || [];
+      } else {
+        const data = await getCircleMembers({ page: pageNum, limit: 20, search: searchQuery });
+        fetched = data?.members || [];
+      }
       setMembers((prev) => reset || pageNum === 1 ? fetched : [...prev, ...fetched]);
       setHasMore(fetched.length >= 20);
       setPage(pageNum);
@@ -79,7 +93,7 @@ export default function CircleListScreen({ route, navigation }) {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, []);
+  }, [readOnly, targetMemberId]);
 
   const fetchPendingCount = useCallback(async () => {
     try {
@@ -91,6 +105,35 @@ export default function CircleListScreen({ route, navigation }) {
   useEffect(() => {
     fetchMembers(1, '', true);
     fetchPendingCount();
+  }, []);
+
+  // Refresh circle list when screen comes back into focus (e.g. returning from CircleRequests)
+  useFocusEffect(
+    useCallback(() => {
+      fetchPendingCount();
+    }, [fetchPendingCount]),
+  );
+
+  // Listen for instant accept events from CircleRequestsScreen
+  useEffect(() => {
+    const unsub = EventBus.on('circle-request-responded', ({ action, memberId, memberName, memberUsername, memberAvatar }) => {
+      if (action !== 'accepted') return;
+      // Prepend the newly accepted member to the list immediately
+      const newMember = {
+        member_id: String(memberId),
+        name: memberName || 'Member',
+        username: memberUsername || null,
+        profile_photo_url: memberAvatar || null,
+      };
+      setMembers((prev) => {
+        // Avoid duplicates if screen also refreshed via focus
+        if (prev.some((m) => String(m.member_id) === String(memberId))) return prev;
+        return [newMember, ...prev];
+      });
+      // Decrement pending badge
+      setPendingCount((c) => Math.max(0, c - 1));
+    });
+    return () => { if (unsub) unsub(); };
   }, []);
 
   const handleSearchChange = (text) => {
@@ -142,8 +185,8 @@ export default function CircleListScreen({ route, navigation }) {
   }, [showAlert, hideAlert]);
 
   const renderItem = useCallback(({ item }) => (
-    <CircleMemberRow item={item} onPress={handlePress} onRemove={handleRemove} />
-  ), [handlePress, handleRemove]);
+    <CircleMemberRow item={item} onPress={handlePress} onRemove={handleRemove} readOnly={readOnly} />
+  ), [handlePress, handleRemove, readOnly]);
 
   const keyExtractor = useCallback((item) => item.member_id, []);
 
@@ -153,12 +196,14 @@ export default function CircleListScreen({ route, navigation }) {
         <Users size={36} color={COLORS.textSecondary} strokeWidth={1.5} />
       </View>
       <Text style={styles.emptyTitle}>
-        {search ? 'No results found' : 'Your circle is empty'}
+        {search ? 'No results found' : (readOnly ? 'No connections yet' : 'Your circle is empty')}
       </Text>
       <Text style={styles.emptySubtitle}>
         {search
           ? 'Try a different name or username.'
-          : "When you connect with people, they\u2019ll appear here."}
+          : readOnly
+            ? `${memberName || 'This member'} hasn\u2019t connected with anyone yet.`
+            : "When you connect with people, they\u2019ll appear here."}
       </Text>
     </View>
   ) : null;
@@ -170,40 +215,48 @@ export default function CircleListScreen({ route, navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
           <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>My Circle</Text>
-        <TouchableOpacity
-          style={styles.requestsBtn}
-          onPress={() => navigation.navigate('CircleRequests')}
-          hitSlop={8}
-        >
-          <Bell size={22} color={COLORS.textPrimary} strokeWidth={2} />
-          {pendingCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{pendingCount > 9 ? '9+' : pendingCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>
+          {readOnly && memberName ? `${memberName}'s Circle` : 'My Circle'}
+        </Text>
+        {!readOnly ? (
+          <TouchableOpacity
+            style={styles.requestsBtn}
+            onPress={() => navigation.navigate('CircleRequests')}
+            hitSlop={8}
+          >
+            <Bell size={22} color={COLORS.textPrimary} strokeWidth={2} />
+            {pendingCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{pendingCount > 9 ? '9+' : pendingCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.requestsBtn} />
+        )}
       </View>
 
-      {/* Search bar */}
-      <View style={styles.searchRow}>
-        <View style={styles.searchBox}>
-          <Search size={16} color={COLORS.textSecondary} strokeWidth={2} style={{ marginRight: 8 }} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search your circle…"
-            placeholderTextColor={COLORS.textSecondary}
-            value={search}
-            onChangeText={handleSearchChange}
-            returnKeyType="search"
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => handleSearchChange('')} hitSlop={8}>
-              <X size={16} color={COLORS.textSecondary} strokeWidth={2} />
-            </TouchableOpacity>
-          )}
+      {/* Search bar — only shown in own circle view */}
+      {!readOnly && (
+        <View style={styles.searchRow}>
+          <View style={styles.searchBox}>
+            <Search size={16} color={COLORS.textSecondary} strokeWidth={2} style={{ marginRight: 8 }} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search your circle…"
+              placeholderTextColor={COLORS.textSecondary}
+              value={search}
+              onChangeText={handleSearchChange}
+              returnKeyType="search"
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => handleSearchChange('')} hitSlop={8}>
+                <X size={16} color={COLORS.textSecondary} strokeWidth={2} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
+      )}
 
       {/* List */}
       {loading ? (
@@ -246,7 +299,13 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(0,0,0,0.06)',
   },
   backBtn: { width: 40, alignItems: 'flex-start' },
-  headerTitle: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.textPrimary },
+  headerTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontFamily: 'BasicCommercial-Bold',
+    fontSize: 16,
+    color: '#1D1D1F',
+  },
   requestsBtn: { width: 40, alignItems: 'flex-end', position: 'relative' },
   badge: {
     position: 'absolute', top: -6, right: -4,

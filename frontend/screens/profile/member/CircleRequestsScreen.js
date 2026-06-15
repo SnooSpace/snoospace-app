@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, UserCheck, UserX, X, Users, AlertTriangle } from 'lucide-react-native';
+import EventBus from '../../../utils/EventBus';
 import Reanimated, { FadeInDown } from 'react-native-reanimated';
 import { COLORS, FONTS } from '../../../constants/theme';
 import {
@@ -125,6 +126,14 @@ export default function CircleRequestsScreen({ navigation }) {
     try {
       await respondToCircleRequest(item.id, 'accepted');
       setIncoming((prev) => prev.filter((r) => r.id !== item.id));
+      // Notify CircleListScreen and MemberProfileScreen immediately
+      EventBus.emit('circle-request-responded', {
+        action: 'accepted',
+        memberId: item.sender_id,
+        memberName: item.sender_name,
+        memberUsername: item.sender_username,
+        memberAvatar: item.sender_avatar,
+      });
     } catch (err) {
       showAlert({
         title: 'Error', message: err?.message || 'Failed to accept. Try again.',

@@ -507,8 +507,42 @@ const removeFromCircle = async (req, res) => {
 };
 
 // ---------------------------------------------------------------------------
-// GET /circles/requests/count — Pending incoming request count (for badge)
+// GET /circles/:userId/members — Public view of another member's circle
+// Returns their circle members (name, username, avatar only)
 // ---------------------------------------------------------------------------
+const getPublicCircleMembers = async (req, res) => {
+  try {
+    const myId = req.user?.id;
+    if (!myId) return res.status(401).json({ error: 'Authentication required' });
+
+    const { userId } = req.params;
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    const result = await pool.query(`
+      SELECT
+        m.id AS member_id,
+        m.name,
+        m.username,
+        m.profile_photo_url
+      FROM circles c
+      JOIN members m ON m.id = CASE
+        WHEN c.user_a_id = $1 THEN c.user_b_id
+        ELSE c.user_a_id
+      END
+      WHERE (c.user_a_id = $1 OR c.user_b_id = $1)
+      ORDER BY c.created_at DESC
+      LIMIT $2 OFFSET $3
+    `, [userId, limit, offset]);
+
+    return res.json({ members: result.rows });
+  } catch (err) {
+    console.error('[circleController.getPublicCircleMembers]', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+
 const getIncomingRequestCount = async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -534,6 +568,7 @@ module.exports = {
   getIncomingRequests,
   getOutgoingRequests,
   getCircleMembers,
+  getPublicCircleMembers,
   getCircleStatus,
   removeFromCircle,
   getIncomingRequestCount,

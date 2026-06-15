@@ -11,6 +11,8 @@ import SearchScreen from "../screens/search/SearchScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import SponsorProfileScreen from "../screens/profile/sponsor/SponsorProfileScreen";
 import VenueProfileScreen from "../screens/profile/venue/VenueProfileScreen";
+import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
+import CircleListScreen from "../screens/profile/member/CircleListScreen";
 
 const Stack = createStackNavigator();
 
@@ -27,6 +29,8 @@ export default function CommunityStackNavigator() {
       <Stack.Screen name="CommunityHosts" component={CommunityHostsScreen} />
       <Stack.Screen name="CommunitySearch" component={SearchScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: true }} />
+      <Stack.Screen name="FollowingList" component={FollowingListScreen} />
+      <Stack.Screen name="CircleList" component={CircleListScreen} />
     </Stack.Navigator>
   );
 }

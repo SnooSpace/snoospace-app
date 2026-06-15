@@ -13,6 +13,8 @@ import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen"
 import SettingsScreen from "../screens/profile/member/SettingsScreen";
 import LinkedAccountsScreen from "../screens/profile/member/LinkedAccountsScreen";
 import BlockedAccountsScreen from "../screens/profile/member/BlockedAccountsScreen";
+import CircleListScreen from "../screens/profile/member/CircleListScreen";
+import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
 
 const Stack = createStackNavigator();
 
@@ -82,6 +84,8 @@ export default function CommunityProfileStackNavigator() {
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="LinkedAccounts" component={LinkedAccountsScreen} />
       <Stack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
+      <Stack.Screen name="CircleList" component={CircleListScreen} />
+      <Stack.Screen name="CircleRequests" component={CircleRequestsScreen} />
     </Stack.Navigator>
   );
 }

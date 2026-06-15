@@ -42,6 +42,9 @@ import ApplicantDetailScreen from "../screens/home/community/ApplicantDetailScre
 import QRScannerScreen from "../screens/events/QRScannerScreen";
 import UniversalFollowersScreen from "../screens/profile/UniversalFollowersScreen";
 import UniversalFollowingScreen from "../screens/profile/UniversalFollowingScreen";
+import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
+import CircleListScreen from "../screens/profile/member/CircleListScreen";
+import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
 
 const Stack = createStackNavigator();
 
@@ -333,6 +336,30 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="UniversalFollowingList"
         component={UniversalFollowingScreen}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen
+        name="FollowingList"
+        component={FollowingListScreen}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen
+        name="CircleList"
+        component={CircleListScreen}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen
+        name="CircleRequests"
+        component={CircleRequestsScreen}
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,

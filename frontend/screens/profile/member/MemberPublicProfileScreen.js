@@ -898,12 +898,31 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     </Text>
                     <Text style={styles.statLabel}>Events</Text>
                   </TouchableOpacity>
-                  <View style={styles.statItem}>
+                  <TouchableOpacity
+                    style={styles.statItem}
+                    onPress={() => navigation.navigate('CircleList', {
+                      memberId: profile?.id,
+                      memberName: profile?.full_name,
+                      readOnly: true,
+                    })}
+                  >
                     <Text style={styles.statNumber}>
                       {circleCount}
                     </Text>
                     <Text style={styles.statLabel}>Circle</Text>
-                  </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.statItem}
+                    onPress={() => navigation.navigate('FollowingList', {
+                      memberId: profile?.id,
+                      title: 'Following',
+                    })}
+                  >
+                    <Text style={styles.statNumber}>
+                      {profile?.following_count || 0}
+                    </Text>
+                    <Text style={styles.statLabel}>Following</Text>
+                  </TouchableOpacity>
                 </View>
                 {Array.isArray(profile?.interests) &&
                 profile.interests.length > 0 ? (

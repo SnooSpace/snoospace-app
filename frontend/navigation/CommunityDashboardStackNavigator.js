@@ -10,6 +10,8 @@ import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicPro
 import ShareTicketScreen from "../screens/events/ShareTicketScreen";
 import AudienceIntelligenceScreen from "../screens/home/community/AudienceIntelligenceScreen";
 import EventQualityScreen from "../screens/home/community/EventQualityScreen";
+import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
+import CircleListScreen from "../screens/profile/member/CircleListScreen";
 
 import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
 
@@ -79,6 +81,8 @@ export default function CommunityDashboardStackNavigator() {
       <Stack.Screen name="ShareTicket" component={ShareTicketScreen} />
       <Stack.Screen name="AudienceIntelligence" component={AudienceIntelligenceScreen} />
       <Stack.Screen name="EventQuality" component={EventQualityScreen} />
+      <Stack.Screen name="FollowingList" component={FollowingListScreen} />
+      <Stack.Screen name="CircleList" component={CircleListScreen} />
     </Stack.Navigator>
   );
 }

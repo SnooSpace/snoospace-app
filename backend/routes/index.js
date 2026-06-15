@@ -1355,6 +1355,7 @@ router.get("/circles/requests/count", authMiddleware, CircleController.getIncomi
 router.post("/circles/requests", authMiddleware, CircleController.sendCircleRequest);
 router.patch("/circles/requests/:id", authMiddleware, CircleController.respondToCircleRequest);
 router.delete("/circles/requests/:id", authMiddleware, CircleController.cancelCircleRequest);
+router.get("/circles/:userId/members", authMiddleware, CircleController.getPublicCircleMembers);
 router.get("/circles/:userId/status", authMiddleware, CircleController.getCircleStatus);
 router.get("/circles", authMiddleware, CircleController.getCircleMembers);
 router.delete("/circles/:userId", authMiddleware, CircleController.removeFromCircle);
