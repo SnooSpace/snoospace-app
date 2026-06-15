@@ -102,6 +102,10 @@ const MemberEmailScreen = ({ navigation }) => {
     setTouched(true);
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     setIsValidEmail(emailRegex.test(text));
+    // Clear Android autofill yellow highlight using setNativeProps
+    if (Platform.OS === "android" && inputRef.current) {
+      inputRef.current.setNativeProps({ style: { backgroundColor: "transparent" } });
+    }
   };
 
   const sendOtpAndNavigate = async () => {

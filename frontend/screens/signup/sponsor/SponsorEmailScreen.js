@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert } from "react-native";
+import React, { useState, useRef } from "react";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { apiPost } from "../../../api/client";
 import { checkEmailExists } from "../../../api/auth";
@@ -19,6 +19,15 @@ const SponsorEmailScreen = ({ navigation, route }) => {
   const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
+  const inputRef = useRef(null);
+
+  // Clear Android autofill yellow highlight immediately on text change
+  const handleEmailChange = (text) => {
+    setEmail(text);
+    if (Platform.OS === "android" && inputRef.current) {
+      inputRef.current.setNativeProps({ style: { backgroundColor: "transparent" } });
+    }
+  };
 
   // Send OTP and navigate to OTP screen
   const sendOtpAndNavigate = async () => {
@@ -144,6 +153,7 @@ const SponsorEmailScreen = ({ navigation, route }) => {
 
         <View style={styles.inputContainer}>
           <TextInput
+            ref={inputRef}
             style={[
               styles.input,
               isFocused && {
@@ -154,10 +164,12 @@ const SponsorEmailScreen = ({ navigation, route }) => {
             placeholder="Enter your email"
             placeholderTextColor={COLORS.textSecondary}
             value={email}
-            onChangeText={setEmail}
+            onChangeText={handleEmailChange}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
+            importantForAutofill="no"
+            autoComplete="off"
             onFocus={() => setIsFocused(true)}
             onBlur={() => setIsFocused(false)}
           />

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, ScrollView, ImageBackground } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
@@ -25,6 +25,7 @@ const CommunityEmailScreen = ({ navigation, route }) => {
   const [error, setError] = useState("");
   const [retryCount, setRetryCount] = useState(0);
   const [isFocused, setIsFocused] = useState(false);
+  const inputRef = useRef(null);
 
   // Animation values
   const buttonScale = useSharedValue(1);
@@ -48,6 +49,10 @@ const CommunityEmailScreen = ({ navigation, route }) => {
     setTouched(true);
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     setIsValidEmail(emailRegex.test(text));
+    // Clear Android autofill yellow highlight using setNativeProps
+    if (Platform.OS === "android" && inputRef.current) {
+      inputRef.current.setNativeProps({ style: { backgroundColor: "transparent" } });
+    }
   };
 
   // Send OTP and navigate to OTP screen
@@ -157,6 +162,7 @@ const CommunityEmailScreen = ({ navigation, route }) => {
                 <View style={[styles.inputContainer, isFocused && styles.inputFocusedContainer]}>
                   <Mail size={20} color="#8AADC4" style={styles.inputIcon} strokeWidth={2.5} />
                   <TextInput
+                    ref={inputRef}
                     style={styles.input}
                     placeholder="name@example.com"
                     placeholderTextColor="#8AADC4"

@@ -115,6 +115,14 @@ const LoginScreen = ({ navigation, route }) => {
 
   const isValidEmailOrUsername = emailOrUsername.includes('@');
 
+  // Clear Android autofill yellow highlight immediately on text change
+  const handleEmailChange = (text) => {
+    setEmailOrUsername(text);
+    if (Platform.OS === "android" && inputRef.current) {
+      inputRef.current.setNativeProps({ style: { backgroundColor: "transparent" } });
+    }
+  };
+
   return (
     <ImageBackground
       source={wave}
@@ -155,7 +163,7 @@ const LoginScreen = ({ navigation, route }) => {
                   placeholder="name@example.com"
                   placeholderTextColor={COLORS.textMuted}
                   value={emailOrUsername}
-                  onChangeText={setEmailOrUsername}
+                  onChangeText={handleEmailChange}
                   onFocus={() => setIsFocused(true)}
                   onBlur={() => setIsFocused(false)}
                   keyboardType="email-address"
