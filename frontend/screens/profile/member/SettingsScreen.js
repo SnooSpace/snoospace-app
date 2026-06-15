@@ -90,28 +90,26 @@ const switchStyles = StyleSheet.create({
   },
 });
 
-function SettingsRow({ icon: Icon, iconColor = COLORS.textPrimary, label, sublabel, onPress, rightElement, isFirst, isLast }) {
+function SettingsRow({ icon: Icon, iconColor = '#52525B', label, sublabel, onPress, rightElement, isLast }) {
   return (
     <Pressable
       style={({ pressed }) => [
         rowStyles.row,
-        isFirst && rowStyles.rowFirst,
-        isLast && rowStyles.rowLast,
         !isLast && rowStyles.rowWithBorder,
-        pressed && onPress && { backgroundColor: '#F2F2F7' }
+        pressed && onPress && { backgroundColor: '#F9FAFB' }
       ]}
       onPress={onPress}
       disabled={!onPress}
     >
-      <View style={[rowStyles.iconBox, { backgroundColor: `${iconColor}14` }]}>
-        <Icon size={18} color={iconColor} strokeWidth={1.8} />
-      </View>
+      {Icon && (
+        <Icon size={20} color={iconColor} strokeWidth={1.5} />
+      )}
       <View style={rowStyles.labelWrap}>
         <Text style={rowStyles.label}>{label}</Text>
         {sublabel ? <Text style={rowStyles.sublabel}>{sublabel}</Text> : null}
       </View>
       {rightElement !== undefined ? rightElement : (
-        onPress ? <ChevronRight size={18} color={COLORS.textSecondary} strokeWidth={2} /> : null
+        onPress ? <ChevronRight size={16} color="#A1A1AA" strokeWidth={1.5} /> : null
       )}
     </Pressable>
   );
@@ -122,29 +120,13 @@ const rowStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingHorizontal: 0,
     gap: 12,
     backgroundColor: '#FFFFFF',
   },
-  rowFirst: {
-    borderTopLeftRadius: BORDER_RADIUS.xl,
-    borderTopRightRadius: BORDER_RADIUS.xl,
-  },
-  rowLast: {
-    borderBottomLeftRadius: BORDER_RADIUS.xl,
-    borderBottomRightRadius: BORDER_RADIUS.xl,
-  },
   rowWithBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-  },
-  iconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+    borderBottomColor: '#F4F4F5',
   },
   labelWrap: {
     flex: 1,
@@ -168,34 +150,23 @@ function SectionLabel({ title }) {
 
 const sectionStyles = StyleSheet.create({
   label: {
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.semiBold,
     fontSize: 11,
-    color: COLORS.textSecondary,
+    color: '#8E8E93',
     textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: 8,
-    marginLeft: 4,
+    letterSpacing: 0.8,
+    marginBottom: 6,
+    marginTop: 12,
   },
 });
 
 function Card({ children, style }) {
   return (
-    <View style={[cardStyles.card, style]}>
+    <View style={[styles.sectionGroup, style]}>
       {children}
     </View>
   );
 }
-
-const cardStyles = StyleSheet.create({
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: BORDER_RADIUS.xl,
-    overflow: 'hidden',
-    ...SHADOWS.sm,
-    shadowOpacity: 0.04,
-    marginBottom: 24,
-  },
-});
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 export default function SettingsScreen({ route, navigation }) {
@@ -310,15 +281,14 @@ export default function SettingsScreen({ route, navigation }) {
           <Card>
             <SettingsRow
               icon={Users}
-              iconColor="#2962FF"
+              iconColor="#52525B"
               label="Switch / Add Account"
               sublabel="Manage your SnooSpace accounts"
               onPress={handleSwitchAccount}
-              isFirst
             />
             <SettingsRow
               icon={Instagram}
-              iconColor="#EC4899"
+              iconColor="#52525B"
               label="Linked Accounts"
               sublabel={instagramUsername ? `@${instagramUsername}` : 'Not linked'}
               onPress={() =>
@@ -335,11 +305,10 @@ export default function SettingsScreen({ route, navigation }) {
           <Card>
             <SettingsRow
               icon={UserX}
-              iconColor="#E53E3E"
+              iconColor="#52525B"
               label="Blocked Accounts"
               sublabel="Manage who you've blocked"
               onPress={() => navigation.navigate('BlockedAccounts')}
-              isFirst
               isLast
             />
           </Card>
@@ -349,14 +318,13 @@ export default function SettingsScreen({ route, navigation }) {
           <Card>
             <SettingsRow
               icon={BarChart2}
-              iconColor="#8B5CF6"
+              iconColor="#52525B"
               label="My Activity"
               sublabel="How SnooSpace understands you"
               onPress={() => {
                 HapticsService.triggerImpactLight();
                 navigation.navigate('MyDataScreen');
               }}
-              isFirst
               isLast
             />
           </Card>
@@ -366,14 +334,13 @@ export default function SettingsScreen({ route, navigation }) {
           <Card>
             <SettingsRow
               icon={Bell}
-              iconColor="#F59E0B"
+              iconColor="#52525B"
               label="Notifications"
               onPress={() => Alert.alert('Notifications', 'Notification settings coming soon.')}
-              isFirst
             />
             <SettingsRow
               icon={Smartphone}
-              iconColor="#10B981"
+              iconColor="#52525B"
               label="App Haptics"
               sublabel="Vibration feedback on interactions"
               rightElement={
@@ -392,14 +359,13 @@ export default function SettingsScreen({ route, navigation }) {
           <Card>
             <SettingsRow
               icon={HelpCircle}
-              iconColor="#2962FF"
+              iconColor="#52525B"
               label="Help & Support"
               onPress={handleHelp}
-              isFirst
             />
             <SettingsRow
               icon={Info}
-              iconColor={COLORS.textSecondary}
+              iconColor="#52525B"
               label="About"
               sublabel={`Version ${appVersion}`}
               onPress={handleAbout}
@@ -409,26 +375,21 @@ export default function SettingsScreen({ route, navigation }) {
 
           {/* ── ACCOUNT ACTIONS ─────────────────────────── */}
           <SectionLabel title="Account Actions" />
-          <Card style={{ marginBottom: 12 }}>
-            <SettingsRow
-              icon={LogOut}
-              iconColor="#007AFF"
-              label="Logout"
-              onPress={handleLogout}
-              isFirst
-              isLast
-              rightElement={null}
-            />
-          </Card>
           <Card style={{ marginBottom: 40 }}>
             <SettingsRow
+              icon={LogOut}
+              iconColor="#52525B"
+              label="Logout"
+              onPress={handleLogout}
+              rightElement={null}
+            />
+            <SettingsRow
               icon={Trash2}
-              iconColor="#FF3B30"
+              iconColor="#EF4444"
               label="Delete Account"
               onPress={handleDeleteAccount}
-              isFirst
               isLast
-              rightElement={<ChevronRight size={18} color="#FF3B30" strokeWidth={2} />}
+              rightElement={<ChevronRight size={16} color="#EF4444" strokeWidth={1.5} />}
             />
           </Card>
         </ScrollView>
@@ -501,7 +462,7 @@ export default function SettingsScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.screenBackground,
+    backgroundColor: '#FFFFFF',
   },
 
   // Header
@@ -511,8 +472,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 8,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
     backgroundColor: '#FFFFFF',
     minHeight: 56,
   },
@@ -531,7 +490,10 @@ const styles = StyleSheet.create({
 
   content: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 12,
     paddingBottom: 40,
+  },
+  sectionGroup: {
+    marginBottom: 16,
   },
 });
