@@ -13,7 +13,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity, Dimensions,
-  StatusBar, Animated, ScrollView, Modal, TouchableWithoutFeedback,
+  StatusBar, Animated, ScrollView, Modal, TouchableWithoutFeedback, Pressable,
 } from "react-native";
 import LottieView from "lottie-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -385,9 +385,12 @@ function MemberPrivacyScreen({ navigation }) {
             {/* Tier */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Your Audience Tier</Text>
-              <TouchableOpacity
-                style={[styles.tierCard, { backgroundColor: tierColor.bg, borderColor: tierColor.border }]}
-                activeOpacity={0.75}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.tierCard,
+                  { backgroundColor: tierColor.bg, borderColor: tierColor.border },
+                  pressed && { opacity: 0.85 }
+                ]}
                 onPress={() => openInfo(
                   "Audience Tiers",
                   "Tiers are calculated based on your event attendance and engagement depth over the last 30 days.",
@@ -403,7 +406,7 @@ function MemberPrivacyScreen({ navigation }) {
                   </View>
                 </View>
                 <Info size={18} color={tierColor.text} strokeWidth={2} style={{ opacity: 0.7 }} />
-              </TouchableOpacity>
+              </Pressable>
               <Text style={styles.tierExplanation}>{summary?.tierExplanation || ""}</Text>
             </View>
 
@@ -453,8 +456,11 @@ function MemberPrivacyScreen({ navigation }) {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Your Data</Text>
               <View style={styles.statsRow}>
-                <TouchableOpacity
-                  style={styles.statCard} activeOpacity={0.75}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.statCard,
+                    pressed && { backgroundColor: '#F2F2F7' }
+                  ]}
                   onPress={() => openInfo("Events Attended", "The number of events you have RSVPd to or registered for through SnooSpace.\n\nAttending events helps us understand what experiences matter to you and improves the recommendations you see.")}
                 >
                   <View style={styles.statHeader}>
@@ -463,10 +469,13 @@ function MemberPrivacyScreen({ navigation }) {
                   </View>
                   <Text style={styles.statValue}>{eventsAttended}</Text>
                   <Text style={styles.statLabel}>Events Attended</Text>
-                </TouchableOpacity>
+                </Pressable>
 
-                <TouchableOpacity
-                  style={styles.statCard} activeOpacity={0.75}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.statCard,
+                    pressed && { backgroundColor: '#F2F2F7' }
+                  ]}
                   onPress={() => openInfo("Content Interactions", "How you engage with community content — polls, questions, challenges, prompts, and posts.", contentBreakdown)}
                 >
                   <View style={styles.statHeader}>
@@ -475,10 +484,13 @@ function MemberPrivacyScreen({ navigation }) {
                   </View>
                   <Text style={styles.statValue}>{contentEngaged}</Text>
                   <Text style={styles.statLabel}>Content Interactions</Text>
-                </TouchableOpacity>
+                </Pressable>
 
-                <TouchableOpacity
-                  style={styles.statCard} activeOpacity={0.75}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.statCard,
+                    pressed && { backgroundColor: '#F2F2F7' }
+                  ]}
                   onPress={() => openInfo("Engagement Quality", "Reflects how varied your activity is across SnooSpace.\n\nA broader mix of engagement — events, posts, polls, challenges — builds a richer and more accurate profile, which leads to better recommendations for you.")}
                 >
                   <View style={styles.statHeader}>
@@ -487,10 +499,13 @@ function MemberPrivacyScreen({ navigation }) {
                   </View>
                   <Text style={styles.statValue}>{engagementQuality}%</Text>
                   <Text style={styles.statLabel}>Quality</Text>
-                </TouchableOpacity>
+                </Pressable>
 
-                <TouchableOpacity
-                  style={styles.statCard} activeOpacity={0.75}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.statCard,
+                    pressed && { backgroundColor: '#F2F2F7' }
+                  ]}
                   onPress={() => openInfo("Member Since", `You joined SnooSpace on ${joinDate} — ${accountAge} day${accountAge !== 1 ? "s" : ""} ago.\n\nLonger membership paired with consistent activity builds a stronger audience profile over time.`)}
                 >
                   <View style={styles.statHeader}>
@@ -499,7 +514,7 @@ function MemberPrivacyScreen({ navigation }) {
                   </View>
                   <Text style={styles.statValue}>{accountAge}d</Text>
                   <Text style={styles.statLabel}>Joined on {joinDate}</Text>
-                </TouchableOpacity>
+                </Pressable>
               </View>
               <Text style={styles.positiveFrame}>{dataDescription}</Text>
             </View>
@@ -1013,7 +1028,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontFamily: FONTS.primary, color: "#1F2937", marginBottom: 10 },
   sectionMeta: { fontSize: 13, fontFamily: FONTS.medium, color: "#6B7280", marginBottom: 12 },
   // Tier
-  tierCard: { flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 14, borderWidth: 1, gap: 14, marginBottom: 10 },
+  tierCard: { flexDirection: "row", alignItems: "center", padding: 16, borderRadius: 14, borderWidth: 1, gap: 14, marginBottom: 10, overflow: 'hidden' },
   tierBadge: { fontSize: 32 },
   tierInfo: { flex: 1, gap: 4 },
   tierLabel: { fontSize: 18, fontFamily: FONTS.semiBold },
@@ -1036,7 +1051,7 @@ const styles = StyleSheet.create({
   healthSubtext: { fontSize: 13, fontFamily: FONTS.regular, color: "#6B7280", lineHeight: 18 },
   // Stats
   statsRow: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", gap: 12, marginBottom: 16 },
-  statCard: { width: "48%", backgroundColor: "#FFFFFF", borderRadius: 20, padding: 14, alignItems: "flex-start", gap: 8, borderWidth: 1, borderColor: "rgba(0,0,0,0.03)", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 10, elevation: 2 },
+  statCard: { width: "48%", backgroundColor: "#FFFFFF", borderRadius: 20, padding: 14, alignItems: "flex-start", gap: 8, borderWidth: 1, borderColor: "rgba(0,0,0,0.03)", shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.03, shadowRadius: 10, elevation: 2, overflow: 'hidden' },
   statHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", width: "100%", marginBottom: 2 },
   statIconWrap: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
   statValue: { fontSize: 22, fontFamily: FONTS.semiBold, color: "#111827" },

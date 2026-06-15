@@ -90,18 +90,17 @@ const switchStyles = StyleSheet.create({
   },
 });
 
-// ─── Row components ───────────────────────────────────────────────────────────
 function SettingsRow({ icon: Icon, iconColor = COLORS.textPrimary, label, sublabel, onPress, rightElement, isFirst, isLast }) {
   return (
-    <TouchableOpacity
-      style={[
+    <Pressable
+      style={({ pressed }) => [
         rowStyles.row,
         isFirst && rowStyles.rowFirst,
         isLast && rowStyles.rowLast,
         !isLast && rowStyles.rowWithBorder,
+        pressed && onPress && { backgroundColor: '#F2F2F7' }
       ]}
       onPress={onPress}
-      activeOpacity={onPress ? 0.7 : 1}
       disabled={!onPress}
     >
       <View style={[rowStyles.iconBox, { backgroundColor: `${iconColor}14` }]}>
@@ -114,7 +113,7 @@ function SettingsRow({ icon: Icon, iconColor = COLORS.textPrimary, label, sublab
       {rightElement !== undefined ? rightElement : (
         onPress ? <ChevronRight size={18} color={COLORS.textSecondary} strokeWidth={2} /> : null
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
@@ -189,6 +188,7 @@ function Card({ children, style }) {
 
 const cardStyles = StyleSheet.create({
   card: {
+    backgroundColor: '#FFFFFF',
     borderRadius: BORDER_RADIUS.xl,
     overflow: 'hidden',
     ...SHADOWS.sm,
