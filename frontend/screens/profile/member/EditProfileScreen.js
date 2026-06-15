@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, LayoutAnimation, UIManager, Platform, Image, Keyboard, TouchableWithoutFeedback } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -40,8 +40,6 @@ import {
   Briefcase,
   Check,
   Trash2,
-  Instagram,
-  Link,
 } from "lucide-react-native";
 
 import { getAuthToken } from "../../../api/auth";
@@ -97,7 +95,6 @@ import { OCCUPATION_CATEGORIES, getOccupationLabel, getOccupationCategory } from
 import { getSubFieldsForOccupation, getSubFieldsForCategory, shouldShowPortfolio, CATEGORY_GENERIC_FIELDS } from "../../../constants/OccupationSubFields";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import FormTextInput from "../../../components/ui/FormTextInput";
-import { normaliseInstagramInput, validateInstagramUsername } from "../../../utils/instagramUtils";
 
 // Pronoun Category Tints
 const PRONOUN_STYLE_CONFIG = {
@@ -183,10 +180,6 @@ export default function EditProfileScreen({ route, navigation }) {
   const [occupationCategory, setOccupationCategory] = useState(profile?.occupation_category || null);
   const [portfolioLink, setPortfolioLink] = useState(profile?.portfolio_link || "");
 
-  // Instagram linking
-  const [instagramInput, setInstagramInput] = useState(profile?.instagram_username ? `@${profile.instagram_username}` : "");
-  const [instagramError, setInstagramError] = useState("");
-
   // College state
   const [campusId, setCampusId] = useState(profile?.campus_id || null);
   const [showCollege, setShowCollege] = useState(profile?.show_college !== false);
@@ -241,7 +234,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     checkForChanges();
-  }, [name, bio, username, phone, pronouns, interests, email, educationDegree, educationYear, selectedOccupation, customOccupation, occupationDetails, occupationCategory, portfolioLink, campusId, showCollege, pendingPhotoUri, instagramInput]);
+  }, [name, bio, username, phone, pronouns, interests, email, educationDegree, educationYear, selectedOccupation, customOccupation, occupationDetails, occupationCategory, portfolioLink, campusId, showCollege, pendingPhotoUri]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -320,8 +313,6 @@ export default function EditProfileScreen({ route, navigation }) {
       ? `other:${customOccupation.trim()}`
       : selectedOccupation;
 
-    const originalInstagram = profile?.instagram_username ? `@${profile.instagram_username}` : "";
-
     const changed =
       name !== originalName ||
       bio !== originalBio ||
@@ -338,7 +329,6 @@ export default function EditProfileScreen({ route, navigation }) {
       showCollege !== (profile?.show_college !== false) ||
       educationDegree !== originalEducationDegree ||
       educationYear !== originalEducationYear ||
-      instagramInput !== originalInstagram ||
       !!pendingPhotoUri;
 
     setHasChanges(!!changed);
@@ -454,26 +444,6 @@ export default function EditProfileScreen({ route, navigation }) {
         else delete cleanDetails.edu_year;
       }
 
-      // Validate Instagram before save
-      let cleanInstagram = null;
-      if (instagramInput.trim()) {
-        try {
-          cleanInstagram = normaliseInstagramInput(instagramInput);
-          if (cleanInstagram) {
-            const { valid, error: igErr } = validateInstagramUsername(cleanInstagram);
-            if (!valid) {
-              setInstagramError(igErr);
-              setSaving(false);
-              return;
-            }
-          }
-        } catch (err) {
-          setInstagramError(err.message);
-          setSaving(false);
-          return;
-        }
-      }
-
       const updates = {
         name: name.trim(),
         bio: bio.trim(),
@@ -486,7 +456,6 @@ export default function EditProfileScreen({ route, navigation }) {
         interests: interests.length > 0 ? interests : [],
         campus_id: campusId,
         show_college: showCollege,
-        instagram_username: cleanInstagram,
       };
 
       await updateMemberProfile(updates, token);
@@ -1411,40 +1380,6 @@ export default function EditProfileScreen({ route, navigation }) {
                 <Text style={[styles.helperText, { color: ACCENT_COLOR, fontFamily: 'Manrope-SemiBold' }]}>Tap to change â†’</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
-
-        {/* Card: Social Profiles */}
-        <View style={styles.card}>
-          {renderSectionHeader("SOCIAL PROFILES", Instagram)}
-
-          <View style={styles.inputGroupLast}>
-            <Text style={styles.inputLabel}>INSTAGRAM</Text>
-            <View style={[styles.input, styles.rowInput]}>
-              <Instagram size={16} color={TEXT_SECONDARY} style={{ marginRight: 6 }} />
-              <FormTextInput
-                style={styles.flexInput}
-                value={instagramInput}
-                onChangeText={(val) => {
-                  setInstagramInput(val);
-                  setInstagramError("");
-                }}
-                autoCapitalize="none"
-                autoCorrect={false}
-                placeholder="@username"
-                placeholderTextColor={TEXT_SECONDARY}
-                returnKeyType="done"
-              />
-            </View>
-            {instagramError ? (
-              <Text style={[styles.helperText, { color: '#EF4444', marginTop: 6 }]}>
-                {instagramError}
-              </Text>
-            ) : (
-              <Text style={styles.helperText}>
-                Optional Â· Opens your Instagram profile when tapped
-              </Text>
-            )}
           </View>
         </View>
 

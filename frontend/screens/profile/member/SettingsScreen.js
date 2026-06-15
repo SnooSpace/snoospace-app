@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -250,7 +250,18 @@ export default function SettingsScreen({ route, navigation }) {
     );
   };
 
-  const instagramUsername = profile?.instagram_username || null;
+  // Local reactive instagram state — updated via EventBus when LinkedAccountsScreen saves
+  const [instagramUsername, setInstagramUsername] = useState(
+    profile?.instagram_username || null
+  );
+
+  // Keep in sync when LinkedAccountsScreen links/unlinks
+  useEffect(() => {
+    const unsub = EventBus.on('instagram:updated', ({ username }) => {
+      setInstagramUsername(username || null);
+    });
+    return () => { if (unsub) unsub(); };
+  }, []);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>

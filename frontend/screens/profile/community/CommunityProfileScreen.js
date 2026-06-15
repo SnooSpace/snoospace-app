@@ -721,6 +721,14 @@ export default function CommunityProfileScreen({ navigation }) {
     return () => { if (unsub) unsub(); };
   }, [navigation]);
 
+  // Keep profile.instagram_username in sync when user links/unlinks from LinkedAccountsScreen
+  useEffect(() => {
+    const unsub = EventBus.on('instagram:updated', ({ username }) => {
+      setProfile((prev) => prev ? { ...prev, instagram_username: username || null } : prev);
+    });
+    return () => { if (unsub) unsub(); };
+  }, []);
+
   const handleShowAccountSwitcher = useCallback(() => {
     setShowAccountSwitcher(true);
   }, []);

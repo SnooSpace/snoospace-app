@@ -548,6 +548,14 @@ export default function MemberProfileScreen({ navigation }) {
     return () => { if (unsub) unsub(); };
   }, [navigation, handleLogout]);
 
+  // Keep profile.instagram_username in sync when user links/unlinks from LinkedAccountsScreen
+  useEffect(() => {
+    const unsub = EventBus.on('instagram:updated', ({ username }) => {
+      setProfile((prev) => prev ? { ...prev, instagram_username: username || null } : prev);
+    });
+    return () => { if (unsub) unsub(); };
+  }, []);
+
   // Real-time sync: view, share, save counts from EventBus
   useEffect(() => {
     const handlePostViewUpdate = (payload) => {
@@ -714,6 +722,8 @@ export default function MemberProfileScreen({ navigation }) {
         campus_id: fullProfile.campus_id || null,
         show_college: fullProfile.show_college !== false,
         college_info: fullProfile.college_info || null,
+        // Social profiles
+        instagram_username: fullProfile.instagram_username || null,
         follower_count: followerCount,
         following_count: followingCount,
         events_attended_count: eventsResponse?.total_events ?? (eventsResponse?.events?.length ?? 0),
