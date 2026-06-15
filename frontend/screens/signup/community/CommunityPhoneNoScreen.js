@@ -288,7 +288,7 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
               const prevScreen = isCollege
                 ? "CollegeHeads"
                 : isIndividual
-                  ? "IndividualLocation"
+                  ? "CommunityCategory"
                   : "CommunityHeadName";
               navigation.replace(prevScreen, {
                 ...params,

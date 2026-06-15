@@ -479,7 +479,7 @@ export function getCommunityNextScreenForStep(currentStep) {
     CommunityLogo: "CommunityBio",
     CommunityBio: "CommunityCategory",
     CommunityCategory: "CollegeHeads", // Default for college; org goes to CommunityLocation separately
-    IndividualLocation: "CommunityPhone",
+    IndividualLocation: "CommunityPhone", // kept for legacy resume safety — screen is no longer visited in new signups
     CommunityLocation: "CommunityHeadName",
     CollegeHeads: "CommunityPhone", // College heads now includes photos inline
     CommunityHeadName: "CommunityPhone", // Photos now collected inline on CommunityHeadName
@@ -510,7 +510,7 @@ export function getCommunityResumeScreen(lastStep) {
     "CommunityCategory",
     "CommunityLocationQuestion",
     "CommunityLocation",
-    "IndividualLocation",
+    // "IndividualLocation" — removed from Page flow; kept only for legacy draft resume safety
     "CollegeHeads",
     "CommunityHeadName",
     "CommunityPhone",
@@ -586,7 +586,7 @@ export function getCommunityResumeStack(lastStep, draftData = {}) {
   // Post-location screens vary by type:
   // - College -> CollegeHeads (w/ inline photos) -> CommunityPhone -> CommunityUsername
   // - Organization -> CommunityHeadName (w/ inline photos) -> CommunityPhone -> CommunityUsername
-  // - Page (individual) -> IndividualLocation (skippable) -> CommunityPhone -> CommunityUsername
+  // - Page (individual) -> CommunityCategory -> CommunityPhone -> CommunityUsername (no location step)
   // Note: CommunitySponsorType has been moved to post-signup Settings (Monetization section)
   const orgPostStack = [
     "CommunityHeadName",
@@ -622,11 +622,11 @@ export function getCommunityResumeStack(lastStep, draftData = {}) {
       "CommunityUsername",
     ];
   } else {
-    // Page (individual_organizer) — no HeadName, no SponsorType
+    // Page (individual_organizer) — no location step, no HeadName, no SponsorType
+    // Flow: CommunityTypeSelect -> Name -> Logo -> Bio -> Category -> Phone -> Username
     fullPath = [
       ...baseStack,
       ...coreStack,
-      "IndividualLocation",
       ...individualPostStack,
       "CommunityUsername",
     ];

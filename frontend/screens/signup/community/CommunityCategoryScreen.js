@@ -240,8 +240,8 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
     };
 
     if (params.community_type === "individual_organizer") {
-      // Page flow: go directly to IndividualLocation (sponsor types moved to post-signup Settings)
-      navigation.navigate("IndividualLocation", categoryParams);
+      // Page flow: go directly to CommunityPhone — no location step
+      navigation.navigate("CommunityPhone", categoryParams);
     } else if (params.community_type === "college_affiliated") {
       // College communities skip the Location screen entirely — location is not required for them
       navigation.navigate("CollegeHeads", {

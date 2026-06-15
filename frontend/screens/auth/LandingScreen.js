@@ -75,7 +75,7 @@ const PARTICIPATION_ROLES = [
     buttonText: "Start Building",
     animation: require("../../assets/animations/Community svg.json"),
     icon: Building2,
-    accentColor: "#CEF2F2",
+    accentColor: "#6366F1",
   },
 ];
 
@@ -250,23 +250,12 @@ const AnimatedCard = memo(
                         },
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.cardContinueButtonText,
-                          item.id === "community" && {
-                            color: COLORS.textPrimary,
-                          },
-                        ]}
-                      >
+                      <Text style={styles.cardContinueButtonText}>
                         {item.buttonText}
                       </Text>
                       <ArrowRight
                         size={18}
-                        color={
-                          item.id === "community"
-                            ? COLORS.textPrimary
-                            : COLORS.surface
-                        }
+                        color={COLORS.surface}
                         strokeWidth={2.5}
                       />
                     </TouchableOpacity>
@@ -696,11 +685,12 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 34,
     borderWidth: 1.5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.32,
-    shadowRadius: 32,
-    elevation: 20,
+    backgroundColor: COLORS.surface,
+    shadowColor: "#1a2d4a",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 5,
   },
 
   cardPressable: { flex: 1 },

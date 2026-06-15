@@ -318,7 +318,7 @@ const IndividualLocationScreen = ({ navigation, route }) => {
               entering={FadeInDown.delay(200).duration(600).springify()}
               style={styles.globalHelperText}
             >
-              Your location is used to help people from the same city discover your community and events. You can still host anywhere.
+              Your location is used to help people from the same city discover your community. You can still host anywhere.
             </Animated.Text>
 
             <Animated.View 
