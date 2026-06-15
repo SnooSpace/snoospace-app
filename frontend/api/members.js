@@ -30,7 +30,8 @@ export async function getMemberPosts(
 
 export async function followMember(memberId) {
   const token = await getAuthToken();
-  // Backend expects camelCase keys
+  // NOTE: Still used for member→community/sponsor/venue paths via UniversalFollowersScreen.
+  // NOT used for member↔member flows — see Circle API below.
   return apiPost(
     "/follow",
     { followingId: memberId, followingType: "member" },
@@ -47,6 +48,71 @@ export async function unfollowMember(memberId) {
     15000,
     token
   );
+}
+
+// ─── Circle API ──────────────────────────────────────────────────────────────
+
+/** Send a circle (connection) request to another member. */
+export async function sendCircleRequest(receiverId) {
+  const token = await getAuthToken();
+  return apiPost("/circles/requests", { receiver_id: receiverId }, 15000, token);
+}
+
+/**
+ * Respond to an incoming circle request.
+ * @param {string} requestId  - UUID of the circle_request row
+ * @param {'accepted'|'declined'} status
+ */
+export async function respondToCircleRequest(requestId, status) {
+  const token = await getAuthToken();
+  return apiPatch(`/circles/requests/${requestId}`, { status }, 15000, token);
+}
+
+/** Cancel a circle request you sent. */
+export async function cancelCircleRequest(requestId) {
+  const token = await getAuthToken();
+  return apiDelete(`/circles/requests/${requestId}`, null, 15000, token);
+}
+
+/** Get paginated list of pending incoming requests. */
+export async function getIncomingCircleRequests({ page = 1, limit = 20 } = {}) {
+  const token = await getAuthToken();
+  return apiGet(`/circles/requests/incoming?page=${page}&limit=${limit}`, 15000, token);
+}
+
+/** Get paginated list of pending outgoing requests. */
+export async function getOutgoingCircleRequests({ page = 1, limit = 20 } = {}) {
+  const token = await getAuthToken();
+  return apiGet(`/circles/requests/outgoing?page=${page}&limit=${limit}`, 15000, token);
+}
+
+/** Get count of pending incoming requests (for badge). */
+export async function getIncomingCircleRequestCount() {
+  const token = await getAuthToken();
+  return apiGet("/circles/requests/count", 10000, token);
+}
+
+/** Get paginated list of circle members, with optional search. */
+export async function getCircleMembers({ page = 1, limit = 20, search = "" } = {}) {
+  const token = await getAuthToken();
+  const params = new URLSearchParams({ page, limit });
+  if (search) params.set("search", search);
+  return apiGet(`/circles?${params.toString()}`, 15000, token);
+}
+
+/**
+ * Get circle relationship status with a specific user.
+ * Returns: { status: 'none' | 'pending_outgoing' | 'pending_incoming' | 'in_circle' | 'self', request_id?: string }
+ */
+export async function getCircleStatus(userId) {
+  const token = await getAuthToken();
+  return apiGet(`/circles/${userId}/status`, 10000, token);
+}
+
+/** Remove a user from your circle (mutual removal). */
+export async function removeFromCircle(userId) {
+  const token = await getAuthToken();
+  return apiDelete(`/circles/${userId}`, null, 15000, token);
 }
 
 export async function updateMemberProfile(updates, token) {

@@ -29,6 +29,37 @@ async function blockUser(req, res) {
       [blockerId, blockedId]
     );
 
+    // Cancel any pending circle requests between the two users (either direction)
+    await pool.query(
+      `UPDATE circle_requests
+       SET status = 'cancelled', updated_at = NOW()
+       WHERE status = 'pending'
+         AND ((sender_id = $1 AND receiver_id = $2)
+           OR (sender_id = $2 AND receiver_id = $1))`,
+      [blockerId, blockedId]
+    );
+
+    // Remove any existing circle relationship
+    // sortedPair: smaller BIGINT → user_a_id (use numeric comparison, not string)
+    const [userA, userB] = BigInt(blockerId) < BigInt(blockedId)
+      ? [blockerId, blockedId]
+      : [blockedId, blockerId];
+
+    await pool.query(
+      `DELETE FROM circles WHERE user_a_id = $1 AND user_b_id = $2`,
+      [userA, userB]
+    );
+
+    // Also clear the accepted circle_requests row so getCircleStatus
+    // returns 'none' after unblocking if they want to reconnect
+    await pool.query(
+      `DELETE FROM circle_requests
+       WHERE status = 'accepted'
+         AND ((sender_id = $1 AND receiver_id = $2)
+           OR (sender_id = $2 AND receiver_id = $1))`,
+      [blockerId, blockedId]
+    );
+
     res.json({ blocked: true });
   } catch (err) {
     console.error('[blocksController.blockUser]', err);

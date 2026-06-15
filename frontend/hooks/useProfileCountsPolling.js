@@ -25,11 +25,12 @@ export function useProfileCountsPolling(options = {}) {
   // Use a ref for previous counts comparison to avoid fetchCounts recreating
   // every time counts state changes (which caused the main useEffect to restart
   // the interval on every single poll tick)
-  const countsRef = useRef({ followers: 0, following: 0, posts: 0 });
+  const countsRef = useRef({ followers: 0, following: 0, posts: 0, circles: 0 });
   const [counts, setCounts] = useState({
     followers: 0,
     following: 0,
     posts: 0,
+    circles: 0,
   });
   const [isPolling, setIsPolling] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -77,6 +78,9 @@ export function useProfileCountsPolling(options = {}) {
         posts: typeof countsResponse?.post_count === 'number'
           ? countsResponse.post_count
           : parseInt(countsResponse?.post_count || 0, 10),
+        circles: typeof countsResponse?.circle_count === 'number'
+          ? countsResponse.circle_count
+          : parseInt(countsResponse?.circle_count || 0, 10),
       };
 
       // Compare against ref (not state) to avoid recreating fetchCounts on every tick
@@ -84,7 +88,8 @@ export function useProfileCountsPolling(options = {}) {
       const hasChanged =
         newCounts.followers !== prev.followers ||
         newCounts.following !== prev.following ||
-        newCounts.posts !== prev.posts;
+        newCounts.posts !== prev.posts ||
+        newCounts.circles !== prev.circles;
 
       if (hasChanged) {
         console.log('[CountsPolling] Counts changed:', {
@@ -114,6 +119,7 @@ export function useProfileCountsPolling(options = {}) {
         followers: initialCounts.follower_count || initialCounts.followers || 0,
         following: initialCounts.following_count || initialCounts.following || 0,
         posts: initialCounts.post_count || initialCounts.posts || 0,
+        circles: initialCounts.circle_count || initialCounts.circles || 0,
       };
       countsRef.current = init;
       setCounts(init);

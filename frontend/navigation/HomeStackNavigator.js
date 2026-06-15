@@ -23,6 +23,8 @@ import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen"
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
 import CreateGroupScreen from "../screens/messages/CreateGroupScreen";
 import GroupInfoScreen from "../screens/messages/GroupInfoScreen";
+import CircleListScreen from "../screens/profile/member/CircleListScreen";
+import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
 // [VIDEO INSIGHTS - DEFERRED] import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
 
 const MemberHomeFeed = (props) => (
@@ -168,6 +170,8 @@ export default function HomeStackNavigator() {
         name="ApplyToOpportunity"
         component={ApplyToOpportunityScreen}
       />
+      <Stack.Screen name="CircleList" component={CircleListScreen} />
+      <Stack.Screen name="CircleRequests" component={CircleRequestsScreen} />
       {/* [VIDEO INSIGHTS - DEFERRED] <Stack.Screen name="VideoInsights" component={VideoInsightsScreen} options={{ headerShown: false }} /> */}
     </Stack.Navigator>
   );

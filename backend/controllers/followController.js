@@ -376,9 +376,11 @@ const getProfileCounts = async (req, res) => {
 
     let followers_count, following_count, post_count;
 
+    let circle_count = 0;
+
     if (userType === 'member') {
       const r = await pool.query(
-        `SELECT follower_count, following_count,
+        `SELECT follower_count, following_count, circle_count,
                 (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member')::int AS post_count
          FROM members WHERE id = $1`,
         [userId]
@@ -387,6 +389,7 @@ const getProfileCounts = async (req, res) => {
       followers_count = parseInt(row?.follower_count  ?? 0, 10);
       following_count = parseInt(row?.following_count ?? 0, 10);
       post_count      = parseInt(row?.post_count      ?? 0, 10);
+      circle_count    = parseInt(row?.circle_count    ?? 0, 10);
     } else if (userType === 'community') {
       const r = await pool.query(
         `SELECT follower_count, following_count,
@@ -414,7 +417,7 @@ const getProfileCounts = async (req, res) => {
       post_count      = parseInt(row.post_count,      10);
     }
 
-    res.json({ followers_count, following_count, post_count });
+    res.json({ followers_count, following_count, post_count, circle_count });
   } catch (error) {
     console.error("Error getting profile counts:", error);
     res.status(500).json({ error: "Internal server error" });

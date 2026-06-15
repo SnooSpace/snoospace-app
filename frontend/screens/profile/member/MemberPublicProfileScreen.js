@@ -11,15 +11,18 @@ import {
   View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Platform, Pressable } from "react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Image as ExpoImage } from "expo-image";
-import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, AlertTriangle, CheckCircle, ShieldOff, CalendarDays } from "lucide-react-native";
+import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, AlertTriangle, CheckCircle, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import {
   getPublicMemberProfile,
   getMemberPosts,
-  followMember,
-  unfollowMember,
   getMemberPublicEvents,
   getMemberPublicPlans,
+  getCircleStatus,
+  sendCircleRequest,
+  cancelCircleRequest,
+  respondToCircleRequest,
+  removeFromCircle,
 } from "../../../api/members";
 import { SafeAreaView } from "react-native-safe-area-context";
 import EventBus from "../../../utils/EventBus";
@@ -190,7 +193,11 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [isFollowing, setIsFollowing] = useState(false);
+  // Circle relationship state
+  const [circleStatus, setCircleStatus] = useState('none'); // none | pending_outgoing | pending_incoming | in_circle
+  const [circleRequestId, setCircleRequestId] = useState(null);
+  const [circleActionLoading, setCircleActionLoading] = useState(false);
+  const [circleCount, setCircleCount] = useState(0);
   const [showAllInterests, setShowAllInterests] = useState(false);
   const [showAllPronouns, setShowAllPronouns] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
@@ -355,7 +362,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
             : [],
       };
       setProfile(normalized);
-      setIsFollowing(!!p?.is_following);
+      setCircleCount(p?.circle_count || 0);
       setYouHaveBlocked(!!p?.you_have_blocked);
     } catch (e) {
       if (e?.status === 403 && e?.data?.error === 'user_unavailable') {
@@ -363,6 +370,16 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       } else {
         setError(e?.message || "Failed to load profile");
       }
+    }
+  }, [memberId]);
+
+  const loadCircleStatus = useCallback(async () => {
+    try {
+      const res = await getCircleStatus(memberId);
+      setCircleStatus(res?.status || 'none');
+      setCircleRequestId(res?.request_id || null);
+    } catch (e) {
+      console.warn('[MemberPublicProfile] loadCircleStatus error:', e);
     }
   }, [memberId]);
 
@@ -429,18 +446,19 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     [memberId, offset, posts, hasMore, loadingMore],
   );
 
-  // Refresh profile when screen gains focus
+  // Refresh profile + circle status when screen gains focus
   useFocusEffect(
     React.useCallback(() => {
       loadProfile();
-    }, [loadProfile]),
+      loadCircleStatus();
+    }, [loadProfile, loadCircleStatus]),
   );
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       setLoading(true);
-      await Promise.all([loadProfile(), loadPosts(true)]);
+      await Promise.all([loadProfile(), loadPosts(true), loadCircleStatus()]);
       if (mounted) setLoading(false);
     })();
     return () => {
@@ -880,36 +898,12 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     </Text>
                     <Text style={styles.statLabel}>Events</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.statItem}
-                    onPress={() => {
-                      navigation.navigate("UniversalFollowersList", {
-                        userId: memberId,
-                        userType: "member",
-                        title: "Followers",
-                      });
-                    }}
-                  >
+                  <View style={styles.statItem}>
                     <Text style={styles.statNumber}>
-                      {profile?.followers_count || 0}
+                      {circleCount}
                     </Text>
-                    <Text style={styles.statLabel}>Followers</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.statItem}
-                    onPress={() => {
-                      navigation.navigate("UniversalFollowingList", {
-                        userId: memberId,
-                        userType: "member",
-                        title: "Following",
-                      });
-                    }}
-                  >
-                    <Text style={styles.statNumber}>
-                      {profile?.following_count || 0}
-                    </Text>
-                    <Text style={styles.statLabel}>Following</Text>
-                  </TouchableOpacity>
+                    <Text style={styles.statLabel}>Circle</Text>
+                  </View>
                 </View>
                 {Array.isArray(profile?.interests) &&
                 profile.interests.length > 0 ? (
@@ -969,104 +963,139 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     width: "100%",
                   }}
                 >
-                  {isFollowing ? (
+                  {/* ── Circle CTA — 4 states ── */}
+                  {circleStatus === 'in_circle' ? (
                     <TouchableOpacity
-                      style={{
-                        flex: 1,
-                        borderRadius: 16,
-                        borderWidth: 1,
-                        borderColor: "rgba(68, 138, 255, 0.2)",
-                        backgroundColor: "rgba(68, 138, 255, 0.12)",
-                        justifyContent: "center",
-                        alignItems: "center",
-                        paddingVertical: 12,
-                      }}
-                      onPress={async () => {
-                        const next = false;
-                        setIsFollowing(next);
-                        HapticsService.triggerImpactLight();
-                        setProfile((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                followers_count: Math.max(
-                                  0,
-                                  (prev.followers_count || 0) - 1,
-                                ),
-                              }
-                            : prev,
-                        );
-                        EventBus.emit("follow-updated", {
-                          memberId,
-                          isFollowing: next,
+                      style={circleCTAStyles.inCircleBtn}
+                      disabled={circleActionLoading}
+                      onPress={() => {
+                        showAlert({
+                          title: 'Remove from Circle?',
+                          message: `${profile?.full_name || 'This person'} will be removed from your circle. They can still find your profile and message you.`,
+                          icon: UserMinus,
+                          iconColor: '#E53935',
+                          secondaryAction: { text: 'Keep', onPress: hideAlert },
+                          primaryAction: {
+                            text: 'Remove',
+                            style: 'destructive',
+                            onPress: async () => {
+                              hideAlert();
+                              setCircleActionLoading(true);
+                              try {
+                                await removeFromCircle(memberId);
+                                setCircleStatus('none');
+                                setCircleCount((c) => Math.max(0, c - 1));
+                                HapticsService.triggerImpactLight();
+                              } catch (e) {
+                                loadCircleStatus();
+                              } finally { setCircleActionLoading(false); }
+                            },
+                          },
                         });
-                        try {
-                          await unfollowMember(memberId);
-                        } catch (e) {
-                          setIsFollowing(true);
-                          setProfile((prev) =>
-                            prev
-                              ? {
-                                  ...prev,
-                                  followers_count: (prev.followers_count || 0) + 1,
-                                }
-                              : prev,
-                          );
-                        }
                       }}
                     >
-                      <Text
-                        style={{
-                          fontFamily: FONTS.medium,
-                          color: "#2962FF",
-                          fontSize: 16,
-                          fontWeight: "600",
+                      <UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                      <Text style={circleCTAStyles.inCircleText}>In Circle</Text>
+                    </TouchableOpacity>
+                  ) : circleStatus === 'pending_outgoing' ? (
+                    <TouchableOpacity
+                      style={circleCTAStyles.requestedBtn}
+                      disabled={circleActionLoading}
+                      onPress={() => {
+                        showAlert({
+                          title: 'Cancel Request?',
+                          message: 'Withdraw your circle request?',
+                          icon: Clock,
+                          iconColor: '#FF9500',
+                          secondaryAction: { text: 'Keep', onPress: hideAlert },
+                          primaryAction: {
+                            text: 'Cancel Request',
+                            style: 'destructive',
+                            onPress: async () => {
+                              hideAlert();
+                              setCircleActionLoading(true);
+                              try {
+                                await cancelCircleRequest(circleRequestId);
+                                setCircleStatus('none');
+                                setCircleRequestId(null);
+                                HapticsService.triggerImpactLight();
+                              } catch (e) {
+                                loadCircleStatus();
+                              } finally { setCircleActionLoading(false); }
+                            },
+                          },
+                        });
+                      }}
+                    >
+                      <Clock size={16} color="#FF9500" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                      <Text style={circleCTAStyles.requestedText}>Requested</Text>
+                    </TouchableOpacity>
+                  ) : circleStatus === 'pending_incoming' ? (
+                    <View style={circleCTAStyles.incomingRow}>
+                      <TouchableOpacity
+                        style={circleCTAStyles.acceptBtn}
+                        disabled={circleActionLoading}
+                        onPress={async () => {
+                          setCircleActionLoading(true);
+                          try {
+                            await respondToCircleRequest(circleRequestId, 'accepted');
+                            setCircleStatus('in_circle');
+                            setCircleCount((c) => c + 1);
+                            HapticsService.triggerImpactMedium();
+                          } catch (e) {
+                            loadCircleStatus();
+                          } finally { setCircleActionLoading(false); }
                         }}
                       >
-                        Following
-                      </Text>
-                    </TouchableOpacity>
+                        <UserCheck size={16} color="#fff" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                        <Text style={circleCTAStyles.acceptText}>Accept</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={circleCTAStyles.declineBtn}
+                        disabled={circleActionLoading}
+                        onPress={async () => {
+                          setCircleActionLoading(true);
+                          try {
+                            await respondToCircleRequest(circleRequestId, 'declined');
+                            setCircleStatus('none');
+                            setCircleRequestId(null);
+                            HapticsService.triggerImpactLight();
+                          } catch (e) {
+                            loadCircleStatus();
+                          } finally { setCircleActionLoading(false); }
+                        }}
+                      >
+                        <UserX size={16} color={COLORS.textSecondary} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                        <Text style={circleCTAStyles.declineText}>Decline</Text>
+                      </TouchableOpacity>
+                    </View>
                   ) : (
                     <GradientButton
-                      title="Follow"
+                      title="Add to Circle"
                       colors={["#448AFF", "#2962FF"]}
                       textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
                       style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
                       gradientStyle={{ borderRadius: 16 }}
+                      disabled={circleActionLoading}
                       onPress={async () => {
-                        const next = true;
-                        setIsFollowing(next);
-                        HapticsService.triggerImpactLight();
-                        setProfile((prev) =>
-                          prev
-                            ? {
-                                ...prev,
-                                followers_count: (prev.followers_count || 0) + 1,
-                              }
-                            : prev,
-                        );
-                        EventBus.emit("follow-updated", {
-                          memberId,
-                          isFollowing: next,
-                        });
+                        setCircleActionLoading(true);
                         try {
-                          await followMember(memberId);
+                          const res = await sendCircleRequest(memberId);
+                          if (res?.auto_accepted) {
+                            setCircleStatus('in_circle');
+                            setCircleCount((c) => c + 1);
+                          } else {
+                            setCircleStatus('pending_outgoing');
+                            setCircleRequestId(res?.request_id || null);
+                          }
+                          HapticsService.triggerImpactMedium();
                         } catch (e) {
-                          setIsFollowing(false);
-                          setProfile((prev) =>
-                            prev
-                              ? {
-                                  ...prev,
-                                  followers_count: Math.max(
-                                    0,
-                                    (prev.followers_count || 0) - 1,
-                                  ),
-                                }
-                              : prev,
-                          );
-                        }
+                          loadCircleStatus();
+                        } finally { setCircleActionLoading(false); }
                       }}
-                    />
+                    >
+                      <UserPlus size={16} color="#fff" strokeWidth={2.5} />
+                    </GradientButton>
                   )}
                   <GradientButton
                     title="Message"
@@ -1661,3 +1690,77 @@ const blockBannerStyles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
+
+const circleCTAStyles = StyleSheet.create({
+  // "In Circle" — outlined blue, tap to remove
+  inCircleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(41, 98, 255, 0.35)',
+    backgroundColor: 'rgba(41, 98, 255, 0.08)',
+    paddingVertical: 12,
+  },
+  inCircleText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 15,
+    color: '#2962FF',
+  },
+  // "Requested" — amber tint, tap to cancel
+  requestedBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 149, 0, 0.3)',
+    backgroundColor: 'rgba(255, 149, 0, 0.08)',
+    paddingVertical: 12,
+  },
+  requestedText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 15,
+    color: '#FF9500',
+  },
+  // Pending incoming — row with two buttons side by side
+  incomingRow: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  acceptBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    backgroundColor: '#2962FF',
+    paddingVertical: 12,
+  },
+  acceptText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 15,
+    color: '#fff',
+  },
+  declineBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+    backgroundColor: '#F2F2F7',
+    paddingVertical: 12,
+  },
+  declineText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 15,
+    color: '#3C3C43',
+  },
+});
+

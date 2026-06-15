@@ -726,8 +726,7 @@ export default function MemberProfileScreen({ navigation }) {
         college_info: fullProfile.college_info || null,
         // Social profiles
         instagram_username: fullProfile.instagram_username || null,
-        follower_count: followerCount,
-        following_count: followingCount,
+        circle_count: fullProfile.circle_count || 0,
         events_attended_count: eventsResponse?.total_events ?? (eventsResponse?.events?.length ?? 0),
       };
       setProfile(mappedProfile);
@@ -750,11 +749,12 @@ export default function MemberProfileScreen({ navigation }) {
       // Update pagination state from initial load
       setPostCursor(postsResponse?.next_cursor || null);
       setHasMorePosts(postsResponse?.has_more === true);
-      // Initialize counts polling with initial values
+      // Initialize counts polling with initial values (includes circle_count)
       initializeCounts({
         follower_count: followerCount,
         following_count: followingCount,
         post_count: userPosts.length,
+        circle_count: fullProfile.circle_count || 0,
       });
       // Pre-populate events — but do NOT set eventsFetchedRef here.
       // Plans are fetched by loadProfileEvents() which runs on first Events tab tap.
@@ -1333,32 +1333,13 @@ export default function MemberProfileScreen({ navigation }) {
                 <Text style={styles.statLabel}>Events</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.statItem}
-                onPress={() => {
-                  navigation.navigate("FollowersList", {
-                    memberId: profile.id,
-                    title: "Followers",
-                  });
-                }}
+                style={[styles.statItem, { position: 'relative' }]}
+                onPress={() => navigation.navigate('CircleList')}
               >
                 <Text style={styles.statNumber}>
-                  {polledCounts.followers || profile.follower_count}
+                  {polledCounts.circles || profile.circle_count || 0}
                 </Text>
-                <Text style={styles.statLabel}>Followers</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.statItem}
-                onPress={() => {
-                  navigation.navigate("FollowingList", {
-                    memberId: profile.id,
-                    title: "Following",
-                  });
-                }}
-              >
-                <Text style={styles.statNumber}>
-                  {polledCounts.following || profile.following_count}
-                </Text>
-                <Text style={styles.statLabel}>Following</Text>
+                <Text style={styles.statLabel}>Circle</Text>
               </TouchableOpacity>
             </View>
 

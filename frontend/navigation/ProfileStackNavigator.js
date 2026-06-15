@@ -12,6 +12,8 @@ import CommunityFollowingListScreen from "../screens/profile/community/Community
 import SettingsScreen from "../screens/profile/member/SettingsScreen";
 import LinkedAccountsScreen from "../screens/profile/member/LinkedAccountsScreen";
 import BlockedAccountsScreen from "../screens/profile/member/BlockedAccountsScreen";
+import CircleListScreen from "../screens/profile/member/CircleListScreen";
+import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
 // [VIDEO INSIGHTS - DEFERRED] import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
 
 const Stack = createStackNavigator();
@@ -75,6 +77,8 @@ export default function ProfileStackNavigator() {
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="LinkedAccounts" component={LinkedAccountsScreen} />
       <Stack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
+      <Stack.Screen name="CircleList" component={CircleListScreen} />
+      <Stack.Screen name="CircleRequests" component={CircleRequestsScreen} />
       {/* [VIDEO INSIGHTS - DEFERRED] <Stack.Screen name="VideoInsights" component={VideoInsightsScreen} options={{ headerShown: false }} /> */}
     </Stack.Navigator>
   );

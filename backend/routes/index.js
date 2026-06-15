@@ -11,6 +11,7 @@ const UsernameController = require("../controllers/usernameController");
 const PostController = require("../controllers/postController");
 const CommentController = require("../controllers/commentController");
 const FollowController = require("../controllers/followController");
+const CircleController = require("../controllers/circleController");
 const NotificationController = require("../controllers/notificationController");
 const AccountController = require("../controllers/accountController");
 const EventController = require("../controllers/eventController");
@@ -1325,7 +1326,7 @@ router.delete(
   CommentController.unlikeComment,
 );
 
-// Follow system
+// Follow system (member→community/sponsor/venue — unchanged)
 router.post("/follow", authMiddleware, FollowController.follow);
 router.delete("/follow", authMiddleware, FollowController.unfollow);
 router.get("/followers/:userId/:userType", FollowController.getFollowers);
@@ -1337,10 +1338,26 @@ router.get(
 );
 // Consolidated counts endpoint: followers + following + posts in 1 query
 // Used by useProfileCountsPolling to replace 2 separate API calls
+// Returns circle_count for member type in addition to post_count
 router.get(
   "/profile/counts/:userId/:userType",
   FollowController.getProfileCounts,
 );
+
+// ============================================
+// CIRCLES — Member-to-Member Connection System
+// ============================================
+// IMPORTANT: Fixed paths (incoming, outgoing, count) MUST come before
+// the wildcard /:userId/status and /:userId paths to avoid shadowing.
+router.get("/circles/requests/incoming", authMiddleware, CircleController.getIncomingRequests);
+router.get("/circles/requests/outgoing", authMiddleware, CircleController.getOutgoingRequests);
+router.get("/circles/requests/count", authMiddleware, CircleController.getIncomingRequestCount);
+router.post("/circles/requests", authMiddleware, CircleController.sendCircleRequest);
+router.patch("/circles/requests/:id", authMiddleware, CircleController.respondToCircleRequest);
+router.delete("/circles/requests/:id", authMiddleware, CircleController.cancelCircleRequest);
+router.get("/circles/:userId/status", authMiddleware, CircleController.getCircleStatus);
+router.get("/circles", authMiddleware, CircleController.getCircleMembers);
+router.delete("/circles/:userId", authMiddleware, CircleController.removeFromCircle);
 
 // ============================================
 // PRIVACY & CONSENT (DPDP Act Compliance)

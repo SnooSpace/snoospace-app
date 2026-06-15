@@ -234,6 +234,16 @@ const NotificationRow = ({
           icon: <AtSign size={18} color="#34C759" strokeWidth={2} />,
           bg: "rgba(52, 199, 89, 0.08)",
         };
+      case "circle_request_received":
+        return {
+          icon: <UserPlus size={18} color="#2962FF" strokeWidth={2} />,
+          bg: "rgba(41, 98, 255, 0.08)",
+        };
+      case "circle_request_accepted":
+        return {
+          icon: <CheckCircle2 size={18} color="#34C759" strokeWidth={2} />,
+          bg: "rgba(52, 199, 89, 0.08)",
+        };
       case "follow":
         return {
           icon: <UserPlus size={18} color="#2962FF" strokeWidth={2} />,
@@ -249,7 +259,7 @@ const NotificationRow = ({
 
   const renderLeftSection = () => {
     const iconInfo = getNotificationIconInfo(group.type);
-    const hasAvatar = ["follow", "like", "comment", "tag", "event_registration"].includes(group.type) && payload.actorAvatar;
+    const hasAvatar = ["follow", "like", "comment", "tag", "event_registration", "circle_request_received", "circle_request_accepted"].includes(group.type) && payload.actorAvatar;
 
     if (hasAvatar) {
       return (
@@ -285,6 +295,26 @@ const NotificationRow = ({
 
   // Determine custom visual and navigation properties by type
   switch (group.type) {
+    case "circle_request_received":
+      isNavigable = true;
+      onPress = () => navigation.navigate("CircleRequests");
+      title = (
+        <Text style={styles.title}>
+          <Text style={styles.bold}>{payload.actorName || "Someone"}</Text> wants to connect with you
+        </Text>
+      );
+      break;
+
+    case "circle_request_accepted":
+      isNavigable = true;
+      onPress = () => navigateToProfile(firstItem.actor_id, firstItem.actor_type);
+      title = (
+        <Text style={styles.title}>
+          <Text style={styles.bold}>{payload.actorName || "Someone"}</Text> accepted your circle request
+        </Text>
+      );
+      break;
+
     case "follow":
       isNavigable = true;
       onPress = () => navigateToProfile(firstItem.actor_id, firstItem.actor_type);

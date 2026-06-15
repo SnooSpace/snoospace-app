@@ -141,6 +141,7 @@ const getTabBarStyle = (route, customHiddenRoutes = []) => {
     "Settings",
     "LinkedAccounts",
     "BlockedAccounts",
+    "CircleRequests",
   ];
   const allHiddenRoutes = [...baseHiddenRoutes, ...customHiddenRoutes];
   
