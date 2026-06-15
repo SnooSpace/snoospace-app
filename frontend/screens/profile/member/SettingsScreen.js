@@ -36,6 +36,7 @@ import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from '../../../constants/theme'
 import HapticsService from '../../../services/HapticsService';
 import EventBus from '../../../utils/EventBus';
 import Constants from 'expo-constants';
+import DynamicStatusBar from '../../../components/DynamicStatusBar';
 
 // ─── Animated toggle (same premium switch from SettingsModal) ─────────────────
 function AnimatedSwitch({ value, onValueChange, activeColor = '#2962FF' }) {
@@ -264,153 +265,158 @@ export default function SettingsScreen({ route, navigation }) {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+    <View style={styles.container}>
+      <DynamicStatusBar style="dark" />
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Settings</Text>
+          <View style={styles.headerRight} />
+        </View>
+      </SafeAreaView>
+
+      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
         >
-          <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <View style={styles.headerRight} />
-      </View>
+          {/* ── ACCOUNT ─────────────────────────────────── */}
+          <SectionLabel title="Account" />
+          <Card>
+            <SettingsRow
+              icon={Users}
+              iconColor="#2962FF"
+              label="Switch / Add Account"
+              sublabel="Manage your SnooSpace accounts"
+              onPress={handleSwitchAccount}
+              isFirst
+            />
+            <SettingsRow
+              icon={Instagram}
+              iconColor="#EC4899"
+              label="Linked Accounts"
+              sublabel={instagramUsername ? `@${instagramUsername}` : 'Not linked'}
+              onPress={() =>
+                navigation.navigate('LinkedAccounts', {
+                  instagramUsername,
+                })
+              }
+              isLast
+            />
+          </Card>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── ACCOUNT ─────────────────────────────────── */}
-        <SectionLabel title="Account" />
-        <Card>
-          <SettingsRow
-            icon={Users}
-            iconColor="#2962FF"
-            label="Switch / Add Account"
-            sublabel="Manage your SnooSpace accounts"
-            onPress={handleSwitchAccount}
-            isFirst
-          />
-          <SettingsRow
-            icon={Instagram}
-            iconColor="#EC4899"
-            label="Linked Accounts"
-            sublabel={instagramUsername ? `@${instagramUsername}` : 'Not linked'}
-            onPress={() =>
-              navigation.navigate('LinkedAccounts', {
-                instagramUsername,
-              })
-            }
-            isLast
-          />
-        </Card>
+          {/* ── BLOCKED ACCOUNTS ────────────────────────── */}
+          <SectionLabel title="Blocked Accounts" />
+          <Card>
+            <SettingsRow
+              icon={UserX}
+              iconColor="#E53E3E"
+              label="Blocked Accounts"
+              sublabel="Manage who you've blocked"
+              onPress={() => navigation.navigate('BlockedAccounts')}
+              isFirst
+              isLast
+            />
+          </Card>
 
-        {/* ── BLOCKED ACCOUNTS ────────────────────────── */}
-        <SectionLabel title="Blocked Accounts" />
-        <Card>
-          <SettingsRow
-            icon={UserX}
-            iconColor="#E53E3E"
-            label="Blocked Accounts"
-            sublabel="Manage who you've blocked"
-            onPress={() => navigation.navigate('BlockedAccounts')}
-            isFirst
-            isLast
-          />
-        </Card>
+          {/* ── MY ACTIVITY ─────────────────────────────── */}
+          <SectionLabel title="My Activity" />
+          <Card>
+            <SettingsRow
+              icon={BarChart2}
+              iconColor="#8B5CF6"
+              label="My Activity"
+              sublabel="How SnooSpace understands you"
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                navigation.goBack();
+                setTimeout(() => EventBus.emit('settings:action', { action: 'my_activity' }), 150);
+              }}
+              isFirst
+              isLast
+            />
+          </Card>
 
-        {/* ── MY ACTIVITY ─────────────────────────────── */}
-        <SectionLabel title="My Activity" />
-        <Card>
-          <SettingsRow
-            icon={BarChart2}
-            iconColor="#8B5CF6"
-            label="My Activity"
-            sublabel="How SnooSpace understands you"
-            onPress={() => {
-              HapticsService.triggerImpactLight();
-              navigation.goBack();
-              setTimeout(() => EventBus.emit('settings:action', { action: 'my_activity' }), 150);
-            }}
-            isFirst
-            isLast
-          />
-        </Card>
+          {/* ── PREFERENCES ─────────────────────────────── */}
+          <SectionLabel title="Preferences" />
+          <Card>
+            <SettingsRow
+              icon={Bell}
+              iconColor="#F59E0B"
+              label="Notifications"
+              onPress={() => Alert.alert('Notifications', 'Notification settings coming soon.')}
+              isFirst
+            />
+            <SettingsRow
+              icon={Smartphone}
+              iconColor="#10B981"
+              label="App Haptics"
+              sublabel="Vibration feedback on interactions"
+              rightElement={
+                <AnimatedSwitch
+                  value={hapticsEnabled}
+                  onValueChange={handleToggleHaptics}
+                  activeColor="#2962FF"
+                />
+              }
+              isLast
+            />
+          </Card>
 
-        {/* ── PREFERENCES ─────────────────────────────── */}
-        <SectionLabel title="Preferences" />
-        <Card>
-          <SettingsRow
-            icon={Bell}
-            iconColor="#F59E0B"
-            label="Notifications"
-            onPress={() => Alert.alert('Notifications', 'Notification settings coming soon.')}
-            isFirst
-          />
-          <SettingsRow
-            icon={Smartphone}
-            iconColor="#10B981"
-            label="App Haptics"
-            sublabel="Vibration feedback on interactions"
-            rightElement={
-              <AnimatedSwitch
-                value={hapticsEnabled}
-                onValueChange={handleToggleHaptics}
-                activeColor="#2962FF"
-              />
-            }
-            isLast
-          />
-        </Card>
+          {/* ── SUPPORT & LEGAL ─────────────────────────── */}
+          <SectionLabel title="Support & Legal" />
+          <Card>
+            <SettingsRow
+              icon={HelpCircle}
+              iconColor="#2962FF"
+              label="Help & Support"
+              onPress={handleHelp}
+              isFirst
+            />
+            <SettingsRow
+              icon={Info}
+              iconColor={COLORS.textSecondary}
+              label="About"
+              sublabel={`Version ${appVersion}`}
+              onPress={handleAbout}
+              isLast
+            />
+          </Card>
 
-        {/* ── SUPPORT & LEGAL ─────────────────────────── */}
-        <SectionLabel title="Support & Legal" />
-        <Card>
-          <SettingsRow
-            icon={HelpCircle}
-            iconColor="#2962FF"
-            label="Help & Support"
-            onPress={handleHelp}
-            isFirst
-          />
-          <SettingsRow
-            icon={Info}
-            iconColor={COLORS.textSecondary}
-            label="About"
-            sublabel={`Version ${appVersion}`}
-            onPress={handleAbout}
-            isLast
-          />
-        </Card>
-
-        {/* ── ACCOUNT ACTIONS ─────────────────────────── */}
-        <SectionLabel title="Account Actions" />
-        <Card style={{ marginBottom: 12 }}>
-          <SettingsRow
-            icon={LogOut}
-            iconColor="#007AFF"
-            label="Logout"
-            onPress={handleLogout}
-            isFirst
-            isLast
-            rightElement={null}
-          />
-        </Card>
-        <Card style={{ marginBottom: 40 }}>
-          <SettingsRow
-            icon={Trash2}
-            iconColor="#FF3B30"
-            label="Delete Account"
-            onPress={handleDeleteAccount}
-            isFirst
-            isLast
-            rightElement={<ChevronRight size={18} color="#FF3B30" strokeWidth={2} />}
-          />
-        </Card>
-      </ScrollView>
-    </SafeAreaView>
+          {/* ── ACCOUNT ACTIONS ─────────────────────────── */}
+          <SectionLabel title="Account Actions" />
+          <Card style={{ marginBottom: 12 }}>
+            <SettingsRow
+              icon={LogOut}
+              iconColor="#007AFF"
+              label="Logout"
+              onPress={handleLogout}
+              isFirst
+              isLast
+              rightElement={null}
+            />
+          </Card>
+          <Card style={{ marginBottom: 40 }}>
+            <SettingsRow
+              icon={Trash2}
+              iconColor="#FF3B30"
+              label="Delete Account"
+              onPress={handleDeleteAccount}
+              isFirst
+              isLast
+              rightElement={<ChevronRight size={18} color="#FF3B30" strokeWidth={2} />}
+            />
+          </Card>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 

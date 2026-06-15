@@ -15,6 +15,7 @@ import { apiGet, apiDelete } from '../../../api/client';
 import { getAuthToken } from '../../../api/auth';
 import HapticsService from '../../../services/HapticsService';
 import SnooLoader from '../../../components/ui/SnooLoader';
+import DynamicStatusBar from '../../../components/DynamicStatusBar';
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from '../../../constants/theme';
 
 export default function BlockedAccountsScreen({ navigation }) {
@@ -126,47 +127,52 @@ export default function BlockedAccountsScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-        >
-          <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Blocked Accounts</Text>
-        <View style={styles.headerRight} />
-      </View>
-
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <SnooLoader size="large" color={COLORS.primary} />
-        </View>
-      ) : error ? (
-        <View style={styles.errorContainer}>
-          <UserX size={48} color={COLORS.textSecondary} strokeWidth={1.5} />
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={loadBlockedUsers}>
-            <Text style={styles.retryText}>Try Again</Text>
+    <View style={styles.container}>
+      <DynamicStatusBar style="dark" />
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
           </TouchableOpacity>
+          <Text style={styles.headerTitle}>Blocked Accounts</Text>
+          <View style={styles.headerRight} />
         </View>
-      ) : (
-        <FlatList
-          data={blockedUsers}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={renderItem}
-          ListEmptyComponent={renderEmpty}
-          contentContainerStyle={[
-            styles.listContent,
-            blockedUsers.length === 0 && styles.listContentEmpty,
-          ]}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-    </SafeAreaView>
+      </SafeAreaView>
+
+      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <SnooLoader size="large" color={COLORS.primary} />
+          </View>
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <UserX size={48} color={COLORS.textSecondary} strokeWidth={1.5} />
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={loadBlockedUsers}>
+              <Text style={styles.retryText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={blockedUsers}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={renderItem}
+            ListEmptyComponent={renderEmpty}
+            contentContainerStyle={[
+              styles.listContent,
+              blockedUsers.length === 0 && styles.listContentEmpty,
+            ]}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+      </SafeAreaView>
+    </View>
   );
 }
 

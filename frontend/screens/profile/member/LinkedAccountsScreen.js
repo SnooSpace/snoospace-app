@@ -23,6 +23,7 @@ import {
 import { apiPatch } from '../../../api/client';
 import { getAuthToken } from '../../../api/auth';
 import EventBus from '../../../utils/EventBus';
+import DynamicStatusBar from '../../../components/DynamicStatusBar';
 
 /**
  * LinkedAccountsScreen
@@ -150,183 +151,185 @@ export default function LinkedAccountsScreen({ route, navigation }) {
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+    <View style={styles.container}>
+      <DynamicStatusBar style="dark" />
+      <SafeAreaView edges={['top']} style={{ backgroundColor: '#FFFFFF' }}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Linked Accounts</Text>
+          <View style={styles.headerRight} />
+        </View>
+      </SafeAreaView>
+
+      <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Linked Accounts</Text>
-        <View style={styles.headerRight} />
-      </View>
+          {/* Section label */}
+          <Text style={styles.sectionLabel}>SOCIAL PROFILES</Text>
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {/* Section label */}
-        <Text style={styles.sectionLabel}>SOCIAL PROFILES</Text>
-
-        {/* Instagram card */}
-        <View style={styles.card}>
-          {/* Icon row */}
-          <View style={styles.cardRow}>
-            <View style={styles.iconCircle}>
-              <Instagram size={22} color="#EC4899" strokeWidth={1.8} />
-            </View>
-            <View style={styles.cardInfo}>
-              <Text style={styles.cardTitle}>Instagram</Text>
-              {linked ? (
-                <Text style={styles.cardSub} numberOfLines={1}>
-                  @{linked}
-                </Text>
-              ) : (
-                <Text style={[styles.cardSub, styles.cardSubMuted]}>Not linked</Text>
-              )}
-            </View>
-            {/* Status badge */}
-            {linked ? (
-              <View style={styles.linkedBadge}>
-                <Text style={styles.linkedBadgeText}>Linked</Text>
+          {/* Instagram card */}
+          <View style={styles.card}>
+            {/* Icon row */}
+            <View style={styles.cardRow}>
+              <View style={styles.iconCircle}>
+                <Instagram size={22} color="#EC4899" strokeWidth={1.8} />
               </View>
-            ) : (
-              <View style={styles.notLinkedBadge}>
-                <Text style={styles.notLinkedBadgeText}>Not linked</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Divider */}
-          <View style={styles.divider} />
-
-          {/* — EDITING STATE — Input + Save/Cancel */}
-          {editing ? (
-            <View style={styles.editBlock}>
-              <View style={[styles.inputRow, inputError ? styles.inputRowError : null]}>
-                <Instagram size={15} color={inputError ? COLORS.error : COLORS.textSecondary} strokeWidth={2} />
-                <TextInput
-                  ref={inputRef}
-                  style={styles.textInput}
-                  value={inputValue}
-                  onChangeText={(val) => {
-                    setInputValue(val);
-                    setInputError('');
-                  }}
-                  placeholder="@username or paste URL"
-                  placeholderTextColor={COLORS.textMuted}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  returnKeyType="done"
-                  onSubmitEditing={handleSave}
-                  autoFocus={!linked} // auto-focus only when nothing was linked yet
-                />
-              </View>
-
-              {inputError ? (
-                <Text style={styles.errorText}>{inputError}</Text>
-              ) : (
-                <Text style={styles.helperText}>
-                  Paste your profile URL or enter your @username
-                </Text>
-              )}
-
-              <View style={styles.editActions}>
-                {/* Cancel — only show if already had a linked account */}
+              <View style={styles.cardInfo}>
+                <Text style={styles.cardTitle}>Instagram</Text>
                 {linked ? (
+                  <Text style={styles.cardSub} numberOfLines={1}>
+                    @{linked}
+                  </Text>
+                ) : (
+                  <Text style={[styles.cardSub, styles.cardSubMuted]}>Not linked</Text>
+                )}
+              </View>
+              {/* Status badge */}
+              {linked ? (
+                <View style={styles.linkedBadge}>
+                  <Text style={styles.linkedBadgeText}>Linked</Text>
+                </View>
+              ) : (
+                <View style={styles.notLinkedBadge}>
+                  <Text style={styles.notLinkedBadgeText}>Not linked</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Divider */}
+            <View style={styles.divider} />
+
+            {/* — EDITING STATE — Input + Save/Cancel */}
+            {editing ? (
+              <View style={styles.editBlock}>
+                <View style={[styles.inputRow, inputError ? styles.inputRowError : null]}>
+                  <Instagram size={15} color={inputError ? COLORS.error : COLORS.textSecondary} strokeWidth={2} />
+                  <TextInput
+                    ref={inputRef}
+                    style={styles.textInput}
+                    value={inputValue}
+                    onChangeText={(val) => {
+                      setInputValue(val);
+                      setInputError('');
+                    }}
+                    placeholder="@username or paste URL"
+                    placeholderTextColor={COLORS.textMuted}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    onSubmitEditing={handleSave}
+                    autoFocus={!linked} // auto-focus only when nothing was linked yet
+                  />
+                </View>
+
+                {inputError ? (
+                  <Text style={styles.errorText}>{inputError}</Text>
+                ) : (
+                  <Text style={styles.helperText}>
+                    Paste your profile URL or enter your @username
+                  </Text>
+                )}
+
+                <View style={styles.editActions}>
+                  {/* Cancel — only show if already had a linked account */}
+                  {linked ? (
+                    <TouchableOpacity
+                      style={styles.cancelBtn}
+                      onPress={handleCancelEdit}
+                      activeOpacity={0.75}
+                      disabled={saving}
+                    >
+                      <X size={15} color={COLORS.textSecondary} strokeWidth={2} />
+                      <Text style={styles.cancelBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {/* Save */}
                   <TouchableOpacity
-                    style={styles.cancelBtn}
-                    onPress={handleCancelEdit}
+                    style={[styles.saveBtn, saving && styles.saveBtnDisabled, !linked && { flex: 1 }]}
+                    onPress={handleSave}
                     activeOpacity={0.75}
                     disabled={saving}
                   >
-                    <X size={15} color={COLORS.textSecondary} strokeWidth={2} />
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
+                    {saving ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Check size={15} color="#FFFFFF" strokeWidth={2.5} />
+                        <Text style={styles.saveBtnText}>Save</Text>
+                      </>
+                    )}
                   </TouchableOpacity>
-                ) : null}
-
-                {/* Save */}
+                </View>
+              </View>
+            ) : (
+              /* — LINKED STATE — View + Change + Remove actions */
+              <View style={styles.actionsRow}>
+                {/* View on Instagram */}
                 <TouchableOpacity
-                  style={[styles.saveBtn, saving && styles.saveBtnDisabled, !linked && { flex: 1 }]}
-                  onPress={handleSave}
+                  style={styles.actionBtn}
+                  onPress={handleOpenInstagram}
+                  activeOpacity={0.75}
+                >
+                  <ExternalLink size={15} color={COLORS.primary} strokeWidth={2} />
+                  <Text style={styles.actionBtnText}>View Profile</Text>
+                </TouchableOpacity>
+
+                {/* Change */}
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.actionBtnSecondary]}
+                  onPress={() => {
+                    HapticsService.triggerImpactLight();
+                    setInputValue(linked ? `@${linked}` : '');
+                    setInputError('');
+                    setEditing(true);
+                    setTimeout(() => inputRef.current?.focus(), 100);
+                  }}
+                  activeOpacity={0.75}
+                  disabled={saving}
+                >
+                  <Instagram size={15} color={COLORS.textSecondary} strokeWidth={2} />
+                  <Text style={[styles.actionBtnText, styles.actionBtnTextSecondary]}>
+                    Change
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Remove */}
+                <TouchableOpacity
+                  style={[styles.actionBtn, styles.actionBtnDanger]}
+                  onPress={handleRemove}
                   activeOpacity={0.75}
                   disabled={saving}
                 >
                   {saving ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <ActivityIndicator size="small" color={COLORS.error} />
                   ) : (
-                    <>
-                      <Check size={15} color="#FFFFFF" strokeWidth={2.5} />
-                      <Text style={styles.saveBtnText}>Save</Text>
-                    </>
+                    <Trash2 size={15} color={COLORS.error} strokeWidth={2} />
                   )}
                 </TouchableOpacity>
               </View>
-            </View>
-          ) : (
-            /* — LINKED STATE — View + Change + Remove actions */
-            <View style={styles.actionsRow}>
-              {/* View on Instagram */}
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={handleOpenInstagram}
-                activeOpacity={0.75}
-              >
-                <ExternalLink size={15} color={COLORS.primary} strokeWidth={2} />
-                <Text style={styles.actionBtnText}>View Profile</Text>
-              </TouchableOpacity>
+            )}
+          </View>
 
-              {/* Change */}
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.actionBtnSecondary]}
-                onPress={() => {
-                  HapticsService.triggerImpactLight();
-                  setInputValue(linked ? `@${linked}` : '');
-                  setInputError('');
-                  setEditing(true);
-                  setTimeout(() => inputRef.current?.focus(), 100);
-                }}
-                activeOpacity={0.75}
-                disabled={saving}
-              >
-                <Instagram size={15} color={COLORS.textSecondary} strokeWidth={2} />
-                <Text style={[styles.actionBtnText, styles.actionBtnTextSecondary]}>
-                  Change
-                </Text>
-              </TouchableOpacity>
-
-              {/* Remove */}
-              <TouchableOpacity
-                style={[styles.actionBtn, styles.actionBtnDanger]}
-                onPress={handleRemove}
-                activeOpacity={0.75}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator size="small" color={COLORS.error} />
-                ) : (
-                  <Trash2 size={15} color={COLORS.error} strokeWidth={2} />
-                )}
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {/* Explainer */}
-        <Text style={styles.explainer}>
-          Linking your Instagram shows a trust signal on your profile so other
-          members know you're a real person. SnooSpace never posts on your behalf
-          and does not require Instagram login.
-        </Text>
-
-        {/* Future placeholder */}
-        <Text style={styles.comingSoon}>More platforms coming soon.</Text>
-      </ScrollView>
-    </SafeAreaView>
+          {/* Explainer */}
+          <Text style={styles.explainer}>
+            Linking your Instagram shows a trust signal on your profile so other
+            members know you're a real person. SnooSpace never posts on your behalf
+            and does not require Instagram login.
+          </Text>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
