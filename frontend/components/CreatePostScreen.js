@@ -12,6 +12,8 @@ import {
   Easing,
   Modal,
   Keyboard,
+  LayoutAnimation,
+  UIManager,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -36,7 +38,19 @@ import { Ionicons } from "@expo/vector-icons";
 import SnooLoader from "./ui/SnooLoader";
 import CustomAlertModal from "./ui/CustomAlertModal";
 
-// Use theme COLORS imported from constants
+// ── Creator post-type components (only loaded/used when Creator Mode is ON) ────
+import PostTypeSelector from "./posts/PostTypeSelector";
+import PollCreateForm from "./posts/PollCreateForm";
+import PromptCreateForm from "./posts/PromptCreateForm";
+import QnACreateForm from "./posts/QnACreateForm";
+import ChallengeCreateForm from "./posts/ChallengeCreateForm";
+import OpportunityCreateForm from "./posts/OpportunityCreateForm";
+import SuccessCard from "./feedback/SuccessCard";
+
+// Enable LayoutAnimation for Android
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const insets = useSafeAreaInsets();
@@ -65,6 +79,54 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
     title: "",
     message: "",
     onProceed: null,
+  });
+
+  // ── Creator Mode post type state ─────────────────────────────────────────────
+  // postType is only used when currentUser.is_creator_mode_enabled = true.
+  // Default is 'media' so the existing flow is unchanged for non-creators.
+  const [postType, setPostType] = useState("media");
+  const [showRemoveMediaModal, setShowRemoveMediaModal] = useState(false);
+  const [pendingPostType, setPendingPostType] = useState(null);
+  const [successCardData, setSuccessCardData] = useState(null);
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  const [pollData, setPollData] = useState({
+    question: "",
+    options: ["", ""],
+    allow_multiple: false,
+    show_results_before_vote: false,
+  });
+  const [promptData, setPromptData] = useState({
+    prompt_text: "",
+    submission_type: "text",
+    max_length: 500,
+    require_approval: true,
+  });
+  const [qnaData, setQnaData] = useState({
+    title: "",
+    description: "",
+    allow_anonymous: false,
+    max_questions_per_user: 1,
+    expires_at: null,
+  });
+  const [challengeData, setChallengeData] = useState({
+    title: "",
+    description: "",
+    challenge_type: "single",
+    submission_type: "image",
+    target_count: 1,
+    max_submissions_per_user: 1,
+    require_approval: true,
+    deadline: null,
+  });
+  const [opportunityData, setOpportunityData] = useState({
+    title: "",
+    description: "",
+    opportunity_type: "collab",
+    compensation_type: "unpaid",
+    compensation_details: "",
+    spots_total: 1,
+    deadline: null,
   });
 
   const imageUploaderRef = useRef(null);
@@ -141,7 +203,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
     }
   }, [caption, images]);
 
-  // Load current user profile for self-tagging
+  // Load current user profile for self-tagging + creator mode flag
   useEffect(() => {
     const loadCurrentUser = async () => {
       try {
@@ -165,6 +227,8 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
             username: userData.username || "",
             profile_photo_url:
               userData.profile_photo_url || userData.logo_url || null,
+            // Creator Mode flag — gates the PostTypeSelector UI
+            is_creator_mode_enabled: userData.is_creator_mode_enabled === true,
           });
         }
       } catch (error) {
@@ -175,6 +239,8 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
 
     loadCurrentUser();
   }, []);
+
+  const isCreator = currentUser?.is_creator_mode_enabled === true;
 
   const handleImagesChange = (newImages) => {
     setImages(newImages);
@@ -280,185 +346,291 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
 
 
 
+  // ── canSubmit — accounts for all post types ──────────────────────────────────
+  const canSubmit = (() => {
+    if (postType === "media") {
+      return images.length > 0 || caption.trim().length > 0;
+    }
+    if (postType === "poll") {
+      return pollData.question.trim().length > 0 &&
+        pollData.options.filter((o) => o.trim()).length >= 2;
+    }
+    if (postType === "prompt") return promptData.prompt_text.trim().length > 0;
+    if (postType === "qna")  return qnaData.title.trim().length >= 3;
+    if (postType === "challenge") return challengeData.title.trim().length >= 3;
+    if (postType === "opportunity") return opportunityData.title.trim().length >= 3;
+    return false;
+  })();
+
   const handleSubmit = async () => {
-    if (images.length === 0) {
-      Alert.alert("No Media", "Please add at least one photo or video to your post");
+    // ── Media post (original flow) ─────────────────────────────────────────────
+    if (postType === "media") {
+      if (images.length === 0) {
+        Alert.alert("No Media", "Please add at least one photo or video to your post");
+        return;
+      }
+
+      if (!caption.trim() && taggedEntities.length === 0) {
+        Alert.alert("Empty Post", "Please add a caption or tag someone");
+        return;
+      }
+
+      // Validate media type matches tagged challenge requirement
+      if (challengeSubmissionType) {
+        const hasVideo = mediaTypes.some((t) => t === "video");
+        const hasImage = mediaTypes.some((t) => t === "image" || !t);
+
+        if (challengeSubmissionType === "video" && !hasVideo) {
+          Alert.alert("Wrong Media Type", "This challenge requires a video submission. Please add a video.");
+          return;
+        }
+        if (challengeSubmissionType === "video" && hasImage) {
+          Alert.alert("Wrong Media Type", "This challenge only accepts videos. Please remove any photos.");
+          return;
+        }
+        if (challengeSubmissionType === "image" && hasVideo) {
+          Alert.alert("Wrong Media Type", "This challenge only accepts photos. Please remove the video.");
+          return;
+        }
+      }
+
+      setIsSubmitting(true);
+      try {
+        const mediaItems = images.map((uri, index) => ({
+          uri,
+          type: mediaTypes[index] || "image",
+        }));
+
+        const uploadedResults = await uploadMultipleMedia(mediaItems);
+        const imageUrls = uploadedResults.map((result) => result.url);
+
+        const allTaggedEntities = [
+          ...taggedEntities.map((entity) => ({ id: entity.id, type: entity.type })),
+          ...entityTags.map((entity) => ({ id: entity.id, type: entity.type })),
+        ];
+
+        const token = await getAuthToken();
+        if (!token) throw new Error("Authentication token not found.");
+
+        const resolvedCropMetadata =
+          cropMetadataRef.current?.length > 0
+            ? cropMetadataRef.current
+            : cropMetadata;
+
+        console.log("[CreatePostScreen] Submitting media post:", {
+          imageCount: imageUrls.length,
+          cropMetadataLength: resolvedCropMetadata.length,
+          cropMetadataSource: cropMetadataRef.current?.length > 0 ? "ref" : "state",
+          cropMetadataLengthMatch: resolvedCropMetadata.length === imageUrls.length,
+          cropMeta: resolvedCropMetadata.map((m) => ({
+            mediaType: m?.mediaType,
+            hasUserCrop: m?.hasUserCrop,
+            scale: m?.scale,
+            translateX: m?.translateX,
+            translateY: m?.translateY,
+            displayWidth: m?.displayWidth,
+            displayHeight: m?.displayHeight,
+            videoPixelWidth: m?.videoPixelWidth,
+            videoPixelHeight: m?.videoPixelHeight,
+            hasAspectRatio: !!m?.aspectRatio,
+            aspectRatio: m?.aspectRatio,
+          })),
+        });
+
+        const formattedAspectRatios = aspectRatios.map((ar) => {
+          if (Array.isArray(ar) && ar.length === 2) return ar[0] / ar[1];
+          return typeof ar === "number" ? ar : 1;
+        });
+
+        let finalCropMetadata = null;
+        if (resolvedCropMetadata.length > 0) {
+          if (resolvedCropMetadata.length === imageUrls.length) {
+            finalCropMetadata = resolvedCropMetadata;
+          } else if (resolvedCropMetadata.length > imageUrls.length) {
+            finalCropMetadata = resolvedCropMetadata.slice(0, imageUrls.length);
+          } else {
+            finalCropMetadata = [
+              ...resolvedCropMetadata,
+              ...Array(imageUrls.length - resolvedCropMetadata.length).fill(null),
+            ];
+          }
+          console.log("[CreatePostScreen] Final cropMetadata:", finalCropMetadata?.length, "items (was", resolvedCropMetadata.length, ")");
+        }
+
+        await apiPost(
+          "/posts",
+          {
+            post_type: "media",
+            caption: caption.trim(),
+            imageUrls,
+            aspectRatios: formattedAspectRatios.length === imageUrls.length ? formattedAspectRatios : null,
+            mediaTypes: mediaTypes.length === imageUrls.length ? mediaTypes : null,
+            cropMetadata: finalCropMetadata,
+            mutedIndices: mutedVideoIndices.size > 0 ? [...mutedVideoIndices] : null,
+            taggedEntities: allTaggedEntities,
+          },
+          15000,
+          token,
+        );
+
+        EventBus.emit("post-created");
+        navigation.goBack();
+        setTimeout(() => { navigateHome(); }, 100);
+      } catch (error) {
+        console.error("Error creating post:", error);
+        Alert.alert("Error", error.message || "Failed to create post. Please try again.");
+      } finally {
+        setIsSubmitting(false);
+      }
       return;
     }
 
-    if (!caption.trim() && taggedEntities.length === 0) {
-      Alert.alert("Empty Post", "Please add a caption or tag someone");
-      return;
-    }
-
-    // Validate media type matches tagged challenge requirement
-    if (challengeSubmissionType) {
-      const hasVideo = mediaTypes.some((t) => t === "video");
-      const hasImage = mediaTypes.some((t) => t === "image" || !t);
-
-      if (challengeSubmissionType === "video" && !hasVideo) {
-        Alert.alert(
-          "Wrong Media Type",
-          "This challenge requires a video submission. Please add a video.",
-        );
-        return;
-      }
-      if (challengeSubmissionType === "video" && hasImage) {
-        Alert.alert(
-          "Wrong Media Type",
-          "This challenge only accepts videos. Please remove any photos.",
-        );
-        return;
-      }
-      if (challengeSubmissionType === "image" && hasVideo) {
-        Alert.alert(
-          "Wrong Media Type",
-          "This challenge only accepts photos. Please remove the video.",
-        );
-        return;
-      }
-    }
-
+    // ── Creator-only post types (Poll / Prompt / Q&A / Challenge) ──────────────
     setIsSubmitting(true);
     try {
-      // 1. Upload media (images and videos) to Cloudinary
-      // Construct media items with type information
-      const mediaItems = images.map((uri, index) => ({
-        uri,
-        type: mediaTypes[index] || "image",
-      }));
-
-      const uploadedResults = await uploadMultipleMedia(mediaItems);
-
-      // Extract URLs from results
-      const imageUrls = uploadedResults.map((result) => result.url);
-
-      // 2. Prepare tagged entities data (merge @ mentions + entity selector tags)
-      const allTaggedEntities = [
-        ...taggedEntities.map((entity) => ({
-          id: entity.id,
-          type: entity.type,
-        })),
-        ...entityTags.map((entity) => ({
-          id: entity.id,
-          type: entity.type,
-        })),
-      ];
-      const taggedEntitiesData = allTaggedEntities;
-
-      // 3. Get auth token
       const token = await getAuthToken();
-      if (!token) {
-        throw new Error("Authentication token not found.");
-      }
+      if (!token) throw new Error("Authentication token not found.");
 
-      // 4. Send post data to the backend (include aspectRatios if available)
-      // Use ref value as primary source — React state can be stale in async closures
-      const resolvedCropMetadata =
-        cropMetadataRef.current?.length > 0
-          ? cropMetadataRef.current
-          : cropMetadata;
+      let typePayload = {};
 
-      // --- DEBUG: Log exactly what crop data is being sent ---
-      console.log("[CreatePostScreen] Submitting post:", {
-        imageCount: imageUrls.length,
-        cropMetadataLength: resolvedCropMetadata.length,
-        cropMetadataSource:
-          cropMetadataRef.current?.length > 0 ? "ref" : "state",
-        cropMetadataLengthMatch:
-          resolvedCropMetadata.length === imageUrls.length,
-        cropMeta: resolvedCropMetadata.map((m) => ({
-          mediaType: m?.mediaType,
-          hasUserCrop: m?.hasUserCrop,
-          scale: m?.scale,
-          translateX: m?.translateX,
-          translateY: m?.translateY,
-          displayWidth: m?.displayWidth,
-          displayHeight: m?.displayHeight,
-          videoPixelWidth: m?.videoPixelWidth,
-          videoPixelHeight: m?.videoPixelHeight,
-          hasAspectRatio: !!m?.aspectRatio,
-          aspectRatio: m?.aspectRatio,
-        })),
-      });
-
-      // Convert aspect ratios from [width, height] format to float (width/height)
-      // Backend expects floats like 1.0 for 1:1 or 0.8 for 4:5
-      const formattedAspectRatios = aspectRatios.map((ar) => {
-        if (Array.isArray(ar) && ar.length === 2) {
-          return ar[0] / ar[1]; // [1, 1] → 1.0, [4, 5] → 0.8
-        }
-        return typeof ar === "number" ? ar : 1; // Fallback to 1:1
-      });
-
-      // Always send cropMetadata if we have it — don't silently null-out
-      // on length mismatch. Pad/trim to match imageUrls length.
-      let finalCropMetadata = null;
-      if (resolvedCropMetadata.length > 0) {
-        if (resolvedCropMetadata.length === imageUrls.length) {
-          finalCropMetadata = resolvedCropMetadata;
-        } else if (resolvedCropMetadata.length > imageUrls.length) {
-          // Trim to match
-          finalCropMetadata = resolvedCropMetadata.slice(
-            0,
-            imageUrls.length,
-          );
-        } else {
-          // Pad with null entries
-          finalCropMetadata = [
-            ...resolvedCropMetadata,
-            ...Array(imageUrls.length - resolvedCropMetadata.length).fill(
-              null,
-            ),
-          ];
-        }
-        console.log(
-          "[CreatePostScreen] Final cropMetadata:",
-          finalCropMetadata?.length,
-          "items (was",
-          resolvedCropMetadata.length,
-          ")",
-        );
+      if (postType === "poll") {
+        if (!pollData.question.trim()) throw new Error("Poll question is required");
+        if (pollData.options.filter((o) => o.trim()).length < 2) throw new Error("At least 2 options are required");
+        typePayload = {
+          question: pollData.question,
+          options: pollData.options.filter((o) => o.trim()),
+          allow_multiple: pollData.allow_multiple,
+          show_results_before_vote: pollData.show_results_before_vote,
+          expires_at: pollData.expires_at,
+        };
+      } else if (postType === "prompt") {
+        if (!promptData.prompt_text.trim()) throw new Error("Prompt text is required");
+        typePayload = {
+          prompt_text: promptData.prompt_text,
+          submission_type: promptData.submission_type,
+          max_length: promptData.max_length,
+          require_approval: promptData.require_approval,
+          expires_at: promptData.expires_at,
+        };
+      } else if (postType === "qna") {
+        if (!qnaData.title.trim()) throw new Error("Q&A title is required");
+        typePayload = {
+          title: qnaData.title,
+          description: qnaData.description,
+          allow_anonymous: qnaData.allow_anonymous,
+          max_questions_per_user: qnaData.max_questions_per_user,
+          expires_at: qnaData.expires_at,
+        };
+      } else if (postType === "challenge") {
+        if (!challengeData.title.trim()) throw new Error("Challenge title is required");
+        typePayload = {
+          title: challengeData.title,
+          description: challengeData.description,
+          challenge_type: challengeData.challenge_type,
+          submission_type: challengeData.submission_type,
+          target_count: challengeData.target_count,
+          max_submissions_per_user: challengeData.max_submissions_per_user,
+          require_approval: challengeData.require_approval,
+          deadline: challengeData.deadline,
+        };
+      } else if (postType === "opportunity") {
+        if (!opportunityData.title.trim()) throw new Error("Opportunity title is required");
+        typePayload = {
+          title: opportunityData.title,
+          description: opportunityData.description,
+          opportunity_type: opportunityData.opportunity_type,
+          compensation_type: opportunityData.compensation_type,
+          compensation_details: opportunityData.compensation_details,
+          spots_total: opportunityData.spots_total,
+          deadline: opportunityData.deadline,
+        };
       }
 
       await apiPost(
         "/posts",
-        {
-          caption: caption.trim(),
-          imageUrls,
-          aspectRatios:
-            formattedAspectRatios.length === imageUrls.length
-              ? formattedAspectRatios
-              : null,
-          mediaTypes:
-            mediaTypes.length === imageUrls.length ? mediaTypes : null,
-          cropMetadata: finalCropMetadata,
-          mutedIndices:
-            mutedVideoIndices.size > 0 ? [...mutedVideoIndices] : null,
-          taggedEntities: taggedEntitiesData,
-        },
+        { post_type: postType, ...typePayload },
         15000,
         token,
       );
 
-      // Emit event to refresh feed
       EventBus.emit("post-created");
 
-      // 5. Success: Close modal and navigate home
-      navigation.goBack();
-      setTimeout(() => {
-        navigateHome();
-      }, 100);
+      // Show the SuccessCard overlay (same as CommunityCreatePostScreen)
+      let successData = {};
+      if (postType === "poll")        successData = { ...pollData };
+      if (postType === "prompt")      successData = { ...promptData };
+      if (postType === "qna")         successData = { ...qnaData };
+      if (postType === "challenge")   successData = { ...challengeData };
+      if (postType === "opportunity") successData = { ...opportunityData };
+      setSuccessCardData(successData);
+      setShowCelebration(true);
     } catch (error) {
-      console.error("Error creating post:", error);
-      Alert.alert(
-        "Error",
-        error.message || "Failed to create post. Please try again.",
-      );
+      console.error("[CreatePostScreen] Creator post error:", error);
+      Alert.alert("Error", error.message || "Failed to create post. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // ── SuccessCard handlers ───────────────────────────────────────────────────
+  const handleCreateAnother = () => {
+    setShowCelebration(false);
+    setCaption("");
+    setImages([]);
+    setAspectRatios([]);
+    setMediaTypes([]);
+    setTaggedEntities([]);
+    setEntityTags([]);
+    setCropMetadata([]);
+    cropMetadataRef.current = [];
+    setMutedVideoIndices(new Set());
+    setShowEntityTagger(false);
+    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
+  const handleViewCreatorPost = () => {
+    setShowCelebration(false);
+    navigation.goBack();
+    HapticsService.triggerImpactLight();
+    setTimeout(() => { navigateHome(); }, 100);
+  };
+
+  // ── Remove-media confirmation (when switching type while media is attached) ──
+  const renderRemoveMediaModal = () => (
+    <CustomAlertModal
+      visible={showRemoveMediaModal}
+      onClose={() => setShowRemoveMediaModal(false)}
+      title="Remove Media?"
+      message="Switching post types will remove your attached media. Continue?"
+      icon={AlertTriangle}
+      iconColor="#FF3B30"
+      primaryAction={{
+        text: "Remove & Switch",
+        style: "destructive",
+        onPress: () => {
+          setImages([]);
+          setAspectRatios([]);
+          setMediaTypes([]);
+          setMutedVideoIndices(new Set());
+          setCropMetadata([]);
+          cropMetadataRef.current = [];
+          setEntityTags([]);
+          setShowEntityTagger(false);
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          if (pendingPostType) setPostType(pendingPostType);
+          setShowRemoveMediaModal(false);
+          setPendingPostType(null);
+        },
+      }}
+      secondaryAction={{
+        text: "Cancel",
+        onPress: () => {
+          setShowRemoveMediaModal(false);
+          setPendingPostType(null);
+        },
+      }}
+    />
+  );
 
   const handleCancel = () => {
     if (caption.trim() || images.length > 0) {
@@ -579,8 +751,6 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
     />
   );
 
-  const canSubmit = images.length > 0 || caption.trim().length > 0;
-
   const renderGuidelinesModal = () => (
     <Modal
       visible={showGuidelines}
@@ -626,6 +796,16 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
 
   return (
     <View style={styles.safeArea}>
+      {/* SuccessCard for creator post types */}
+      {showCelebration && (
+        <SuccessCard
+          visible={showCelebration}
+          type={postType}
+          data={successCardData}
+          onPrimaryAction={handleViewCreatorPost}
+          onSecondaryAction={handleCreateAnother}
+        />
+      )}
       <BlurView
         intensity={80}
         tint="light"
@@ -650,7 +830,14 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           ]}
           pointerEvents="none"
         >
-          <Text style={styles.headerTitle}>New Post</Text>
+          <Text style={styles.headerTitle}>
+            {postType === "poll" ? "New Poll"
+              : postType === "prompt" ? "New Prompt"
+              : postType === "qna" ? "New Q&A"
+              : postType === "challenge"    ? "New Challenge"
+              : postType === "opportunity"  ? "New Opportunity"
+              : "New Post"}
+          </Text>
         </View>
 
         <GradientButton
@@ -674,7 +861,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               shadowOpacity: 0,
               elevation: 0,
               shadowColor: "transparent",
-              backgroundColor: "#D1D5DB", // Note: This might need handling in GradientButton props if it overrides colors
+              backgroundColor: "#D1D5DB",
             },
           ]}
           gradientStyle={{
@@ -695,7 +882,6 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
             color: "#FFFFFF",
             fontSize: 14,
           }}
-          // Shadow for active state
           {...(canSubmit && !isSubmitting
             ? {
                 shadowColor: "rgba(41, 98, 255, 0.18)",
@@ -749,108 +935,184 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
             </View>
           )}
 
-          <View style={styles.composerSection}>
-            <MentionInput
-              value={caption}
-              onChangeText={setCaption}
-              onTaggedEntitiesChange={setTaggedEntities}
-              placeholder={
-                taggedChallenge
-                  ? challengeSubmissionType === "video"
-                    ? "Describe what you did in this video...\nUse @ to mention"
-                    : "Describe how you completed this challenge...\nUse @ to mention"
-                  : "Share something with your network...\nUse @ to mention"
-              }
-              placeholderTextColor="#9CA3AF"
-              maxLength={2000}
-              inputStyle={styles.mainInput}
-              currentUser={currentUser}
-              autoFocus={true}
-              multiline={true}
+          {/* Post Type Selector — only visible to Creator Mode members */}
+          {isCreator && (
+            <PostTypeSelector
+              selectedType={postType}
+              onSelectType={(type) => {
+                if (type === postType) return;
+                // Guard: switching away from media while items are attached
+                if (postType === "media" && images.length > 0) {
+                  setPendingPostType(type);
+                  setShowRemoveMediaModal(true);
+                  return;
+                }
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                setPostType(type);
+              }}
+              disabled={isSubmitting}
             />
+          )}
 
-            {caption.length > 0 && (
-              <Text style={styles.counterText}>{caption.length}/2000</Text>
-            )}
-          </View>
-
-          <View
-            style={[
-              styles.mediaTrayContainer,
-              images.length === 0 && {
-                marginTop: 0,
-                height: 0,
-                opacity: 0,
-                overflow: "hidden",
-              },
-            ]}
-            pointerEvents={images.length === 0 ? "none" : "auto"}
-          >
-            <ImageUploader
-              ref={imageUploaderRef}
-              maxImages={10}
-              onImagesChange={handleImagesChange}
-              onAspectRatiosChange={handleAspectRatiosChange}
-              onMediaTypesChange={handleMediaTypesChange}
-              onCropMetadataChange={handleCropMetadataChange}
-              onMutedIndicesChange={handleMutedIndicesChange}
-              initialImages={images}
-              caption={caption}
-              currentUser={currentUser}
-              horizontal={true}
-              // Lock to challenge submission type when a challenge is tagged
-              allowVideos={challengeSubmissionType !== "image"}
-              allowImages={challengeSubmissionType !== "video"}
-            />
-          </View>
-
-          {/* Challenge / Entity Tag Selector */}
-          {showEntityTagger && (
-            <View style={styles.entityTaggerContainer}>
-              <EntityTagSelector
-                onEntitiesChange={setEntityTags}
-                initialEntities={entityTags}
-                onInteractionStart={() => setParentScrollEnabled(false)}
-                onInteractionEnd={() => setParentScrollEnabled(true)}
-                onBeforeChallengeSelect={handleBeforeChallengeSelect}
+          {/* ── Media composer (shown for 'media' type) ──────────────────────── */}
+          {postType === "media" && (
+            <View style={styles.composerSection}>
+              <MentionInput
+                value={caption}
+                onChangeText={setCaption}
+                onTaggedEntitiesChange={setTaggedEntities}
+                placeholder={
+                  taggedChallenge
+                    ? challengeSubmissionType === "video"
+                      ? "Describe what you did in this video...\nUse @ to mention"
+                      : "Describe how you completed this challenge...\nUse @ to mention"
+                    : "Share something with your network...\nUse @ to mention"
+                }
+                placeholderTextColor="#9CA3AF"
+                maxLength={2000}
+                inputStyle={styles.mainInput}
+                currentUser={currentUser}
+                autoFocus={postType === "media"}
+                multiline={true}
               />
+
+              {caption.length > 0 && (
+                <Text style={styles.counterText}>{caption.length}/2000</Text>
+              )}
             </View>
           )}
 
-          {/* Challenge tag banner (shown when a challenge is tagged) */}
-          {entityTags.some((e) => e.type === "challenge") && (
-            <View style={styles.challengeBanner}>
-              <Trophy size={16} color="#FF6B35" strokeWidth={2.5} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.challengeBannerText} numberOfLines={1}>
-                  {entityTags.find((e) => e.type === "challenge")?.name}
-                </Text>
-                {challengeSubmissionType && (
-                  <Text style={styles.challengeBannerHint}>
-                    {challengeSubmissionType === "video"
-                      ? "📹 Video required for this challenge"
-                      : "🖼 Photo required for this challenge"}
-                  </Text>
-                )}
+          {/* ── Poll form ────────────────────────────────────────────────────── */}
+          {postType === "poll" && (
+            <View style={styles.formContainer}>
+              <View style={styles.formSectionHeader}>
+                <Text style={styles.formSectionTitle}>POLL DETAILS</Text>
               </View>
-              <TouchableOpacity
-                onPress={() => {
-                  setEntityTags(
-                    entityTags.filter((e) => e.type !== "challenge"),
-                  );
-                  setShowEntityTagger(false);
-                }}
-                style={styles.closeButtonContainer}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <X size={12} color="#1F2937" strokeWidth={3} />
-              </TouchableOpacity>
+              <PollCreateForm onDataChange={setPollData} disabled={isSubmitting} />
             </View>
+          )}
+
+          {/* ── Prompt form ──────────────────────────────────────────────────── */}
+          {postType === "prompt" && (
+            <View style={styles.formContainer}>
+              <View style={styles.formSectionHeader}>
+                <Text style={styles.formSectionTitle}>PROMPT DETAILS</Text>
+              </View>
+              <PromptCreateForm onDataChange={setPromptData} disabled={isSubmitting} />
+            </View>
+          )}
+
+          {/* ── Q&A form ─────────────────────────────────────────────────────── */}
+          {postType === "qna" && (
+            <View style={styles.formContainer}>
+              <View style={styles.formSectionHeader}>
+                <Text style={styles.formSectionTitle}>Q&A DETAILS</Text>
+              </View>
+              <QnACreateForm onSubmit={setQnaData} isSubmitting={isSubmitting} />
+            </View>
+          )}
+
+          {/* ── Challenge form (Create new Challenge) ────────────────────────── */}
+          {/* Note: posting TO an existing challenge is still via Trophy button   */}
+          {/* in the media toolbar (EntityTagSelector). This form CREATES one.    */}
+          {postType === "challenge" && (
+            <View style={styles.formContainer}>
+              <View style={styles.formSectionHeader}>
+                <Text style={styles.formSectionTitle}>CHALLENGE DETAILS</Text>
+              </View>
+              <ChallengeCreateForm onSubmit={setChallengeData} isSubmitting={isSubmitting} />
+            </View>
+          )}
+
+          {postType === "opportunity" && (
+            <View style={styles.formContainer}>
+              <View style={styles.formSectionHeader}>
+                <Text style={styles.formSectionTitle}>OPPORTUNITY DETAILS</Text>
+              </View>
+              <OpportunityCreateForm onDataChange={setOpportunityData} disabled={isSubmitting} />
+            </View>
+          )}
+
+          {/* ── Media tray, EntityTagSelector, challenge banner — media type only */}
+          {postType === "media" && (
+            <>
+              <View
+                style={[
+                  styles.mediaTrayContainer,
+                  images.length === 0 && {
+                    marginTop: 0,
+                    height: 0,
+                    opacity: 0,
+                    overflow: "hidden",
+                  },
+                ]}
+                pointerEvents={images.length === 0 ? "none" : "auto"}
+              >
+                <ImageUploader
+                  ref={imageUploaderRef}
+                  maxImages={10}
+                  onImagesChange={handleImagesChange}
+                  onAspectRatiosChange={handleAspectRatiosChange}
+                  onMediaTypesChange={handleMediaTypesChange}
+                  onCropMetadataChange={handleCropMetadataChange}
+                  onMutedIndicesChange={handleMutedIndicesChange}
+                  initialImages={images}
+                  caption={caption}
+                  currentUser={currentUser}
+                  horizontal={true}
+                  allowVideos={challengeSubmissionType !== "image"}
+                  allowImages={challengeSubmissionType !== "video"}
+                />
+              </View>
+
+              {showEntityTagger && (
+                <View style={styles.entityTaggerContainer}>
+                  <EntityTagSelector
+                    onEntitiesChange={setEntityTags}
+                    initialEntities={entityTags}
+                    onInteractionStart={() => setParentScrollEnabled(false)}
+                    onInteractionEnd={() => setParentScrollEnabled(true)}
+                    onBeforeChallengeSelect={handleBeforeChallengeSelect}
+                  />
+                </View>
+              )}
+
+              {entityTags.some((e) => e.type === "challenge") && (
+                <View style={styles.challengeBanner}>
+                  <Trophy size={16} color="#FF6B35" strokeWidth={2.5} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.challengeBannerText} numberOfLines={1}>
+                      {entityTags.find((e) => e.type === "challenge")?.name}
+                    </Text>
+                    {challengeSubmissionType && (
+                      <Text style={styles.challengeBannerHint}>
+                        {challengeSubmissionType === "video"
+                          ? "📹 Video required for this challenge"
+                          : "🖼 Photo required for this challenge"}
+                      </Text>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEntityTags(
+                        entityTags.filter((e) => e.type !== "challenge"),
+                      );
+                      setShowEntityTagger(false);
+                    }}
+                    style={styles.closeButtonContainer}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <X size={12} color="#1F2937" strokeWidth={3} />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </>
           )}
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <KeyboardAwareToolbar>
+      {/* Toolbar: only for media type (challenge-tagging via Trophy is media-only) */}
+      {postType === "media" && <KeyboardAwareToolbar>
         <View style={styles.toolbarContent}>
           <TouchableOpacity
             onPress={() => {
@@ -907,10 +1169,11 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
             />
           </TouchableOpacity>
         </View>
-      </KeyboardAwareToolbar>
+      </KeyboardAwareToolbar>}
       {renderGuidelinesModal()}
       {renderDiscardModal()}
       {renderConflictModal()}
+      {renderRemoveMediaModal()}
     </View>
   );
 };
@@ -951,7 +1214,23 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 0,
-    paddingBottom: 200, // Increased for visibility
+    paddingBottom: 200,
+  },
+  formContainer: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+  },
+  formSectionHeader: {
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+    paddingBottom: 8,
+  },
+  formSectionTitle: {
+    fontSize: 12,
+    fontFamily: FONTS.semiBold,
+    color: COLORS.textSecondary,
+    letterSpacing: 1,
   },
   identityRow: {
     flexDirection: "row",

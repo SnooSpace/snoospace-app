@@ -27,11 +27,12 @@ if (
 }
 
 const POST_TYPES = [
-  { id: "media", label: "Media" },
-  { id: "poll", label: "Poll" },
-  { id: "prompt", label: "Prompt" },
-  { id: "qna", label: "Q&A" },
-  { id: "challenge", label: "Challenge" },
+  { id: "media",       label: "Media" },
+  { id: "poll",        label: "Poll" },
+  { id: "prompt",      label: "Prompt" },
+  { id: "qna",         label: "Q&A" },
+  { id: "challenge",   label: "Challenge" },
+  { id: "opportunity", label: "Opportunity" },
 ];
 
 const PostTypeSelector = ({ selectedType, onSelectType, disabled = false }) => {

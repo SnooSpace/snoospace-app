@@ -10,7 +10,7 @@ import {
   useRoute,
   useFocusEffect,
 } from "@react-navigation/native";
-import { Settings, Bookmark, ChevronDown, Play, AlertCircle, Image as LucideImage, Pin, Ticket, MapPin, Users, CalendarDays } from "lucide-react-native";
+import { Settings, Bookmark, ChevronDown, Play, AlertCircle, Image as LucideImage, Pin, Ticket, MapPin, Users, CalendarDays, BarChart2 } from "lucide-react-native";
 import { getHostedPlans, getAttendingPlans, likePlan, unlikePlan } from "../../../api/plans";
 import {
   clearAuthSession,
@@ -559,6 +559,15 @@ export default function MemberProfileScreen({ navigation }) {
     return () => { if (unsub) unsub(); };
   }, []);
 
+  // Keep profile in sync when Creator Mode is toggled from SettingsScreen
+  useEffect(() => {
+    const unsub = EventBus.on('profile:updated', ({ profile: updatedProfile }) => {
+      if (!updatedProfile) return;
+      setProfile((prev) => prev ? { ...prev, ...updatedProfile } : updatedProfile);
+    });
+    return () => { if (unsub) unsub(); };
+  }, []);
+
   // Instantly update circle count when a circle request is accepted
   useEffect(() => {
     const unsub = EventBus.on('circle-request-responded', ({ action }) => {
@@ -746,6 +755,9 @@ export default function MemberProfileScreen({ navigation }) {
         circle_count: fullProfile.circle_count || 0,
         following_count: fullProfile.following_count || 0,
         events_attended_count: eventsResponse?.total_events ?? (eventsResponse?.events?.length ?? 0),
+        // Creator Mode
+        is_creator_mode_enabled: fullProfile.is_creator_mode_enabled === true,
+        creator_mode_enabled_at: fullProfile.creator_mode_enabled_at || null,
       };
       setProfile(mappedProfile);
 
@@ -1438,6 +1450,35 @@ export default function MemberProfileScreen({ navigation }) {
                 gradientStyle={{ borderRadius: 16, paddingHorizontal: 20 }}
                 textStyle={{ fontFamily: FONTS.semiBold }}
               />
+            )}
+
+            {/* Creator Dashboard strip — visible when Creator Mode is ON */}
+            {isOwnProfile && profile.is_creator_mode_enabled && (
+              <TouchableOpacity
+                onPress={() => navigation.navigate('MyDataScreen', { initialTab: 'creator' })}
+                activeOpacity={0.85}
+                style={{
+                  marginTop: 12,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                  backgroundColor: '#F5F0FF',
+                  borderRadius: 16,
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  borderWidth: 1,
+                  borderColor: 'rgba(124,58,237,0.15)',
+                }}
+              >
+                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#7C3AED18', alignItems: 'center', justifyContent: 'center' }}>
+                  <BarChart2 size={18} color="#7C3AED" strokeWidth={2} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: FONTS.semiBold, fontSize: 14, color: '#7C3AED' }}>Creator Dashboard</Text>
+                  <Text style={{ fontFamily: FONTS.regular, fontSize: 12, color: '#8B5CF6', marginTop: 1 }}>Audience insights, follow quality & reach</Text>
+                </View>
+                <ChevronDown size={16} color="#7C3AED" strokeWidth={2} style={{ transform: [{ rotate: '-90deg' }] }} />
+              </TouchableOpacity>
             )}
 
             {/* Posts / Events Tab Bar */}

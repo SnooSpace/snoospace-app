@@ -444,6 +444,8 @@ router.get("/auth/v2/validate", AuthV2Controller.validateToken);
 router.post("/members/signup", MemberController.signup);
 router.get("/members/profile", authMiddleware, MemberController.getProfile);
 router.patch("/members/profile", authMiddleware, MemberController.patchProfile);
+// Creator Mode toggle — must be before any /members/:id wildcard routes
+router.patch("/members/me/creator-mode", authMiddleware, MemberController.toggleCreatorMode);
 router.post(
   "/members/profile/photo",
   authMiddleware,

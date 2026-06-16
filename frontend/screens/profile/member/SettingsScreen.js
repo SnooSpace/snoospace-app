@@ -9,6 +9,7 @@ import {
   Alert,
   Linking,
   Platform,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
@@ -32,6 +33,13 @@ import {
   LogOut,
   Trash2,
   TrendingUp,
+  Zap,
+  X,
+  BarChart,
+  Briefcase,
+  Trophy,
+  MessageCircle,
+  Sparkles,
 } from "lucide-react-native";
 import {
   COLORS,
@@ -45,7 +53,9 @@ import Constants from "expo-constants";
 import DynamicStatusBar from "../../../components/DynamicStatusBar";
 import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModal";
 import AddAccountModal from "../../../components/modals/AddAccountModal";
-import { getActiveAccount } from "../../../api/auth";
+import { getActiveAccount, getAuthToken } from "../../../api/auth";
+import { apiPatch } from "../../../api/client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // ─── Animated toggle (same premium switch from SettingsModal) ─────────────────
 function AnimatedSwitch({ value, onValueChange, activeColor = "#2962FF" }) {
@@ -266,6 +276,67 @@ export default function SettingsScreen({ route, navigation }) {
     loadActive();
   }, [showAccountSwitcher]);
 
+  // ── Creator Mode ──────────────────────────────────────────────────────────
+  // Priority: AsyncStorage > profile prop (profile prop can be stale when
+  // Settings is reopened after toggling while it was open)
+  const [isCreatorModeEnabled, setIsCreatorModeEnabled] = useState(
+    profile?.is_creator_mode_enabled === true,
+  );
+  const [isTogglingCreator, setIsTogglingCreator] = useState(false);
+  const [showCreatorOnboarding, setShowCreatorOnboarding] = useState(false);
+  const [showCreatorInfo, setShowCreatorInfo] = useState(false);
+  const CREATOR_ONBOARDED_KEY = "creator_mode_onboarded";
+  const CREATOR_MODE_CACHE_KEY = "creator_mode_enabled";
+
+  // On mount: read the persisted value from AsyncStorage so the toggle is
+  // always correct even when Settings is closed and reopened.
+  useEffect(() => {
+    AsyncStorage.getItem(CREATOR_MODE_CACHE_KEY).then((val) => {
+      if (val !== null) setIsCreatorModeEnabled(val === "true");
+    });
+  }, []);
+
+  // Keep in sync when the parent profile prop updates (e.g. from EventBus)
+  useEffect(() => {
+    if (profile?.is_creator_mode_enabled !== undefined) {
+      setIsCreatorModeEnabled(profile.is_creator_mode_enabled === true);
+      AsyncStorage.setItem(CREATOR_MODE_CACHE_KEY, String(profile.is_creator_mode_enabled === true));
+    }
+  }, [profile?.is_creator_mode_enabled]);
+
+  const handleToggleCreatorMode = async (val) => {
+    if (isTogglingCreator) return;
+    HapticsService.triggerImpactLight();
+    // Optimistic update + persist immediately
+    setIsCreatorModeEnabled(val);
+    await AsyncStorage.setItem(CREATOR_MODE_CACHE_KEY, String(val));
+    setIsTogglingCreator(true);
+    try {
+      const token = await getAuthToken();
+      await apiPatch("/members/me/creator-mode", { enabled: val }, 10000, token);
+      // Broadcast to MemberProfileScreen so its `profile` state updates
+      EventBus.emit("profile:updated", {
+        profile: { ...profile, is_creator_mode_enabled: val },
+      });
+      // First-time onboarding: show the explainer when turned ON
+      if (val) {
+        const alreadyOnboarded = await AsyncStorage.getItem(CREATOR_ONBOARDED_KEY);
+        if (!alreadyOnboarded) {
+          await AsyncStorage.setItem(CREATOR_ONBOARDED_KEY, "true");
+          setShowCreatorOnboarding(true);
+        }
+      }
+    } catch (err) {
+      // Revert on failure
+      setIsCreatorModeEnabled(!val);
+      await AsyncStorage.setItem(CREATOR_MODE_CACHE_KEY, String(!val));
+      Alert.alert("Couldn't update", "Failed to change Creator Mode. Please try again.");
+      console.error("[Settings] toggleCreatorMode error:", err.message);
+    } finally {
+      setIsTogglingCreator(false);
+    }
+  };
+
   const handleToggleHaptics = async (val) => {
     setHapticsEnabled(val);
     await HapticsService.setEnabled(val);
@@ -414,6 +485,60 @@ export default function SettingsScreen({ route, navigation }) {
               isLast
             />
           </Card>
+
+          {/* ── CREATOR (members only) ──────────────────────── */}
+          {!isCommunity && (
+            <>
+              <SectionLabel title="Creator" />
+              <Card>
+                <SettingsRow
+                  icon={Zap}
+                  iconColor="#7C3AED"
+                  label={
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={{ fontFamily: FONTS.medium, fontSize: 15, color: COLORS.textPrimary }}>
+                        Creator Mode
+                      </Text>
+                      {isCreatorModeEnabled && (
+                        <Pressable
+                          onPress={() => setShowCreatorInfo(true)}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Info size={14} color="#9CA3AF" strokeWidth={2} />
+                        </Pressable>
+                      )}
+                    </View>
+                  }
+                  sublabel={
+                    isCreatorModeEnabled
+                      ? "On · Audience insights & post types unlocked"
+                      : "Off · Enable to unlock creator features"
+                  }
+                  isFirst
+                  isLast={!isCreatorModeEnabled}
+                  rightElement={
+                    <AnimatedSwitch
+                      value={isCreatorModeEnabled}
+                      onValueChange={handleToggleCreatorMode}
+                      activeColor="#7C3AED"
+                    />
+                  }
+                />
+                {isCreatorModeEnabled && (
+                  <SettingsRow
+                    icon={TrendingUp}
+                    iconColor="#8B5CF6"
+                    label="Monetization"
+                    sublabel="Sponsorship preferences"
+                    onPress={() =>
+                      navigation.navigate("CreatorMonetization", { profile })
+                    }
+                    isLast
+                  />
+                )}
+              </Card>
+            </>
+          )}
 
           {/* ── MY ACTIVITY ─────────────────────────────── */}
           <SectionLabel title="My Activity" />
@@ -580,6 +705,121 @@ export default function SettingsScreen({ route, navigation }) {
           }}
         />
       )}
+
+      {/* ── Creator Mode first-time onboarding modal ── */}
+      {showCreatorOnboarding && (
+        <Modal
+          transparent
+          visible={showCreatorOnboarding}
+          animationType="slide"
+          statusBarTranslucent
+          onRequestClose={() => setShowCreatorOnboarding(false)}
+        >
+          <Pressable
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}
+            onPress={() => setShowCreatorOnboarding(false)}
+          >
+            <Pressable
+              style={creatorModalStyles.sheet}
+              onPress={(e) => e.stopPropagation()}
+            >
+              {/* Handle */}
+              <View style={creatorModalStyles.handle} />
+
+              {/* Header */}
+              <View style={creatorModalStyles.header}>
+                <View style={creatorModalStyles.iconRing}>
+                  <Zap size={26} color="#7C3AED" strokeWidth={2.5} />
+                </View>
+                <Text style={creatorModalStyles.title}>Creator Mode is ON</Text>
+                <Text style={creatorModalStyles.subtitle}>
+                  You've unlocked a new layer of tools built for personal creators.
+                </Text>
+              </View>
+
+              {/* Feature list */}
+              {[
+                { icon: BarChart,      color: "#3B82F6", label: "Audience Dashboard",      sub: "Follow quality, Audience Score & reach analytics on your Profile" },
+                { icon: Sparkles,      color: "#8B5CF6", label: "All Post Types",           sub: "Create Polls, Prompts, Q&As, Challenges & Opportunities" },
+                { icon: Users,         color: "#10B981", label: "Creator Activity Tab",     sub: "See your creator-scoped insights in My Activity" },
+                { icon: Trophy,        color: "#F59E0B", label: "Create Challenges",        sub: "Launch challenges that your followers can submit to" },
+                { icon: Briefcase,     color: "#EC4899", label: "Post Opportunities",       sub: "Find collaborators, team members & paid gigs" },
+                { icon: TrendingUp,    color: "#7C3AED", label: "Monetization Settings",   sub: "Set your sponsorship preferences so brands can find you" },
+              ].map(({ icon: Icon, color, label, sub }) => (
+                <View key={label} style={creatorModalStyles.featureRow}>
+                  <View style={[creatorModalStyles.featureIcon, { backgroundColor: color + "18" }]}>
+                    <Icon size={18} color={color} strokeWidth={2} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={creatorModalStyles.featureLabel}>{label}</Text>
+                    <Text style={creatorModalStyles.featureSub}>{sub}</Text>
+                  </View>
+                </View>
+              ))}
+
+              {/* CTA */}
+              <TouchableOpacity
+                style={creatorModalStyles.cta}
+                onPress={() => setShowCreatorOnboarding(false)}
+                activeOpacity={0.85}
+              >
+                <Text style={creatorModalStyles.ctaText}>Got it, let's go!</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* ── Creator info sheet (i icon, subsequent enables) ── */}
+      {showCreatorInfo && (
+        <Modal
+          transparent
+          visible={showCreatorInfo}
+          animationType="slide"
+          statusBarTranslucent
+          onRequestClose={() => setShowCreatorInfo(false)}
+        >
+          <Pressable
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}
+            onPress={() => setShowCreatorInfo(false)}
+          >
+            <Pressable
+              style={creatorModalStyles.sheet}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <View style={creatorModalStyles.handle} />
+              <View style={creatorModalStyles.header}>
+                <Text style={creatorModalStyles.title}>What Creator Mode unlocks</Text>
+              </View>
+              {[
+                { icon: BarChart,   color: "#3B82F6", label: "Audience Dashboard",    sub: "Analytics on your Profile" },
+                { icon: Sparkles,   color: "#8B5CF6", label: "All Post Types",         sub: "Polls, Prompts, Q&As, Challenges, Opportunities" },
+                { icon: Users,      color: "#10B981", label: "Creator Activity Tab",   sub: "Creator-scoped insights in My Activity" },
+                { icon: Trophy,     color: "#F59E0B", label: "Create Challenges",      sub: "Launch challenges for your followers" },
+                { icon: Briefcase,  color: "#EC4899", label: "Post Opportunities",     sub: "Collabs, gigs & projects" },
+                { icon: TrendingUp, color: "#7C3AED", label: "Monetization Settings", sub: "Sponsorship preferences" },
+              ].map(({ icon: Icon, color, label, sub }) => (
+                <View key={label} style={creatorModalStyles.featureRow}>
+                  <View style={[creatorModalStyles.featureIcon, { backgroundColor: color + "18" }]}>
+                    <Icon size={18} color={color} strokeWidth={2} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={creatorModalStyles.featureLabel}>{label}</Text>
+                    <Text style={creatorModalStyles.featureSub}>{sub}</Text>
+                  </View>
+                </View>
+              ))}
+              <TouchableOpacity
+                style={creatorModalStyles.cta}
+                onPress={() => setShowCreatorInfo(false)}
+                activeOpacity={0.85}
+              >
+                <Text style={creatorModalStyles.ctaText}>Close</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -619,5 +859,94 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 40,
+  },
+});
+
+const creatorModalStyles = StyleSheet.create({
+  sheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    paddingTop: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 20,
+  },
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E5E7EB",
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: 24,
+    gap: 8,
+  },
+  iconRing: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#F5F0FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  title: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 22,
+    color: "#111827",
+    textAlign: "center",
+  },
+  subtitle: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 14,
+    marginBottom: 16,
+  },
+  featureIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  featureLabel: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 14,
+    color: "#111827",
+    marginBottom: 2,
+  },
+  featureSub: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 12,
+    color: "#6B7280",
+    lineHeight: 16,
+  },
+  cta: {
+    marginTop: 8,
+    backgroundColor: "#7C3AED",
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  ctaText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 16,
+    color: "#FFFFFF",
   },
 });

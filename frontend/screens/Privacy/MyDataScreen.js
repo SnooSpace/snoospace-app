@@ -32,7 +32,9 @@ import {
   updateConsent,
   requestDataDeletion,
 } from "../../api/privacy";
-import { getActiveAccount } from "../../api/auth";
+import { getActiveAccount, getAuthToken } from "../../api/auth";
+import { apiGet } from "../../api/client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import loadingAnimation from "../../assets/animations/loading.json";
 
 const { width } = Dimensions.get("window");
@@ -250,9 +252,10 @@ const CACHE_DURATION = 15000; // Cache valid for 15 seconds
 
 // ── MyDataScreen — router shell ───────────────────────────────────────────────
 
-const MyDataScreen = ({ navigation }) => {
+const MyDataScreen = ({ navigation, route }) => {
   const [accountType, setAccountType] = useState(dataCache.accountType || "member");
   const [loading, setLoading] = useState(!dataCache.accountType);
+  const initialTab = route?.params?.initialTab || "personal";
 
   useEffect(() => {
     if (dataCache.accountType) return;
@@ -278,12 +281,12 @@ const MyDataScreen = ({ navigation }) => {
   if (loading) return <LoadingScreen />;
   if (accountType === "community") return <CommunityPrivacyScreen navigation={navigation} />;
   if (accountType === "sponsor") return <SponsorPrivacyScreen navigation={navigation} />;
-  return <MemberPrivacyScreen navigation={navigation} />;
+  return <MemberPrivacyScreen navigation={navigation} initialTab={initialTab} />;
 };
 
 // ── MemberPrivacyScreen ───────────────────────────────────────────────────────
 
-function MemberPrivacyScreen({ navigation }) {
+function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
   const cacheKey = 'member';
   const cachedData = dataCache[cacheKey];
   const cacheAge = cachedData ? Date.now() - dataCache.timestamps[cacheKey] : Infinity;
@@ -292,14 +295,17 @@ function MemberPrivacyScreen({ navigation }) {
 
   const [summary, setSummary]     = useState(cachedData);
   const [loading, setLoading]     = useState(!hasCachedData);
-  const [consents, setConsents]   = useState(() => {
-    const cached = cachedData;
-    return {
-      behavioral: cached?.consentState?.behavioral ?? false,
-      brand: cached?.consentState?.brand ?? false,
-      dataSharing: cached?.consentState?.dataSharing ?? false,
-    };
-  });
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [isCreatorMode, setIsCreatorMode] = useState(false);
+  const [creatorData, setCreatorData] = useState(null);
+  const [creatorLoading, setCreatorLoading] = useState(false);
+  const tabUnderlineX = useRef(new Animated.Value(initialTab === 'creator' ? 1 : 0)).current;
+  const consents_init = {
+      behavioral: cachedData?.consentState?.behavioral ?? false,
+      brand: cachedData?.consentState?.brand ?? false,
+      dataSharing: cachedData?.consentState?.dataSharing ?? false,
+  };
+  const [consents, setConsents]   = useState(() => consents_init);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting]   = useState(false);
   const [infoModal, setInfoModal] = useState({ visible: false, title: "", body: "", breakdown: null, showTiers: false });
@@ -333,6 +339,40 @@ function MemberPrivacyScreen({ navigation }) {
       loadData(!hasCachedData);
     }
   }, [loadData, isCacheFresh, hasCachedData]);
+
+  // Read creator mode flag from AsyncStorage (persisted by SettingsScreen)
+  useEffect(() => {
+    AsyncStorage.getItem("creator_mode_enabled").then((val) => {
+      setIsCreatorMode(val === "true");
+    });
+  }, []);
+
+  // Load lightweight creator insights when Creator tab is first activated
+  const loadCreatorData = useCallback(async () => {
+    if (creatorData || creatorLoading) return;
+    setCreatorLoading(true);
+    try {
+      const token = await getAuthToken();
+      const result = await apiGet("/creator/me/insights", 15000, token);
+      setCreatorData(result);
+    } catch (e) {
+      // Endpoint may not exist yet — show placeholder gracefully
+      setCreatorData({ notAvailable: true });
+    } finally {
+      setCreatorLoading(false);
+    }
+  }, [creatorData, creatorLoading]);
+
+  const switchTab = (tab) => {
+    setActiveTab(tab);
+    Animated.spring(tabUnderlineX, {
+      toValue: tab === 'creator' ? 1 : 0,
+      friction: 8,
+      tension: 60,
+      useNativeDriver: true,
+    }).start();
+    if (tab === 'creator') loadCreatorData();
+  };
 
   const handleToggle = async (field, apiField) => {
     const previousValue = consents[field];
@@ -430,6 +470,30 @@ function MemberPrivacyScreen({ navigation }) {
           <Text style={styles.headerTitle}>My Activity</Text>
           <View style={{ width: 40 }} />
         </View>
+
+        {/* Tab bar — only visible when Creator Mode is ON */}
+        {isCreatorMode && (
+          <View style={tabStyles.tabBar}>
+            {['personal', 'creator'].map((tab) => {
+              const isActive = activeTab === tab;
+              return (
+                <TouchableOpacity
+                  key={tab}
+                  style={[tabStyles.tabItem, isActive && tabStyles.tabItemActive]}
+                  onPress={() => switchTab(tab)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[tabStyles.tabLabel, isActive && tabStyles.tabLabelActive]}>
+                    {tab === 'personal' ? 'Personal' : 'Creator'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {/* ── PERSONAL TAB ─────────────────────────────────── */}
+        {activeTab === 'personal' && (
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Animated.View style={{ opacity: fadeAnim }}>
 
@@ -638,6 +702,92 @@ function MemberPrivacyScreen({ navigation }) {
 
           </Animated.View>
         </ScrollView>
+        )}
+
+        {/* ── CREATOR TAB ─────────────────────────────────────── */}
+        {activeTab === 'creator' && (
+          <ScrollView
+            contentContainerStyle={[styles.scrollContent, { paddingTop: 8 }]}
+            showsVerticalScrollIndicator={false}
+          >
+            {creatorLoading ? (
+              <View style={{ flex: 1, alignItems: 'center', paddingTop: 60 }}>
+                <LottieView source={loadingAnimation} autoPlay loop style={{ width: 100, height: 100 }} />
+                <Text style={[styles.sectionTitle, { marginTop: 16, color: '#9CA3AF', textAlign: 'center' }]}>Loading creator insights…</Text>
+              </View>
+            ) : creatorData?.notAvailable ? (
+              <View style={tabStyles.placeholderWrap}>
+                <View style={tabStyles.comingSoonCard}>
+                  <View style={tabStyles.comingSoonIcon}>
+                    <BarChart2 size={32} color="#7C3AED" strokeWidth={1.5} />
+                  </View>
+                  <Text style={tabStyles.comingSoonTitle}>Creator Analytics</Text>
+                  <Text style={tabStyles.comingSoonSub}>
+                    Your creator-scoped audience intelligence — Follow Quality, Audience Score, and content reach — will appear here once the analytics pipeline is live.
+                  </Text>
+                  <View style={tabStyles.featureList}>
+                    {[
+                      { icon: TrendingUp, color: '#10B981', label: 'Follow Quality Score',  sub: 'How genuine & engaged your followers are' },
+                      { icon: Sparkles,   color: '#8B5CF6', label: 'Audience Score',         sub: 'Overall creator audience strength' },
+                      { icon: Users,      color: '#3B82F6', label: 'Follower Reach',         sub: 'Estimated reach of your content' },
+                      { icon: Zap,        color: '#F59E0B', label: 'Content Interactions',  sub: 'Engagement across all post types' },
+                    ].map(({ icon: Icon, color, label, sub }) => (
+                      <View key={label} style={tabStyles.featureRow}>
+                        <View style={[tabStyles.featureIconWrap, { backgroundColor: color + '18' }]}>
+                          <Icon size={16} color={color} strokeWidth={2} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={tabStyles.featureLabel}>{label}</Text>
+                          <Text style={tabStyles.featureSub}>{sub}</Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              </View>
+            ) : (
+              <Animated.View style={{ opacity: fadeAnim }}>
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Audience Score</Text>
+                  <View style={tabStyles.scoreCard}>
+                    <View style={tabStyles.scoreCircle}>
+                      <Text style={tabStyles.scoreValue}>{creatorData?.audienceScore ?? '--'}</Text>
+                      <Text style={tabStyles.scoreMax}>/100</Text>
+                    </View>
+                    <Text style={tabStyles.scoreSub}>A composite measure of how engaged and genuine your audience is.</Text>
+                  </View>
+                </View>
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>Follow Quality</Text>
+                  <View style={styles.statsRow}>
+                    <Pressable style={({ pressed }) => [styles.statCard, pressed && { backgroundColor: '#F2F2F7' }]}>
+                      <View style={styles.statHeader}>
+                        <View style={[styles.statIconWrap, { backgroundColor: 'rgba(16,185,129,0.1)' }]}><TrendingUp size={14} color="#10B981" strokeWidth={2} /></View>
+                      </View>
+                      <Text style={styles.statValue}>{creatorData?.followQuality ?? '--'}%</Text>
+                      <Text style={styles.statLabel}>Follow Quality</Text>
+                    </Pressable>
+                    <Pressable style={({ pressed }) => [styles.statCard, pressed && { backgroundColor: '#F2F2F7' }]}>
+                      <View style={styles.statHeader}>
+                        <View style={[styles.statIconWrap, { backgroundColor: 'rgba(59,130,246,0.1)' }]}><Users size={14} color="#3B82F6" strokeWidth={2} /></View>
+                      </View>
+                      <Text style={styles.statValue}>{creatorData?.followerCount ?? '--'}</Text>
+                      <Text style={styles.statLabel}>Followers</Text>
+                    </Pressable>
+                    <Pressable style={({ pressed }) => [styles.statCard, pressed && { backgroundColor: '#F2F2F7' }]}>
+                      <View style={styles.statHeader}>
+                        <View style={[styles.statIconWrap, { backgroundColor: 'rgba(139,92,246,0.1)' }]}><Zap size={14} color="#8B5CF6" strokeWidth={2} /></View>
+                      </View>
+                      <Text style={styles.statValue}>{creatorData?.engagementRate ?? '--'}%</Text>
+                      <Text style={styles.statLabel}>Eng. Rate</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              </Animated.View>
+            )}
+          </ScrollView>
+        )}
+
       </SafeAreaView>
 
       <DeleteModal
@@ -1251,6 +1401,177 @@ const styles = StyleSheet.create({
   improvementText: {
     flex: 1, fontSize: 14, fontFamily: FONTS.regular,
     color: "#374151", lineHeight: 20,
+  },
+});
+
+// ── Tab bar styles (Personal / Creator) ──────────────────────────────────────
+
+const tabStyles = StyleSheet.create({
+  tabBar: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginBottom: 4,
+    marginTop: 4,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 14,
+    padding: 4,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 9,
+    borderRadius: 10,
+  },
+  tabItemActive: {
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabLabel: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 14,
+    color: "#9CA3AF",
+    letterSpacing: 0.1,
+  },
+  tabLabelActive: {
+    color: "#7C3AED",
+  },
+
+  // Creator placeholder
+  placeholderWrap: {
+    paddingHorizontal: 4,
+    paddingTop: 8,
+  },
+  comingSoonCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  comingSoonIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: "#F5F0FF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  comingSoonTitle: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 22,
+    color: "#111827",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  comingSoonSub: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  featureList: {
+    width: "100%",
+    gap: 16,
+  },
+  featureRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  featureIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  featureLabel: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 14,
+    color: "#111827",
+    marginBottom: 2,
+  },
+  featureSub: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 12,
+    color: "#6B7280",
+    lineHeight: 16,
+  },
+
+  // Live score card
+  scoreCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    shadowColor: "#7C3AED",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  scoreCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#F5F0FF",
+    borderWidth: 2,
+    borderColor: "#DDD6FE",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  scoreValue: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 22,
+    color: "#7C3AED",
+    lineHeight: 26,
+  },
+  scoreMax: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 10,
+    color: "#9CA3AF",
+    lineHeight: 12,
+  },
+  scoreSub: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 13,
+    color: "#6B7280",
+    lineHeight: 19,
+    flex: 1,
+  },
+
+  reachRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+  },
+  reachLabel: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 14,
+    color: "#374151",
+    textTransform: "capitalize",
+  },
+  reachVal: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 14,
+    color: "#111827",
   },
 });
 

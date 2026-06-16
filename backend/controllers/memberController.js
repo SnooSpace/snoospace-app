@@ -169,7 +169,8 @@ async function getProfile(req, res) {
               intent_badges, available_today, available_this_week, prompt_question, prompt_answer, appear_in_discover,
               discover_photos, openers, show_pronouns, occupation, campus_id, show_college,
               occupation_details, occupation_category, portfolio_link, education,
-              follower_count, following_count, instagram_username
+              follower_count, following_count, instagram_username,
+              is_creator_mode_enabled, creator_mode_enabled_at
        FROM members WHERE id = $1`,
       [userId]
     );
@@ -1678,6 +1679,59 @@ async function getMemberPublicPlans(req, res) {
   }
 }
 
+/**
+ * PATCH /members/me/creator-mode
+ * Body: { enabled: boolean }
+ * Toggles Creator Mode on the authenticated member's account.
+ */
+async function toggleCreatorMode(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const memberId = req.user?.id;
+    if (!memberId) return res.status(401).json({ error: "Unauthorized" });
+
+    const { enabled } = req.body;
+    if (typeof enabled !== "boolean") {
+      return res.status(400).json({ error: "enabled must be a boolean" });
+    }
+
+    // Set creator_mode_enabled_at only on the first activation
+    const result = await pool.query(
+      `UPDATE members
+       SET
+         is_creator_mode_enabled = $1,
+         creator_mode_enabled_at = CASE
+           WHEN $1 = true AND (creator_mode_enabled_at IS NULL)
+           THEN NOW()
+           ELSE creator_mode_enabled_at
+         END
+       WHERE id = $2
+       RETURNING id, is_creator_mode_enabled, creator_mode_enabled_at`,
+      [enabled, memberId],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Member not found" });
+    }
+
+    return res.json({
+      success: true,
+      is_creator_mode_enabled: result.rows[0].is_creator_mode_enabled,
+      creator_mode_enabled_at: result.rows[0].creator_mode_enabled_at,
+    });
+  } catch (err) {
+    console.error("[MemberController] toggleCreatorMode error:", err.message);
+    // If column doesn't exist yet (migration pending), return graceful error
+    if (err.code === "42703") {
+      return res.status(503).json({
+        error: "creator_mode_not_available",
+        message: "Creator Mode migration has not run yet.",
+      });
+    }
+    return res.status(500).json({ error: "Failed to toggle Creator Mode" });
+  }
+}
+
 module.exports = {
   signup,
   getProfile,
@@ -1697,4 +1751,6 @@ module.exports = {
   // Public profile events & plans
   getMemberPublicEvents,
   getMemberPublicPlans,
+  // Creator Mode
+  toggleCreatorMode,
 };
