@@ -36,6 +36,7 @@ const ShareController = require("../controllers/shareController");
 const SaveController = require("../controllers/saveController");
 const AudienceIntelligenceController = require("../controllers/audienceIntelligenceController");
 const PrivacyController = require("../controllers/privacyController");
+const CommunityVoiceController = require("../controllers/communityVoiceController");
 const PaymentController = require("../controllers/paymentController");
 const SessionController = require("../controllers/sessionController");
 const videoInsightsRouter = require('./videoInsights');
@@ -962,6 +963,10 @@ router.delete(
 // Username management
 router.post("/username/check", UsernameController.checkUsername);
 router.post("/username/set", authMiddleware, UsernameController.setUsername);
+
+// Community Voice Posts (public text/image posts on community or creator profiles)
+router.post("/community-voice-posts", authMiddleware, CommunityVoiceController.createVoicePost);
+router.get("/community-voice-posts", authMiddleware, CommunityVoiceController.getVoicePosts);
 
 // Posts
 router.post("/posts", authMiddleware, PostController.createPost);

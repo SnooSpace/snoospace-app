@@ -458,7 +458,7 @@ async function getPublicMember(req, res) {
     const memberR = await pool.query(
       `SELECT id, username, name as full_name, bio, profile_photo_url, created_at, interests, pronouns, occupation,
               occupation_details, occupation_category, portfolio_link, education, campus_id, show_college,
-              instagram_username,
+              instagram_username, is_creator_mode_enabled,
               follower_count AS followers_count, following_count, circle_count,
               (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member')::int AS posts_count,
               (
@@ -492,7 +492,7 @@ async function getPublicMember(req, res) {
          WHERE (blocker_id = $1 AND blocked_id = $2)
             OR (blocker_id = $2 AND blocked_id = $1)
          LIMIT 1`,
-        [authUserId, targetId]
+         [authUserId, targetId]
       );
       if (blockCheck.rows.length > 0) {
         const iAmBlocker = String(blockCheck.rows[0].blocker_id) === String(authUserId);
@@ -538,6 +538,7 @@ async function getPublicMember(req, res) {
       circle_count: parseInt(profile.circle_count || 0, 10),
       is_following: isFollowing,
       you_have_blocked: youHaveBlocked,
+      is_creator_mode_enabled: !!profile.is_creator_mode_enabled,
       interests:
         typeof profile.interests === "string"
           ? JSON.parse(profile.interests)

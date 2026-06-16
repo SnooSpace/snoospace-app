@@ -8,7 +8,7 @@ import React, {
 import { useFocusEffect } from "@react-navigation/native";
 import { CommonActions } from "@react-navigation/native";
 import {
-  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Platform, Pressable } from "react-native";
+  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Platform, Pressable, RefreshControl } from "react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Image as ExpoImage } from "expo-image";
 import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, AlertTriangle, CheckCircle, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock } from "lucide-react-native";
@@ -28,7 +28,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import EventBus from "../../../utils/EventBus";
 import { getAuthToken, getAuthEmail } from "../../../api/auth";
 import { blockUser, unblockUser, likePlan, unlikePlan } from "../../../api/plans";
-import { apiPost, apiDelete } from "../../../api/client";
+import { apiGet, apiPost, apiDelete } from "../../../api/client";
 import CommentsModal from "../../../components/CommentsModal";
 import EventCard from "../../../components/EventCard";
 import LikeStateManager from "../../../utils/LikeStateManager";
@@ -63,6 +63,9 @@ import EmptyEventsState from "../../../components/EmptyEventsState";
 import CollegeChip from "../../../components/CollegeChip";
 import OpenPlanCard from "../../../components/plans/OpenPlanCard";
 import RequestBottomSheet from "../../plans/RequestBottomSheet";
+import CommunityVoiceBox, { VoicePostCard } from "../../../components/CommunityVoiceBox";
+import EmptyCommunityState from "../../../components/EmptyCommunityState";
+import OpportunityFeedCard from "../../../components/OpportunityFeedCard";
 
 const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPress }) => {
   const scale = useSharedValue(1);
@@ -218,6 +221,28 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [planRequestSheet, setPlanRequestSheet] = useState(null);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const eventsFetchedRef = useRef(false);
+
+  // Community Posts tab state (Creator Mode)
+  const [voicePosts, setVoicePosts] = useState([]);
+  const [loadingVoicePosts, setLoadingVoicePosts] = useState(false);
+  const communityPostsFetchedRef = useRef(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Comments modal state
+  const [commentsModalState, setCommentsModalState] = useState({
+    visible: false,
+    postId: null,
+  });
+
+  const openCommentsModal = useCallback((postId) => {
+    if (postId) {
+      setCommentsModalState({ visible: true, postId });
+    }
+  }, []);
+
+  const closeCommentsModal = useCallback(() => {
+    setCommentsModalState({ visible: false, postId: null });
+  }, []);
 
   // Underline sliding animation (Reanimated)
   const tabUnderlineX = useSharedValue(0);
@@ -404,6 +429,36 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       setLoadingEvents(false);
     }
   }, [memberId, loadingEvents]);
+
+  const loadCommunityVoicePosts = useCallback(async () => {
+    if (!memberId) return;
+    try {
+      setLoadingVoicePosts(true);
+      const token = await getAuthToken();
+      const res = await apiGet(
+        `/community-voice-posts?target_id=${memberId}&target_type=member`,
+        15000,
+        token
+      );
+      setVoicePosts(res?.posts || []);
+    } catch (e) {
+      console.warn('[MemberPublicProfile] loadVoicePosts error:', e);
+    } finally {
+      setLoadingVoicePosts(false);
+    }
+  }, [memberId]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([
+      loadProfile(),
+      loadPosts(true),
+      loadCircleStatus(),
+      activeProfileTab === 'events' ? loadPublicMemberEvents() : Promise.resolve(),
+      activeProfileTab === 'community' ? loadCommunityVoicePosts() : Promise.resolve()
+    ]);
+    setRefreshing(false);
+  }, [activeProfileTab, loadProfile, loadPosts, loadCircleStatus, loadPublicMemberEvents, loadCommunityVoicePosts]);
 
   const loadPosts = useCallback(
     async (reset = false) => {
@@ -757,491 +812,602 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           <Text style={{ color: "#FF3B30" }}>{error}</Text>
         </View>
       ) : (
-          <FlatList
-            key={activeProfileTab === 'posts' ? 'posts-3col' : 'events-1col'}
-            data={activeProfileTab === 'posts' ? posts : []}
-            keyExtractor={(item) => String(item.id)}
-            renderItem={activeProfileTab === 'posts' ? renderGridItem : null}
-            numColumns={activeProfileTab === 'posts' ? 3 : 1}
-            columnWrapperStyle={
-              activeProfileTab === 'posts'
-                ? { justifyContent: "flex-start", marginBottom: GAP, gap: GAP }
-                : undefined
+        <ScrollView
+          contentContainerStyle={{
+            paddingBottom: 120,
+            flexGrow: 1,
+          }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={PRIMARY_COLOR}
+              colors={[PRIMARY_COLOR]}
+            />
+          }
+          scrollEventThrottle={400}
+          onScroll={({ nativeEvent }) => {
+            const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+            const isNearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 200;
+            if (isNearBottom && activeProfileTab === 'posts' && !loading && !loadingMore && hasMore) {
+              loadPosts(false);
             }
-            contentContainerStyle={{
-              paddingHorizontal: 0,
-              paddingTop: 0,
-              paddingBottom: 120,
-              flexGrow: 1,
-            }}
-            initialNumToRender={12}
-            maxToRenderPerBatch={6}
-            windowSize={5}
-            removeClippedSubviews={Platform.OS === 'android'}
-            updateCellsBatchingPeriod={50}
-            getItemLayout={activeProfileTab === 'posts' ? (data, index) => ({
-              length: ITEM_SIZE * 1.35,
-              offset: (ITEM_SIZE * 1.35 + GAP) * Math.floor(index / 3),
-              index,
-            }) : undefined}
-            onEndReachedThreshold={0.5}
-            onEndReached={() => activeProfileTab === 'posts' && loadPosts(false)}
-            ListHeaderComponent={
-              <View style={styles.profileSection}>
-                <View style={styles.profileImageContainer}>
-                  <Image
-                    source={{
-                      uri:
-                        profile?.profile_photo_url ||
-                        "https://via.placeholder.com/160",
-                    }}
-                    style={styles.profileImage}
-                  />
+          }}
+        >
+          <View style={styles.profileSection}>
+            <View style={styles.profileImageContainer}>
+              <Image
+                source={{
+                  uri:
+                    profile?.profile_photo_url ||
+                    "https://via.placeholder.com/160",
+                }}
+                style={styles.profileImage}
+              />
+            </View>
+            {(() => {
+              const visiblePronouns = Array.isArray(profile?.pronouns)
+                ? profile.pronouns.filter((p) => p !== "Prefer not to say")
+                : [];
+              const hasBio = !!profile?.bio;
+              const hasPronouns = visiblePronouns.length > 0;
+
+              const trustSignals = [
+                profile?.events_attended_count > 0 && {
+                  icon: Ticket,
+                  label: `${profile.events_attended_count} ${profile.events_attended_count === 1 ? "event" : "events"}`,
+                },
+                profile?.communities_count > 0 && {
+                  icon: Users,
+                  label: `${profile.communities_count} ${profile.communities_count === 1 ? "community" : "communities"}`,
+                },
+              ].filter(Boolean);
+
+              return (
+                <View
+                  style={[
+                    styles.nameAndPronounsContainer,
+                    !hasBio && !hasPronouns && { marginBottom: trustSignals.length > 0 ? 10 : 30 },
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    <Text style={styles.profileName}>
+                      {profile?.full_name || "Member"}
+                    </Text>
+                    {profile?.is_verified && (
+                      <BadgeCheck size={20} color="#2962FF" strokeWidth={2} />
+                    )}
+                  </View>
+                  {hasPronouns ? (
+                    <View style={styles.pronounsRowCentered}>
+                      <View
+                        key={`p-0`}
+                        style={[styles.chip, styles.pronounChipSmall]}
+                      >
+                        <Text style={styles.chipText}>
+                          {visiblePronouns
+                            .map((p) =>
+                              String(p).replace(/^[{"]+|[}"]+$/g, ""),
+                            )
+                            .join(" / ")}
+                        </Text>
+                      </View>
+                    </View>
+                  ) : null}
+                  {trustSignals.length > 0 && (
+                    <View style={trustStyles.row}>
+                      {trustSignals.map((sig, idx) => (
+                        <View key={idx} style={trustStyles.pill}>
+                          <sig.icon size={11} color={COLORS.textSecondary} strokeWidth={2} />
+                          <Text style={trustStyles.pillText}>{sig.label}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
-                {(() => {
-                  const visiblePronouns = Array.isArray(profile?.pronouns)
-                    ? profile.pronouns.filter((p) => p !== "Prefer not to say")
-                    : [];
-                  const hasBio = !!profile?.bio;
-                  const hasPronouns = visiblePronouns.length > 0;
+              );
+            })()}
+            {!!profile?.bio && renderBio(profile.bio)}
 
-                  const trustSignals = [
-                    profile?.events_attended_count > 0 && {
-                      icon: Ticket,
-                      label: `${profile.events_attended_count} ${profile.events_attended_count === 1 ? "event" : "events"}`,
-                    },
-                    profile?.communities_count > 0 && {
-                      icon: Users,
-                      label: `${profile.communities_count} ${profile.communities_count === 1 ? "community" : "communities"}`,
-                    },
-                  ].filter(Boolean);
+            {/* College & Socials Row */}
+            {(profile?.instagram_username || (profile?.college_info && profile?.show_college !== false)) ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 10, marginBottom: 8 }}>
+                {profile?.college_info && profile?.show_college !== false && (
+                  <CollegeChip
+                    collegeInfo={profile.college_info}
+                    onPress={() => setShowCollegeHub(true)}
+                  />
+                )}
+                {profile?.instagram_username && (
+                  <InstagramRow username={profile.instagram_username} />
+                )}
+              </View>
+            ) : null}
 
-                  return (
-                    <View
+            <View style={styles.statsContainer}>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>
+                  {profile?.posts_count || 0}
+                </Text>
+                <Text style={styles.statLabel}>Posts</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.statItem}
+                onPress={() => {
+                  setActiveProfileTab('events');
+                  if (!eventsFetchedRef.current) {
+                    eventsFetchedRef.current = true;
+                    loadPublicMemberEvents();
+                  }
+                }}
+              >
+                <Text style={styles.statNumber}>
+                  {profile?.events_attended_count || 0}
+                </Text>
+                <Text style={styles.statLabel}>Events</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.statItem}
+                onPress={() => navigation.navigate('CircleList', {
+                  memberId: profile?.id,
+                  memberName: profile?.full_name,
+                  readOnly: true,
+                })}
+              >
+                <Text style={styles.statNumber}>
+                  {circleCount}
+                </Text>
+                <Text style={styles.statLabel}>Circle</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.statItem}
+                onPress={() => navigation.navigate('FollowingList', {
+                  memberId: profile?.id,
+                  title: 'Following',
+                })}
+              >
+                <Text style={styles.statNumber}>
+                  {profile?.following_count || 0}
+                </Text>
+                <Text style={styles.statLabel}>Following</Text>
+              </TouchableOpacity>
+            </View>
+            {Array.isArray(profile?.interests) &&
+            profile.interests.length > 0 ? (
+              <View style={styles.metaChipsSection}>
+                <View style={[styles.chipGridRow, { marginTop: 6 }]}>
+                  {(showAllInterests
+                    ? profile.interests
+                    : profile.interests.slice(0, 6)
+                  ).map((i, idx) => (
+                    <ThemeChip
+                      key={`i-${idx}`}
+                      label={String(i)}
+                      index={idx}
+                      style={styles.chipGridItem}
+                    />
+                  ))}
+                  {profile.interests.length > 6 && !showAllInterests ? (
+                    <TouchableOpacity
+                      onPress={() => setShowAllInterests(true)}
                       style={[
-                        styles.nameAndPronounsContainer,
-                        !hasBio && !hasPronouns && { marginBottom: trustSignals.length > 0 ? 10 : 30 },
+                        styles.chip,
+                        styles.chipBlue,
+                        styles.chipGridItem,
                       ]}
                     >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                        <Text style={styles.profileName}>
-                          {profile?.full_name || "Member"}
-                        </Text>
-                        {profile?.is_verified && (
-                          <BadgeCheck size={20} color="#2962FF" strokeWidth={2} />
-                        )}
-                      </View>
-                      {hasPronouns ? (
-                        <View style={styles.pronounsRowCentered}>
-                          <View
-                            key={`p-0`}
-                            style={[styles.chip, styles.pronounChipSmall]}
-                          >
-                            <Text style={styles.chipText}>
-                              {visiblePronouns
-                                .map((p) =>
-                                  String(p).replace(/^[{"]+|[}"]+$/g, ""),
-                                )
-                                .join(" / ")}
-                            </Text>
-                          </View>
-                        </View>
-                      ) : null}
-                      {trustSignals.length > 0 && (
-                        <View style={trustStyles.row}>
-                          {trustSignals.map((sig, idx) => (
-                            <View key={idx} style={trustStyles.pill}>
-                              <sig.icon size={11} color={COLORS.textSecondary} strokeWidth={2} />
-                              <Text style={trustStyles.pillText}>{sig.label}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-                  );
-                })()}
-                {!!profile?.bio && renderBio(profile.bio)}
-
-                {/* College & Socials Row */}
-                {(profile?.instagram_username || (profile?.college_info && profile?.show_college !== false)) ? (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 10, marginBottom: 8 }}>
-                    {profile?.college_info && profile?.show_college !== false && (
-                      <CollegeChip
-                        collegeInfo={profile.college_info}
-                        onPress={() => setShowCollegeHub(true)}
-                      />
-                    )}
-                    {profile?.instagram_username && (
-                      <InstagramRow username={profile.instagram_username} />
-                    )}
-                  </View>
-                ) : null}
-
-                <View style={styles.statsContainer}>
-                  <View style={styles.statItem}>
-                    <Text style={styles.statNumber}>
-                      {profile?.posts_count || 0}
-                    </Text>
-                    <Text style={styles.statLabel}>Posts</Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.statItem}
-                    onPress={() => {
-                      setActiveProfileTab('events');
-                      if (!eventsFetchedRef.current) {
-                        eventsFetchedRef.current = true;
-                        loadPublicMemberEvents();
-                      }
-                    }}
-                  >
-                    <Text style={styles.statNumber}>
-                      {profile?.events_attended_count || 0}
-                    </Text>
-                    <Text style={styles.statLabel}>Events</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.statItem}
-                    onPress={() => navigation.navigate('CircleList', {
-                      memberId: profile?.id,
-                      memberName: profile?.full_name,
-                      readOnly: true,
-                    })}
-                  >
-                    <Text style={styles.statNumber}>
-                      {circleCount}
-                    </Text>
-                    <Text style={styles.statLabel}>Circle</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.statItem}
-                    onPress={() => navigation.navigate('FollowingList', {
-                      memberId: profile?.id,
-                      title: 'Following',
-                    })}
-                  >
-                    <Text style={styles.statNumber}>
-                      {profile?.following_count || 0}
-                    </Text>
-                    <Text style={styles.statLabel}>Following</Text>
-                  </TouchableOpacity>
+                      <Text style={[styles.chipText, styles.chipTextBlue]}>
+                        See all
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  {profile.interests.length > 6 && showAllInterests ? (
+                    <TouchableOpacity
+                      onPress={() => setShowAllInterests(false)}
+                      style={[
+                        styles.chip,
+                        styles.chipGridItem,
+                        {
+                          backgroundColor: "#FF3B30",
+                          borderColor: "#FF3B30",
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.chipText, { color: "#FFFFFF" }]}>
+                        Collapse
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
-                {Array.isArray(profile?.interests) &&
-                profile.interests.length > 0 ? (
-                  <View style={styles.metaChipsSection}>
-                    <View style={[styles.chipGridRow, { marginTop: 6 }]}>
-                      {(showAllInterests
-                        ? profile.interests
-                        : profile.interests.slice(0, 6)
-                      ).map((i, idx) => (
-                        <ThemeChip
-                          key={`i-${idx}`}
-                          label={String(i)}
-                          index={idx}
-                          style={styles.chipGridItem}
-                        />
-                      ))}
-                      {profile.interests.length > 6 && !showAllInterests ? (
-                        <TouchableOpacity
-                          onPress={() => setShowAllInterests(true)}
-                          style={[
-                            styles.chip,
-                            styles.chipBlue,
-                            styles.chipGridItem,
-                          ]}
-                        >
-                          <Text style={[styles.chipText, styles.chipTextBlue]}>
-                            See all
-                          </Text>
-                        </TouchableOpacity>
-                      ) : null}
-                      {profile.interests.length > 6 && showAllInterests ? (
-                        <TouchableOpacity
-                          onPress={() => setShowAllInterests(false)}
-                          style={[
-                            styles.chip,
-                            styles.chipGridItem,
-                            {
-                              backgroundColor: "#FF3B30",
-                              borderColor: "#FF3B30",
-                            },
-                          ]}
-                        >
-                          <Text style={[styles.chipText, { color: "#FFFFFF" }]}>
-                            Collapse
-                          </Text>
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                  </View>
-                ) : null}
+              </View>
+            ) : null}
 
-                <View
-                  style={{
-                    marginTop: 12,
-                    flexDirection: "row",
-                    gap: 10,
-                    width: "100%",
-                  }}
-                >
-                  {/* ── Circle CTA — 4 states ── */}
-                  {circleStatus === 'in_circle' ? (
-                    <TouchableOpacity
-                      style={circleCTAStyles.inCircleBtn}
-                      disabled={circleActionLoading}
-                      onPress={() => {
-                        showAlert({
-                          title: 'Remove from Circle?',
-                          message: `${profile?.full_name || 'This person'} will be removed from your circle. They can still find your profile and message you.`,
-                          icon: UserMinus,
-                          iconColor: '#E53935',
-                          secondaryAction: { text: 'Keep', onPress: hideAlert },
-                          primaryAction: {
-                            text: 'Remove',
-                            style: 'destructive',
-                            onPress: async () => {
-                              hideAlert();
-                              setCircleActionLoading(true);
-                              try {
-                                await removeFromCircle(memberId);
-                                setCircleStatus('none');
-                                setCircleCount((c) => Math.max(0, c - 1));
-                                HapticsService.triggerImpactLight();
-                              } catch (e) {
-                                loadCircleStatus();
-                              } finally { setCircleActionLoading(false); }
-                            },
-                          },
-                        });
-                      }}
-                    >
-                      <UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                      <Text style={circleCTAStyles.inCircleText}>In Circle</Text>
-                    </TouchableOpacity>
-                  ) : circleStatus === 'pending_outgoing' ? (
-                    <TouchableOpacity
-                      style={circleCTAStyles.requestedBtn}
-                      disabled={circleActionLoading}
-                      onPress={() => {
-                        showAlert({
-                          title: 'Cancel Request?',
-                          message: 'Withdraw your circle request?',
-                          icon: Clock,
-                          iconColor: '#FF9500',
-                          secondaryAction: { text: 'Keep', onPress: hideAlert },
-                          primaryAction: {
-                            text: 'Cancel Request',
-                            style: 'destructive',
-                            onPress: async () => {
-                              hideAlert();
-                              setCircleActionLoading(true);
-                              try {
-                                await cancelCircleRequest(circleRequestId);
-                                setCircleStatus('none');
-                                setCircleRequestId(null);
-                                HapticsService.triggerImpactLight();
-                              } catch (e) {
-                                loadCircleStatus();
-                              } finally { setCircleActionLoading(false); }
-                            },
-                          },
-                        });
-                      }}
-                    >
-                      <Clock size={16} color="#FF9500" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                      <Text style={circleCTAStyles.requestedText}>Requested</Text>
-                    </TouchableOpacity>
-                  ) : circleStatus === 'pending_incoming' ? (
-                    <View style={circleCTAStyles.incomingRow}>
-                      <TouchableOpacity
-                        style={circleCTAStyles.acceptBtn}
-                        disabled={circleActionLoading}
-                        onPress={async () => {
+            <View
+              style={{
+                marginTop: 12,
+                flexDirection: "row",
+                gap: 10,
+                width: "100%",
+              }}
+            >
+              {/* ── Circle CTA — 4 states ── */}
+              {circleStatus === 'in_circle' ? (
+                <TouchableOpacity
+                  style={circleCTAStyles.inCircleBtn}
+                  disabled={circleActionLoading}
+                  onPress={() => {
+                    showAlert({
+                      title: 'Remove from Circle?',
+                      message: `${profile?.full_name || 'This person'} will be removed from your circle. They can still find your profile and message you.`,
+                      icon: UserMinus,
+                      iconColor: '#E53935',
+                      secondaryAction: { text: 'Keep', onPress: hideAlert },
+                      primaryAction: {
+                        text: 'Remove',
+                        style: 'destructive',
+                        onPress: async () => {
+                          hideAlert();
                           setCircleActionLoading(true);
                           try {
-                            await respondToCircleRequest(circleRequestId, 'accepted');
-                            setCircleStatus('in_circle');
-                            setCircleCount((c) => c + 1);
-                            HapticsService.triggerImpactMedium();
+                            await removeFromCircle(memberId);
+                            setCircleStatus('none');
+                            setCircleCount((c) => Math.max(0, c - 1));
+                            HapticsService.triggerImpactLight();
                           } catch (e) {
                             loadCircleStatus();
                           } finally { setCircleActionLoading(false); }
-                        }}
-                      >
-                        <UserCheck size={16} color="#fff" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                        <Text style={circleCTAStyles.acceptText}>Accept</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={circleCTAStyles.declineBtn}
-                        disabled={circleActionLoading}
-                        onPress={async () => {
+                        },
+                      },
+                    });
+                  }}
+                >
+                  <UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                  <Text style={circleCTAStyles.inCircleText}>In Circle</Text>
+                </TouchableOpacity>
+              ) : circleStatus === 'pending_outgoing' ? (
+                <TouchableOpacity
+                  style={circleCTAStyles.requestedBtn}
+                  disabled={circleActionLoading}
+                  onPress={() => {
+                    showAlert({
+                      title: 'Cancel Request?',
+                      message: 'Withdraw your circle request?',
+                      icon: Clock,
+                      iconColor: '#FF9500',
+                      secondaryAction: { text: 'Keep', onPress: hideAlert },
+                      primaryAction: {
+                        text: 'Cancel Request',
+                        style: 'destructive',
+                        onPress: async () => {
+                          hideAlert();
                           setCircleActionLoading(true);
                           try {
-                            await respondToCircleRequest(circleRequestId, 'declined');
+                            await cancelCircleRequest(circleRequestId);
                             setCircleStatus('none');
                             setCircleRequestId(null);
                             HapticsService.triggerImpactLight();
                           } catch (e) {
                             loadCircleStatus();
                           } finally { setCircleActionLoading(false); }
-                        }}
-                      >
-                        <UserX size={16} color={COLORS.textSecondary} strokeWidth={2.5} style={{ marginRight: 6 }} />
-                        <Text style={circleCTAStyles.declineText}>Decline</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <GradientButton
-                      title="Add to Circle"
-                      colors={["#448AFF", "#2962FF"]}
-                      textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
-                      style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
-                      gradientStyle={{ borderRadius: 16 }}
-                      disabled={circleActionLoading}
-                      onPress={async () => {
-                        setCircleActionLoading(true);
-                        try {
-                          const res = await sendCircleRequest(memberId);
-                          if (res?.auto_accepted) {
-                            setCircleStatus('in_circle');
-                            setCircleCount((c) => c + 1);
-                          } else {
-                            setCircleStatus('pending_outgoing');
-                            setCircleRequestId(res?.request_id || null);
-                          }
-                          HapticsService.triggerImpactMedium();
-                        } catch (e) {
-                          loadCircleStatus();
-                        } finally { setCircleActionLoading(false); }
-                      }}
-                    >
-                      <UserPlus size={16} color="#fff" strokeWidth={2.5} />
-                    </GradientButton>
-                  )}
-                  <GradientButton
-                    title="Message"
-                    style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
-                    gradientStyle={{ borderRadius: 16 }}
-                    colors={["#111827", "#111827"]}
-                    textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
-                    onPress={() => {
-                      let rootNav = navigation;
-                      while (rootNav.getParent && rootNav.getParent()) {
-                        rootNav = rootNav.getParent();
-                      }
-                      rootNav.dispatch(
-                        CommonActions.navigate("MemberHome", {
-                          screen: "Home",
-                          params: {
-                            screen: "Chat",
-                            params: { recipientId: memberId, recipientType: "member" },
-                          },
-                        })
-                      );
+                        },
+                      },
+                    });
+                  }}
+                >
+                  <Clock size={16} color="#FF9500" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                  <Text style={circleCTAStyles.requestedText}>Requested</Text>
+                </TouchableOpacity>
+              ) : circleStatus === 'pending_incoming' ? (
+                <View style={circleCTAStyles.incomingRow}>
+                  <TouchableOpacity
+                    style={circleCTAStyles.acceptBtn}
+                    disabled={circleActionLoading}
+                    onPress={async () => {
+                      setCircleActionLoading(true);
+                      try {
+                        await respondToCircleRequest(circleRequestId, 'accepted');
+                        setCircleStatus('in_circle');
+                        setCircleCount((c) => c + 1);
+                        HapticsService.triggerImpactMedium();
+                      } catch (e) {
+                        loadCircleStatus();
+                      } finally { setCircleActionLoading(false); }
                     }}
-                  />
-                </View>
-
-                {/* Posts / Events Tab Bar */}
-                <View style={pubTabStyles.tabBar}>
-                  {['posts', 'events'].map((tab) => (
-                    <TouchableOpacity
-                      key={tab}
-                      style={pubTabStyles.tab}
-                      onLayout={(e) => handleTabLayout(tab, e)}
-                      onPress={() => {
+                  >
+                    <UserCheck size={16} color="#fff" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                    <Text style={circleCTAStyles.acceptText}>Accept</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={circleCTAStyles.declineBtn}
+                    disabled={circleActionLoading}
+                    onPress={async () => {
+                      setCircleActionLoading(true);
+                      try {
+                        await respondToCircleRequest(circleRequestId, 'declined');
+                        setCircleStatus('none');
+                        setCircleRequestId(null);
                         HapticsService.triggerImpactLight();
-                        setActiveProfileTab(tab);
-                        if (tab === 'events' && !eventsFetchedRef.current) {
-                          eventsFetchedRef.current = true;
-                          loadPublicMemberEvents();
-                        }
-                      }}
-                    >
-                      <Text style={[
-                        pubTabStyles.tabText,
-                        activeProfileTab === tab && pubTabStyles.tabTextActive,
-                      ]}>
-                        {tab === 'posts' ? 'Posts' : 'Events'}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                  <Reanimated.View
-                    style={[
-                      pubTabStyles.activeTabIndicator,
-                      animatedUnderlineStyle,
-                    ]}
+                      } catch (e) {
+                        loadCircleStatus();
+                      } finally { setCircleActionLoading(false); }
+                    }}
+                  >
+                    <UserX size={16} color={COLORS.textSecondary} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                    <Text style={circleCTAStyles.declineText}>Decline</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <GradientButton
+                  title="Add to Circle"
+                  colors={["#448AFF", "#2962FF"]}
+                  textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
+                  style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
+                  gradientStyle={{ borderRadius: 16 }}
+                  disabled={circleActionLoading}
+                  onPress={async () => {
+                    setCircleActionLoading(true);
+                    try {
+                      const res = await sendCircleRequest(memberId);
+                      if (res?.auto_accepted) {
+                        setCircleStatus('in_circle');
+                        setCircleCount((c) => c + 1);
+                      } else {
+                        setCircleStatus('pending_outgoing');
+                        setCircleRequestId(res?.request_id || null);
+                      }
+                      HapticsService.triggerImpactMedium();
+                    } catch (e) {
+                      loadCircleStatus();
+                    } finally { setCircleActionLoading(false); }
+                  }}
+                >
+                  <UserPlus size={16} color="#fff" strokeWidth={2.5} />
+                </GradientButton>
+              )}
+              <GradientButton
+                title="Message"
+                style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
+                gradientStyle={{ borderRadius: 16 }}
+                colors={["#111827", "#111827"]}
+                textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
+                onPress={() => {
+                  let rootNav = navigation;
+                  while (rootNav.getParent && rootNav.getParent()) {
+                    rootNav = rootNav.getParent();
+                  }
+                  rootNav.dispatch(
+                    CommonActions.navigate("MemberHome", {
+                      screen: "Home",
+                      params: {
+                        screen: "Chat",
+                        params: { recipientId: memberId, recipientType: "member" },
+                      },
+                    })
+                  );
+                }}
+              />
+            </View>
+          </View>
+
+          {/* Posts / Events / Community Posts Tab Bar */}
+          <View style={pubTabStyles.tabBar}>
+            {[
+              'posts',
+              ...(profile?.is_creator_mode_enabled ? ['community'] : []),
+              'events',
+            ].map((tab) => (
+              <TouchableOpacity
+                key={tab}
+                style={pubTabStyles.tab}
+                onLayout={(e) => handleTabLayout(tab, e)}
+                onPress={() => {
+                  HapticsService.triggerImpactLight();
+                  setActiveProfileTab(tab);
+                  if (tab === 'events' && !eventsFetchedRef.current) {
+                    eventsFetchedRef.current = true;
+                    loadPublicMemberEvents();
+                  }
+                  if (tab === 'community' && !communityPostsFetchedRef.current) {
+                    communityPostsFetchedRef.current = true;
+                    loadCommunityVoicePosts();
+                  }
+                }}
+              >
+                <Text style={[
+                  pubTabStyles.tabText,
+                  activeProfileTab === tab && pubTabStyles.tabTextActive,
+                ]}>
+                  {tab === 'posts' ? 'Posts' : tab === 'events' ? 'Events' : 'Community'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <Reanimated.View
+              style={[
+                pubTabStyles.activeTabIndicator,
+                animatedUnderlineStyle,
+              ]}
+            />
+          </View>
+
+          {/* Posts Tab Content */}
+          {activeProfileTab === 'posts' &&
+            (() => {
+              const numRows = Math.ceil(posts.length / 3);
+              const gridHeight = numRows > 0 ? numRows * (ITEM_SIZE * 1.35) + (numRows - 1) * GAP : 0;
+              return posts.length > 0 ? (
+                <View style={{ height: gridHeight, marginTop: 10 }}>
+                  <FlatList
+                    data={posts}
+                    keyExtractor={(item) => String(item.id)}
+                    numColumns={3}
+                    columnWrapperStyle={{ justifyContent: "flex-start", marginBottom: GAP, gap: GAP }}
+                    scrollEnabled={false}
+                    renderItem={renderGridItem}
+                    initialNumToRender={12}
+                    maxToRenderPerBatch={6}
+                    windowSize={5}
+                    removeClippedSubviews={Platform.OS === 'android'}
+                    updateCellsBatchingPeriod={50}
+                    getItemLayout={(data, index) => ({
+                      length: ITEM_SIZE * 1.35,
+                      offset: (ITEM_SIZE * 1.35 + GAP) * Math.floor(index / 3),
+                      index,
+                    })}
                   />
                 </View>
-
-                {/* Events Tab Content */}
-                {activeProfileTab === 'events' && (
-                  <View style={pubTabStyles.eventsContainer}>
-                    {loadingEvents ? (
-                      <View style={pubTabStyles.loadingWrap}>
-                        <SnooLoader size="large" color={PRIMARY_COLOR} />
-                      </View>
-                    ) : (
-                      <>
-                        {/* Attended Events */}
-                        {profileEvents.length > 0 && (
-                          <>
-                            {profileEvents.map((ev) => (
-                              <EventCard
-                                key={`ev-${ev.id}`}
-                                event={ev}
-                                onPress={(eventData) => navigation.navigate('EventDetails', { eventId: eventData.id, eventData })}
-                              />
-                            ))}
-                          </>
-                        )}
-
-                        {/* Open Plans — full OpenPlanCard */}
-                        {(profilePlans.hosted.length > 0 || profilePlans.attending.length > 0) && (
-                          <>
-                            {[...profilePlans.hosted, ...profilePlans.attending].map((plan) => (
-                              <View key={`plan-${plan.id}-${plan.role ?? 'member'}`} style={{ paddingHorizontal: 16 }}>
-                                <OpenPlanCard
-                                  plan={plan}
-                                  currentUserId={null}
-                                  onPress={(id) => navigation.navigate('PlanDetail', { planId: id })}
-                                  onRequestPress={(id) => setPlanRequestSheet({ planId: id, planTitle: plan.title })}
-                                  onLike={async (planId, liked) => {
-                                    const token = await getAuthToken();
-                                    if (liked) await likePlan(planId, token);
-                                    else await unlikePlan(planId, token);
-                                  }}
-                                  navigation={navigation}
-                                />
-                              </View>
-                            ))}
-                          </>
-                        )}
-
-                        {/* Empty state */}
-                        {profileEvents.length === 0 && profilePlans.hosted.length === 0 && profilePlans.attending.length === 0 && (
-                          <EmptyEventsState
-                            isOwnProfile={false}
-                            title="No events yet"
-                            subtitle="Events and plans this member attends will show here."
-                          />
-                        )}
-                      </>
-                    )}
-                  </View>
-                )}
-              </View>
-            }
-            ListEmptyComponent={
-              !loading && activeProfileTab === 'posts' && (
+              ) : (
                 <EmptyPostsState isOwnProfile={false} />
-              )
-            }
-            ListFooterComponent={
-              loadingMore && activeProfileTab === 'posts' ? (
-                <SnooLoader style={{ marginVertical: 12 }} />
-              ) : null
-            }
-          />
+              );
+            })()
+          }
+
+          {loadingMore && activeProfileTab === 'posts' && (
+            <View style={{ paddingVertical: 20, alignItems: "center" }}>
+              <SnooLoader size="small" color={COLORS.primary} />
+            </View>
+          )}
+
+          {/* Community Posts Tab Content */}
+          {activeProfileTab === 'community' && (
+            <View style={{ paddingTop: 4, paddingBottom: 8 }}>
+              {/* Voice Box — any viewer can post */}
+              <CommunityVoiceBox
+                targetId={profile.id}
+                targetType="member"
+                currentUser={null}
+                onPostCreated={(newPost) => {
+                  setVoicePosts((prev) => [newPost, ...prev]);
+                }}
+              />
+
+              {/* Creator's own interactive posts */}
+              {posts
+                .filter((p) => ['poll', 'prompt', 'qna', 'challenge', 'opportunity'].includes(p.post_type || p.type))
+                .sort((a, b) => {
+                  if (a.is_pinned && !b.is_pinned) return -1;
+                  if (!a.is_pinned && b.is_pinned) return 1;
+                  return new Date(b.created_at) - new Date(a.created_at);
+                })
+                .map((post) => {
+                  const postType = post.post_type || post.type;
+                  if (postType === 'opportunity') {
+                    return (
+                      <View key={post.id} style={{ marginHorizontal: 16, marginBottom: 12 }}>
+                        <OpportunityFeedCard
+                          opportunity={post}
+                          showManagementControls={false}
+                          onPress={(opp) => navigation.navigate('OpportunityView', { opportunityId: opp.id, opportunity: opp })}
+                          onLike={(postId, isLiked, count) =>
+                            setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, is_liked: isLiked, like_count: count } : p))
+                          }
+                          onSave={(postId, isSaved) =>
+                            setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, is_saved: isSaved } : p))
+                          }
+                          onShare={() => {}}
+                        />
+                      </View>
+                    );
+                  }
+                  return (
+                    <View key={post.id} style={{ marginBottom: 4 }}>
+                      <EditorialPostCard
+                        post={post}
+                        onLike={(postId, isLiked, count) =>
+                          setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, is_liked: isLiked, like_count: count } : p))
+                        }
+                        onComment={(postId) => openCommentsModal(postId)}
+                        onShare={() => {}}
+                        onFollow={() => {}}
+                        showFollowButton={false}
+                        currentUserId={null}
+                        currentUserType="member"
+                        onUserPress={() => {}}
+                        showManagementControls={false}
+                        onPostUpdate={(updatedPost) =>
+                          setPosts((prev) => prev.map((p) => p.id === updatedPost.id ? updatedPost : p))
+                        }
+                      />
+                    </View>
+                  );
+                })
+              }
+
+              {/* Voice posts from community members */}
+              {loadingVoicePosts ? (
+                <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                  <SnooLoader size="small" color={COLORS.primary} />
+                </View>
+              ) : (
+                voicePosts.map((vp) => <VoicePostCard key={vp.id} post={vp} />)
+              )}
+
+              {posts.filter((p) => ['poll', 'prompt', 'qna', 'challenge', 'opportunity'].includes(p.post_type || p.type)).length === 0 &&
+               voicePosts.length === 0 && !loadingVoicePosts && (
+                <EmptyCommunityState
+                  isOwnProfile={false}
+                  onCreatePost={() => {}}
+                />
+              )}
+            </View>
+          )}
+
+          {/* Events Tab Content */}
+          {activeProfileTab === 'events' && (
+            <View style={pubTabStyles.eventsContainer}>
+              {loadingEvents ? (
+                <View style={pubTabStyles.loadingWrap}>
+                  <SnooLoader size="large" color={PRIMARY_COLOR} />
+                </View>
+              ) : (
+                <>
+                  {/* Attended Events */}
+                  {profileEvents.length > 0 && (
+                    <>
+                      {profileEvents.map((ev) => (
+                        <EventCard
+                          key={`ev-${ev.id}`}
+                          event={ev}
+                          onPress={(eventData) => navigation.navigate('EventDetails', { eventId: eventData.id, eventData })}
+                        />
+                      ))}
+                    </>
+                  )}
+
+                  {/* Open Plans — full OpenPlanCard */}
+                  {(profilePlans.hosted.length > 0 || profilePlans.attending.length > 0) && (
+                    <>
+                      {[...profilePlans.hosted, ...profilePlans.attending].map((plan) => (
+                        <View key={`plan-${plan.id}-${plan.role ?? 'member'}`} style={{ paddingHorizontal: 16 }}>
+                          <OpenPlanCard
+                            plan={plan}
+                            currentUserId={null}
+                            onPress={(id) => navigation.navigate('PlanDetail', { planId: id })}
+                            onRequestPress={(id) => setPlanRequestSheet({ planId: id, planTitle: plan.title })}
+                            onLike={async (planId, liked) => {
+                              const token = await getAuthToken();
+                              if (liked) await likePlan(planId, token);
+                              else await unlikePlan(planId, token);
+                            }}
+                            navigation={navigation}
+                          />
+                        </View>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Empty state */}
+                  {profileEvents.length === 0 && profilePlans.hosted.length === 0 && profilePlans.attending.length === 0 && (
+                    <EmptyEventsState
+                      isOwnProfile={false}
+                      title="No events yet"
+                      subtitle="Events and plans this member attends will show here."
+                    />
+                  )}
+                </>
+              )}
+            </View>
+          )}
+        </ScrollView>
       )}
 
       {planRequestSheet && (
@@ -1278,7 +1444,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               );
             }
           }}
-          onComment={(postId) => {}}
+          onComment={openCommentsModal}
           onShare={(postId) => {}}
           onSave={(postId, isSaved) => {}}
           onFollow={() => {}}
@@ -1322,6 +1488,24 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         }}
       />
 
+      {commentsModalState.visible && (
+        <CommentsModal
+          visible={commentsModalState.visible}
+          postId={commentsModalState.postId}
+          onClose={closeCommentsModal}
+          onCommentCountChange={(postId) => {
+            setPosts((prevPosts) =>
+              prevPosts.map((p) =>
+                p.id === postId
+                  ? { ...p, comment_count: (p.comment_count || 0) + 1 }
+                  : p,
+              ),
+            );
+          }}
+          navigation={navigation}
+        />
+      )}
+
       <CustomAlertModal onClose={hideAlert} {...alertConfig} />
     </SafeAreaView>
   );
@@ -1332,7 +1516,7 @@ const pubTabStyles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     marginTop: 20,
-    marginHorizontal: -20,
+    marginHorizontal: 0,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5EA',
     backgroundColor: COLORS.background,
@@ -1360,7 +1544,7 @@ const pubTabStyles = StyleSheet.create({
   },
   eventsContainer: {
     alignSelf: 'stretch',
-    marginHorizontal: -20,
+    marginHorizontal: 0,
     paddingTop: 8,
     paddingBottom: 16,
   },

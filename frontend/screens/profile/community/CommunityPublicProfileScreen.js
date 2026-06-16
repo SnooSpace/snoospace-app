@@ -89,6 +89,8 @@ import ProfilePostFeed from "../../../components/ProfilePostFeed";
 import EmptyPostsState from "../../../components/EmptyPostsState";
 import EmptyCommunityState from "../../../components/EmptyCommunityState";
 import EmptyEventsState from "../../../components/EmptyEventsState";
+import CommunityVoiceBox, { VoicePostCard } from "../../../components/CommunityVoiceBox";
+import SnooLoader from "../../../components/ui/SnooLoader";
 
 // Normalize Theme Constants
 const PRIMARY_COLOR = COLORS.primary;
@@ -439,6 +441,13 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular, // Manrope-Regular
     color: "#64748B",
   },
+  // Community Posts List
+  communityPostsList: {
+    paddingHorizontal: 0,
+  },
+  communityPostItem: {
+    marginBottom: 8,
+  },
 });
 
 const CommunityPublicPostGridCell = React.memo(({ item, itemSize, onPress }) => {
@@ -636,6 +645,11 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const [activeTab, setActiveTab] = useState("posts");
   const [communityEvents, setCommunityEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+
+  // Community Voice Posts
+  const [voicePosts, setVoicePosts] = useState([]);
+  const [loadingVoicePosts, setLoadingVoicePosts] = useState(false);
+  const communityVoiceFetchedRef = useRef(false);
   const [tabLayouts, setTabLayouts] = useState({});
   // Tab underline animation (Reanimated)
   const tabUnderlineX = useSharedValue(0);
@@ -1590,6 +1604,26 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               onPress={() => {
                 HapticsService.triggerImpactLight();
                 setActiveTab(tab);
+                // Lazy-load voice posts when Community tab first opened
+                if (tab === 'community' && !communityVoiceFetchedRef.current) {
+                  communityVoiceFetchedRef.current = true;
+                  (async () => {
+                    try {
+                      setLoadingVoicePosts(true);
+                      const token = await getAuthToken();
+                      const res = await apiGet(
+                        `/community-voice-posts?target_id=${communityId}&target_type=community`,
+                        15000,
+                        token,
+                      );
+                      setVoicePosts(res?.posts || []);
+                    } catch (e) {
+                      console.warn('[CommunityPublicProfile] loadVoicePosts error:', e);
+                    } finally {
+                      setLoadingVoicePosts(false);
+                    }
+                  })();
+                }
               }}
               onLayout={(e) => handleTabLayout(tab, e)}
             >
@@ -1646,7 +1680,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                     initialNumToRender={12}
                     maxToRenderPerBatch={6}
                     windowSize={5}
-                    removeClippedSubviews={Platform.OS === 'android'}
+                    removeClippedSubviews={false}
                     updateCellsBatchingPeriod={50}
                     getItemLayout={(data, index) => ({
                       length: ITEM_SIZE * 1.35,
@@ -1660,7 +1694,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               );
             })()}
 
-          {/* Community Tab - Interactive Posts */}
+          {/* Community Tab - Interactive Posts + Voice Box */}
           {activeTab === "community" &&
             (() => {
               const interactivePosts = posts.filter((p) => {
@@ -1681,86 +1715,112 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 return new Date(b.created_at) - new Date(a.created_at);
               });
 
-              return sortedPosts.length > 0 ? (
-                <View style={styles.communityPostsList}>
-                  {sortedPosts.map((post) => {
-                    const postType = post.post_type || post.type;
-                    const isOpportunity = postType === "opportunity";
-                    return (
-                      <View key={post.id} style={styles.communityPostItem}>
-                        {isOpportunity ? (
-                          <OpportunityFeedCard
-                            opportunity={post}
-                            onPress={(opp) =>
-                              navigation.navigate("OpportunityView", {
-                                opportunityId: opp.id,
-                                opportunity: opp,
-                              })
-                            }
-                            onLike={(postId, isLiked, count) => {
-                              setPosts((prevPosts) =>
-                                prevPosts.map((p) =>
-                                  p.id === postId
-                                    ? { ...p, is_liked: isLiked, like_count: count }
-                                    : p,
-                                ),
-                              );
-                            }}
-                            onSave={(postId, isSaved) => {
-                              setPosts((prevPosts) =>
-                                prevPosts.map((p) =>
-                                  p.id === postId
-                                    ? { ...p, is_saved: isSaved }
-                                    : p,
-                                ),
-                              );
-                            }}
-                            onShare={() => {}}
-                            onUserPress={(userId, userType) => {
-                              if (userType === "community") {
-                                navigation.navigate("CommunityPublicProfile", {
-                                  communityId: userId,
-                                  viewerRole: viewerRole || "member",
-                                });
-                              } else {
-                                navigation.navigate("MemberPublicProfile", { memberId: userId });
-                              }
-                            }}
-                          />
-                        ) : (
-                          <EditorialPostCard
-                            post={post}
-                            onLike={(postId, isLiked, count) => {
-                              setPosts((prevPosts) =>
-                                prevPosts.map((p) =>
-                                  p.id === postId
-                                    ? { ...p, is_liked: isLiked, like_count: count }
-                                    : p,
-                                ),
-                              );
-                            }}
-                            onComment={(postId) => openCommentsModal(postId)}
-                            onShare={() => {}}
-                            onFollow={() => {}}
-                            showFollowButton={false}
-                            currentUserId={currentUserId}
-                            currentUserType="member" // Viewing as member
-                            onUserPress={(userId, userType) => {}}
-                            onPostUpdate={(updatedPost) => {
-                              setPosts((prevPosts) =>
-                                prevPosts.map((p) =>
-                                  p.id === updatedPost.id ? updatedPost : p,
-                                ),
-                              );
-                            }}
-                          />
-                        )}
-                      </View>
-                    );
-                  })}
+              return (
+                <View style={{ paddingBottom: 8 }}>
+                  {/* Voice Box — any viewer can post */}
+                  <CommunityVoiceBox
+                    targetId={communityId}
+                    targetType="community"
+                    currentUser={null}
+                    onPostCreated={(newPost) => {
+                      setVoicePosts((prev) => [newPost, ...prev]);
+                    }}
+                  />
+
+                  {/* Community's own interactive posts */}
+                  {sortedPosts.length > 0 && (
+                    <View style={styles.communityPostsList}>
+                      {sortedPosts.map((post) => {
+                        const postType = post.post_type || post.type;
+                        const isOpportunity = postType === "opportunity";
+                        return (
+                          <View key={post.id} style={styles.communityPostItem}>
+                            {isOpportunity ? (
+                              <OpportunityFeedCard
+                                opportunity={post}
+                                onPress={(opp) =>
+                                  navigation.navigate("OpportunityView", {
+                                    opportunityId: opp.id,
+                                    opportunity: opp,
+                                  })
+                                }
+                                onLike={(postId, isLiked, count) => {
+                                  setPosts((prevPosts) =>
+                                    prevPosts.map((p) =>
+                                      p.id === postId
+                                        ? { ...p, is_liked: isLiked, like_count: count }
+                                        : p,
+                                    ),
+                                  );
+                                }}
+                                onSave={(postId, isSaved) => {
+                                  setPosts((prevPosts) =>
+                                    prevPosts.map((p) =>
+                                      p.id === postId
+                                        ? { ...p, is_saved: isSaved }
+                                        : p,
+                                    ),
+                                  );
+                                }}
+                                onShare={() => {}}
+                                onUserPress={(userId, userType) => {
+                                  if (userType === "community") {
+                                    navigation.navigate("CommunityPublicProfile", {
+                                      communityId: userId,
+                                      viewerRole: viewerRole || "member",
+                                    });
+                                  } else {
+                                    navigation.navigate("MemberPublicProfile", { memberId: userId });
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <EditorialPostCard
+                                post={post}
+                                onLike={(postId, isLiked, count) => {
+                                  setPosts((prevPosts) =>
+                                    prevPosts.map((p) =>
+                                      p.id === postId
+                                        ? { ...p, is_liked: isLiked, like_count: count }
+                                        : p,
+                                    ),
+                                  );
+                                }}
+                                onComment={(postId) => openCommentsModal(postId)}
+                                onShare={() => {}}
+                                onFollow={() => {}}
+                                showFollowButton={false}
+                                currentUserId={currentUserId}
+                                currentUserType="member"
+                                onUserPress={(userId, userType) => {}}
+                                onPostUpdate={(updatedPost) => {
+                                  setPosts((prevPosts) =>
+                                    prevPosts.map((p) =>
+                                      p.id === updatedPost.id ? updatedPost : p,
+                                    ),
+                                  );
+                                }}
+                              />
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+
+                  {/* Voice posts from members */}
+                  {loadingVoicePosts ? (
+                    <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                      <SnooLoader size="small" color={COLORS.primary} />
+                    </View>
+                  ) : (
+                    voicePosts.map((vp) => <VoicePostCard key={vp.id} post={vp} />)
+                  )}
+
+                  {sortedPosts.length === 0 && voicePosts.length === 0 && !loadingVoicePosts && (
+                    <EmptyCommunityState isOwnProfile={false} />
+                  )}
                 </View>
-              ) : (
-                <EmptyCommunityState isOwnProfile={false} />
               );
             })()}
 

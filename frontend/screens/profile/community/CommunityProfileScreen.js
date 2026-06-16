@@ -128,6 +128,7 @@ import EmptyEventsState from "../../../components/EmptyEventsState";
 import CreateEventModal from "../../../components/modals/CreateEventModal";
 import ActionModal from "../../../components/modals/ActionModal";
 import { useToast } from "../../../context/ToastContext";
+import CommunityVoiceBox, { VoicePostCard } from "../../../components/CommunityVoiceBox";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
@@ -624,6 +625,11 @@ export default function CommunityProfileScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState("posts"); // "posts", "community", or "events"
   const [communityEvents, setCommunityEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+
+  // Community Voice Posts (member submissions)
+  const [voicePosts, setVoicePosts] = useState([]);
+  const [loadingVoicePosts, setLoadingVoicePosts] = useState(false);
+  const communityVoiceFetchedRef = useRef(false);
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
     postId: null,
@@ -1928,6 +1934,26 @@ export default function CommunityProfileScreen({ navigation }) {
               onPress={() => {
                 HapticsService.triggerImpactLight();
                 setActiveTab(tab);
+                // Lazy-load voice posts on first Community tab open
+                if (tab === 'community' && !communityVoiceFetchedRef.current) {
+                  communityVoiceFetchedRef.current = true;
+                  (async () => {
+                    try {
+                      setLoadingVoicePosts(true);
+                      const token = await getAuthToken();
+                      const res = await apiGet(
+                        `/community-voice-posts?target_id=${profile?.id}&target_type=community`,
+                        15000,
+                        token,
+                      );
+                      setVoicePosts(res?.posts || []);
+                    } catch (e) {
+                      console.warn('[CommunityProfile] loadVoicePosts error:', e);
+                    } finally {
+                      setLoadingVoicePosts(false);
+                    }
+                  })();
+                }
               }}
               onLayout={(e) => handleTabLayout(tab, e)}
             >
@@ -1994,7 +2020,7 @@ export default function CommunityProfileScreen({ navigation }) {
                     initialNumToRender={12}
                     maxToRenderPerBatch={6}
                     windowSize={5}
-                    removeClippedSubviews={Platform.OS === 'android'}
+                    removeClippedSubviews={false}
                     updateCellsBatchingPeriod={50}
                     getItemLayout={(data, index) => ({
                       length: itemSize * 1.35,
@@ -2015,7 +2041,7 @@ export default function CommunityProfileScreen({ navigation }) {
               );
             })()}
 
-          {/* Community Tab - Interactive Posts */}
+          {/* Community Tab - Interactive Posts + Voice Box */}
           {activeTab === "community" &&
             (() => {
               const interactivePosts = posts.filter((p) => {
@@ -2036,112 +2062,137 @@ export default function CommunityProfileScreen({ navigation }) {
                 return new Date(b.created_at) - new Date(a.created_at);
               });
 
-              return sortedPosts.length > 0 ? (
-                <View style={styles.communityPostsList}>
-                  {sortedPosts.map((post) => {
-                    const postType = post.post_type || post.type;
-                    const isOpportunity = postType === "opportunity";
-                    return (
-                      <View key={post.id} style={styles.communityPostItem}>
-                        {isOpportunity ? (
-                          <OpportunityFeedCard
-                            opportunity={post}
-                            showManagementControls={true}
-                            onPress={(opp) =>
-                              navigation.navigate("OpportunityView", {
-                                opportunityId: opp.id,
-                                opportunity: opp,
-                              })
-                            }
-                            onLike={(postId, isLiked, count) => {
-                              setPosts((prevPosts) =>
-                                prevPosts.map((p) =>
-                                  p.id === postId
-                                    ? { ...p, is_liked: isLiked, like_count: count }
-                                    : p,
-                                ),
-                              );
-                            }}
-                            onSave={(postId, isSaved) => {
-                              setPosts((prevPosts) =>
-                                prevPosts.map((p) =>
-                                  p.id === postId
-                                    ? { ...p, is_saved: isSaved }
-                                    : p,
-                                ),
-                              );
-                            }}
-                            onShare={() => {}}
-                            onPinToggle={() => handlePinToggle(post)}
-                            onDelete={(opportunityId) => {
-                              setPosts((prev) => prev.filter((p) => p.id !== opportunityId));
-                            }}
-                            onUserPress={(userId, userType) => {
-                              if (userType === "community") {
-                                navigation.navigate("CommunityPublicProfile", {
-                                  communityId: userId,
-                                  viewerRole: "community",
-                                });
-                              } else {
-                                navigation.navigate("MemberPublicProfile", { memberId: userId });
-                              }
-                            }}
-                          />
-                        ) : (
-                          <EditorialPostCard
-                            post={post}
-                            onLike={(postId, isLiked, count) => {
-                              setPosts((prevPosts) =>
-                                prevPosts.map((p) =>
-                                  p.id === postId
-                                    ? { ...p, is_liked: isLiked, like_count: count }
-                                    : p,
-                                ),
-                              );
-                            }}
-                            onComment={(postId) => openCommentsModal(postId)}
-                            onShare={() => {}}
-                            onFollow={() => {}}
-                            showFollowButton={false}
-                            currentUserId={currentUserId}
-                            currentUserType={currentUserType}
-                            onUserPress={(userId, userType) => {}}
-                            onDelete={async (postId) => {
-                              try {
-                                const token = await getAuthToken();
-                                if (!token) return;
-                                await apiDelete(`/posts/${postId}`, null, 15000, token);
-                                setPosts((prevPosts) => prevPosts.filter((p) => p.id !== postId));
-                                EventBus.emit("post-deleted", { postId });
-                              } catch (error) {
-                                console.error("Error deleting post:", error);
-                                Alert.alert("Error", "Failed to delete post");
-                              }
-                            }}
-                            onPinToggle={handlePinToggle}
-                            showManagementControls={true}
-                            onPostUpdate={(updatedPost) => {
-                              setPosts((prevPosts) =>
-                                prevPosts.map((p) =>
-                                  p.id === updatedPost.id ? updatedPost : p,
-                                ),
-                              );
-                            }}
-                          />
-                        )}
-                      </View>
-                    );
-                  })}
+              return (
+                <View style={{ paddingBottom: 8 }}>
+                  {/* Voice Box at top — any member can post */}
+                  <CommunityVoiceBox
+                    targetId={profile?.id}
+                    targetType="community"
+                    currentUser={profile}
+                    onPostCreated={(newPost) => {
+                      setVoicePosts((prev) => [newPost, ...prev]);
+                    }}
+                  />
+
+                  {sortedPosts.length > 0 ? (
+                    <View style={styles.communityPostsList}>
+                      {sortedPosts.map((post) => {
+                        const postType = post.post_type || post.type;
+                        const isOpportunity = postType === "opportunity";
+                        return (
+                          <View key={post.id} style={styles.communityPostItem}>
+                            {isOpportunity ? (
+                              <OpportunityFeedCard
+                                opportunity={post}
+                                showManagementControls={true}
+                                onPress={(opp) =>
+                                  navigation.navigate("OpportunityView", {
+                                    opportunityId: opp.id,
+                                    opportunity: opp,
+                                  })
+                                }
+                                onLike={(postId, isLiked, count) => {
+                                  setPosts((prevPosts) =>
+                                    prevPosts.map((p) =>
+                                      p.id === postId
+                                        ? { ...p, is_liked: isLiked, like_count: count }
+                                        : p,
+                                    ),
+                                  );
+                                }}
+                                onSave={(postId, isSaved) => {
+                                  setPosts((prevPosts) =>
+                                    prevPosts.map((p) =>
+                                      p.id === postId
+                                        ? { ...p, is_saved: isSaved }
+                                        : p,
+                                    ),
+                                  );
+                                }}
+                                onShare={() => {}}
+                                onPinToggle={() => handlePinToggle(post)}
+                                onDelete={(opportunityId) => {
+                                  setPosts((prev) => prev.filter((p) => p.id !== opportunityId));
+                                }}
+                                onUserPress={(userId, userType) => {
+                                  if (userType === "community") {
+                                    navigation.navigate("CommunityPublicProfile", {
+                                      communityId: userId,
+                                      viewerRole: "community",
+                                    });
+                                  } else {
+                                    navigation.navigate("MemberPublicProfile", { memberId: userId });
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <EditorialPostCard
+                                post={post}
+                                onLike={(postId, isLiked, count) => {
+                                  setPosts((prevPosts) =>
+                                    prevPosts.map((p) =>
+                                      p.id === postId
+                                        ? { ...p, is_liked: isLiked, like_count: count }
+                                        : p,
+                                    ),
+                                  );
+                                }}
+                                onComment={(postId) => openCommentsModal(postId)}
+                                onShare={() => {}}
+                                onFollow={() => {}}
+                                showFollowButton={false}
+                                currentUserId={currentUserId}
+                                currentUserType={currentUserType}
+                                onUserPress={(userId, userType) => {}}
+                                onDelete={async (postId) => {
+                                  try {
+                                    const token = await getAuthToken();
+                                    if (!token) return;
+                                    await apiDelete(`/posts/${postId}`, null, 15000, token);
+                                    setPosts((prevPosts) => prevPosts.filter((p) => p.id !== postId));
+                                    EventBus.emit("post-deleted", { postId });
+                                  } catch (error) {
+                                    console.error("Error deleting post:", error);
+                                    Alert.alert("Error", "Failed to delete post");
+                                  }
+                                }}
+                                onPinToggle={handlePinToggle}
+                                showManagementControls={true}
+                                onPostUpdate={(updatedPost) => {
+                                  setPosts((prevPosts) =>
+                                    prevPosts.map((p) =>
+                                      p.id === updatedPost.id ? updatedPost : p,
+                                    ),
+                                  );
+                                }}
+                              />
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+
+                  {/* Voice posts from community members */}
+                  {loadingVoicePosts ? (
+                    <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                      <SnooLoader size="small" color={COLORS.primary} />
+                    </View>
+                  ) : (
+                    voicePosts.map((vp) => <VoicePostCard key={vp.id} post={vp} />)
+                  )}
+
+                  {sortedPosts.length === 0 && voicePosts.length === 0 && !loadingVoicePosts && (
+                    <EmptyCommunityState
+                      isOwnProfile={true}
+                      onCreatePost={() => {
+                        navigation.navigate("CommunityCreatePost", {
+                          role: "community",
+                        });
+                      }}
+                    />
+                  )}
                 </View>
-              ) : (
-                <EmptyCommunityState
-                  isOwnProfile={true}
-                  onCreatePost={() => {
-                    navigation.navigate("CommunityCreatePost", {
-                      role: "community",
-                    });
-                  }}
-                />
               );
             })()}
 

@@ -64,6 +64,10 @@ import ActionModal from "../../../components/modals/ActionModal";
 import OpenPlanCard from "../../../components/plans/OpenPlanCard";
 import RequestBottomSheet from "../../plans/RequestBottomSheet";
 import InstagramRow from "../../../components/InstagramRow";
+import EditorialPostCard from "../../../components/EditorialPostCard";
+import OpportunityFeedCard from "../../../components/OpportunityFeedCard";
+import CommunityVoiceBox, { VoicePostCard } from "../../../components/CommunityVoiceBox";
+import EmptyCommunityState from "../../../components/EmptyCommunityState";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
@@ -398,6 +402,11 @@ export default function MemberProfileScreen({ navigation }) {
   const [planRequestSheet, setPlanRequestSheet] = useState(null);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const eventsFetchedRef = useRef(false);
+
+  // Community Posts tab state (Creator Mode)
+  const [voicePosts, setVoicePosts] = useState([]);
+  const [loadingVoicePosts, setLoadingVoicePosts] = useState(false);
+  const communityPostsFetchedRef = useRef(false);
 
   // Underline sliding animation (Reanimated)
   const tabUnderlineX = useSharedValue(0);
@@ -831,6 +840,24 @@ export default function MemberProfileScreen({ navigation }) {
     }
   }, [loadingEvents]);
 
+  const loadCommunityVoicePosts = useCallback(async () => {
+    if (!profile?.id) return;
+    try {
+      setLoadingVoicePosts(true);
+      const token = await getAuthToken();
+      const res = await apiGet(
+        `/community-voice-posts?target_id=${profile.id}&target_type=member`,
+        15000,
+        token
+      );
+      setVoicePosts(res?.posts || []);
+    } catch (e) {
+      console.warn('[MemberProfile] loadVoicePosts error:', e);
+    } finally {
+      setLoadingVoicePosts(false);
+    }
+  }, [profile?.id]);
+
   // Handle pull-to-refresh
   const onRefresh = useCallback(() => {
     console.log("[Profile] onRefresh: user pulled to refresh");
@@ -838,8 +865,11 @@ export default function MemberProfileScreen({ navigation }) {
     if (activeProfileTab === 'events') {
       eventsFetchedRef.current = false;
       loadProfileEvents();
+    } else if (activeProfileTab === 'community') {
+      communityPostsFetchedRef.current = false;
+      loadCommunityVoicePosts();
     }
-  }, [activeProfileTab, loadProfileEvents]);
+  }, [activeProfileTab, loadProfileEvents, loadCommunityVoicePosts]);
 
   // Store loadProfile in ref so it can be accessed in navigation listener
   loadProfileRef.current = loadProfile;
@@ -1297,31 +1327,11 @@ export default function MemberProfileScreen({ navigation }) {
         </View>
       </View>
 
-      <FlatList
-        key={activeProfileTab === 'posts' ? 'posts-3col' : 'events-1col'}
-        data={activeProfileTab === 'posts' ? posts : []}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={activeProfileTab === 'posts' ? renderGridItem : null}
-        numColumns={activeProfileTab === 'posts' ? 3 : 1}
-        columnWrapperStyle={
-          activeProfileTab === 'posts'
-            ? { justifyContent: "flex-start", marginBottom: gap, gap: gap }
-            : undefined
-        }
+      <ScrollView
         contentContainerStyle={{
           paddingBottom: 120,
           flexGrow: 1,
         }}
-        initialNumToRender={12}
-        maxToRenderPerBatch={6}
-        windowSize={5}
-        removeClippedSubviews={Platform.OS === 'android'}
-        updateCellsBatchingPeriod={50}
-        getItemLayout={activeProfileTab === 'posts' ? (data, index) => ({
-          length: itemSize * 1.35,
-          offset: (itemSize * 1.35 + gap) * Math.floor(index / 3),
-          index,
-        }) : undefined}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -1330,276 +1340,407 @@ export default function MemberProfileScreen({ navigation }) {
             colors={[PRIMARY_COLOR]}
           />
         }
-        onEndReached={() => {
-          if (activeProfileTab === 'posts' && !loading && !loadingMorePosts && hasMorePosts) {
+        scrollEventThrottle={400}
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          const isNearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 200;
+          if (isNearBottom && activeProfileTab === 'posts' && !loading && !loadingMorePosts && hasMorePosts) {
             loadMorePosts();
           }
         }}
-        onEndReachedThreshold={0.5}
-        ListHeaderComponent={
-          <View style={styles.profileSection}>
-            <ProfileBioHeader
-              profile={profile}
-              setShowCollegeHub={setShowCollegeHub}
-            />
+      >
+        <View style={styles.profileSection}>
+          <ProfileBioHeader
+            profile={profile}
+            setShowCollegeHub={setShowCollegeHub}
+          />
 
-            {/* Stats */}
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{posts.length}</Text>
-                <Text style={styles.statLabel}>Posts</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.statItem}
-                onPress={() => {
-                  setActiveProfileTab('events');
-                  if (!eventsFetchedRef.current) {
-                    eventsFetchedRef.current = true;
-                    loadProfileEvents();
-                  }
-                }}
-              >
-                <Text style={styles.statNumber}>{profile.events_attended_count ?? 0}</Text>
-                <Text style={styles.statLabel}>Events</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.statItem, { position: 'relative' }]}
-                onPress={() => navigation.navigate('CircleList')}
-              >
-                <Text style={styles.statNumber}>
-                  {polledCounts.circles || profile.circle_count || 0}
-                </Text>
-                <Text style={styles.statLabel}>Circle</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.statItem}
-                onPress={() => {
-                  navigation.navigate('FollowingList', {
-                    memberId: profile.id,
-                    title: 'Following',
-                  });
-                }}
-              >
-                <Text style={styles.statNumber}>
-                  {polledCounts.following || profile.following_count || 0}
-                </Text>
-                <Text style={styles.statLabel}>Following</Text>
-              </TouchableOpacity>
+          {/* Stats */}
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{posts.length}</Text>
+              <Text style={styles.statLabel}>Posts</Text>
             </View>
+            <TouchableOpacity
+              style={styles.statItem}
+              onPress={() => {
+                setActiveProfileTab('events');
+                if (!eventsFetchedRef.current) {
+                  eventsFetchedRef.current = true;
+                  loadProfileEvents();
+                }
+              }}
+            >
+              <Text style={styles.statNumber}>{profile.events_attended_count ?? 0}</Text>
+              <Text style={styles.statLabel}>Events</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.statItem, { position: 'relative' }]}
+              onPress={() => navigation.navigate('CircleList')}
+            >
+              <Text style={styles.statNumber}>
+                {polledCounts.circles || profile.circle_count || 0}
+              </Text>
+              <Text style={styles.statLabel}>Circle</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.statItem}
+              onPress={() => {
+                navigation.navigate('FollowingList', {
+                  memberId: profile.id,
+                  title: 'Following',
+                });
+              }}
+            >
+              <Text style={styles.statNumber}>
+                {polledCounts.following || profile.following_count || 0}
+              </Text>
+              <Text style={styles.statLabel}>Following</Text>
+            </TouchableOpacity>
+          </View>
 
-            {/* Interests */}
-            <ProfileInterestsSection
-              interests={profile.interests}
-              showAllInterests={showAllInterests}
-              setShowAllInterests={setShowAllInterests}
-            />
+          {/* Interests */}
+          <ProfileInterestsSection
+            interests={profile.interests}
+            showAllInterests={showAllInterests}
+            setShowAllInterests={setShowAllInterests}
+          />
 
-            {/* Action Buttons */}
-            {isOwnProfile ? (
-              <View
+          {/* Action Buttons */}
+          {isOwnProfile ? (
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 10,
+                marginTop: 10,
+                width: "100%",
+              }}
+            >
+              <GradientButton
+                title="Edit Profile"
+                onPress={handleEditProfile}
                 style={{
-                  flexDirection: "row",
-                  gap: 10,
-                  marginTop: 10,
-                  width: "100%",
+                  flex: 1,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: "rgba(68, 138, 255, 0.2)",
+                  backgroundColor: "rgba(68, 138, 255, 0.12)",
+                  shadowColor: "transparent",
+                  shadowOpacity: 0,
+                  shadowRadius: 0,
+                  elevation: 0,
+                  overflow: "hidden",
                 }}
-              >
-                <GradientButton
-                  title="Edit Profile"
-                  onPress={handleEditProfile}
-                  style={{
-                    flex: 1,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: "rgba(68, 138, 255, 0.2)",
-                    backgroundColor: "rgba(68, 138, 255, 0.12)",
-                    shadowColor: "transparent",
-                    shadowOpacity: 0,
-                    shadowRadius: 0,
-                    elevation: 0,
-                    overflow: "hidden",
-                  }}
-                  gradientStyle={{
-                    borderRadius: 0,
-                    paddingHorizontal: 20,
-                  }}
-                  colors={["transparent", "transparent"]}
-                  textStyle={{ fontFamily: FONTS.medium, color: "#2962FF" }}
-                />
-                <GradientButton
-                  title="Create Post"
-                  onPress={() => {
-                    HapticsService.triggerImpactLight();
-                    navigation.navigate("CreatePost");
-                  }}
-                  style={{
-                    flex: 1,
-                    borderRadius: 16,
-                    overflow: "hidden",
-                  }}
-                  gradientStyle={{ borderRadius: 16, paddingHorizontal: 20 }}
-                  colors={["#448AFF", "#2962FF"]}
-                  textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
+                gradientStyle={{
+                  borderRadius: 0,
+                  paddingHorizontal: 20,
+                }}
+                colors={["transparent", "transparent"]}
+                textStyle={{ fontFamily: FONTS.medium, color: "#2962FF" }}
+              />
+              <GradientButton
+                title="Create Post"
+                onPress={() => {
+                  HapticsService.triggerImpactLight();
+                  navigation.navigate("CreatePost");
+                }}
+                style={{
+                  flex: 1,
+                  borderRadius: 16,
+                  overflow: "hidden",
+                }}
+                gradientStyle={{ borderRadius: 16, paddingHorizontal: 20 }}
+                colors={["#448AFF", "#2962FF"]}
+                textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
+              />
+            </View>
+          ) : (
+            <GradientButton
+              title="Follow"
+              onPress={handleFollow}
+              style={{ marginTop: 10, width: "100%", borderRadius: 16 }}
+              gradientStyle={{ borderRadius: 16, paddingHorizontal: 20 }}
+              textStyle={{ fontFamily: FONTS.semiBold }}
+            />
+          )}
+
+          {/* Creator Dashboard strip — visible when Creator Mode is ON */}
+          {isOwnProfile && profile.is_creator_mode_enabled && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('MyDataScreen', { initialTab: 'creator' })}
+              activeOpacity={0.85}
+              style={{
+                marginTop: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+                backgroundColor: '#F5F0FF',
+                borderRadius: 16,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                borderWidth: 1,
+                borderColor: 'rgba(124,58,237,0.15)',
+              }}
+            >
+              <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#7C3AED18', alignItems: 'center', justifyContent: 'center' }}>
+                <BarChart2 size={18} color="#7C3AED" strokeWidth={2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: FONTS.semiBold, fontSize: 14, color: '#7C3AED' }}>Creator Dashboard</Text>
+                <Text style={{ fontFamily: FONTS.regular, fontSize: 12, color: '#8B5CF6', marginTop: 1 }}>Audience insights, follow quality & reach</Text>
+              </View>
+              <ChevronDown size={16} color="#7C3AED" strokeWidth={2} style={{ transform: [{ rotate: '-90deg' }] }} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Posts / Events / Community Posts Tab Bar */}
+        <View style={profileTabStyles.tabBar}>
+          {[
+            'posts',
+            ...(profile.is_creator_mode_enabled ? ['community'] : []),
+            'events',
+          ].map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={profileTabStyles.tab}
+              onLayout={(e) => handleTabLayout(tab, e)}
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                setActiveProfileTab(tab);
+                if (tab === 'events' && !eventsFetchedRef.current) {
+                  eventsFetchedRef.current = true;
+                  loadProfileEvents();
+                }
+                if (tab === 'community' && !communityPostsFetchedRef.current) {
+                  communityPostsFetchedRef.current = true;
+                  loadCommunityVoicePosts();
+                }
+              }}
+            >
+              <Text style={[
+                profileTabStyles.tabText,
+                activeProfileTab === tab && profileTabStyles.tabTextActive,
+              ]}>
+                {tab === 'posts' ? 'Posts' : tab === 'events' ? 'Events' : 'Community'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          <Reanimated.View
+            style={[
+              profileTabStyles.activeTabIndicator,
+              animatedUnderlineStyle,
+            ]}
+          />
+        </View>
+
+        {/* Posts Tab Content */}
+        {activeProfileTab === 'posts' &&
+          (() => {
+            const numRows = Math.ceil(posts.length / 3);
+            const gridHeight = numRows > 0 ? numRows * (itemSize * 1.35) + (numRows - 1) * gap : 0;
+            return posts.length > 0 ? (
+              <View style={{ height: gridHeight, marginTop: 10 }}>
+                <FlatList
+                  data={posts}
+                  keyExtractor={(item) => String(item.id)}
+                  numColumns={3}
+                  columnWrapperStyle={{ justifyContent: "flex-start", marginBottom: gap, gap: gap }}
+                  scrollEnabled={false}
+                  renderItem={renderGridItem}
+                  initialNumToRender={12}
+                  maxToRenderPerBatch={6}
+                  windowSize={5}
+                  removeClippedSubviews={Platform.OS === 'android'}
+                  updateCellsBatchingPeriod={50}
+                  getItemLayout={(data, index) => ({
+                    length: itemSize * 1.35,
+                    offset: (itemSize * 1.35 + gap) * Math.floor(index / 3),
+                    index,
+                  })}
                 />
               </View>
             ) : (
-              <GradientButton
-                title="Follow"
-                onPress={handleFollow}
-                style={{ marginTop: 10, width: "100%", borderRadius: 16 }}
-                gradientStyle={{ borderRadius: 16, paddingHorizontal: 20 }}
-                textStyle={{ fontFamily: FONTS.semiBold }}
-              />
-            )}
+              <EmptyPostsState isOwnProfile={isOwnProfile} />
+            );
+          })()
+        }
 
-            {/* Creator Dashboard strip — visible when Creator Mode is ON */}
-            {isOwnProfile && profile.is_creator_mode_enabled && (
-              <TouchableOpacity
-                onPress={() => navigation.navigate('MyDataScreen', { initialTab: 'creator' })}
-                activeOpacity={0.85}
-                style={{
-                  marginTop: 12,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 10,
-                  backgroundColor: '#F5F0FF',
-                  borderRadius: 16,
-                  paddingHorizontal: 16,
-                  paddingVertical: 12,
-                  borderWidth: 1,
-                  borderColor: 'rgba(124,58,237,0.15)',
-                }}
-              >
-                <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: '#7C3AED18', alignItems: 'center', justifyContent: 'center' }}>
-                  <BarChart2 size={18} color="#7C3AED" strokeWidth={2} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: FONTS.semiBold, fontSize: 14, color: '#7C3AED' }}>Creator Dashboard</Text>
-                  <Text style={{ fontFamily: FONTS.regular, fontSize: 12, color: '#8B5CF6', marginTop: 1 }}>Audience insights, follow quality & reach</Text>
-                </View>
-                <ChevronDown size={16} color="#7C3AED" strokeWidth={2} style={{ transform: [{ rotate: '-90deg' }] }} />
-              </TouchableOpacity>
-            )}
+        {loadingMorePosts && activeProfileTab === 'posts' && (
+          <View style={{ paddingVertical: 20, alignItems: "center" }}>
+            <SnooLoader size="small" color={COLORS.primary} />
+          </View>
+        )}
 
-            {/* Posts / Events Tab Bar */}
-            <View style={profileTabStyles.tabBar}>
-              {['posts', 'events'].map((tab) => (
-                <TouchableOpacity
-                  key={tab}
-                  style={profileTabStyles.tab}
-                  onLayout={(e) => handleTabLayout(tab, e)}
-                  onPress={() => {
-                    HapticsService.triggerImpactLight();
-                    setActiveProfileTab(tab);
-                    if (tab === 'events' && !eventsFetchedRef.current) {
-                      eventsFetchedRef.current = true;
-                      loadProfileEvents();
-                    }
-                  }}
-                >
-                  <Text style={[
-                    profileTabStyles.tabText,
-                    activeProfileTab === tab && profileTabStyles.tabTextActive,
-                  ]}>
-                    {tab === 'posts' ? 'Posts' : 'Events'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              <Reanimated.View
-                style={[
-                  profileTabStyles.activeTabIndicator,
-                  animatedUnderlineStyle,
-                ]}
-              />
-            </View>
+        {/* Community Posts Tab Content */}
+        {activeProfileTab === 'community' && (
+          <View style={{ paddingTop: 4, paddingBottom: 8 }}>
+            {/* Voice Box at the top — anyone can post */}
+            <CommunityVoiceBox
+              targetId={profile.id}
+              targetType="member"
+              currentUser={profile}
+              onPostCreated={(newPost) => {
+                setVoicePosts((prev) => [newPost, ...prev]);
+              }}
+            />
 
-            {/* Events Tab Content */}
-            {activeProfileTab === 'events' && (
-              <View style={profileTabStyles.eventsContainer}>
-                {loadingEvents ? (
-                  <View style={profileTabStyles.loadingWrap}>
-                    <SnooLoader size="large" color={PRIMARY_COLOR} />
-                  </View>
-                ) : (
-                  <>
-                    {/* Attended Events */}
-                    {profileEvents.length > 0 && (
-                      <>
-                        {profileEvents.map((ev) => (
-                          <EventCard
-                            key={`ev-${ev.id}`}
-                            event={ev}
-                            onPress={(eventData) => navigation.navigate('EventDetails', { eventId: eventData.id, eventData })}
-                          />
-                        ))}
-                      </>
-                    )}
-
-                    {/* Open Plans — full OpenPlanCard */}
-                    {(profilePlans.hosted.length > 0 || profilePlans.attending.length > 0) && (
-                      <>
-                        {[...profilePlans.hosted, ...profilePlans.attending].map((plan) => (
-                          <View key={`plan-${plan.id}-${plan.role}`} style={{ paddingHorizontal: 16 }}>
-                            <OpenPlanCard
-                              plan={plan}
-                              currentUserId={profile?.id}
-                              onPress={(id) => navigation.navigate('PlanDetail', { planId: id })}
-                              onRequestPress={(id) => setPlanRequestSheet({ planId: id, planTitle: plan.title })}
-                              onLike={async (planId, liked) => {
-                                const token = await getAuthToken();
-                                if (liked) await likePlan(planId, token);
-                                else await unlikePlan(planId, token);
-                              }}
-                              navigation={navigation}
-                            />
-                          </View>
-                        ))}
-                      </>
-                    )}
-
-                    {/* Empty state */}
-                    {profileEvents.length === 0 && profilePlans.hosted.length === 0 && profilePlans.attending.length === 0 && (
-                      <EmptyEventsState
-                        isOwnProfile={false}
-                        title="No events yet"
-                        subtitle="Events and plans you attend will show here."
+            {/* Creator's own interactive posts */}
+            {posts
+              .filter((p) => ['poll', 'prompt', 'qna', 'challenge', 'opportunity'].includes(p.post_type || p.type))
+              .sort((a, b) => {
+                if (a.is_pinned && !b.is_pinned) return -1;
+                if (!a.is_pinned && b.is_pinned) return 1;
+                return new Date(b.created_at) - new Date(a.created_at);
+              })
+              .map((post) => {
+                const postType = post.post_type || post.type;
+                if (postType === 'opportunity') {
+                  return (
+                    <View key={post.id} style={{ marginHorizontal: 16, marginBottom: 12 }}>
+                      <OpportunityFeedCard
+                        opportunity={post}
+                        showManagementControls={isOwnProfile}
+                        onPress={(opp) => navigation.navigate('OpportunityView', { opportunityId: opp.id, opportunity: opp })}
+                        onLike={(postId, isLiked, count) =>
+                          setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, is_liked: isLiked, like_count: count } : p))
+                        }
+                        onSave={(postId, isSaved) =>
+                          setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, is_saved: isSaved } : p))
+                        }
+                        onShare={() => {}}
                       />
-                    )}
-                  </>
-                )}
+                    </View>
+                  );
+                }
+                return (
+                  <View key={post.id} style={{ marginBottom: 4 }}>
+                    <EditorialPostCard
+                      post={post}
+                      onLike={(postId, isLiked, count) =>
+                        setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, is_liked: isLiked, like_count: count } : p))
+                      }
+                      onComment={(postId) => openCommentsModal(postId)}
+                      onShare={() => {}}
+                      onFollow={() => {}}
+                      showFollowButton={false}
+                      currentUserId={profile?.id}
+                      currentUserType="member"
+                      onUserPress={() => {}}
+                      showManagementControls={isOwnProfile}
+                      onDelete={async (postId) => {
+                        try {
+                          const token = await getAuthToken();
+                          await apiDelete(`/posts/${postId}`, null, 15000, token);
+                          setPosts((prev) => prev.filter((p) => p.id !== postId));
+                          EventBus.emit('post-deleted', { postId });
+                        } catch (e) {
+                          Alert.alert('Error', 'Failed to delete post');
+                        }
+                      }}
+                      onPostUpdate={(updatedPost) =>
+                        setPosts((prev) => prev.map((p) => p.id === updatedPost.id ? updatedPost : p))
+                      }
+                    />
+                  </View>
+                );
+              })
+            }
+
+            {/* Voice posts from community members */}
+            {loadingVoicePosts ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <SnooLoader size="small" color={COLORS.primary} />
               </View>
+            ) : (
+              voicePosts.map((vp) => <VoicePostCard key={vp.id} post={vp} />)
             )}
 
-            {planRequestSheet && (
-              <RequestBottomSheet
-                isVisible={!!planRequestSheet}
-                planId={planRequestSheet.planId}
-                planTitle={planRequestSheet.planTitle}
-                onClose={() => setPlanRequestSheet(null)}
-                onRequested={() => {
-                  setProfilePlans(prev => ({
-                    ...prev,
-                    attending: prev.attending.map(p =>
-                      p.id === planRequestSheet.planId ? { ...p, my_request_status: 'pending' } : p
-                    ),
-                  }));
-                  setPlanRequestSheet(null);
-                }}
+            {posts.filter((p) => ['poll', 'prompt', 'qna', 'challenge', 'opportunity'].includes(p.post_type || p.type)).length === 0 &&
+             voicePosts.length === 0 && !loadingVoicePosts && (
+              <EmptyCommunityState
+                isOwnProfile={isOwnProfile}
+                onCreatePost={() => navigation.navigate('CreatePost')}
               />
             )}
           </View>
-        }
-        ListEmptyComponent={
-          activeProfileTab === 'posts' ? <EmptyPostsState isOwnProfile={isOwnProfile} /> : null
-        }
-        ListFooterComponent={
-          loadingMorePosts && activeProfileTab === 'posts' ? (
-            <View style={{ paddingVertical: 20, alignItems: "center" }}>
-              <SnooLoader size="small" color={COLORS.primary} />
-            </View>
-          ) : null
-        }
-      />
+        )}
+
+        {/* Events Tab Content */}
+        {activeProfileTab === 'events' && (
+          <View style={profileTabStyles.eventsContainer}>
+            {loadingEvents ? (
+              <View style={profileTabStyles.loadingWrap}>
+                <SnooLoader size="large" color={PRIMARY_COLOR} />
+              </View>
+            ) : (
+              <>
+                {/* Attended Events */}
+                {profileEvents.length > 0 && (
+                  <>
+                    {profileEvents.map((ev) => (
+                      <EventCard
+                        key={`ev-${ev.id}`}
+                        event={ev}
+                        onPress={(eventData) => navigation.navigate('EventDetails', { eventId: eventData.id, eventData })}
+                      />
+                    ))}
+                  </>
+                )}
+
+                {/* Open Plans — full OpenPlanCard */}
+                {(profilePlans.hosted.length > 0 || profilePlans.attending.length > 0) && (
+                  <>
+                    {[...profilePlans.hosted, ...profilePlans.attending].map((plan) => (
+                      <View key={`plan-${plan.id}-${plan.role}`} style={{ paddingHorizontal: 16 }}>
+                        <OpenPlanCard
+                          plan={plan}
+                          currentUserId={profile?.id}
+                          onPress={(id) => navigation.navigate('PlanDetail', { planId: id })}
+                          onRequestPress={(id) => setPlanRequestSheet({ planId: id, planTitle: plan.title })}
+                          onLike={async (planId, liked) => {
+                            const token = await getAuthToken();
+                            if (liked) await likePlan(planId, token);
+                            else await unlikePlan(planId, token);
+                          }}
+                          navigation={navigation}
+                        />
+                      </View>
+                    ))}
+                  </>
+                )}
+
+                {/* Empty state */}
+                {profileEvents.length === 0 && profilePlans.hosted.length === 0 && profilePlans.attending.length === 0 && (
+                  <EmptyEventsState
+                    isOwnProfile={false}
+                    title="No events yet"
+                    subtitle="Events and plans you attend will show here."
+                  />
+                )}
+              </>
+            )}
+          </View>
+        )}
+
+        {planRequestSheet && (
+          <RequestBottomSheet
+            isVisible={!!planRequestSheet}
+            planId={planRequestSheet.planId}
+            planTitle={planRequestSheet.planTitle}
+            onClose={() => setPlanRequestSheet(null)}
+            onRequested={() => {
+              setProfilePlans(prev => ({
+                ...prev,
+                attending: prev.attending.map(p =>
+                  p.id === planRequestSheet.planId ? { ...p, my_request_status: 'pending' } : p
+                ),
+              }));
+              setPlanRequestSheet(null);
+            }}
+          />
+        )}
+      </ScrollView>
       {/* --- Full Post Modal Viewer --- */}
       <ProfilePostFeed
         visible={postModalVisible}
@@ -1890,7 +2031,7 @@ const profileTabStyles = StyleSheet.create({
   tabBar: {
     flexDirection: 'row',
     marginTop: 20,
-    marginHorizontal: -20, // extend to screen edge (cancel profileSection padding)
+    marginHorizontal: 0,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E5EA',
     backgroundColor: COLORS.background,
@@ -1918,7 +2059,7 @@ const profileTabStyles = StyleSheet.create({
   },
   eventsContainer: {
     alignSelf: 'stretch',
-    marginHorizontal: -20,
+    marginHorizontal: 0,
     paddingTop: 8,
     paddingBottom: 16,
   },

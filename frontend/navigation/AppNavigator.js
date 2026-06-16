@@ -17,6 +17,7 @@ import VenueBottomTabNavigator from "./VenueBottomTabNavigator";
 import CommunityEventsListScreen from "../screens/home/community/CommunityEventsListScreen";
 import CreatePostScreen from "../components/CreatePostScreen";
 import CommunityCreatePostScreen from "../screens/home/community/CommunityCreatePostScreen";
+import CreateOpportunityScreen from "../screens/home/community/CreateOpportunityScreen";
 import CelebrationScreen from "../screens/signup/CelebrationScreen";
 import PeopleProfilePromptScreen from "../screens/signup/community/PeopleProfilePromptScreen";
 
@@ -137,6 +138,15 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="CommunityCreatePost"
         component={CommunityCreatePostScreen}
+        options={{
+          headerShown: false,
+          presentation: "fullScreenModal",
+          cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
+        }}
+      />
+      <Stack.Screen
+        name="CreateOpportunity"
+        component={CreateOpportunityScreen}
         options={{
           headerShown: false,
           presentation: "fullScreenModal",

@@ -44,7 +44,6 @@ import PollCreateForm from "./posts/PollCreateForm";
 import PromptCreateForm from "./posts/PromptCreateForm";
 import QnACreateForm from "./posts/QnACreateForm";
 import ChallengeCreateForm from "./posts/ChallengeCreateForm";
-import OpportunityCreateForm from "./posts/OpportunityCreateForm";
 import SuccessCard from "./feedback/SuccessCard";
 
 // Enable LayoutAnimation for Android
@@ -117,15 +116,6 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
     target_count: 1,
     max_submissions_per_user: 1,
     require_approval: true,
-    deadline: null,
-  });
-  const [opportunityData, setOpportunityData] = useState({
-    title: "",
-    description: "",
-    opportunity_type: "collab",
-    compensation_type: "unpaid",
-    compensation_details: "",
-    spots_total: 1,
     deadline: null,
   });
 
@@ -358,7 +348,6 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
     if (postType === "prompt") return promptData.prompt_text.trim().length > 0;
     if (postType === "qna")  return qnaData.title.trim().length >= 3;
     if (postType === "challenge") return challengeData.title.trim().length >= 3;
-    if (postType === "opportunity") return opportunityData.title.trim().length >= 3;
     return false;
   })();
 
@@ -533,17 +522,6 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           require_approval: challengeData.require_approval,
           deadline: challengeData.deadline,
         };
-      } else if (postType === "opportunity") {
-        if (!opportunityData.title.trim()) throw new Error("Opportunity title is required");
-        typePayload = {
-          title: opportunityData.title,
-          description: opportunityData.description,
-          opportunity_type: opportunityData.opportunity_type,
-          compensation_type: opportunityData.compensation_type,
-          compensation_details: opportunityData.compensation_details,
-          spots_total: opportunityData.spots_total,
-          deadline: opportunityData.deadline,
-        };
       }
 
       await apiPost(
@@ -561,7 +539,6 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
       if (postType === "prompt")      successData = { ...promptData };
       if (postType === "qna")         successData = { ...qnaData };
       if (postType === "challenge")   successData = { ...challengeData };
-      if (postType === "opportunity") successData = { ...opportunityData };
       setSuccessCardData(successData);
       setShowCelebration(true);
     } catch (error) {
@@ -835,7 +812,6 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               : postType === "prompt" ? "New Prompt"
               : postType === "qna" ? "New Q&A"
               : postType === "challenge"    ? "New Challenge"
-              : postType === "opportunity"  ? "New Opportunity"
               : "New Post"}
           </Text>
         </View>
@@ -941,6 +917,11 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
               selectedType={postType}
               onSelectType={(type) => {
                 if (type === postType) return;
+                // Opportunity → navigate to the full wizard
+                if (type === "opportunity") {
+                  navigation.navigate("CreateOpportunity");
+                  return;
+                }
                 // Guard: switching away from media while items are attached
                 if (postType === "media" && images.length > 0) {
                   setPendingPostType(type);
@@ -1024,14 +1005,6 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
             </View>
           )}
 
-          {postType === "opportunity" && (
-            <View style={styles.formContainer}>
-              <View style={styles.formSectionHeader}>
-                <Text style={styles.formSectionTitle}>OPPORTUNITY DETAILS</Text>
-              </View>
-              <OpportunityCreateForm onDataChange={setOpportunityData} disabled={isSubmitting} />
-            </View>
-          )}
 
           {/* ── Media tray, EntityTagSelector, challenge banner — media type only */}
           {postType === "media" && (
