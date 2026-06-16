@@ -23,7 +23,6 @@ import {
 import { GradientHeart } from "../ui/GradientHeart";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { apiPost, apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
@@ -54,6 +53,10 @@ import {
   Pin,
   Pencil,
   Trash2,
+  RefreshCw,
+  Star,
+  Clock,
+  X,
 } from "lucide-react-native";
 import { savePost, unsavePost } from "../../api/client";
 import { uploadMultipleImages } from "../../api/cloudinary";
@@ -551,27 +554,28 @@ const PromptPostCard = ({
     if (!hasSubmitted) return null;
 
     const statusConfig = {
-      pending: { label: "Pending", color: "#F9A825", icon: "time-outline" },
+      pending: { label: "Pending", color: "#F9A825", icon: Clock },
       approved: {
         label: "Approved",
         color: "#34C759",
-        icon: "checkmark-circle",
+        icon: CheckCircle2,
       },
-      featured: { label: "Featured", color: "#7B1FA2", icon: "star" },
+      featured: { label: "Featured", color: "#7B1FA2", icon: Star },
       rejected: {
         label: "Not selected",
         color: "#8E8E93",
-        icon: "close-circle",
+        icon: XCircle,
       },
     };
 
     const config = statusConfig[submissionStatus] || statusConfig.pending;
+    const StatusIcon = config.icon;
 
     return (
       <View
         style={[styles.statusBadge, { backgroundColor: config.color + "20" }]}
       >
-        <Ionicons name={config.icon} size={14} color={config.color} />
+        <StatusIcon size={14} color={config.color} />
         <Text style={[styles.statusText, { color: config.color }]}>
           {config.label}
         </Text>
@@ -627,7 +631,7 @@ const PromptPostCard = ({
             </TouchableOpacity>
           )}
           <View style={styles.starIconContainer}>
-            <Ionicons name="star" size={24} color="#FFB800" />
+            <Star size={24} color="#FFB800" fill="#FFB800" />
           </View>
         </View>
       </View>
@@ -750,7 +754,7 @@ const PromptPostCard = ({
             submissionStatus === "rejected" && styles.sendButtonFloatingRetry,
           ]}>
             {submissionStatus === "rejected" ? (
-              <Ionicons name="refresh" size={18} color="#FFFFFF" />
+              <RefreshCw size={18} color="#FFFFFF" />
             ) : submissionType === "image" ? (
               <Camera size={18} color="#FFFFFF" />
             ) : (
@@ -883,7 +887,7 @@ const PromptPostCard = ({
                 onPress={() => setShowSubmitModal(false)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+                <X size={24} color={COLORS.textPrimary} />
               </TouchableOpacity>
             </View>
 
@@ -904,8 +908,7 @@ const PromptPostCard = ({
                         style={styles.imageRemoveBtn}
                         onPress={() => removeImage(index)}
                       >
-                        <Ionicons
-                          name="close-circle"
+                        <XCircle
                           size={22}
                           color="#FFFFFF"
                         />
@@ -1055,7 +1058,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   nudgeBadgeText: {
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: FONTS.semiBold || "Manrope-SemiBold",
     fontSize: 10,
     color: "#C85A47", // Muted coral-red
     letterSpacing: 0.5,
@@ -1124,7 +1127,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
   },
   evergreenText: {
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: FONTS.semiBold || "Manrope-SemiBold",
     fontSize: 9,
     color: "#4CAF50",
     letterSpacing: 0.5,
@@ -1252,7 +1255,7 @@ const styles = StyleSheet.create({
   responseCount: {
     fontSize: 14,
     color: "#9CA3AF",
-    fontWeight: "400",
+    fontFamily: FONTS.regular || "Manrope-Regular",
   },
   viewAllButton: {
     flexDirection: "row",

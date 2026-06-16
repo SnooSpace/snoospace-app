@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, TouchableWithoutFeedback, Platform, ScrollView } from "react-native";
 import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
-
-import { Ionicons } from "@expo/vector-icons";
+import { X } from "lucide-react-native";
+import { BlurView } from "expo-blur";
 import SnooLoader from "../ui/SnooLoader";
 
 const PromptEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
@@ -69,19 +69,25 @@ const PromptEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
     >
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
+          {Platform.OS === 'ios' ? (
+            <BlurView intensity={25} style={StyleSheet.absoluteFill} tint="dark" />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0, 0, 0, 0.5)" }]} />
+          )}
           <TouchableWithoutFeedback>
             <View style={styles.modalContainer}>
               {/* Header */}
               <View style={styles.header}>
                 <Text style={styles.title}>Edit Prompt</Text>
                 <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                  <Ionicons name="close" size={24} color="#1D1D1F" />
+                  <X size={24} color="#1D1D1F" />
                 </TouchableOpacity>
               </View>
 
               {/* Content */}
               <ScrollView
                 style={styles.content}
+                contentContainerStyle={styles.contentContainer}
                 showsVerticalScrollIndicator={false}
               >
                 {/* Prompt Text Input */}
@@ -177,6 +183,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F2F2F7",
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   title: {
     fontSize: 20,
@@ -187,6 +198,9 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   content: {
+    backgroundColor: "#FFFFFF",
+  },
+  contentContainer: {
     padding: 20,
   },
   inputGroup: {
@@ -202,6 +216,7 @@ const styles = StyleSheet.create({
   textInput: {
     borderWidth: 1,
     borderColor: "#E5E5EA",
+    backgroundColor: "#F2F2F7",
     borderRadius: 12,
     padding: 12,
     fontSize: 15,
@@ -213,6 +228,7 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: "#E5E5EA",
+    backgroundColor: "#F2F2F7",
     borderRadius: 12,
     padding: 12,
     fontSize: 15,
@@ -221,6 +237,7 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: "#DC2626",
+    backgroundColor: "#F2F2F7",
   },
   charCount: {
     fontSize: 12,
@@ -265,6 +282,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#F2F2F7",
+    backgroundColor: "#FFFFFF",
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
   },
   button: {
     flex: 1,
@@ -276,6 +298,8 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     backgroundColor: "#F2F2F7",
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
   },
   cancelButtonText: {
     fontSize: 16,
@@ -285,9 +309,16 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: "#007AFF",
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
   },
   saveButtonDisabled: {
     backgroundColor: "#B0D4FF",
+    shadowOpacity: 0,
+    elevation: 0,
   },
   saveButtonText: {
     fontSize: 16,

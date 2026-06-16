@@ -23,7 +23,6 @@ import {
 import { GradientHeart } from "../ui/GradientHeart";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { apiPost, apiGet, apiDelete } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import {
@@ -51,6 +50,8 @@ import {
   Pencil,
   Trash2,
   MoveRight,
+  ArrowUp,
+  HelpCircle,
 } from "lucide-react-native";
 import { savePost, unsavePost } from "../../api/client";
 import { postService } from "../../services/postService";
@@ -586,8 +587,7 @@ const QnAPostCard = ({
               onPress={handleUpvoteTopQuestion}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons
-                name="arrow-up"
+              <ArrowUp
                 size={14}
                 color={previewQuestion.has_upvoted ? "#3B82F6" : "#8E8E93"}
               />
@@ -692,7 +692,7 @@ const QnAPostCard = ({
             </View>
 
             <View style={styles.questionIconContainer}>
-              <Ionicons name="help-circle" size={28} color="#334456" />
+              <HelpCircle size={28} color="#334456" />
             </View>
           </View>
         </View>
@@ -859,8 +859,7 @@ const QnAPostCard = ({
             ) : (
               <>
                 <Text style={styles.addAnswerText}>Ask a question </Text>
-                <MaterialCommunityIcons
-                  name="pencil-outline"
+                <Pencil
                   size={16}
                   color="#5e8d9b"
                 />
@@ -1004,7 +1003,7 @@ const styles = StyleSheet.create({
   qnaBadgeText: {
     color: "#3F7CF4",
     fontSize: 10,
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: FONTS.semiBold || "Manrope-SemiBold",
     letterSpacing: 0.5,
   },
   endedBadge: {
@@ -1033,7 +1032,7 @@ const styles = StyleSheet.create({
   resolvedBadgeText: {
     color: "#059669",
     fontSize: 10,
-    fontWeight: "700",
+    fontFamily: FONTS.semiBold || "Manrope-SemiBold",
     letterSpacing: 0.5,
   },
 
@@ -1271,15 +1270,15 @@ const styles = StyleSheet.create({
   votesText: {
     fontSize: 13,
     color: "#5e8d9b",
-    fontWeight: "400",
+    fontFamily: FONTS.regular || "Manrope-Regular",
   },
   addAnswerCTA: {
     flexDirection: "row",
     alignItems: "center",
   },
   addAnswerText: {
+    fontFamily: FONTS.semiBold || "Manrope-SemiBold",
     fontSize: 14,
-    fontWeight: "600",
     color: "#5e8d9b", // Muted teal
   },
 
@@ -1329,7 +1328,7 @@ const styles = StyleSheet.create({
   replyCountText: {
     fontSize: 14,
     color: "#9CA3AF",
-    fontWeight: "400",
+    fontFamily: FONTS.medium || "Manrope-Medium",
   },
   modalBackdrop: {
     flex: 1,

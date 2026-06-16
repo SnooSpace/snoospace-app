@@ -6,7 +6,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet, Modal, Pressable, Dimensions, TouchableWithoutFeedback, Animated } from "react-native";
 import { GradientHeart } from "../ui/GradientHeart";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import HapticsService from "../../services/HapticsService";
 import { apiPost, apiDelete, savePost, unsavePost } from "../../api/client";
@@ -40,6 +39,8 @@ import {
   Pencil,
   Trash2,
   MoveRight,
+  Check,
+  BarChart3,
 } from "lucide-react-native";
 import EventBus from "../../utils/EventBus";
 import CountdownTimer from "../CountdownTimer";
@@ -508,8 +509,7 @@ const PollPostCard = ({
             </Text>
 
             {isSelected && (
-              <MaterialCommunityIcons
-                name="check-bold"
+              <Check
                 size={16}
                 color="#ffffff"
               />
@@ -591,7 +591,7 @@ const PollPostCard = ({
               onPress={() => setShowVotersModal(true)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="stats-chart" size={24} color="#3b65e4" />
+              <BarChart3 size={24} color="#3b65e4" />
             </TouchableOpacity>
           </View>
         </View>
@@ -918,7 +918,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   pollBadgeText: {
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: FONTS.semiBold || "Manrope-SemiBold",
     fontSize: 10,
     color: "#5B6B7C",
     letterSpacing: 0.5,
@@ -981,8 +981,8 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   optionButtonText: {
+    fontFamily: FONTS.medium || "Manrope-Medium",
     fontSize: 14,
-    fontWeight: "500",
     color: "#1D1D1F",
   },
   optionResult: {
@@ -1005,17 +1005,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   optionText: {
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: FONTS.medium || "Manrope-Medium",
     fontSize: 14,
     color: "#314151",
   },
   optionTextSelected: {
     color: "#ffffff",
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold || "Manrope-SemiBold",
   },
   percentageText: {
     fontSize: 14,
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: FONTS.medium || "Manrope-Medium",
     color: "#AFC8EA",
   },
   percentageTextFull: {

@@ -9,7 +9,7 @@
  *   - Submit button
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -24,9 +24,12 @@ import {
   Platform,
   Modal,
   ScrollView,
-} from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
+  Switch,
+} from "react-native";
+import { Image as ExpoImage } from "expo-image";
+import { SafeAreaView } from "react-native-safe-area-context";
+import * as ImagePicker from "expo-image-picker";
+import * as MediaLibrary from "expo-media-library";
 import {
   ImagePlus,
   X,
@@ -34,11 +37,14 @@ import {
   EyeOff,
   Eye,
   ChevronDown,
-} from 'lucide-react-native';
-import { COLORS, FONTS, SHADOWS } from '../constants/theme';
-import HapticsService from '../services/HapticsService';
-import { getAuthToken } from '../api/auth';
-import { apiPost } from '../api/client';
+  HatGlasses,
+} from "lucide-react-native";
+import { COLORS, FONTS, SHADOWS } from "../constants/theme";
+import HapticsService from "../services/HapticsService";
+import { getAuthToken } from "../api/auth";
+import { apiGet, apiPost } from "../api/client";
+import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
+import CustomImagePicker from "./CustomImagePicker";
 
 // Cloudinary direct upload helper
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
@@ -46,14 +52,14 @@ const UPLOAD_PRESET = process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
 async function uploadVoiceImage(uri) {
   const formData = new FormData();
-  formData.append('file', { uri, type: 'image/jpeg', name: 'voice-post.jpg' });
-  formData.append('upload_preset', UPLOAD_PRESET);
-  formData.append('folder', 'snoospace/community-voice');
+  formData.append("file", { uri, type: "image/jpeg", name: "voice-post.jpg" });
+  formData.append("upload_preset", UPLOAD_PRESET);
+  formData.append("folder", "snoospace/community-voice");
   const response = await fetch(
     `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
-    { method: 'POST', body: formData }
+    { method: "POST", body: formData },
   );
-  if (!response.ok) throw new Error('Image upload failed');
+  if (!response.ok) throw new Error("Image upload failed");
   const data = await response.json();
   return data.secure_url;
 }
@@ -63,7 +69,7 @@ async function uploadVoiceImage(uri) {
 // ─────────────────────────────────────────────────────────────
 const timeAgo = (dateStr) => {
   const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
-  if (diff < 60) return 'just now';
+  if (diff < 60) return "just now";
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
@@ -88,22 +94,20 @@ export const VoicePostCard = React.memo(({ post }) => {
             />
           ) : (
             <View style={[cardStyles.avatar, cardStyles.anonAvatar]}>
-              <EyeOff size={16} color="#9CA3AF" strokeWidth={2} />
+              <HatGlasses size={16} color={COLORS.primary} strokeWidth={2} />
             </View>
           )}
         </View>
         <View style={{ flex: 1 }}>
           <Text style={cardStyles.authorName}>
-            {isAnon ? 'Anonymous' : (post.author_name || 'Member')}
+            {isAnon ? "Anonymous" : post.author_name || "Member"}
           </Text>
           <Text style={cardStyles.timestamp}>{timeAgo(post.created_at)}</Text>
         </View>
       </View>
 
       {/* Content */}
-      {!!post.caption && (
-        <Text style={cardStyles.content}>{post.caption}</Text>
-      )}
+      {!!post.caption && <Text style={cardStyles.content}>{post.caption}</Text>}
 
       {/* Image */}
       {Array.isArray(post.image_urls) && post.image_urls.length > 0 && (
@@ -123,21 +127,41 @@ export const VoicePostCard = React.memo(({ post }) => {
 // ─────────────────────────────────────────────────────────────
 export default function CommunityVoiceBox({
   targetId,
-  targetType,       // 'community' | 'member'
-  currentUser,      // { profile_photo_url, name, full_name }
-  onPostCreated,    // (post) => void — called after a successful submission
+  targetType, // 'community' | 'member'
+  currentUser, // { profile_photo_url, name, full_name }
+  onPostCreated, // (post) => void — called after a successful submission
 }) {
   const [composerVisible, setComposerVisible] = useState(false);
-  const [text, setText] = useState('');
+  const [text, setText] = useState("");
   const [imageUri, setImageUri] = useState(null);
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
+  const [pickerVisible, setPickerVisible] = useState(false);
   const inputRef = useRef(null);
 
   const charCount = text.length;
   const MAX_CHARS = 500;
   const canPost = (text.trim().length > 0 || imageUri) && !submitting;
+
+  // Fetch active logged in user's profile
+  useEffect(() => {
+    async function loadOwnProfile() {
+      try {
+        const token = await getAuthToken();
+        if (token) {
+          const res = await apiGet("/members/profile", 10000, token);
+          if (res?.profile) {
+            setUserProfile(res.profile);
+          }
+        }
+      } catch (e) {
+        console.warn("[CommunityVoiceBox] loadOwnProfile error:", e);
+      }
+    }
+    loadOwnProfile();
+  }, []);
 
   // ── Open composer ──────────────────────────────────────────
   const openComposer = useCallback(() => {
@@ -149,7 +173,7 @@ export default function CommunityVoiceBox({
   // ── Close & reset ──────────────────────────────────────────
   const closeComposer = useCallback(() => {
     setComposerVisible(false);
-    setText('');
+    setText("");
     setImageUri(null);
     setIsAnonymous(false);
   }, []);
@@ -158,21 +182,19 @@ export default function CommunityVoiceBox({
   const pickImage = useCallback(async () => {
     HapticsService.triggerImpactLight();
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') return;
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        quality: 0.8,
-        aspect: [4, 3],
-      });
-
-      if (!result.canceled && result.assets?.[0]?.uri) {
-        setImageUri(result.assets[0].uri);
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status === "granted") {
+        setPickerVisible(true);
       }
     } catch (e) {
-      console.warn('[VoiceBox] pickImage error:', e);
+      console.warn("[VoiceBox] pickImage error:", e);
+    }
+  }, []);
+
+  const handlePickerDone = useCallback((selectedAssets) => {
+    setPickerVisible(false);
+    if (selectedAssets && selectedAssets.length > 0) {
+      setImageUri(selectedAssets[0].uri);
     }
   }, []);
 
@@ -193,7 +215,7 @@ export default function CommunityVoiceBox({
       }
 
       const res = await apiPost(
-        '/community-voice-posts',
+        "/community-voice-posts",
         {
           target_id: targetId,
           target_type: targetType,
@@ -202,7 +224,7 @@ export default function CommunityVoiceBox({
           is_anonymous: isAnonymous,
         },
         10000,
-        token
+        token,
       );
 
       if (res?.success && res?.post) {
@@ -211,15 +233,25 @@ export default function CommunityVoiceBox({
         HapticsService.triggerNotificationSuccess();
       }
     } catch (e) {
-      console.error('[VoiceBox] submit error:', e);
+      console.error("[VoiceBox] submit error:", e);
     } finally {
       setSubmitting(false);
       setUploadingImage(false);
     }
-  }, [canPost, targetId, targetType, text, imageUri, isAnonymous, onPostCreated, closeComposer]);
+  }, [
+    canPost,
+    targetId,
+    targetType,
+    text,
+    imageUri,
+    isAnonymous,
+    onPostCreated,
+    closeComposer,
+  ]);
 
   // ── Avatar for the trigger bar ─────────────────────────────
-  const avatarUri = currentUser?.profile_photo_url;
+  const resolvedUser = userProfile || currentUser;
+  const avatarUri = resolvedUser?.profile_photo_url;
 
   return (
     <>
@@ -241,7 +273,9 @@ export default function CommunityVoiceBox({
           ) : (
             <View style={[styles.avatar, styles.avatarFallback]}>
               <Text style={styles.avatarInitial}>
-                {(currentUser?.name || currentUser?.full_name || 'U')[0].toUpperCase()}
+                {(resolvedUser?.name ||
+                  resolvedUser?.full_name ||
+                  "U")[0].toUpperCase()}
               </Text>
             </View>
           )}
@@ -265,141 +299,181 @@ export default function CommunityVoiceBox({
         presentationStyle="pageSheet"
         onRequestClose={closeComposer}
       >
-        <KeyboardAvoidingView
-          style={styles.modal}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-        >
-          {/* Header */}
-          <View style={styles.modalHeader}>
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={closeComposer}
-              hitSlop={12}
-            >
-              <X size={20} color={COLORS.textPrimary} strokeWidth={2} />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Share a Thought</Text>
-            <TouchableOpacity
-              style={[styles.postBtn, !canPost && styles.postBtnDisabled]}
-              onPress={handleSubmit}
-              disabled={!canPost}
-            >
-              {submitting ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.postBtnText}>Post</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView
-            style={styles.modalBody}
-            contentContainerStyle={{ paddingBottom: 40 }}
-            keyboardShouldPersistTaps="handled"
+        <SafeAreaView style={styles.safeArea} edges={["top"]}>
+          <KeyboardAvoidingView
+            style={styles.modal}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
           >
-            {/* Author identity row */}
-            <View style={styles.authorRow}>
-              <View style={styles.avatarWrap}>
-                {!isAnonymous && avatarUri ? (
-                  <ExpoImage
-                    source={{ uri: avatarUri }}
-                    style={styles.avatar}
-                    cachePolicy="memory-disk"
-                    contentFit="cover"
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={closeComposer}
+                hitSlop={12}
+              >
+                <X size={20} color={COLORS.textPrimary} strokeWidth={2} />
+              </TouchableOpacity>
+              <Text style={styles.modalTitle}>Share a Thought</Text>
+              <TouchableOpacity
+                style={[styles.postBtn, !canPost && styles.postBtnDisabled]}
+                onPress={handleSubmit}
+                disabled={!canPost}
+              >
+                {submitting ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={canPost ? "#fff" : "#9CA3AF"}
                   />
                 ) : (
-                  <View style={[styles.avatar, isAnonymous ? styles.anonAvatar : styles.avatarFallback]}>
-                    {isAnonymous ? (
-                      <EyeOff size={16} color="#9CA3AF" strokeWidth={2} />
-                    ) : (
-                      <Text style={styles.avatarInitial}>
-                        {(currentUser?.name || currentUser?.full_name || 'U')[0].toUpperCase()}
-                      </Text>
-                    )}
-                  </View>
-                )}
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.authorName}>
-                  {isAnonymous ? 'Anonymous' : (currentUser?.name || currentUser?.full_name || 'You')}
-                </Text>
-                {/* Identity toggle */}
-                <TouchableOpacity
-                  style={styles.anonToggle}
-                  onPress={() => {
-                    HapticsService.triggerImpactLight();
-                    setIsAnonymous((v) => !v);
-                  }}
-                >
-                  {isAnonymous ? (
-                    <Eye size={12} color={COLORS.primary} strokeWidth={2} />
-                  ) : (
-                    <EyeOff size={12} color={COLORS.textSecondary} strokeWidth={2} />
-                  )}
-                  <Text style={[styles.anonLabel, isAnonymous && { color: COLORS.primary }]}>
-                    {isAnonymous ? 'Posting anonymously' : 'Post anonymously'}
+                  <Text
+                    style={[
+                      styles.postBtnText,
+                      !canPost && styles.postBtnTextDisabled,
+                    ]}
+                  >
+                    Post
                   </Text>
-                </TouchableOpacity>
-              </View>
+                )}
+              </TouchableOpacity>
             </View>
 
-            {/* Text input */}
-            <TextInput
-              ref={inputRef}
-              style={styles.textInput}
-              placeholder="Share what's on your mind…"
-              placeholderTextColor={COLORS.textMuted}
-              value={text}
-              onChangeText={(t) => {
-                if (t.length <= MAX_CHARS) setText(t);
-              }}
-              multiline
-              maxLength={MAX_CHARS}
-              autoFocus
-              textAlignVertical="top"
-              selectionColor={COLORS.primary}
-            />
-
-            {/* Char count */}
-            <Text style={[
-              styles.charCount,
-              charCount > MAX_CHARS * 0.9 && { color: '#E53935' },
-            ]}>
-              {charCount}/{MAX_CHARS}
-            </Text>
-
-            {/* Attached image preview */}
-            {imageUri && (
-              <View style={styles.imagePreviewWrap}>
-                <Image source={{ uri: imageUri }} style={styles.imagePreview} />
-                <TouchableOpacity
-                  style={styles.removeImgBtn}
-                  onPress={() => setImageUri(null)}
-                  hitSlop={8}
-                >
-                  <X size={14} color="#fff" strokeWidth={2.5} />
-                </TouchableOpacity>
-              </View>
-            )}
-          </ScrollView>
-
-          {/* Toolbar */}
-          <View style={styles.toolbar}>
-            <TouchableOpacity
-              style={styles.toolbarBtn}
-              onPress={pickImage}
-              disabled={uploadingImage}
+            <ScrollView
+              style={styles.modalBody}
+              contentContainerStyle={{ paddingBottom: 120 }}
+              keyboardShouldPersistTaps="handled"
             >
-              {uploadingImage ? (
-                <ActivityIndicator size="small" color={COLORS.primary} />
-              ) : (
-                <ImagePlus size={22} color={COLORS.primary} strokeWidth={2} />
+              {/* Author identity row */}
+              <View style={styles.authorRow}>
+                <View style={styles.avatarWrap}>
+                  {!isAnonymous && avatarUri ? (
+                    <ExpoImage
+                      source={{ uri: avatarUri }}
+                      style={styles.avatar}
+                      cachePolicy="memory-disk"
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <View style={[styles.avatar, styles.anonAvatar]}>
+                      <HatGlasses
+                        size={18}
+                        color={COLORS.primary}
+                        strokeWidth={2}
+                      />
+                    </View>
+                  )}
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.authorName}>
+                    {isAnonymous
+                      ? "Anonymous"
+                      : resolvedUser?.name || resolvedUser?.full_name || "You"}
+                  </Text>
+                  <Text style={styles.authorSub}>
+                    {isAnonymous ? "Posting anonymously" : "Posting publicly"}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Dedicated toggle row below the author row */}
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleLeft}>
+                  <HatGlasses
+                    size={18}
+                    color={isAnonymous ? COLORS.primary : COLORS.textSecondary}
+                    strokeWidth={2}
+                  />
+                  <Text style={styles.toggleText}>Post Anonymously</Text>
+                </View>
+                <Switch
+                  trackColor={{
+                    false: "#E5E5EA",
+                    true: "rgba(41, 98, 255, 0.3)",
+                  }}
+                  thumbColor={isAnonymous ? COLORS.primary : "#FFFFFF"}
+                  ios_backgroundColor="#E5E5EA"
+                  onValueChange={(value) => {
+                    HapticsService.triggerImpactLight();
+                    setIsAnonymous(value);
+                  }}
+                  value={isAnonymous}
+                />
+              </View>
+
+              {/* Text input */}
+              <TextInput
+                ref={inputRef}
+                style={styles.textInput}
+                placeholder="Share what's on your mind…"
+                placeholderTextColor={COLORS.textMuted}
+                value={text}
+                onChangeText={(t) => {
+                  if (t.length <= MAX_CHARS) setText(t);
+                }}
+                multiline
+                maxLength={MAX_CHARS}
+                autoFocus
+                textAlignVertical="top"
+                selectionColor={COLORS.primary}
+              />
+
+              {/* Char count */}
+              <Text
+                style={[
+                  styles.charCount,
+                  charCount > MAX_CHARS * 0.9 && { color: "#E53935" },
+                ]}
+              >
+                {charCount}/{MAX_CHARS}
+              </Text>
+
+              {/* Attached image preview */}
+              {imageUri && (
+                <View style={styles.imagePreviewWrap}>
+                  <Image
+                    source={{ uri: imageUri }}
+                    style={styles.imagePreview}
+                  />
+                  <TouchableOpacity
+                    style={styles.removeImgBtn}
+                    onPress={() => setImageUri(null)}
+                    hitSlop={8}
+                  >
+                    <X size={14} color="#fff" strokeWidth={2.5} />
+                  </TouchableOpacity>
+                </View>
               )}
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
+            </ScrollView>
+          </KeyboardAvoidingView>
+
+          {/* Toolbar outside KeyboardAvoidingView using KeyboardAwareToolbar */}
+          <KeyboardAwareToolbar>
+            <View style={styles.toolbar}>
+              <TouchableOpacity
+                style={styles.toolbarBtn}
+                onPress={pickImage}
+                disabled={uploadingImage}
+              >
+                {uploadingImage ? (
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                ) : (
+                  <ImagePlus size={22} color={COLORS.primary} strokeWidth={2} />
+                )}
+              </TouchableOpacity>
+            </View>
+          </KeyboardAwareToolbar>
+        </SafeAreaView>
+
+        {/* Custom Image Picker Modal */}
+        <CustomImagePicker
+          visible={pickerVisible}
+          onClose={() => setPickerVisible(false)}
+          onDone={handlePickerDone}
+          selectionLimit={1}
+          allowVideos={false}
+          allowImages={true}
+        />
       </Modal>
     </>
   );
@@ -411,9 +485,9 @@ export default function CommunityVoiceBox({
 const styles = StyleSheet.create({
   // ── Trigger row ──
   triggerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     borderRadius: 20,
     marginHorizontal: 16,
     marginVertical: 10,
@@ -426,7 +500,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   avatar: {
     width: 38,
@@ -435,22 +509,22 @@ const styles = StyleSheet.create({
   },
   avatarFallback: {
     backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   anonAvatar: {
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarInitial: {
     fontFamily: FONTS.primary,
     fontSize: 16,
-    color: '#fff',
+    color: "#fff",
   },
   placeholderBox: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: "#F3F4F6",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -464,33 +538,38 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(41,98,255,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(41,98,255,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   // ── Modal ──
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
   modal: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: "#F3F4F6",
     gap: 12,
+    backgroundColor: "#fff",
   },
   closeBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#F3F4F6",
+    alignItems: "center",
+    justifyContent: "center",
   },
   modalTitle: {
     flex: 1,
@@ -504,23 +583,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 9,
     minWidth: 64,
-    alignItems: 'center',
+    alignItems: "center",
   },
   postBtnDisabled: {
-    backgroundColor: '#D1D5DB',
+    backgroundColor: "#F3F4F6",
   },
   postBtnText: {
     fontFamily: FONTS.semiBold,
-    fontSize: 14,
-    color: '#fff',
+    fontSize: 16,
+    color: "#fff",
+  },
+  postBtnTextDisabled: {
+    color: "#9CA3AF",
   },
   modalBody: {
     flex: 1,
     paddingHorizontal: 16,
+    backgroundColor: "#FAF8F5",
   },
   authorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     paddingTop: 16,
     paddingBottom: 12,
@@ -529,17 +612,36 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.primary,
     fontSize: 15,
     color: COLORS.textPrimary,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  anonToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  anonLabel: {
-    fontFamily: FONTS.medium,
+  authorSub: {
+    fontFamily: FONTS.regular,
     fontSize: 12,
     color: COLORS.textSecondary,
+  },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 14,
+    marginTop: 4,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#EAE6DF",
+    ...SHADOWS.sm,
+  },
+  toggleLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  toggleText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.textPrimary,
   },
   textInput: {
     fontFamily: FONTS.regular,
@@ -547,22 +649,22 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: COLORS.textPrimary,
     minHeight: 120,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
     paddingTop: 0,
   },
   charCount: {
     fontFamily: FONTS.medium,
     fontSize: 12,
     color: COLORS.textMuted,
-    textAlign: 'right',
+    textAlign: "right",
     marginTop: 8,
   },
   imagePreviewWrap: {
     marginTop: 16,
     borderRadius: 16,
-    overflow: 'hidden',
-    position: 'relative',
-    alignSelf: 'flex-start',
+    overflow: "hidden",
+    position: "relative",
+    alignSelf: "flex-start",
   },
   imagePreview: {
     width: 200,
@@ -570,32 +672,32 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   removeImgBtn: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     right: 8,
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: "#F3F4F6",
     gap: 12,
+    backgroundColor: "#fff",
   },
   toolbarBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(41,98,255,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
 
@@ -604,7 +706,7 @@ const styles = StyleSheet.create({
 // ─────────────────────────────────────────────────────────────
 const cardStyles = StyleSheet.create({
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 20,
     padding: 16,
     marginHorizontal: 16,
@@ -612,8 +714,8 @@ const cardStyles = StyleSheet.create({
     ...SHADOWS.sm,
   },
   authorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     marginBottom: 10,
   },
@@ -621,7 +723,7 @@ const cardStyles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   avatar: {
     width: 36,
@@ -629,9 +731,9 @@ const cardStyles = StyleSheet.create({
     borderRadius: 18,
   },
   anonAvatar: {
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   authorName: {
     fontFamily: FONTS.primary,
@@ -651,7 +753,7 @@ const cardStyles = StyleSheet.create({
     marginBottom: 8,
   },
   postImage: {
-    width: '100%',
+    width: "100%",
     height: 200,
     borderRadius: 12,
     marginTop: 4,

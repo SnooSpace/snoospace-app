@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, TouchableWithoutFeedback, Platform, ScrollView } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, TouchableWithoutFeedback, Platform, ScrollView, Alert } from "react-native";
 import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
 import CustomDatePicker from "../ui/CustomDatePicker";
-import { Ionicons } from "@expo/vector-icons";
+import { X, Calendar } from "lucide-react-native";
+import { BlurView } from "expo-blur";
 import SnooLoader from "../ui/SnooLoader";
 
 const PollEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
@@ -48,6 +49,28 @@ const PollEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
     setExpiresAt(null);
   };
 
+  const handleEndInstantly = () => {
+    Alert.alert(
+      "End Poll Instantly",
+      "Are you sure you want to end this poll instantly? People will no longer be able to vote.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "End Instantly",
+          style: "destructive",
+          onPress: () => {
+            const updates = {};
+            if (question.trim() !== post.type_data?.question) {
+              updates.question = question.trim();
+            }
+            updates.expires_at = new Date().toISOString();
+            onSave(updates);
+          },
+        },
+      ]
+    );
+  };
+
   const formatDate = (date) => {
     if (!date) return "No deadline";
     return date.toLocaleDateString("en-US", {
@@ -70,19 +93,25 @@ const PollEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
     >
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.overlay}>
+          {Platform.OS === 'ios' ? (
+            <BlurView intensity={25} style={StyleSheet.absoluteFill} tint="dark" />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0, 0, 0, 0.5)" }]} />
+          )}
           <TouchableWithoutFeedback>
             <View style={styles.modalContainer}>
               {/* Header */}
               <View style={styles.header}>
                 <Text style={styles.title}>Edit Poll</Text>
                 <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                  <Ionicons name="close" size={24} color="#1D1D1F" />
+                  <X size={24} color="#1D1D1F" />
                 </TouchableOpacity>
               </View>
 
               {/* Content */}
               <ScrollView
                 style={styles.content}
+                contentContainerStyle={styles.contentContainer}
                 showsVerticalScrollIndicator={false}
               >
                 {/* Question Input */}
@@ -107,8 +136,7 @@ const PollEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
                     style={styles.dateButton}
                     onPress={() => setShowDatePicker(true)}
                   >
-                    <Ionicons
-                      name="calendar-outline"
+                    <Calendar
                       size={20}
                       color="#5B6B7C"
                     />
@@ -122,6 +150,14 @@ const PollEditModal = ({ visible, onClose, post, onSave, isLoading }) => {
                       style={styles.clearButton}
                     >
                       <Text style={styles.clearButtonText}>Clear Deadline</Text>
+                    </TouchableOpacity>
+                  )}
+                  {!post?.expires_at && (
+                    <TouchableOpacity
+                      onPress={handleEndInstantly}
+                      style={styles.endInstantlyButton}
+                    >
+                      <Text style={styles.endInstantlyButtonText}>End Poll Instantly</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -189,6 +225,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F2F2F7",
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   title: {
     fontSize: 20,
@@ -199,6 +240,9 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   content: {
+    backgroundColor: "#FFFFFF",
+  },
+  contentContainer: {
     padding: 20,
   },
   inputGroup: {
@@ -214,6 +258,7 @@ const styles = StyleSheet.create({
   textInput: {
     borderWidth: 1,
     borderColor: "#E5E5EA",
+    backgroundColor: "#F2F2F7",
     borderRadius: 12,
     padding: 12,
     fontSize: 15,
@@ -233,6 +278,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#E5E5EA",
+    backgroundColor: "#F2F2F7",
     borderRadius: 12,
     padding: 12,
     gap: 8,
@@ -256,6 +302,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#F2F2F7",
+    backgroundColor: "#FFFFFF",
+    borderBottomLeftRadius: 16,
+    borderBottomRightRadius: 16,
   },
   button: {
     flex: 1,
@@ -267,6 +318,8 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     backgroundColor: "#F2F2F7",
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
   },
   cancelButtonText: {
     fontSize: 16,
@@ -276,14 +329,42 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: "#007AFF",
+    shadowColor: "#007AFF",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 2,
   },
   saveButtonDisabled: {
     backgroundColor: "#B0D4FF",
+    shadowOpacity: 0,
+    elevation: 0,
   },
   saveButtonText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
+    fontFamily: FONTS.semiBold,
+  },
+  endInstantlyButton: {
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FCA5A5",
+    backgroundColor: "#FEF2F2",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#EF4444",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  endInstantlyButtonText: {
+    fontSize: 14,
+    color: "#EF4444",
     fontFamily: FONTS.semiBold,
   },
 });
