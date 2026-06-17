@@ -1815,7 +1815,13 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                       <SnooLoader size="small" color={COLORS.primary} />
                     </View>
                   ) : (
-                    voicePosts.map((vp) => <VoicePostCard key={vp.id} post={vp} />)
+                    voicePosts.map((vp) => (
+                      <VoicePostCard
+                        key={vp.id}
+                        post={vp}
+                        onComment={(postId) => openCommentsModal(postId)}
+                      />
+                    ))
                   )}
 
                   {sortedPosts.length === 0 && voicePosts.length === 0 && !loadingVoicePosts && (

@@ -211,8 +211,48 @@ const getSavedPosts = async (req, res) => {
       console.warn("[getSavedPosts] Could not fetch saved opportunities:", oppErr.message);
     }
 
+    const parsedPosts = postsResult.rows.map((row) => {
+      const typeData = (() => {
+        try {
+          if (!row.type_data) return {};
+          if (typeof row.type_data === "object") return row.type_data;
+          return JSON.parse(row.type_data);
+        } catch {
+          return {};
+        }
+      })();
+      const isAnon = typeData.is_anonymous === true;
+      const isOwn = String(row.author_id) === String(userId) && row.author_type === userType;
+
+      const updated = {
+        ...row,
+        type_data: typeData,
+        image_urls: (() => {
+          try {
+            if (!row.image_urls) return [];
+            if (Array.isArray(row.image_urls)) return row.image_urls;
+            const parsed = JSON.parse(row.image_urls);
+            return Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            return row.image_urls ? [row.image_urls] : [];
+          }
+        })(),
+      };
+
+      if (isAnon) {
+        updated.author_name = "Anonymous";
+        updated.author_username = null;
+        updated.author_photo_url = null;
+        if (!isOwn) {
+          updated.author_id = null;
+          updated.author_type = null;
+        }
+      }
+      return updated;
+    });
+
     // Merge and sort by saved_at descending
-    const allSaved = [...postsResult.rows, ...savedOpps].sort(
+    const allSaved = [...parsedPosts, ...savedOpps].sort(
       (a, b) => new Date(b.saved_at) - new Date(a.saved_at),
     );
 

@@ -1653,7 +1653,13 @@ export default function MemberProfileScreen({ navigation }) {
                 <SnooLoader size="small" color={COLORS.primary} />
               </View>
             ) : (
-              voicePosts.map((vp) => <VoicePostCard key={vp.id} post={vp} />)
+              voicePosts.map((vp) => (
+                <VoicePostCard
+                  key={vp.id}
+                  post={vp}
+                  onComment={(postId) => openCommentsModal(postId)}
+                />
+              ))
             )}
 
             {posts.filter((p) => ['poll', 'prompt', 'qna', 'challenge', 'opportunity'].includes(p.post_type || p.type)).length === 0 &&

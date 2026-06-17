@@ -25,6 +25,8 @@ import {
   Modal,
   ScrollView,
   Switch,
+  Dimensions,
+  Alert,
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -38,13 +40,17 @@ import {
   Eye,
   ChevronDown,
   HatGlasses,
+  Heart,
+  MessageCircle,
+  Bookmark,
 } from "lucide-react-native";
 import { COLORS, FONTS, SHADOWS } from "../constants/theme";
 import HapticsService from "../services/HapticsService";
 import { getAuthToken, getActiveAccount } from "../api/auth";
-import { apiGet, apiPost } from "../api/client";
+import { apiGet, apiPost, apiDelete, savePost, unsavePost } from "../api/client";
 import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
 import CustomImagePicker from "./CustomImagePicker";
+import EventBus from "../utils/EventBus";
 
 // Cloudinary direct upload helper
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
@@ -78,8 +84,135 @@ const timeAgo = (dateStr) => {
 // ─────────────────────────────────────────────────────────────
 // Voice Post Card (renders posted voice posts in the feed)
 // ─────────────────────────────────────────────────────────────
-export const VoicePostCard = React.memo(({ post }) => {
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CARD_PADDING = 16;
+const CARD_MARGIN = 16;
+const CARD_CONTENT_WIDTH = SCREEN_WIDTH - (CARD_MARGIN * 2) - (CARD_PADDING * 2);
+
+// ─────────────────────────────────────────────────────────────
+// Voice Post Card (renders posted voice posts in the feed)
+// ─────────────────────────────────────────────────────────────
+export const VoicePostCard = React.memo(({ post, onComment }) => {
   const isAnon = post?.type_data?.is_anonymous;
+
+  const [isLiked, setIsLiked] = useState(post?.is_liked === true);
+  const [likeCount, setLikeCount] = useState(post?.like_count || 0);
+  const [isLiking, setIsLiking] = useState(false);
+
+  const [isSaved, setIsSaved] = useState(post?.is_saved === true);
+  const [saveCount, setSaveCount] = useState(post?.save_count || post?.saves_count || 0);
+
+  // Sync state when post prop changes
+  useEffect(() => {
+    setIsLiked(post?.is_liked === true);
+    setLikeCount(post?.like_count || 0);
+    setIsSaved(post?.is_saved === true);
+    setSaveCount(post?.save_count || post?.saves_count || 0);
+  }, [post?.is_liked, post?.like_count, post?.is_saved, post?.save_count, post?.saves_count]);
+
+  // Sync via EventBus
+  useEffect(() => {
+    const handleLikeUpdate = (payload) => {
+      if (payload.postId === post.id) {
+        setIsLiked(payload.isLiked);
+        setLikeCount(payload.likeCount);
+      }
+    };
+    const handleSaveUpdate = (payload) => {
+      if (payload.postId === post.id) {
+        setIsSaved(payload.isSaved);
+        setSaveCount(payload.saveCount);
+      }
+    };
+
+    const unsubLike = EventBus.on("post-like-updated", handleLikeUpdate);
+    const unsubSave = EventBus.on("post-save-updated", handleSaveUpdate);
+
+    return () => {
+      unsubLike();
+      unsubSave();
+    };
+  }, [post.id]);
+
+  const handleLike = async () => {
+    if (isLiking) return;
+    const prevLiked = isLiked;
+    const prevLikeCount = likeCount;
+    const nextLiked = !prevLiked;
+    const delta = nextLiked ? 1 : -1;
+    const nextLikes = Math.max(0, prevLikeCount + delta);
+
+    setIsLiked(nextLiked);
+    setLikeCount(nextLikes);
+
+    setIsLiking(true);
+    try {
+      const token = await getAuthToken();
+      if (nextLiked) {
+        await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
+      } else {
+        await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
+      }
+      EventBus.emit("post-like-updated", {
+        postId: post.id,
+        isLiked: nextLiked,
+        likeCount: nextLikes,
+      });
+    } catch (error) {
+      console.error("Error liking voice post:", error);
+      setIsLiked(prevLiked);
+      setLikeCount(prevLikeCount);
+    } finally {
+      setIsLiking(false);
+    }
+  };
+
+  const handleSave = async () => {
+    const newSaveState = !isSaved;
+    const prevSaveCount = saveCount;
+    const nextSaveCount = Math.max(0, saveCount + (newSaveState ? 1 : -1));
+
+    setIsSaved(newSaveState);
+    setSaveCount(nextSaveCount);
+
+    try {
+      const token = await getAuthToken();
+      if (newSaveState) {
+        await savePost(post.id, token);
+      } else {
+        await unsavePost(post.id, token);
+      }
+      EventBus.emit("post-save-updated", {
+        postId: post.id,
+        isSaved: newSaveState,
+        saveCount: nextSaveCount,
+      });
+    } catch (error) {
+      console.error("Failed to save/unsave voice post:", error);
+      setIsSaved(!newSaveState);
+      setSaveCount(prevSaveCount);
+    }
+  };
+
+  const handleCommentPress = () => {
+    if (onComment) {
+      onComment(post.id);
+    }
+  };
+
+  const handleShare = () => {
+    Alert.alert("Share", "Sharing option coming soon!");
+  };
+
+  const rawAspectRatio = post?.aspect_ratios;
+  const firstAspectRatio = Array.isArray(rawAspectRatio)
+    ? rawAspectRatio[0] || 4 / 5
+    : typeof rawAspectRatio === "number"
+      ? rawAspectRatio
+      : 4 / 5;
+
+  const imageHeight = CARD_CONTENT_WIDTH / firstAspectRatio;
+
   return (
     <View style={cardStyles.card}>
       {/* Author row */}
@@ -113,11 +246,70 @@ export const VoicePostCard = React.memo(({ post }) => {
       {Array.isArray(post.image_urls) && post.image_urls.length > 0 && (
         <ExpoImage
           source={{ uri: post.image_urls[0] }}
-          style={cardStyles.postImage}
+          style={[cardStyles.postImage, { height: imageHeight }]}
           cachePolicy="memory-disk"
           contentFit="cover"
         />
       )}
+
+      {/* Divider */}
+      <View style={cardStyles.divider} />
+
+      {/* Engagement Row */}
+      <View style={cardStyles.engagementRow}>
+        {/* Like */}
+        <Pressable
+          style={cardStyles.engagementButton}
+          onPress={handleLike}
+          disabled={isLiking}
+        >
+          <Heart
+            size={18}
+            color={isLiked ? COLORS.error : COLORS.textSecondary}
+            fill={isLiked ? COLORS.error : "transparent"}
+          />
+          {likeCount > 0 && (
+            <Text style={[cardStyles.engagementCount, isLiked && cardStyles.likedCount]}>
+              {likeCount}
+            </Text>
+          )}
+        </Pressable>
+
+        {/* Comment */}
+        <Pressable style={cardStyles.engagementButton} onPress={handleCommentPress}>
+          <MessageCircle
+            size={18}
+            color={COLORS.textSecondary}
+          />
+          {post.comment_count > 0 && (
+            <Text style={cardStyles.engagementCount}>
+              {post.comment_count}
+            </Text>
+          )}
+        </Pressable>
+
+        {/* Share */}
+        <Pressable style={cardStyles.engagementButton} onPress={handleShare}>
+          <Send
+            size={18}
+            color={COLORS.textSecondary}
+          />
+        </Pressable>
+
+        {/* Bookmark */}
+        <Pressable style={cardStyles.engagementButton} onPress={handleSave}>
+          <Bookmark
+            size={18}
+            color={COLORS.textSecondary}
+            fill={isSaved ? COLORS.textSecondary : "transparent"}
+          />
+          {saveCount > 0 && (
+            <Text style={cardStyles.engagementCount}>
+              {saveCount}
+            </Text>
+          )}
+        </Pressable>
+      </View>
     </View>
   );
 });
@@ -134,6 +326,7 @@ export default function CommunityVoiceBox({
   const [composerVisible, setComposerVisible] = useState(false);
   const [text, setText] = useState("");
   const [imageUri, setImageUri] = useState(null);
+  const [aspectRatio, setAspectRatio] = useState(null);
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -180,6 +373,7 @@ export default function CommunityVoiceBox({
     setComposerVisible(false);
     setText("");
     setImageUri(null);
+    setAspectRatio(null);
     setIsAnonymous(false);
   }, []);
 
@@ -199,7 +393,15 @@ export default function CommunityVoiceBox({
   const handlePickerDone = useCallback((selectedAssets) => {
     setPickerVisible(false);
     if (selectedAssets && selectedAssets.length > 0) {
-      setImageUri(selectedAssets[0].uri);
+      const asset = selectedAssets[0];
+      setImageUri(asset.uri);
+      if (asset.width && asset.height) {
+        setAspectRatio(asset.width / asset.height);
+      } else {
+        Image.getSize(asset.uri, (w, h) => {
+          setAspectRatio(w / h);
+        });
+      }
     }
   }, []);
 
@@ -227,6 +429,7 @@ export default function CommunityVoiceBox({
           content: text.trim() || null,
           image_url: uploadedImageUrl,
           is_anonymous: isAnonymous,
+          aspect_ratio: aspectRatio,
         },
         10000,
         token,
@@ -250,6 +453,7 @@ export default function CommunityVoiceBox({
     text,
     imageUri,
     isAnonymous,
+    aspectRatio,
     onPostCreated,
     closeComposer,
   ]);
@@ -704,7 +908,6 @@ const styles = StyleSheet.create({
   },
 });
 
-// ─────────────────────────────────────────────────────────────
 // VoicePostCard styles
 // ─────────────────────────────────────────────────────────────
 const cardStyles = StyleSheet.create({
@@ -756,8 +959,34 @@ const cardStyles = StyleSheet.create({
   },
   postImage: {
     width: "100%",
-    height: 200,
     borderRadius: 12,
     marginTop: 4,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    marginVertical: 12,
+  },
+  engagementRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 4,
+  },
+  engagementButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 32,
+    minWidth: 32,
+    justifyContent: "center",
+    gap: 6,
+  },
+  engagementCount: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  likedCount: {
+    color: COLORS.error,
   },
 });

@@ -722,6 +722,19 @@ const getFeed = async (req, res) => {
           })(),
         };
 
+        const isAnon = parsedPost.type_data?.is_anonymous === true;
+        const isOwn = String(parsedPost.author_id) === String(viewerId) && parsedPost.author_type === viewerType;
+
+        if (isAnon) {
+          parsedPost.author_name = "Anonymous";
+          parsedPost.author_username = null;
+          parsedPost.author_photo_url = null;
+          if (!isOwn) {
+            parsedPost.author_id = null;
+            parsedPost.author_type = null;
+          }
+        }
+
         // Extract video data with HLS streaming support
         const videoIndex = findVideoIndex(parsedPost.media_types);
         if (videoIndex !== -1 && parsedPost.image_urls[videoIndex]) {
@@ -1169,7 +1182,29 @@ const getExplore = async (req, res) => {
             return null;
           }
         })(),
+        type_data: (() => {
+          try {
+            if (!post.type_data) return {};
+            if (typeof post.type_data === "object") return post.type_data;
+            return JSON.parse(post.type_data);
+          } catch {
+            return {};
+          }
+        })(),
       };
+
+      const isAnon = parsedPost.type_data?.is_anonymous === true;
+      const isOwn = String(parsedPost.author_id) === String(userId) && parsedPost.author_type === userType;
+
+      if (isAnon) {
+        parsedPost.author_name = "Anonymous";
+        parsedPost.author_username = null;
+        parsedPost.author_photo_url = null;
+        if (!isOwn) {
+          parsedPost.author_id = null;
+          parsedPost.author_type = null;
+        }
+      }
 
       // Extract video data with HLS streaming support
       const videoIndex = findVideoIndex(parsedPost.media_types);
@@ -1529,6 +1564,28 @@ const getPost = async (req, res) => {
       }
     } catch { cropMetadataArr = null; }
 
+    // Parse type_data
+    try {
+      if (!post.type_data) post.type_data = {};
+      else if (typeof post.type_data === "object") { /* already parsed */ }
+      else post.type_data = JSON.parse(post.type_data);
+    } catch {
+      post.type_data = {};
+    }
+
+    const isAnon = post.type_data?.is_anonymous === true;
+    const isOwn = String(post.author_id) === String(userId) && post.author_type === userType;
+
+    if (isAnon) {
+      post.author_name = "Anonymous";
+      post.author_username = null;
+      post.author_photo_url = null;
+      if (!isOwn) {
+        post.author_id = null;
+        post.author_type = null;
+      }
+    }
+
     // Extract video data with HLS streaming support
     const videoIndex = findVideoIndex(post.media_types);
     if (videoIndex !== -1 && post.image_urls[videoIndex]) {
@@ -1655,6 +1712,10 @@ const getUserPosts = async (req, res) => {
       LEFT JOIN sponsors s ON p.author_type = 'sponsor' AND p.author_id = s.id
       LEFT JOIN venues v ON p.author_type = 'venue' AND p.author_id = v.id
       WHERE p.author_id = $1 AND p.author_type = $2
+        AND (
+          (p.type_data->>'is_anonymous')::boolean IS DISTINCT FROM true
+          OR ($3::int = $1::int AND $4::text = $2::text)
+        )
       ${cursorCondition}
       ORDER BY COALESCE(p.is_pinned, FALSE) DESC, p.created_at DESC
       LIMIT ${parsedLimit + 1}
@@ -1725,7 +1786,29 @@ const getUserPosts = async (req, res) => {
             return null;
           }
         })(),
+        type_data: (() => {
+          try {
+            if (!post.type_data) return {};
+            if (typeof post.type_data === "object") return post.type_data;
+            return JSON.parse(post.type_data);
+          } catch {
+            return {};
+          }
+        })(),
       };
+
+      const isAnon = parsedPost.type_data?.is_anonymous === true;
+      const isOwn = String(parsedPost.author_id) === String(viewerId) && parsedPost.author_type === viewerType;
+
+      if (isAnon) {
+        parsedPost.author_name = "Anonymous";
+        parsedPost.author_username = null;
+        parsedPost.author_photo_url = null;
+        if (!isOwn) {
+          parsedPost.author_id = null;
+          parsedPost.author_type = null;
+        }
+      }
 
       // Extract video data with HLS streaming support
       const videoIndex = findVideoIndex(parsedPost.media_types);

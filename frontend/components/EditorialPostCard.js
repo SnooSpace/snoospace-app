@@ -46,6 +46,7 @@ import {
   CheckCircle2,
   XCircle,
   Info,
+  HatGlasses,
 } from "lucide-react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import AnimatedReanimated, {
@@ -328,6 +329,8 @@ const EditorialPostCard = ({
     JSON.stringify(post.image_urls),
     `→ normalised count=${imageUrls.length}`,
   );
+
+  const isAnon = post.type_data?.is_anonymous === true || post.is_anonymous === true;
 
   // Check if post has media and determine type
   const hasMedia = imageUrls.length > 0;
@@ -755,34 +758,45 @@ const EditorialPostCard = ({
           onPress={handleUserPress}
           activeOpacity={0.7}
         >
-          <Image
-            source={
-              post.author_photo_url
-                ? { uri: post.author_photo_url }
-                : {
-                    uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                      post.author_name || "U",
-                    )}&background=E5E7EB&color=6B7280&size=88`,
-                  }
-            }
-            style={styles.profileImage}
-          />
+          {!isAnon && post.author_photo_url ? (
+            <Image
+              source={{ uri: post.author_photo_url }}
+              style={styles.profileImage}
+            />
+          ) : !isAnon ? (
+            <Image
+              source={{
+                uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                  post.author_name || "U",
+                )}&background=E5E7EB&color=6B7280&size=88`,
+              }}
+              style={styles.profileImage}
+            />
+          ) : (
+            <View style={styles.anonProfileImage}>
+              <HatGlasses size={18} color={COLORS.primary} strokeWidth={2} />
+            </View>
+          )}
           <View style={styles.authorTextContainer}>
             <View style={styles.authorNameRow}>
               <Text style={styles.displayName} numberOfLines={1}>
                 {post.author_name || "Unknown"}
               </Text>
-              {post.is_verified && (
+              {post.is_verified && !isAnon && (
                 <View style={styles.verifiedBadge}>
                   <Text style={styles.verifiedIcon}>✓</Text>
                 </View>
               )}
             </View>
             <View style={styles.usernameRow}>
-              <Text style={styles.username} numberOfLines={1}>
-                @{post.author_username || "user"}
-              </Text>
-              <Text style={styles.separator}>•</Text>
+              {!isAnon && (
+                <>
+                  <Text style={styles.username} numberOfLines={1}>
+                    @{post.author_username || "user"}
+                  </Text>
+                  <Text style={styles.separator}>•</Text>
+                </>
+              )}
               <Text style={styles.timestamp}>
                 {formatTimeAgo(post.created_at)}
               </Text>
@@ -791,7 +805,7 @@ const EditorialPostCard = ({
         </TouchableOpacity>
 
         {/* Follow Button */}
-        {showFollowButton && !isOwnPost && (
+        {showFollowButton && !isOwnPost && !isAnon && (
           <FollowButton
             userId={post.author_id}
             userType={post.author_type}
@@ -1187,6 +1201,14 @@ const styles = StyleSheet.create({
     height: EDITORIAL_SPACING.profileImageSize,
     borderRadius: EDITORIAL_SPACING.profileImageSize / 2,
     backgroundColor: COLORS.editorial.mediaPlaceholder,
+  },
+  anonProfileImage: {
+    width: EDITORIAL_SPACING.profileImageSize,
+    height: EDITORIAL_SPACING.profileImageSize,
+    borderRadius: EDITORIAL_SPACING.profileImageSize / 2,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   authorTextContainer: {
     flex: 1,

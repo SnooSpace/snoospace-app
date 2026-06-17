@@ -27,6 +27,7 @@ const createVoicePost = async (req, res) => {
       content,
       image_url,
       is_anonymous = false,
+      aspect_ratio = null,
     } = req.body;
 
     if (!target_id || !target_type) {
@@ -71,17 +72,22 @@ const createVoicePost = async (req, res) => {
 
     const imageUrls = image_url ? JSON.stringify([image_url]) : '[]';
 
+    const aspectRatios = aspect_ratio ? JSON.stringify([parseFloat(aspect_ratio)]) : null;
+    const mediaTypes = image_url ? JSON.stringify(['image']) : null;
+
     const result = await pool.query(
       `INSERT INTO posts (
-        author_id, author_type, post_type, caption, image_urls, type_data, status
+        author_id, author_type, post_type, caption, image_urls, aspect_ratios, media_types, type_data, status
       )
-      VALUES ($1, $2, 'community_voice', $3, $4::jsonb, $5, 'active')
+      VALUES ($1, $2, 'community_voice', $3, $4::jsonb, $5::jsonb, $6::jsonb, $7, 'active')
       RETURNING id, created_at`,
       [
         userId,
         userType,
         content?.trim() || null,
         imageUrls,
+        aspectRatios,
+        mediaTypes,
         JSON.stringify(typeData),
       ]
     );
@@ -133,6 +139,8 @@ const createVoicePost = async (req, res) => {
         post_type: 'community_voice',
         caption: content?.trim() || null,
         image_urls: image_url ? [image_url] : [],
+        aspect_ratios: aspect_ratio ? [parseFloat(aspect_ratio)] : null,
+        media_types: image_url ? ['image'] : null,
         type_data: typeData,
         like_count: 0,
         comment_count: 0,
