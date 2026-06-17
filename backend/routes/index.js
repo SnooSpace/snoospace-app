@@ -52,6 +52,7 @@ const planEngagementRouter = require('./planEngagement');
 const userPlansRouter    = require('./userPlans');
 const blocksRouter       = require('./blocks');
 const verificationsRouter = require('./verifications');
+const BlocksController = require('../controllers/blocksController');
 
 const router = express.Router();
 
@@ -559,6 +560,16 @@ router.get(
   "/communities/:id/public",
   authMiddleware,
   CommunityController.getPublicCommunity,
+);
+router.post(
+  "/communities/:id/block",
+  authMiddleware,
+  BlocksController.blockCommunity,
+);
+router.delete(
+  "/communities/:id/block",
+  authMiddleware,
+  BlocksController.unblockCommunity,
 );
 router.get(
   "/communities/:communityId/opportunities",

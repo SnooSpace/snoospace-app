@@ -241,6 +241,15 @@ async function ensureTables(pool) {
         created_at TIMESTAMPTZ DEFAULT NOW(),
         UNIQUE(follower_id, follower_type, following_id, following_type)
       );
+
+      -- Community blocks table
+      CREATE TABLE IF NOT EXISTS community_blocks (
+        id BIGSERIAL PRIMARY KEY,
+        blocker_id BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        blocked_community_id BIGINT NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (blocker_id, blocked_community_id)
+      );
       
       -- Events table
       CREATE TABLE IF NOT EXISTS events (

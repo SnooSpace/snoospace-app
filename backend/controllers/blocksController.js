@@ -136,4 +136,59 @@ async function getBlocks(req, res) {
   }
 }
 
-module.exports = { blockUser, unblockUser, getBlocks };
+// ---------------------------------------------------------------------------
+// POST /communities/:id/block
+// ---------------------------------------------------------------------------
+async function blockCommunity(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const blockerId = req.user.id;
+    const blockedCommunityId = parseInt(req.params.id, 10);
+
+    // Verify target community exists
+    const communityR = await pool.query(`SELECT id FROM communities WHERE id = $1`, [blockedCommunityId]);
+    if (communityR.rows.length === 0) return res.status(404).json({ error: 'Community not found' });
+
+    await pool.query(
+      `INSERT INTO community_blocks (blocker_id, blocked_community_id)
+       VALUES ($1, $2)
+       ON CONFLICT (blocker_id, blocked_community_id) DO NOTHING`,
+      [blockerId, blockedCommunityId]
+    );
+
+    // Auto-remove follows
+    await pool.query(
+      `DELETE FROM follows
+       WHERE follower_id = $1 AND follower_type = 'member' AND following_id = $2 AND following_type = 'community'`,
+      [blockerId, blockedCommunityId]
+    );
+
+    res.json({ blocked: true });
+  } catch (err) {
+    console.error('[blocksController.blockCommunity]', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DELETE /communities/:id/block
+// ---------------------------------------------------------------------------
+async function unblockCommunity(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const blockerId = req.user.id;
+    const blockedCommunityId = parseInt(req.params.id, 10);
+
+    await pool.query(
+      `DELETE FROM community_blocks WHERE blocker_id = $1 AND blocked_community_id = $2`,
+      [blockerId, blockedCommunityId]
+    );
+
+    res.json({ blocked: false });
+  } catch (err) {
+    console.error('[blocksController.unblockCommunity]', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+}
+
+module.exports = { blockUser, unblockUser, getBlocks, blockCommunity, unblockCommunity };

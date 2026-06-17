@@ -103,3 +103,13 @@ export async function updateCommunityHeads(heads) {
   return apiPatch('/communities/heads', { heads }, 15000, token);
 }
 
+export async function blockCommunity(communityId, token) {
+  if (!token) token = await getAuthToken();
+  return apiPost(`/communities/${communityId}/block`, {}, 15000, token);
+}
+
+export async function unblockCommunity(communityId, token) {
+  if (!token) token = await getAuthToken();
+  return apiDelete(`/communities/${communityId}/block`, null, 15000, token);
+}
+

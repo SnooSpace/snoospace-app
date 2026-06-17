@@ -887,6 +887,18 @@ async function getPublicCommunity(req, res) {
       isFollowing = isFollowingR.rows.length > 0;
     }
 
+    // Check if user has blocked this community
+    let youHaveBlocked = false;
+    if (authUserId) {
+      const blockCheck = await pool.query(
+        `SELECT 1 FROM community_blocks 
+         WHERE blocker_id = $1 AND blocked_community_id = $2 
+         LIMIT 1`,
+        [authUserId, targetId]
+      );
+      youHaveBlocked = blockCheck.rows.length > 0;
+    }
+
     // Fetch college info if this is a college-affiliated community
     let collegeInfo = null;
     if (profile.community_type === 'college_affiliated') {
@@ -1013,6 +1025,7 @@ async function getPublicCommunity(req, res) {
       banner_url: profile.banner_url,
       show_heads: profile.show_heads !== false, // default true
       college_info: collegeInfo,
+      you_have_blocked: youHaveBlocked,
     });
   } catch (err) {
     console.error(

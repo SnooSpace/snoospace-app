@@ -44,7 +44,13 @@ import {
   Phone,
   User,
   Pin,
+  ShieldOff,
+  CalendarDays,
+  UserX,
+  AlertTriangle,
+  CheckCircle,
 } from "lucide-react-native";
+import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import DynamicStatusBar from "../../../components/DynamicStatusBar";
 import GradientSafeArea from "../../../components/GradientSafeArea";
 import CollegeChip from "../../../components/CollegeChip";
@@ -57,6 +63,8 @@ import {
   getCommunityPosts,
   followCommunity,
   unfollowCommunity,
+  blockCommunity,
+  unblockCommunity,
 } from "../../../api/communities";
 import { getCommunityPublicEvents } from "../../../api/events";
 import {
@@ -604,6 +612,110 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const [posts, setPosts] = useState([]);
   const [currentUserRole, setCurrentUserRole] = useState(null);
 
+  const [menuVisible, setMenuVisible] = useState(false);
+  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (menuVisible) {
+      slideAnim.setValue(0);
+      Animated.spring(slideAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    }
+  }, [menuVisible]);
+
+  const sheetTranslateY = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [300, 0],
+  });
+
+  const [blocking, setBlocking] = useState(false);
+  const [unblocking, setUnblocking] = useState(false);
+  const [youHaveBlocked, setYouHaveBlocked] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    icon: null,
+    iconColor: undefined,
+    primaryAction: null,
+    secondaryAction: null,
+  });
+
+  const showAlert = useCallback((config) => setAlertConfig({ ...config, visible: true }), []);
+  const hideAlert = useCallback(() => setAlertConfig((p) => ({ ...p, visible: false })), []);
+
+  const handleBlockCommunity = useCallback(async () => {
+    setMenuVisible(false);
+    setTimeout(() => {
+      const communityName = profile?.name || "this community";
+      showAlert({
+        title: `Block ${communityName}?`,
+        message: "You won't see posts, events, or opportunities from this community. You can unblock them anytime.",
+        icon: UserX,
+        iconColor: "#E53935",
+        secondaryAction: { text: "Cancel", onPress: hideAlert },
+        primaryAction: {
+          text: "Block",
+          style: "destructive",
+          onPress: async () => {
+            hideAlert();
+            try {
+              setBlocking(true);
+              const token = await getAuthToken();
+              await blockCommunity(communityId, token);
+              showAlert({
+                title: "Blocked",
+                message: `${communityName} has been blocked.`,
+                icon: CheckCircle,
+                iconColor: "#34C759",
+                primaryAction: {
+                  text: "OK",
+                  onPress: () => {
+                    hideAlert();
+                    navigation.goBack();
+                  },
+                },
+              });
+            } catch (err) {
+              showAlert({
+                title: "Error",
+                message: err?.message || "Failed to block community. Please try again.",
+                primaryAction: { text: "OK", onPress: hideAlert },
+                icon: AlertTriangle,
+                iconColor: "#E53935",
+              });
+            } finally {
+              setBlocking(false);
+            }
+          },
+        },
+      });
+    }, 300);
+  }, [communityId, profile, navigation, showAlert, hideAlert]);
+
+  const handleUnblockCommunity = useCallback(async () => {
+    try {
+      setUnblocking(true);
+      const token = await getAuthToken();
+      await unblockCommunity(communityId, token);
+      setYouHaveBlocked(false);
+    } catch (err) {
+      showAlert({
+        title: "Error",
+        message: err?.message || "Failed to unblock. Please try again.",
+        primaryAction: { text: "OK", onPress: hideAlert },
+        icon: AlertTriangle,
+        iconColor: "#E53935",
+      });
+    } finally {
+      setUnblocking(false);
+    }
+  }, [communityId, showAlert, hideAlert]);
+
   useEffect(() => {
     async function checkUserRole() {
       try {
@@ -726,6 +838,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         category: normalizedCategories[0] || p?.category || null,
       });
       setIsFollowing(!!p?.is_following);
+      setYouHaveBlocked(!!p?.you_have_blocked);
     } catch (e) {
       setError(e?.message || "Failed to load profile");
     }
@@ -1245,6 +1358,24 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         <ArrowLeft size={24} color="#1D1D1F" />
       </TouchableOpacity>
 
+      {!loading && !error && !(currentUserRole === "community" && String(profile?.id) === String(currentUserId)) && (
+        <TouchableOpacity
+          onPress={() => setMenuVisible(true)}
+          style={[
+            styles.backBtn,
+            {
+              position: "absolute",
+              top: insets.top + 8,
+              right: 16,
+              zIndex: 1100,
+            },
+          ]}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <MoreVertical size={24} color="#1D1D1F" />
+        </TouchableOpacity>
+      )}
+
       <Animated.ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
@@ -1268,8 +1399,26 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           />
         }
       >
+        {/* You've blocked this community banner */}
+        {youHaveBlocked && !loading && (
+          <View style={[blockBannerStyles.banner, { marginTop: insets.top + 48 }]}>
+            <View style={blockBannerStyles.left}>
+              <ShieldOff size={18} color="#BE123C" strokeWidth={2} style={{ marginRight: 8 }} />
+              <Text style={blockBannerStyles.text}>You've blocked this community</Text>
+            </View>
+            <TouchableOpacity
+              style={blockBannerStyles.btn}
+              onPress={handleUnblockCommunity}
+              disabled={unblocking}
+              activeOpacity={0.75}
+            >
+              <Text style={blockBannerStyles.btnText}>{unblocking ? 'Unblocking…' : 'Unblock'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Banner - only render if banner exists */}
-        {profile?.banner_url && (
+        {profile?.banner_url && !youHaveBlocked && (
           <View style={styles.bannerContainer}>
             <Image
               source={{ uri: profile.banner_url }}
@@ -1283,6 +1432,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           style={[
             styles.summarySection,
             !profile?.banner_url && { paddingTop: insets.top + 60 },
+            youHaveBlocked && { paddingTop: 20 },
           ]}
         >
           <View
@@ -2133,6 +2283,144 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* Options/Block Bottom Sheet */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="none"
+        onRequestClose={() => setMenuVisible(false)}
+      >
+        <Pressable style={menuStyles.overlay} onPress={() => setMenuVisible(false)}>
+          <Animated.View
+            style={[menuStyles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
+              <View style={menuStyles.handle} />
+              {profile?.created_at && (() => {
+                const createdDate = new Date(profile.created_at);
+                const accountAge = Math.max(0, Math.floor((Date.now() - createdDate.getTime()) / 86400000));
+                const joinDate = createdDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                return (
+                  <>
+                    <View style={menuStyles.row}>
+                      <View style={[menuStyles.iconBox, { backgroundColor: 'rgba(59,130,246,0.08)' }]}>
+                        <CalendarDays size={20} color="#3B82F6" strokeWidth={2} />
+                      </View>
+                      <View style={menuStyles.rowText}>
+                        <Text style={[menuStyles.rowLabel, { color: COLORS.textPrimary, fontFamily: FONTS.semiBold }]}>
+                          {accountAge}d
+                        </Text>
+                        <Text style={[menuStyles.rowSub, { fontFamily: FONTS.regular }]}>
+                          Joined on {joinDate}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{ height: 1, backgroundColor: '#F3F4F6', marginVertical: 8 }} />
+                  </>
+                );
+              })()}
+              <TouchableOpacity
+                style={menuStyles.row}
+                onPress={youHaveBlocked ? () => { setMenuVisible(false); handleUnblockCommunity(); } : handleBlockCommunity}
+                activeOpacity={0.7}
+                disabled={blocking || unblocking}
+              >
+                <View style={[menuStyles.iconBox, youHaveBlocked && { backgroundColor: 'rgba(53,101,242,0.08)' }]}>
+                  {youHaveBlocked
+                    ? <ShieldOff size={20} color="#3565F2" strokeWidth={2.5} />
+                    : <UserX size={20} color="#E53935" strokeWidth={2.5} />}
+                </View>
+                <View style={menuStyles.rowText}>
+                  <Text style={[menuStyles.rowLabel, { fontFamily: FONTS.semiBold }, youHaveBlocked && { color: '#3565F2' }]}>
+                    {youHaveBlocked ? 'Unblock Community' : 'Block Community'}
+                  </Text>
+                  <Text style={[menuStyles.rowSub, { fontFamily: FONTS.regular }]}>
+                    {youHaveBlocked ? 'Remove block and restore access' : "You won't see their posts, events, or opportunities"}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Modal>
+
+      <CustomAlertModal onClose={hideAlert} {...alertConfig} />
     </View>
   );
 }
+
+const menuStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 40,
+  },
+  handle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: '#E0E0E0',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  iconBox: {
+    width: 44, height: 44, borderRadius: 12,
+    backgroundColor: 'rgba(229,57,53,0.08)',
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 14,
+  },
+  rowText: { flex: 1 },
+  rowLabel: {
+    fontSize: 16,
+    color: '#E53935',
+  },
+  rowSub: {
+    fontSize: 12,
+    color: '#8FA1B8',
+    marginTop: 2,
+  },
+});
+
+const blockBannerStyles = StyleSheet.create({
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFF1F2',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FFE4E6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  left: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  text: {
+    fontFamily: 'Manrope-Medium',
+    fontSize: 13,
+    color: '#BE123C',
+    flexShrink: 1,
+  },
+  btn: {
+    backgroundColor: '#E11D48',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginLeft: 12,
+  },
+  btnText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 13,
+    color: '#FFFFFF',
+  },
+});
