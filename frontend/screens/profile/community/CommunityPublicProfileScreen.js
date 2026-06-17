@@ -1647,8 +1647,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
         <View style={styles.postsSection}>
           {/* Posts Tab - Media Only (Images/Videos) */}
-          {activeTab === "posts" &&
-            (() => {
+          <View style={{ display: activeTab === "posts" ? "flex" : "none" }}>
+            {(() => {
               const INTERACTIVE_TYPES = [
                 "poll",
                 "prompt",
@@ -1693,10 +1693,11 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 <EmptyPostsState isOwnProfile={false} />
               );
             })()}
+          </View>
 
           {/* Community Tab - Interactive Posts + Voice Box */}
-          {activeTab === "community" &&
-            (() => {
+          <View style={{ display: activeTab === "community" ? "flex" : "none" }}>
+            {(() => {
               const interactivePosts = posts.filter((p) => {
                 const postType = p.post_type || p.type;
                 return [
@@ -1823,10 +1824,11 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 </View>
               );
             })()}
+          </View>
 
           {/* Events Tab */}
-          {activeTab === "events" &&
-            (() => {
+          <View style={{ display: activeTab === "events" ? "flex" : "none" }}>
+            {(() => {
               if (communityEvents.length === 0) {
                 return <EmptyEventsState isOwnProfile={false} />;
               }
@@ -1839,8 +1841,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                       event={item}
                       onPress={(eventData) =>
                         navigation.navigate("EventDetails", {
-                          eventId: eventData.id,
-                          eventData: eventData,
+                          eventId: item.id,
+                          eventData: item,
                         })
                       }
                     />
@@ -1848,6 +1850,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 </View>
               );
             })()}
+          </View>
         </View>
       </Animated.ScrollView>
       {selectedPost && (

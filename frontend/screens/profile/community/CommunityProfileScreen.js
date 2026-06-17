@@ -1978,8 +1978,8 @@ export default function CommunityProfileScreen({ navigation }) {
 
         <View style={styles.postsSection}>
           {/* Posts Tab - Media Only (Images/Videos) */}
-          {activeTab === "posts" &&
-            (() => {
+          <View style={{ display: activeTab === "posts" ? "flex" : "none" }}>
+            {(() => {
               const mediaPosts = posts.filter((p) => {
                 // Exclude interactive post types from Posts tab
                 const postType = p.post_type || p.type;
@@ -2040,10 +2040,11 @@ export default function CommunityProfileScreen({ navigation }) {
                 />
               );
             })()}
+          </View>
 
           {/* Community Tab - Interactive Posts + Voice Box */}
-          {activeTab === "community" &&
-            (() => {
+          <View style={{ display: activeTab === "community" ? "flex" : "none" }}>
+            {(() => {
               const interactivePosts = posts.filter((p) => {
                 const postType = p.post_type || p.type;
                 return [
@@ -2195,10 +2196,11 @@ export default function CommunityProfileScreen({ navigation }) {
                 </View>
               );
             })()}
+          </View>
 
           {/* Events Tab */}
-          {activeTab === "events" &&
-            (() => {
+          <View style={{ display: activeTab === "events" ? "flex" : "none" }}>
+            {(() => {
               if (communityEvents.length === 0) {
                 return (
                   <EmptyEventsState
@@ -2225,6 +2227,7 @@ export default function CommunityProfileScreen({ navigation }) {
                 </View>
               );
             })()}
+          </View>
         </View>
       </Animated.ScrollView>
 

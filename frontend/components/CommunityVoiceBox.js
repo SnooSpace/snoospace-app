@@ -41,7 +41,7 @@ import {
 } from "lucide-react-native";
 import { COLORS, FONTS, SHADOWS } from "../constants/theme";
 import HapticsService from "../services/HapticsService";
-import { getAuthToken } from "../api/auth";
+import { getAuthToken, getActiveAccount } from "../api/auth";
 import { apiGet, apiPost } from "../api/client";
 import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
 import CustomImagePicker from "./CustomImagePicker";
@@ -151,7 +151,12 @@ export default function CommunityVoiceBox({
       try {
         const token = await getAuthToken();
         if (token) {
-          const res = await apiGet("/members/profile", 10000, token);
+          const account = await getActiveAccount();
+          const endpoint =
+            account?.type === "community"
+              ? "/communities/profile"
+              : "/members/profile";
+          const res = await apiGet(endpoint, 10000, token);
           if (res?.profile) {
             setUserProfile(res.profile);
           }
@@ -251,7 +256,7 @@ export default function CommunityVoiceBox({
 
   // ── Avatar for the trigger bar ─────────────────────────────
   const resolvedUser = userProfile || currentUser;
-  const avatarUri = resolvedUser?.profile_photo_url;
+  const avatarUri = resolvedUser?.profile_photo_url || resolvedUser?.logo_url;
 
   return (
     <>
@@ -488,13 +493,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#fff",
-    borderRadius: 20,
+    borderRadius: 16,
     marginHorizontal: 16,
-    marginVertical: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    gap: 10,
-    ...SHADOWS.sm,
+    marginTop: 16,
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
   },
   avatarWrap: {
     width: 38,
@@ -687,10 +692,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
     gap: 12,
-    backgroundColor: "#fff",
+    backgroundColor: "transparent",
   },
   toolbarBtn: {
     width: 40,
@@ -711,7 +714,6 @@ const cardStyles = StyleSheet.create({
     padding: 16,
     marginHorizontal: 16,
     marginBottom: 12,
-    ...SHADOWS.sm,
   },
   authorRow: {
     flexDirection: "row",

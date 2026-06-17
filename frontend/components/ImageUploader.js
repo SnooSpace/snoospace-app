@@ -1525,9 +1525,9 @@ const ImageUploader = forwardRef(
                 {/* Author Row */}
                 <View style={styles.authorRow}>
                   <View style={styles.authorInfo}>
-                    {currentUser?.profile_photo_url ? (
+                    {currentUser?.profile_photo_url || currentUser?.logo_url ? (
                       <Image
-                        source={{ uri: currentUser.profile_photo_url }}
+                        source={{ uri: currentUser.profile_photo_url || currentUser.logo_url }}
                         style={styles.profileImage}
                       />
                     ) : (
