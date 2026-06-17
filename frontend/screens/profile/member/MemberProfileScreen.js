@@ -355,9 +355,6 @@ const MemberPostGridCell = React.memo(({ item, index, itemSize, onPress, onLongP
 
 export default function MemberProfileScreen({ navigation }) {
   const route = useRoute();
-  console.log(
-    "[Profile] MemberProfileScreen component function START (mount or render)",
-  );
   const { showToast } = useToast();
   const [profile, setProfile] = useState(null);
   const [posts, setPosts] = useState([]);
@@ -435,6 +432,12 @@ export default function MemberProfileScreen({ navigation }) {
 
   const handleTabLayout = (tab, event) => {
     const { x, width } = event.nativeEvent.layout;
+    if (width <= 0 || !Number.isFinite(x) || !Number.isFinite(width)) {
+      return;
+    }
+    
+    if (tabOffsets[tab] === x && tabWidths[tab] === width) return;
+
     tabOffsets[tab] = x;
     tabWidths[tab] = width;
 
@@ -925,9 +928,6 @@ export default function MemberProfileScreen({ navigation }) {
       // Check route params for refresh flag from EditProfile
       const params = route.params;
       if (params?.refreshProfile === true) {
-        console.log(
-          "[Profile] Navigation listener: returning from EditProfile with changes, reloading profile",
-        );
         if (loadProfileRef.current) {
           loadProfileRef.current();
         }

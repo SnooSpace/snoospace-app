@@ -923,6 +923,12 @@ export default function CommunityProfileScreen({ navigation, route }) {
 
   const handleTabLayout = (tab, event) => {
     const { x, width } = event.nativeEvent.layout;
+    if (width <= 0 || !Number.isFinite(x) || !Number.isFinite(width)) {
+      return;
+    }
+    
+    if (tabOffsets[tab] === x && tabWidths[tab] === width) return;
+
     tabOffsets[tab] = x;
     tabWidths[tab] = width;
 
@@ -981,9 +987,6 @@ export default function CommunityProfileScreen({ navigation, route }) {
       // Check route params for refresh flag from EditCommunityProfile
       const params = route.params;
       if (params?.refreshProfile === true) {
-        console.log(
-          "[CommunityProfile] Navigation listener: returning from EditCommunityProfile with changes, reloading profile",
-        );
         loadProfile();
         // Clear the param to avoid reloading again
         navigation.setParams({ refreshProfile: undefined });
