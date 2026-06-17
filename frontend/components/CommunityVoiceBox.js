@@ -52,6 +52,7 @@ import { apiGet, apiPost, apiDelete, savePost, unsavePost } from "../api/client"
 import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
 import CustomImagePicker from "./CustomImagePicker";
 import EventBus from "../utils/EventBus";
+import ShareModal from "./ShareModal";
 
 // Cloudinary direct upload helper
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
@@ -104,6 +105,8 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
   const [saveCount, setSaveCount] = useState(post?.save_count || post?.saves_count || 0);
 
   const [viewCount, setViewCount] = useState(post?.public_view_count || post?.view_count || 0);
+  const [shareCount, setShareCount] = useState(post?.share_count || 0);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
 
   // Sync state when post prop changes
   useEffect(() => {
@@ -112,7 +115,8 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
     setIsSaved(post?.is_saved === true);
     setSaveCount(post?.save_count || post?.saves_count || 0);
     setViewCount(post?.public_view_count || post?.view_count || 0);
-  }, [post?.is_liked, post?.like_count, post?.is_saved, post?.save_count, post?.saves_count, post?.public_view_count, post?.view_count]);
+    setShareCount(post?.share_count || 0);
+  }, [post?.is_liked, post?.like_count, post?.is_saved, post?.save_count, post?.saves_count, post?.public_view_count, post?.view_count, post?.share_count]);
 
   // Sync via EventBus
   useEffect(() => {
@@ -133,15 +137,22 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
         setViewCount((prev) => prev + 1);
       }
     };
+    const handleShareUpdate = (payload) => {
+      if (payload.postId === post.id) {
+        setShareCount((prev) => prev + (payload.increment || 1));
+      }
+    };
 
     const unsubLike = EventBus.on("post-like-updated", handleLikeUpdate);
     const unsubSave = EventBus.on("post-save-updated", handleSaveUpdate);
     const unsubView = EventBus.on("post-view-updated", handleViewUpdate);
+    const unsubShare = EventBus.on("post-share-updated", handleShareUpdate);
 
     return () => {
       unsubLike();
       unsubSave();
       unsubView();
+      unsubShare();
     };
   }, [post.id]);
 
@@ -212,7 +223,7 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
   };
 
   const handleShare = () => {
-    Alert.alert("Share", "Sharing option coming soon!");
+    setShareModalVisible(true);
   };
 
   const rawAspectRatio = post?.aspect_ratios;
@@ -317,7 +328,7 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
             color={COLORS.textSecondary}
           />
           <Text style={cardStyles.engagementCount}>
-            {post.share_count || 0}
+            {shareCount}
           </Text>
         </Pressable>
 
@@ -336,6 +347,13 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
           )}
         </Pressable>
       </View>
+
+      {/* Share Modal */}
+      <ShareModal
+        visible={shareModalVisible}
+        post={post}
+        onClose={() => setShareModalVisible(false)}
+      />
     </View>
   );
 });

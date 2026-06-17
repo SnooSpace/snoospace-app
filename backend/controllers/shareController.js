@@ -72,7 +72,7 @@ const sharePost = async (req, res) => {
 
     // Verify post exists
     const postCheck = await pool.query(
-      "SELECT id, author_id, author_type, caption, image_urls FROM posts WHERE id = $1",
+      "SELECT id, author_id, author_type, caption, image_urls, type_data FROM posts WHERE id = $1",
       [postId],
     );
 
@@ -82,24 +82,39 @@ const sharePost = async (req, res) => {
 
     const post = postCheck.rows[0];
 
+    // Determine if anonymous from type_data
+    let typeData = {};
+    try {
+      if (post.type_data) {
+        typeData = typeof post.type_data === "object" ? post.type_data : JSON.parse(post.type_data);
+      }
+    } catch (e) {
+      typeData = {};
+    }
+    const isAnon = typeData.is_anonymous === true;
+
     // Also fetch author info so we can embed it in the metadata as a permanent fallback
     // (needed when the post is later deleted and we still want to show who posted it)
     let authorUsername = null;
     let authorName = null;
-    if (post.author_type === "member") {
-      const authorInfo = await pool.query(
-        "SELECT username, name FROM members WHERE id = $1",
-        [post.author_id],
-      );
-      authorUsername = authorInfo.rows[0]?.username || null;
-      authorName = authorInfo.rows[0]?.name || null;
-    } else if (post.author_type === "community") {
-      const authorInfo = await pool.query(
-        "SELECT username, name FROM communities WHERE id = $1",
-        [post.author_id],
-      );
-      authorUsername = authorInfo.rows[0]?.username || null;
-      authorName = authorInfo.rows[0]?.name || null;
+    if (!isAnon) {
+      if (post.author_type === "member") {
+        const authorInfo = await pool.query(
+          "SELECT username, name FROM members WHERE id = $1",
+          [post.author_id],
+        );
+        authorUsername = authorInfo.rows[0]?.username || null;
+        authorName = authorInfo.rows[0]?.name || null;
+      } else if (post.author_type === "community") {
+        const authorInfo = await pool.query(
+          "SELECT username, name FROM communities WHERE id = $1",
+          [post.author_id],
+        );
+        authorUsername = authorInfo.rows[0]?.username || null;
+        authorName = authorInfo.rows[0]?.name || null;
+      }
+    } else {
+      authorName = "Anonymous";
     }
 
     if (shareType === "copy_link") {
@@ -146,8 +161,8 @@ const sharePost = async (req, res) => {
 
     const postPreview = {
       postId: post.id,
-      authorId: post.author_id,
-      authorType: post.author_type,
+      authorId: isAnon ? null : post.author_id,
+      authorType: isAnon ? null : post.author_type,
       authorUsername,
       authorName,
       imageUrl: firstImageUrl,

@@ -158,6 +158,12 @@ const getConversations = async (req, res) => {
         (SELECT msg.message_type FROM messages msg
          WHERE msg.conversation_id = c.id
          ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_type,
+        (SELECT msg.sender_id FROM messages msg
+         WHERE msg.conversation_id = c.id
+         ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_sender_id,
+        (SELECT msg.sender_type FROM messages msg
+         WHERE msg.conversation_id = c.id
+         ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_sender_type,
         NULL                          AS muted_until,
         (SELECT COUNT(*) FROM messages msg
          WHERE msg.conversation_id = c.id
@@ -184,9 +190,27 @@ const getConversations = async (req, res) => {
       pool.query(groupQuery, [userId, userType]),
     ]);
 
-    const formatLastMessage = (text, type) => {
-      if (type === 'image') return '\ud83d\udcf7 Photo';
-      if (type === 'video') return '\ud83c\udfa5 Video';
+    const formatLastMessage = (text, type, iAmLastSender) => {
+      if (type === 'image') {
+        return iAmLastSender ? 'You sent a photo' : '📷 Photo';
+      }
+      if (type === 'video') {
+        return iAmLastSender ? 'You sent a video' : '📹 Video';
+      }
+      if (type === 'multi_media') {
+        return iAmLastSender ? 'You sent media' : '📷 Media';
+      }
+      if (type === 'post_share' || type === 'opportunity_share' || type === 'event_share') {
+        if (text === 'Shared a post with you' || text === 'Shared a post') {
+          return iAmLastSender ? 'You shared a post' : 'Shared a post with you';
+        }
+        if (text === 'Shared an opportunity with you' || text === 'Shared an opportunity') {
+          return iAmLastSender ? 'You shared an opportunity' : 'Shared an opportunity with you';
+        }
+        if (text === 'Shared an event' || text === 'Shared an event with you') {
+          return iAmLastSender ? 'You shared an event' : 'Shared an event';
+        }
+      }
       return text || null;
     };
 
@@ -198,7 +222,6 @@ const getConversations = async (req, res) => {
         String(conv.last_message_sender_id) === String(userId) &&
         conv.last_message_sender_type === userType;
       // Hide last message only when blocked by other AND current user did NOT send it
-      // (B sent it → show to B in their list; A blocked B → A should not see B's messages)
       const shouldHideLastMessage = isBlockedByOther && !iAmLastSender;
 
       return {
@@ -214,16 +237,14 @@ const getConversations = async (req, res) => {
         otherParticipant: conv.is_group ? null : {
           id:             conv.other_participant_id,
           type:           conv.other_participant_type,
-          // Anonymize identity if the other user has blocked the viewer
           name:           isBlockedByOther ? null : conv.other_participant_name,
           username:       isBlockedByOther ? null : conv.other_participant_username,
           profilePhotoUrl: isBlockedByOther ? null : conv.other_participant_photo,
           isBlockedByOther,
         },
-        // Hide the last message from A (who blocked B) — but show B their own sent message
         lastMessage:    shouldHideLastMessage
           ? null
-          : formatLastMessage(conv.last_message_text, conv.last_message_type),
+          : formatLastMessage(conv.last_message_text, conv.last_message_type, iAmLastSender),
         lastMessageAt:  conv.last_message_at,
         unreadCount:    parseInt(conv.unread_count) || 0,
         isMuted:        conv.is_muted === true || conv.is_muted === 't',
