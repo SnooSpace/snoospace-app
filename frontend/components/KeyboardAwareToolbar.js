@@ -22,7 +22,7 @@ import Animated, {
  * 3. Respects safe area via the offset prop when keyboard is closed
  */
 
-const KeyboardAwareToolbar = ({ children, style }) => {
+const KeyboardAwareToolbar = ({ children, style, onLayout }) => {
   const insets = useSafeAreaInsets();
   const keyboardHeight = useSharedValue(0);
 
@@ -65,7 +65,7 @@ const KeyboardAwareToolbar = ({ children, style }) => {
       }}
       style={[styles.container, style]}
     >
-      <Animated.View style={animatedWrapperStyle}>{children}</Animated.View>
+      <Animated.View onLayout={onLayout} style={animatedWrapperStyle}>{children}</Animated.View>
     </KeyboardStickyView>
   );
 };
