@@ -885,11 +885,11 @@ export default function EventCard({
             <View style={styles.engagementRow}>
               <TouchableOpacity style={styles.engagementBtn} onPress={handleLikePress} disabled={isLiking}>
                 <Heart size={22} color={isLiked ? COLORS.error : '#5e8d9b'} fill={isLiked ? COLORS.error : 'transparent'} strokeWidth={2} />
-                {likeCount > 0 && <Text style={[styles.engagementCount, isLiked && { color: COLORS.error }]}>{likeCount}</Text>}
+                <Text style={[styles.engagementCount, isLiked && { color: COLORS.error }]}>{likeCount}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.engagementBtn} onPress={handleCommentPress}>
                 <MessageCircle size={22} color="#5e8d9b" strokeWidth={2} />
-                {commentCount > 0 && <Text style={styles.engagementCount}>{commentCount}</Text>}
+                <Text style={styles.engagementCount}>{commentCount}</Text>
               </TouchableOpacity>
               <View style={styles.engagementBtn}>
                 <ChartNoAxesCombined size={22} color="#5e8d9b" strokeWidth={2} />
@@ -897,7 +897,7 @@ export default function EventCard({
               </View>
               <TouchableOpacity style={styles.engagementBtn} onPress={handleSharePress}>
                 <Send size={22} color="#5e8d9b" strokeWidth={2} />
-                {shareCount > 0 && <Text style={styles.engagementCount}>{shareCount}</Text>}
+                <Text style={styles.engagementCount}>{shareCount}</Text>
               </TouchableOpacity>
             </View>
           )}

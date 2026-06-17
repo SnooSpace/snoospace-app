@@ -43,6 +43,7 @@ import {
   Heart,
   MessageCircle,
   Bookmark,
+  ChartNoAxesCombined,
 } from "lucide-react-native";
 import { COLORS, FONTS, SHADOWS } from "../constants/theme";
 import HapticsService from "../services/HapticsService";
@@ -102,13 +103,16 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
   const [isSaved, setIsSaved] = useState(post?.is_saved === true);
   const [saveCount, setSaveCount] = useState(post?.save_count || post?.saves_count || 0);
 
+  const [viewCount, setViewCount] = useState(post?.public_view_count || post?.view_count || 0);
+
   // Sync state when post prop changes
   useEffect(() => {
     setIsLiked(post?.is_liked === true);
     setLikeCount(post?.like_count || 0);
     setIsSaved(post?.is_saved === true);
     setSaveCount(post?.save_count || post?.saves_count || 0);
-  }, [post?.is_liked, post?.like_count, post?.is_saved, post?.save_count, post?.saves_count]);
+    setViewCount(post?.public_view_count || post?.view_count || 0);
+  }, [post?.is_liked, post?.like_count, post?.is_saved, post?.save_count, post?.saves_count, post?.public_view_count, post?.view_count]);
 
   // Sync via EventBus
   useEffect(() => {
@@ -124,13 +128,20 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
         setSaveCount(payload.saveCount);
       }
     };
+    const handleViewUpdate = (payload) => {
+      if (payload.postId === post.id) {
+        setViewCount((prev) => prev + 1);
+      }
+    };
 
     const unsubLike = EventBus.on("post-like-updated", handleLikeUpdate);
     const unsubSave = EventBus.on("post-save-updated", handleSaveUpdate);
+    const unsubView = EventBus.on("post-view-updated", handleViewUpdate);
 
     return () => {
       unsubLike();
       unsubSave();
+      unsubView();
     };
   }, [post.id]);
 
@@ -264,42 +275,57 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
           disabled={isLiking}
         >
           <Heart
-            size={18}
+            size={20}
+            strokeWidth={2}
             color={isLiked ? COLORS.error : COLORS.textSecondary}
             fill={isLiked ? COLORS.error : "transparent"}
           />
-          {likeCount > 0 && (
-            <Text style={[cardStyles.engagementCount, isLiked && cardStyles.likedCount]}>
-              {likeCount}
-            </Text>
-          )}
+          <Text style={[cardStyles.engagementCount, isLiked && cardStyles.likedCount]}>
+            {likeCount}
+          </Text>
         </Pressable>
 
         {/* Comment */}
         <Pressable style={cardStyles.engagementButton} onPress={handleCommentPress}>
           <MessageCircle
-            size={18}
+            size={20}
+            strokeWidth={2}
             color={COLORS.textSecondary}
           />
-          {post.comment_count > 0 && (
-            <Text style={cardStyles.engagementCount}>
-              {post.comment_count}
-            </Text>
-          )}
+          <Text style={cardStyles.engagementCount}>
+            {post.comment_count || 0}
+          </Text>
+        </Pressable>
+
+        {/* Views */}
+        <Pressable style={cardStyles.engagementButton}>
+          <ChartNoAxesCombined
+            size={20}
+            strokeWidth={2}
+            color={COLORS.textSecondary}
+          />
+          <Text style={cardStyles.engagementCount}>
+            {viewCount}
+          </Text>
         </Pressable>
 
         {/* Share */}
         <Pressable style={cardStyles.engagementButton} onPress={handleShare}>
           <Send
-            size={18}
+            size={20}
+            strokeWidth={2}
             color={COLORS.textSecondary}
           />
+          <Text style={cardStyles.engagementCount}>
+            {post.share_count || 0}
+          </Text>
         </Pressable>
 
         {/* Bookmark */}
         <Pressable style={cardStyles.engagementButton} onPress={handleSave}>
           <Bookmark
-            size={18}
+            size={20}
+            strokeWidth={2}
             color={COLORS.textSecondary}
             fill={isSaved ? COLORS.textSecondary : "transparent"}
           />
@@ -976,14 +1002,14 @@ const cardStyles = StyleSheet.create({
   engagementButton: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: 32,
-    minWidth: 32,
+    minHeight: 40,
+    minWidth: 40,
     justifyContent: "center",
-    gap: 6,
+    gap: 8,
   },
   engagementCount: {
     fontFamily: FONTS.medium,
-    fontSize: 12,
+    fontSize: 13,
     color: COLORS.textSecondary,
   },
   likedCount: {

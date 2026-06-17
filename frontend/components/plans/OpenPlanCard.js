@@ -533,19 +533,15 @@ const OpenPlanCard = ({
               fill={isLiked ? COLORS.error : 'transparent'}
               strokeWidth={2}
             />
-            {likeCount > 0 && (
-              <Text style={[styles.engCount, isLiked && { color: COLORS.error }]}>
-                {fmt(likeCount)}
-              </Text>
-            )}
+            <Text style={[styles.engCount, isLiked && { color: COLORS.error }]}>
+              {fmt(likeCount)}
+            </Text>
           </TouchableOpacity>
 
           {/* Comment */}
           <TouchableOpacity style={styles.engBtn} onPress={handleComment}>
             <MessageCircle size={20} color="#5e8d9b" strokeWidth={2} />
-            {commentCount > 0 && (
-              <Text style={styles.engCount}>{fmt(commentCount)}</Text>
-            )}
+            <Text style={styles.engCount}>{fmt(commentCount)}</Text>
           </TouchableOpacity>
 
           {/* Views */}

@@ -1712,10 +1712,7 @@ const getUserPosts = async (req, res) => {
       LEFT JOIN sponsors s ON p.author_type = 'sponsor' AND p.author_id = s.id
       LEFT JOIN venues v ON p.author_type = 'venue' AND p.author_id = v.id
       WHERE p.author_id = $1 AND p.author_type = $2
-        AND (
-          (p.type_data->>'is_anonymous')::boolean IS DISTINCT FROM true
-          OR ($3::int = $1::int AND $4::text = $2::text)
-        )
+        AND p.post_type != 'community_voice'
       ${cursorCondition}
       ORDER BY COALESCE(p.is_pinned, FALSE) DESC, p.created_at DESC
       LIMIT ${parsedLimit + 1}

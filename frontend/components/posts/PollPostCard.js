@@ -751,13 +751,11 @@ const PollPostCard = ({
               color={isLiked ? COLORS.error : "#5e8d9b"}
               fill={isLiked ? COLORS.error : "transparent"}
             />
-            {likeCount > 0 && (
-              <Text
-                style={[styles.engagementCount, isLiked && styles.likedCount]}
-              >
-                {formatCount(likeCount)}
-              </Text>
-            )}
+            <Text
+              style={[styles.engagementCount, isLiked && styles.likedCount]}
+            >
+              {formatCount(likeCount)}
+            </Text>
           </TouchableOpacity>
 
           {/* Comment */}

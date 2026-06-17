@@ -1349,11 +1349,9 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
                           color={fullscreenImage.has_liked ? COLORS.error : COLORS.textPrimary}
                           fill={fullscreenImage.has_liked ? COLORS.error : "transparent"}
                         />
-                        {fullscreenImage.like_count > 0 && (
-                          <Text style={styles.detailActionText}>
-                            {fullscreenImage.like_count}
-                          </Text>
-                        )}
+                        <Text style={styles.detailActionText}>
+                          {fullscreenImage.like_count || 0}
+                        </Text>
                       </TouchableOpacity>
                       <TouchableOpacity style={styles.detailActionBtn}>
                         <MessageCircle size={24} color={COLORS.textPrimary} />
