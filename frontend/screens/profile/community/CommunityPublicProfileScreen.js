@@ -650,6 +650,43 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const [voicePosts, setVoicePosts] = useState([]);
   const [loadingVoicePosts, setLoadingVoicePosts] = useState(false);
   const communityVoiceFetchedRef = useRef(false);
+
+  const scrollViewRef = useRef(null);
+  const scrollToPostIdRef = useRef(route?.params?.postId);
+  const postsSectionYRef = useRef(0);
+  const interactiveListYRef = useRef(0);
+
+  const loadCommunityVoicePosts = useCallback(async () => {
+    if (!communityId) return;
+    try {
+      setLoadingVoicePosts(true);
+      const token = await getAuthToken();
+      const res = await apiGet(
+        `/community-voice-posts?target_id=${communityId}&target_type=community`,
+        15000,
+        token,
+      );
+      setVoicePosts(res?.posts || []);
+    } catch (e) {
+      console.warn('[CommunityPublicProfile] loadVoicePosts error:', e);
+    } finally {
+      setLoadingVoicePosts(false);
+    }
+  }, [communityId]);
+
+  useEffect(() => {
+    if (route?.params?.postId) {
+      scrollToPostIdRef.current = route.params.postId;
+    }
+    if (route?.params?.initialTab === "community") {
+      setActiveTab("community");
+      if (!communityVoiceFetchedRef.current) {
+        communityVoiceFetchedRef.current = true;
+        loadCommunityVoicePosts();
+      }
+      navigation.setParams({ initialTab: undefined, postId: undefined });
+    }
+  }, [route?.params?.initialTab, route?.params?.postId, loadCommunityVoicePosts, navigation]);
   const [tabLayouts, setTabLayouts] = useState({});
   // Tab underline animation (Reanimated)
   const tabUnderlineX = useSharedValue(0);
@@ -1209,6 +1246,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       </TouchableOpacity>
 
       <Animated.ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: 100 }}
         onScroll={Animated.event(
@@ -1607,22 +1645,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 // Lazy-load voice posts when Community tab first opened
                 if (tab === 'community' && !communityVoiceFetchedRef.current) {
                   communityVoiceFetchedRef.current = true;
-                  (async () => {
-                    try {
-                      setLoadingVoicePosts(true);
-                      const token = await getAuthToken();
-                      const res = await apiGet(
-                        `/community-voice-posts?target_id=${communityId}&target_type=community`,
-                        15000,
-                        token,
-                      );
-                      setVoicePosts(res?.posts || []);
-                    } catch (e) {
-                      console.warn('[CommunityPublicProfile] loadVoicePosts error:', e);
-                    } finally {
-                      setLoadingVoicePosts(false);
-                    }
-                  })();
+                  loadCommunityVoicePosts();
                 }
               }}
               onLayout={(e) => handleTabLayout(tab, e)}
@@ -1645,7 +1668,12 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           />
         </View>
 
-        <View style={styles.postsSection}>
+        <View
+          style={styles.postsSection}
+          onLayout={(e) => {
+            postsSectionYRef.current = e.nativeEvent.layout.y;
+          }}
+        >
           {/* Posts Tab - Media Only (Images/Videos) */}
           <View style={{ display: activeTab === "posts" ? "flex" : "none" }}>
             {(() => {
@@ -1730,12 +1758,30 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
                   {/* Community's own interactive posts */}
                   {sortedPosts.length > 0 && (
-                    <View style={styles.communityPostsList}>
+                    <View
+                      style={styles.communityPostsList}
+                      onLayout={(e) => {
+                        interactiveListYRef.current = e.nativeEvent.layout.y;
+                      }}
+                    >
                       {sortedPosts.map((post) => {
                         const postType = post.post_type || post.type;
                         const isOpportunity = postType === "opportunity";
                         return (
-                          <View key={post.id} style={styles.communityPostItem}>
+                          <View
+                            key={post.id}
+                            onLayout={(e) => {
+                              if (String(post.id) === String(scrollToPostIdRef.current)) {
+                                scrollToPostIdRef.current = null;
+                                const itemY = e.nativeEvent.layout.y;
+                                const targetY = postsSectionYRef.current + interactiveListYRef.current + itemY;
+                                setTimeout(() => {
+                                  scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+                                }, 100);
+                              }
+                            }}
+                            style={styles.communityPostItem}
+                          >
                             {isOpportunity ? (
                               <OpportunityFeedCard
                                 opportunity={post}
@@ -1816,11 +1862,24 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                     </View>
                   ) : (
                     voicePosts.map((vp) => (
-                      <VoicePostCard
+                      <View
                         key={vp.id}
-                        post={vp}
-                        onComment={(postId) => openCommentsModal(postId)}
-                      />
+                        onLayout={(e) => {
+                          if (String(vp.id) === String(scrollToPostIdRef.current)) {
+                            scrollToPostIdRef.current = null;
+                            const itemY = e.nativeEvent.layout.y;
+                            const targetY = postsSectionYRef.current + itemY;
+                            setTimeout(() => {
+                              scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+                            }, 100);
+                          }
+                        }}
+                      >
+                        <VoicePostCard
+                          post={vp}
+                          onComment={(postId) => openCommentsModal(postId)}
+                        />
+                      </View>
                     ))
                   )}
 

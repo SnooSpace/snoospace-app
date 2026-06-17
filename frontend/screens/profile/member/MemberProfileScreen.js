@@ -408,6 +408,10 @@ export default function MemberProfileScreen({ navigation }) {
   const [loadingVoicePosts, setLoadingVoicePosts] = useState(false);
   const communityPostsFetchedRef = useRef(false);
 
+  const scrollViewRef = useRef(null);
+  const scrollToPostIdRef = useRef(route?.params?.postId);
+  const tabContentYRef = useRef(0);
+
   // Underline sliding animation (Reanimated)
   const tabUnderlineX = useSharedValue(0);
   const tabUnderlineScale = useSharedValue(0);
@@ -857,6 +861,20 @@ export default function MemberProfileScreen({ navigation }) {
       setLoadingVoicePosts(false);
     }
   }, [profile?.id]);
+
+  useEffect(() => {
+    if (route?.params?.postId) {
+      scrollToPostIdRef.current = route.params.postId;
+    }
+    if (route?.params?.initialTab === "community") {
+      setActiveProfileTab("community");
+      if (!communityPostsFetchedRef.current) {
+        communityPostsFetchedRef.current = true;
+        loadCommunityVoicePosts();
+      }
+      navigation.setParams({ initialTab: undefined, postId: undefined });
+    }
+  }, [route?.params?.initialTab, route?.params?.postId, loadCommunityVoicePosts, navigation]);
 
   // Handle pull-to-refresh
   const onRefresh = useCallback(() => {
@@ -1328,6 +1346,7 @@ export default function MemberProfileScreen({ navigation }) {
       </View>
 
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={{
           paddingBottom: 120,
           flexGrow: 1,
@@ -1574,7 +1593,12 @@ export default function MemberProfileScreen({ navigation }) {
 
         {/* Community Posts Tab Content */}
         {profile.is_creator_mode_enabled && (
-          <View style={{ display: activeProfileTab === 'community' ? 'flex' : 'none', paddingTop: 4, paddingBottom: 8 }}>
+          <View
+            style={{ display: activeProfileTab === 'community' ? 'flex' : 'none', paddingTop: 4, paddingBottom: 8 }}
+            onLayout={(e) => {
+              tabContentYRef.current = e.nativeEvent.layout.y;
+            }}
+          >
             {/* Voice Box at the top — anyone can post */}
             <CommunityVoiceBox
               targetId={profile.id}
@@ -1597,7 +1621,20 @@ export default function MemberProfileScreen({ navigation }) {
                 const postType = post.post_type || post.type;
                 if (postType === 'opportunity') {
                   return (
-                    <View key={post.id} style={{ marginHorizontal: 16, marginBottom: 12 }}>
+                    <View
+                      key={post.id}
+                      onLayout={(e) => {
+                        if (String(post.id) === String(scrollToPostIdRef.current)) {
+                          scrollToPostIdRef.current = null;
+                          const itemY = e.nativeEvent.layout.y;
+                          const targetY = tabContentYRef.current + itemY;
+                          setTimeout(() => {
+                            scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+                          }, 100);
+                        }
+                      }}
+                      style={{ marginHorizontal: 16, marginBottom: 12 }}
+                    >
                       <OpportunityFeedCard
                         opportunity={post}
                         showManagementControls={isOwnProfile}
@@ -1614,7 +1651,20 @@ export default function MemberProfileScreen({ navigation }) {
                   );
                 }
                 return (
-                  <View key={post.id} style={{ marginBottom: 4 }}>
+                  <View
+                    key={post.id}
+                    onLayout={(e) => {
+                      if (String(post.id) === String(scrollToPostIdRef.current)) {
+                        scrollToPostIdRef.current = null;
+                        const itemY = e.nativeEvent.layout.y;
+                        const targetY = tabContentYRef.current + itemY;
+                        setTimeout(() => {
+                          scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+                        }, 100);
+                      }
+                    }}
+                    style={{ marginBottom: 4 }}
+                  >
                     <EditorialPostCard
                       post={post}
                       onLike={(postId, isLiked, count) =>
@@ -1654,11 +1704,25 @@ export default function MemberProfileScreen({ navigation }) {
               </View>
             ) : (
               voicePosts.map((vp) => (
-                <VoicePostCard
+                <View
                   key={vp.id}
-                  post={vp}
-                  onComment={(postId) => openCommentsModal(postId)}
-                />
+                  onLayout={(e) => {
+                    if (String(vp.id) === String(scrollToPostIdRef.current)) {
+                      scrollToPostIdRef.current = null;
+                      const itemY = e.nativeEvent.layout.y;
+                      const targetY = tabContentYRef.current + itemY;
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+                      }, 100);
+                    }
+                  }}
+                >
+                  <VoicePostCard
+                    key={vp.id}
+                    post={vp}
+                    onComment={(postId) => openCommentsModal(postId)}
+                  />
+                </View>
               ))
             )}
 

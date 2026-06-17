@@ -228,6 +228,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const communityPostsFetchedRef = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  const scrollViewRef = useRef(null);
+  const scrollToPostIdRef = useRef(route?.params?.postId);
+  const tabContentYRef = useRef(0);
+
   // Comments modal state
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
@@ -447,6 +451,20 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       setLoadingVoicePosts(false);
     }
   }, [memberId]);
+
+  useEffect(() => {
+    if (route?.params?.postId) {
+      scrollToPostIdRef.current = route.params.postId;
+    }
+    if (route?.params?.initialTab === "community") {
+      setActiveProfileTab("community");
+      if (!communityPostsFetchedRef.current) {
+        communityPostsFetchedRef.current = true;
+        loadCommunityVoicePosts();
+      }
+      navigation.setParams({ initialTab: undefined, postId: undefined });
+    }
+  }, [route?.params?.initialTab, route?.params?.postId, loadCommunityVoicePosts, navigation]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -813,6 +831,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         </View>
       ) : (
         <ScrollView
+          ref={scrollViewRef}
           contentContainerStyle={{
             paddingBottom: 120,
             flexGrow: 1,
@@ -1269,7 +1288,12 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 
           {/* Community Posts Tab Content */}
           {profile?.is_creator_mode_enabled && (
-            <View style={{ display: activeProfileTab === 'community' ? 'flex' : 'none', paddingTop: 4, paddingBottom: 8 }}>
+            <View
+              style={{ display: activeProfileTab === 'community' ? 'flex' : 'none', paddingTop: 4, paddingBottom: 8 }}
+              onLayout={(e) => {
+                tabContentYRef.current = e.nativeEvent.layout.y;
+              }}
+            >
               {/* Voice Box — any viewer can post */}
               <CommunityVoiceBox
                 targetId={profile.id}
@@ -1292,7 +1316,20 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   const postType = post.post_type || post.type;
                   if (postType === 'opportunity') {
                     return (
-                      <View key={post.id} style={{ marginHorizontal: 16, marginBottom: 12 }}>
+                      <View
+                        key={post.id}
+                        onLayout={(e) => {
+                          if (String(post.id) === String(scrollToPostIdRef.current)) {
+                            scrollToPostIdRef.current = null;
+                            const itemY = e.nativeEvent.layout.y;
+                            const targetY = tabContentYRef.current + itemY;
+                            setTimeout(() => {
+                              scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+                            }, 100);
+                          }
+                        }}
+                        style={{ marginHorizontal: 16, marginBottom: 12 }}
+                      >
                         <OpportunityFeedCard
                           opportunity={post}
                           showManagementControls={false}
@@ -1309,7 +1346,20 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     );
                   }
                   return (
-                    <View key={post.id} style={{ marginBottom: 4 }}>
+                    <View
+                      key={post.id}
+                      onLayout={(e) => {
+                        if (String(post.id) === String(scrollToPostIdRef.current)) {
+                          scrollToPostIdRef.current = null;
+                          const itemY = e.nativeEvent.layout.y;
+                          const targetY = tabContentYRef.current + itemY;
+                          setTimeout(() => {
+                            scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+                          }, 100);
+                        }
+                      }}
+                      style={{ marginBottom: 4 }}
+                    >
                       <EditorialPostCard
                         post={post}
                         onLike={(postId, isLiked, count) =>
@@ -1339,11 +1389,24 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 </View>
               ) : (
                 voicePosts.map((vp) => (
-                  <VoicePostCard
+                  <View
                     key={vp.id}
-                    post={vp}
-                    onComment={(postId) => openCommentsModal(postId)}
-                  />
+                    onLayout={(e) => {
+                      if (String(vp.id) === String(scrollToPostIdRef.current)) {
+                        scrollToPostIdRef.current = null;
+                        const itemY = e.nativeEvent.layout.y;
+                        const targetY = tabContentYRef.current + itemY;
+                        setTimeout(() => {
+                          scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+                        }, 100);
+                      }
+                    }}
+                  >
+                    <VoicePostCard
+                      post={vp}
+                      onComment={(postId) => openCommentsModal(postId)}
+                    />
+                  </View>
                 ))
               )}
 

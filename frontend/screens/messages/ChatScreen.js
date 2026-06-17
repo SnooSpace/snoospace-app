@@ -1112,10 +1112,32 @@ export default function ChatScreen({ route, navigation }) {
   }, [mediaTimeline]);
 
   const handlePressPostShare = useCallback((postId, postData) => {
+    if (postData?.post_type === "community_voice" && postData?.type_data) {
+      const { target_id, target_type } = postData.type_data;
+      if (target_id && target_type) {
+        const nav = navigation.getParent()?.getParent() || navigation;
+        if (target_type === "community") {
+          nav.navigate("CommunityPublicProfile", {
+            communityId: target_id,
+            viewerRole: "member",
+            initialTab: "community",
+            postId: postId || postData?.id || postData?.postId,
+          });
+        } else if (target_type === "member") {
+          nav.navigate("MemberPublicProfile", {
+            memberId: target_id,
+            initialTab: "community",
+            postId: postId || postData?.id || postData?.postId,
+          });
+        }
+        return;
+      }
+    }
+
     setSharedPosts(prev => ({ ...prev, [postId]: postData }));
     setSelectedSharedPost(postData);
     setSharedPostModalVisible(true);
-  }, []);
+  }, [navigation]);
 
   const handlePressUser = useCallback((userId, userType) => {
     const nav = navigation.getParent()?.getParent() || navigation;
