@@ -93,6 +93,7 @@ const renderBio = (bioText) => {
 };
 
 const ProfileBioHeader = React.memo(({ profile, setShowCollegeHub }) => {
+  console.log("[Profile] ProfileBioHeader rendered");
   const visiblePronouns = Array.isArray(profile.pronouns)
     ? profile.pronouns.filter((p) => p !== "Prefer not to say")
     : [];
@@ -906,18 +907,17 @@ export default function MemberProfileScreen({ navigation }) {
       });
     });
 
+    const offPostCreated = EventBus.on("post-created", () => {
+      console.log("[Profile] EventBus: post-created event received, reloading profile");
+      loadProfile(true);
+    });
+
     return () => {
       console.log("[Profile] useEffect cleanup (unsubscribing)");
       off();
+      if (offPostCreated) offPostCreated();
     };
   }, []);
-
-  // Refresh profile when screen gains focus
-  useFocusEffect(
-    useCallback(() => {
-      loadProfile(true);
-    }, []),
-  );
 
   // Navigation listener to detect when returning from EditProfile with changes
   useEffect(() => {
@@ -1311,10 +1311,11 @@ export default function MemberProfileScreen({ navigation }) {
     );
   }
 
-  console.log("[Profile] rendering: main profile UI");
+  console.log("[Profile] ProfileScreen rendered");
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
+      {(() => { console.log("[Profile] ProfileHeader rendered"); return null; })()}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.usernameContainer}
@@ -1375,6 +1376,7 @@ export default function MemberProfileScreen({ navigation }) {
           />
 
           {/* Stats */}
+          {(() => { console.log("[Profile] ProfileStats rendered"); return null; })()}
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
               <Text style={styles.statNumber}>{posts.length}</Text>
@@ -1426,6 +1428,7 @@ export default function MemberProfileScreen({ navigation }) {
           />
 
           {/* Action Buttons */}
+          {(() => { console.log("[Profile] ProfileActionButtons rendered"); return null; })()}
           {isOwnProfile ? (
             <View
               style={{
@@ -1514,6 +1517,7 @@ export default function MemberProfileScreen({ navigation }) {
         </View>
 
         {/* Posts / Events / Community Posts Tab Bar */}
+        {(() => { console.log("[Profile] ProfileTabs rendered"); return null; })()}
         <View style={profileTabStyles.tabBar}>
           {[
             'posts',

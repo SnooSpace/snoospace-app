@@ -19,6 +19,7 @@ import {
   Keyboard,
   ActivityIndicator,
   FlatList,
+  Animated as RNAnimated,
 } from "react-native";
 import { Image } from "expo-image";
 import Animated, {
@@ -676,19 +677,39 @@ const ChatActionsSheet = ({
   onUnblock,
   youHaveBlocked,
   isGroup,
-}) => (
-  <Modal
-    visible={visible}
-    transparent
-    animationType="slide"
-    onRequestClose={onClose}
-  >
-    <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
-      <Pressable
-        style={actionSheetStyles.sheet}
-        onPress={(e) => e.stopPropagation()}
-      >
-        <View style={actionSheetStyles.handle} />
+}) => {
+  const slideAnim = useRef(new RNAnimated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      slideAnim.setValue(0);
+      RNAnimated.spring(slideAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    }
+  }, [visible]);
+
+  const sheetTranslateY = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [300, 0],
+  });
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+    >
+      <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
+        <RNAnimated.View
+          style={[actionSheetStyles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}
+        >
+          <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
+            <View style={actionSheetStyles.handle} />
 
         {/* Mute / Unmute */}
         <TouchableOpacity
@@ -814,10 +835,12 @@ const ChatActionsSheet = ({
             </TouchableOpacity>
           </>
         )}
+          </Pressable>
+        </RNAnimated.View>
       </Pressable>
-    </Pressable>
-  </Modal>
-);
+    </Modal>
+  );
+};
 const actionSheetStyles = StyleSheet.create({
   overlay: {
     flex: 1,
@@ -866,19 +889,45 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
   const [otherText, setOtherText] = React.useState("");
   const otherInputRef = React.useRef(null);
 
+  const slideAnim = useRef(new RNAnimated.Value(0)).current;
+
   React.useEffect(() => {
     if (visible) {
       setOtherMode(false);
       setOtherText("");
+      slideAnim.setValue(0);
+      RNAnimated.spring(slideAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
     }
   }, [visible]);
+
+  React.useEffect(() => {
+    if (otherMode) {
+      slideAnim.setValue(0);
+      RNAnimated.spring(slideAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    }
+  }, [otherMode]);
+
+  const sheetTranslateY = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [300, 0],
+  });
 
   if (otherMode) {
     return (
       <Modal
         visible={visible}
         transparent
-        animationType="slide"
+        animationType="none"
         onRequestClose={onClose}
       >
         <KeyboardStickyView
@@ -886,11 +935,11 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
           style={{ flex: 1 }}
         >
           <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
-            <Pressable
-              style={[actionSheetStyles.sheet, { paddingBottom: 24 }]}
-              onPress={(e) => e.stopPropagation()}
+            <RNAnimated.View
+              style={[actionSheetStyles.sheet, { paddingBottom: 24, transform: [{ translateY: sheetTranslateY }] }]}
             >
-              <View style={actionSheetStyles.handle} />
+              <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
+                <View style={actionSheetStyles.handle} />
 
               <TouchableOpacity
                 onPress={() => {
@@ -1005,7 +1054,8 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
                   Submit Report
                 </Text>
               </TouchableOpacity>
-            </Pressable>
+              </Pressable>
+            </RNAnimated.View>
           </Pressable>
         </KeyboardStickyView>
       </Modal>
@@ -1016,15 +1066,15 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType="none"
       onRequestClose={onClose}
     >
       <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
-        <Pressable
-          style={actionSheetStyles.sheet}
-          onPress={(e) => e.stopPropagation()}
+        <RNAnimated.View
+          style={[actionSheetStyles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}
         >
-          <View style={actionSheetStyles.handle} />
+          <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
+            <View style={actionSheetStyles.handle} />
           <Text
             style={{
               fontFamily: "BasicCommercial-Bold",
@@ -1068,7 +1118,8 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
               )}
             </TouchableOpacity>
           ))}
-        </Pressable>
+          </Pressable>
+        </RNAnimated.View>
       </Pressable>
     </Modal>
   );

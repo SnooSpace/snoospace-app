@@ -8,7 +8,7 @@ import React, {
 import { useFocusEffect } from "@react-navigation/native";
 import { CommonActions } from "@react-navigation/native";
 import {
-  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Platform, Pressable, RefreshControl } from "react-native";
+  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Platform, Pressable, RefreshControl, Animated } from "react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Image as ExpoImage } from "expo-image";
 import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, AlertTriangle, CheckCircle, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock } from "lucide-react-native";
@@ -208,6 +208,24 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [postModalVisible, setPostModalVisible] = useState(false);
   const [showCollegeHub, setShowCollegeHub] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const slideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (menuVisible) {
+      slideAnim.setValue(0);
+      Animated.spring(slideAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    }
+  }, [menuVisible]);
+
+  const sheetTranslateY = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [300, 0],
+  });
   const [blocking, setBlocking] = useState(false);
   const [unblocking, setUnblocking] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -739,12 +757,15 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       <Modal
         visible={menuVisible}
         transparent
-        animationType="slide"
+        animationType="none"
         onRequestClose={() => setMenuVisible(false)}
       >
         <Pressable style={menuStyles.overlay} onPress={() => setMenuVisible(false)}>
-          <Pressable style={menuStyles.sheet} onPress={(e) => e.stopPropagation()}>
-            <View style={menuStyles.handle} />
+          <Animated.View
+            style={[menuStyles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
+              <View style={menuStyles.handle} />
             {profile?.created_at && (() => {
               const createdDate = new Date(profile.created_at);
               const accountAge = Math.floor((Date.now() - createdDate.getTime()) / 86400000);
@@ -788,7 +809,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 </Text>
               </View>
             </TouchableOpacity>
-          </Pressable>
+            </Pressable>
+          </Animated.View>
         </Pressable>
       </Modal>
 

@@ -975,13 +975,23 @@ export default function CommunityProfileScreen({ navigation, route }) {
     };
   }, [loadProfile]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (hasInitialLoadRef.current) {
-        loadProfile(true);
+  // Navigation listener to detect when returning from EditCommunityProfile with changes
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", () => {
+      // Check route params for refresh flag from EditCommunityProfile
+      const params = route.params;
+      if (params?.refreshProfile === true) {
+        console.log(
+          "[CommunityProfile] Navigation listener: returning from EditCommunityProfile with changes, reloading profile",
+        );
+        loadProfile();
+        // Clear the param to avoid reloading again
+        navigation.setParams({ refreshProfile: undefined });
       }
-    }, [loadProfile]),
-  );
+    });
+
+    return unsubscribe;
+  }, [navigation, route.params, loadProfile]);
 
   // Listen for follow updates to refresh follower and following counts
   useEffect(() => {

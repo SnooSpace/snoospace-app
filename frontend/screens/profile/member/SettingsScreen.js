@@ -10,6 +10,7 @@ import {
   Linking,
   Platform,
   Modal,
+  Animated as RNAnimated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
@@ -285,6 +286,25 @@ export default function SettingsScreen({ route, navigation }) {
   const [isTogglingCreator, setIsTogglingCreator] = useState(false);
   const [showCreatorOnboarding, setShowCreatorOnboarding] = useState(false);
   const [showCreatorInfo, setShowCreatorInfo] = useState(false);
+
+  const slideAnim = useRef(new RNAnimated.Value(0)).current;
+
+  useEffect(() => {
+    if (showCreatorOnboarding || showCreatorInfo) {
+      slideAnim.setValue(0);
+      RNAnimated.spring(slideAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 65,
+        friction: 11,
+      }).start();
+    }
+  }, [showCreatorOnboarding, showCreatorInfo]);
+
+  const sheetTranslateY = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [300, 0],
+  });
   const CREATOR_ONBOARDED_KEY = "creator_mode_onboarded";
   const CREATOR_MODE_CACHE_KEY = "creator_mode_enabled";
 
@@ -711,7 +731,7 @@ export default function SettingsScreen({ route, navigation }) {
         <Modal
           transparent
           visible={showCreatorOnboarding}
-          animationType="slide"
+          animationType="none"
           statusBarTranslucent
           onRequestClose={() => setShowCreatorOnboarding(false)}
         >
@@ -719,10 +739,10 @@ export default function SettingsScreen({ route, navigation }) {
             style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}
             onPress={() => setShowCreatorOnboarding(false)}
           >
-            <Pressable
-              style={creatorModalStyles.sheet}
-              onPress={(e) => e.stopPropagation()}
+            <RNAnimated.View
+              style={[creatorModalStyles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}
             >
+              <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
               {/* Handle */}
               <View style={creatorModalStyles.handle} />
 
@@ -765,7 +785,8 @@ export default function SettingsScreen({ route, navigation }) {
               >
                 <Text style={creatorModalStyles.ctaText}>Got it, let's go!</Text>
               </TouchableOpacity>
-            </Pressable>
+              </Pressable>
+            </RNAnimated.View>
           </Pressable>
         </Modal>
       )}
@@ -775,7 +796,7 @@ export default function SettingsScreen({ route, navigation }) {
         <Modal
           transparent
           visible={showCreatorInfo}
-          animationType="slide"
+          animationType="none"
           statusBarTranslucent
           onRequestClose={() => setShowCreatorInfo(false)}
         >
@@ -783,11 +804,11 @@ export default function SettingsScreen({ route, navigation }) {
             style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}
             onPress={() => setShowCreatorInfo(false)}
           >
-            <Pressable
-              style={creatorModalStyles.sheet}
-              onPress={(e) => e.stopPropagation()}
+            <RNAnimated.View
+              style={[creatorModalStyles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}
             >
-              <View style={creatorModalStyles.handle} />
+              <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
+                <View style={creatorModalStyles.handle} />
               <View style={creatorModalStyles.header}>
                 <Text style={creatorModalStyles.title}>What Creator Mode unlocks</Text>
               </View>
@@ -816,7 +837,8 @@ export default function SettingsScreen({ route, navigation }) {
               >
                 <Text style={creatorModalStyles.ctaText}>Close</Text>
               </TouchableOpacity>
-            </Pressable>
+              </Pressable>
+            </RNAnimated.View>
           </Pressable>
         </Modal>
       )}
