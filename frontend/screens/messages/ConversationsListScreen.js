@@ -29,6 +29,7 @@ import EventBus from "../../utils/EventBus";
 import SnooLoader from "../../components/ui/SnooLoader";
 import AccountSwitcherModal from "../../components/modals/AccountSwitcherModal";
 import AddAccountModal from "../../components/modals/AddAccountModal";
+import SkeletonPlaceholder from "../../components/ui/SkeletonPlaceholder";
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const BG           = "#FFFFFF";
@@ -311,19 +312,64 @@ function EmptyInboxIllustration() {
   );
 }
 
+// ── Skeleton Loader components ───────────────────────────────────────────────
+function ConversationSkeletonRow() {
+  return (
+    <View style={skeletonStyles.row}>
+      <SkeletonPlaceholder borderRadius={4}>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          <SkeletonPlaceholder.Item width={52} height={52} borderRadius={26} marginRight={12} />
+          <View style={{ flex: 1, gap: 8 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <SkeletonPlaceholder.Item width={120} height={16} borderRadius={4} />
+              <SkeletonPlaceholder.Item width={40} height={12} borderRadius={4} />
+            </View>
+            <SkeletonPlaceholder.Item width="80%" height={12} borderRadius={4} />
+          </View>
+        </View>
+      </SkeletonPlaceholder>
+    </View>
+  );
+}
+
+function ConversationListSkeleton() {
+  return (
+    <View style={{ flex: 1, backgroundColor: BG }}>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <ConversationSkeletonRow key={i} />
+      ))}
+    </View>
+  );
+}
+
+const skeletonStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+  },
+});
+
+// Module-level cache for instant rendering on mount
+let cachedActiveAccount = null;
+let cachedConversations = null;
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN SCREEN
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function ConversationsListScreen({ navigation }) {
-  const [conversations,    setConversations]    = useState([]);
-  const [loading,          setLoading]          = useState(true);
+  const [conversations,    setConversations]    = useState(cachedConversations || []);
+  const [loading,          setLoading]          = useState(!cachedConversations);
   const [refreshing,       setRefreshing]       = useState(false);
   const [searchText,       setSearchText]       = useState("");
   const [searchResults,    setSearchResults]    = useState([]);
   const [searchLoading,    setSearchLoading]    = useState(false);
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
   const [showAddAccount,   setShowAddAccount]   = useState(false);
-  const [activeAccount,    setActiveAccount]    = useState(null);
+  const [activeAccount,    setActiveAccount]    = useState(cachedActiveAccount);
   const [allAccounts,      setAllAccounts]      = useState([]);
   const [alertConfig,       setAlertConfig]      = useState({
     visible: false,
@@ -341,7 +387,7 @@ export default function ConversationsListScreen({ navigation }) {
   const searchTimeout = useRef(null);
   const isSearching   = searchText.trim().length > 0;
   const activeAccountRef = useRef(activeAccount);
-  const isInitialLoad = useRef(true);
+  const isInitialLoad = useRef(!cachedConversations);
 
   // Keep activeAccountRef in sync
   useEffect(() => {
@@ -352,6 +398,7 @@ export default function ConversationsListScreen({ navigation }) {
   const loadAccountInfo = useCallback(async () => {
     try {
       const [active, all] = await Promise.all([getActiveAccount(), getAllAccounts()]);
+      cachedActiveAccount = active;
       setActiveAccount(active);
       setAllAccounts(all || []);
     } catch (err) {
@@ -363,13 +410,15 @@ export default function ConversationsListScreen({ navigation }) {
   const loadData = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
-      else setLoading(true);
+      else if (!cachedConversations) setLoading(true);
 
       await Promise.all([
         (async () => {
           try {
             const res = await getConversations();
-            setConversations(res.conversations || []);
+            const convs = res.conversations || [];
+            cachedConversations = convs;
+            setConversations(convs);
           } catch (err) {
             console.error("Error loading conversations:", err);
           }
@@ -629,28 +678,6 @@ export default function ConversationsListScreen({ navigation }) {
     </View>
   ) : null;
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <ArrowLeft size={24} color={TEXT_PRIMARY} strokeWidth={2.5} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.accountBtn} onPress={() => setShowAccountSwitcher(true)}>
-            <Text style={styles.accountName} numberOfLines={1}>{displayName}</Text>
-            <ChevronDown size={26} color="#3B82F6" style={{ marginLeft: -2 }} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={() => navigation.navigate("CreateGroupChat")}>
-            <PenSquare size={22} color={TEXT_PRIMARY} strokeWidth={2} />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.loadingContainer}>
-          <SnooLoader size="large" color={ACCENT} />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container}>
@@ -708,6 +735,8 @@ export default function ConversationsListScreen({ navigation }) {
               </View>
             ) : null}
           />
+        ) : loading && conversations.length === 0 ? (
+          <ConversationListSkeleton />
         ) : (
           /* ── Conversations list ── */
           <FlatList
@@ -745,6 +774,9 @@ export default function ConversationsListScreen({ navigation }) {
           currentProfile={activeAccount ? { ...activeAccount, type: activeAccount.type || "member" } : null}
           onAccountSwitch={(account) => {
             setShowAccountSwitcher(false);
+            // Clear caches on switch to prevent cross-account leakage/flashing
+            cachedConversations = null;
+            cachedActiveAccount = null;
             const routeName =
               account.type === "community" ? "CommunityHome" :
               account.type === "sponsor"   ? "SponsorHome" :
@@ -765,6 +797,8 @@ export default function ConversationsListScreen({ navigation }) {
           }}
           onLoginRequired={(account) => {
             setShowAccountSwitcher(false);
+            cachedConversations = null;
+            cachedActiveAccount = null;
             let rootNavigator = navigation;
             try {
               if (navigation.getParent) {
@@ -787,6 +821,8 @@ export default function ConversationsListScreen({ navigation }) {
           onClose={() => setShowAddAccount(false)}
           onAccountAdded={async () => {
             setShowAddAccount(false);
+            cachedConversations = null;
+            cachedActiveAccount = null;
             await loadData(false);
           }}
         />
