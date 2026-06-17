@@ -84,12 +84,12 @@ const avatarStyles = StyleSheet.create({
 });
 
 // ── Search result row ─────────────────────────────────────────────────────────
-function SearchResultRow({ item, onPress }) {
+const SearchResultRow = React.memo(function SearchResultRow({ item, onPress }) {
   const name = item.display_name || item.name || item.full_name || "User";
   const sub  = item.username ? `@${item.username}` : item.type;
   const uri  = item.profile_photo_url || item.logo_url || item.photo_url;
   return (
-    <TouchableOpacity style={srStyles.row} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity style={srStyles.row} onPress={() => onPress(item)} activeOpacity={0.7}>
       <Image source={{ uri: uri || "https://via.placeholder.com/40" }}
         style={srStyles.avatar} />
       <View style={{ flex: 1 }}>
@@ -101,7 +101,7 @@ function SearchResultRow({ item, onPress }) {
       </View>
     </TouchableOpacity>
   );
-}
+});
 const srStyles = StyleSheet.create({
   row:       { flexDirection: "row", alignItems: "center", paddingHorizontal: 16,
     paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: BORDER },
@@ -117,7 +117,7 @@ const srStyles = StyleSheet.create({
 const SWIPE_THRESHOLD = 80;
 const SWIPE_FULL = SWIPE_THRESHOLD * 2; // two action buttons
 
-function SwipeableConvRow({ conv, onPress, onDelete, onLeave, onMute, currentUserType }) {
+const SwipeableConvRow = React.memo(function SwipeableConvRow({ conv, onPress, onDelete, onLeave, onMute }) {
   const translateX = useSharedValue(0);
   const isGroup    = conv.isGroup;
   const isMuted    = conv.isMuted;
@@ -168,7 +168,7 @@ function SwipeableConvRow({ conv, onPress, onDelete, onLeave, onMute, currentUse
           style={[swipeStyles.actionBtn, { backgroundColor: isMuted ? "#34C759" : "#FF9F0A" }]}
           onPress={() => {
             translateX.value = withSpring(0);
-            onMute?.();
+            onMute?.(conv);
           }}
         >
           {isMuted
@@ -182,8 +182,8 @@ function SwipeableConvRow({ conv, onPress, onDelete, onLeave, onMute, currentUse
           style={[swipeStyles.actionBtn, { backgroundColor: isGroup ? "#FF3B30" : DANGER }]}
           onPress={() => {
             translateX.value = withSpring(0);
-            if (isGroup) onLeave?.();
-            else onDelete?.();
+            if (isGroup) onLeave?.(conv);
+            else onDelete?.(conv);
           }}
         >
           {isGroup
@@ -195,7 +195,7 @@ function SwipeableConvRow({ conv, onPress, onDelete, onLeave, onMute, currentUse
 
       <GestureDetector gesture={pan}>
         <Reanimated.View style={rowStyle}>
-          <Pressable style={swipeStyles.row} onPress={onPress} android_ripple={{ color: SURFACE2 }}>
+          <Pressable style={swipeStyles.row} onPress={() => onPress(conv)} android_ripple={{ color: SURFACE2 }}>
             <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} isAnonymous={isBlockedByOther} />
             <View style={swipeStyles.content}>
               <View style={swipeStyles.topRow}>
@@ -227,7 +227,7 @@ function SwipeableConvRow({ conv, onPress, onDelete, onLeave, onMute, currentUse
       </GestureDetector>
     </View>
   );
-}
+});
 const swipeStyles = StyleSheet.create({
   actions:      { position: "absolute", right: 0, top: 0, bottom: 0, flexDirection: "row",
     justifyContent: "flex-end", alignItems: "center", paddingRight: 4 },
@@ -335,11 +335,18 @@ export default function ConversationsListScreen({ navigation }) {
     iconColor: "#FF3B30",
   });
 
-  const showAlert = (config) => setAlertConfig({ ...config, visible: true });
-  const hideAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
+  const showAlert = useCallback((config) => setAlertConfig({ ...config, visible: true }), []);
+  const hideAlert = useCallback(() => setAlertConfig((p) => ({ ...p, visible: false })), []);
 
   const searchTimeout = useRef(null);
   const isSearching   = searchText.trim().length > 0;
+  const activeAccountRef = useRef(activeAccount);
+  const isInitialLoad = useRef(true);
+
+  // Keep activeAccountRef in sync
+  useEffect(() => {
+    activeAccountRef.current = activeAccount;
+  }, [activeAccount]);
 
   // ── Load account info ────────────────────────────────────────────────────────
   const loadAccountInfo = useCallback(async () => {
@@ -352,30 +359,39 @@ export default function ConversationsListScreen({ navigation }) {
     }
   }, []);
 
-  // ── Load conversations ───────────────────────────────────────────────────────
-  const loadConversations = useCallback(async (isRefresh = false) => {
+  // ── Load data (Conversations and Account info in parallel) ───────────────────
+  const loadData = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
-      const res = await getConversations();
-      setConversations(res.conversations || []);
-    } catch (err) {
-      console.error("Error loading conversations:", err);
-    } finally {
-      if (isRefresh) setRefreshing(false);
-      else setLoading(false);
-    }
-  }, []);
 
-  useEffect(() => {
-    loadConversations();
-    loadAccountInfo();
-  }, []);
+      await Promise.all([
+        (async () => {
+          try {
+            const res = await getConversations();
+            setConversations(res.conversations || []);
+          } catch (err) {
+            console.error("Error loading conversations:", err);
+          }
+        })(),
+        loadAccountInfo(),
+      ]);
+    } catch (err) {
+      console.error("Error loading data:", err);
+    } finally {
+      setRefreshing(false);
+      setLoading(false);
+    }
+  }, [loadAccountInfo]);
 
   useFocusEffect(useCallback(() => {
-    loadConversations(true);
-    loadAccountInfo();
-  }, [loadConversations, loadAccountInfo]));
+    if (isInitialLoad.current) {
+      loadData(false);
+      isInitialLoad.current = false;
+    } else {
+      loadData(true);
+    }
+  }, [loadData]));
 
   // ── EventBus listeners ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -447,7 +463,7 @@ export default function ConversationsListScreen({ navigation }) {
         },
       },
     });
-  }, []);
+  }, [showAlert, hideAlert]);
 
   const handleMuteConversation = useCallback(async (conv) => {
     if (conv.isMuted) {
@@ -487,16 +503,17 @@ export default function ConversationsListScreen({ navigation }) {
         },
       });
     }
-  }, []);
+  }, [showAlert, hideAlert]);
 
   const handleLeaveGroup = useCallback(async (conv) => {
     // If the current user is the group owner AND there are other members,
     // they must transfer ownership first — send them to GroupInfoScreen.
     // If they're the last person, just let them leave directly.
+    const activeAcc = activeAccountRef.current;
     const isGroupOwner =
       conv.groupOwnerId &&
-      String(activeAccount?.id) === String(conv.groupOwnerId) &&
-      activeAccount?.type === conv.groupOwnerType;
+      String(activeAcc?.id) === String(conv.groupOwnerId) &&
+      activeAcc?.type === conv.groupOwnerType;
 
     const hasOtherMembers = (conv.participantCount || 1) > 1;
 
@@ -536,12 +553,12 @@ export default function ConversationsListScreen({ navigation }) {
         onPress: async () => {
           setConversations((prev) => prev.filter((c) => c.id !== conv.id));
           try {
-            await removeGroupParticipant(conv.id, activeAccount?.id, activeAccount?.type || "member");
+            await removeGroupParticipant(conv.id, activeAcc?.id, activeAcc?.type || "member");
           } catch { setConversations((prev) => [...prev, conv]); }
         },
       },
     });
-  }, [activeAccount, navigation]);
+  }, [navigation, showAlert, hideAlert]);
 
   // ── Navigate to chat ──────────────────────────────────────────────────────────
   const openConversation = useCallback((conv) => {
@@ -576,37 +593,35 @@ export default function ConversationsListScreen({ navigation }) {
     : activeAccount?.name || "Messages";
 
   // ── Render ────────────────────────────────────────────────────────────────────
-  const renderConversation = ({ item }) => (
+  const renderConversation = useCallback(({ item }) => (
     <SwipeableConvRow
       conv={item}
-      onPress={() => openConversation(item)}
-      onDelete={() => handleDeleteConversation(item)}
-      onLeave={() => handleLeaveGroup(item)}
-      onMute={() => handleMuteConversation(item)}
-      currentUserType={activeAccount?.type}
+      onPress={openConversation}
+      onDelete={handleDeleteConversation}
+      onLeave={handleLeaveGroup}
+      onMute={handleMuteConversation}
     />
-  );
+  ), [openConversation, handleDeleteConversation, handleLeaveGroup, handleMuteConversation]);
 
-  const renderSearchItem = ({ item }) => {
+  const renderSearchItem = useCallback(({ item }) => {
     if (item._isConv) {
       return (
         <SwipeableConvRow
           conv={item.conv}
-          onPress={() => openConversation(item.conv)}
-          onDelete={() => handleDeleteConversation(item.conv)}
-          onLeave={() => handleLeaveGroup(item.conv)}
-          onMute={() => handleMuteConversation(item.conv)}
-          currentUserType={activeAccount?.type}
+          onPress={openConversation}
+          onDelete={handleDeleteConversation}
+          onLeave={handleLeaveGroup}
+          onMute={handleMuteConversation}
         />
       );
     }
     return (
       <SearchResultRow
         item={item.user}
-        onPress={() => openUserChat(item.user)}
+        onPress={openUserChat}
       />
     );
-  };
+  }, [openConversation, handleDeleteConversation, handleLeaveGroup, handleMuteConversation, openUserChat]);
 
   const ListHeader = !isSearching ? (
     <View style={styles.messagesHeaderRow}>
@@ -704,7 +719,7 @@ export default function ConversationsListScreen({ navigation }) {
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={() => loadConversations(true)}
+                onRefresh={() => loadData(true)}
                 tintColor={ACCENT}
                 colors={[ACCENT]}
               />
@@ -772,8 +787,7 @@ export default function ConversationsListScreen({ navigation }) {
           onClose={() => setShowAddAccount(false)}
           onAccountAdded={async () => {
             setShowAddAccount(false);
-            await loadAccountInfo();
-            await loadConversations();
+            await loadData(false);
           }}
         />
 

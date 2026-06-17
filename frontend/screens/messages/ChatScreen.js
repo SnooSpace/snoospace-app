@@ -1536,21 +1536,7 @@ export default function ChatScreen({ route, navigation }) {
   const [videoPreviewing, setVideoPreviewing] = useState(null); // { uri, duration } when preview modal is open
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [inputHeight, setInputHeight] = useState(100);
-
-  useEffect(() => {
-    const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const showSub = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
-    const hideSub = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
 
   // highlight state lives in Reanimated (see highlightedIdSV below renderItem)
 
@@ -1593,15 +1579,8 @@ export default function ChatScreen({ route, navigation }) {
     },
   });
   const containerAnimatedStyle = useAnimatedStyle(() => {
-    const bottomInset = interpolate(
-      keyboardHeight.value,
-      [0, insets.bottom || 1],
-      [insets.bottom, 0],
-      Extrapolate.CLAMP,
-    );
-
     const style = {
-      marginBottom: inputHeight + bottomInset,
+      marginBottom: inputHeight,
     };
 
     if (Platform.OS === "android") {
@@ -2875,8 +2854,10 @@ export default function ChatScreen({ route, navigation }) {
               renderItem={renderItem}
               inverted
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.listContent}
-              extraData={{ inputHeight, keyboardVisible }}
+              contentContainerStyle={[
+                styles.listContent,
+                { paddingTop: 12 + insets.bottom },
+              ]}
               maintainVisibleContentPosition={{
                 minIndexForVisible: 1,
                 autoscrollToTopThreshold: 10,

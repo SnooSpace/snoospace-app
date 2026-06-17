@@ -41,18 +41,35 @@ const KeyboardAwareToolbar = ({ children, style, onLayout }) => {
     },
   });
 
+  const flattenedStyle = StyleSheet.flatten(style || {});
+  const {
+    backgroundColor,
+    borderTopWidth,
+    borderTopColor,
+    borderTopLeftRadius,
+    borderTopRightRadius,
+    borderWidth,
+    borderColor,
+    shadowColor,
+    shadowOffset,
+    shadowOpacity,
+    shadowRadius,
+    elevation,
+    ...containerStyle
+  } = flattenedStyle;
+
   const animatedWrapperStyle = useAnimatedStyle(() => {
-    // As the keyboard opens (height goes from 0 to Positive),
-    // we want to reduce the paddingBottom from insets.bottom to 0.
-    const padding = interpolate(
+    // Translate the content down by insets.bottom as the keyboard opens,
+    // to offset the static paddingBottom of insets.bottom.
+    const translateY = interpolate(
       keyboardHeight.value,
-      [0, insets.bottom || 1], // Transition over the safe area distance
-      [insets.bottom, 0],
+      [0, insets.bottom || 1],
+      [0, insets.bottom],
       Extrapolate.CLAMP,
     );
 
     return {
-      paddingBottom: padding,
+      transform: [{ translateY }],
     };
   });
 
@@ -63,9 +80,31 @@ const KeyboardAwareToolbar = ({ children, style, onLayout }) => {
         closed: 0,
         opened: 0,
       }}
-      style={[styles.container, style]}
+      style={[styles.container, containerStyle]}
     >
-      <Animated.View onLayout={onLayout} style={animatedWrapperStyle}>{children}</Animated.View>
+      <Animated.View
+        onLayout={onLayout}
+        style={[
+          animatedWrapperStyle,
+          {
+            paddingBottom: insets.bottom,
+            backgroundColor,
+            borderTopWidth,
+            borderTopColor,
+            borderTopLeftRadius,
+            borderTopRightRadius,
+            borderWidth,
+            borderColor,
+            shadowColor,
+            shadowOffset,
+            shadowOpacity,
+            shadowRadius,
+            elevation,
+          },
+        ]}
+      >
+        {children}
+      </Animated.View>
     </KeyboardStickyView>
   );
 };
