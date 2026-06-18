@@ -1361,9 +1361,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         </View>
       ) : null}
 
-      {/* Feed */}
       <Animated.FlatList
         ref={flatListRef}
+        nestedScrollEnabled={true}
         data={loading && feedItems.length === 0 ? [1, 2, 3] : feedItems}
         renderItem={
           loading && feedItems.length === 0

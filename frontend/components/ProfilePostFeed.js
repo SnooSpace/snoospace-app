@@ -197,9 +197,9 @@ const ProfilePostFeed = ({
             <View style={{ width: 40 }} />
           </View>
 
-          {/* Feed */}
           <FlatList
             ref={flatListRef}
+            nestedScrollEnabled={true}
             data={posts}
             keyExtractor={(item) => item.id.toString()}
             renderItem={renderItem}

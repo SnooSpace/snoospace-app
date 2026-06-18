@@ -34,6 +34,7 @@ import {
 
 import ProfileTabIcon from "../components/ProfileTabIcon";
 import PagerView from "react-native-pager-view";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import EventBus from "../utils/EventBus";
 import { getAllAccounts, getActiveAccount, switchAccount } from "../api/auth";
 import hapticsService from "../services/HapticsService";
