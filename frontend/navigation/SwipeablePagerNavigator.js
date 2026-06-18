@@ -16,13 +16,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withTiming,
   runOnJS,
   interpolate,
   Extrapolation,
-  useAnimatedScrollHandler,
-  useAnimatedRef,
+  useEvent,
 } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
 import {
@@ -35,7 +33,7 @@ import {
 } from "lucide-react-native";
 
 import ProfileTabIcon from "../components/ProfileTabIcon";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import PagerView from "react-native-pager-view";
 import EventBus from "../utils/EventBus";
 import { getAllAccounts, getActiveAccount, switchAccount } from "../api/auth";
 import hapticsService from "../services/HapticsService";
@@ -297,6 +295,9 @@ const AnimatedTabBar = ({
 };
 
 // ---------------- MAIN NAVIGATOR ----------------
+// ---------------- MAIN NAVIGATOR ----------------
+const AnimatedPagerView = Animated.createAnimatedComponent(PagerView);
+
 function SwipeablePagerNavigator({
   initialRouteName,
   children,
@@ -310,6 +311,10 @@ function SwipeablePagerNavigator({
   });
 
   const insets = useSafeAreaInsets();
+
+  const initialPage = useRef(state.index).current;
+  const pagerRef = useRef(null);
+  const isPagerDrivenRef = useRef(false);
 
   // ---------------- SHARED VALUES ----------------
   const translateX = useSharedValue(-state.index * SCREEN_WIDTH);
@@ -333,17 +338,7 @@ function SwipeablePagerNavigator({
     });
   }, [state.index]);
 
-  const scrollViewRef = useAnimatedRef();
-
-  // ⚠️  INTENTIONALLY NO useEffect syncing state.index → scrollTo.
-  //  That pattern caused a double-scroll race: tab press called scrollTo,
-  //  then navigation changed state.index, which fired the effect and called
-  //  scrollTo AGAIN — fighting the first scroll and causing glitches.
-  //  Instead, tab press is the ONLY initiator of scrollTo; navigation
-  //  state is updated only AFTER the scroll settles (see handleSnap).
-
   // ---------------- SNAP HANDLER ----------------
-  // Called on the JS thread once the scroll view has fully settled.
   const handleSnap = (index) => {
     if (state.routes && state.routes[index]) {
       navigation.navigate(state.routes[index].name);
@@ -351,135 +346,47 @@ function SwipeablePagerNavigator({
   };
 
   // ---------------- TAB PRESS ----------------
-  // Only drives the scroll view. Navigation (handleSnap) fires automatically
-  // once onMomentumEnd / onScrollEndDrag detects the final resting position.
   const handleTabPress = (index) => {
-    // Guard: already on this tab
     if (currentIndex.value === index) return;
-    currentIndex.value = index;
-
-    if (scrollViewRef.current) {
-      scrollViewRef.current.scrollTo({
-        x: index * SCREEN_WIDTH,
-        animated: true,
-      });
+    if (pagerRef.current) {
+      pagerRef.current.setPage(index);
     }
-    // ❌ Do NOT call navigation.navigate here.
-    //    Doing so changes state.index immediately, which would cause any
-    //    state.index-watching useEffect to fire another scrollTo, racing
-    //    with the one above.  Let onMomentumEnd / onScrollEndDrag do it.
   };
 
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (e) => {
-      // Keep translateX in sync so tab bar animates while dragging
-      translateX.value = -e.contentOffset.x;
-    },
-    onMomentumEnd: (e) => {
-      // Fired after a SWIPE settles (native momentum)
-      const index = Math.round(e.contentOffset.x / SCREEN_WIDTH);
-      currentIndex.value = index;
-      runOnJS(handleSnap)(index);
-    },
-    onScrollEndDrag: (e) => {
-      // Fired after a PROGRAMMATIC scrollTo (animated:true) or a drag-with-
-      // no-momentum also ends here.  This catches tab-press animated scrolls
-      // that don't generate a momentum phase.
-      const index = Math.round(e.contentOffset.x / SCREEN_WIDTH);
-      // Only update if this looks like it has actually snapped to a page
-      // boundary (i.e. the scroll ended exactly on a page, not mid-drag).
-      const offset = e.contentOffset.x % SCREEN_WIDTH;
-      const snapped = offset < 2 || offset > SCREEN_WIDTH - 2;
-      if (snapped) {
-        currentIndex.value = index;
-        runOnJS(handleSnap)(index);
-      }
-    },
-  });
+  // ---------------- PAGE SELECTED ----------------
+  const onPageSelected = (e) => {
+    const index = e.nativeEvent.position;
+    currentIndex.value = index;
+    isPagerDrivenRef.current = true;
+    runOnJS(handleSnap)(index);
+  };
+
+  // ---------------- PAGE SCROLL HANDLER ----------------
+  const pageScrollHandler = useEvent((event) => {
+    'worklet';
+    const position = event.position !== undefined ? event.position : event.nativeEvent?.position;
+    const offset = event.offset !== undefined ? event.offset : event.nativeEvent?.offset;
+
+    if (position !== undefined && offset !== undefined) {
+      translateX.value = -(position + offset) * SCREEN_WIDTH;
+    }
+  }, ['onPageScroll']);
 
   const currentRoute = state.routes[state.index];
   const currentDescriptor = descriptors[currentRoute.key];
   const shouldHideTabBar =
     currentDescriptor.options.tabBarStyle?.display === "none";
 
-  // ---------------- TRANSITION LOCK FOR SCROLL/PAGING ----------------
-  //
-  // TIMING FIX: `shouldHideTabBar` is derived synchronously during render (from
-  // navigation descriptors).  A useEffect-based setState would only update
-  // `scrollEnabled` AFTER the render + layout pass — one frame too late.
-  // During that single render where shouldHideTabBar already flipped but
-  // scrollEnabled hadn't caught up, iOS's pagingEnabled UIScrollView would
-  // re-evaluate snap positions on the moving parent frame, producing the
-  // visible leftward-drift / grey-strip glitch.
-  //
-  // The fix: derive `effectiveScrollEnabled` directly from BOTH values so
-  // it's correct in the very same render cycle.  `scrollEnabled` state is
-  // only needed for the *delayed* re-enable when navigating back (400ms
-  // after shouldHideTabBar flips false).
-  //
-  //   Push (shouldHideTabBar: false → true):
-  //     scrollEnabled still true (useEffect hasn't run) but
-  //     effectiveScrollEnabled = !true && true = FALSE  ← immediate, safe
-  //
-  //   Pop  (shouldHideTabBar: true → false):
-  //     scrollEnabled is false (set by previous useEffect)
-  //     effectiveScrollEnabled = !false && false = FALSE ← still locked
-  //
-  //   After 400ms: scrollEnabled → true
-  //     effectiveScrollEnabled = !false && true = TRUE   ← safe to re-enable
-  //
-  const [scrollEnabled, setScrollEnabled] = useState(true);
-  const scrollTimeoutRef = useRef(null);
-
+  // Sync scroll position and currentIndex ONLY when the tab index genuinely changes.
   useEffect(() => {
-    if (shouldHideTabBar) {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-      setScrollEnabled(false);
-    } else {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-      // Delay re-enabling scroll to ensure the slide transition finishes first
-      scrollTimeoutRef.current = setTimeout(() => {
-        setScrollEnabled(true);
-      }, 400);
+    if (isPagerDrivenRef.current) {
+      isPagerDrivenRef.current = false;
+      return;
     }
 
-    return () => {
-      if (scrollTimeoutRef.current) {
-        clearTimeout(scrollTimeoutRef.current);
-      }
-    };
-  }, [shouldHideTabBar]);
-
-  // Synchronous derivation — correct in the same render cycle as the
-  // shouldHideTabBar flip, unlike the useEffect-set scrollEnabled alone.
-  const effectiveScrollEnabled = !shouldHideTabBar && scrollEnabled;
-
-  // Sync scroll position and currentIndex ONLY when the tab index genuinely changes.
-  //
-  // ⚠️  DO NOT add `shouldHideTabBar` as a dependency here.
-  //  When navigating back from a screen that hides the tab bar (e.g. Notifications → HomeFeed),
-  //  `state.index` stays at 0 the whole time, but `shouldHideTabBar` flips true→false
-  //  mid-transition (while the native slide-back animation is still in flight).
-  //  Reacting to that flip would call `scrollTo(x:0)` while the React Navigation
-  //  stack animator is still moving the pager's parent layout, producing the
-  //  visible leftward drift / grey-strip glitch.
-  const prevIndexRef = useRef(state.index);
-  useEffect(() => {
-    // Guard: skip if we're already at the correct position
-    if (prevIndexRef.current === state.index) return;
-    prevIndexRef.current = state.index;
-
     currentIndex.value = state.index;
-    // Only call scrollTo if the ref is ready
-    if (scrollViewRef.current) {
-      scrollViewRef.current.scrollTo({
-        x: state.index * SCREEN_WIDTH,
-        animated: false,
-      });
+    if (pagerRef.current) {
+      pagerRef.current.setPageWithoutAnimation(state.index);
     }
   }, [state.index]);
 
@@ -499,36 +406,24 @@ function SwipeablePagerNavigator({
   // ---------------- RENDER ----------------
   return (
     <View style={styles.container}>
-      <Animated.ScrollView
-        ref={scrollViewRef}
-        horizontal
-        pagingEnabled={effectiveScrollEnabled}
-        scrollEnabled={effectiveScrollEnabled}
-        bounces={false}
-        showsHorizontalScrollIndicator={false}
-        onScroll={scrollHandler}
-        scrollEventThrottle={16}
+      <AnimatedPagerView
+        ref={pagerRef}
         style={styles.pager}
-        // directionalLockEnabled tells iOS to commit to ONE axis per gesture.
-        // When a nested carousel is scrolling horizontally, iOS automatically
-        // decides that scroll belongs to the inner view, preventing the pager
-        // from stealing it.  On Android, nestedScrollEnabled on the child
-        // ScrollView does the equivalent job.
-        directionalLockEnabled={true}
-        // disableScrollViewPanResponder prevents RN's JS-thread PanResponder
-        // from fighting with Reanimated's native scroll handler.
-        disableScrollViewPanResponder={true}
+        initialPage={initialPage}
+        onPageScroll={pageScrollHandler}
+        onPageSelected={onPageSelected}
+        offscreenPageLimit={1}
       >
         {state.routes.map((route, index) => {
           const isLoaded = loaded.includes(index);
 
           return (
-            <View key={route.key} style={styles.page}>
+            <View key={route.key} style={styles.page} collapsable={false}>
               {isLoaded ? descriptors[route.key].render() : null}
             </View>
           );
         })}
-      </Animated.ScrollView>
+      </AnimatedPagerView>
 
       <Animated.View
         style={[
