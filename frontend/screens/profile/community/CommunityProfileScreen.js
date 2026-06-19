@@ -609,7 +609,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
 
   useEffect(() => {
-    if (showAccountSwitcher) {
+    if (showAccountSwitcher || showAddAccountModal) {
       navigation.getParent()?.setOptions({
         tabBarStyle: { display: "none" },
       });
@@ -618,7 +618,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
         tabBarStyle: undefined,
       });
     }
-  }, [showAccountSwitcher, navigation]);
+  }, [showAccountSwitcher, showAddAccountModal, navigation]);
 
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);

@@ -3,13 +3,16 @@ import {
   Modal,
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   Animated,
   Dimensions,
-  TouchableWithoutFeedback,
+  Pressable,
   Platform,
 } from "react-native";
+import {
+  GestureHandlerRootView,
+  Pressable as GHPressable,
+} from "react-native-gesture-handler";
 import { BlurView } from "expo-blur";
 import { X } from "lucide-react-native";
 import PropTypes from "prop-types";
@@ -92,53 +95,67 @@ export default function AddAccountModal({
       onRequestClose={onClose}
       statusBarTranslucent={true}
     >
-      <View style={styles.overlay}>
-        <TouchableWithoutFeedback onPress={onClose}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={styles.overlay}>
           <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
-            <BlurView
-              intensity={20}
-              tint="dark"
-              style={StyleSheet.absoluteFill}
-            />
+            <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
+              <BlurView
+                intensity={20}
+                tint="dark"
+                style={StyleSheet.absoluteFill}
+              />
+            </Pressable>
           </Animated.View>
-        </TouchableWithoutFeedback>
 
-        <Animated.View
-          style={[
-            styles.modalContent,
-            { transform: [{ translateY: slideAnim }] },
-          ]}
-        >
-          {/* Handle bar */}
-          <View style={styles.handleBar} />
-
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Add account</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <X size={20} color="#0F172A" strokeWidth={2.2} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Log into existing account button */}
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={handleLoginExisting}
+          <Animated.View
+            style={[
+              styles.modalContent,
+              { transform: [{ translateY: slideAnim }] },
+            ]}
           >
-            <Text style={styles.primaryButtonText}>
-              Log into existing account
-            </Text>
-          </TouchableOpacity>
+            {/* Handle bar */}
+            <View style={styles.handleBar} />
 
-          {/* Create new account button */}
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={handleCreateNew}
-          >
-            <Text style={styles.secondaryButtonText}>Create new account</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      </View>
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.title}>Add account</Text>
+              <GHPressable
+                style={({ pressed }) => [
+                  styles.closeButton,
+                  { opacity: pressed ? 0.6 : 1 },
+                ]}
+                onPress={onClose}
+              >
+                <X size={20} color="#0F172A" strokeWidth={2.2} />
+              </GHPressable>
+            </View>
+
+            {/* Log into existing account button */}
+            <GHPressable
+              style={({ pressed }) => [
+                styles.primaryButton,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+              onPress={handleLoginExisting}
+            >
+              <Text style={styles.primaryButtonText}>
+                Log into existing account
+              </Text>
+            </GHPressable>
+
+            {/* Create new account button */}
+            <GHPressable
+              style={({ pressed }) => [
+                styles.secondaryButton,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+              onPress={handleCreateNew}
+            >
+              <Text style={styles.secondaryButtonText}>Create new account</Text>
+            </GHPressable>
+          </Animated.View>
+        </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

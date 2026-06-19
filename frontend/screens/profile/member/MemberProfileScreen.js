@@ -373,7 +373,7 @@ export default function MemberProfileScreen({ navigation }) {
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
 
   useEffect(() => {
-    if (showAccountSwitcher) {
+    if (showAccountSwitcher || showAddAccountModal) {
       navigation.getParent()?.setOptions({
         tabBarStyle: { display: "none" },
       });
@@ -382,7 +382,7 @@ export default function MemberProfileScreen({ navigation }) {
         tabBarStyle: undefined,
       });
     }
-  }, [showAccountSwitcher, navigation]);
+  }, [showAccountSwitcher, showAddAccountModal, navigation]);
 
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
