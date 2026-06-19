@@ -3,16 +3,19 @@ import {
   Modal,
   View,
   Text,
-  TouchableOpacity,
   StyleSheet,
   FlatList,
   Image,
   Alert,
   Animated,
   Dimensions,
-  TouchableWithoutFeedback,
+  Pressable,
   Platform,
 } from "react-native";
+import {
+  GestureHandlerRootView,
+  Pressable as GHPressable,
+} from "react-native-gesture-handler";
 import { BlurView } from "expo-blur";
 import { CheckCircle2, XCircle, PlusCircle } from "lucide-react-native";
 import PropTypes from "prop-types";
@@ -341,11 +344,12 @@ export default function AccountSwitcherModal({
 
     return (
       <View style={styles.accountRowContainer}>
-        <TouchableOpacity
-          style={[
+        <GHPressable
+          style={({ pressed }) => [
             styles.accountRow,
             isLoggedOut && styles.accountRowLoggedOut,
             isActive && styles.accountRowActive,
+            { opacity: pressed ? 0.6 : 1 },
           ]}
           onPress={() => handleSwitchAccount(item)}
           disabled={isSwitching}
@@ -389,15 +393,18 @@ export default function AccountSwitcherModal({
           ) : isActive && !isLoggedOut ? (
             <CheckCircle2 size={20} color={COLORS.primary} />
           ) : null}
-        </TouchableOpacity>
+        </GHPressable>
 
         {canRemove && (
-          <TouchableOpacity
-            style={styles.removeButton}
+          <GHPressable
+            style={({ pressed }) => [
+              styles.removeButton,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
             onPress={() => handleRemoveAccount(item)}
           >
             <XCircle size={20} color="#FF3B30" />
-          </TouchableOpacity>
+          </GHPressable>
         )}
       </View>
     );
@@ -415,67 +422,70 @@ export default function AccountSwitcherModal({
       onRequestClose={onClose}
       statusBarTranslucent={true}
     >
-      <View style={styles.overlay}>
-        <TouchableWithoutFeedback onPress={onClose}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={styles.overlay}>
           <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
-            <BlurView
-              intensity={20}
-              tint="dark"
-              style={StyleSheet.absoluteFill}
-            />
+            <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
+              <BlurView
+                intensity={20}
+                tint="dark"
+                style={StyleSheet.absoluteFill}
+              />
+            </Pressable>
           </Animated.View>
-        </TouchableWithoutFeedback>
 
-        <Animated.View
-          style={[
-            styles.modalContent,
-            { transform: [{ translateY: slideAnim }] },
-          ]}
-        >
-          {/* Handle bar */}
-          <View style={styles.handleBar} />
-
-          {/* Account List */}
-          <FlatList
-            data={accounts}
-            keyExtractor={(item) => `${item.type}_${item.id}`}
-            renderItem={renderAccountItem}
-            style={styles.accountList}
-            contentContainerStyle={styles.listContent}
-          />
-
-          {/* Add Account Button */}
-          <TouchableOpacity
+          <Animated.View
             style={[
-              styles.addAccountButton,
-              !canAddMore && styles.addAccountButtonDisabled,
+              styles.modalContent,
+              { transform: [{ translateY: slideAnim }] },
             ]}
-            onPress={() => {
-              onClose();
-              onAddAccount();
-            }}
-            disabled={!canAddMore}
           >
-            <PlusCircle size={20} color={canAddMore ? "#1D1D1F" : "#8E8E93"} />
-            <Text
-              style={[
-                styles.addAccountText,
-                !canAddMore && styles.addAccountTextDisabled,
-              ]}
-            >
-              Add account
-            </Text>
-            {!canAddMore && (
-              <Text style={styles.maxReachedText}>(Max reached)</Text>
-            )}
-          </TouchableOpacity>
+            {/* Handle bar */}
+            <View style={styles.handleBar} />
 
-          {/* SnooSpace Branding */}
-          <View style={styles.footer}>
-            <Text style={styles.metaText}>SnooSpace</Text>
-          </View>
-        </Animated.View>
-      </View>
+            {/* Account List */}
+            <FlatList
+              data={accounts}
+              keyExtractor={(item) => `${item.type}_${item.id}`}
+              renderItem={renderAccountItem}
+              style={styles.accountList}
+              contentContainerStyle={styles.listContent}
+            />
+
+            {/* Add Account Button */}
+            <GHPressable
+              style={({ pressed }) => [
+                styles.addAccountButton,
+                !canAddMore && styles.addAccountButtonDisabled,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+              onPress={() => {
+                onClose();
+                onAddAccount();
+              }}
+              disabled={!canAddMore}
+            >
+              <PlusCircle size={20} color={canAddMore ? "#1D1D1F" : "#8E8E93"} />
+              <Text
+                style={[
+                  styles.addAccountText,
+                  !canAddMore && styles.addAccountTextDisabled,
+                ]}
+              >
+                Add account
+              </Text>
+              {!canAddMore && (
+                <Text style={styles.maxReachedText}>(Max reached)</Text>
+              )}
+            </GHPressable>
+
+            {/* SnooSpace Branding */}
+            <View style={styles.footer}>
+              <Text style={styles.metaText}>SnooSpace</Text>
+            </View>
+          </Animated.View>
+        </View>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

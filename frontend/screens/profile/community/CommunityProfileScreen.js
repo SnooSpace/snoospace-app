@@ -607,6 +607,19 @@ export default function CommunityProfileScreen({ navigation, route }) {
   const [showHeadsModal, setShowHeadsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+
+  useEffect(() => {
+    if (showAccountSwitcher) {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: { display: "none" },
+      });
+    } else {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: undefined,
+      });
+    }
+  }, [showAccountSwitcher, navigation]);
+
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutModalData, setLogoutModalData] = useState({

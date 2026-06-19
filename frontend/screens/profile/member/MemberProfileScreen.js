@@ -371,6 +371,19 @@ export default function MemberProfileScreen({ navigation }) {
   const [deleteInput, setDeleteInput] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+
+  useEffect(() => {
+    if (showAccountSwitcher) {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: { display: "none" },
+      });
+    } else {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: undefined,
+      });
+    }
+  }, [showAccountSwitcher, navigation]);
+
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showCollegeHub, setShowCollegeHub] = useState(false);
