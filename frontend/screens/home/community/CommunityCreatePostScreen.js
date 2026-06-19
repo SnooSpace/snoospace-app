@@ -83,6 +83,18 @@ export default function CommunityCreatePostScreen({ navigation }) {
   const [profileError, setProfileError] = useState("");
 
   const [showCelebration, setShowCelebration] = useState(false);
+
+  // Hide parent tab bar on mount, restore on unmount
+  useEffect(() => {
+    navigation.getParent()?.setOptions({
+      tabBarStyle: { display: "none" },
+    });
+    return () => {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: undefined,
+      });
+    };
+  }, [navigation]);
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [showRemoveMediaModal, setShowRemoveMediaModal] = useState(false);

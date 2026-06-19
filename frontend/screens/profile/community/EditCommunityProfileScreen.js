@@ -91,6 +91,18 @@ const CATEGORIES = [
 export default function EditCommunityProfileScreen({ route, navigation }) {
   const profile = route?.params?.profile;
 
+  // Hide parent tab bar on mount, restore on unmount
+  useEffect(() => {
+    navigation.getParent()?.setOptions({
+      tabBarStyle: { display: "none" },
+    });
+    return () => {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: undefined,
+      });
+    };
+  }, [navigation]);
+
   // State initialization
   const [name, setName] = useState(profile?.name || "");
   const [bio, setBio] = useState(profile?.bio || "");

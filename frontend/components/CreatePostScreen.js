@@ -53,6 +53,19 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 
 const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
   const insets = useSafeAreaInsets();
+
+  // Hide parent tab bar on mount, restore on unmount
+  useEffect(() => {
+    navigation.getParent()?.setOptions({
+      tabBarStyle: { display: "none" },
+    });
+    return () => {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: undefined,
+      });
+    };
+  }, [navigation]);
+
   const [caption, setCaption] = useState("");
   const [images, setImages] = useState([]);
   const [aspectRatios, setAspectRatios] = useState([]);

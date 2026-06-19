@@ -276,7 +276,8 @@ export default function CommunityDashboardScreen({ navigation }) {
         {
           text: "OK",
           style: "primary",
-          onPress: () => setModalConfig((prev) => ({ ...prev, visible: false })),
+          onPress: () =>
+            setModalConfig((prev) => ({ ...prev, visible: false })),
         },
       ],
     });
@@ -292,7 +293,8 @@ export default function CommunityDashboardScreen({ navigation }) {
           {
             text: "OK",
             style: "primary",
-            onPress: () => setModalConfig((prev) => ({ ...prev, visible: false })),
+            onPress: () =>
+              setModalConfig((prev) => ({ ...prev, visible: false })),
           },
         ],
       });
@@ -794,7 +796,10 @@ export default function CommunityDashboardScreen({ navigation }) {
                     style={[styles.badgePill, { backgroundColor: "#F3F4F6" }]}
                   >
                     <Text
-                      style={[styles.badgeText, { color: COLORS.textSecondary }]}
+                      style={[
+                        styles.badgeText,
+                        { color: COLORS.textSecondary },
+                      ]}
                     >
                       🏆 {Math.round(audienceStats.tier1_percentage)}%
                     </Text>
@@ -881,7 +886,9 @@ export default function CommunityDashboardScreen({ navigation }) {
                   <BarChart3 size={22} color="#2563EB" />
                 </View>
                 <View>
-                  <Text style={styles.audienceCTATitle}>Audience Intelligence</Text>
+                  <Text style={styles.audienceCTATitle}>
+                    Audience Intelligence
+                  </Text>
                   <Text style={styles.audienceCTASub}>
                     {audienceStats
                       ? `🏆 T1: ${Math.round(audienceStats.tier1_percentage || 0)}%  ⭐ T2: ${Math.round(audienceStats.tier2_percentage || 0)}%`
@@ -1001,7 +1008,9 @@ export default function CommunityDashboardScreen({ navigation }) {
           title={modalConfig.title}
           message={modalConfig.message}
           actions={modalConfig.actions}
-          onClose={() => setModalConfig((prev) => ({ ...prev, visible: false }))}
+          onClose={() =>
+            setModalConfig((prev) => ({ ...prev, visible: false }))
+          }
         />
       )}
 

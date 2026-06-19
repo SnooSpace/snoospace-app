@@ -4,10 +4,13 @@ import {
   View,
   Text,
   Modal,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
+  Pressable,
   Dimensions,
 } from "react-native";
+import {
+  GestureHandlerRootView,
+  Pressable as GHPressable,
+} from "react-native-gesture-handler";
 import { BlurView } from "expo-blur";
 import { X } from "lucide-react-native";
 import { COLORS, SHADOWS, FONTS } from "../../constants/theme";
@@ -51,90 +54,96 @@ export default function ActionModal({
       onRequestClose={handleDismiss}
       statusBarTranslucent={true}
     >
-      <TouchableWithoutFeedback onPress={handleDismiss}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={styles.overlay}>
-          <BlurView
-            intensity={25}
-            style={StyleSheet.absoluteFill}
-            tint="dark"
-          />
+          {/* Backdrop absolute pressable */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={handleDismiss}>
+            <BlurView
+              intensity={25}
+              style={StyleSheet.absoluteFill}
+              tint="dark"
+            />
+          </Pressable>
 
-          <TouchableWithoutFeedback onPress={() => {}}>
-            <View style={styles.container}>
-              <View style={styles.contentContainer}>
-                {/* Header with Title and Dismiss Button */}
-                <View style={styles.headerContainer}>
-                  {(title || message) && (
-                    <View style={styles.headerTextContainer}>
-                      {title && <Text style={styles.title}>{title}</Text>}
-                      {message && <Text style={styles.message}>{message}</Text>}
-                    </View>
-                  )}
-                  <TouchableOpacity
-                    style={styles.closeCircle}
-                    onPress={handleDismiss}
-                    activeOpacity={0.7}
-                  >
-                    <X size={23} color={COLORS.textSecondary} />
-                  </TouchableOpacity>
-                </View>
+          <View style={styles.container}>
+            <View style={styles.contentContainer}>
+              {/* Header with Title and Dismiss Button */}
+              <View style={styles.headerContainer}>
+                {(title || message) && (
+                  <View style={styles.headerTextContainer}>
+                    {title && <Text style={styles.title}>{title}</Text>}
+                    {message && <Text style={styles.message}>{message}</Text>}
+                  </View>
+                )}
+                <GHPressable
+                  style={({ pressed }) => [
+                    styles.closeCircle,
+                    { opacity: pressed ? 0.6 : 1 },
+                  ]}
+                  onPress={handleDismiss}
+                >
+                  <X size={23} color={COLORS.textSecondary} />
+                </GHPressable>
+              </View>
 
-                {/* Actions List */}
-                <View style={styles.actionsBox}>
-                  {otherActions.map((action, index) => {
-                    const styleType = action.style || "secondary"; // default to secondary
+              {/* Actions List */}
+              <View style={styles.actionsBox}>
+                {otherActions.map((action, index) => {
+                  const styleType = action.style || "secondary"; // default to secondary
 
-                    let buttonStyle = styles.secondaryButton;
-                    let textStyle = styles.secondaryText;
-                    let iconColor = "#1D1D1F";
+                  let buttonStyle = styles.secondaryButton;
+                  let textStyle = styles.secondaryText;
+                  let iconColor = "#1D1D1F";
 
-                    if (styleType === "primary") {
-                      buttonStyle = styles.primaryButton;
-                      textStyle = styles.primaryText;
-                      iconColor = "#FFFFFF";
-                    } else if (styleType === "success" || styleType === "green") {
-                      buttonStyle = styles.successButton;
-                      textStyle = styles.successText;
-                      iconColor = "#FFFFFF";
-                    } else if (styleType === "warning") {
-                      buttonStyle = styles.warningButton;
-                      textStyle = styles.warningText;
-                      iconColor = "#FF9F0A";
-                    } else if (styleType === "destructive") {
-                      buttonStyle = styles.destructiveButton;
-                      textStyle = styles.destructiveText;
-                      iconColor = "#FF3B30";
-                    }
+                  if (styleType === "primary") {
+                    buttonStyle = styles.primaryButton;
+                    textStyle = styles.primaryText;
+                    iconColor = "#FFFFFF";
+                  } else if (styleType === "success" || styleType === "green") {
+                    buttonStyle = styles.successButton;
+                    textStyle = styles.successText;
+                    iconColor = "#FFFFFF";
+                  } else if (styleType === "warning") {
+                    buttonStyle = styles.warningButton;
+                    textStyle = styles.warningText;
+                    iconColor = "#FF9F0A";
+                  } else if (styleType === "destructive") {
+                    buttonStyle = styles.destructiveButton;
+                    textStyle = styles.destructiveText;
+                    iconColor = "#FF3B30";
+                  }
 
-                    return (
-                      <TouchableOpacity
-                        key={index}
-                        style={[styles.actionButton, buttonStyle]}
-                        onPress={() => {
-                          action.onPress && action.onPress();
-                        }}
-                        activeOpacity={0.8}
-                      >
-                        {action.icon && (
-                          <View style={styles.actionIcon}>
-                            {React.cloneElement(action.icon, {
-                              size: 20,
-                              color: iconColor,
-                            })}
-                          </View>
-                        )}
-                        <Text style={[styles.actionText, textStyle]}>
-                          {action.text}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                  return (
+                    <GHPressable
+                      key={index}
+                      style={({ pressed }) => [
+                        styles.actionButton,
+                        buttonStyle,
+                        { opacity: pressed ? 0.6 : 1 },
+                      ]}
+                      onPress={() => {
+                        action.onPress && action.onPress();
+                      }}
+                    >
+                      {action.icon && (
+                        <View style={styles.actionIcon}>
+                          {React.cloneElement(action.icon, {
+                            size: 20,
+                            color: iconColor,
+                          })}
+                        </View>
+                      )}
+                      <Text style={[styles.actionText, textStyle]}>
+                        {action.text}
+                      </Text>
+                    </GHPressable>
+                  );
+                })}
               </View>
             </View>
-          </TouchableWithoutFeedback>
+          </View>
         </View>
-      </TouchableWithoutFeedback>
+      </GestureHandlerRootView>
     </Modal>
   );
 }

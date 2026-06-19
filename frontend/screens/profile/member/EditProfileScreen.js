@@ -141,6 +141,18 @@ export default function EditProfileScreen({ route, navigation }) {
   const scrollViewRef = useRef(null);
   const phoneInputRef = useRef(null);
 
+  // Hide parent tab bar on mount, restore on unmount
+  useEffect(() => {
+    navigation.getParent()?.setOptions({
+      tabBarStyle: { display: "none" },
+    });
+    return () => {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: undefined,
+      });
+    };
+  }, [navigation]);
+
   const cleanLabel = (val) => {
     if (typeof val !== "string") return val;
     return val.replace(/^[{\"]+|[}\"]+$/g, "");
