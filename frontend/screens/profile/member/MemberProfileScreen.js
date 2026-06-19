@@ -1558,36 +1558,38 @@ export default function MemberProfileScreen({ navigation }) {
         </View>
 
         {/* Posts Tab Content */}
-        <View style={{ display: activeProfileTab === 'posts' ? 'flex' : 'none' }}>
-          {(() => {
-            const numRows = Math.ceil(posts.length / 3);
-            const gridHeight = numRows > 0 ? numRows * (itemSize * 1.35) + (numRows - 1) * gap : 0;
-            return posts.length > 0 ? (
-              <View style={{ height: gridHeight, marginTop: 10 }}>
-                <FlatList
-                  data={posts}
-                  keyExtractor={(item) => String(item.id)}
-                  numColumns={3}
-                  columnWrapperStyle={{ justifyContent: "flex-start", marginBottom: gap, gap: gap }}
-                  scrollEnabled={false}
-                  renderItem={renderGridItem}
-                  initialNumToRender={12}
-                  maxToRenderPerBatch={6}
-                  windowSize={5}
-                  removeClippedSubviews={Platform.OS === 'android'}
-                  updateCellsBatchingPeriod={50}
-                  getItemLayout={(data, index) => ({
-                    length: itemSize * 1.35,
-                    offset: (itemSize * 1.35 + gap) * Math.floor(index / 3),
-                    index,
-                  })}
-                />
-              </View>
-            ) : (
-              <EmptyPostsState isOwnProfile={isOwnProfile} />
-            );
-          })()}
-        </View>
+        {activeProfileTab === 'posts' && (
+          <View style={{ display: 'flex' }}>
+            {(() => {
+              const numRows = Math.ceil(posts.length / 3);
+              const gridHeight = numRows > 0 ? numRows * (itemSize * 1.35) + (numRows - 1) * gap : 0;
+              return posts.length > 0 ? (
+                <View style={{ height: gridHeight, marginTop: 10 }}>
+                  <FlatList
+                    data={posts}
+                    keyExtractor={(item) => String(item.id)}
+                    numColumns={3}
+                    columnWrapperStyle={{ justifyContent: "flex-start", marginBottom: gap, gap: gap }}
+                    scrollEnabled={false}
+                    renderItem={renderGridItem}
+                    initialNumToRender={12}
+                    maxToRenderPerBatch={6}
+                    windowSize={5}
+                    removeClippedSubviews={Platform.OS === 'android'}
+                    updateCellsBatchingPeriod={50}
+                    getItemLayout={(data, index) => ({
+                      length: itemSize * 1.35,
+                      offset: (itemSize * 1.35 + gap) * Math.floor(index / 3),
+                      index,
+                    })}
+                  />
+                </View>
+              ) : (
+                <EmptyPostsState isOwnProfile={isOwnProfile} />
+              );
+            })()}
+          </View>
+        )}
 
         {loadingMorePosts && activeProfileTab === 'posts' && (
           <View style={{ paddingVertical: 20, alignItems: "center" }}>
@@ -1596,9 +1598,9 @@ export default function MemberProfileScreen({ navigation }) {
         )}
 
         {/* Community Posts Tab Content */}
-        {profile.is_creator_mode_enabled && (
+        {profile.is_creator_mode_enabled && activeProfileTab === 'community' && (
           <View
-            style={{ display: activeProfileTab === 'community' ? 'flex' : 'none', paddingTop: 4, paddingBottom: 8 }}
+            style={{ display: 'flex', paddingTop: 4, paddingBottom: 8 }}
             onLayout={(e) => {
               tabContentYRef.current = e.nativeEvent.layout.y;
             }}
@@ -1741,59 +1743,61 @@ export default function MemberProfileScreen({ navigation }) {
         )}
 
         {/* Events Tab Content */}
-        <View style={[profileTabStyles.eventsContainer, { display: activeProfileTab === 'events' ? 'flex' : 'none' }]}>
-          {loadingEvents ? (
-            <View style={profileTabStyles.loadingWrap}>
-              <SnooLoader size="large" color={PRIMARY_COLOR} />
-            </View>
-          ) : (
-            <>
-              {/* Attended Events */}
-              {profileEvents.length > 0 && (
-                <>
-                  {profileEvents.map((ev) => (
-                    <EventCard
-                      key={`ev-${ev.id}`}
-                      event={ev}
-                      onPress={(eventData) => navigation.navigate('EventDetails', { eventId: eventData.id, eventData })}
-                    />
-                  ))}
-                </>
-              )}
-
-              {/* Open Plans — full OpenPlanCard */}
-              {(profilePlans.hosted.length > 0 || profilePlans.attending.length > 0) && (
-                <>
-                  {[...profilePlans.hosted, ...profilePlans.attending].map((plan) => (
-                    <View key={`plan-${plan.id}-${plan.role}`} style={{ paddingHorizontal: 16 }}>
-                      <OpenPlanCard
-                        plan={plan}
-                        currentUserId={profile?.id}
-                        onPress={(id) => navigation.navigate('PlanDetail', { planId: id })}
-                        onRequestPress={(id) => setPlanRequestSheet({ planId: id, planTitle: plan.title })}
-                        onLike={async (planId, liked) => {
-                          const token = await getAuthToken();
-                          if (liked) await likePlan(planId, token);
-                          else await unlikePlan(planId, token);
-                        }}
-                        navigation={navigation}
+        {activeProfileTab === 'events' && (
+          <View style={profileTabStyles.eventsContainer}>
+            {loadingEvents ? (
+              <View style={profileTabStyles.loadingWrap}>
+                <SnooLoader size="large" color={PRIMARY_COLOR} />
+              </View>
+            ) : (
+              <>
+                {/* Attended Events */}
+                {profileEvents.length > 0 && (
+                  <>
+                    {profileEvents.map((ev) => (
+                      <EventCard
+                        key={`ev-${ev.id}`}
+                        event={ev}
+                        onPress={(eventData) => navigation.navigate('EventDetails', { eventId: eventData.id, eventData })}
                       />
-                    </View>
-                  ))}
-                </>
-              )}
+                    ))}
+                  </>
+                )}
 
-              {/* Empty state */}
-              {profileEvents.length === 0 && profilePlans.hosted.length === 0 && profilePlans.attending.length === 0 && (
-                <EmptyEventsState
-                  isOwnProfile={false}
-                  title="No events yet"
-                  subtitle="Events and plans you attend will show here."
-                />
-              )}
-            </>
-          )}
-        </View>
+                {/* Open Plans — full OpenPlanCard */}
+                {(profilePlans.hosted.length > 0 || profilePlans.attending.length > 0) && (
+                  <>
+                    {[...profilePlans.hosted, ...profilePlans.attending].map((plan) => (
+                      <View key={`plan-${plan.id}-${plan.role}`} style={{ paddingHorizontal: 16 }}>
+                        <OpenPlanCard
+                          plan={plan}
+                          currentUserId={profile?.id}
+                          onPress={(id) => navigation.navigate('PlanDetail', { planId: id })}
+                          onRequestPress={(id) => setPlanRequestSheet({ planId: id, planTitle: plan.title })}
+                          onLike={async (planId, liked) => {
+                            const token = await getAuthToken();
+                            if (liked) await likePlan(planId, token);
+                            else await unlikePlan(planId, token);
+                          }}
+                          navigation={navigation}
+                        />
+                      </View>
+                    ))}
+                  </>
+                )}
+
+                {/* Empty state */}
+                {profileEvents.length === 0 && profilePlans.hosted.length === 0 && profilePlans.attending.length === 0 && (
+                  <EmptyEventsState
+                    isOwnProfile={false}
+                    title="No events yet"
+                    subtitle="Events and plans you attend will show here."
+                  />
+                )}
+              </>
+            )}
+          </View>
+        )}
 
         {planRequestSheet && (
           <RequestBottomSheet

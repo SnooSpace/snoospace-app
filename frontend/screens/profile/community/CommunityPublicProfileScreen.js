@@ -1825,247 +1825,253 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           }}
         >
           {/* Posts Tab - Media Only (Images/Videos) */}
-          <View style={{ display: activeTab === "posts" ? "flex" : "none" }}>
-            {(() => {
-              const INTERACTIVE_TYPES = [
-                "poll",
-                "prompt",
-                "qna",
-                "challenge",
-                "opportunity",
-              ];
-              const mediaPosts = posts.filter((p) => {
-                const postType = p.post_type || p.type;
-                return !INTERACTIVE_TYPES.includes(postType);
-              });
-
-              const numRows = Math.ceil(mediaPosts.length / 3);
-              const gridHeight = numRows > 0 ? numRows * (ITEM_SIZE * 1.35) + (numRows - 1) * GAP : 0;
-
-              return mediaPosts.length > 0 ? (
-                <View style={{ height: gridHeight }}>
-                  <FlatList
-                    data={mediaPosts}
-                    keyExtractor={(item) => String(item.id)}
-                    numColumns={3}
-                    columnWrapperStyle={{
-                      justifyContent: "flex-start",
-                      marginBottom: GAP,
-                      gap: GAP,
-                    }}
-                    scrollEnabled={false}
-                    renderItem={renderGridItem}
-                    initialNumToRender={12}
-                    maxToRenderPerBatch={6}
-                    windowSize={5}
-                    removeClippedSubviews={false}
-                    updateCellsBatchingPeriod={50}
-                    getItemLayout={(data, index) => ({
-                      length: ITEM_SIZE * 1.35,
-                      offset: (ITEM_SIZE * 1.35 + GAP) * Math.floor(index / 3),
-                      index,
-                    })}
-                  />
-                </View>
-              ) : (
-                <EmptyPostsState isOwnProfile={false} />
-              );
-            })()}
-          </View>
-
-          {/* Community Tab - Interactive Posts + Voice Box */}
-          <View style={{ display: activeTab === "community" ? "flex" : "none" }}>
-            {(() => {
-              const interactivePosts = posts.filter((p) => {
-                const postType = p.post_type || p.type;
-                return [
+          {activeTab === "posts" && (
+            <View style={{ display: "flex" }}>
+              {(() => {
+                const INTERACTIVE_TYPES = [
                   "poll",
                   "prompt",
                   "qna",
                   "challenge",
                   "opportunity",
-                ].includes(postType);
-              });
+                ];
+                const mediaPosts = posts.filter((p) => {
+                  const postType = p.post_type || p.type;
+                  return !INTERACTIVE_TYPES.includes(postType);
+                });
 
-              // Sort: pinned first, then by created_at
-              const sortedPosts = [...interactivePosts].sort((a, b) => {
-                if (a.is_pinned && !b.is_pinned) return -1;
-                if (!a.is_pinned && b.is_pinned) return 1;
-                return new Date(b.created_at) - new Date(a.created_at);
-              });
+                const numRows = Math.ceil(mediaPosts.length / 3);
+                const gridHeight = numRows > 0 ? numRows * (ITEM_SIZE * 1.35) + (numRows - 1) * GAP : 0;
 
-              return (
-                <View style={{ paddingBottom: 8 }}>
-                  {/* Voice Box — any viewer can post */}
-                  <CommunityVoiceBox
-                    targetId={communityId}
-                    targetType="community"
-                    currentUser={null}
-                    onPostCreated={(newPost) => {
-                      setVoicePosts((prev) => [newPost, ...prev]);
-                    }}
-                  />
-
-                  {/* Community's own interactive posts */}
-                  {sortedPosts.length > 0 && (
-                    <View
-                      style={styles.communityPostsList}
-                      onLayout={(e) => {
-                        interactiveListYRef.current = e.nativeEvent.layout.y;
+                return mediaPosts.length > 0 ? (
+                  <View style={{ height: gridHeight }}>
+                    <FlatList
+                      data={mediaPosts}
+                      keyExtractor={(item) => String(item.id)}
+                      numColumns={3}
+                      columnWrapperStyle={{
+                        justifyContent: "flex-start",
+                        marginBottom: GAP,
+                        gap: GAP,
                       }}
-                    >
-                      {sortedPosts.map((post) => {
-                        const postType = post.post_type || post.type;
-                        const isOpportunity = postType === "opportunity";
-                        return (
-                          <View
-                            key={post.id}
-                            onLayout={(e) => {
-                              if (String(post.id) === String(scrollToPostIdRef.current)) {
-                                scrollToPostIdRef.current = null;
-                                const itemY = e.nativeEvent.layout.y;
-                                const targetY = postsSectionYRef.current + interactiveListYRef.current + itemY;
-                                setTimeout(() => {
-                                  scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
-                                }, 100);
-                              }
-                            }}
-                            style={styles.communityPostItem}
-                          >
-                            {isOpportunity ? (
-                              <OpportunityFeedCard
-                                opportunity={post}
-                                onPress={(opp) =>
-                                  navigation.navigate("OpportunityView", {
-                                    opportunityId: opp.id,
-                                    opportunity: opp,
-                                  })
-                                }
-                                onLike={(postId, isLiked, count) => {
-                                  setPosts((prevPosts) =>
-                                    prevPosts.map((p) =>
-                                      p.id === postId
-                                        ? { ...p, is_liked: isLiked, like_count: count }
-                                        : p,
-                                    ),
-                                  );
-                                }}
-                                onSave={(postId, isSaved) => {
-                                  setPosts((prevPosts) =>
-                                    prevPosts.map((p) =>
-                                      p.id === postId
-                                        ? { ...p, is_saved: isSaved }
-                                        : p,
-                                    ),
-                                  );
-                                }}
-                                onShare={() => {}}
-                                onUserPress={(userId, userType) => {
-                                  if (userType === "community") {
-                                    navigation.navigate("CommunityPublicProfile", {
-                                      communityId: userId,
-                                      viewerRole: viewerRole || "member",
-                                    });
-                                  } else {
-                                    navigation.navigate("MemberPublicProfile", { memberId: userId });
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <EditorialPostCard
-                                post={post}
-                                onLike={(postId, isLiked, count) => {
-                                  setPosts((prevPosts) =>
-                                    prevPosts.map((p) =>
-                                      p.id === postId
-                                        ? { ...p, is_liked: isLiked, like_count: count }
-                                        : p,
-                                    ),
-                                  );
-                                }}
-                                onComment={(postId) => openCommentsModal(postId)}
-                                onShare={() => {}}
-                                onFollow={() => {}}
-                                showFollowButton={false}
-                                currentUserId={currentUserId}
-                                currentUserType="member"
-                                onUserPress={(userId, userType) => {}}
-                                onPostUpdate={(updatedPost) => {
-                                  setPosts((prevPosts) =>
-                                    prevPosts.map((p) =>
-                                      p.id === updatedPost.id ? updatedPost : p,
-                                    ),
-                                  );
-                                }}
-                              />
-                            )}
-                          </View>
-                        );
+                      scrollEnabled={false}
+                      renderItem={renderGridItem}
+                      initialNumToRender={12}
+                      maxToRenderPerBatch={6}
+                      windowSize={5}
+                      removeClippedSubviews={false}
+                      updateCellsBatchingPeriod={50}
+                      getItemLayout={(data, index) => ({
+                        length: ITEM_SIZE * 1.35,
+                        offset: (ITEM_SIZE * 1.35 + GAP) * Math.floor(index / 3),
+                        index,
                       })}
-                    </View>
-                  )}
+                    />
+                  </View>
+                ) : (
+                  <EmptyPostsState isOwnProfile={false} />
+                );
+              })()}
+            </View>
+          )}
 
-                  {/* Voice posts from members */}
-                  {loadingVoicePosts ? (
-                    <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                      <SnooLoader size="small" color={COLORS.primary} />
-                    </View>
-                  ) : (
-                    voicePosts.map((vp) => (
+          {/* Community Tab - Interactive Posts + Voice Box */}
+          {activeTab === "community" && (
+            <View style={{ display: "flex" }}>
+              {(() => {
+                const interactivePosts = posts.filter((p) => {
+                  const postType = p.post_type || p.type;
+                  return [
+                    "poll",
+                    "prompt",
+                    "qna",
+                    "challenge",
+                    "opportunity",
+                  ].includes(postType);
+                });
+
+                // Sort: pinned first, then by created_at
+                const sortedPosts = [...interactivePosts].sort((a, b) => {
+                  if (a.is_pinned && !b.is_pinned) return -1;
+                  if (!a.is_pinned && b.is_pinned) return 1;
+                  return new Date(b.created_at) - new Date(a.created_at);
+                });
+
+                return (
+                  <View style={{ paddingBottom: 8 }}>
+                    {/* Voice Box — any viewer can post */}
+                    <CommunityVoiceBox
+                      targetId={communityId}
+                      targetType="community"
+                      currentUser={null}
+                      onPostCreated={(newPost) => {
+                        setVoicePosts((prev) => [newPost, ...prev]);
+                      }}
+                    />
+
+                    {/* Community's own interactive posts */}
+                    {sortedPosts.length > 0 && (
                       <View
-                        key={vp.id}
+                        style={styles.communityPostsList}
                         onLayout={(e) => {
-                          if (String(vp.id) === String(scrollToPostIdRef.current)) {
-                            scrollToPostIdRef.current = null;
-                            const itemY = e.nativeEvent.layout.y;
-                            const targetY = postsSectionYRef.current + itemY;
-                            setTimeout(() => {
-                              scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
-                            }, 100);
-                          }
+                          interactiveListYRef.current = e.nativeEvent.layout.y;
                         }}
                       >
-                        <VoicePostCard
-                          post={vp}
-                          onComment={(postId) => openCommentsModal(postId)}
-                        />
+                        {sortedPosts.map((post) => {
+                          const postType = post.post_type || post.type;
+                          const isOpportunity = postType === "opportunity";
+                          return (
+                            <View
+                              key={post.id}
+                              onLayout={(e) => {
+                                if (String(post.id) === String(scrollToPostIdRef.current)) {
+                                  scrollToPostIdRef.current = null;
+                                  const itemY = e.nativeEvent.layout.y;
+                                  const targetY = postsSectionYRef.current + interactiveListYRef.current + itemY;
+                                  setTimeout(() => {
+                                    scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+                                  }, 100);
+                                }
+                              }}
+                              style={styles.communityPostItem}
+                            >
+                              {isOpportunity ? (
+                                <OpportunityFeedCard
+                                  opportunity={post}
+                                  onPress={(opp) =>
+                                    navigation.navigate("OpportunityView", {
+                                      opportunityId: opp.id,
+                                      opportunity: opp,
+                                    })
+                                  }
+                                  onLike={(postId, isLiked, count) => {
+                                    setPosts((prevPosts) =>
+                                      prevPosts.map((p) =>
+                                        p.id === postId
+                                          ? { ...p, is_liked: isLiked, like_count: count }
+                                          : p,
+                                      ),
+                                    );
+                                  }}
+                                  onSave={(postId, isSaved) => {
+                                    setPosts((prevPosts) =>
+                                      prevPosts.map((p) =>
+                                        p.id === postId
+                                          ? { ...p, is_saved: isSaved }
+                                          : p,
+                                      ),
+                                    );
+                                  }}
+                                  onShare={() => {}}
+                                  onUserPress={(userId, userType) => {
+                                    if (userType === "community") {
+                                      navigation.navigate("CommunityPublicProfile", {
+                                        communityId: userId,
+                                        viewerRole: viewerRole || "member",
+                                      });
+                                    } else {
+                                      navigation.navigate("MemberPublicProfile", { memberId: userId });
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <EditorialPostCard
+                                  post={post}
+                                  onLike={(postId, isLiked, count) => {
+                                    setPosts((prevPosts) =>
+                                      prevPosts.map((p) =>
+                                        p.id === postId
+                                          ? { ...p, is_liked: isLiked, like_count: count }
+                                          : p,
+                                      ),
+                                    );
+                                  }}
+                                  onComment={(postId) => openCommentsModal(postId)}
+                                  onShare={() => {}}
+                                  onFollow={() => {}}
+                                  showFollowButton={false}
+                                  currentUserId={currentUserId}
+                                  currentUserType="member"
+                                  onUserPress={(userId, userType) => {}}
+                                  onPostUpdate={(updatedPost) => {
+                                    setPosts((prevPosts) =>
+                                      prevPosts.map((p) =>
+                                        p.id === updatedPost.id ? updatedPost : p,
+                                      ),
+                                    );
+                                  }}
+                                />
+                              )}
+                            </View>
+                          );
+                        })}
                       </View>
-                    ))
-                  )}
+                    )}
 
-                  {sortedPosts.length === 0 && voicePosts.length === 0 && !loadingVoicePosts && (
-                    <EmptyCommunityState isOwnProfile={false} />
-                  )}
-                </View>
-              );
-            })()}
-          </View>
+                    {/* Voice posts from members */}
+                    {loadingVoicePosts ? (
+                      <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                        <SnooLoader size="small" color={COLORS.primary} />
+                      </View>
+                    ) : (
+                      voicePosts.map((vp) => (
+                        <View
+                          key={vp.id}
+                          onLayout={(e) => {
+                            if (String(vp.id) === String(scrollToPostIdRef.current)) {
+                              scrollToPostIdRef.current = null;
+                              const itemY = e.nativeEvent.layout.y;
+                              const targetY = postsSectionYRef.current + itemY;
+                              setTimeout(() => {
+                                scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+                              }, 100);
+                            }
+                          }}
+                        >
+                          <VoicePostCard
+                            post={vp}
+                            onComment={(postId) => openCommentsModal(postId)}
+                          />
+                        </View>
+                      ))
+                    )}
+
+                    {sortedPosts.length === 0 && voicePosts.length === 0 && !loadingVoicePosts && (
+                      <EmptyCommunityState isOwnProfile={false} />
+                    )}
+                  </View>
+                );
+              })()}
+            </View>
+          )}
 
           {/* Events Tab */}
-          <View style={{ display: activeTab === "events" ? "flex" : "none" }}>
-            {(() => {
-              if (communityEvents.length === 0) {
-                return <EmptyEventsState isOwnProfile={false} />;
-              }
+          {activeTab === "events" && (
+            <View style={{ display: "flex" }}>
+              {(() => {
+                if (communityEvents.length === 0) {
+                  return <EmptyEventsState isOwnProfile={false} />;
+                }
 
-              return (
-                <View style={{ paddingTop: 16 }}>
-                  {communityEvents.map((item) => (
-                    <EventCard
-                      key={item.id}
-                      event={item}
-                      onPress={(eventData) =>
-                        navigation.navigate("EventDetails", {
-                          eventId: item.id,
-                          eventData: item,
-                        })
-                      }
-                    />
-                  ))}
-                </View>
-              );
-            })()}
-          </View>
+                return (
+                  <View style={{ paddingTop: 16 }}>
+                    {communityEvents.map((item) => (
+                      <EventCard
+                        key={item.id}
+                        event={item}
+                        onPress={(eventData) =>
+                          navigation.navigate("EventDetails", {
+                            eventId: item.id,
+                            eventData: item,
+                          })
+                        }
+                      />
+                    ))}
+                  </View>
+                );
+              })()}
+            </View>
+          )}
         </View>
       </Animated.ScrollView>
       {selectedPost && (
