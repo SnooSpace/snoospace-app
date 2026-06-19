@@ -19,6 +19,7 @@ import {
   Pressable,
 } from "react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
+import { Pressable as GHPressable } from "react-native-gesture-handler";
 import { Image as ExpoImage } from "expo-image";
 import {
   SafeAreaView,
@@ -193,13 +194,13 @@ const CommunityProfileHeaderBioSection = React.memo(({
         {/* Render Settings and Bookmark/Saved icons below the banner on the right side */}
         {profile.banner_url && (
           <View style={styles.settingsIconsRowAbsolute}>
-            <TouchableOpacity
+            <GHPressable
               style={styles.settingsIconInline}
               onPress={onShowBookmark}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <Bookmark size={22} color="#475569" strokeWidth={2.2} />
-            </TouchableOpacity>
+            </GHPressable>
             <TouchableOpacity
               style={styles.settingsIconInline}
               onPress={onShowSettings}
@@ -1843,13 +1844,13 @@ export default function CommunityProfileScreen({ navigation, route }) {
           <View style={[styles.headerContent, { marginTop: insets.top }]}>
             <View style={{ flex: 1 }} />
             <View style={styles.headerRight}>
-              <TouchableOpacity
+              <GHPressable
                 style={styles.headerIconButton}
                 onPress={() => navigation.navigate("SavedPostsScreen")}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 <Bookmark size={24} color="#0F172A" />
-              </TouchableOpacity>
+              </GHPressable>
               <TouchableOpacity
                 style={styles.headerIconButton}
                 onPress={() => {

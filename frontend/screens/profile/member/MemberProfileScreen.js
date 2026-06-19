@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, Image, ScrollView, Alert, Dimensions, Modal, FlatList, KeyboardAvoidingView, Platform, TextInput, RefreshControl, Pressable } from "react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
+import { Pressable as GHPressable } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image as ExpoImage } from "expo-image";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
@@ -1349,13 +1350,13 @@ export default function MemberProfileScreen({ navigation }) {
           <ChevronDown size={26} color="#3B82F6" style={{ marginLeft: -2 }} />
         </TouchableOpacity>
         <View style={styles.headerRight}>
-          <TouchableOpacity
+          <GHPressable
             style={styles.settingsButton}
             onPress={() => navigation.navigate("SavedPostsScreen")}
             hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
             <Bookmark size={26} color={COLORS.editorial.textSecondary} />
-          </TouchableOpacity>
+          </GHPressable>
           <TouchableOpacity
             style={styles.settingsButton}
             onPress={() => {

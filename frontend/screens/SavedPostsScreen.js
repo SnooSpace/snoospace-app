@@ -20,6 +20,7 @@ import {
   LayoutGrid,
   Layers,
 } from "lucide-react-native";
+import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { getSavedPosts } from "../api/client";
 import { getAuthToken, getActiveAccount } from "../api/auth";
 import EventBus from "../utils/EventBus";
@@ -317,17 +318,18 @@ const SavedPostsScreen = ({ navigation }) => {
   const tabWidth = SCREEN_WIDTH / TABS.length;
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <ArrowLeft size={24} color={COLORS.text} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Saved</Text>
-        <View style={styles.backButton} />
-      </View>
+        {/* Header */}
+        <View style={styles.header}>
+          <GHPressable onPress={() => navigation.goBack()} style={styles.backButton}>
+            <ArrowLeft size={24} color={COLORS.text} strokeWidth={2} />
+          </GHPressable>
+          <Text style={styles.headerTitle}>Saved</Text>
+          <View style={styles.backButton} />
+        </View>
 
       {/* Tab Bar */}
       <View style={styles.tabBar}>
@@ -416,7 +418,8 @@ const SavedPostsScreen = ({ navigation }) => {
           navigation={navigation}
         />
       )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 };
 
