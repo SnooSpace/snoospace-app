@@ -745,13 +745,7 @@ export default function YourEventsScreen({ navigation }) {
     <View style={styles.outerContainer}>
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.headerIcon}
-            hitSlop={{ top: 30, bottom: 30, left: 30, right: 30 }}
-          >
-            <ArrowLeft size={26} color={LIGHT_TEXT_COLOR} />
-          </TouchableOpacity>
+          <View style={styles.headerIcon} />
           <Text style={styles.headerTitle}>Your Events</Text>
           <View style={styles.headerIcon} />
         </View>
