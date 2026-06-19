@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  Image, StyleSheet, Alert, KeyboardAvoidingView, Platform,
+  StyleSheet, Alert, KeyboardAvoidingView, Platform,
 } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { ArrowLeft, Search, X, Check, Users, AlertTriangle } from "lucide-react-native";
@@ -26,7 +27,7 @@ function SelectedChip({ user, onRemove }) {
   const uri  = user.profile_photo_url || user.logo_url;
   return (
     <View style={chipStyles.container}>
-      <Image source={{ uri: uri || "https://via.placeholder.com/24" }} style={chipStyles.avatar} />
+      <Image source={{ uri: uri || "https://via.placeholder.com/24" }} style={chipStyles.avatar} contentFit="cover" cachePolicy="memory-disk" />
       <Text style={chipStyles.name} numberOfLines={1}>{name}</Text>
       <TouchableOpacity onPress={onRemove} hitSlop={{ top:6, bottom:6, left:6, right:6 }}>
         <X size={12} color={TEXT_SEC} strokeWidth={2.5} />
@@ -52,7 +53,7 @@ function UserRow({ user, selected, onToggle, isSelf }) {
       activeOpacity={isSelf ? 1 : 0.75}
       disabled={isSelf}
     >
-      <Image source={{ uri: uri || "https://via.placeholder.com/44" }} style={[rowStyles.avatar, isSelf && rowStyles.avatarSelf]} />
+      <Image source={{ uri: uri || "https://via.placeholder.com/44" }} style={[rowStyles.avatar, isSelf && rowStyles.avatarSelf]} contentFit="cover" cachePolicy="memory-disk" />
       <View style={{ flex:1 }}>
         <View style={{ flexDirection:"row", alignItems:"center" }}>
           <Text style={[rowStyles.name, isSelf && rowStyles.nameSelf]} numberOfLines={1}>{name}</Text>
@@ -294,7 +295,10 @@ export default function CreateGroupScreen({ navigation }) {
           {selected.slice(0, 5).map((u) => (
             <Image key={u.id}
               source={{ uri: u.profile_photo_url || u.logo_url || "https://via.placeholder.com/36" }}
-              style={styles.previewAvatar} />
+              style={styles.previewAvatar}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+            />
           ))}
           {selected.length > 5 && (
             <View style={styles.previewMore}>

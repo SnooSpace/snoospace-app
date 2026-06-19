@@ -7,12 +7,12 @@ import {
   TouchableOpacity,
   TextInput,
   FlatList,
-  Image,
   Alert,
   TouchableWithoutFeedback,
   Keyboard,
   Platform,
 } from "react-native";
+import { Image } from "expo-image";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { X, Search, Check, Send, Lock, Users } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
@@ -176,7 +176,8 @@ export default function ShareModal({ visible, onClose, post }) {
                 <Image
                   source={{ uri: item.profile_photo_url }}
                   style={StyleSheet.absoluteFill}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
                 />
               ) : (
                 <Users
@@ -194,6 +195,8 @@ export default function ShareModal({ visible, onClose, post }) {
                 isSelected && styles.selectedAvatar,
                 isRestricted && styles.restrictedAvatar,
               ]}
+              contentFit="cover"
+              cachePolicy="memory-disk"
             />
           ) : (
             <View

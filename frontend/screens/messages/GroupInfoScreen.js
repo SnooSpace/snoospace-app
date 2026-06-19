@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity,
-  Image, StyleSheet, Alert, ScrollView, ActivityIndicator, Switch,
+  StyleSheet, Alert, ScrollView, ActivityIndicator, Switch,
 } from "react-native";
+import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { useCrop } from "../../components/MediaCrop";
@@ -108,6 +109,8 @@ function ParticipantRow({
         <Image
           source={{ uri: uri || "https://via.placeholder.com/44" }}
           style={pStyles.avatar}
+          contentFit="cover"
+          cachePolicy="memory-disk"
         />
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}>
@@ -255,7 +258,7 @@ function AddMemberSheet({ conversationId, existingIds, currentUserId, currentUse
           const uri  = user.profile_photo_url || user.logo_url;
           return (
             <View key={user.id} style={addStyles.resultRow}>
-              <Image source={{ uri: uri || "https://via.placeholder.com/36" }} style={addStyles.avatar} />
+              <Image source={{ uri: uri || "https://via.placeholder.com/36" }} style={addStyles.avatar} contentFit="cover" cachePolicy="memory-disk" />
               <Text style={addStyles.name} numberOfLines={1}>{name}</Text>
               <TouchableOpacity
                 style={addStyles.addBtn}
@@ -329,7 +332,7 @@ function OwnerPickerSheet({ participants, currentUserId, onPick, onSkip, onClose
           const isConfirming = picking === p.participantId;
           return (
             <View key={p.participantId} style={opStyles.row}>
-              <Image source={{ uri: p.photoUrl || "https://via.placeholder.com/40" }} style={opStyles.avatar} />
+              <Image source={{ uri: p.photoUrl || "https://via.placeholder.com/40" }} style={opStyles.avatar} contentFit="cover" cachePolicy="memory-disk" />
               <View style={{ flex: 1 }}>
                 <Text style={opStyles.name} numberOfLines={1}>{name}</Text>
                 {p.role === "admin" && <Text style={opStyles.adminTag}>Admin</Text>}
@@ -967,6 +970,8 @@ export default function GroupInfoScreen({ route, navigation }) {
               <Image
                 source={{ uri: groupAvatar || "https://via.placeholder.com/88" }}
                 style={styles.avatar}
+                contentFit="cover"
+                cachePolicy="memory-disk"
               />
             )}
             {isMeAdmin && !uploadingAvatar && (
