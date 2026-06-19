@@ -18,6 +18,7 @@ import {
   Pressable,
 } from "react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
+import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { BlurView } from "expo-blur";
 import { Image as ExpoImage } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -1298,8 +1299,9 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   }
 
   return (
-    <View style={styles.container}>
-      <DynamicStatusBar style="light-content" />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={styles.container}>
+        <DynamicStatusBar style="light-content" />
 
       {/* Add gradient overlay only when no banner */}
       {!profile?.banner_url && <GradientSafeArea variant="primary" />}
@@ -1344,7 +1346,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         />
       </View>
 
-      <TouchableOpacity
+      <GHPressable
         onPress={() => navigation.goBack()}
         style={[
           styles.backBtn,
@@ -1357,10 +1359,10 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         ]}
       >
         <ArrowLeft size={24} color="#1D1D1F" />
-      </TouchableOpacity>
+      </GHPressable>
 
       {!loading && !error && !(currentUserRole === "community" && String(profile?.id) === String(currentUserId)) && (
-        <TouchableOpacity
+        <GHPressable
           onPress={() => setMenuVisible(true)}
           style={[
             styles.backBtn,
@@ -1374,7 +1376,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         >
           <MoreVertical size={24} color="#1D1D1F" />
-        </TouchableOpacity>
+        </GHPressable>
       )}
 
       <Animated.ScrollView
@@ -1514,7 +1516,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               </Text>
               <Text style={styles.statLabel}>Events</Text>
             </TouchableOpacity>
-            <TouchableOpacity
+            <GHPressable
               style={styles.statItem}
               onPress={() => {
                 navigation.navigate("UniversalFollowersList", {
@@ -1528,8 +1530,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 {profile.followers_count || 0}
               </Text>
               <Text style={styles.statLabel}>Followers</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </GHPressable>
+            <GHPressable
               style={styles.statItem}
               onPress={() => {
                 navigation.navigate("UniversalFollowingList", {
@@ -1541,7 +1543,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             >
               <Text style={styles.statNumber}>{followingCount}</Text>
               <Text style={styles.statLabel}>Following</Text>
-            </TouchableOpacity>
+            </GHPressable>
             <View style={styles.statItem}>
               <Text style={styles.statNumber}>{profile.posts_count || 0}</Text>
               <Text style={styles.statLabel}>Posts</Text>
@@ -2353,7 +2355,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       </Modal>
 
       <CustomAlertModal onClose={hideAlert} {...alertConfig} />
-    </View>
+      </View>
+    </GestureHandlerRootView>
   );
 }
 

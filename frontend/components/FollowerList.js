@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, RefreshControl } from "react-native";
+import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
@@ -193,7 +194,7 @@ export default function FollowerList({
   const renderItem = useCallback(
     ({ item }) => (
       <View style={styles.row}>
-        <TouchableOpacity
+        <GHPressable
           style={styles.userInfo}
           onPress={() => onItemPress && onItemPress(item, myId?.id)}
         >
@@ -211,7 +212,7 @@ export default function FollowerList({
               </Text>
             )}
           </View>
-        </TouchableOpacity>
+        </GHPressable>
         {/* Hide follow button if this item is the current user (comparing both ID and type) */}
         {!(
           myId &&
@@ -220,7 +221,7 @@ export default function FollowerList({
             (item.type || "member").toLowerCase()
         ) &&
           onToggleFollow && (
-            <TouchableOpacity
+            <GHPressable
               style={[
                 styles.followBtn,
                 item.isFollowing
@@ -251,7 +252,7 @@ export default function FollowerList({
               >
                 {item.isFollowing ? "Following" : "Follow"}
               </Text>
-            </TouchableOpacity>
+            </GHPressable>
           )}
       </View>
     ),
@@ -276,17 +277,18 @@ export default function FollowerList({
   }, [emptyMessage, loading]);
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top }]}>
-        <TouchableOpacity
-          onPress={() => navigation?.goBack?.()}
-          style={styles.backBtn}
-        >
-          <ArrowLeft size={24} color="#1D1D1F" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{title}</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={styles.container}>
+        <View style={[styles.header, { paddingTop: insets.top }]}>
+          <GHPressable
+            onPress={() => navigation?.goBack?.()}
+            style={styles.backBtn}
+          >
+            <ArrowLeft size={24} color="#1D1D1F" />
+          </GHPressable>
+          <Text style={styles.headerTitle}>{title}</Text>
+          <View style={styles.headerSpacer} />
+        </View>
 
       {loading && items.length === 0 ? (
         <View style={styles.loadingContainer}>
@@ -320,7 +322,8 @@ export default function FollowerList({
           ListEmptyComponent={listEmptyComponent}
         />
       )}
-    </View>
+      </View>
+    </GestureHandlerRootView>
   );
 }
 

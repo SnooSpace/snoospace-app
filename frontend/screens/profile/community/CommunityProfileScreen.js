@@ -19,7 +19,7 @@ import {
   Pressable,
 } from "react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
-import { Pressable as GHPressable } from "react-native-gesture-handler";
+import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { Image as ExpoImage } from "expo-image";
 import {
   SafeAreaView,
@@ -1793,8 +1793,9 @@ export default function CommunityProfileScreen({ navigation, route }) {
     );
   }
   return (
-    <View style={styles.container}>
-      <DynamicStatusBar style="light-content" />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={styles.container}>
+        <DynamicStatusBar style="light-content" />
 
       {/* Add gradient overlay only when no banner */}
       {!profile.banner_url && <GradientSafeArea variant="primary" />}
@@ -1914,7 +1915,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
               </Text>
               <Text style={styles.statLabel}>Events</Text>
             </TouchableOpacity>
-            <TouchableOpacity
+            <GHPressable
               style={styles.statItem}
               onPress={() =>
                 navigation.navigate("CommunityFollowersList", {
@@ -1925,8 +1926,8 @@ export default function CommunityProfileScreen({ navigation, route }) {
             >
               <Text style={styles.statNumber}>{followersCount}</Text>
               <Text style={styles.statLabel}>Followers</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </GHPressable>
+            <GHPressable
               style={styles.statItem}
               onPress={() =>
                 navigation.navigate("CommunityFollowingList", {
@@ -1937,7 +1938,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
             >
               <Text style={styles.statNumber}>{followingCount}</Text>
               <Text style={styles.statLabel}>Following</Text>
-            </TouchableOpacity>
+            </GHPressable>
             <View style={styles.statItem}>
               <Text style={styles.statNumber}>{postsCount}</Text>
               <Text style={styles.statLabel}>Posts</Text>
@@ -2998,7 +2999,8 @@ export default function CommunityProfileScreen({ navigation, route }) {
           </TouchableOpacity>
         </Modal>
       )}
-    </View>
+      </View>
+    </GestureHandlerRootView>
   );
 }
 

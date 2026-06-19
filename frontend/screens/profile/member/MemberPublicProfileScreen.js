@@ -10,6 +10,7 @@ import { CommonActions } from "@react-navigation/native";
 import {
   View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Platform, Pressable, RefreshControl, Animated } from "react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
+import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { Image as ExpoImage } from "expo-image";
 import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, AlertTriangle, CheckCircle, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
@@ -730,27 +731,28 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backBtn}
-        >
-          <ArrowLeft size={24} color={COLORS.textPrimary} />
-        </TouchableOpacity>
-        {profile?.username ? (
-          <Text style={styles.headerUsername}>@{profile.username}</Text>
-        ) : (
-          <View style={{ flex: 1 }} />
-        )}
-        {/* 3-dot menu — only for other users, not self */}
-        <TouchableOpacity
-          style={styles.menuBtn}
-          onPress={() => setMenuVisible(true)}
-          hitSlop={12}
-        >
-          <MoreVertical size={22} color={COLORS.textSecondary} strokeWidth={2} />
-        </TouchableOpacity>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <GHPressable
+            onPress={() => navigation.goBack()}
+            style={styles.backBtn}
+          >
+            <ArrowLeft size={24} color={COLORS.textPrimary} />
+          </GHPressable>
+          {profile?.username ? (
+            <Text style={styles.headerUsername}>@{profile.username}</Text>
+          ) : (
+            <View style={{ flex: 1 }} />
+          )}
+          {/* 3-dot menu — only for other users, not self */}
+          <GHPressable
+            style={styles.menuBtn}
+            onPress={() => setMenuVisible(true)}
+            hitSlop={12}
+          >
+            <MoreVertical size={22} color={COLORS.textSecondary} strokeWidth={2} />
+          </GHPressable>
       </View>
 
       {/* Block / Options Bottom Sheet */}
@@ -987,7 +989,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 </Text>
                 <Text style={styles.statLabel}>Events</Text>
               </TouchableOpacity>
-              <TouchableOpacity
+              <GHPressable
                 style={styles.statItem}
                 onPress={() => navigation.navigate('CircleList', {
                   memberId: profile?.id,
@@ -999,8 +1001,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   {circleCount}
                 </Text>
                 <Text style={styles.statLabel}>Circle</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </GHPressable>
+              <GHPressable
                 style={styles.statItem}
                 onPress={() => navigation.navigate('FollowingList', {
                   memberId: profile?.id,
@@ -1011,7 +1013,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   {profile?.following_count || 0}
                 </Text>
                 <Text style={styles.statLabel}>Following</Text>
-              </TouchableOpacity>
+              </GHPressable>
             </View>
             {Array.isArray(profile?.interests) &&
             profile.interests.length > 0 ? (
@@ -1601,6 +1603,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 
       <CustomAlertModal onClose={hideAlert} {...alertConfig} />
     </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 

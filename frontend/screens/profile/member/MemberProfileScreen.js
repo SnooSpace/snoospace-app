@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, Image, ScrollView, Alert, Dimensions, Modal, FlatList, KeyboardAvoidingView, Platform, TextInput, RefreshControl, Pressable } from "react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
-import { Pressable as GHPressable } from "react-native-gesture-handler";
+import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Image as ExpoImage } from "expo-image";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
@@ -1337,7 +1337,8 @@ export default function MemberProfileScreen({ navigation }) {
 
   console.log("[Profile] ProfileScreen rendered");
   return (
-    <SafeAreaView style={styles.container}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.container}>
       {/* Header */}
       {(() => { console.log("[Profile] ProfileHeader rendered"); return null; })()}
       <View style={styles.header}>
@@ -1419,7 +1420,7 @@ export default function MemberProfileScreen({ navigation }) {
               <Text style={styles.statNumber}>{profile.events_attended_count ?? 0}</Text>
               <Text style={styles.statLabel}>Events</Text>
             </TouchableOpacity>
-            <TouchableOpacity
+            <GHPressable
               style={[styles.statItem, { position: 'relative' }]}
               onPress={() => navigation.navigate('CircleList')}
             >
@@ -1427,8 +1428,8 @@ export default function MemberProfileScreen({ navigation }) {
                 {polledCounts.circles || profile.circle_count || 0}
               </Text>
               <Text style={styles.statLabel}>Circle</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
+            </GHPressable>
+            <GHPressable
               style={styles.statItem}
               onPress={() => {
                 navigation.navigate('FollowingList', {
@@ -1441,7 +1442,7 @@ export default function MemberProfileScreen({ navigation }) {
                 {polledCounts.following || profile.following_count || 0}
               </Text>
               <Text style={styles.statLabel}>Following</Text>
-            </TouchableOpacity>
+            </GHPressable>
           </View>
 
           {/* Interests */}
@@ -2123,6 +2124,7 @@ export default function MemberProfileScreen({ navigation }) {
         }}
       />
     </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
