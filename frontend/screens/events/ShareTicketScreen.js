@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, TextInput, Image, Switch, Alert, StatusBar, Animated, Easing } from "react-native";
+import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { ArrowLeft } from "lucide-react-native";
@@ -474,26 +475,31 @@ const ShareTicketScreen = ({ navigation, route }) => {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <ArrowLeft size={22} color="#333333" strokeWidth={2.5} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {step === 1 ? "Share Tickets" : "Gift Details"}
-        </Text>
-        <View style={{ width: 54 }} />
-      </View>
+        {/* Header */}
+        <View style={styles.header}>
+          <GHPressable
+            style={({ pressed }) => [
+              styles.backButton,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
+            onPress={() => navigation.goBack()}
+          >
+            <ArrowLeft size={22} color="#333333" strokeWidth={2.5} />
+          </GHPressable>
+          <Text style={styles.headerTitle}>
+            {step === 1 ? "Share Tickets" : "Gift Details"}
+          </Text>
+          <View style={{ width: 54 }} />
+        </View>
 
-      {/* Content */}
-      {step === 1 ? renderEventSelection() : renderGiftForm()}
-    </SafeAreaView>
+        {/* Content */}
+        {step === 1 ? renderEventSelection() : renderGiftForm()}
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 };
 

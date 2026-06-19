@@ -6,7 +6,6 @@ import OpportunitiesListScreen from "../screens/home/community/OpportunitiesList
 import CreateOpportunityScreen from "../screens/home/community/CreateOpportunityScreen";
 import EventAttendeesScreen from "../screens/events/EventAttendeesScreen";
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
-import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import ShareTicketScreen from "../screens/events/ShareTicketScreen";
 import AudienceIntelligenceScreen from "../screens/home/community/AudienceIntelligenceScreen";
 import EventQualityScreen from "../screens/home/community/EventQualityScreen";
@@ -74,10 +73,6 @@ export default function CommunityDashboardStackNavigator() {
         component={CreateOpportunityScreen}
       />
       <Stack.Screen name="EventAttendees" component={EventAttendeesScreen} />
-      <Stack.Screen
-        name="MemberPublicProfile"
-        component={MemberPublicProfileScreen}
-      />
       <Stack.Screen name="ShareTicket" component={ShareTicketScreen} />
       <Stack.Screen name="AudienceIntelligence" component={AudienceIntelligenceScreen} />
       <Stack.Screen name="EventQuality" component={EventQualityScreen} />

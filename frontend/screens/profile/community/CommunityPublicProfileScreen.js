@@ -274,8 +274,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#F2F2F7",
   },
   headName: {
+    fontFamily: FONTS.semiBold,
     fontSize: 16,
-    fontWeight: "700",
     color: "#0F172A",
   },
   primaryTag: {
@@ -292,6 +292,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   headSub: {
+    fontFamily: FONTS.regular,
     fontSize: 13,
     color: LIGHT_TEXT_COLOR,
   },

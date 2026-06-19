@@ -18,6 +18,7 @@ import {
   Animated,
   Keyboard,
 } from "react-native";
+import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -2861,7 +2862,8 @@ export default function CreateOpportunityScreen({ navigation, route }) {
   };
 
   return (
-    <View style={styles.container}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={styles.container}>
       <LinearGradient
         colors={["#F8FAFC", "#EEF2F6", "#E2E8F0"]}
         style={StyleSheet.absoluteFillObject}
@@ -2870,9 +2872,15 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         <View style={styles.keyboardView}>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity style={styles.headerBackButton} onPress={handleBack} activeOpacity={0.7}>
+            <GHPressable
+              style={({ pressed }) => [
+                styles.headerBackButton,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+              onPress={handleBack}
+            >
               <ArrowLeft size={24} color={MODAL_TOKENS.textPrimary} strokeWidth={2} />
-            </TouchableOpacity>
+            </GHPressable>
             <Text style={styles.headerTitle}>
               {isEditing ? "Edit Opportunity" : "Create Opportunity"}
             </Text>
@@ -3104,7 +3112,8 @@ export default function CreateOpportunityScreen({ navigation, route }) {
           }}
         />
       </SafeAreaView>
-    </View>
+      </View>
+    </GestureHandlerRootView>
   );
 }
 

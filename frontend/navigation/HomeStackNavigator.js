@@ -5,8 +5,6 @@ import HomeFeedScreen from "../components/HomeFeedScreen";
 import NotificationsScreen from "../screens/notifications/NotificationsScreen";
 import ConversationsListScreen from "../screens/messages/ConversationsListScreen";
 import ChatScreen from "../screens/messages/ChatScreen";
-import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
-import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import SponsorProfileScreen from "../screens/profile/sponsor/SponsorProfileScreen";
 import VenueProfileScreen from "../screens/profile/venue/VenueProfileScreen";
 import FollowersListScreen from "../screens/profile/member/FollowersListScreen";
@@ -80,20 +78,6 @@ export default function HomeStackNavigator() {
         name="GroupInfo"
         component={GroupInfoScreen}
         options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="CommunityPublicProfile"
-        component={CommunityPublicProfileScreen}
-        options={{
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="MemberPublicProfile"
-        component={MemberPublicProfileScreen}
-        options={{
-          headerShown: false,
-        }}
       />
       <Stack.Screen
         name="SponsorProfile"

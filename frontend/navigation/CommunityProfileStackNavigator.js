@@ -4,11 +4,9 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import CommunityProfileScreen from "../screens/profile/community/CommunityProfileScreen";
 import CommunityFollowersListScreen from "../screens/profile/community/CommunityFollowersListScreen";
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
-import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import EditCommunityProfileScreen from "../screens/profile/community/EditCommunityProfileScreen";
 import CommunityHostsScreen from "../screens/profile/community/CommunityHostsScreen";
 import CommunityMonetizationScreen from "../screens/profile/community/CommunityMonetizationScreen";
-import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import FollowersListScreen from "../screens/profile/member/FollowersListScreen";
 import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
@@ -47,10 +45,6 @@ export default function CommunityProfileStackNavigator() {
         component={CommunityFollowingListScreen}
       />
       <Stack.Screen
-        name="CommunityPublicProfile"
-        component={CommunityPublicProfileScreen}
-      />
-      <Stack.Screen
         name="EditCommunityProfile"
         component={EditCommunityProfileScreen}
       />
@@ -61,10 +55,6 @@ export default function CommunityProfileStackNavigator() {
       <Stack.Screen
         name="CommunityMonetization"
         component={CommunityMonetizationScreen}
-      />
-      <Stack.Screen
-        name="MemberPublicProfile"
-        component={MemberPublicProfileScreen}
       />
       <Stack.Screen name="FollowersList" component={FollowersListScreen} />
       <Stack.Screen name="FollowingList" component={FollowingListScreen} />

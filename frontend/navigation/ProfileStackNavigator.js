@@ -4,10 +4,8 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MemberProfileScreen from "../screens/profile/member/MemberProfileScreen";
 import FollowersListScreen from "../screens/profile/member/FollowersListScreen";
 import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
-import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import EditProfileScreen from "../screens/profile/member/EditProfileScreen";
 import CreatePostScreen from "../components/CreatePostScreen";
-import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import CommunityFollowersListScreen from "../screens/profile/community/CommunityFollowersListScreen";
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
 import SettingsScreen from "../screens/profile/member/SettingsScreen";
@@ -41,14 +39,6 @@ export default function ProfileStackNavigator() {
       <Stack.Screen name="Profile" component={MemberProfileScreen} />
       <Stack.Screen name="FollowersList" component={FollowersListScreen} />
       <Stack.Screen name="FollowingList" component={FollowingListScreen} />
-      <Stack.Screen
-        name="MemberPublicProfile"
-        component={MemberPublicProfileScreen}
-      />
-      <Stack.Screen
-        name="CommunityPublicProfile"
-        component={CommunityPublicProfileScreen}
-      />
       <Stack.Screen
         name="CommunityFollowersList"
         component={CommunityFollowersListScreen}

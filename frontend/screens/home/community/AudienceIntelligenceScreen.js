@@ -3,6 +3,7 @@ import {
   StyleSheet, View, Text, ScrollView, TouchableOpacity,
   Dimensions, RefreshControl,
 } from "react-native";
+import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
@@ -685,14 +686,21 @@ export default function AudienceIntelligenceScreen({ navigation }) {
   const handleRefresh = () => { setRefreshing(true); fetchStats(); };
 
   return (
-    <View style={styles.container}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={styles.container}>
       <LinearGradient colors={["#F9FAFB", "#F3F4F6"]} style={StyleSheet.absoluteFill} />
       <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <GHPressable
+            style={({ pressed }) => [
+              styles.backButton,
+              { opacity: pressed ? 0.6 : 1 },
+            ]}
+            onPress={() => navigation.goBack()}
+          >
             <ArrowLeft size={24} color={PRIMARY_TEXT} />
-          </TouchableOpacity>
+          </GHPressable>
           <Text style={styles.screenTitle}>Audience Intelligence</Text>
           <View style={{ width: 40 }} />
         </View>
@@ -743,7 +751,8 @@ export default function AudienceIntelligenceScreen({ navigation }) {
           </ScrollView>
         )}
       </SafeAreaView>
-    </View>
+      </View>
+    </GestureHandlerRootView>
   );
 }
 

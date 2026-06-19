@@ -5,7 +5,6 @@ import HomeFeedScreen from "../components/HomeFeedScreen";
 import NotificationsScreen from "../screens/notifications/NotificationsScreen";
 import ConversationsListScreen from "../screens/messages/ConversationsListScreen";
 import ChatScreen from "../screens/messages/ChatScreen";
-import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import FollowersListScreen from "../screens/profile/member/FollowersListScreen";
 import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
 import CommunityFollowersListScreen from "../screens/profile/community/CommunityFollowersListScreen";
@@ -75,13 +74,6 @@ export default function CommunityHomeStackNavigator() {
         name="GroupInfo"
         component={GroupInfoScreen}
         options={{ headerShown: false }}
-      />
-      <Stack.Screen
-        name="MemberPublicProfile"
-        component={MemberPublicProfileScreen}
-        options={{
-          headerShown: false,
-        }}
       />
       <Stack.Screen name="FollowersList" component={FollowersListScreen} />
       <Stack.Screen name="FollowingList" component={FollowingListScreen} />

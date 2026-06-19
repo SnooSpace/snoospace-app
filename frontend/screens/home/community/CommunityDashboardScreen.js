@@ -13,6 +13,7 @@ import {
   Platform,
   Modal,
 } from "react-native";
+import { Pressable as GHPressable } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -686,48 +687,50 @@ export default function CommunityDashboardScreen({ navigation }) {
         <View style={styles.section}>
           <View style={styles.actionGrid}>
             {/* Create Event - Primary */}
-            <TouchableOpacity
-              style={[styles.primaryActionCard, { flex: 1 }]}
+            <GHPressable
+              style={({ pressed }) => [{ flex: 1, opacity: pressed ? 0.9 : 1 }]}
               onPress={handleCreateEvent}
-              activeOpacity={0.9}
             >
-              <LinearGradient
-                colors={["#2563EB", "#3B82F6"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={styles.bgIconDecorative}>
-                <Calendar size={80} color="white" style={{ opacity: 0.1 }} />
+              <View style={[styles.primaryActionCard, { flex: 1 }]}>
+                <LinearGradient
+                  colors={["#2563EB", "#3B82F6"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.bgIconDecorative}>
+                  <Calendar size={80} color="white" style={{ opacity: 0.1 }} />
+                </View>
+                <View style={styles.actionIconContainer}>
+                  <Calendar size={22} color="white" />
+                </View>
+                <Text style={styles.primaryActionTitle}>Create{"\n"}Event</Text>
               </View>
-              <View style={styles.actionIconContainer}>
-                <Calendar size={22} color="white" />
-              </View>
-              <Text style={styles.primaryActionTitle}>Create{"\n"}Event</Text>
-            </TouchableOpacity>
+            </GHPressable>
 
             {/* Create Opportunity - Primary */}
-            <TouchableOpacity
-              style={[styles.primaryActionCard, { flex: 1 }]}
+            <GHPressable
+              style={({ pressed }) => [{ flex: 1, opacity: pressed ? 0.9 : 1 }]}
               onPress={() => navigation.navigate("CreateOpportunity")}
-              activeOpacity={0.9}
             >
-              <LinearGradient
-                colors={["#1E40AF", "#2563EB"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={StyleSheet.absoluteFill}
-              />
-              <View style={styles.bgIconDecorative}>
-                <Lightbulb size={80} color="white" style={{ opacity: 0.1 }} />
+              <View style={[styles.primaryActionCard, { flex: 1 }]}>
+                <LinearGradient
+                  colors={["#1E40AF", "#2563EB"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.bgIconDecorative}>
+                  <Lightbulb size={80} color="white" style={{ opacity: 0.1 }} />
+                </View>
+                <View style={styles.actionIconContainer}>
+                  <Lightbulb size={22} color="white" />
+                </View>
+                <Text style={styles.primaryActionTitle}>
+                  Create{"\n"}Opportunity
+                </Text>
               </View>
-              <View style={styles.actionIconContainer}>
-                <Lightbulb size={22} color="white" />
-              </View>
-              <Text style={styles.primaryActionTitle}>
-                Create{"\n"}Opportunity
-              </Text>
-            </TouchableOpacity>
+            </GHPressable>
           </View>
 
           {/* Secondary Actions Row */}
@@ -875,30 +878,33 @@ export default function CommunityDashboardScreen({ navigation }) {
 
         {/* Audience Intelligence CTA Card */}
         <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.audienceCTACard}
+          <GHPressable
+            style={({ pressed }) => [
+              { width: "100%", opacity: pressed ? 0.9 : 1 },
+            ]}
             onPress={() => navigation.navigate("AudienceIntelligence")}
-            activeOpacity={0.9}
           >
-            <View style={styles.audienceCTAContent}>
-              <View style={styles.audienceCTALeft}>
-                <View style={styles.audienceCTAIcon}>
-                  <BarChart3 size={22} color="#2563EB" />
+            <View style={styles.audienceCTACard}>
+              <View style={styles.audienceCTAContent}>
+                <View style={styles.audienceCTALeft}>
+                  <View style={styles.audienceCTAIcon}>
+                    <BarChart3 size={22} color="#2563EB" />
+                  </View>
+                  <View>
+                    <Text style={styles.audienceCTATitle}>
+                      Audience Intelligence
+                    </Text>
+                    <Text style={styles.audienceCTASub}>
+                      {audienceStats
+                        ? `🏆 T1: ${Math.round(audienceStats.tier1_percentage || 0)}%  ⭐ T2: ${Math.round(audienceStats.tier2_percentage || 0)}%`
+                        : "See your audience quality breakdown"}
+                    </Text>
+                  </View>
                 </View>
-                <View>
-                  <Text style={styles.audienceCTATitle}>
-                    Audience Intelligence
-                  </Text>
-                  <Text style={styles.audienceCTASub}>
-                    {audienceStats
-                      ? `🏆 T1: ${Math.round(audienceStats.tier1_percentage || 0)}%  ⭐ T2: ${Math.round(audienceStats.tier2_percentage || 0)}%`
-                      : "See your audience quality breakdown"}
-                  </Text>
-                </View>
+                <ChevronRight size={22} color={COLORS.textMuted} />
               </View>
-              <ChevronRight size={22} color={COLORS.textMuted} />
             </View>
-          </TouchableOpacity>
+          </GHPressable>
         </View>
 
         {/* 4️⃣ Events Section (Compact List) */}
@@ -940,7 +946,17 @@ export default function CommunityDashboardScreen({ navigation }) {
                   </Text>
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity
+              <GHPressable
+                style={({ pressed }) => [
+                  {
+                    opacity: pressed ? 0.6 : 1,
+                    paddingLeft: 16,
+                    paddingRight: 20,
+                    paddingVertical: 12,
+                    marginRight: -20,
+                  },
+                ]}
+                hitSlop={{ top: 16, bottom: 16, left: 16, right: 10 }}
                 onPress={() =>
                   navigation.navigate("CommunityEventsList", {
                     initialTab: activeTab === "previous" ? "past" : "upcoming",
@@ -948,7 +964,7 @@ export default function CommunityDashboardScreen({ navigation }) {
                 }
               >
                 <Text style={styles.viewAllText}>View All</Text>
-              </TouchableOpacity>
+              </GHPressable>
             </View>
           </View>
 
@@ -1390,11 +1406,16 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 4,
     alignItems: "center",
+    flexShrink: 0,
   },
   tabPill: {
     paddingVertical: 6,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    minWidth: 95,
   },
   activeTabPill: {
     backgroundColor: "#FFFFFF",
@@ -1405,17 +1426,16 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   tabPillText: {
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.semiBold,
     fontSize: 13,
     color: COLORS.textSecondary,
   },
   activeTabPillText: {
-    fontFamily: FONTS.semiBold,
     color: COLORS.textPrimary,
   },
   viewAllText: {
-    fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
     color: COLORS.primary,
   },
   compactListContainer: {

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, Image, RefreshControl, Alert, Animated, Easing } from "react-native";
+import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, MapPin, CalendarDays, MoreHorizontal, Ticket, Edit2, FileText, Trash2, PauseCircle, BarChart3 } from "lucide-react-native";
 import Svg, { Circle, Rect, Path, Ellipse } from "react-native-svg";
@@ -14,7 +15,7 @@ import ActionModal from "../../../components/modals/ActionModal";
 import EditEventModal from "../../../components/modals/EditEventModal";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
-const PRIMARY_COLOR = "#007AFF";
+const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = "#1D1D1F";
 const LIGHT_TEXT_COLOR = "#8E8E93";
 
@@ -564,15 +565,19 @@ export default function CommunityEventsListScreen({ navigation, route }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
+        <GHPressable
+          style={({ pressed }) => [
+            styles.backButton,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
           onPress={() => navigation.goBack()}
         >
           <ArrowLeft size={22} color="#333333" strokeWidth={2.5} />
-        </TouchableOpacity>
+        </GHPressable>
         <Text style={styles.headerTitle}>My Events</Text>
         <View style={{ width: 54 }} />
       </View>
@@ -685,7 +690,8 @@ export default function CommunityEventsListScreen({ navigation, route }) {
         onEventUpdated={loadEvents}
         eventData={selectedEvent}
       />
-    </SafeAreaView>
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
