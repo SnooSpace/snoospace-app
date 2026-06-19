@@ -20,6 +20,18 @@ app.post(
 
 app.use(express.json());
 
+// ── DEV ONLY: Network latency simulation ─────────────────────────────────────
+// Set SIMULATE_LATENCY_MS=2000 in .env to add artificial delay to every response.
+// This lets you test scroll performance, loading states, and polling behaviour
+// under "bad network" conditions without needing a real slow connection.
+// Set to 0 or remove the variable to disable completely.
+const SIMULATE_LATENCY_MS = parseInt(process.env.SIMULATE_LATENCY_MS || "0", 10);
+if (SIMULATE_LATENCY_MS > 0) {
+  console.log(`⚠️  [DEV] Latency simulation active: +${SIMULATE_LATENCY_MS}ms on every response`);
+  app.use((_req, _res, next) => setTimeout(next, SIMULATE_LATENCY_MS));
+}
+
+
 // PostgreSQL connection
 const pool = createPool();
 pool

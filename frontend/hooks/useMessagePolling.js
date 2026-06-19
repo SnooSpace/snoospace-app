@@ -68,15 +68,25 @@ export function useMessagePolling(onUpdate, options = {}) {
       try {
         const response = await getUnreadCount();
         const newCount = response.unreadCount || 0;
+        const prevCount = lastMessageCountRef.current;
         
+        // Always track latest count in ref (keep in sync regardless of notification)
+        lastMessageCountRef.current = newCount;
+
         // Check if count changed
-        if (newCount !== lastMessageCountRef.current) {
+        if (newCount !== prevCount) {
           lastChangeTimeRef.current = Date.now();
-          lastMessageCountRef.current = newCount;
           
           // Reset to fast polling when change detected
           if (currentIntervalRef.current !== baseInterval) {
             restartInterval(baseInterval);
+          }
+
+          // Only notify the caller when the value actually changed —
+          // avoids scheduling a setMessageUnread() (and a header re-render)
+          // every 3 seconds when nothing has happened.
+          if (onUpdate) {
+            onUpdate(newCount);
           }
         } else {
           // Recalculate interval for next poll (may slow down if idle)
@@ -84,10 +94,6 @@ export function useMessagePolling(onUpdate, options = {}) {
           if (newInterval !== currentIntervalRef.current) {
             restartInterval(newInterval);
           }
-        }
-        
-        if (onUpdate) {
-          onUpdate(newCount);
         }
       } catch (error) {
         console.error('Message polling error:', error);

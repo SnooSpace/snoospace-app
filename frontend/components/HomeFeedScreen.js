@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { getMaxPreloadDistance, getMaxPreloadDistanceSync } from "../utils/preloadConfig";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 import {
@@ -54,6 +54,7 @@ import EventBus from "../utils/EventBus";
 import LikeStateManager from "../utils/LikeStateManager";
 import { useMessagePolling } from "../hooks/useMessagePolling";
 import { useFeedPolling } from "../hooks/useFeedPolling";
+import { useScrollState } from "../hooks/useScrollState";
 import SkeletonCard from "./SkeletonCard";
 import HomeGreetingHeader from "./HomeGreetingHeader";
 import HapticsService from "../services/HapticsService";
@@ -224,33 +225,47 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [currentUserType, setCurrentUserType] = useState(null);
 
   // Auto-play state (for video: requires 60% viewport coverage)
+  // ── PERF: Using refs instead of state so that viewability changes during
+  //    scroll do NOT invalidate renderFeedItem or trigger re-renders.
+  //    We keep one piece of state (visiblePostId) purely for EditorialPostCard
+  //    equality checks; it is updated via a deferred InteractionManager call
+  //    AFTER the scroll event settles.
   const [visiblePostId, setVisiblePostId] = useState(null);
-  const [visibleIndex, setVisibleIndex] = useState(-1); // Track index for preload distance
+  const visiblePostIdRef = useRef(null);   // always up-to-date, no re-render
+  const visibleIndexRef = useRef(-1);      // replaces visibleIndex state
   const lastVisiblePostIdRef = useRef(null); // Track last visible post to restore on focus
 
   // Memory-aware preload distance (initialized async on mount)
   const [maxPreloadDistance, setMaxPreloadDistance] = useState(1); // safe default
+  const maxPreloadDistanceRef = useRef(1); // ref mirror for use in renderFeedItem
   useEffect(() => {
-    getMaxPreloadDistance().then(setMaxPreloadDistance);
+    getMaxPreloadDistance().then((d) => {
+      setMaxPreloadDistance(d);
+      maxPreloadDistanceRef.current = d;
+    });
   }, []);
 
   // Screen focus detection for pausing videos on navigation
   const isFocused = useIsFocused();
+  // ── PERF: ref mirror so renderFeedItem doesn't need isFocused in its deps
+  const isFocusedRef = useRef(isFocused);
+  useEffect(() => { isFocusedRef.current = isFocused; }, [isFocused]);
 
   // Pause videos when screen loses focus, restore when it regains focus
   useEffect(() => {
     let task;
     if (!isFocused) {
       // Screen lost focus - save current visible post and pause all videos
-      if (visiblePostId) {
+      if (visiblePostIdRef.current) {
         console.log(
           "[HomeFeed] Screen lost focus, pausing video:",
-          visiblePostId,
+          visiblePostIdRef.current,
         );
-        lastVisiblePostIdRef.current = visiblePostId;
+        lastVisiblePostIdRef.current = visiblePostIdRef.current;
+        visiblePostIdRef.current = null;
         setVisiblePostId(null);
       }
-    } else if (isFocused && lastVisiblePostIdRef.current && !visiblePostId) {
+    } else if (isFocused && lastVisiblePostIdRef.current && !visiblePostIdRef.current) {
       // Screen regained focus - restore the last visible post to trigger playback after transition
       console.log(
         "[HomeFeed] Screen regained focus, restoring video after transition:",
@@ -258,6 +273,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       );
       task = InteractionManager.runAfterInteractions(() => {
         if (lastVisiblePostIdRef.current) {
+          visiblePostIdRef.current = lastVisiblePostIdRef.current;
           setVisiblePostId(lastVisiblePostIdRef.current);
           lastVisiblePostIdRef.current = null; // Clear the ref
         }
@@ -266,7 +282,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     return () => {
       if (task) task.cancel();
     };
-  }, [isFocused, visiblePostId]);
+  }, [isFocused]);
 
   // Cursor-based pagination state
   const [cursor, setCursor] = useState(null);
@@ -362,6 +378,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     },
   });
 
+  // ── Scroll state tracking — lets network callbacks know whether to defer setState
+  const { isScrollingRef, onScrollBeginDrag, onScrollEndDrag, onMomentumScrollEnd } = useScrollState();
+
   // Auto-poll for message count updates (Instagram-like)
   useMessagePolling(
     (count) => {
@@ -394,8 +413,13 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           })(),
         })),
       );
-      setPosts(mergedPosts);
-      HapticsService.triggerImpactLight();
+      // \u2500\u2500 PERF: Defer the state update until the user finishes scrolling.
+      // If isScrollingRef is false (user idle), InteractionManager resolves immediately.
+      // If scrolling, it queues until touch events settle \u2014 preventing render bursts mid-scroll.
+      InteractionManager.runAfterInteractions(() => {
+        setPosts(mergedPosts);
+        HapticsService.triggerImpactLight();
+      });
     },
   });
 
@@ -481,79 +505,85 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
 
   // Merge posts, events, and opportunities
+  // \u2500\u2500 PERF: Wrapped in InteractionManager so this expensive merge never runs
+  //    while the user is actively scrolling. It defers until the touch gesture
+  //    completes, then rebuilds feedItems in one atomic setState call.
   useEffect(() => {
-    if (
-      posts.length === 0 &&
-      events.length === 0 &&
-      opportunities.length === 0
-    ) {
-      setFeedItems([]);
-      return;
-    }
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (
+        posts.length === 0 &&
+        events.length === 0 &&
+        opportunities.length === 0
+      ) {
+        setFeedItems([]);
+        return;
+      }
 
-    const merged = [];
-    let eventIndex = 0;
-    let opportunityIndex = 0;
-    const FIRST_EVENT_AT = 2;
-    const SUBSEQUENT_INTERVAL = 5;
-    const OPPORTUNITY_INTERVAL = 3;
+      const merged = [];
+      let eventIndex = 0;
+      let opportunityIndex = 0;
+      const FIRST_EVENT_AT = 2;
+      const SUBSEQUENT_INTERVAL = 5;
+      const OPPORTUNITY_INTERVAL = 3;
 
-    if (posts.length > 0) {
-      posts.forEach((post, index) => {
-        merged.push({ ...post, itemType: "post" });
+      if (posts.length > 0) {
+        posts.forEach((post, index) => {
+          merged.push({ ...post, itemType: "post" });
 
-        const postNumber = index + 1;
+          const postNumber = index + 1;
 
-        // Insert Event
-        const shouldInsertEvent =
-          (postNumber === FIRST_EVENT_AT && eventIndex === 0) ||
-          (eventIndex > 0 &&
-            postNumber > FIRST_EVENT_AT &&
-            (postNumber - FIRST_EVENT_AT) % SUBSEQUENT_INTERVAL === 0);
+          // Insert Event
+          const shouldInsertEvent =
+            (postNumber === FIRST_EVENT_AT && eventIndex === 0) ||
+            (eventIndex > 0 &&
+              postNumber > FIRST_EVENT_AT &&
+              (postNumber - FIRST_EVENT_AT) % SUBSEQUENT_INTERVAL === 0);
 
-        if (shouldInsertEvent && eventIndex < events.length) {
+          if (shouldInsertEvent && eventIndex < events.length) {
+            merged.push({ ...events[eventIndex], itemType: "event" });
+            eventIndex++;
+          }
+
+          // Insert Opportunity (Distributed every 3rd post)
+          if (
+            postNumber % OPPORTUNITY_INTERVAL === 0 &&
+            opportunityIndex < opportunities.length
+          ) {
+            merged.push({
+              ...opportunities[opportunityIndex],
+              itemType: "opportunity",
+            });
+            opportunityIndex++;
+          }
+        });
+
+        // Append remaining events
+        while (eventIndex < events.length) {
           merged.push({ ...events[eventIndex], itemType: "event" });
           eventIndex++;
         }
 
-        // Insert Opportunity (Distributed every 3rd post)
-        if (
-          postNumber % OPPORTUNITY_INTERVAL === 0 &&
-          opportunityIndex < opportunities.length
-        ) {
+        // Append remaining opportunities
+        while (opportunityIndex < opportunities.length) {
           merged.push({
             ...opportunities[opportunityIndex],
             itemType: "opportunity",
           });
           opportunityIndex++;
         }
-      });
-
-      // Append remaining events
-      while (eventIndex < events.length) {
-        merged.push({ ...events[eventIndex], itemType: "event" });
-        eventIndex++;
-      }
-
-      // Append remaining opportunities
-      while (opportunityIndex < opportunities.length) {
-        merged.push({
-          ...opportunities[opportunityIndex],
-          itemType: "opportunity",
+      } else {
+        // If no posts, just show events then opportunities
+        events.forEach((event) => {
+          merged.push({ ...event, itemType: "event" });
         });
-        opportunityIndex++;
+        opportunities.forEach((opp) => {
+          merged.push({ ...opp, itemType: "opportunity" });
+        });
       }
-    } else {
-      // If no posts, just show events then opportunities
-      events.forEach((event) => {
-        merged.push({ ...event, itemType: "event" });
-      });
-      opportunities.forEach((opp) => {
-        merged.push({ ...opp, itemType: "opportunity" });
-      });
-    }
 
-    setFeedItems(merged);
+      setFeedItems(merged);
+    });
+    return () => task.cancel();
   }, [posts, events, opportunities]);
 
   useEffect(() => {
@@ -1171,9 +1201,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         currentUserId={currentUserId}
         currentUserType={currentUserType}
         isVideoPlaying={item.id === visiblePostId}
-        shouldPreload={shouldPreloadItem(feedItems.indexOf(item))}
-        isInViewport={isFocused}
-        isScreenFocused={isFocused}
+        shouldPreload={shouldPreloadItem(feedItemIndexMapRef.current.get(item.id) ?? -1)}
+        isInViewport={isFocusedRef.current}
+        isScreenFocused={isFocusedRef.current}
         navigation={navigation}
         onUserPress={(userId, userType) => {
           const actualUserType = userType || item?.author_type;
@@ -1242,10 +1272,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     navigation,
     currentUserId,
     currentUserType,
+    // ── PERF: visiblePostId kept as state for EditorialPostCard equality check,
+    //    but visibleIndex/isFocused/feedItems are now read from refs so they
+    //    NO LONGER invalidate this callback during scroll events.
     visiblePostId,
-    visibleIndex,
     shouldPreloadItem,
-    feedItems,
     role,
     getNavigationStack,
     handleEventPress,
@@ -1257,7 +1288,6 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     handleFollow,
     handleDelete,
     handleRequestDelete,
-    isFocused,
   ]);
 
   const viewabilityConfig = useRef({
@@ -1281,40 +1311,68 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
       if (videoItems.length > 0) {
         const targetVideo = videoItems[0];
+        const newPostId = targetVideo.item.id;
+        const newIndex = targetVideo.index;
 
         console.log("[HomeFeed] Video viewable (60% coverage):", {
-          postId: targetVideo.item.id,
-          index: targetVideo.index,
+          postId: newPostId,
+          index: newIndex,
           totalViewableVideos: videoItems.length,
         });
 
-        setVisiblePostId(targetVideo.item.id);
-        setVisibleIndex(targetVideo.index);
+        // ── PERF: Update refs immediately (zero re-render cost during scroll).
+        // Then schedule ONE deferred state update after the interaction settles.
+        // This means setVisiblePostId fires ONCE per scroll stop, not per frame.
+        visiblePostIdRef.current = newPostId;
+        visibleIndexRef.current = newIndex;
+        InteractionManager.runAfterInteractions(() => {
+          setVisiblePostId(newPostId);
+        });
       } else {
         // No videos meet the 60% threshold
         const firstViewable = viewableItems.find((item) => item.isViewable);
         if (firstViewable && firstViewable.item && firstViewable.item.id) {
-          setVisiblePostId(firstViewable.item.id);
-          setVisibleIndex(firstViewable.index);
+          visiblePostIdRef.current = firstViewable.item.id;
+          visibleIndexRef.current = firstViewable.index;
+          InteractionManager.runAfterInteractions(() => {
+            setVisiblePostId(firstViewable.item.id);
+          });
         } else {
-          setVisiblePostId(null);
-          setVisibleIndex(-1);
+          visiblePostIdRef.current = null;
+          visibleIndexRef.current = -1;
+          InteractionManager.runAfterInteractions(() => {
+            setVisiblePostId(null);
+          });
         }
       }
     } else {
       // Nothing visible - pause all videos
-      setVisiblePostId(null);
-      setVisibleIndex(-1);
+      visiblePostIdRef.current = null;
+      visibleIndexRef.current = -1;
+      InteractionManager.runAfterInteractions(() => {
+        setVisiblePostId(null);
+      });
     }
   }, []);
 
+  // ── PERF: feedItemIndexMap — O(1) id→index lookup to replace feedItems.indexOf(item)
+  //    in renderFeedItem. Rebuilds only when feedItems changes, never during scroll.
+  const feedItemIndexMapRef = useRef(new Map());
+  useMemo(() => {
+    const map = new Map();
+    feedItems.forEach((item, i) => map.set(item.id, i));
+    feedItemIndexMapRef.current = map;
+  }, [feedItems]);
+
   // Compute preload status for a feed item based on its index distance from the visible video
+  // ── PERF: reads from refs so this callback never needs to be in renderFeedItem's deps.
   const shouldPreloadItem = useCallback((itemIndex) => {
-    if (visibleIndex < 0 || maxPreloadDistance === 0) return false;
-    const distance = Math.abs(itemIndex - visibleIndex);
-    // distance 0 = currently visible (playing), 1-N = preload candidates
-    return distance > 0 && distance <= maxPreloadDistance;
-  }, [visibleIndex, maxPreloadDistance]);
+    const idx = visibleIndexRef.current;
+    const dist = maxPreloadDistanceRef.current;
+    if (idx < 0 || dist === 0) return false;
+    const distance = Math.abs(itemIndex - idx);
+    return distance > 0 && distance <= dist;
+  }, []);
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
@@ -1393,9 +1451,17 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         showsVerticalScrollIndicator={false}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
+        // ── Scroll state handlers: update isScrollingRef so InteractionManager
+        //    callbacks can defer expensive state updates until the user pauses.
+        onScrollBeginDrag={onScrollBeginDrag}
+        onScrollEndDrag={onScrollEndDrag}
+        onMomentumScrollEnd={onMomentumScrollEnd}
         // Video optimization: prevent aggressive unmounting of video components
         removeClippedSubviews={Platform.OS === "android"}
-        windowSize={5}
+        // ── PERF: windowSize bumped 5→8 to reduce blank-flash during fast scrolls.
+        //    5 was too small for tall editorial cards — items mounted/unmounted
+        //    too aggressively, causing visible whitespace on quick flings.
+        windowSize={8}
         maxToRenderPerBatch={5}
         initialNumToRender={8}
         onViewableItemsChanged={onViewableItemsChanged}

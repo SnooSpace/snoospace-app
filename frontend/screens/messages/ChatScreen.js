@@ -19,8 +19,10 @@ import {
   Keyboard,
   ActivityIndicator,
   FlatList,
+  InteractionManager,
   Animated as RNAnimated,
 } from "react-native";
+
 import { Image } from "expo-image";
 import Animated, {
   useSharedValue,
@@ -1551,6 +1553,10 @@ export default function ChatScreen({ route, navigation }) {
   const [currentRecipientId, setCurrentRecipientId] = useState(recipientId);
   const [currentUser, setCurrentUser] = useState(null);
   const [rsvpLoading, setRsvpLoading] = useState({});
+  // \u2500\u2500 PERF: ref mirror so renderItem can read RSVP state without being in its deps.
+  //    rsvpLoading in renderItem's closure was causing full re-creation on every
+  //    RSVP state change, invalidating all visible rows.
+  const rsvpLoadingRef = useRef({});
   const [sharedPostModalVisible, setSharedPostModalVisible] = useState(false);
   const [selectedSharedPost, setSelectedSharedPost] = useState(null);
   const [sharedPosts, setSharedPosts] = useState({});
@@ -1794,7 +1800,9 @@ export default function ChatScreen({ route, navigation }) {
         });
         return;
       }
-      setRsvpLoading((prev) => ({ ...prev, [msg.id]: true }));
+      const nextLoadingState = { ...rsvpLoadingRef.current, [msg.id]: true };
+      rsvpLoadingRef.current = nextLoadingState;
+      setRsvpLoading(nextLoadingState);
       try {
         const result = await confirmGiftRSVP(giftId, response);
         if (result.success) {
@@ -1817,7 +1825,9 @@ export default function ChatScreen({ route, navigation }) {
           icon: AlertTriangle,
         });
       } finally {
-        setRsvpLoading((prev) => ({ ...prev, [msg.id]: false }));
+        const doneState = { ...rsvpLoadingRef.current, [msg.id]: false };
+        rsvpLoadingRef.current = doneState;
+        setRsvpLoading(doneState);
       }
     },
     [updateMessageById],
@@ -2097,8 +2107,14 @@ export default function ChatScreen({ route, navigation }) {
           const after = newestAtRef.current;
           const params = after ? { after, limit: 50 } : { limit: 50 };
           const res = await getMessages(currentConversationId, params);
-          // Batch-merge: one state update, deduped + sorted inside the hook.
-          addNewMessages(res.messages || []);
+          const incoming = res.messages || [];
+          if (incoming.length === 0) return;
+          // ── PERF: Defer state update until user is not actively scrolling.
+          // InteractionManager resolves immediately when idle; queues when a touch
+          // gesture is in progress. This prevents setMessages from firing mid-scroll.
+          InteractionManager.runAfterInteractions(() => {
+            addNewMessages(incoming);
+          });
         } catch {}
       };
       poll();
@@ -2694,7 +2710,7 @@ export default function ChatScreen({ route, navigation }) {
           recipient={recipient}
           recipientId={recipientId}
           isBlockedByOther={isBlockedByOther}
-          rsvpLoading={rsvpLoading[msg.id]}
+          rsvpLoading={rsvpLoadingRef.current[msg.id]}
           highlightedIdSV={highlightedIdSV}
           onReply={handleReply}
           onLongPress={handleLongPress}
@@ -2715,9 +2731,11 @@ export default function ChatScreen({ route, navigation }) {
       recipient,
       recipientId,
       isBlockedByOther,
-      flatListData,
+      // ── PERF: flatListData and rsvpLoading removed from deps.
+      //    flatListData rebuilds on every poll cycle; having it here caused renderItem
+      //    to be recreated every 3 seconds, forcing all visible rows to re-evaluate.
+      //    rsvpLoading is now read from rsvpLoadingRef.current (zero re-render cost).
       shouldShowAvatar,
-      rsvpLoading,
       highlightedIdSV,
       handleReply,
       handleLongPress,
@@ -2915,9 +2933,9 @@ export default function ChatScreen({ route, navigation }) {
               }}
               initialNumToRender={15}
               maxToRenderPerBatch={8}
-              windowSize={21}
+              windowSize={10}
               removeClippedSubviews={false}
-              scrollEventThrottle={32}
+              scrollEventThrottle={16}
               onEndReached={() => {
                 if (hasMore && !loadingOlder) {
                   loadOlderMessages(currentConversationId);
@@ -2934,6 +2952,7 @@ export default function ChatScreen({ route, navigation }) {
               viewabilityConfig={viewabilityConfigRef.current}
               onViewableItemsChanged={onViewableItemsChangedRef.current}
             />
+
           </Animated.View>
         </KeyboardAvoidingView>
 

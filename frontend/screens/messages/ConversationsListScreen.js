@@ -2,9 +2,10 @@ import React, {
   useState, useEffect, useCallback, useRef, useMemo,
 } from "react";
 import {
-  View, Text, FlatList, TouchableOpacity, Image, StyleSheet,
+  View, Text, FlatList, TouchableOpacity, StyleSheet,
   TextInput, RefreshControl, Animated, Pressable, Alert,
 } from "react-native";
+import { Image } from "expo-image"; // ── PERF: expo-image provides memory+disk caching for avatars
 import { useFocusEffect } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
@@ -74,6 +75,8 @@ function ConvAvatar({ uri, size = 52, hasUnread = false, isGroup = false, isAnon
         <Image
           source={{ uri: uri || "https://via.placeholder.com/52" }}
           style={{ width: size, height: size, borderRadius: isGroup ? 14 : size / 2, backgroundColor: SURFACE2 }}
+          cachePolicy="memory-disk"
+          contentFit="cover"
         />
       )}
     </View>
@@ -92,7 +95,9 @@ const SearchResultRow = React.memo(function SearchResultRow({ item, onPress }) {
   return (
     <TouchableOpacity style={srStyles.row} onPress={() => onPress(item)} activeOpacity={0.7}>
       <Image source={{ uri: uri || "https://via.placeholder.com/40" }}
-        style={srStyles.avatar} />
+        style={srStyles.avatar}
+        cachePolicy="memory-disk"
+        contentFit="cover" />
       <View style={{ flex: 1 }}>
         <Text style={srStyles.name} numberOfLines={1}>{name}</Text>
         <Text style={srStyles.sub}  numberOfLines={1}>{sub}</Text>
