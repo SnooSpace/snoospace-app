@@ -7,7 +7,6 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   TextInput,
@@ -20,6 +19,7 @@ import {
   TouchableWithoutFeedback,
   Animated,
 } from "react-native";
+import { Image } from "expo-image";
 import { GradientHeart } from "../ui/GradientHeart";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -64,7 +64,7 @@ import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
 import HapticsService from "../../services/HapticsService";
 
-const QnAPostCard = ({
+const QnAPostCard = React.memo(({
   post,
   onUserPress,
   onLike,
@@ -680,6 +680,8 @@ const QnAPostCard = ({
                     styles.stackAvatar,
                     { marginLeft: index > 0 ? -8 : 0, zIndex: 3 - index },
                   ]}
+                  cachePolicy="memory-disk"
+                  contentFit="cover"
                 />
               ))}
               {participantCount > 2 && (
@@ -770,6 +772,8 @@ const QnAPostCard = ({
               uri: post.author_photo_url || "https://via.placeholder.com/24",
             }}
             style={styles.authorAvatar}
+            cachePolicy="memory-disk"
+            contentFit="cover"
           />
           <Text style={styles.authorName}>
             {post.author_name || post.author_username}
@@ -976,7 +980,7 @@ const QnAPostCard = ({
       />
     </>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

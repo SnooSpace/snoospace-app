@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet, Modal, Pressable, Dimensions, TouchableWithoutFeedback, Animated } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, Dimensions, TouchableWithoutFeedback, Animated } from "react-native";
+import { Image } from "expo-image";
 import { GradientHeart } from "../ui/GradientHeart";
 import { LinearGradient } from "expo-linear-gradient";
 import HapticsService from "../../services/HapticsService";
@@ -49,7 +50,7 @@ import SnooLoader from "../ui/SnooLoader";
 import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
 
-const PollPostCard = ({
+const PollPostCard = React.memo(({
   post,
   onUserPress,
   onLike,
@@ -667,6 +668,8 @@ const PollPostCard = ({
                 : { uri: "https://via.placeholder.com/40" }
             }
             style={styles.profileImage}
+            cachePolicy="memory-disk"
+            contentFit="cover"
           />
           <Text style={styles.authorName}>
             {post.author_name || post.author_username}
@@ -850,7 +853,7 @@ const PollPostCard = ({
       />
     </>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

@@ -7,7 +7,6 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   TextInput,
@@ -20,6 +19,7 @@ import {
   TouchableWithoutFeedback,
   Animated,
 } from "react-native";
+import { Image } from "expo-image"; // ── PERF: memory-disk cache for author avatar
 import { GradientHeart } from "../ui/GradientHeart";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
@@ -70,7 +70,7 @@ import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
 import CustomImagePicker from "../CustomImagePicker";
 
-const PromptPostCard = ({
+const PromptPostCard = React.memo(({
   post,
   onUserPress,
   onLike,
@@ -707,6 +707,8 @@ const PromptPostCard = ({
               : { uri: "https://via.placeholder.com/40" }
           }
           style={styles.profileImage}
+          cachePolicy="memory-disk"
+          contentFit="cover"
         />
         <Text style={styles.authorName}>
           {post.author_name || post.author_username}
@@ -1035,7 +1037,7 @@ const PromptPostCard = ({
       />
     </>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -1179,11 +1181,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
     borderColor: "#F3F4F6",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 4,
     marginBottom: SPACING.s,
   },
   inputContainerFloatingRetry: {

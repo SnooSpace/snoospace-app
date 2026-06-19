@@ -7,7 +7,6 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
-  Image,
   TouchableOpacity,
   StyleSheet,
   Animated,
@@ -16,6 +15,7 @@ import {
   Dimensions,
   TouchableWithoutFeedback,
 } from "react-native";
+import { Image } from "expo-image"; // ── PERF: memory-disk cache + off-thread decode
 import { GradientHeart } from "../ui/GradientHeart";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
@@ -76,7 +76,7 @@ import {
   getTimeRemaining,
 } from "../../utils/cardTiming";
 
-const ChallengePostCard = ({
+const ChallengePostCard = React.memo(({
   post,
   onUserPress,
   onLike,
@@ -699,6 +699,8 @@ const ChallengePostCard = ({
             <Image
               source={{ uri: previewSubmission.media_urls[0] }}
               style={styles.previewImage}
+              cachePolicy="memory-disk"
+              contentFit="cover"
             />
           )}
         {previewSubmission.video_thumbnail && (
@@ -706,6 +708,8 @@ const ChallengePostCard = ({
             <Image
               source={{ uri: previewSubmission.video_thumbnail }}
               style={styles.previewImage}
+              cachePolicy="memory-disk"
+              contentFit="cover"
             />
             <View style={styles.playIconOverlay}>
               <Play size={32} color="#FFFFFF" fill="#FFFFFF" />
@@ -718,6 +722,8 @@ const ChallengePostCard = ({
               <Image
                 source={{ uri: previewSubmission.participant_photo_url }}
                 style={styles.previewAvatar}
+                cachePolicy="memory-disk"
+                contentFit="cover"
               />
             )}
             <Text style={styles.previewAuthorName} numberOfLines={1}>
@@ -924,6 +930,8 @@ const ChallengePostCard = ({
                 : { uri: "https://via.placeholder.com/32" }
             }
             style={styles.authorAvatar}
+            cachePolicy="memory-disk"
+            contentFit="cover"
           />
           <Text style={styles.authorName} numberOfLines={1}>
             {post.author_name || post.author_username}
@@ -1145,6 +1153,8 @@ const ChallengePostCard = ({
                               <Image
                                 source={{ uri: participant.participant_photo_url }}
                                 style={styles.participantAvatarImg}
+                                cachePolicy="memory-disk"
+                                contentFit="cover"
                               />
                             ) : (
                               <View style={styles.participantAvatarPlaceholder}>
@@ -1351,7 +1361,7 @@ const ChallengePostCard = ({
       />
     </>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
