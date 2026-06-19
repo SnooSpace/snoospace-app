@@ -5,10 +5,7 @@ import HomeFeedScreen from "../components/HomeFeedScreen";
 import NotificationsScreen from "../screens/notifications/NotificationsScreen";
 import ConversationsListScreen from "../screens/messages/ConversationsListScreen";
 import ChatScreen from "../screens/messages/ChatScreen";
-import FollowersListScreen from "../screens/profile/member/FollowersListScreen";
-import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
-import CommunityFollowersListScreen from "../screens/profile/community/CommunityFollowersListScreen";
-import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
+
 import PromptSubmissionsScreen from "../screens/home/PromptSubmissionsScreen";
 import PromptRepliesScreen from "../screens/home/PromptRepliesScreen";
 import QnAQuestionsScreen from "../screens/home/QnAQuestionsScreen";
@@ -20,8 +17,7 @@ import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen"
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
 import CreateGroupScreen from "../screens/messages/CreateGroupScreen";
 import GroupInfoScreen from "../screens/messages/GroupInfoScreen";
-import CircleListScreen from "../screens/profile/member/CircleListScreen";
-import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
+
 // [VIDEO INSIGHTS - DEFERRED] import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
 
 const CommunityHomeFeed = (props) => (
@@ -75,16 +71,7 @@ export default function CommunityHomeStackNavigator() {
         component={GroupInfoScreen}
         options={{ headerShown: false }}
       />
-      <Stack.Screen name="FollowersList" component={FollowersListScreen} />
-      <Stack.Screen name="FollowingList" component={FollowingListScreen} />
-      <Stack.Screen
-        name="CommunityFollowersList"
-        component={CommunityFollowersListScreen}
-      />
-      <Stack.Screen
-        name="CommunityFollowingList"
-        component={CommunityFollowingListScreen}
-      />
+
       <Stack.Screen
         name="PromptSubmissions"
         component={PromptSubmissionsScreen}
@@ -153,8 +140,7 @@ export default function CommunityHomeStackNavigator() {
         }}
       />
       {/* [VIDEO INSIGHTS - DEFERRED] <Stack.Screen name="VideoInsights" component={VideoInsightsScreen} options={{ headerShown: false }} /> */}
-      <Stack.Screen name="CircleList" component={CircleListScreen} />
-      <Stack.Screen name="CircleRequests" component={CircleRequestsScreen} />
+
     </Stack.Navigator>
   );
 }

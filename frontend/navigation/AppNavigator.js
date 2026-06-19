@@ -31,6 +31,7 @@ import CategoryEventsScreen from "../screens/events/CategoryEventsScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import { CropScreen, BatchCropScreen } from "../components/MediaCrop";
+import SavedPostsScreen from "../screens/SavedPostsScreen";
 import DeleteAccountScreen from "../screens/profile/DeleteAccountScreen";
 import DeleteConfirmationScreen from "../screens/profile/DeleteConfirmationScreen";
 import ConsentScreen from "../screens/Privacy/ConsentScreen";
@@ -42,7 +43,10 @@ import ApplicantDetailScreen from "../screens/home/community/ApplicantDetailScre
 import QRScannerScreen from "../screens/events/QRScannerScreen";
 import UniversalFollowersScreen from "../screens/profile/UniversalFollowersScreen";
 import UniversalFollowingScreen from "../screens/profile/UniversalFollowingScreen";
+import FollowersListScreen from "../screens/profile/member/FollowersListScreen";
 import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
+import CommunityFollowersListScreen from "../screens/profile/community/CommunityFollowersListScreen";
+import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
 import CircleListScreen from "../screens/profile/member/CircleListScreen";
 import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
 
@@ -343,8 +347,32 @@ export default function AppNavigator({ initialRouteName }) {
         }}
       />
       <Stack.Screen
+        name="FollowersList"
+        component={FollowersListScreen}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen
         name="FollowingList"
         component={FollowingListScreen}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen
+        name="CommunityFollowersList"
+        component={CommunityFollowersListScreen}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen
+        name="CommunityFollowingList"
+        component={CommunityFollowingListScreen}
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
@@ -361,6 +389,14 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="CircleRequests"
         component={CircleRequestsScreen}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        }}
+      />
+      <Stack.Screen
+        name="SavedPostsScreen"
+        component={SavedPostsScreen}
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,

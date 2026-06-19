@@ -7,10 +7,7 @@ import ConversationsListScreen from "../screens/messages/ConversationsListScreen
 import ChatScreen from "../screens/messages/ChatScreen";
 import SponsorProfileScreen from "../screens/profile/sponsor/SponsorProfileScreen";
 import VenueProfileScreen from "../screens/profile/venue/VenueProfileScreen";
-import FollowersListScreen from "../screens/profile/member/FollowersListScreen";
-import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
-import CommunityFollowersListScreen from "../screens/profile/community/CommunityFollowersListScreen";
-import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
+
 import PromptSubmissionsScreen from "../screens/home/PromptSubmissionsScreen";
 import PromptRepliesScreen from "../screens/home/PromptRepliesScreen";
 import QnAQuestionsScreen from "../screens/home/QnAQuestionsScreen";
@@ -21,8 +18,7 @@ import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen"
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
 import CreateGroupScreen from "../screens/messages/CreateGroupScreen";
 import GroupInfoScreen from "../screens/messages/GroupInfoScreen";
-import CircleListScreen from "../screens/profile/member/CircleListScreen";
-import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
+
 // [VIDEO INSIGHTS - DEFERRED] import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
 
 const MemberHomeFeed = (props) => (
@@ -93,16 +89,7 @@ export default function HomeStackNavigator() {
           headerShown: false,
         }}
       />
-      <Stack.Screen name="FollowersList" component={FollowersListScreen} />
-      <Stack.Screen name="FollowingList" component={FollowingListScreen} />
-      <Stack.Screen
-        name="CommunityFollowersList"
-        component={CommunityFollowersListScreen}
-      />
-      <Stack.Screen
-        name="CommunityFollowingList"
-        component={CommunityFollowingListScreen}
-      />
+
       <Stack.Screen
         name="PromptSubmissions"
         component={PromptSubmissionsScreen}
@@ -154,8 +141,7 @@ export default function HomeStackNavigator() {
         name="ApplyToOpportunity"
         component={ApplyToOpportunityScreen}
       />
-      <Stack.Screen name="CircleList" component={CircleListScreen} />
-      <Stack.Screen name="CircleRequests" component={CircleRequestsScreen} />
+
       {/* [VIDEO INSIGHTS - DEFERRED] <Stack.Screen name="VideoInsights" component={VideoInsightsScreen} options={{ headerShown: false }} /> */}
     </Stack.Navigator>
   );

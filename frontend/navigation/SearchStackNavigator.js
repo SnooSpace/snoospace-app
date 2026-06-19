@@ -2,10 +2,7 @@ import React from "react";
 import { createStackNavigator, CardStyleInterpolators } from "@react-navigation/stack";
 import SearchScreen from "../screens/search/SearchScreen";
 import VenueProfileScreen from "../screens/profile/venue/VenueProfileScreen";
-import FollowersListScreen from "../screens/profile/member/FollowersListScreen";
-import FollowingListScreen from "../screens/profile/member/FollowingListScreen";
-import CommunityFollowersListScreen from "../screens/profile/community/CommunityFollowersListScreen";
-import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
+
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
 
@@ -54,16 +51,7 @@ export default function SearchStackNavigator() {
     >
       <Stack.Screen name="Search" component={SearchScreenWithSwipe} />
       <Stack.Screen name="VenueProfile" component={VenueProfileScreen} />
-      <Stack.Screen name="FollowersList" component={FollowersListScreen} />
-      <Stack.Screen name="FollowingList" component={FollowingListScreen} />
-      <Stack.Screen
-        name="CommunityFollowersList"
-        component={CommunityFollowersListScreen}
-      />
-      <Stack.Screen
-        name="CommunityFollowingList"
-        component={CommunityFollowingListScreen}
-      />
+
       <Stack.Screen
         name="CommunityPublicProfile"
         component={CommunityPublicProfileScreen}
