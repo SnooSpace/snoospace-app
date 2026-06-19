@@ -383,6 +383,7 @@ function SwipeablePagerNavigator({
   // horizontal movement before we claim the touch ourselves. No foreign native
   // recognizer is involved, so there's no race condition to lose.
   const directionLockGesture = Gesture.Pan()
+    .enabled(!shouldHideTabBar)
     .activeOffsetX([-15, 15])
     .failOffsetY([-8, 8])
     .onStart(() => {
