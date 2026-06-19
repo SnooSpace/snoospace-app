@@ -108,6 +108,12 @@ const getTabBarStyle = (route, customHiddenRoutes = []) => {
     "SavedPostsScreen",
     "LinkedAccounts",
     "BlockedAccounts",
+    "MyDataScreen",
+    "EventDetails",
+    "DeleteAccount",
+    "CommunityCreatePost",
+    "CircleList",
+    "CircleRequests",
   ];
   const allHiddenRoutes = [...baseHiddenRoutes, ...customHiddenRoutes];
   

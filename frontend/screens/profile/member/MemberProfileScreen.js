@@ -966,9 +966,19 @@ export default function MemberProfileScreen({ navigation }) {
         (acc) => String(acc.id) === String(profile?.id),
       );
 
+      const mergedAccount = currentAccount
+        ? {
+            ...profile,
+            ...currentAccount,
+            username: currentAccount.username || profile?.username || "",
+            name: currentAccount.name || profile?.name || "",
+            profilePicture: currentAccount.profilePicture || profile?.profile_photo_url || null,
+          }
+        : profile;
+
       setLogoutModalData({
         hasMultiple: loggedInAccounts.length > 1,
-        currentAccount: currentAccount || profile,
+        currentAccount: mergedAccount,
       });
       setShowLogoutModal(true);
     } catch (error) {

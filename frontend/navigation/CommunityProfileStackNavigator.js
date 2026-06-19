@@ -18,6 +18,11 @@ import BlockedAccountsScreen from "../screens/profile/member/BlockedAccountsScre
 import CircleListScreen from "../screens/profile/member/CircleListScreen";
 import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
 import SavedPostsScreen from "../screens/SavedPostsScreen";
+import MyDataScreen from "../screens/Privacy/MyDataScreen";
+import EventDetails from "../screens/events/EventDetailsScreen";
+import DeleteAccountScreen from "../screens/profile/DeleteAccountScreen";
+import CommunityEventsListScreen from "../screens/home/community/CommunityEventsListScreen";
+import CommunityCreatePostScreen from "../screens/home/community/CommunityCreatePostScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -70,6 +75,11 @@ export default function CommunityProfileStackNavigator() {
       <Stack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
       <Stack.Screen name="CircleList" component={CircleListScreen} />
       <Stack.Screen name="CircleRequests" component={CircleRequestsScreen} />
+      <Stack.Screen name="MyDataScreen" component={MyDataScreen} />
+      <Stack.Screen name="EventDetails" component={EventDetails} />
+      <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
+      <Stack.Screen name="CommunityEventsList" component={CommunityEventsListScreen} />
+      <Stack.Screen name="CommunityCreatePost" component={CommunityCreatePostScreen} />
     </Stack.Navigator>
   );
 }

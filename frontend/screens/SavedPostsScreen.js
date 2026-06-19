@@ -216,11 +216,10 @@ const SavedPostsScreen = ({ navigation }) => {
     setAllPosts((prev) => prev.filter((p) => p.id !== postId));
 
   const handleUserPress = (userId, userType) => {
-    const nav = navigation.getParent()?.getParent() || navigation;
     if (userType === "community") {
-      nav.navigate("CommunityPublicProfile", { communityId: userId, viewerRole: "member" });
+      navigation.navigate("CommunityPublicProfile", { communityId: userId, viewerRole: "member" });
     } else {
-      nav.navigate("MemberPublicProfile", { memberId: userId });
+      navigation.navigate("MemberPublicProfile", { memberId: userId });
     }
   };
 
@@ -252,8 +251,7 @@ const SavedPostsScreen = ({ navigation }) => {
           <OpportunityFeedCard
             opportunity={item}
             onPress={(opp) => {
-              const nav = navigation.getParent()?.getParent() || navigation;
-              nav.navigate("OpportunityView", {
+              navigation.navigate("OpportunityView", {
                 opportunityId: opp.id,
               });
             }}

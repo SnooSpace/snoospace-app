@@ -16,6 +16,13 @@ import BlockedAccountsScreen from "../screens/profile/member/BlockedAccountsScre
 import CircleListScreen from "../screens/profile/member/CircleListScreen";
 import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
 import SavedPostsScreen from "../screens/SavedPostsScreen";
+import MyDataScreen from "../screens/Privacy/MyDataScreen";
+import OpportunityView from "../screens/home/member/OpportunityViewScreen";
+import EventDetails from "../screens/events/EventDetailsScreen";
+import CommunityMonetizationScreen from "../screens/profile/community/CommunityMonetizationScreen";
+import DeleteAccountScreen from "../screens/profile/DeleteAccountScreen";
+import PlanDetailScreen from "../screens/plans/PlanDetailScreen";
+import HostRequestsScreen from "../screens/plans/HostRequestsScreen";
 // [VIDEO INSIGHTS - DEFERRED] import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
 
 const Stack = createNativeStackNavigator();
@@ -58,6 +65,13 @@ export default function ProfileStackNavigator() {
       <Stack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
       <Stack.Screen name="CircleList" component={CircleListScreen} />
       <Stack.Screen name="CircleRequests" component={CircleRequestsScreen} />
+      <Stack.Screen name="MyDataScreen" component={MyDataScreen} />
+      <Stack.Screen name="OpportunityView" component={OpportunityView} />
+      <Stack.Screen name="EventDetails" component={EventDetails} />
+      <Stack.Screen name="CreatorMonetization" component={CommunityMonetizationScreen} />
+      <Stack.Screen name="DeleteAccount" component={DeleteAccountScreen} />
+      <Stack.Screen name="PlanDetail" component={PlanDetailScreen} />
+      <Stack.Screen name="HostRequests" component={HostRequestsScreen} />
       {/* [VIDEO INSIGHTS - DEFERRED] <Stack.Screen name="VideoInsights" component={VideoInsightsScreen} options={{ headerShown: false }} /> */}
     </Stack.Navigator>
   );
