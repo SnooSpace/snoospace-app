@@ -17,6 +17,7 @@ import LinkedAccountsScreen from "../screens/profile/member/LinkedAccountsScreen
 import BlockedAccountsScreen from "../screens/profile/member/BlockedAccountsScreen";
 import CircleListScreen from "../screens/profile/member/CircleListScreen";
 import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
+import SavedPostsScreen from "../screens/SavedPostsScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -64,6 +65,7 @@ export default function CommunityProfileStackNavigator() {
       <Stack.Screen name="FollowingList" component={FollowingListScreen} />
       <Stack.Screen name="OpportunityView" component={OpportunityViewScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="SavedPostsScreen" component={SavedPostsScreen} />
       <Stack.Screen name="LinkedAccounts" component={LinkedAccountsScreen} />
       <Stack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
       <Stack.Screen name="CircleList" component={CircleListScreen} />

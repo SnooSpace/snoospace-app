@@ -1,25 +1,29 @@
-import React from 'react';
-import { View, Dimensions } from 'react-native';
-import { GestureDetector, Gesture } from 'react-native-gesture-handler';
-import { useNavigation } from '@react-navigation/native';
+import React from "react";
+import { View, Dimensions } from "react-native";
+import { GestureDetector, Gesture } from "react-native-gesture-handler";
+import { useNavigation } from "@react-navigation/native";
 
 // Define the default order of bottom tabs (Member)
 const DEFAULT_TABS = ["Home", "Search", "Discover", "YourEvents", "Profile"];
-const SWIPE_THRESHOLD = Dimensions.get('window').width * 0.2;
+const SWIPE_THRESHOLD = Dimensions.get("window").width * 0.2;
 
-export default function TabSwipeHandler({ children, currentTab, tabs = DEFAULT_TABS }) {
+export default function TabSwipeHandler({
+  children,
+  currentTab,
+  tabs = DEFAULT_TABS,
+}) {
   const navigation = useNavigation();
 
   const handleSwipe = (direction) => {
     const currentIndex = tabs.indexOf(currentTab);
     if (currentIndex === -1) return;
 
-    if (direction === 'left') {
+    if (direction === "left") {
       // Swipe left means moving finger to the left -> going to the NEXT tab
       if (currentIndex < tabs.length - 1) {
         navigation.navigate(tabs[currentIndex + 1]);
       }
-    } else if (direction === 'right') {
+    } else if (direction === "right") {
       // Swipe right means moving finger to the right -> going to the PREVIOUS tab
       if (currentIndex > 0) {
         navigation.navigate(tabs[currentIndex - 1]);
@@ -41,15 +45,15 @@ export default function TabSwipeHandler({ children, currentTab, tabs = DEFAULT_T
     .onEnd((event) => {
       // Once ended, check if the velocity or translation was enough to trigger a tab switch
       const { translationX, velocityX } = event;
-      
+
       const isFast = Math.abs(velocityX) > 400;
       const isFar = Math.abs(translationX) > SWIPE_THRESHOLD;
 
       if (isFast || isFar) {
         if (translationX < 0) {
-          handleSwipe('left');
+          handleSwipe("left");
         } else {
-          handleSwipe('right');
+          handleSwipe("right");
         }
       }
     });
@@ -60,9 +64,7 @@ export default function TabSwipeHandler({ children, currentTab, tabs = DEFAULT_T
           Animated.View inside a GestureDetector interacts with @react-navigation/stack's
           back gesture evaluator, causing a transient translateX on the pager page
           (visible as a leftward drift + grey strip during back navigation). */}
-      <View style={{ flex: 1 }}>
-        {children}
-      </View>
+      <View style={{ flex: 1 }}>{children}</View>
     </GestureDetector>
   );
 }

@@ -139,6 +139,7 @@ const getTabBarStyle = (route, customHiddenRoutes = []) => {
     "EventAttendees",
     "ShareTicket",
     "Settings",
+    "SavedPostsScreen",
     "LinkedAccounts",
     "BlockedAccounts",
     "CircleRequests",

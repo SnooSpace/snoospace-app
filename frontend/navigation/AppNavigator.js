@@ -33,7 +33,6 @@ import CommunityPublicProfileScreen from "../screens/profile/community/Community
 import { CropScreen, BatchCropScreen } from "../components/MediaCrop";
 import DeleteAccountScreen from "../screens/profile/DeleteAccountScreen";
 import DeleteConfirmationScreen from "../screens/profile/DeleteConfirmationScreen";
-import SavedPostsScreen from "../screens/SavedPostsScreen";
 import ConsentScreen from "../screens/Privacy/ConsentScreen";
 import MyDataScreen from "../screens/Privacy/MyDataScreen";
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
@@ -269,14 +268,6 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           cardStyleInterpolator: forFadeFromCenter,
-        }}
-      />
-      <Stack.Screen
-        name="SavedPostsScreen"
-        component={SavedPostsScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
         }}
       />
       <Stack.Screen

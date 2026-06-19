@@ -15,6 +15,7 @@ import LinkedAccountsScreen from "../screens/profile/member/LinkedAccountsScreen
 import BlockedAccountsScreen from "../screens/profile/member/BlockedAccountsScreen";
 import CircleListScreen from "../screens/profile/member/CircleListScreen";
 import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
+import SavedPostsScreen from "../screens/SavedPostsScreen";
 // [VIDEO INSIGHTS - DEFERRED] import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
 
 const Stack = createNativeStackNavigator();
@@ -52,6 +53,7 @@ export default function ProfileStackNavigator() {
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="SavedPostsScreen" component={SavedPostsScreen} />
       <Stack.Screen name="LinkedAccounts" component={LinkedAccountsScreen} />
       <Stack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
       <Stack.Screen name="CircleList" component={CircleListScreen} />
