@@ -30,6 +30,7 @@ import PromptPostCard from "../components/posts/PromptPostCard";
 import QnAPostCard from "../components/posts/QnAPostCard";
 import ChallengePostCard from "../components/posts/ChallengePostCard";
 import OpportunityFeedCard from "../components/OpportunityFeedCard";
+import { VoicePostCard } from "../components/CommunityVoiceBox";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -43,7 +44,7 @@ const COLORS = {
 };
 
 // ── Community post types that render as full cards ────────────────────────────
-const COMMUNITY_POST_TYPES = ["poll", "prompt", "qna", "challenge", "opportunity"];
+const COMMUNITY_POST_TYPES = ["poll", "prompt", "qna", "challenge", "opportunity", "community_voice"];
 
 const isCommunityPost = (post) =>
   COMMUNITY_POST_TYPES.includes(post?.post_type);
@@ -244,6 +245,8 @@ const SavedPostsScreen = ({ navigation }) => {
         return <QnAPostCard {...sharedProps} />;
       case "challenge":
         return <ChallengePostCard {...sharedProps} />;
+      case "community_voice":
+        return <VoicePostCard post={item} onComment={() => {}} />;
       case "opportunity":
         return (
           <OpportunityFeedCard
