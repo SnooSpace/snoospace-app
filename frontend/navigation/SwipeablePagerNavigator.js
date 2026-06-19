@@ -17,10 +17,10 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  withSpring,
   runOnJS,
   interpolate,
   Extrapolation,
-  useEvent,
 } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
 import {
@@ -33,7 +33,6 @@ import {
 } from "lucide-react-native";
 
 import ProfileTabIcon from "../components/ProfileTabIcon";
-import PagerView from "react-native-pager-view";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import EventBus from "../utils/EventBus";
 import { getAllAccounts, getActiveAccount, switchAccount } from "../api/auth";
@@ -109,7 +108,7 @@ const ProfileTabButton = ({
       );
     } catch (error) {
       console.error("[DoubleTapCycle] Error cycling account:", error);
-      navigateToProfile(); // Fallback
+      navigateToProfile();
     }
   };
 
@@ -238,7 +237,6 @@ const AnimatedTabBar = ({
                 navigation={navigation}
               >
                 <Animated.View style={iconStyle}>
-                  {/* Inactive Icon Layer */}
                   <Animated.View style={inactiveOpacityStyle}>
                     <ProfileTabIcon
                       focused={false}
@@ -246,8 +244,6 @@ const AnimatedTabBar = ({
                       userType={role}
                     />
                   </Animated.View>
-
-                  {/* Active Icon Layer (Cross-fades on top) */}
                   <Animated.View style={activeOpacityStyle}>
                     <ProfileTabIcon
                       focused={true}
@@ -267,7 +263,6 @@ const AnimatedTabBar = ({
               style={styles.tabButton}
             >
               <Animated.View style={iconStyle}>
-                {/* Inactive Icon Layer */}
                 <Animated.View style={inactiveOpacityStyle}>
                   <IconComponent
                     size={26}
@@ -276,8 +271,6 @@ const AnimatedTabBar = ({
                     strokeWidth={2.2}
                   />
                 </Animated.View>
-
-                {/* Active Icon Layer (Cross-fades on top) */}
                 <Animated.View style={activeOpacityStyle}>
                   <IconComponent
                     size={26}
@@ -296,9 +289,6 @@ const AnimatedTabBar = ({
 };
 
 // ---------------- MAIN NAVIGATOR ----------------
-// ---------------- MAIN NAVIGATOR ----------------
-const AnimatedPagerView = Animated.createAnimatedComponent(PagerView);
-
 function SwipeablePagerNavigator({
   initialRouteName,
   children,
@@ -312,16 +302,17 @@ function SwipeablePagerNavigator({
   });
 
   const insets = useSafeAreaInsets();
+  const pageCount = state.routes.length;
 
-  const initialPage = useRef(state.index).current;
-  const pagerRef = useRef(null);
-  const isPagerDrivenRef = useRef(false);
-
-  // ---------------- SHARED VALUES ----------------
+  // translateX drives BOTH the page row position AND the tab bar icon interpolation
   const translateX = useSharedValue(-state.index * SCREEN_WIDTH);
   const currentIndex = useSharedValue(state.index);
+  const gestureStartX = useSharedValue(0);
 
-  // ---------------- LOAD SCREENS ----------------
+  // true while a translateX change originated from OUR gesture/tap (already animated,
+  // don't re-sync); false means navigation changed externally and we must snap to it.
+  const isSelfDrivenRef = useRef(false);
+
   const [loaded, setLoaded] = useState([]);
 
   useEffect(() => {
@@ -330,68 +321,46 @@ function SwipeablePagerNavigator({
       if (!next.includes(state.index)) next.push(state.index);
       if (state.index > 0 && !next.includes(state.index - 1))
         next.push(state.index - 1);
-      if (
-        state.index < state.routes.length - 1 &&
-        !next.includes(state.index + 1)
-      )
+      if (state.index < pageCount - 1 && !next.includes(state.index + 1))
         next.push(state.index + 1);
       return next;
     });
   }, [state.index]);
 
-  // ---------------- SNAP HANDLER ----------------
   const handleSnap = (index) => {
     if (state.routes && state.routes[index]) {
+      isSelfDrivenRef.current = true;
       navigation.navigate(state.routes[index].name);
     }
   };
 
-  // ---------------- TAB PRESS ----------------
+  // Tab bar press / Profile tap
   const handleTabPress = (index) => {
     if (currentIndex.value === index) return;
-    if (pagerRef.current) {
-      pagerRef.current.setPage(index);
-    }
-  };
-
-  // ---------------- PAGE SELECTED ----------------
-  const onPageSelected = (e) => {
-    const index = e.nativeEvent.position;
+    translateX.value = withSpring(-index * SCREEN_WIDTH, {
+      damping: 22,
+      stiffness: 220,
+      mass: 0.7,
+    });
     currentIndex.value = index;
-    isPagerDrivenRef.current = true;
-    runOnJS(handleSnap)(index);
+    handleSnap(index);
   };
-
-  // ---------------- PAGE SCROLL HANDLER ----------------
-  const pageScrollHandler = useEvent((event) => {
-    'worklet';
-    const position = event.position !== undefined ? event.position : event.nativeEvent?.position;
-    const offset = event.offset !== undefined ? event.offset : event.nativeEvent?.offset;
-
-    if (position !== undefined && offset !== undefined) {
-      translateX.value = -(position + offset) * SCREEN_WIDTH;
-    }
-  }, ['onPageScroll']);
 
   const currentRoute = state.routes[state.index];
   const currentDescriptor = descriptors[currentRoute.key];
   const shouldHideTabBar =
     currentDescriptor.options.tabBarStyle?.display === "none";
 
-  // Sync scroll position and currentIndex ONLY when the tab index genuinely changes.
+  // Sync position only when navigation changed from OUTSIDE our gesture/tap
   useEffect(() => {
-    if (isPagerDrivenRef.current) {
-      isPagerDrivenRef.current = false;
+    if (isSelfDrivenRef.current) {
+      isSelfDrivenRef.current = false;
       return;
     }
-
     currentIndex.value = state.index;
-    if (pagerRef.current) {
-      pagerRef.current.setPageWithoutAnimation(state.index);
-    }
+    translateX.value = -state.index * SCREEN_WIDTH;
   }, [state.index]);
 
-  // Animated style to slide the tab bar off-screen/on-screen
   const animatedTabBarStyle = useAnimatedStyle(() => {
     return {
       transform: [
@@ -404,33 +373,91 @@ function SwipeablePagerNavigator({
     };
   });
 
+  const pagesAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  // ---------------- GESTURE: owns 100% of horizontal paging ----------------
+  // failOffsetY fires fast on vertical intent, releasing the touch to whatever's
+  // underneath (FlatList) before we ever claim it. activeOffsetX requires deliberate
+  // horizontal movement before we claim the touch ourselves. No foreign native
+  // recognizer is involved, so there's no race condition to lose.
+  const directionLockGesture = Gesture.Pan()
+    .activeOffsetX([-15, 15])
+    .failOffsetY([-8, 8])
+    .onStart(() => {
+      "worklet";
+      gestureStartX.value = translateX.value;
+    })
+    .onUpdate((e) => {
+      "worklet";
+      const proposed = gestureStartX.value + e.translationX;
+      const minX = -(pageCount - 1) * SCREEN_WIDTH;
+      const maxX = 0;
+
+      if (proposed > maxX) {
+        translateX.value = maxX + (proposed - maxX) * 0.3; // rubber band, first page
+      } else if (proposed < minX) {
+        translateX.value = minX + (proposed - minX) * 0.3; // rubber band, last page
+      } else {
+        translateX.value = proposed;
+      }
+    })
+    .onEnd((e) => {
+      "worklet";
+      const SWIPE_DISTANCE_THRESHOLD = SCREEN_WIDTH * 0.25;
+      const VELOCITY_THRESHOLD = 500;
+      const current = currentIndex.value;
+      let target = current;
+
+      if (
+        e.translationX < -SWIPE_DISTANCE_THRESHOLD ||
+        e.velocityX < -VELOCITY_THRESHOLD
+      ) {
+        target = Math.min(current + 1, pageCount - 1);
+      } else if (
+        e.translationX > SWIPE_DISTANCE_THRESHOLD ||
+        e.velocityX > VELOCITY_THRESHOLD
+      ) {
+        target = Math.max(current - 1, 0);
+      }
+
+      translateX.value = withSpring(-target * SCREEN_WIDTH, {
+        damping: 22,
+        stiffness: 220,
+        mass: 0.7,
+        velocity: e.velocityX,
+      });
+      currentIndex.value = target;
+      runOnJS(handleSnap)(target);
+    });
+
   // ---------------- RENDER ----------------
   return (
     <View style={styles.container}>
-      <AnimatedPagerView
-        ref={pagerRef}
-        style={styles.pager}
-        initialPage={initialPage}
-        onPageScroll={pageScrollHandler}
-        onPageSelected={onPageSelected}
-        offscreenPageLimit={1}
-      >
-        {state.routes.map((route, index) => {
-          const isLoaded = loaded.includes(index);
-
-          return (
-            <View key={route.key} style={styles.page} collapsable={false}>
-              {isLoaded ? descriptors[route.key].render() : null}
-            </View>
-          );
-        })}
-      </AnimatedPagerView>
+      <GestureDetector gesture={directionLockGesture}>
+        <View style={styles.pagesContainer}>
+          <Animated.View
+            style={[
+              styles.pagesRow,
+              { width: pageCount * SCREEN_WIDTH },
+              pagesAnimatedStyle,
+            ]}
+          >
+            {state.routes.map((route, index) => {
+              const isLoaded = loaded.includes(index);
+              return (
+                <View key={route.key} style={styles.page} collapsable={false}>
+                  {isLoaded ? descriptors[route.key].render() : null}
+                </View>
+              );
+            })}
+          </Animated.View>
+        </View>
+      </GestureDetector>
 
       <Animated.View
-        style={[
-          styles.tabBarWrapper,
-          animatedTabBarStyle,
-        ]}
+        style={[styles.tabBarWrapper, animatedTabBarStyle]}
         pointerEvents={shouldHideTabBar ? "none" : "auto"}
       >
         <AnimatedTabBar
@@ -462,13 +489,19 @@ const styles = StyleSheet.create({
     height: Platform.OS === "ios" ? 95 : 80,
   },
 
-  pager: {
+  pagesContainer: {
     flex: 1,
+    overflow: "hidden",
+  },
+
+  pagesRow: {
+    flexDirection: "row",
+    height: "100%",
   },
 
   page: {
     width: SCREEN_WIDTH,
-    flex: 1,
+    height: "100%",
   },
 
   tabBarContainer: {
