@@ -684,9 +684,11 @@ export default function CommunityVoiceBox({
               {/* Attached image preview */}
               {imageUri && (
                 <View style={styles.imagePreviewWrap}>
-                  <Image
+                  <ExpoImage
                     source={{ uri: imageUri }}
                     style={styles.imagePreview}
+                    contentFit="cover"
+                    cachePolicy="memory"
                   />
                   <TouchableOpacity
                     style={styles.removeImgBtn}
@@ -884,7 +886,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: "#EAE6DF",
-    ...SHADOWS.sm,
   },
   toggleLeft: {
     flexDirection: "row",
