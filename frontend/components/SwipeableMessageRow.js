@@ -170,11 +170,6 @@ const styles = StyleSheet.create({
     backgroundColor: INCOMING_MESSAGE_BG,
     borderWidth: 1, borderColor: INCOMING_BORDER,
     alignItems: "center", justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
   bubble: {
     flex: 1,
