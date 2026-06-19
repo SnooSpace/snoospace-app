@@ -5,8 +5,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Image,
 } from "react-native";
+import { Image } from "expo-image"; // ── PERF: memory-disk cache + off-thread decode
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -99,6 +99,11 @@ const MarqueeChips = React.memo(({ chips, chipType, styles }) => {
   );
 });
 
+// ── Module-level opportunity cache ──────────────────────────────────────────
+// Keyed by opportunityId. Survives remount so scrolling back over an
+// opportunity share doesn't re-fetch from the API.
+const opportunityCache = new Map();
+
 /**
  * SharedOpportunityCard — premium preview rendered in chat when
  * someone shares an opportunity (message_type === "opportunity_share").
@@ -137,15 +142,25 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
 
   useEffect(() => {
     let isMounted = true;
+
+    if (!targetId) {
+      setLoading(false);
+      return;
+    }
+
+    // ── PERF: Return cached result immediately — no network round-trip.
+    if (opportunityCache.has(targetId)) {
+      setOpp(opportunityCache.get(targetId));
+      setLoading(false);
+      return;
+    }
+
     const fetchDetails = async () => {
-      if (!targetId) {
-        setLoading(false);
-        return;
-      }
       try {
         const response = await getOpportunityDetail(targetId);
         const data = response.opportunity || response;
         if (isMounted && data) {
+          opportunityCache.set(targetId, data); // cache before setState
           setOpp(data);
         } else if (isMounted) {
           setDeleted(true);
@@ -154,15 +169,11 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
         console.warn("[SharedOpportunityCard] Opportunity unavailable (likely deleted):", err?.message);
         if (isMounted) setDeleted(true);
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (isMounted) setLoading(false);
       }
     };
     fetchDetails();
-    return () => {
-      isMounted = false;
-    };
+    return () => { isMounted = false; };
   }, [targetId]);
 
   const displayTitle = opp?.title || metaTitle || "Untitled Opportunity";
@@ -315,6 +326,8 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
                   }
             }
             style={styles.authorAvatar}
+            cachePolicy="memory-disk"
+            contentFit="cover"
           />
           <Text style={styles.authorUsername} numberOfLines={1}>
             {displayCreatorName}
@@ -386,6 +399,8 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
                              styles.applicantAvatar,
                              { marginLeft: index > 0 ? -8 : 0 },
                            ]}
+                           cachePolicy="memory-disk"
+                           contentFit="cover"
                         />
                       ))}
                       {opp?.applicant_count > 3 && (

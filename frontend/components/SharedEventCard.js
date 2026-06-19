@@ -5,8 +5,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  Image,
 } from "react-native";
+import { Image } from "expo-image"; // ── PERF: memory-disk cache + off-thread decode
 import { LinearGradient } from "expo-linear-gradient";
 import { Calendar, Clock, MapPin, Video, MoveRight } from "lucide-react-native";
 import { COLORS, FONTS, SHADOWS } from "../constants/theme";
@@ -82,6 +82,11 @@ const parseDisplayDate = (dateStr) => {
   return { month, day };
 };
 
+// ── Module-level event cache ───────────────────────────────────────────────
+// Keyed by eventId. Survives remount so scrolling back over an event share
+// doesn't re-fetch from the API.
+const eventCache = new Map();
+
 /**
  * SharedEventCard — premium preview rendered in chat when
  * someone shares an event (message_type === "event_share").
@@ -111,16 +116,26 @@ const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
 
   useEffect(() => {
     let isMounted = true;
+
+    if (!targetId) {
+      setDeleted(true);
+      setLoading(false);
+      return;
+    }
+
+    // ── PERF: Return cached result immediately — no network round-trip.
+    if (eventCache.has(targetId)) {
+      setEvent(eventCache.get(targetId));
+      setLoading(false);
+      return;
+    }
+
     const fetchEvent = async () => {
-      if (!targetId) {
-        setDeleted(true);
-        setLoading(false);
-        return;
-      }
       try {
         const response = await getEventDetails(targetId);
         const data = response?.event || response;
         if (isMounted && data && (data.id || data.title)) {
+          eventCache.set(targetId, data); // cache before setState
           setEvent(data);
         } else if (isMounted) {
           setDeleted(true);
@@ -275,7 +290,8 @@ const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
             <Image
               source={{ uri: displayBannerUrl }}
               style={styles.bannerImage}
-              resizeMode="cover"
+              contentFit="cover"
+              cachePolicy="memory-disk"
             />
           ) : (
             <LinearGradient
@@ -318,6 +334,8 @@ const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
                     }
               }
               style={styles.communityAvatar}
+              contentFit="cover"
+              cachePolicy="memory-disk"
             />
             <Text style={styles.communityName} numberOfLines={1}>
               {displayCommunity}
@@ -394,7 +412,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "rgba(0, 0, 0, 0.04)",
-    ...SHADOWS.sm,
     width: "100%",
   },
   loadingCard: {
@@ -457,7 +474,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
     minWidth: 36,
-    ...SHADOWS.sm,
   },
   dateBadgeHeader: {
     fontSize: 8,

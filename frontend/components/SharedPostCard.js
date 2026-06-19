@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
+import { Image } from "expo-image"; // ── PERF: off-thread decode + memory-disk cache eliminates scroll jank
 import { ScrollView, Pressable } from "react-native-gesture-handler";
 import { COLORS } from "../constants/theme";
 import { getPostById } from "../api/posts";
@@ -13,12 +14,17 @@ import SnooLoader from "./ui/SnooLoader";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH * 0.65; // Reduced from 0.75 to 0.65
 
+// ── Module-level post cache ─────────────────────────────────────────────────
+// Keyed by postId. Survives component unmount/remount so scrolling back up
+// over a shared post card doesn't trigger a second network request.
+const postCache = new Map();
+
 /**
  * SharedPostCard - Instagram-style shared post preview for chat messages
  * Displays a compact preview card with post thumbnail, author info, and caption.
  * Supports multi-image carousel with dot indicator and stacked-image badge.
  */
-const SharedPostCard = ({ metadata, onPress, onUserPress, style }) => {
+const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) => {
   const [postData, setPostData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -30,20 +36,26 @@ const SharedPostCard = ({ metadata, onPress, onUserPress, style }) => {
   const metaName = authorName || author_name;
 
   useEffect(() => {
-    const fetchPostDetails = async () => {
-      if (!postId) {
-        setError(true);
-        setLoading(false);
-        return;
-      }
+    if (!postId) {
+      setError(true);
+      setLoading(false);
+      return;
+    }
 
+    // ── PERF: Return cached result immediately — no spinner, no re-fetch.
+    if (postCache.has(postId)) {
+      setPostData(postCache.get(postId));
+      setLoading(false);
+      return;
+    }
+
+    const fetchPostDetails = async () => {
       try {
         setLoading(true);
         const response = await getPostById(postId);
         const post = response.post || response;
-
-        // Merge with LikeStateManager to get correct like state
         const [mergedPost] = await LikeStateManager.mergeLikeStates([post]);
+        postCache.set(postId, mergedPost); // store before setState
         setPostData(mergedPost);
         setError(false);
       } catch (err) {
@@ -322,7 +334,8 @@ const SharedPostCard = ({ metadata, onPress, onUserPress, style }) => {
                                 styles.mediaImage,
                                 isWideImage && { resizeMode: "contain" },
                               ]}
-                              resizeMode={isWideImage ? "contain" : "cover"}
+                              contentFit={isWideImage ? "contain" : "cover"}
+                              cachePolicy="memory-disk"
                             />
                             {itemIsVideo && (
                               <View style={styles.videoIndicator}>
@@ -382,7 +395,8 @@ const SharedPostCard = ({ metadata, onPress, onUserPress, style }) => {
                         styles.mediaImage,
                         isWideImage && { resizeMode: "contain" },
                       ]}
-                      resizeMode={isWideImage ? "contain" : "cover"}
+                      contentFit={isWideImage ? "contain" : "cover"}
+                      cachePolicy="memory-disk"
                     />
                     {/* Video indicator overlay for videos with thumbnails */}
                     {isVideo && (
@@ -429,6 +443,8 @@ const SharedPostCard = ({ metadata, onPress, onUserPress, style }) => {
                     }
               }
               style={styles.authorAvatar}
+              cachePolicy="memory-disk"
+              contentFit="cover"
             />
             <View style={styles.authorTextContainer}>
               <Text style={styles.authorName} numberOfLines={1}>
@@ -450,7 +466,7 @@ const SharedPostCard = ({ metadata, onPress, onUserPress, style }) => {
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -464,11 +480,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     borderWidth: 1,
     borderColor: "#E5E5EA",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
   },
   mediaContainer: {
     width: "100%",
