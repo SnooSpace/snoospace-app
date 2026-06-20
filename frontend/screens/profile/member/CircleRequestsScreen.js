@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
   Image, ActivityIndicator,
@@ -7,7 +7,7 @@ import { Pressable as GHPressable, GestureHandlerRootView } from 'react-native-g
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, UserCheck, UserX, X, Users, AlertTriangle } from 'lucide-react-native';
 import EventBus from '../../../utils/EventBus';
-import Reanimated, { FadeInDown } from 'react-native-reanimated';
+import Reanimated, { FadeInDown, useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { COLORS, FONTS } from '../../../constants/theme';
 import {
   getIncomingCircleRequests,
@@ -96,6 +96,43 @@ export default function CircleRequestsScreen({ navigation }) {
   const [loadingOutgoing, setLoadingOutgoing] = useState(true);
   const [actionLoading, setActionLoading] = useState({});
   const [alertConfig, setAlertConfig] = useState({ visible: false });
+
+  // Tab underline animation (Reanimated)
+  const tabUnderlineX = useSharedValue(0);
+  const tabUnderlineScale = useSharedValue(0);
+  const tabWidths = useRef({}).current;
+  const tabOffsets = useRef({}).current;
+
+  const animatedUnderlineStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: tabUnderlineX.value }],
+      width: tabUnderlineScale.value,
+    };
+  });
+
+  useEffect(() => {
+    if (tabOffsets[activeTab] !== undefined) {
+      tabUnderlineX.value = withTiming(tabOffsets[activeTab], { duration: 200 });
+      tabUnderlineScale.value = withTiming(tabWidths[activeTab], { duration: 200 });
+    }
+  }, [activeTab]);
+
+  const handleTabLayout = (tab, event) => {
+    const { x, width } = event.nativeEvent.layout;
+    if (width <= 0 || !Number.isFinite(x) || !Number.isFinite(width)) {
+      return;
+    }
+    
+    if (tabOffsets[tab] === x && tabWidths[tab] === width) return;
+
+    tabOffsets[tab] = x;
+    tabWidths[tab] = width;
+
+    if (tab === activeTab) {
+      tabUnderlineX.value = x;
+      tabUnderlineScale.value = width;
+    }
+  };
 
   const showAlert = useCallback((config) => setAlertConfig({ ...config, visible: true }), []);
   const hideAlert = useCallback(() => setAlertConfig((p) => ({ ...p, visible: false })), []);
@@ -227,8 +264,9 @@ export default function CircleRequestsScreen({ navigation }) {
           {['received', 'sent'].map((tab) => (
             <GHPressable
               key={tab}
-              style={[styles.tab, activeTab === tab && styles.tabActive]}
+              style={styles.tab}
               onPress={() => setActiveTab(tab)}
+              onLayout={(e) => handleTabLayout(tab, e)}
               activeOpacity={0.75}
             >
               <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
@@ -236,6 +274,13 @@ export default function CircleRequestsScreen({ navigation }) {
               </Text>
             </GHPressable>
           ))}
+          {/* Sliding indicator */}
+          <Reanimated.View
+            style={[
+              styles.activeTabIndicator,
+              animatedUnderlineStyle,
+            ]}
+          />
         </View>
 
       {/* Content */}
@@ -282,12 +327,17 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 40, alignItems: 'flex-start' },
   headerTitle: { fontFamily: FONTS.bold, fontSize: 18, color: COLORS.textPrimary },
-  tabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.07)' },
+  tabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.07)', position: 'relative' },
   tab: {
     flex: 1, paddingVertical: 13, alignItems: 'center',
-    borderBottomWidth: 2, borderBottomColor: 'transparent',
   },
-  tabActive: { borderBottomColor: COLORS.primary },
+  activeTabIndicator: {
+    position: 'absolute',
+    bottom: 0,
+    height: 2,
+    backgroundColor: COLORS.primary,
+    borderRadius: 1,
+  },
   tabText: { fontFamily: FONTS.medium, fontSize: 14, color: COLORS.textSecondary },
   tabTextActive: { color: COLORS.primary, fontFamily: FONTS.semiBold },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
