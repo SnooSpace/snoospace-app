@@ -1,5 +1,6 @@
 import React from "react";
 import { Text, TouchableOpacity, StyleSheet } from "react-native";
+import { Pressable as GHPressable } from "react-native-gesture-handler";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, BORDER_RADIUS, SHADOWS, SPACING } from "../constants/theme";
 import SnooLoader from "./ui/SnooLoader";
@@ -14,14 +15,34 @@ const GradientButton = ({
   gradientStyle,
   icon,
   colors,
+  useGHPressable = false,
 }) => {
+  const ButtonComponent = useGHPressable ? GHPressable : TouchableOpacity;
+  
+  const getStyle = (state) => {
+    const isPressed = typeof state === "object" ? state.pressed : false;
+    const base = [styles.container, disabled && styles.disabled, style];
+    if (useGHPressable) {
+      return [...base, isPressed && { opacity: 0.8 }];
+    }
+    return base;
+  };
+
+  const pressProps = useGHPressable
+    ? {
+        onPress,
+        disabled: disabled || loading,
+        style: getStyle,
+      }
+    : {
+        activeOpacity: 0.8,
+        onPress,
+        disabled: disabled || loading,
+        style: getStyle(),
+      };
+
   return (
-    <TouchableOpacity
-      activeOpacity={0.8}
-      onPress={onPress}
-      disabled={disabled || loading}
-      style={[styles.container, disabled && styles.disabled, style]}
-    >
+    <ButtonComponent {...pressProps}>
       <LinearGradient
         colors={
           disabled
@@ -45,7 +66,7 @@ const GradientButton = ({
           </>
         )}
       </LinearGradient>
-    </TouchableOpacity>
+    </ButtonComponent>
   );
 };
 

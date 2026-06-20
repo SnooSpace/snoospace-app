@@ -1409,14 +1409,13 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               <ShieldOff size={18} color="#BE123C" strokeWidth={2} style={{ marginRight: 8 }} />
               <Text style={blockBannerStyles.text}>You've blocked this community</Text>
             </View>
-            <TouchableOpacity
-              style={blockBannerStyles.btn}
+            <GHPressable
+              style={({ pressed }) => [blockBannerStyles.btn, pressed && { opacity: 0.75 }]}
               onPress={handleUnblockCommunity}
               disabled={unblocking}
-              activeOpacity={0.75}
             >
               <Text style={blockBannerStyles.btnText}>{unblocking ? 'Unblocking…' : 'Unblock'}</Text>
-            </TouchableOpacity>
+            </GHPressable>
           </View>
         )}
 
@@ -1501,7 +1500,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
           {/* Stats Row */}
           <View style={styles.statsRow}>
-            <TouchableOpacity
+            <GHPressable
               style={styles.statItem}
               onPress={() =>
                 navigation.navigate("CommunityPublicEventsList", {
@@ -1515,7 +1514,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   (profile.events_hosted_count || 0)}
               </Text>
               <Text style={styles.statLabel}>Events</Text>
-            </TouchableOpacity>
+            </GHPressable>
             <GHPressable
               style={styles.statItem}
               onPress={() => {
@@ -1560,17 +1559,20 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             }}
           >
             {isFollowing ? (
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: "rgba(68, 138, 255, 0.2)",
-                  backgroundColor: "rgba(68, 138, 255, 0.12)",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  paddingVertical: 12,
-                }}
+              <GHPressable
+                style={({ pressed }) => [
+                  {
+                    flex: 1,
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: "rgba(68, 138, 255, 0.2)",
+                    backgroundColor: "rgba(68, 138, 255, 0.12)",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    paddingVertical: 12,
+                  },
+                  pressed && { opacity: 0.8 },
+                ]}
                 onPress={async () => {
                   HapticsService.triggerImpactLight();
                   // Optimistic update
@@ -1617,7 +1619,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 >
                   Following
                 </Text>
-              </TouchableOpacity>
+              </GHPressable>
             ) : (
               <GradientButton
                 title="Follow"
@@ -1625,6 +1627,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
                 style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
                 gradientStyle={{ borderRadius: 16 }}
+                useGHPressable={true}
                 onPress={async () => {
                   HapticsService.triggerImpactLight();
                   // Optimistic update
@@ -1670,6 +1673,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
               gradientStyle={{ borderRadius: 16 }}
               textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
+              useGHPressable={true}
               onPress={() => {
                 HapticsService.triggerImpactLight();
                 // Climb to the root navigator (AppNavigator) regardless of
@@ -1708,11 +1712,12 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 {profile.heads.map((head, idx) => {
                   const isClickable = !!head.member_id || !!head.email || !!head.phone;
                   return (
-                    <TouchableOpacity
+                    <GHPressable
                       key={head.id || idx}
-                      style={[
+                      style={({ pressed }) => [
                         styles.headRow,
                         !isClickable && { opacity: 0.85 },
+                        pressed && isClickable && { opacity: 0.7 },
                       ]}
                       onPress={() => handleHeadPress(head)}
                       disabled={!isClickable}
@@ -1756,7 +1761,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                       {isClickable && (
                         <ChevronRight size={20} color="#8E8E93" />
                       )}
-                    </TouchableOpacity>
+                    </GHPressable>
                   );
                 })}
               </View>
@@ -1789,7 +1794,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         {/* Tab Bar */}
         <View style={styles.tabBar}>
           {["posts", "community", "events"].map((tab) => (
-            <TouchableOpacity
+            <GHPressable
               key={tab}
               style={styles.tabItem}
               onPress={() => {
@@ -1811,7 +1816,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               >
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
               </Text>
-            </TouchableOpacity>
+            </GHPressable>
           ))}
           <Reanimated.View
             style={[

@@ -974,7 +974,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 </Text>
                 <Text style={styles.statLabel}>Posts</Text>
               </View>
-              <TouchableOpacity
+              <GHPressable
                 style={styles.statItem}
                 onPress={() => {
                   setActiveProfileTab('events');
@@ -988,7 +988,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   {profile?.events_attended_count || 0}
                 </Text>
                 <Text style={styles.statLabel}>Events</Text>
-              </TouchableOpacity>
+              </GHPressable>
               <GHPressable
                 style={styles.statItem}
                 onPress={() => navigation.navigate('CircleList', {
@@ -1031,35 +1031,37 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     />
                   ))}
                   {profile.interests.length > 6 && !showAllInterests ? (
-                    <TouchableOpacity
+                    <GHPressable
                       onPress={() => setShowAllInterests(true)}
-                      style={[
+                      style={({ pressed }) => [
                         styles.chip,
                         styles.chipBlue,
                         styles.chipGridItem,
+                        pressed && { opacity: 0.7 },
                       ]}
                     >
                       <Text style={[styles.chipText, styles.chipTextBlue]}>
                         See all
                       </Text>
-                    </TouchableOpacity>
+                    </GHPressable>
                   ) : null}
                   {profile.interests.length > 6 && showAllInterests ? (
-                    <TouchableOpacity
+                    <GHPressable
                       onPress={() => setShowAllInterests(false)}
-                      style={[
+                      style={({ pressed }) => [
                         styles.chip,
                         styles.chipGridItem,
                         {
                           backgroundColor: "#FF3B30",
                           borderColor: "#FF3B30",
                         },
+                        pressed && { opacity: 0.7 },
                       ]}
                     >
                       <Text style={[styles.chipText, { color: "#FFFFFF" }]}>
                         Collapse
                       </Text>
-                    </TouchableOpacity>
+                    </GHPressable>
                   ) : null}
                 </View>
               </View>
@@ -1075,8 +1077,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
             >
               {/* ── Circle CTA — 4 states ── */}
               {circleStatus === 'in_circle' ? (
-                <TouchableOpacity
-                  style={circleCTAStyles.inCircleBtn}
+                <GHPressable
+                  style={({ pressed }) => [circleCTAStyles.inCircleBtn, pressed && { opacity: 0.7 }]}
                   disabled={circleActionLoading}
                   onPress={() => {
                     showAlert({
@@ -1106,10 +1108,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 >
                   <UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} />
                   <Text style={circleCTAStyles.inCircleText}>In Circle</Text>
-                </TouchableOpacity>
+                </GHPressable>
               ) : circleStatus === 'pending_outgoing' ? (
-                <TouchableOpacity
-                  style={circleCTAStyles.requestedBtn}
+                <GHPressable
+                  style={({ pressed }) => [circleCTAStyles.requestedBtn, pressed && { opacity: 0.7 }]}
                   disabled={circleActionLoading}
                   onPress={() => {
                     showAlert({
@@ -1139,11 +1141,11 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 >
                   <Clock size={16} color="#FF9500" strokeWidth={2.5} style={{ marginRight: 6 }} />
                   <Text style={circleCTAStyles.requestedText}>Requested</Text>
-                </TouchableOpacity>
+                </GHPressable>
               ) : circleStatus === 'pending_incoming' ? (
                 <View style={circleCTAStyles.incomingRow}>
-                  <TouchableOpacity
-                    style={circleCTAStyles.acceptBtn}
+                  <GHPressable
+                    style={({ pressed }) => [circleCTAStyles.acceptBtn, pressed && { opacity: 0.7 }]}
                     disabled={circleActionLoading}
                     onPress={async () => {
                       setCircleActionLoading(true);
@@ -1159,9 +1161,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   >
                     <UserCheck size={16} color="#fff" strokeWidth={2.5} style={{ marginRight: 6 }} />
                     <Text style={circleCTAStyles.acceptText}>Accept</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={circleCTAStyles.declineBtn}
+                  </GHPressable>
+                  <GHPressable
+                    style={({ pressed }) => [circleCTAStyles.declineBtn, pressed && { opacity: 0.7 }]}
                     disabled={circleActionLoading}
                     onPress={async () => {
                       setCircleActionLoading(true);
@@ -1177,7 +1179,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   >
                     <UserX size={16} color={COLORS.textSecondary} strokeWidth={2.5} style={{ marginRight: 6 }} />
                     <Text style={circleCTAStyles.declineText}>Decline</Text>
-                  </TouchableOpacity>
+                  </GHPressable>
                 </View>
               ) : (
                 <GradientButton
@@ -1187,6 +1189,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
                   gradientStyle={{ borderRadius: 16 }}
                   disabled={circleActionLoading}
+                  useGHPressable={true}
                   onPress={async () => {
                     setCircleActionLoading(true);
                     try {
@@ -1213,7 +1216,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 gradientStyle={{ borderRadius: 16 }}
                 colors={["#111827", "#111827"]}
                 textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
+                useGHPressable={true}
                 onPress={() => {
+                  HapticsService.triggerImpactLight();
                   let rootNav = navigation;
                   while (rootNav.getParent && rootNav.getParent()) {
                     rootNav = rootNav.getParent();
@@ -1239,7 +1244,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               ...(profile?.is_creator_mode_enabled ? ['community'] : []),
               'events',
             ].map((tab) => (
-              <TouchableOpacity
+              <GHPressable
                 key={tab}
                 style={pubTabStyles.tab}
                 onLayout={(e) => handleTabLayout(tab, e)}
@@ -1262,7 +1267,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 ]}>
                   {tab === 'posts' ? 'Posts' : tab === 'events' ? 'Events' : 'Community'}
                 </Text>
-              </TouchableOpacity>
+              </GHPressable>
             ))}
             <Reanimated.View
               style={[
