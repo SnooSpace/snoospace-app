@@ -39,7 +39,7 @@ export default function HomeStackNavigator() {
         // the root cause of the pagingEnabled snap / horizontal drift on HomeFeedScreen.
         // The old createStackNavigator + animationEnabled:false caused an immediate
         // synchronous layout commit that triggered the paging snap.
-        animation: Platform.OS === "ios" ? "ios" : "default",
+        animation: "slide_from_right",
         gestureEnabled: true,
         ...(Platform.OS === "ios" ? { animationDuration: 350 } : {}),
       }}

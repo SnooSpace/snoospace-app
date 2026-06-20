@@ -1,5 +1,5 @@
 import React from "react";
-import { createStackNavigator, CardStyleInterpolators } from "@react-navigation/stack";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import SearchScreen from "../screens/search/SearchScreen";
 import VenueProfileScreen from "../screens/profile/venue/VenueProfileScreen";
 
@@ -12,32 +12,7 @@ const SearchScreenWithSwipe = (props) => (
   </TabSwipeHandler>
 );
 
-const snappyTransitionSpec = {
-  open: {
-    animation: "spring",
-    config: {
-      stiffness: 1000,
-      damping: 100,
-      mass: 1,
-      overshootClamping: true,
-      restDisplacementThreshold: 0.01,
-      restSpeedThreshold: 0.01,
-    },
-  },
-  close: {
-    animation: "spring",
-    config: {
-      stiffness: 1000,
-      damping: 100,
-      mass: 1,
-      overshootClamping: true,
-      restDisplacementThreshold: 0.01,
-      restSpeedThreshold: 0.01,
-    },
-  },
-};
-
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 export default function SearchStackNavigator() {
   return (
@@ -45,15 +20,12 @@ export default function SearchStackNavigator() {
       screenOptions={{
         headerShown: false,
         gestureEnabled: true,
-        gestureDirection: "horizontal",
-        transitionSpec: snappyTransitionSpec,
-        cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+        animation: "slide_from_right", // Native horizontal slide
       }}
       initialRouteName="Search"
     >
       <Stack.Screen name="Search" component={SearchScreenWithSwipe} />
       <Stack.Screen name="VenueProfile" component={VenueProfileScreen} />
-
       <Stack.Screen
         name="CommunityPublicProfile"
         component={CommunityPublicProfileScreen}

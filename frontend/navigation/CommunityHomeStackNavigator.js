@@ -33,7 +33,7 @@ export default function CommunityHomeStackNavigator() {
         headerShown: false,
         // Native stack keeps transitions outside the JS layout tree so
         // SwipeablePagerNavigator never receives layout events during push/pop.
-        animation: Platform.OS === "ios" ? "ios" : "default",
+        animation: "slide_from_right",
         gestureEnabled: true,
         ...(Platform.OS === "ios" ? { animationDuration: 350 } : {}),
       }}

@@ -10,6 +10,7 @@ import {
   Image,
   ActivityIndicator,
   Dimensions,
+  Animated,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import {
@@ -63,6 +64,26 @@ export default function CollegeEntityListSheet({
   const [followState, setFollowState] = useState({});
   // Map of id -> loading (in-flight follow toggle)
   const [followLoading, setFollowLoading] = useState({});
+
+  const slideAnim = useRef(new Animated.Value(screenHeight)).current;
+
+  useEffect(() => {
+    if (visible) {
+      slideAnim.setValue(screenHeight);
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 8,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: screenHeight,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible]);
 
   const isMemberMode = mode === "members";
 
@@ -311,13 +332,13 @@ export default function CollegeEntityListSheet({
     );
   };
 
-  if (!visible) return null;
+
 
   return (
     <Modal
       transparent
       visible={visible}
-      animationType="slide"
+      animationType="fade"
       onRequestClose={onClose}
       statusBarTranslucent
     >
@@ -330,7 +351,7 @@ export default function CollegeEntityListSheet({
           />
 
           <TouchableWithoutFeedback onPress={() => {}}>
-            <View style={styles.sheet}>
+            <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
               {/* Handle */}
               <View style={styles.handle} />
 
@@ -409,7 +430,7 @@ export default function CollegeEntityListSheet({
                   }
                 />
               )}
-            </View>
+            </Animated.View>
           </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>

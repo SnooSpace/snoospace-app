@@ -27,7 +27,7 @@ export default function ProfileStackNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        animation: Platform.OS === "ios" ? "ios" : "default",
+        animation: "slide_from_right",
         gestureEnabled: true,
         ...(Platform.OS === "ios" ? { animationDuration: 350 } : {}),
       }}

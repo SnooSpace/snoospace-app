@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -9,6 +9,7 @@ import {
   FlatList,
   Image,
   Dimensions,
+  Animated,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import {
@@ -59,6 +60,26 @@ export default function CollegeHubSheet({
   // Per-community follow state (optimistic)
   const [followState, setFollowState] = useState({});
   const [followLoading, setFollowLoading] = useState({});
+
+  const slideAnim = useRef(new Animated.Value(screenHeight)).current;
+
+  useEffect(() => {
+    if (visible) {
+      slideAnim.setValue(screenHeight);
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 8,
+      }).start();
+    } else {
+      Animated.timing(slideAnim, {
+        toValue: screenHeight,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible]);
 
   const fetchHubData = useCallback(async () => {
     if (!collegeId) return;
@@ -115,8 +136,6 @@ export default function CollegeHubSheet({
     },
     [followState],
   );
-
-  if (!visible) return null;
 
   const college = data?.college;
   const communities = data?.communities || [];
@@ -296,7 +315,7 @@ export default function CollegeHubSheet({
     <Modal
       transparent
       visible={visible}
-      animationType="slide"
+      animationType="fade"
       onRequestClose={onClose}
       statusBarTranslucent
     >
@@ -309,7 +328,7 @@ export default function CollegeHubSheet({
           />
 
           <TouchableWithoutFeedback onPress={() => {}}>
-            <View style={styles.sheetContainer}>
+            <Animated.View style={[styles.sheetContainer, { transform: [{ translateY: slideAnim }] }]}>
               {/* Handle bar */}
               <View style={styles.handleBar} />
 
@@ -358,7 +377,7 @@ export default function CollegeHubSheet({
                   }
                 />
               )}
-            </View>
+            </Animated.View>
           </TouchableWithoutFeedback>
         </View>
       </TouchableWithoutFeedback>
