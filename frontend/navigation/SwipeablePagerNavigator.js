@@ -405,7 +405,7 @@ function SwipeablePagerNavigator({
     })
     .onEnd((e) => {
       "worklet";
-      const SWIPE_DISTANCE_THRESHOLD = SCREEN_WIDTH * 0.25;
+      const SWIPE_DISTANCE_THRESHOLD = SCREEN_WIDTH * 0.4;
       const VELOCITY_THRESHOLD = 500;
       const current = currentIndex.value;
       let target = current;
