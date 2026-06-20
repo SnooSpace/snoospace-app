@@ -1,6 +1,9 @@
 // navigation/AppNavigator.js
 import React from "react";
-import { createStackNavigator, CardStyleInterpolators } from "@react-navigation/stack";
+import {
+  createStackNavigator,
+  CardStyleInterpolators,
+} from "@react-navigation/stack";
 
 import LandingScreen from "../screens/auth/LandingScreen";
 import AuthGate from "../screens/auth/AuthGate";
@@ -91,30 +94,7 @@ export default function AppNavigator({ initialRouteName }) {
         headerShown: false,
         gestureEnabled: true,
         gestureDirection: "horizontal",
-        transitionSpec: {
-          open: {
-            animation: "spring",
-            config: {
-              stiffness: 1000,
-              damping: 500,
-              mass: 3,
-              overshootClamping: true,
-              restDisplacementThreshold: 0.01,
-              restSpeedThreshold: 0.01,
-            },
-          },
-          close: {
-            animation: "spring",
-            config: {
-              stiffness: 1000,
-              damping: 500,
-              mass: 3,
-              overshootClamping: true,
-              restDisplacementThreshold: 0.01,
-              restSpeedThreshold: 0.01,
-            },
-          },
-        },
+        transitionSpec: snappyTransitionSpec,
         cardStyleInterpolator: forFadeFromCenter,
       }}
       initialRouteName={initialRouteName}
@@ -135,7 +115,10 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen name="SponsorSignup" component={SponsorSignupNavigator} />
       <Stack.Screen name="VenueSignup" component={VenueSignupNavigator} />
       <Stack.Screen name="Celebration" component={CelebrationScreen} />
-      <Stack.Screen name="PeopleProfilePromptScreen" component={PeopleProfilePromptScreen} />
+      <Stack.Screen
+        name="PeopleProfilePromptScreen"
+        component={PeopleProfilePromptScreen}
+      />
       <Stack.Screen
         name="MemberHome"
         component={BottomTabNavigator}
@@ -373,6 +356,7 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          transitionSpec: snappyTransitionSpec,
         }}
       />
       <Stack.Screen
@@ -381,6 +365,7 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          transitionSpec: snappyTransitionSpec,
         }}
       />
       <Stack.Screen
@@ -389,6 +374,7 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          transitionSpec: snappyTransitionSpec,
         }}
       />
       <Stack.Screen
@@ -397,6 +383,7 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          transitionSpec: snappyTransitionSpec,
         }}
       />
       <Stack.Screen
@@ -405,6 +392,7 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          transitionSpec: snappyTransitionSpec,
         }}
       />
       <Stack.Screen
@@ -413,6 +401,7 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          transitionSpec: snappyTransitionSpec,
         }}
       />
       <Stack.Screen
@@ -421,6 +410,7 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          transitionSpec: snappyTransitionSpec,
         }}
       />
       <Stack.Screen
@@ -429,6 +419,7 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          transitionSpec: snappyTransitionSpec,
         }}
       />
       <Stack.Screen
@@ -437,6 +428,7 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          transitionSpec: snappyTransitionSpec,
         }}
       />
     </Stack.Navigator>

@@ -1,5 +1,6 @@
 import React from "react";
-import { Platform, Pressable } from "react-native";
+import { Platform } from "react-native";
+import { Pressable } from "react-native-gesture-handler";
 import { getFocusedRouteNameFromRoute, useNavigation, CommonActions } from "@react-navigation/native";
 
 // Import Community screens

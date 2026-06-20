@@ -12,6 +12,31 @@ const SearchScreenWithSwipe = (props) => (
   </TabSwipeHandler>
 );
 
+const snappyTransitionSpec = {
+  open: {
+    animation: "spring",
+    config: {
+      stiffness: 1000,
+      damping: 100,
+      mass: 1,
+      overshootClamping: true,
+      restDisplacementThreshold: 0.01,
+      restSpeedThreshold: 0.01,
+    },
+  },
+  close: {
+    animation: "spring",
+    config: {
+      stiffness: 1000,
+      damping: 100,
+      mass: 1,
+      overshootClamping: true,
+      restDisplacementThreshold: 0.01,
+      restSpeedThreshold: 0.01,
+    },
+  },
+};
+
 const Stack = createStackNavigator();
 
 export default function SearchStackNavigator() {
@@ -21,30 +46,7 @@ export default function SearchStackNavigator() {
         headerShown: false,
         gestureEnabled: true,
         gestureDirection: "horizontal",
-        transitionSpec: {
-          open: {
-            animation: "spring",
-            config: {
-              stiffness: 1000,
-              damping: 500,
-              mass: 3,
-              overshootClamping: true,
-              restDisplacementThreshold: 0.01,
-              restSpeedThreshold: 0.01,
-            },
-          },
-          close: {
-            animation: "spring",
-            config: {
-              stiffness: 1000,
-              damping: 500,
-              mass: 3,
-              overshootClamping: true,
-              restDisplacementThreshold: 0.01,
-              restSpeedThreshold: 0.01,
-            },
-          },
-        },
+        transitionSpec: snappyTransitionSpec,
         cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
       }}
       initialRouteName="Search"

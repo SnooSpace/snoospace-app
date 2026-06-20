@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
-import { View, StyleSheet, Platform, Dimensions, Pressable } from "react-native";
+import { View, StyleSheet, Platform, Dimensions } from "react-native";
+import { Pressable } from "react-native-gesture-handler";
 import EventBus from "../utils/EventBus";
 import { getFocusedRouteNameFromRoute, useNavigation, CommonActions } from "@react-navigation/native";
 import { House, Search, Compass, Calendar, User } from "lucide-react-native";

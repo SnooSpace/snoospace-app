@@ -4,7 +4,6 @@ import {
   Dimensions,
   StyleSheet,
   Platform,
-  Pressable,
 } from "react-native";
 import {
   useNavigationBuilder,
@@ -33,7 +32,7 @@ import {
 } from "lucide-react-native";
 
 import ProfileTabIcon from "../components/ProfileTabIcon";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { Gesture, GestureDetector, Pressable } from "react-native-gesture-handler";
 import EventBus from "../utils/EventBus";
 import { getAllAccounts, getActiveAccount, switchAccount } from "../api/auth";
 import hapticsService from "../services/HapticsService";
