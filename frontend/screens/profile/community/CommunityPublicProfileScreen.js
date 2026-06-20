@@ -67,6 +67,7 @@ import {
   blockCommunity,
   unblockCommunity,
 } from "../../../api/communities";
+import { resolveConversation } from "../../../api/messages";
 import { getCommunityPublicEvents } from "../../../api/events";
 import {
   SafeAreaView,
@@ -612,6 +613,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [posts, setPosts] = useState([]);
+  const [preResolvedConversationId, setPreResolvedConversationId] = useState(null);
   const [currentUserRole, setCurrentUserRole] = useState(null);
 
   const [menuVisible, setMenuVisible] = useState(false);
@@ -961,11 +963,22 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     let mounted = true;
+    setPreResolvedConversationId(null);
     (async () => {
       setLoading(true);
       await Promise.all([loadProfile(), loadPosts(true), loadEvents()]);
       if (mounted) setLoading(false);
     })();
+
+    // Background resolve conversation to warm cache
+    resolveConversation(communityId, 'community')
+      .then((res) => {
+        if (mounted && res?.conversationId) {
+          setPreResolvedConversationId(res.conversationId);
+        }
+      })
+      .catch((err) => console.log('[PERF] Background resolveConversation error:', err));
+
     return () => {
       mounted = false;
     };
@@ -1676,13 +1689,16 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               useGHPressable={true}
               onPress={() => {
                 HapticsService.triggerImpactLight();
+                const tappedAt = global.performance ? global.performance.now() : Date.now();
                 setTimeout(() => {
                   navigation.navigate("Chat", {
+                    conversationId: preResolvedConversationId,
                     recipientId: communityId,
                     recipientType: "community",
                     recipientName: profile?.name,
                     recipientUsername: profile?.username,
                     recipientAvatar: profile?.logo_url,
+                    tappedAt,
                   });
                 }, 50);
               }}

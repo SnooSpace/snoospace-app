@@ -1532,7 +1532,11 @@ export default function ChatScreen({ route, navigation }) {
     recipientName,
     recipientUsername,
     recipientAvatar,
+    tappedAt,
   } = route.params || {};
+
+  const t0Ref = useRef(global.performance ? global.performance.now() : Date.now());
+  const firstRenderRef = useRef(true);
 
   const {
     messages,
@@ -1561,6 +1565,7 @@ export default function ChatScreen({ route, navigation }) {
   });
   const [loading, setLoading] = useState(!recipientName && !isGroup);
   const [messagesLoading, setMessagesLoading] = useState(true);
+  console.log(`[PERF] ChatScreen rendering... messagesLoading: ${messagesLoading}, loading: ${loading}`);
   const [sending, setSending] = useState(false);
   const [currentConversationId, setCurrentConversationId] =
     useState(conversationId);
@@ -1929,14 +1934,21 @@ export default function ChatScreen({ route, navigation }) {
 
   // loadMessages replaced by useChatPagination.loadInitial()
 
-  // ΓöÇΓöÇ initializeConversation ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+  // ΓöÇΓöÇ initializeConversation ────────────────────────────────────────────────────────
   useEffect(() => {
+    const tStartInit = global.performance ? global.performance.now() : Date.now();
+    if (tappedAt) {
+      console.log(`[PERF] Tap to ChatScreen useEffect init: ${(tStartInit - tappedAt).toFixed(2)}ms`);
+    }
     const init = async () => {
       setMessagesLoading(true);
       try {
         if (conversationId) {
           setCurrentConversationId(conversationId);
+          const tStartLoad = global.performance ? global.performance.now() : Date.now();
           await loadInitial(conversationId);
+          const tEndLoad = global.performance ? global.performance.now() : Date.now();
+          console.log(`[PERF] loadInitial (conversationId exists) took: ${(tEndLoad - tStartLoad).toFixed(2)}ms`);
           EventBus.emit("messages-read");
           // For group chats: fetch restriction flag + current user role
           if (isGroup) {
@@ -1952,7 +1964,11 @@ export default function ChatScreen({ route, navigation }) {
           }
         } else if (recipientId) {
           // 1. Resolve conversation with recipient using lightweight endpoint
+          const tResolveStart = global.performance ? global.performance.now() : Date.now();
           const resolvedRes = await resolveConversation(recipientId, recipientType);
+          const tResolveEnd = global.performance ? global.performance.now() : Date.now();
+          console.log(`[PERF] resolveConversation took: ${(tResolveEnd - tResolveStart).toFixed(2)}ms`);
+
           const resolvedConvId = resolvedRes?.conversationId || null;
 
           // 2. Fetch the recipient details if not pre-seeded
@@ -1980,11 +1996,22 @@ export default function ChatScreen({ route, navigation }) {
 
           // Fetch profile/block status concurrently with loading the initial messages if conversation exists
           const promises = [recipientPromise];
+          let loadInitialIndex = -1;
           if (resolvedConvId) {
+            loadInitialIndex = promises.length;
             promises.push(loadInitial(resolvedConvId));
           }
 
-          const [recipientResult] = await Promise.all(promises);
+          const tPromisesStart = global.performance ? global.performance.now() : Date.now();
+          const results = await Promise.all(promises);
+          const tPromisesEnd = global.performance ? global.performance.now() : Date.now();
+          if (loadInitialIndex !== -1) {
+            console.log(`[PERF] loadInitial + recipientPromise concurrent took: ${(tPromisesEnd - tPromisesStart).toFixed(2)}ms`);
+          } else {
+            console.log(`[PERF] recipientPromise took: ${(tPromisesEnd - tPromisesStart).toFixed(2)}ms`);
+          }
+
+          const recipientResult = results[0];
 
           if (recipientResult) {
             setRecipient(recipientResult);
@@ -2019,10 +2046,20 @@ export default function ChatScreen({ route, navigation }) {
       } finally {
         setLoading(false);
         setMessagesLoading(false);
+        const tEndAll = global.performance ? global.performance.now() : Date.now();
+        console.log(`[PERF] Total ChatScreen initialization took: ${(tEndAll - tStartInit).toFixed(2)}ms`);
       }
     };
     init();
   }, [conversationId, recipientId, recipientType]);
+
+  useEffect(() => {
+    if (firstRenderRef.current && !messagesLoading) {
+      firstRenderRef.current = false;
+      const tEnd = global.performance ? global.performance.now() : Date.now();
+      console.log(`[PERF] FlatList rendered with messages: ${(tEnd - t0Ref.current).toFixed(2)}ms since ChatScreen mount`);
+    }
+  });
 
   // ——— load recipient from conversationId ———————————————————————————————————————————
   useEffect(() => {
@@ -2969,9 +3006,10 @@ export default function ChatScreen({ route, navigation }) {
                 autoscrollToTopThreshold: 10,
               }}
               initialNumToRender={15}
-              maxToRenderPerBatch={8}
-              windowSize={10}
-              removeClippedSubviews={false}
+              maxToRenderPerBatch={10}
+              windowSize={5}
+              removeClippedSubviews={Platform.OS === 'android'}
+              updateCellsBatchingPeriod={50}
               scrollEventThrottle={16}
               onEndReached={() => {
                 if (hasMore && !loadingOlder) {

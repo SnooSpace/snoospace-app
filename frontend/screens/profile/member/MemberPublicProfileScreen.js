@@ -25,6 +25,7 @@ import {
   respondToCircleRequest,
   removeFromCircle,
 } from "../../../api/members";
+import { resolveConversation } from "../../../api/messages";
 import { SafeAreaView } from "react-native-safe-area-context";
 import EventBus from "../../../utils/EventBus";
 import { getAuthToken, getAuthEmail } from "../../../api/auth";
@@ -195,6 +196,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [posts, setPosts] = useState([]);
+  const [preResolvedConversationId, setPreResolvedConversationId] = useState(null);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -549,11 +551,22 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     let mounted = true;
+    setPreResolvedConversationId(null);
     (async () => {
       setLoading(true);
       await Promise.all([loadProfile(), loadPosts(true), loadCircleStatus()]);
       if (mounted) setLoading(false);
     })();
+    
+    // Background resolve conversation to warm cache
+    resolveConversation(memberId, 'member')
+      .then((res) => {
+        if (mounted && res?.conversationId) {
+          setPreResolvedConversationId(res.conversationId);
+        }
+      })
+      .catch((err) => console.log('[PERF] Background resolveConversation error:', err));
+
     return () => {
       mounted = false;
     };
@@ -1219,13 +1232,16 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 useGHPressable={true}
                 onPress={() => {
                   HapticsService.triggerImpactLight();
+                  const tappedAt = global.performance ? global.performance.now() : Date.now();
                   setTimeout(() => {
                     navigation.navigate("Chat", {
+                      conversationId: preResolvedConversationId,
                       recipientId: memberId,
                       recipientType: "member",
                       recipientName: profile?.full_name || profile?.name,
                       recipientUsername: profile?.username,
                       recipientAvatar: profile?.profile_photo_url,
+                      tappedAt,
                     });
                   }, 50);
                 }}
