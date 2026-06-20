@@ -14,7 +14,6 @@ import {
   TextInput,
   Modal,
   ScrollView,
-  TouchableOpacity,
   Pressable,
   Keyboard,
   ActivityIndicator,
@@ -33,7 +32,7 @@ import Animated, {
   interpolate,
   Extrapolate,
 } from "react-native-reanimated";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { GestureHandlerRootView, TouchableOpacity } from "react-native-gesture-handler";
 
 import SwipeableMessageRow from "../../components/SwipeableMessageRow";
 import useChatPagination from "../../hooks/useChatPagination";
@@ -2833,6 +2832,7 @@ export default function ChatScreen({ route, navigation }) {
           <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.backButton}
+            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
           >
             <ArrowLeft size={22} color="#333333" strokeWidth={2.5} />
           </TouchableOpacity>
@@ -2856,6 +2856,7 @@ export default function ChatScreen({ route, navigation }) {
             <TouchableOpacity
               onPress={() => navigation.goBack()}
               style={styles.backButton}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
             >
               <ArrowLeft size={22} color="#333333" strokeWidth={2.5} />
             </TouchableOpacity>
