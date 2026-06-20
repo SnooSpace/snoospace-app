@@ -35,9 +35,13 @@ const POST_TYPES = [
   { id: "opportunity", label: "Opportunity" },
 ];
 
-const PostTypeSelector = ({ selectedType, onSelectType, disabled = false }) => {
+const PostTypeSelector = ({ selectedType, onSelectType, disabled = false, showOpportunity = false }) => {
   const scrollViewRef = useRef(null);
   const { width: screenWidth } = Dimensions.get("window");
+
+  const types = showOpportunity
+    ? POST_TYPES
+    : POST_TYPES.filter((t) => t.id !== "opportunity");
 
   const handleSelect = (typeId) => {
     if (disabled) return;
@@ -46,11 +50,11 @@ const PostTypeSelector = ({ selectedType, onSelectType, disabled = false }) => {
   };
 
   useEffect(() => {
-    const index = POST_TYPES.findIndex((t) => t.id === selectedType);
+    const index = types.findIndex((t) => t.id === selectedType);
     if (index !== -1 && scrollViewRef.current) {
       // Simple scroll ensures visibility
     }
-  }, [selectedType]);
+  }, [selectedType, types]);
 
   return (
     <View style={styles.container}>
@@ -62,7 +66,7 @@ const PostTypeSelector = ({ selectedType, onSelectType, disabled = false }) => {
         style={styles.scrollView}
       >
         <View style={styles.segmentedContainer}>
-          {POST_TYPES.map((type) => {
+          {types.map((type) => {
             const isSelected = selectedType === type.id;
             return (
               <TouchableOpacity

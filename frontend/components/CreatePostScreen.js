@@ -945,6 +945,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
                 setPostType(type);
               }}
               disabled={isSubmitting}
+              showOpportunity={true}
             />
           )}
 
