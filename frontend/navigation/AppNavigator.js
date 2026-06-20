@@ -1,9 +1,6 @@
 // navigation/AppNavigator.js
 import React from "react";
-import {
-  createStackNavigator,
-  CardStyleInterpolators,
-} from "@react-navigation/stack";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import LandingScreen from "../screens/auth/LandingScreen";
 import AuthGate from "../screens/auth/AuthGate";
@@ -54,38 +51,7 @@ import CommunityFollowingListScreen from "../screens/profile/community/Community
 import CircleListScreen from "../screens/profile/member/CircleListScreen";
 import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
 
-const Stack = createStackNavigator();
-
-const snappyTransitionSpec = {
-  open: {
-    animation: "spring",
-    config: {
-      stiffness: 1000,
-      damping: 100,
-      mass: 1,
-      overshootClamping: true,
-      restDisplacementThreshold: 0.01,
-      restSpeedThreshold: 0.01,
-    },
-  },
-  close: {
-    animation: "spring",
-    config: {
-      stiffness: 1000,
-      damping: 100,
-      mass: 1,
-      overshootClamping: true,
-      restDisplacementThreshold: 0.01,
-      restSpeedThreshold: 0.01,
-    },
-  },
-};
-
-const forFadeFromCenter = ({ current }) => ({
-  cardStyle: {
-    opacity: current.progress,
-  },
-});
+const Stack = createNativeStackNavigator();
 
 export default function AppNavigator({ initialRouteName }) {
   return (
@@ -93,161 +59,112 @@ export default function AppNavigator({ initialRouteName }) {
       screenOptions={{
         headerShown: false,
         gestureEnabled: true,
-        gestureDirection: "horizontal",
-        transitionSpec: snappyTransitionSpec,
-        cardStyleInterpolator: forFadeFromCenter,
+        animation: "slide_from_right", // Native horizontal slide transition
       }}
       initialRouteName={initialRouteName}
     >
-      <Stack.Screen name="AuthGate" component={AuthGate} />
+      <Stack.Screen name="AuthGate" component={AuthGate} options={{ animation: "fade" }} />
       <Stack.Screen
         name="Landing"
         component={LandingScreen}
-        options={{ gestureEnabled: false }}
+        options={{ gestureEnabled: false, animation: "fade" }}
       />
-      <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="LoginOtp" component={LoginOtpScreen} />
-      <Stack.Screen name="MemberSignup" component={MemberSignupNavigator} />
+      <Stack.Screen name="Login" component={LoginScreen} options={{ animation: "fade" }} />
+      <Stack.Screen name="LoginOtp" component={LoginOtpScreen} options={{ animation: "fade" }} />
+      <Stack.Screen name="MemberSignup" component={MemberSignupNavigator} options={{ animation: "fade" }} />
       <Stack.Screen
         name="CommunitySignup"
         component={CommunitySignupNavigator}
+        options={{ animation: "fade" }}
       />
-      <Stack.Screen name="SponsorSignup" component={SponsorSignupNavigator} />
-      <Stack.Screen name="VenueSignup" component={VenueSignupNavigator} />
-      <Stack.Screen name="Celebration" component={CelebrationScreen} />
+      <Stack.Screen name="SponsorSignup" component={SponsorSignupNavigator} options={{ animation: "fade" }} />
+      <Stack.Screen name="VenueSignup" component={VenueSignupNavigator} options={{ animation: "fade" }} />
+      <Stack.Screen name="Celebration" component={CelebrationScreen} options={{ animation: "fade" }} />
       <Stack.Screen
         name="PeopleProfilePromptScreen"
         component={PeopleProfilePromptScreen}
+        options={{ animation: "fade" }}
       />
       <Stack.Screen
         name="MemberHome"
         component={BottomTabNavigator}
-        options={{ headerShown: false }}
+        options={{ animation: "fade" }}
       />
       <Stack.Screen
         name="CommunityHome"
         component={CommunityBottomTabNavigator}
-        options={{ headerShown: false }}
+        options={{ animation: "fade" }}
       />
       <Stack.Screen
         name="SponsorHome"
         component={SponsorBottomTabNavigator}
-        options={{ headerShown: false }}
+        options={{ animation: "fade" }}
       />
       <Stack.Screen
         name="VenueHome"
         component={VenueBottomTabNavigator}
-        options={{ headerShown: false }}
+        options={{ animation: "fade" }}
       />
       <Stack.Screen
         name="CommunityEventsList"
         component={CommunityEventsListScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="CommunityCreatePost"
         component={CommunityCreatePostScreen}
         options={{
-          headerShown: false,
           presentation: "fullScreenModal",
-          cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
         }}
       />
       <Stack.Screen
         name="CreateOpportunity"
         component={CreateOpportunityScreen}
         options={{
-          headerShown: false,
           presentation: "fullScreenModal",
-          cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
         }}
       />
       <Stack.Screen
         name="EventDetails"
         component={EventDetailsScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="ProfileFeed"
         component={ProfileFeedScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="TicketSelection"
         component={TicketSelectionScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="Checkout"
         component={CheckoutScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="TicketView"
         component={TicketViewScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="CategoryEvents"
         component={CategoryEventsScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="EventGallery"
         component={EventGalleryScreen}
         options={{
-          headerShown: false,
           presentation: "fullScreenModal",
-          cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
         }}
       />
       <Stack.Screen
         name="MemberPublicProfile"
         component={MemberPublicProfileScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-          transitionSpec: snappyTransitionSpec,
-        }}
       />
       <Stack.Screen
         name="CommunityPublicProfile"
         component={CommunityPublicProfileScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-          transitionSpec: snappyTransitionSpec,
-        }}
       />
       <Stack.Screen
         name="Chat"
         component={ChatScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-          transitionSpec: snappyTransitionSpec,
-        }}
       />
       <Stack.Screen
         name="CommunityPublicEventsList"
@@ -255,181 +172,95 @@ export default function AppNavigator({ initialRouteName }) {
           require("../screens/profile/community/CommunityPublicEventsListScreen")
             .default
         }
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="CropScreen"
         component={CropScreen}
         options={{
-          headerShown: false,
           presentation: "fullScreenModal",
-          cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
         }}
       />
       <Stack.Screen
         name="BatchCropScreen"
         component={BatchCropScreen}
         options={{
-          headerShown: false,
           presentation: "fullScreenModal",
-          cardStyleInterpolator: CardStyleInterpolators.forVerticalIOS,
         }}
       />
       <Stack.Screen
         name="DeleteAccount"
         component={DeleteAccountScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="DeleteConfirmation"
         component={DeleteConfirmationScreen}
         options={{
-          headerShown: false,
-          cardStyleInterpolator: forFadeFromCenter,
+          animation: "fade",
         }}
       />
       <Stack.Screen
         name="ConsentScreen"
         component={ConsentScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="MyDataScreen"
         component={MyDataScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="OpportunityView"
         component={OpportunityViewScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="ApplyToOpportunity"
         component={ApplyToOpportunityScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="ApplicantsList"
         component={ApplicantsListScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="ApplicantDetail"
         component={ApplicantDetailScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="QRScanner"
         component={QRScannerScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-        }}
       />
       <Stack.Screen
         name="UniversalFollowersList"
         component={UniversalFollowersScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-          transitionSpec: snappyTransitionSpec,
-        }}
       />
       <Stack.Screen
         name="UniversalFollowingList"
         component={UniversalFollowingScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-          transitionSpec: snappyTransitionSpec,
-        }}
       />
       <Stack.Screen
         name="FollowersList"
         component={FollowersListScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-          transitionSpec: snappyTransitionSpec,
-        }}
       />
       <Stack.Screen
         name="FollowingList"
         component={FollowingListScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-          transitionSpec: snappyTransitionSpec,
-        }}
       />
       <Stack.Screen
         name="CommunityFollowersList"
         component={CommunityFollowersListScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-          transitionSpec: snappyTransitionSpec,
-        }}
       />
       <Stack.Screen
         name="CommunityFollowingList"
         component={CommunityFollowingListScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-          transitionSpec: snappyTransitionSpec,
-        }}
       />
       <Stack.Screen
         name="CircleList"
         component={CircleListScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-          transitionSpec: snappyTransitionSpec,
-        }}
       />
       <Stack.Screen
         name="CircleRequests"
         component={CircleRequestsScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-          transitionSpec: snappyTransitionSpec,
-        }}
       />
       <Stack.Screen
         name="SavedPostsScreen"
         component={SavedPostsScreen}
-        options={{
-          headerShown: false,
-          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
-          transitionSpec: snappyTransitionSpec,
-        }}
       />
     </Stack.Navigator>
   );

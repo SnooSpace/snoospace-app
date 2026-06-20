@@ -2,7 +2,7 @@ import "react-native-gesture-handler";
 import "react-native-get-random-values";
 import React, { useEffect, useState } from "react";
 import { View, StyleSheet } from "react-native";
-import { NavigationContainer, CommonActions } from "@react-navigation/native";
+import { NavigationContainer, CommonActions, DefaultTheme } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -34,6 +34,14 @@ import { initSessionTracker, trackScreenVisit } from "./utils/sessionTracker";
 
 import { ToastProvider } from "./context/ToastContext";
 import AccountSwitchOverlay from "./components/ui/AccountSwitchOverlay";
+
+const SnooTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: "#FFFFFF",
+  },
+};
 
 function AppContent() {
   const { currentBanner, setCurrentBanner } = useNotifications();
@@ -100,6 +108,7 @@ function AppContent() {
       <NavigationContainer
         ref={navigationRef}
         onStateChange={onNavigationStateChange}
+        theme={SnooTheme}
       >
         <AppNavigator initialRouteName={"AuthGate"} />
       </NavigationContainer>
