@@ -602,10 +602,9 @@ export default function CommunityDashboardScreen({ navigation }) {
         : parseInt(item.max_attendees || 0, 10) || null;
 
     return (
-      <TouchableOpacity
-        style={styles.ticketCard}
+      <GHPressable
+        style={({ pressed }) => [styles.ticketCard, pressed && { opacity: 0.8 }]}
         onPress={() => handleEventPress(item)}
-        activeOpacity={0.8}
       >
         <Image
           source={{
@@ -654,14 +653,14 @@ export default function CommunityDashboardScreen({ navigation }) {
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.ticketMenuButton}
+          <GHPressable
+            style={({ pressed }) => [styles.ticketMenuButton, pressed && { opacity: 0.7 }]}
             onPress={() => handleEventLongPress(item)}
           >
             <MoreHorizontal size={22} color={COLORS.textMuted} />
-          </TouchableOpacity>
+          </GHPressable>
         </View>
-      </TouchableOpacity>
+      </GHPressable>
     );
   };
 
@@ -675,12 +674,12 @@ export default function CommunityDashboardScreen({ navigation }) {
         {/* 0️ Dashboard Header (Top Navigation) */}
         <View style={styles.dashboardHeader}>
           <Text style={styles.dashboardTitle}>Dashboard</Text>
-          <TouchableOpacity
-            style={styles.iconButton}
+          <GHPressable
+            style={({ pressed }) => [styles.iconButton, pressed && { opacity: 0.7 }]}
             onPress={handleScanTickets}
           >
             <ScanQrCode size={26} color={COLORS.textPrimary} />
-          </TouchableOpacity>
+          </GHPressable>
         </View>
 
         {/* 1️⃣ Action Cards Grid (Swapped Position) */}
@@ -735,8 +734,8 @@ export default function CommunityDashboardScreen({ navigation }) {
 
           {/* Secondary Actions Row */}
           <View style={[styles.actionGrid, { marginTop: 12 }]}>
-            <TouchableOpacity
-              style={styles.secondaryActionCard}
+            <GHPressable
+              style={({ pressed }) => [styles.secondaryActionCard, pressed && { opacity: 0.7 }]}
               onPress={() =>
                 navigation.navigate("ShareTicket", { events: upcomingEvents })
               }
@@ -745,17 +744,17 @@ export default function CommunityDashboardScreen({ navigation }) {
                 <Ticket size={20} color="#1E3A8A" />
               </View>
               <Text style={styles.secondaryActionText}>Share Tickets</Text>
-            </TouchableOpacity>
+            </GHPressable>
 
-            <TouchableOpacity
-              style={styles.secondaryActionCard}
+            <GHPressable
+              style={({ pressed }) => [styles.secondaryActionCard, pressed && { opacity: 0.7 }]}
               onPress={handleInviteMembers}
             >
               <View style={styles.secondaryIconBg}>
                 <UserPlus size={20} color="#1E3A8A" />
               </View>
               <Text style={styles.secondaryActionText}>Invite Members</Text>
-            </TouchableOpacity>
+            </GHPressable>
           </View>
         </View>
 
@@ -913,7 +912,7 @@ export default function CommunityDashboardScreen({ navigation }) {
             <Text style={styles.sectionTitle}>Events</Text>
             <View style={styles.headerActions}>
               <View style={styles.tabPillContainer}>
-                <TouchableOpacity
+                <GHPressable
                   onPress={() => setActiveTab("upcoming")}
                   style={[
                     styles.tabPill,
@@ -928,8 +927,8 @@ export default function CommunityDashboardScreen({ navigation }) {
                   >
                     Upcoming
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
+                </GHPressable>
+                <GHPressable
                   onPress={() => setActiveTab("previous")}
                   style={[
                     styles.tabPill,
@@ -944,7 +943,7 @@ export default function CommunityDashboardScreen({ navigation }) {
                   >
                     Past
                   </Text>
-                </TouchableOpacity>
+                </GHPressable>
               </View>
               <GHPressable
                 style={({ pressed }) => [

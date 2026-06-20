@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, TextInput, Image, Switch, Alert, StatusBar, Animated, Easing } from "react-native";
-import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
+import { StyleSheet, View, Text, ScrollView, TextInput, Image, Switch, Alert, StatusBar, Animated, Easing } from "react-native";
+import { Pressable as GHPressable, GestureHandlerRootView, TouchableOpacity } from "react-native-gesture-handler";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { ArrowLeft } from "lucide-react-native";
@@ -487,6 +487,7 @@ const ShareTicketScreen = ({ navigation, route }) => {
               { opacity: pressed ? 0.6 : 1 },
             ]}
             onPress={() => navigation.goBack()}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
             <ArrowLeft size={22} color="#333333" strokeWidth={2.5} />
           </GHPressable>
