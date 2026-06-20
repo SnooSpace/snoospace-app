@@ -633,12 +633,21 @@ export default function ConversationsListScreen({ navigation }) {
         recipientType: conv.otherParticipant?.type || "member",
         isMuted: conv.isMuted || false,
         mutedUntil: conv.mutedUntil || null,
+        recipientName: conv.otherParticipant?.name,
+        recipientUsername: conv.otherParticipant?.username,
+        recipientAvatar: conv.otherParticipant?.profilePhotoUrl,
       });
     }
   }, [navigation]);
 
   const openUserChat = useCallback((user) => {
-    navigation.navigate("Chat", { recipientId: user.id, recipientType: user.type || "member" });
+    navigation.navigate("Chat", {
+      recipientId: user.id,
+      recipientType: user.type || "member",
+      recipientName: user.display_name || user.name || user.full_name,
+      recipientUsername: user.username,
+      recipientAvatar: user.profile_photo_url || user.logo_url || user.photo_url,
+    });
   }, [navigation]);
 
   // ── Derived display name for header ───────────────────────────────────────────

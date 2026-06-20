@@ -10,6 +10,13 @@ export async function getConversations() {
   return apiGet('/messages/conversations', 15000, token);
 }
 
+/** Resolve conversation ID for a DM recipient */
+export async function resolveConversation(recipientId, recipientType = 'member') {
+  const token = await getAuthToken();
+  if (!token) throw new Error("Authentication token not found.");
+  return apiGet(`/messages/conversations/resolve?recipientId=${recipientId}&recipientType=${recipientType}`, 15000, token);
+}
+
 /**
  * Get messages for a conversation (cursor-based pagination)
  * @param {number} conversationId

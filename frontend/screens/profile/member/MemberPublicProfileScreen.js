@@ -1219,19 +1219,15 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 useGHPressable={true}
                 onPress={() => {
                   HapticsService.triggerImpactLight();
-                  let rootNav = navigation;
-                  while (rootNav.getParent && rootNav.getParent()) {
-                    rootNav = rootNav.getParent();
-                  }
-                  rootNav.dispatch(
-                    CommonActions.navigate("MemberHome", {
-                      screen: "Home",
-                      params: {
-                        screen: "Chat",
-                        params: { recipientId: memberId, recipientType: "member" },
-                      },
-                    })
-                  );
+                  setTimeout(() => {
+                    navigation.navigate("Chat", {
+                      recipientId: memberId,
+                      recipientType: "member",
+                      recipientName: profile?.full_name || profile?.name,
+                      recipientUsername: profile?.username,
+                      recipientAvatar: profile?.profile_photo_url,
+                    });
+                  }, 50);
                 }}
               />
             </View>

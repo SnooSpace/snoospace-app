@@ -79,6 +79,7 @@ import {
   sendMessage,
   unsendMessage,
   getConversations,
+  resolveConversation,
   hideConversation,
   reportConversation,
   muteConversation,
@@ -1528,6 +1529,9 @@ export default function ChatScreen({ route, navigation }) {
     // Passed from ConversationsListScreen for instant render — no async needed
     myGroupRole: initialMyGroupRole = null,
     messagingRestricted: initialMessagingRestricted = false,
+    recipientName,
+    recipientUsername,
+    recipientAvatar,
   } = route.params || {};
 
   const {
@@ -1543,9 +1547,21 @@ export default function ChatScreen({ route, navigation }) {
   } = useChatPagination();
 
   const [messageText, setMessageText] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [recipient, setRecipient] = useState(() => {
+    if (recipientId && recipientName) {
+      return {
+        id: recipientId,
+        name: recipientName,
+        username: recipientUsername || "",
+        profilePhotoUrl: recipientAvatar || null,
+        type: recipientType || "member"
+      };
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(!recipientName && !isGroup);
+  const [messagesLoading, setMessagesLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [recipient, setRecipient] = useState(null);
   const [currentConversationId, setCurrentConversationId] =
     useState(conversationId);
   const [currentRecipientType, setCurrentRecipientType] =
@@ -1916,6 +1932,7 @@ export default function ChatScreen({ route, navigation }) {
   // ΓöÇΓöÇ initializeConversation ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   useEffect(() => {
     const init = async () => {
+      setMessagesLoading(true);
       try {
         if (conversationId) {
           setCurrentConversationId(conversationId);
@@ -1926,7 +1943,7 @@ export default function ChatScreen({ route, navigation }) {
             try {
               const gpRes = await getGroupParticipants(conversationId);
               setMessagingRestricted(gpRes.messagingRestricted || false);
-              // find current user's role by matching token user ΓÇö we get it from auth via getConversations
+              // find current user's role by matching token user — we get it from auth via getConversations
               // We store it after we also load current user identity below
               if (gpRes._myRole) setMyGroupRole(gpRes._myRole); // populated below
             } catch {
@@ -1934,37 +1951,56 @@ export default function ChatScreen({ route, navigation }) {
             }
           }
         } else if (recipientId) {
-          const res = await getConversations();
-          const existing = res.conversations?.find(
-            (c) => c.otherParticipant?.id === recipientId,
-          );
-          if (existing) {
-            setCurrentConversationId(existing.id);
-            await loadInitial(existing.id);
+          // 1. Resolve conversation with recipient using lightweight endpoint
+          const resolvedRes = await resolveConversation(recipientId, recipientType);
+          const resolvedConvId = resolvedRes?.conversationId || null;
+
+          // 2. Fetch the recipient details if not pre-seeded
+          let recipientPromise = Promise.resolve(null);
+          if (!recipient) {
+            if ((recipientType || "member") === "community") {
+              recipientPromise = getPublicCommunity(recipientId).then((p) => ({
+                id: p.id,
+                name: p.name,
+                username: p.username,
+                profilePhotoUrl: p.logo_url,
+                type: "community"
+              }));
+            } else {
+              recipientPromise = getPublicMemberProfile(recipientId).then((p) => ({
+                id: p.id,
+                name: p.full_name || p.name,
+                username: p.username,
+                profilePhotoUrl: p.profile_photo_url,
+                you_have_blocked: !!p?.you_have_blocked,
+                type: "member"
+              }));
+            }
+          }
+
+          // Fetch profile/block status concurrently with loading the initial messages if conversation exists
+          const promises = [recipientPromise];
+          if (resolvedConvId) {
+            promises.push(loadInitial(resolvedConvId));
+          }
+
+          const [recipientResult] = await Promise.all(promises);
+
+          if (recipientResult) {
+            setRecipient(recipientResult);
+            if (recipientResult.type === "member") {
+              setYouHaveBlocked(!!recipientResult.you_have_blocked);
+            }
+          }
+
+          if (resolvedConvId) {
+            setCurrentConversationId(resolvedConvId);
             EventBus.emit("messages-read");
           } else {
             setCurrentConversationId(null);
           }
           setCurrentRecipientId(recipientId);
           setCurrentRecipientType(recipientType || "member");
-          if ((recipientType || "member") === "community") {
-            const p = await getPublicCommunity(recipientId);
-            setRecipient({
-              id: p.id,
-              name: p.name,
-              username: p.username,
-              profilePhotoUrl: p.logo_url,
-            });
-          } else {
-            const p = await getPublicMemberProfile(recipientId);
-            setRecipient({
-              id: p.id,
-              name: p.full_name || p.name,
-              username: p.username,
-              profilePhotoUrl: p.profile_photo_url,
-            });
-            setYouHaveBlocked(!!p?.you_have_blocked);
-          }
         }
       } catch (err) {
         console.error("Error initializing conversation:", err);
@@ -1982,6 +2018,7 @@ export default function ChatScreen({ route, navigation }) {
         });
       } finally {
         setLoading(false);
+        setMessagesLoading(false);
       }
     };
     init();
@@ -2948,6 +2985,17 @@ export default function ChatScreen({ route, navigation }) {
                     <ActivityIndicator size="small" color={PRIMARY_COLOR} />
                   </View>
                 ) : null
+              }
+              ListEmptyComponent={
+                messagesLoading ? (
+                  <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 200, transform: Platform.select({ android: [{ scaleY: -1 }, { scaleX: -1 }], default: [{ scaleY: -1 }] }) }}>
+                    <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+                  </View>
+                ) : (
+                  <View style={{ transform: Platform.select({ android: [{ scaleY: -1 }, { scaleX: -1 }], default: [{ scaleY: -1 }] }), width: "100%" }}>
+                    <EmptyChatState />
+                  </View>
+                )
               }
               viewabilityConfig={viewabilityConfigRef.current}
               onViewableItemsChanged={onViewableItemsChangedRef.current}

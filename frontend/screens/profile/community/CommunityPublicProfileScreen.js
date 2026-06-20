@@ -1676,24 +1676,15 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               useGHPressable={true}
               onPress={() => {
                 HapticsService.triggerImpactLight();
-                // Climb to the root navigator (AppNavigator) regardless of
-                // how many stacks deep this profile was opened from.
-                let rootNav = navigation;
-                while (rootNav.getParent && rootNav.getParent()) {
-                  rootNav = rootNav.getParent();
-                }
-                rootNav.dispatch(
-                  CommonActions.navigate("MemberHome", {
-                    screen: "Home",
-                    params: {
-                      screen: "Chat",
-                      params: {
-                        recipientId: communityId,
-                        recipientType: "community",
-                      },
-                    },
-                  })
-                );
+                setTimeout(() => {
+                  navigation.navigate("Chat", {
+                    recipientId: communityId,
+                    recipientType: "community",
+                    recipientName: profile?.name,
+                    recipientUsername: profile?.username,
+                    recipientAvatar: profile?.logo_url,
+                  });
+                }, 50);
               }}
             />
           </View>

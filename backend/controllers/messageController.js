@@ -269,6 +269,50 @@ const getConversations = async (req, res) => {
   }
 };
 
+// ─── resolveConversation: check if DM conversation exists without loading history ───
+const resolveConversation = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { recipientId, recipientType = "member" } = req.query;
+
+    if (!userId || (userType !== "member" && userType !== "community")) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    if (!recipientId) {
+      return res.status(400).json({ error: "recipientId is required" });
+    }
+
+    const id1 = Number(userId);
+    const id2 = Number(recipientId);
+    let p1Id, p1Type, p2Id, p2Type;
+    if (id1 < id2 || (id1 === id2 && userType < recipientType)) {
+      p1Id = userId; p1Type = userType;
+      p2Id = recipientId; p2Type = recipientType;
+    } else {
+      p1Id = recipientId; p1Type = recipientType;
+      p2Id = userId; p2Type = userType;
+    }
+
+    const existing = await pool.query(
+      `SELECT id FROM conversations
+       WHERE participant1_id = $1 AND participant1_type = $2
+         AND participant2_id = $3 AND participant2_type = $4
+         AND is_group = false`,
+      [p1Id, p1Type, p2Id, p2Type],
+    );
+
+    if (existing.rows[0]) {
+      return res.json({ conversationId: existing.rows[0].id });
+    } else {
+      return res.json({ conversationId: null });
+    }
+  } catch (error) {
+    console.error("Error resolving conversation:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 // ─── getMessages ──────────────────────────────────────────────────────────────
 const getMessages = async (req, res) => {
   try {
@@ -1926,6 +1970,7 @@ const resolveChatReport = async (req, res) => {
 // ─── module.exports ───────────────────────────────────────────────────────────
 module.exports = {
   getConversations,
+  resolveConversation,
   getMessages,
   sendMessage,
   markMessageRead,

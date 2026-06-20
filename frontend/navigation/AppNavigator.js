@@ -30,6 +30,7 @@ import EventGalleryScreen from "../screens/events/EventGalleryScreen";
 import CategoryEventsScreen from "../screens/events/CategoryEventsScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
+import ChatScreen from "../screens/messages/ChatScreen";
 import { CropScreen, BatchCropScreen } from "../components/MediaCrop";
 import SavedPostsScreen from "../screens/SavedPostsScreen";
 import DeleteAccountScreen from "../screens/profile/DeleteAccountScreen";
@@ -51,6 +52,31 @@ import CircleListScreen from "../screens/profile/member/CircleListScreen";
 import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
 
 const Stack = createStackNavigator();
+
+const snappyTransitionSpec = {
+  open: {
+    animation: "spring",
+    config: {
+      stiffness: 1000,
+      damping: 100,
+      mass: 1,
+      overshootClamping: true,
+      restDisplacementThreshold: 0.01,
+      restSpeedThreshold: 0.01,
+    },
+  },
+  close: {
+    animation: "spring",
+    config: {
+      stiffness: 1000,
+      damping: 100,
+      mass: 1,
+      overshootClamping: true,
+      restDisplacementThreshold: 0.01,
+      restSpeedThreshold: 0.01,
+    },
+  },
+};
 
 const forFadeFromCenter = ({ current }) => ({
   cardStyle: {
@@ -219,6 +245,7 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          transitionSpec: snappyTransitionSpec,
         }}
       />
       <Stack.Screen
@@ -227,6 +254,16 @@ export default function AppNavigator({ initialRouteName }) {
         options={{
           headerShown: false,
           cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          transitionSpec: snappyTransitionSpec,
+        }}
+      />
+      <Stack.Screen
+        name="Chat"
+        component={ChatScreen}
+        options={{
+          headerShown: false,
+          cardStyleInterpolator: CardStyleInterpolators.forHorizontalIOS,
+          transitionSpec: snappyTransitionSpec,
         }}
       />
       <Stack.Screen

@@ -1728,6 +1728,11 @@ router.get(
   MessageController.getConversations,
 );
 router.get(
+  "/messages/conversations/resolve",
+  authMiddleware,
+  MessageController.resolveConversation,
+);
+router.get(
   "/messages/conversations/:conversationId",
   authMiddleware,
   MessageController.getMessages,
