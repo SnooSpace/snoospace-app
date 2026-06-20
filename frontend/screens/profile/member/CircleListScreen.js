@@ -1,9 +1,10 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  Image, ActivityIndicator, Pressable,
+  View, Text, StyleSheet, FlatList, TextInput,
+  Image, ActivityIndicator,
 } from 'react-native';
+import { Pressable as GHPressable, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Users, Bell, X, UserMinus, AlertTriangle, CheckCircle } from 'lucide-react-native';
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, FadeInDown } from 'react-native-reanimated';
@@ -22,7 +23,7 @@ const CircleMemberRow = React.memo(({ item, onPress, onRemove, readOnly }) => {
 
   return (
     <Reanimated.View entering={FadeInDown.duration(280)} style={animStyle}>
-      <Pressable
+      <GHPressable
         onPressIn={() => { scale.value = withSpring(0.97, { damping: 12 }); }}
         onPressOut={() => { scale.value = withSpring(1, { damping: 12 }); }}
         onPress={() => onPress(item)}
@@ -39,15 +40,15 @@ const CircleMemberRow = React.memo(({ item, onPress, onRemove, readOnly }) => {
           ) : null}
         </View>
         {!readOnly && (
-          <TouchableOpacity
+          <GHPressable
             style={styles.removeBtn}
             onPress={() => onRemove(item)}
             hitSlop={8}
           >
             <UserMinus size={18} color={COLORS.textSecondary} strokeWidth={2} />
-          </TouchableOpacity>
+          </GHPressable>
         )}
-      </Pressable>
+      </GHPressable>
     </Reanimated.View>
   );
 });
@@ -209,54 +210,55 @@ export default function CircleListScreen({ route, navigation }) {
   ) : null;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
-          <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {readOnly && memberName ? `${memberName}'s Circle` : 'My Circle'}
-        </Text>
-        {!readOnly ? (
-          <TouchableOpacity
-            style={styles.requestsBtn}
-            onPress={() => navigation.navigate('CircleRequests')}
-            hitSlop={8}
-          >
-            <Bell size={22} color={COLORS.textPrimary} strokeWidth={2} />
-            {pendingCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{pendingCount > 9 ? '9+' : pendingCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.requestsBtn} />
-        )}
-      </View>
-
-      {/* Search bar — only shown in own circle view */}
-      {!readOnly && (
-        <View style={styles.searchRow}>
-          <View style={styles.searchBox}>
-            <Search size={16} color={COLORS.textSecondary} strokeWidth={2} style={{ marginRight: 8 }} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search your circle…"
-              placeholderTextColor={COLORS.textSecondary}
-              value={search}
-              onChangeText={handleSearchChange}
-              returnKeyType="search"
-            />
-            {search.length > 0 && (
-              <TouchableOpacity onPress={() => handleSearchChange('')} hitSlop={8}>
-                <X size={16} color={COLORS.textSecondary} strokeWidth={2} />
-              </TouchableOpacity>
-            )}
-          </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        {/* Header */}
+        <View style={styles.header}>
+          <GHPressable onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
+            <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
+          </GHPressable>
+          <Text style={styles.headerTitle}>
+            {readOnly && memberName ? `${memberName}'s Circle` : 'My Circle'}
+          </Text>
+          {!readOnly ? (
+            <GHPressable
+              style={styles.requestsBtn}
+              onPress={() => navigation.navigate('CircleRequests')}
+              hitSlop={8}
+            >
+              <Bell size={22} color={COLORS.textPrimary} strokeWidth={2} />
+              {pendingCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{pendingCount > 9 ? '9+' : pendingCount}</Text>
+                </View>
+              )}
+            </GHPressable>
+          ) : (
+            <View style={styles.requestsBtn} />
+          )}
         </View>
-      )}
+
+        {/* Search bar — only shown in own circle view */}
+        {!readOnly && (
+          <View style={styles.searchRow}>
+            <View style={styles.searchBox}>
+              <Search size={16} color={COLORS.textSecondary} strokeWidth={2} style={{ marginRight: 8 }} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search your circle…"
+                placeholderTextColor={COLORS.textSecondary}
+                value={search}
+                onChangeText={handleSearchChange}
+                returnKeyType="search"
+              />
+              {search.length > 0 && (
+                <GHPressable onPress={() => handleSearchChange('')} hitSlop={8}>
+                  <X size={16} color={COLORS.textSecondary} strokeWidth={2} />
+                </GHPressable>
+              )}
+            </View>
+          </View>
+        )}
 
       {/* List */}
       {loading ? (
@@ -288,6 +290,7 @@ export default function CircleListScreen({ route, navigation }) {
         onClose={hideAlert}
       />
     </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 

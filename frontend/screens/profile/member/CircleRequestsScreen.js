@@ -1,8 +1,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Image, ActivityIndicator, Pressable,
+  View, Text, StyleSheet, FlatList,
+  Image, ActivityIndicator,
 } from 'react-native';
+import { Pressable as GHPressable, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, UserCheck, UserX, X, Users, AlertTriangle } from 'lucide-react-native';
 import EventBus from '../../../utils/EventBus';
@@ -22,7 +23,7 @@ import CustomAlertModal from '../../../components/ui/CustomAlertModal';
 // ─────────────────────────────────────────────────────────
 const IncomingRow = React.memo(({ item, onAccept, onDecline, onPress }) => (
   <Reanimated.View entering={FadeInDown.duration(260)} style={styles.row}>
-    <Pressable onPress={() => onPress(item)} style={styles.rowLeft}>
+    <GHPressable onPress={() => onPress(item)} style={styles.rowLeft}>
       <Image
         source={{ uri: item.sender_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.sender_name || 'M')}&background=448AFF&color=fff&size=80` }}
         style={styles.avatar}
@@ -33,16 +34,16 @@ const IncomingRow = React.memo(({ item, onAccept, onDecline, onPress }) => (
           <Text style={styles.rowUsername} numberOfLines={1}>@{item.sender_username}</Text>
         ) : null}
       </View>
-    </Pressable>
+    </GHPressable>
     <View style={styles.actionRow}>
-      <TouchableOpacity style={styles.acceptBtn} onPress={() => onAccept(item)} hitSlop={4}>
+      <GHPressable style={styles.acceptBtn} onPress={() => onAccept(item)} hitSlop={4}>
         <UserCheck size={15} color="#fff" strokeWidth={2.5} />
         <Text style={styles.acceptBtnText}>Accept</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.declineBtn} onPress={() => onDecline(item)} hitSlop={4}>
+      </GHPressable>
+      <GHPressable style={styles.declineBtn} onPress={() => onDecline(item)} hitSlop={4}>
         <UserX size={15} color={COLORS.textSecondary} strokeWidth={2.5} />
         <Text style={styles.declineBtnText}>Decline</Text>
-      </TouchableOpacity>
+      </GHPressable>
     </View>
   </Reanimated.View>
 ));
@@ -52,7 +53,7 @@ const IncomingRow = React.memo(({ item, onAccept, onDecline, onPress }) => (
 // ─────────────────────────────────────────────────────────
 const OutgoingRow = React.memo(({ item, onCancel, onPress }) => (
   <Reanimated.View entering={FadeInDown.duration(260)} style={styles.row}>
-    <Pressable onPress={() => onPress(item)} style={styles.rowLeft}>
+    <GHPressable onPress={() => onPress(item)} style={styles.rowLeft}>
       <Image
         source={{ uri: item.receiver_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.receiver_name || 'M')}&background=448AFF&color=fff&size=80` }}
         style={styles.avatar}
@@ -64,11 +65,11 @@ const OutgoingRow = React.memo(({ item, onCancel, onPress }) => (
         ) : null}
         <Text style={styles.pendingTag}>Pending</Text>
       </View>
-    </Pressable>
-    <TouchableOpacity style={styles.cancelBtn} onPress={() => onCancel(item)} hitSlop={4}>
+    </GHPressable>
+    <GHPressable style={styles.cancelBtn} onPress={() => onCancel(item)} hitSlop={4}>
       <X size={14} color={COLORS.textSecondary} strokeWidth={2.5} />
       <Text style={styles.cancelBtnText}>Cancel</Text>
-    </TouchableOpacity>
+    </GHPressable>
   </Reanimated.View>
 ));
 
@@ -210,31 +211,32 @@ export default function CircleRequestsScreen({ navigation }) {
   const data = activeTab === 'received' ? incoming : outgoing;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
-          <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Circle Requests</Text>
-        <View style={{ width: 40 }} />
-      </View>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        {/* Header */}
+        <View style={styles.header}>
+          <GHPressable onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
+            <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
+          </GHPressable>
+          <Text style={styles.headerTitle}>Circle Requests</Text>
+          <View style={{ width: 40 }} />
+        </View>
 
-      {/* Tabs */}
-      <View style={styles.tabRow}>
-        {['received', 'sent'].map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            style={[styles.tab, activeTab === tab && styles.tabActive]}
-            onPress={() => setActiveTab(tab)}
-            activeOpacity={0.75}
-          >
-            <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
-              {tab === 'received' ? `Received${incoming.length > 0 ? ` (${incoming.length})` : ''}` : 'Sent'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+        {/* Tabs */}
+        <View style={styles.tabRow}>
+          {['received', 'sent'].map((tab) => (
+            <GHPressable
+              key={tab}
+              style={[styles.tab, activeTab === tab && styles.tabActive]}
+              onPress={() => setActiveTab(tab)}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+                {tab === 'received' ? `Received${incoming.length > 0 ? ` (${incoming.length})` : ''}` : 'Sent'}
+              </Text>
+            </GHPressable>
+          ))}
+        </View>
 
       {/* Content */}
       {isLoading ? (
@@ -268,6 +270,7 @@ export default function CircleRequestsScreen({ navigation }) {
         onClose={hideAlert}
       />
     </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
