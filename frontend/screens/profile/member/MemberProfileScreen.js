@@ -1342,14 +1342,14 @@ export default function MemberProfileScreen({ navigation }) {
       {/* Header */}
       {(() => { console.log("[Profile] ProfileHeader rendered"); return null; })()}
       <View style={styles.header}>
-        <TouchableOpacity
+        <GHPressable
           style={styles.usernameContainer}
           onPress={() => setShowAccountSwitcher(true)}
           hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
         >
           <Text style={styles.username}>@{profile.username}</Text>
           <ChevronDown size={26} color="#3B82F6" style={{ marginLeft: -2 }} />
-        </TouchableOpacity>
+        </GHPressable>
         <View style={styles.headerRight}>
           <GHPressable
             style={styles.settingsButton}
@@ -1358,7 +1358,7 @@ export default function MemberProfileScreen({ navigation }) {
           >
             <Bookmark size={26} color={COLORS.editorial.textSecondary} />
           </GHPressable>
-          <TouchableOpacity
+          <GHPressable
             style={styles.settingsButton}
             onPress={() => {
               HapticsService.triggerImpactLight();
@@ -1367,7 +1367,7 @@ export default function MemberProfileScreen({ navigation }) {
             hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
             <Settings size={26} color={COLORS.editorial.textSecondary} />
-          </TouchableOpacity>
+          </GHPressable>
         </View>
       </View>
 

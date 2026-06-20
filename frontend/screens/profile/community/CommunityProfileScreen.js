@@ -201,13 +201,13 @@ const CommunityProfileHeaderBioSection = React.memo(({
             >
               <Bookmark size={22} color="#475569" strokeWidth={2.2} />
             </GHPressable>
-            <TouchableOpacity
+            <GHPressable
               style={styles.settingsIconInline}
               onPress={onShowSettings}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             >
               <Settings size={22} color="#475569" strokeWidth={2.2} />
-            </TouchableOpacity>
+            </GHPressable>
           </View>
         )}
         <View
@@ -1852,7 +1852,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
               >
                 <Bookmark size={24} color="#0F172A" />
               </GHPressable>
-              <TouchableOpacity
+              <GHPressable
                 style={styles.headerIconButton}
                 onPress={() => {
                   HapticsService.triggerImpactLight();
@@ -1861,7 +1861,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 <Settings size={24} color="#0F172A" />
-              </TouchableOpacity>
+              </GHPressable>
             </View>
           </View>
         )}
