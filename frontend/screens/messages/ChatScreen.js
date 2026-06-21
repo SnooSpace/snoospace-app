@@ -228,6 +228,18 @@ const buildMessageList = (messages) => {
     const msg = messages[i];
     const older = messages[i - 1]; // undefined when i === 0 (oldest message)
 
+    // Pre-parse and cache dates to avoid creating Date objects inside the render path
+    if (msg && !msg._time) {
+      const d = new Date(msg.createdAt);
+      msg._time = d.getTime();
+      msg._dateString = d.toDateString();
+    }
+    if (older && !older._time) {
+      const d = new Date(older.createdAt);
+      older._time = d.getTime();
+      older._dateString = d.toDateString();
+    }
+
     result.push({ type: "message", data: msg });
 
     // Inject a separator after (below in the inverted list) this message if:
@@ -235,8 +247,7 @@ const buildMessageList = (messages) => {
     // • the next-older message belongs to a different calendar day.
     const isOldestOfDay =
       !older ||
-      new Date(msg.createdAt).toDateString() !==
-        new Date(older.createdAt).toDateString();
+      msg._dateString !== older._dateString;
 
     if (isOldestOfDay) {
       result.push({
@@ -680,23 +691,24 @@ const ChatActionsSheet = ({
   youHaveBlocked,
   isGroup,
 }) => {
-  const slideAnim = useRef(new RNAnimated.Value(0)).current;
+  const slideVal = useSharedValue(0);
 
   useEffect(() => {
     if (visible) {
-      slideAnim.setValue(0);
-      RNAnimated.spring(slideAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }).start();
+      slideVal.value = 0;
+      slideVal.value = withSpring(1, {
+        damping: 15,
+        stiffness: 120,
+        mass: 0.8,
+      });
     }
   }, [visible]);
 
-  const sheetTranslateY = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [300, 0],
+  const animatedSheetStyle = useAnimatedStyle(() => {
+    const translateY = (1 - slideVal.value) * 300;
+    return {
+      transform: [{ translateY }],
+    };
   });
 
   return (
@@ -707,8 +719,8 @@ const ChatActionsSheet = ({
       onRequestClose={onClose}
     >
       <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
-        <RNAnimated.View
-          style={[actionSheetStyles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}
+        <Animated.View
+          style={[actionSheetStyles.sheet, animatedSheetStyle]}
         >
           <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
             <View style={actionSheetStyles.handle} />
@@ -838,7 +850,7 @@ const ChatActionsSheet = ({
           </>
         )}
           </Pressable>
-        </RNAnimated.View>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
@@ -891,37 +903,37 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
   const [otherText, setOtherText] = React.useState("");
   const otherInputRef = React.useRef(null);
 
-  const slideAnim = useRef(new RNAnimated.Value(0)).current;
+  const slideVal = useSharedValue(0);
 
   React.useEffect(() => {
     if (visible) {
       setOtherMode(false);
       setOtherText("");
-      slideAnim.setValue(0);
-      RNAnimated.spring(slideAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }).start();
+      slideVal.value = 0;
+      slideVal.value = withSpring(1, {
+        damping: 15,
+        stiffness: 120,
+        mass: 0.8,
+      });
     }
   }, [visible]);
 
   React.useEffect(() => {
     if (otherMode) {
-      slideAnim.setValue(0);
-      RNAnimated.spring(slideAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }).start();
+      slideVal.value = 0;
+      slideVal.value = withSpring(1, {
+        damping: 15,
+        stiffness: 120,
+        mass: 0.8,
+      });
     }
   }, [otherMode]);
 
-  const sheetTranslateY = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [300, 0],
+  const animatedSheetStyle = useAnimatedStyle(() => {
+    const translateY = (1 - slideVal.value) * 300;
+    return {
+      transform: [{ translateY }],
+    };
   });
 
   if (otherMode) {
@@ -937,8 +949,8 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
           style={{ flex: 1 }}
         >
           <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
-            <RNAnimated.View
-              style={[actionSheetStyles.sheet, { paddingBottom: 24, transform: [{ translateY: sheetTranslateY }] }]}
+            <Animated.View
+              style={[actionSheetStyles.sheet, animatedSheetStyle, { paddingBottom: 24 }]}
             >
               <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
                 <View style={actionSheetStyles.handle} />
@@ -1057,7 +1069,7 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
                 </Text>
               </TouchableOpacity>
               </Pressable>
-            </RNAnimated.View>
+            </Animated.View>
           </Pressable>
         </KeyboardStickyView>
       </Modal>
@@ -1072,8 +1084,8 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
       onRequestClose={onClose}
     >
       <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
-        <RNAnimated.View
-          style={[actionSheetStyles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}
+        <Animated.View
+          style={[actionSheetStyles.sheet, animatedSheetStyle]}
         >
           <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
             <View style={actionSheetStyles.handle} />
@@ -1121,7 +1133,7 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
             </TouchableOpacity>
           ))}
           </Pressable>
-        </RNAnimated.View>
+        </Animated.View>
       </Pressable>
     </Modal>
   );
@@ -2730,9 +2742,11 @@ export default function ChatScreen({ route, navigation }) {
     if (isMine) return false;
     if (!nextMessage) return true;
     if (nextMessage.senderId !== message.senderId) return true;
-    const diff = Math.abs(
-      new Date(nextMessage.createdAt) - new Date(message.createdAt),
-    );
+
+    // Use pre-cached timestamps to avoid new Date overhead
+    const timeA = message._time || (message._time = new Date(message.createdAt).getTime());
+    const timeB = nextMessage._time || (nextMessage._time = new Date(nextMessage.createdAt).getTime());
+    const diff = Math.abs(timeB - timeA);
     return diff > 60000;
   }, []);
 
@@ -3006,11 +3020,11 @@ export default function ChatScreen({ route, navigation }) {
                 minIndexForVisible: 1,
                 autoscrollToTopThreshold: 10,
               }}
-              initialNumToRender={15}
-              maxToRenderPerBatch={10}
-              windowSize={5}
+              initialNumToRender={25}
+              maxToRenderPerBatch={20}
+              windowSize={15}
               removeClippedSubviews={Platform.OS === 'android'}
-              updateCellsBatchingPeriod={50}
+              updateCellsBatchingPeriod={20}
               scrollEventThrottle={16}
               onEndReached={() => {
                 if (hasMore && !loadingOlder) {
