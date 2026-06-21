@@ -408,6 +408,19 @@ const OpenPlanCard = ({
     };
   }, []);
 
+  // Sync engagement state when parent passes updated plan prop (e.g. after commenting/liking)
+  useEffect(() => {
+    if (plan?.is_liked !== undefined) setIsLiked(Boolean(plan.is_liked));
+  }, [plan?.is_liked]);
+
+  useEffect(() => {
+    if (plan?.like_count !== undefined) setLikeCount(plan.like_count);
+  }, [plan?.like_count]);
+
+  useEffect(() => {
+    if (plan?.comment_count !== undefined) setCommentCount(plan.comment_count);
+  }, [plan?.comment_count]);
+
   // ── Card press: navigate + record view ──────────────────────────────────
 
   const handleCardPress = useCallback((event) => {
@@ -555,6 +568,11 @@ const OpenPlanCard = ({
             <Text style={styles.engCount}>{fmt(viewCount)}</Text>
           </View>
 
+          {/* Share */}
+          <TouchableOpacity style={styles.engBtn} onPress={handleShare}>
+            <Send size={20} color="#5e8d9b" strokeWidth={2} />
+          </TouchableOpacity>
+
           {/* Bookmark/Save */}
           <TouchableOpacity style={styles.engBtn} onPress={handleInterest} disabled={isSaving}>
             <Bookmark
@@ -563,11 +581,6 @@ const OpenPlanCard = ({
               fill={isSaved ? COLORS.primary : 'transparent'}
               strokeWidth={2}
             />
-          </TouchableOpacity>
-
-          {/* Share */}
-          <TouchableOpacity style={styles.engBtn} onPress={handleShare}>
-            <Send size={20} color="#5e8d9b" strokeWidth={2} />
           </TouchableOpacity>
         </View>
 
