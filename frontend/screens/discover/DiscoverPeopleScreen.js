@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, FlatList, Platform } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Platform } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Users, ChevronRight, Lock } from "lucide-react-native";
 import { Image } from "expo-image";
@@ -176,18 +177,13 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
           </Text>
         </View>
       ) : (
-        <FlatList
+        <FlashList
           data={attendees}
           renderItem={renderPerson}
           keyExtractor={keyExtractor}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          initialNumToRender={8}
-          maxToRenderPerBatch={5}
-          windowSize={5}
-          removeClippedSubviews={Platform.OS === "android"}
-          updateCellsBatchingPeriod={50}
-          getItemLayout={getItemLayout}
+          estimatedItemSize={96}
         />
       )}
     </SafeAreaView>
