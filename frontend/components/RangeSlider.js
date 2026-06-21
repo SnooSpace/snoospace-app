@@ -28,6 +28,8 @@ const RangeSlider = ({
   const lastRightVal = useSharedValue(initialMax);
   const leftScale = useSharedValue(1);
   const rightScale = useSharedValue(1);
+  const startLeftX = useSharedValue(0);
+  const startRightX = useSharedValue(0);
 
   const range = max - min;
 
@@ -63,16 +65,21 @@ const RangeSlider = ({
     }
   };
 
+  const triggerHaptic = () => {
+    HapticsService.triggerImpactLight();
+  };
+
   const leftGesture = Gesture.Pan()
     .activeOffsetX([-10, 10]) // Prioritize horizontal movement
     .onStart(() => {
+      startLeftX.value = leftX.value;
       leftScale.value = withSpring(1.15);
     })
     .onUpdate((e) => {
       const w = containerWidth.value;
       if (w <= 0) return;
 
-      let nextX = leftX.value + e.changeX;
+      let nextX = startLeftX.value + e.translationX;
       const minPointsGap = (2 / range) * w;
       nextX = Math.max(0, Math.min(nextX, rightX.value - minPointsGap));
       leftX.value = nextX;
@@ -81,7 +88,7 @@ const RangeSlider = ({
       if (currentMin !== lastLeftVal.value) {
         lastLeftVal.value = currentMin;
         runOnJS(notifyChange)(nextX, rightX.value, w);
-        runOnJS(HapticsService.triggerImpactLight)();
+        runOnJS(triggerHaptic)();
       }
     })
     .onEnd(() => {
@@ -91,13 +98,14 @@ const RangeSlider = ({
   const rightGesture = Gesture.Pan()
     .activeOffsetX([-10, 10])
     .onStart(() => {
+      startRightX.value = rightX.value;
       rightScale.value = withSpring(1.15);
     })
     .onUpdate((e) => {
       const w = containerWidth.value;
       if (w <= 0) return;
 
-      let nextX = rightX.value + e.changeX;
+      let nextX = startRightX.value + e.translationX;
       const minPointsGap = (2 / range) * w;
       nextX = Math.max(leftX.value + minPointsGap, Math.min(nextX, w));
       rightX.value = nextX;
@@ -106,7 +114,7 @@ const RangeSlider = ({
       if (currentMax !== lastRightVal.value) {
         lastRightVal.value = currentMax;
         runOnJS(notifyChange)(leftX.value, nextX, w);
-        runOnJS(HapticsService.triggerImpactLight)();
+        runOnJS(triggerHaptic)();
       }
     })
     .onEnd(() => {
