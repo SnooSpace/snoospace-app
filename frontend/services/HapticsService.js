@@ -100,6 +100,173 @@ class HapticsService {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     }
   }
+
+  // --- Premium Semantic Haptics ---
+
+  /**
+   * 1. Back button (Arrow left) - crisp, subtle selection click
+   */
+  triggerBack() {
+    if (this.isEnabled) {
+      Haptics.selectionAsync();
+    }
+  }
+
+  /**
+   * 2. 'X' to close a modal or screen - soft, light release tap
+   */
+  triggerClose() {
+    if (this.isEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }
+
+  /**
+   * 3. Tapping on stats count in the profile screen and PublicProfile - extremely light dial-like tick
+   */
+  triggerStatsTap() {
+    if (this.isEnabled) {
+      Haptics.selectionAsync();
+    }
+  }
+
+  /**
+   * 4. Edit Profile - light impact confirmation
+   */
+  triggerEditProfile() {
+    if (this.isEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }
+
+  /**
+   * 4. Create Post - medium impact for post creation
+   */
+  triggerCreatePost() {
+    if (this.isEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+  }
+
+  /**
+   * 4. Message Send - crisp medium impact
+   */
+  triggerMessageSend() {
+    if (this.isEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+  }
+
+  /**
+   * 4. Add to Circle - success notification feedback
+   */
+  triggerAddToCircle() {
+    if (this.isEnabled) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }
+
+  /**
+   * 4. Follow - medium impact feedback
+   */
+  triggerFollow() {
+    if (this.isEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+  }
+
+  /**
+   * 5. Settings button - selection click
+   */
+  triggerSettingsPress() {
+    if (this.isEnabled) {
+      Haptics.selectionAsync();
+    }
+  }
+
+  /**
+   * 5. Save button / Save icon - medium impact for saving configurations
+   */
+  triggerSavePress() {
+    if (this.isEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+  }
+
+  /**
+   * 5. Notification icon - selection click
+   */
+  triggerNotificationPress() {
+    if (this.isEnabled) {
+      Haptics.selectionAsync();
+    }
+  }
+
+  /**
+   * 5. Chat icon button - selection click
+   */
+  triggerChatPress() {
+    if (this.isEnabled) {
+      Haptics.selectionAsync();
+    }
+  }
+
+  /**
+   * 5. Username switcher (if it has switcher modal) - light impact click
+   */
+  triggerUsernameSwitcherPress() {
+    if (this.isEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }
+
+  /**
+   * 6. Engagement tools: Like
+   * Premium heartbeat pop: rapid light impact followed by medium impact after 80ms
+   */
+  async triggerLike() {
+    if (this.isEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+  }
+
+  /**
+   * 6. Engagement tools: Comment - selection tap
+   */
+  triggerComment() {
+    if (this.isEnabled) {
+      Haptics.selectionAsync();
+    }
+  }
+
+  /**
+   * 6. Engagement tools: View - selection tap
+   */
+  triggerView() {
+    if (this.isEnabled) {
+      Haptics.selectionAsync();
+    }
+  }
+
+  /**
+   * 6. Engagement tools: Share - light impact
+   */
+  triggerShare() {
+    if (this.isEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }
+
+  /**
+   * 6. Engagement tools: Save (Bookmark) - medium impact
+   */
+  triggerSave() {
+    if (this.isEnabled) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+  }
 }
 
 // Create a singleton instance

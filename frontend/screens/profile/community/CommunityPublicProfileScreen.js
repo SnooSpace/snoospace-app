@@ -1361,7 +1361,10 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       </View>
 
       <GHPressable
-        onPress={() => navigation.goBack()}
+        onPress={() => {
+          HapticsService.triggerBack();
+          navigation.goBack();
+        }}
         style={[
           styles.backBtn,
           {
@@ -1516,12 +1519,13 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           <View style={styles.statsRow}>
             <GHPressable
               style={styles.statItem}
-              onPress={() =>
+              onPress={() => {
+                HapticsService.triggerStatsTap();
                 navigation.navigate("CommunityPublicEventsList", {
                   communityId: profile.id,
                   initialTab: "upcoming",
-                })
-              }
+                });
+              }}
             >
               <Text style={styles.statNumber}>
                 {(profile.events_scheduled_count || 0) +
@@ -1532,6 +1536,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             <GHPressable
               style={styles.statItem}
               onPress={() => {
+                HapticsService.triggerStatsTap();
                 navigation.navigate("UniversalFollowersList", {
                   userId: communityId,
                   userType: "community",
@@ -1547,6 +1552,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             <GHPressable
               style={styles.statItem}
               onPress={() => {
+                HapticsService.triggerStatsTap();
                 navigation.navigate("UniversalFollowingList", {
                   userId: communityId,
                   userType: "community",
@@ -1588,7 +1594,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   pressed && { opacity: 0.8 },
                 ]}
                 onPress={async () => {
-                  HapticsService.triggerImpactLight();
+                  HapticsService.triggerClose();
                   // Optimistic update
                   setIsFollowing(false);
                   setProfile((prev) =>
@@ -1643,7 +1649,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 gradientStyle={{ borderRadius: 16 }}
                 useGHPressable={true}
                 onPress={async () => {
-                  HapticsService.triggerImpactLight();
+                  HapticsService.triggerFollow();
                   // Optimistic update
                   setIsFollowing(true);
                   setProfile((prev) =>
@@ -1689,7 +1695,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
               useGHPressable={true}
               onPress={() => {
-                HapticsService.triggerImpactLight();
+                HapticsService.triggerMessageSend();
                 const tappedAt = global.performance ? global.performance.now() : Date.now();
                 setTimeout(() => {
                   navigation.navigate("Chat", {

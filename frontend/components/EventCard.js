@@ -440,7 +440,7 @@ export default function EventCard({
   // Engagement handlers
   const handleLikePress = async () => {
     if (isLiking) return;
-    HapticsService.triggerImpactLight();
+    HapticsService.triggerLike();
     const nextLiked = !isLiked;
     const nextCount = Math.max(0, likeCount + (nextLiked ? 1 : -1));
     setIsLiked(nextLiked);
@@ -468,7 +468,7 @@ export default function EventCard({
   };
 
   const handleSharePress = async () => {
-    HapticsService.triggerImpactLight();
+    HapticsService.triggerShare();
     if (onShare) {
       // Use the app's custom ShareModal (same as other cards)
       onShare(id);
@@ -484,7 +484,7 @@ export default function EventCard({
   };
 
   const handleCommentPress = () => {
-    HapticsService.triggerImpactLight();
+    HapticsService.triggerComment();
     if (onComment) {
       onComment(id);
     } else {
@@ -896,10 +896,14 @@ export default function EventCard({
                 <MessageCircle size={22} color="#5e8d9b" strokeWidth={2} />
                 <Text style={styles.engagementCount}>{commentCount}</Text>
               </TouchableOpacity>
-              <View style={styles.engagementBtn}>
+              <TouchableOpacity
+                style={styles.engagementBtn}
+                activeOpacity={1}
+                onPress={() => HapticsService.triggerView()}
+              >
                 <ChartNoAxesCombined size={22} color="#5e8d9b" strokeWidth={2} />
                 <Text style={styles.engagementCount}>{viewCount}</Text>
-              </View>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.engagementBtn} onPress={handleSharePress}>
                 <Send size={22} color="#5e8d9b" strokeWidth={2} />
                 <Text style={styles.engagementCount}>{shareCount}</Text>

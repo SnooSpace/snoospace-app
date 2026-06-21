@@ -67,6 +67,7 @@ import FullscreenVideoModal from "./FullscreenVideoModal";
 import FollowButton from "./FollowButton";
 import CustomAlertModal from "./ui/CustomAlertModal";
 import { viewQueueService } from "../services/ViewQueueService";
+import HapticsService from "../services/HapticsService";
 
 // Import type-specific card components for special post types
 import PollPostCard from "./posts/PollPostCard";
@@ -493,6 +494,7 @@ const EditorialPostCard = ({
 
   const handleLike = async () => {
     if (isLiking) return;
+    HapticsService.triggerLike();
 
     const prevLiked = isLiked;
     const prevLikeCount = likeCount;
@@ -536,12 +538,14 @@ const EditorialPostCard = ({
   };
 
   const handleCommentPress = () => {
+    HapticsService.triggerComment();
     if (onComment) {
       onComment(post.id);
     }
   };
 
   const handleSave = async () => {
+    HapticsService.triggerSave();
     const newSaveState = !isSaved;
     const prevSaveCount = saveCount;
     const nextSaveCount = Math.max(0, saveCount + (newSaveState ? 1 : -1));
@@ -578,6 +582,7 @@ const EditorialPostCard = ({
   };
 
   const handleShare = () => {
+    HapticsService.triggerShare();
     if (onShare) onShare(post.id);
   };
 
@@ -667,6 +672,7 @@ const EditorialPostCard = ({
 
   // ── View Stats handler ─────────────────────────────────────────────────────
   const handleViewPress = useCallback(async () => {
+    HapticsService.triggerView();
     setViewStatsVisible(true);
     Animated.spring(viewSheetAnim, {
       toValue: 1,
@@ -692,6 +698,7 @@ const EditorialPostCard = ({
   }, [post.id, post.public_view_count, post.view_count, viewSheetAnim]);
 
   const handleCloseViewStats = useCallback(() => {
+    HapticsService.triggerClose();
     Animated.timing(viewSheetAnim, {
       toValue: 0,
       duration: 220,
@@ -712,6 +719,8 @@ const EditorialPostCard = ({
     // Only like, don't unlike on double tap
     if (!isLiked && !isLiking) {
       handleLike();
+    } else {
+      HapticsService.triggerImpactLight();
     }
 
     // trigger animation

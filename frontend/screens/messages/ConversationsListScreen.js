@@ -14,6 +14,7 @@ import Reanimated, {
 } from "react-native-reanimated";
 import Svg, { Circle, Path, Rect, G } from "react-native-svg";
 import * as Haptics from "expo-haptics";
+import HapticsService from "../../services/HapticsService";
 
 import {
   ChevronDown, PenSquare, Search, Users, Trash2, LogOut, X, ArrowLeft, AlertTriangle,
@@ -697,10 +698,10 @@ export default function ConversationsListScreen({ navigation }) {
       <SafeAreaView style={styles.container}>
         {/* ── Header ── */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => { HapticsService.triggerBack(); navigation.goBack(); }}>
             <ArrowLeft size={24} color={TEXT_PRIMARY} strokeWidth={2.5} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.accountBtn} onPress={() => setShowAccountSwitcher(true)} activeOpacity={0.75}>
+          <TouchableOpacity style={styles.accountBtn} onPress={() => { HapticsService.triggerUsernameSwitcherPress(); setShowAccountSwitcher(true); }} activeOpacity={0.75}>
             <Text style={styles.accountName} numberOfLines={1}>{displayName}</Text>
             <ChevronDown size={26} color="#3B82F6" style={{ marginLeft: -2 }} />
           </TouchableOpacity>

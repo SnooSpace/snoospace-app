@@ -271,7 +271,7 @@ const OpenPlanCard = ({
 
   const handleLike = useCallback(async () => {
     if (isLiking) return;
-    HapticsService.triggerImpactLight();
+    HapticsService.triggerLike();
     const nextLiked = !isLiked;
     const nextCount = Math.max(0, likeCount + (nextLiked ? 1 : -1));
     setIsLiked(nextLiked);
@@ -290,7 +290,7 @@ const OpenPlanCard = ({
   // ── Share handler ────────────────────────────────────────────────────────
 
   const handleShare = useCallback(async () => {
-    HapticsService.triggerImpactLight();
+    HapticsService.triggerShare();
     if (onShare) {
       onShare(plan);
     } else {
@@ -305,7 +305,7 @@ const OpenPlanCard = ({
   // ── Comment handler ──────────────────────────────────────────────────────
 
   const handleComment = useCallback(() => {
-    HapticsService.triggerImpactLight();
+    HapticsService.triggerComment();
     if (onComment) {
       onComment(plan?.id);
     } else {
@@ -317,7 +317,7 @@ const OpenPlanCard = ({
 
   const handleInterest = useCallback(async () => {
     if (isSaving) return;
-    HapticsService.triggerImpactLight();
+    HapticsService.triggerSave();
     const next = !isSaved;
     setIsSaved(next);
     setIsSaving(true);
@@ -563,10 +563,14 @@ const OpenPlanCard = ({
           </TouchableOpacity>
 
           {/* Views */}
-          <View style={styles.engBtn}>
+          <TouchableOpacity
+            style={styles.engBtn}
+            activeOpacity={1}
+            onPress={() => HapticsService.triggerView()}
+          >
             <ChartNoAxesCombined size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engCount}>{fmt(viewCount)}</Text>
-          </View>
+          </TouchableOpacity>
 
           {/* Share */}
           <TouchableOpacity style={styles.engBtn} onPress={handleShare}>

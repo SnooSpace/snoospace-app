@@ -129,7 +129,13 @@ const HeaderIcon = ({ IconComponent, onPress, showDot }) => {
   }, []);
 
   const handlePress = () => {
-    HapticsService.triggerImpactLight();
+    if (IconComponent === Bell) {
+      HapticsService.triggerNotificationPress();
+    } else if (IconComponent === MessageCircle) {
+      HapticsService.triggerChatPress();
+    } else {
+      HapticsService.triggerImpactLight();
+    }
     // Micro-scale interaction
     RNAnimated.sequence([
       RNAnimated.timing(scaleAnim, {

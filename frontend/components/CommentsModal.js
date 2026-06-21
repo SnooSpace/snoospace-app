@@ -31,6 +31,7 @@ import { searchMembers } from "../api/search";
 import EventBus from "../utils/EventBus";
 import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
 import MentionInput from "./MentionInput";
+import HapticsService from "../services/HapticsService";
 
 import { COLORS as GLOBAL_COLORS, FONTS } from "../constants/theme";
 import SnooLoader from "./ui/SnooLoader";
@@ -826,7 +827,13 @@ const CommentsModal = ({
       <View style={styles.modalContent}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Comments</Text>
-          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <TouchableOpacity
+            onPress={() => {
+              HapticsService.triggerClose();
+              onClose();
+            }}
+            style={styles.closeButton}
+          >
             <X size={24} color="#111827" strokeWidth={2} />
           </TouchableOpacity>
         </View>

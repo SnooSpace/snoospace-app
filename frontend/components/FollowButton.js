@@ -10,6 +10,7 @@ import {
 import { apiPost, apiDelete } from "../api/client";
 import { getAuthToken } from "../api/auth";
 import { trackFollow } from "../utils/followTracker";
+import HapticsService from "../services/HapticsService";
 
 const COLORS = {
   primary: "#3B82F6", // Editorial accent blue
@@ -38,6 +39,7 @@ const FollowButton = ({
     if (externalLoading) return;
 
     try {
+      HapticsService.triggerFollow();
       // Just call the callback - let parent handle API calls and state management
       if (onFollowChange) {
         await onFollowChange(userId, userType, !isFollowing);

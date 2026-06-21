@@ -309,6 +309,7 @@ const OpportunityFeedCard = React.memo(({
   // ── Like handler (opportunity-specific endpoint) ──────────────────────────
   const handleLike = useCallback(async () => {
     if (isLiking) return;
+    HapticsService.triggerLike();
 
     const prevLiked = isLiked;
     const prevLikeCount = likeCount;
@@ -352,6 +353,7 @@ const OpportunityFeedCard = React.memo(({
   // ── Save handler (opportunity-specific endpoint) ──────────────────────────
   const handleSave = useCallback(async () => {
     if (isSaving) return;
+    HapticsService.triggerSave();
 
     const newSaveState = !isSaved;
     const nextSaveCount = Math.max(0, saveCount + (newSaveState ? 1 : -1));
@@ -421,6 +423,7 @@ const OpportunityFeedCard = React.memo(({
   }, [onUserPress, opportunity.creator_id, opportunity.creator_type, navigation]);
 
   const handleComment = useCallback(() => {
+    HapticsService.triggerComment();
     if (onComment) {
       onComment(opportunity.id);
     } else {
@@ -429,6 +432,7 @@ const OpportunityFeedCard = React.memo(({
   }, [onComment, opportunity.id]);
 
   const handleShare = useCallback(() => {
+    HapticsService.triggerShare();
     if (onShare) onShare(opportunity.id);
   }, [onShare, opportunity.id]);
 
@@ -824,7 +828,7 @@ const OpportunityFeedCard = React.memo(({
           </TouchableOpacity>
 
           {/* Views */}
-          <TouchableOpacity style={styles.engagementButton} activeOpacity={1} onPress={() => {}}>
+          <TouchableOpacity style={styles.engagementButton} activeOpacity={1} onPress={() => { HapticsService.triggerView(); }}>
             <ChartNoAxesCombined size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
           </TouchableOpacity>

@@ -237,6 +237,7 @@ const PromptPostCard = React.memo(({
 
   const handleLike = async () => {
     if (isLiking) return;
+    HapticsService.triggerLike();
 
     const prevLiked = isLiked;
     const prevLikeCount = likeCount;
@@ -274,6 +275,7 @@ const PromptPostCard = React.memo(({
   };
 
   const handleSave = async () => {
+    HapticsService.triggerSave();
     const newSaveState = !isSaved;
     const prevSaveCount = saveCount;
     const nextSaveCount = Math.max(0, saveCount + (newSaveState ? 1 : -1));
@@ -306,10 +308,12 @@ const PromptPostCard = React.memo(({
   };
 
   const handleCommentPress = () => {
+    HapticsService.triggerComment();
     if (onComment) onComment(post.id);
   };
 
   const handleShare = () => {
+    HapticsService.triggerShare();
     if (onShare) onShare(post.id);
   };
 
@@ -821,10 +825,14 @@ const PromptPostCard = React.memo(({
         </TouchableOpacity>
 
         {/* Views */}
-        <View style={styles.engagementButton}>
+        <TouchableOpacity
+          style={styles.engagementButton}
+          activeOpacity={1}
+          onPress={() => HapticsService.triggerView()}
+        >
           <ChartNoAxesCombined size={22} color="#5e8d9b" />
           <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
-        </View>
+        </TouchableOpacity>
 
         {/* Share */}
         <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>

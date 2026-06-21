@@ -2,7 +2,7 @@ import React from "react";
 import { StyleSheet, TouchableOpacity, Platform, View } from "react-native";
 import { ArrowLeft } from "lucide-react-native";
 import { BlurView } from "expo-blur";
-import * as Haptics from "expo-haptics";
+import hapticsService from "../services/HapticsService";
 import { COLORS } from "../constants/theme";
 
 /**
@@ -18,7 +18,7 @@ const GlassBackButton = ({
 }) => {
   const handlePress = () => {
     if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      hapticsService.triggerBack();
     }
     onPress && onPress();
   };

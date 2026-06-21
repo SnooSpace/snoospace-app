@@ -669,74 +669,70 @@ export default function SettingsScreen({ route, navigation }) {
         </ScrollView>
       </SafeAreaView>
 
-      {showAccountSwitcher && (
-        <AccountSwitcherModal
-          visible={showAccountSwitcher}
-          onClose={() => setShowAccountSwitcher(false)}
-          currentAccountId={
-            activeAccount?.id
-              ? `${activeAccount.type || "member"}_${activeAccount.id}`
-              : undefined
+      <AccountSwitcherModal
+        visible={showAccountSwitcher}
+        onClose={() => setShowAccountSwitcher(false)}
+        currentAccountId={
+          activeAccount?.id
+            ? `${activeAccount.type || "member"}_${activeAccount.id}`
+            : undefined
+        }
+        currentProfile={
+          profile
+            ? { ...profile, type: activeAccount?.type || "member" }
+            : null
+        }
+        onAccountSwitch={(account) => {
+          // Navigate to correct home screen based on account type
+          const routeName =
+            account.type === "member"
+              ? "MemberHome"
+              : account.type === "community"
+                ? "CommunityHome"
+                : account.type === "sponsor"
+                  ? "SponsorHome"
+                  : account.type === "venue"
+                    ? "VenueHome"
+                    : "Landing";
+
+          // Get the ROOT navigator (go up the parent chain)
+          let rootNavigator = navigation;
+          while (rootNavigator.getParent && rootNavigator.getParent()) {
+            rootNavigator = rootNavigator.getParent();
           }
-          currentProfile={
-            profile
-              ? { ...profile, type: activeAccount?.type || "member" }
-              : null
+
+          console.log("[AccountSwitch] Resetting to:", routeName);
+          rootNavigator.reset({
+            index: 0,
+            routes: [{ name: routeName }],
+          });
+        }}
+        onAddAccount={() => {
+          setShowAddAccountModal(true);
+        }}
+        onLoginRequired={(account) => {
+          setShowAccountSwitcher(false);
+          let rootNavigator = navigation;
+          while (rootNavigator.getParent && rootNavigator.getParent()) {
+            rootNavigator = rootNavigator.getParent();
           }
-          onAccountSwitch={(account) => {
-            // Navigate to correct home screen based on account type
-            const routeName =
-              account.type === "member"
-                ? "MemberHome"
-                : account.type === "community"
-                  ? "CommunityHome"
-                  : account.type === "sponsor"
-                    ? "SponsorHome"
-                    : account.type === "venue"
-                      ? "VenueHome"
-                      : "Landing";
+          rootNavigator.navigate("Login", {
+            isAddingAccount: true,
+            email: account.email,
+          });
+        }}
+      />
 
-            // Get the ROOT navigator (go up the parent chain)
-            let rootNavigator = navigation;
-            while (rootNavigator.getParent && rootNavigator.getParent()) {
-              rootNavigator = rootNavigator.getParent();
-            }
-
-            console.log("[AccountSwitch] Resetting to:", routeName);
-            rootNavigator.reset({
-              index: 0,
-              routes: [{ name: routeName }],
-            });
-          }}
-          onAddAccount={() => {
-            setShowAddAccountModal(true);
-          }}
-          onLoginRequired={(account) => {
-            setShowAccountSwitcher(false);
-            let rootNavigator = navigation;
-            while (rootNavigator.getParent && rootNavigator.getParent()) {
-              rootNavigator = rootNavigator.getParent();
-            }
-            rootNavigator.navigate("Login", {
-              isAddingAccount: true,
-              email: account.email,
-            });
-          }}
-        />
-      )}
-
-      {showAddAccountModal && (
-        <AddAccountModal
-          visible={showAddAccountModal}
-          onClose={() => setShowAddAccountModal(false)}
-          onLoginExisting={() => {
-            navigation.navigate("Login", { isAddingAccount: true });
-          }}
-          onCreateNew={() => {
-            navigation.navigate("Landing", { fromSwitcher: true });
-          }}
-        />
-      )}
+      <AddAccountModal
+        visible={showAddAccountModal}
+        onClose={() => setShowAddAccountModal(false)}
+        onLoginExisting={() => {
+          navigation.navigate("Login", { isAddingAccount: true });
+        }}
+        onCreateNew={() => {
+          navigation.navigate("Landing", { fromSwitcher: true });
+        }}
+      />
 
       {/* ── Creator Mode first-time onboarding modal ── */}
       {showCreatorOnboarding && (

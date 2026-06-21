@@ -17,6 +17,7 @@ import { BlurView } from "expo-blur";
 import { X } from "lucide-react-native";
 import PropTypes from "prop-types";
 import { COLORS, FONTS } from "../../constants/theme";
+import hapticsService from "../../services/HapticsService";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -124,7 +125,10 @@ export default function AddAccountModal({
                   styles.closeButton,
                   { opacity: pressed ? 0.6 : 1 },
                 ]}
-                onPress={onClose}
+                onPress={() => {
+                  hapticsService.triggerClose();
+                  onClose();
+                }}
               >
                 <X size={20} color="#0F172A" strokeWidth={2.2} />
               </GHPressable>

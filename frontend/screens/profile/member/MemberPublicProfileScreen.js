@@ -749,7 +749,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <GHPressable
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              HapticsService.triggerBack();
+              navigation.goBack();
+            }}
             style={styles.backBtn}
           >
             <ArrowLeft size={24} color={COLORS.textPrimary} />
@@ -991,6 +994,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               <GHPressable
                 style={styles.statItem}
                 onPress={() => {
+                  HapticsService.triggerStatsTap();
                   setActiveProfileTab('events');
                   if (!eventsFetchedRef.current) {
                     eventsFetchedRef.current = true;
@@ -1005,11 +1009,14 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               </GHPressable>
               <GHPressable
                 style={styles.statItem}
-                onPress={() => navigation.navigate('CircleList', {
-                  memberId: profile?.id,
-                  memberName: profile?.full_name,
-                  readOnly: true,
-                })}
+                onPress={() => {
+                  HapticsService.triggerStatsTap();
+                  navigation.navigate('CircleList', {
+                    memberId: profile?.id,
+                    memberName: profile?.full_name,
+                    readOnly: true,
+                  });
+                }}
               >
                 <Text style={styles.statNumber}>
                   {circleCount}
@@ -1018,10 +1025,13 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               </GHPressable>
               <GHPressable
                 style={styles.statItem}
-                onPress={() => navigation.navigate('FollowingList', {
-                  memberId: profile?.id,
-                  title: 'Following',
-                })}
+                onPress={() => {
+                  HapticsService.triggerStatsTap();
+                  navigation.navigate('FollowingList', {
+                    memberId: profile?.id,
+                    title: 'Following',
+                  });
+                }}
               >
                 <Text style={styles.statNumber}>
                   {profile?.following_count || 0}
@@ -1167,7 +1177,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                         await respondToCircleRequest(circleRequestId, 'accepted');
                         setCircleStatus('in_circle');
                         setCircleCount((c) => c + 1);
-                        HapticsService.triggerImpactMedium();
+                        HapticsService.triggerAddToCircle();
                       } catch (e) {
                         loadCircleStatus();
                       } finally { setCircleActionLoading(false); }
@@ -1185,7 +1195,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                         await respondToCircleRequest(circleRequestId, 'declined');
                         setCircleStatus('none');
                         setCircleRequestId(null);
-                        HapticsService.triggerImpactLight();
+                        HapticsService.triggerClose();
                       } catch (e) {
                         loadCircleStatus();
                       } finally { setCircleActionLoading(false); }
@@ -1215,7 +1225,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                         setCircleStatus('pending_outgoing');
                         setCircleRequestId(res?.request_id || null);
                       }
-                      HapticsService.triggerImpactMedium();
+                      HapticsService.triggerAddToCircle();
                     } catch (e) {
                       loadCircleStatus();
                     } finally { setCircleActionLoading(false); }
@@ -1232,7 +1242,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
                 useGHPressable={true}
                 onPress={() => {
-                  HapticsService.triggerImpactLight();
+                  HapticsService.triggerMessageSend();
                   const tappedAt = global.performance ? global.performance.now() : Date.now();
                   setTimeout(() => {
                     navigation.navigate("Chat", {

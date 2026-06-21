@@ -158,6 +158,7 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
 
   const handleLike = async () => {
     if (isLiking) return;
+    HapticsService.triggerLike();
     const prevLiked = isLiked;
     const prevLikeCount = likeCount;
     const nextLiked = !prevLiked;
@@ -190,6 +191,7 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
   };
 
   const handleSave = async () => {
+    HapticsService.triggerSave();
     const newSaveState = !isSaved;
     const prevSaveCount = saveCount;
     const nextSaveCount = Math.max(0, saveCount + (newSaveState ? 1 : -1));
@@ -217,12 +219,14 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
   };
 
   const handleCommentPress = () => {
+    HapticsService.triggerComment();
     if (onComment) {
       onComment(post.id);
     }
   };
 
   const handleShare = () => {
+    HapticsService.triggerShare();
     setShareModalVisible(true);
   };
 
@@ -309,7 +313,10 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
         </Pressable>
 
         {/* Views */}
-        <Pressable style={cardStyles.engagementButton}>
+        <Pressable
+          style={cardStyles.engagementButton}
+          onPress={() => HapticsService.triggerView()}
+        >
           <ChartNoAxesCombined
             size={20}
             strokeWidth={2}

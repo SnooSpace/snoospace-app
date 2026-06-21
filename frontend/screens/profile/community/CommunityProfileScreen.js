@@ -18,8 +18,16 @@ import {
   Linking,
   Pressable,
 } from "react-native";
-import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
-import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
+import Reanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
+import {
+  Pressable as GHPressable,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
 import { Image as ExpoImage } from "expo-image";
 import {
   SafeAreaView,
@@ -73,7 +81,15 @@ import {
   deleteDraft as deleteDraftUtil,
   formatLastSaved,
 } from "../../../utils/draftStorage";
-import { apiGet, apiPost, apiDelete, pinPost, unpinPost, pinOpportunity, unpinOpportunity } from "../../../api/client";
+import {
+  apiGet,
+  apiPost,
+  apiDelete,
+  pinPost,
+  unpinPost,
+  pinOpportunity,
+  unpinOpportunity,
+} from "../../../api/client";
 import {
   getCommunityProfile,
   updateCommunityProfile,
@@ -129,7 +145,9 @@ import EmptyEventsState from "../../../components/EmptyEventsState";
 import CreateEventModal from "../../../components/modals/CreateEventModal";
 import ActionModal from "../../../components/modals/ActionModal";
 import { useToast } from "../../../context/ToastContext";
-import CommunityVoiceBox, { VoicePostCard } from "../../../components/CommunityVoiceBox";
+import CommunityVoiceBox, {
+  VoicePostCard,
+} from "../../../components/CommunityVoiceBox";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
@@ -150,451 +168,488 @@ const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = "#0F172A"; // Slate 900
 const LIGHT_TEXT_COLOR = "#6B7280"; // Slate 500
 
-const CommunityProfileHeaderBioSection = React.memo(({
-  profile,
-  insets,
-  bannerUploading,
-  onBannerAction,
-  onShowAccountSwitcher,
-  onShowCollegeHub,
-  onShowSettings,
-  onShowBookmark,
-}) => {
-  return (
-    <>
-      {/* Banner - only render if banner exists */}
-      {profile.banner_url && (
-        <View style={styles.bannerContainer}>
-          <Image
-            source={{ uri: profile.banner_url }}
-            style={styles.bannerImage}
-          />
-          {/* Blur + Dim Overlay for mood effect */}
-          <BlurView intensity={15} tint="dark" style={styles.bannerOverlay} />
-          <TouchableOpacity
-            style={styles.bannerEdit}
-            onPress={onBannerAction}
-          >
-            {bannerUploading ? (
-              <SnooLoader size="small" color="#fff" />
-            ) : (
-              <Camera size={20} color="#fff" />
-            )}
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <View
-        style={[
-          styles.summarySection,
-          !profile.banner_url && { paddingTop: insets.top + 60 },
-          { position: "relative" }
-        ]}
-      >
-        {/* Render Settings and Bookmark/Saved icons below the banner on the right side */}
+const CommunityProfileHeaderBioSection = React.memo(
+  ({
+    profile,
+    insets,
+    bannerUploading,
+    onBannerAction,
+    onShowAccountSwitcher,
+    onShowCollegeHub,
+    onShowSettings,
+    onShowBookmark,
+  }) => {
+    return (
+      <>
+        {/* Banner - only render if banner exists */}
         {profile.banner_url && (
-          <View style={styles.settingsIconsRowAbsolute}>
-            <GHPressable
-              style={styles.settingsIconInline}
-              onPress={onShowBookmark}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          <View style={styles.bannerContainer}>
+            <Image
+              source={{ uri: profile.banner_url }}
+              style={styles.bannerImage}
+            />
+            {/* Blur + Dim Overlay for mood effect */}
+            <BlurView intensity={15} tint="dark" style={styles.bannerOverlay} />
+            <TouchableOpacity
+              style={styles.bannerEdit}
+              onPress={onBannerAction}
             >
-              <Bookmark size={22} color="#475569" strokeWidth={2.2} />
-            </GHPressable>
-            <GHPressable
-              style={styles.settingsIconInline}
-              onPress={onShowSettings}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Settings size={22} color="#475569" strokeWidth={2.2} />
-            </GHPressable>
+              {bannerUploading ? (
+                <SnooLoader size="small" color="#fff" />
+              ) : (
+                <Camera size={20} color="#fff" />
+              )}
+            </TouchableOpacity>
           </View>
         )}
+
         <View
           style={[
-            styles.profileHeader,
-            !profile.banner_url && styles.profileHeaderNoBanner,
+            styles.summarySection,
+            !profile.banner_url && { paddingTop: insets.top + 60 },
+            { position: "relative" },
           ]}
         >
-          <View style={styles.avatarWrapper}>
-            {profile.logo_url && /^https?:\/\//.test(profile.logo_url) ? (
-              <Image
-                source={{ uri: profile.logo_url }}
-                style={styles.avatar}
-              />
-            ) : (
-              <LinearGradient
-                colors={getGradientForName(profile.name)}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[
-                  styles.avatar,
-                  { justifyContent: "center", alignItems: "center" },
-                ]}
+          {/* Render Settings and Bookmark/Saved icons below the banner on the right side */}
+          {profile.banner_url && (
+            <View style={styles.settingsIconsRowAbsolute}>
+              <GHPressable
+                style={styles.settingsIconInline}
+                onPress={onShowBookmark}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
-                <Text
-                  style={{ fontSize: 36, fontWeight: "bold", color: "#fff" }}
-                >
-                  {getInitials(profile.name)}
-                </Text>
-              </LinearGradient>
-            )}
-          </View>
-          {/* Identity Block: Name → Username (with dropdown) → Categories → Bio */}
-          <Text style={styles.communityName}>{profile.name}</Text>
-          <TouchableOpacity
-            style={styles.usernameRow}
-            onPress={onShowAccountSwitcher}
+                <Bookmark size={22} color="#475569" strokeWidth={2.2} />
+              </GHPressable>
+              <GHPressable
+                style={styles.settingsIconInline}
+                onPress={onShowSettings}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Settings size={22} color="#475569" strokeWidth={2.2} />
+              </GHPressable>
+            </View>
+          )}
+          <View
+            style={[
+              styles.profileHeader,
+              !profile.banner_url && styles.profileHeaderNoBanner,
+            ]}
           >
-            <View style={{ width: 26 }} />
-            <Text style={styles.usernameText}>
-              {profile.username ? `@${profile.username}` : ""}
-            </Text>
-            <ChevronDown
-              size={26}
-              color="#3B82F6"
-              style={{ marginLeft: 2 }}
-            />
-          </TouchableOpacity>
-          {Array.isArray(profile.categories) &&
-            profile.categories.length > 0 && (
-              <View style={styles.categoriesRow}>
-                {profile.categories.map((cat, idx) => (
-                  <ThemeChip key={cat} label={cat} index={idx} />
-                ))}
+            <View style={styles.avatarWrapper}>
+              {profile.logo_url && /^https?:\/\//.test(profile.logo_url) ? (
+                <Image
+                  source={{ uri: profile.logo_url }}
+                  style={styles.avatar}
+                />
+              ) : (
+                <LinearGradient
+                  colors={getGradientForName(profile.name)}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[
+                    styles.avatar,
+                    { justifyContent: "center", alignItems: "center" },
+                  ]}
+                >
+                  <Text
+                    style={{ fontSize: 36, fontWeight: "bold", color: "#fff" }}
+                  >
+                    {getInitials(profile.name)}
+                  </Text>
+                </LinearGradient>
+              )}
+            </View>
+            {/* Identity Block: Name → Username (with dropdown) → Categories → Bio */}
+            <Text style={styles.communityName}>{profile.name}</Text>
+            <TouchableOpacity
+              style={styles.usernameRow}
+              onPress={onShowAccountSwitcher}
+            >
+              <View style={{ width: 26 }} />
+              <Text style={styles.usernameText}>
+                {profile.username ? `@${profile.username}` : ""}
+              </Text>
+              <ChevronDown
+                size={26}
+                color="#3B82F6"
+                style={{ marginLeft: 2 }}
+              />
+            </TouchableOpacity>
+            {Array.isArray(profile.categories) &&
+              profile.categories.length > 0 && (
+                <View style={styles.categoriesRow}>
+                  {profile.categories.map((cat, idx) => (
+                    <ThemeChip key={cat} label={cat} index={idx} />
+                  ))}
+                </View>
+              )}
+
+            {/* College Chip — shown for college-affiliated communities */}
+            {profile.college_info && (
+              <View style={{ marginTop: 8 }}>
+                <CollegeChip
+                  collegeInfo={profile.college_info}
+                  onPress={onShowCollegeHub}
+                />
               </View>
             )}
 
-          {/* College Chip — shown for college-affiliated communities */}
-          {profile.college_info && (
-            <View style={{ marginTop: 8 }}>
-              <CollegeChip
-                collegeInfo={profile.college_info}
-                onPress={onShowCollegeHub}
-              />
-            </View>
-          )}
-
-          {!!profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
-        </View>
-      </View>
-    </>
-  );
-});
-
-const CommunityProfileHostsAndSponsors = React.memo(({
-  profile,
-  onHeadPress,
-  onShowHeadsMenu,
-  navigation,
-}) => {
-  return (
-    <View style={styles.summarySection}>
-      {profile.show_heads !== false && (
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {profile.heads && profile.heads.length > 1
-                ? "Meet the Hosts"
-                : "Meet the Host"}
-            </Text>
-
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <TouchableOpacity onPress={() => {
-                HapticsService.triggerImpactLight();
-                navigation.navigate("CommunityHosts", {
-                  initialHeads: profile?.heads || [],
-                  maxHeads: 5,
-                });
-              }}>
-                <Pencil size={20} color={PRIMARY_COLOR} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={onShowHeadsMenu}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <MoreHorizontal size={20} color={LIGHT_TEXT_COLOR} />
-              </TouchableOpacity>
-            </View>
+            {!!profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
           </View>
-          {profile.heads && profile.heads.length > 0 ? (
-            <View style={{ paddingVertical: 4 }}>
-              {profile.heads.map((head, index) => {
-                const isClickable = !!head.member_id || !!head.email || !!head.phone;
-                return (
-                  <TouchableOpacity
-                    key={head.id || index}
-                    onPress={() => onHeadPress(head)}
-                    disabled={!isClickable}
-                    style={[
-                      styles.headRow,
-                      !isClickable && { opacity: 0.85 },
-                    ]}
-                  >
-                    {head.profile_pic_url ? (
-                      <Image
-                        source={{
-                          uri: head.profile_pic_url,
-                        }}
-                        style={styles.headAvatar}
-                      />
-                    ) : (
-                      <LinearGradient
-                        colors={getGradientForName(head.name || "Head")}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={[
-                          styles.headAvatar,
-                          { justifyContent: "center", alignItems: "center" },
-                        ]}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 18,
-                            fontWeight: "bold",
-                            color: "#fff",
+        </View>
+      </>
+    );
+  },
+);
+
+const CommunityProfileHostsAndSponsors = React.memo(
+  ({ profile, onHeadPress, onShowHeadsMenu, navigation }) => {
+    return (
+      <View style={styles.summarySection}>
+        {profile.show_heads !== false && (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {profile.heads && profile.heads.length > 1
+                  ? "Meet the Hosts"
+                  : "Meet the Host"}
+              </Text>
+
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
+                <TouchableOpacity
+                  onPress={() => {
+                    HapticsService.triggerImpactLight();
+                    navigation.navigate("CommunityHosts", {
+                      initialHeads: profile?.heads || [],
+                      maxHeads: 5,
+                    });
+                  }}
+                >
+                  <Pencil size={20} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={onShowHeadsMenu}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <MoreHorizontal size={20} color={LIGHT_TEXT_COLOR} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            {profile.heads && profile.heads.length > 0 ? (
+              <View style={{ paddingVertical: 4 }}>
+                {profile.heads.map((head, index) => {
+                  const isClickable =
+                    !!head.member_id || !!head.email || !!head.phone;
+                  return (
+                    <TouchableOpacity
+                      key={head.id || index}
+                      onPress={() => onHeadPress(head)}
+                      disabled={!isClickable}
+                      style={[
+                        styles.headRow,
+                        !isClickable && { opacity: 0.85 },
+                      ]}
+                    >
+                      {head.profile_pic_url ? (
+                        <Image
+                          source={{
+                            uri: head.profile_pic_url,
                           }}
+                          style={styles.headAvatar}
+                        />
+                      ) : (
+                        <LinearGradient
+                          colors={getGradientForName(head.name || "Head")}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={[
+                            styles.headAvatar,
+                            { justifyContent: "center", alignItems: "center" },
+                          ]}
                         >
-                          {getInitials(head.name || "H")}
-                        </Text>
-                      </LinearGradient>
-                    )}
-                    <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={styles.headName}>{head.name}</Text>
-                      {(head.email || head.phone) ? (
-                        <Text style={styles.headSub} numberOfLines={1}>
-                          {[head.email, head.phone].filter(Boolean).join("  •  ")}
-                        </Text>
-                      ) : null}
-                    </View>
-                    {isClickable && (
-                      <ChevronRight size={20} color={LIGHT_TEXT_COLOR} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          ) : (
-            <Text style={styles.emptyText}>No hosts added yet</Text>
-          )}
-        </View>
-      )}
-
-      {profile.show_heads === false && (
-        <View style={[styles.sectionCard, { borderColor: "rgba(0,0,0,0.05)" }]}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {profile.heads && profile.heads.length > 1
-                ? "Meet the Hosts"
-                : "Meet the Host"}
-            </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-              <TouchableOpacity onPress={() => {
-                HapticsService.triggerImpactLight();
-                navigation.navigate("CommunityHosts", {
-                  initialHeads: profile?.heads || [],
-                  maxHeads: 5,
-                });
-              }}>
-                <Pencil size={20} color={PRIMARY_COLOR} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={onShowHeadsMenu}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <MoreHorizontal size={20} color={LIGHT_TEXT_COLOR} />
-              </TouchableOpacity>
-            </View>
+                          <Text
+                            style={{
+                              fontSize: 18,
+                              fontWeight: "bold",
+                              color: "#fff",
+                            }}
+                          >
+                            {getInitials(head.name || "H")}
+                          </Text>
+                        </LinearGradient>
+                      )}
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text style={styles.headName}>{head.name}</Text>
+                        {head.email || head.phone ? (
+                          <Text style={styles.headSub} numberOfLines={1}>
+                            {[head.email, head.phone]
+                              .filter(Boolean)
+                              .join("  •  ")}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {isClickable && (
+                        <ChevronRight size={20} color={LIGHT_TEXT_COLOR} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={styles.emptyText}>No hosts added yet</Text>
+            )}
           </View>
-          <View style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 8,
-            backgroundColor: "rgba(245, 158, 11, 0.08)",
-            borderRadius: 12,
-            paddingHorizontal: 12,
-            paddingVertical: 10,
-          }}>
-            <EyeOff size={15} color="#B45309" strokeWidth={2} />
-            <Text style={{
-              fontFamily: FONTS.regular,
-              fontSize: 13,
-              color: "#B45309",
-              flex: 1,
-            }}>
-              This section is hidden from your public profile
-            </Text>
-          </View>
-        </View>
-      )}
+        )}
 
-      {profile.sponsor_types && profile.sponsor_types.length > 0 && (
-        <View style={styles.sectionCard}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Looking for Sponsors</Text>
-          </View>
-          <View style={styles.sponsorTypesList}>
-            {profile.sponsor_types.map((type, index) => (
-              <ThemeChip
-                key={index}
-                label={type}
-                index={index}
-              />
-            ))}
-          </View>
-        </View>
-      )}
-    </View>
-  );
-});
-
-const CommunityPostGridCell = React.memo(({ item, itemSize, onPress, onLongPress }) => {
-  const scale = useSharedValue(1);
-
-  const animatedScaleStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: scale.value }],
-    };
-  });
-
-  const gap = 2;
-  let firstImageUrl = null;
-  if (item?.image_urls) {
-    if (Array.isArray(item.image_urls)) {
-      const flatUrls = item.image_urls.flat();
-      firstImageUrl = flatUrls.find(
-        (u) => typeof u === "string" && u.startsWith("http"),
-      );
-    } else if (
-      typeof item.image_urls === "string" &&
-      item.image_urls.startsWith("http")
-    ) {
-      firstImageUrl = item.image_urls;
-    }
-  }
-
-  const isVideo =
-    !!item.video_url ||
-    (firstImageUrl &&
-      (firstImageUrl.toLowerCase().includes(".mp4") ||
-        firstImageUrl.toLowerCase().includes(".mov") ||
-        firstImageUrl.toLowerCase().includes(".webm")));
-
-  let mediaUrl = null;
-  if (item.video_thumbnail) {
-    try {
-      if (
-        typeof item.video_thumbnail === "string" &&
-        item.video_thumbnail.startsWith("[")
-      ) {
-        const parsed = JSON.parse(item.video_thumbnail);
-        mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
-      } else {
-        mediaUrl = item.video_thumbnail;
-      }
-    } catch (e) {
-      mediaUrl = item.video_thumbnail;
-    }
-  }
-  const videoSourceUrl = firstImageUrl || item.video_url;
-  if (
-    !mediaUrl &&
-    isVideo &&
-    videoSourceUrl &&
-    videoSourceUrl.includes("cloudinary.com")
-  ) {
-    mediaUrl = videoSourceUrl
-      .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
-      .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
-  }
-  if (!mediaUrl) {
-    mediaUrl = videoSourceUrl;
-  }
-
-  return (
-    <Pressable
-      style={{
-        width: itemSize,
-        height: itemSize * 1.35,
-        marginBottom: 0,
-        marginRight: 0,
-      }}
-      onPressIn={() => {
-        scale.value = withSpring(0.95, { damping: 10, stiffness: 150 });
-      }}
-      onPressOut={() => {
-        scale.value = withSpring(1, { damping: 10, stiffness: 150 });
-      }}
-      onPress={() => onPress(item)}
-      onLongPress={() => onLongPress(item)}
-      delayLongPress={400}
-    >
-      <Reanimated.View style={[{ width: "100%", height: "100%", overflow: "hidden", borderRadius: 3 }, animatedScaleStyle]}>
-        {item.is_pinned && (
+        {profile.show_heads === false && (
           <View
-            style={{
-              position: "absolute",
-              top: 6,
-              left: 6,
-              zIndex: 10,
-              backgroundColor: "rgba(255, 255, 255, 0.22)",
-              borderRadius: 10,
-              padding: 5,
-              borderWidth: 0.6,
-              borderColor: "rgba(255, 255, 255, 0.5)",
-              overflow: "visible",
-            }}
+            style={[styles.sectionCard, { borderColor: "rgba(0,0,0,0.05)" }]}
           >
-            <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
-              <Pin size={10} color="#10B981" strokeWidth={2.5} fill="#10B981" />
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {profile.heads && profile.heads.length > 1
+                  ? "Meet the Hosts"
+                  : "Meet the Host"}
+              </Text>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
+                <TouchableOpacity
+                  onPress={() => {
+                    HapticsService.triggerImpactLight();
+                    navigation.navigate("CommunityHosts", {
+                      initialHeads: profile?.heads || [],
+                      maxHeads: 5,
+                    });
+                  }}
+                >
+                  <Pencil size={20} color={PRIMARY_COLOR} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={onShowHeadsMenu}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <MoreHorizontal size={20} color={LIGHT_TEXT_COLOR} />
+                </TouchableOpacity>
+              </View>
+            </View>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 8,
+                backgroundColor: "rgba(245, 158, 11, 0.08)",
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+              }}
+            >
+              <EyeOff size={15} color="#B45309" strokeWidth={2} />
+              <Text
+                style={{
+                  fontFamily: FONTS.regular,
+                  fontSize: 13,
+                  color: "#B45309",
+                  flex: 1,
+                }}
+              >
+                This section is hidden from your public profile
+              </Text>
             </View>
           </View>
         )}
 
-        {mediaUrl ? (
-          <>
-            <ExpoImage
-              source={{ uri: mediaUrl }}
+        {profile.sponsor_types && profile.sponsor_types.length > 0 && (
+          <View style={styles.sectionCard}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Looking for Sponsors</Text>
+            </View>
+            <View style={styles.sponsorTypesList}>
+              {profile.sponsor_types.map((type, index) => (
+                <ThemeChip key={index} label={type} index={index} />
+              ))}
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  },
+);
+
+const CommunityPostGridCell = React.memo(
+  ({ item, itemSize, onPress, onLongPress }) => {
+    const scale = useSharedValue(1);
+
+    const animatedScaleStyle = useAnimatedStyle(() => {
+      return {
+        transform: [{ scale: scale.value }],
+      };
+    });
+
+    const gap = 2;
+    let firstImageUrl = null;
+    if (item?.image_urls) {
+      if (Array.isArray(item.image_urls)) {
+        const flatUrls = item.image_urls.flat();
+        firstImageUrl = flatUrls.find(
+          (u) => typeof u === "string" && u.startsWith("http"),
+        );
+      } else if (
+        typeof item.image_urls === "string" &&
+        item.image_urls.startsWith("http")
+      ) {
+        firstImageUrl = item.image_urls;
+      }
+    }
+
+    const isVideo =
+      !!item.video_url ||
+      (firstImageUrl &&
+        (firstImageUrl.toLowerCase().includes(".mp4") ||
+          firstImageUrl.toLowerCase().includes(".mov") ||
+          firstImageUrl.toLowerCase().includes(".webm")));
+
+    let mediaUrl = null;
+    if (item.video_thumbnail) {
+      try {
+        if (
+          typeof item.video_thumbnail === "string" &&
+          item.video_thumbnail.startsWith("[")
+        ) {
+          const parsed = JSON.parse(item.video_thumbnail);
+          mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
+        } else {
+          mediaUrl = item.video_thumbnail;
+        }
+      } catch (e) {
+        mediaUrl = item.video_thumbnail;
+      }
+    }
+    const videoSourceUrl = firstImageUrl || item.video_url;
+    if (
+      !mediaUrl &&
+      isVideo &&
+      videoSourceUrl &&
+      videoSourceUrl.includes("cloudinary.com")
+    ) {
+      mediaUrl = videoSourceUrl
+        .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+        .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+    }
+    if (!mediaUrl) {
+      mediaUrl = videoSourceUrl;
+    }
+
+    return (
+      <Pressable
+        style={{
+          width: itemSize,
+          height: itemSize * 1.35,
+          marginBottom: 0,
+          marginRight: 0,
+        }}
+        onPressIn={() => {
+          scale.value = withSpring(0.95, { damping: 10, stiffness: 150 });
+        }}
+        onPressOut={() => {
+          scale.value = withSpring(1, { damping: 10, stiffness: 150 });
+        }}
+        onPress={() => onPress(item)}
+        onLongPress={() => onLongPress(item)}
+        delayLongPress={400}
+      >
+        <Reanimated.View
+          style={[
+            {
+              width: "100%",
+              height: "100%",
+              overflow: "hidden",
+              borderRadius: 3,
+            },
+            animatedScaleStyle,
+          ]}
+        >
+          {item.is_pinned && (
+            <View
+              style={{
+                position: "absolute",
+                top: 6,
+                left: 6,
+                zIndex: 10,
+                backgroundColor: "rgba(255, 255, 255, 0.22)",
+                borderRadius: 10,
+                padding: 5,
+                borderWidth: 0.6,
+                borderColor: "rgba(255, 255, 255, 0.5)",
+                overflow: "visible",
+              }}
+            >
+              <View
+                style={{
+                  transform: [{ rotate: "27deg" }],
+                  overflow: "visible",
+                }}
+              >
+                <Pin
+                  size={10}
+                  color="#10B981"
+                  strokeWidth={2.5}
+                  fill="#10B981"
+                />
+              </View>
+            </View>
+          )}
+
+          {mediaUrl ? (
+            <>
+              <ExpoImage
+                source={{ uri: mediaUrl }}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  backgroundColor: "#E5E5EA",
+                }}
+                cachePolicy="memory-disk"
+                contentFit="cover"
+              />
+              {isVideo && (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 8,
+                    right: 8,
+                    backgroundColor: "rgba(0,0,0,0.5)",
+                    borderRadius: 12,
+                    padding: 4,
+                  }}
+                >
+                  <Play size={16} color="#FFF" fill="#FFF" />
+                </View>
+              )}
+            </>
+          ) : (
+            <View
               style={{
                 width: "100%",
                 height: "100%",
                 backgroundColor: "#E5E5EA",
+                justifyContent: "center",
+                alignItems: "center",
               }}
-              cachePolicy="memory-disk"
-              contentFit="cover"
-            />
-            {isVideo && (
-              <View
-                style={{
-                  position: "absolute",
-                  top: 8,
-                  right: 8,
-                  backgroundColor: "rgba(0,0,0,0.5)",
-                  borderRadius: 12,
-                  padding: 4,
-                }}
-              >
-                <Play size={16} color="#FFF" fill="#FFF" />
-              </View>
-            )}
-          </>
-        ) : (
-          <View
-            style={{
-              width: "100%",
-              height: "100%",
-              backgroundColor: "#E5E5EA",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <LucideImage size={30} color={COLORS.textSecondary || "#8E8E93"} />
-          </View>
-        )}
-      </Reanimated.View>
-    </Pressable>
-  );
-});
+            >
+              <LucideImage
+                size={30}
+                color={COLORS.textSecondary || "#8E8E93"}
+              />
+            </View>
+          )}
+        </Reanimated.View>
+      </Pressable>
+    );
+  },
+);
 
 export default function CommunityProfileScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
@@ -608,20 +663,28 @@ export default function CommunityProfileScreen({ navigation, route }) {
   const [showHeadsModal, setShowHeadsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
-
-  useEffect(() => {
-    if (showAccountSwitcher || showAddAccountModal) {
-      navigation.getParent()?.setOptions({
-        tabBarStyle: { display: "none" },
-      });
-    } else {
-      navigation.getParent()?.setOptions({
-        tabBarStyle: undefined,
-      });
-    }
-  }, [showAccountSwitcher, showAddAccountModal, navigation]);
-
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      console.log("[CommunityProfileScreen] useFocusEffect run:", {
+        showAccountSwitcher,
+        showAddAccountModal,
+        hasParent: !!navigation.getParent(),
+      });
+      if (showAccountSwitcher || showAddAccountModal) {
+        console.log("[CommunityProfileScreen] Hiding tab bar");
+        navigation.getParent()?.setOptions({
+          tabBarStyle: { display: "none" },
+        });
+      } else {
+        console.log("[CommunityProfileScreen] Showing/restoring tab bar");
+        navigation.getParent()?.setOptions({
+          tabBarStyle: undefined,
+        });
+      }
+    }, [showAccountSwitcher, showAddAccountModal, navigation]),
+  );
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutModalData, setLogoutModalData] = useState({
     hasMultiple: false,
@@ -662,7 +725,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
       );
       setVoicePosts(res?.posts || []);
     } catch (e) {
-      console.warn('[CommunityProfile] loadVoicePosts error:', e);
+      console.warn("[CommunityProfile] loadVoicePosts error:", e);
     } finally {
       setLoadingVoicePosts(false);
     }
@@ -680,7 +743,12 @@ export default function CommunityProfileScreen({ navigation, route }) {
       }
       navigation.setParams({ initialTab: undefined, postId: undefined });
     }
-  }, [route?.params?.initialTab, route?.params?.postId, loadCommunityVoicePosts, navigation]);
+  }, [
+    route?.params?.initialTab,
+    route?.params?.postId,
+    loadCommunityVoicePosts,
+    navigation,
+  ]);
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
     postId: null,
@@ -765,37 +833,49 @@ export default function CommunityProfileScreen({ navigation, route }) {
   // Handle actions triggered from SettingsScreen via EventBus
   useEffect(() => {
     const handleSettingsAction = ({ action } = {}) => {
-      if (action === 'logout') {
+      if (action === "logout") {
         handleLogout();
-      } else if (action === 'add_account') {
+      } else if (action === "add_account") {
         setShowAddAccountModal(true);
-      } else if (action === 'switch_account') {
+      } else if (action === "switch_account") {
         setShowAccountSwitcher(true);
-      } else if (action === 'my_activity') {
-        navigation.navigate('MyDataScreen');
+      } else if (action === "my_activity") {
+        navigation.navigate("MyDataScreen");
       }
     };
-    const unsub = EventBus.on('settings:action', handleSettingsAction);
-    return () => { if (unsub) unsub(); };
+    const unsub = EventBus.on("settings:action", handleSettingsAction);
+    return () => {
+      if (unsub) unsub();
+    };
   }, [navigation]);
 
   // Keep profile.instagram_username in sync when user links/unlinks from LinkedAccountsScreen
   useEffect(() => {
-    const unsub = EventBus.on('instagram:updated', ({ username }) => {
-      setProfile((prev) => prev ? { ...prev, instagram_username: username || null } : prev);
+    const unsub = EventBus.on("instagram:updated", ({ username }) => {
+      setProfile((prev) =>
+        prev ? { ...prev, instagram_username: username || null } : prev,
+      );
     });
-    return () => { if (unsub) unsub(); };
+    return () => {
+      if (unsub) unsub();
+    };
   }, []);
 
   // Keep profile in sync when user updates sponsorship preferences
   useEffect(() => {
-    const unsub = EventBus.on('profile:updated', ({ profile: updatedProfile }) => {
-      setProfile(updatedProfile);
-    });
-    return () => { if (unsub) unsub(); };
+    const unsub = EventBus.on(
+      "profile:updated",
+      ({ profile: updatedProfile }) => {
+        setProfile(updatedProfile);
+      },
+    );
+    return () => {
+      if (unsub) unsub();
+    };
   }, []);
 
   const handleShowAccountSwitcher = useCallback(() => {
+    HapticsService.triggerUsernameSwitcherPress();
     setShowAccountSwitcher(true);
   }, []);
 
@@ -810,45 +890,54 @@ export default function CommunityProfileScreen({ navigation, route }) {
   const MAX_PINS = 3;
 
   // Community-tab post types (Poll, Prompt, QnA, Challenge, Opportunity)
-  const COMMUNITY_TAB_TYPES = ["poll", "prompt", "qna", "challenge", "opportunity"];
+  const COMMUNITY_TAB_TYPES = [
+    "poll",
+    "prompt",
+    "qna",
+    "challenge",
+    "opportunity",
+  ];
   const isCommunityTabPost = (p) =>
     COMMUNITY_TAB_TYPES.includes(p.post_type || p.type);
 
-  const handlePinToggle = useCallback((post, isDirect = false) => {
-    HapticsService.triggerImpactLight();
+  const handlePinToggle = useCallback(
+    (post, isDirect = false) => {
+      HapticsService.triggerImpactLight();
 
-    if (isDirect) {
-      handlePinToggleConfirm(post);
-      return;
-    }
+      if (isDirect) {
+        handlePinToggleConfirm(post);
+        return;
+      }
 
-    // If unpinning, no limit check needed
-    if (post.is_pinned) {
-      setOldestPinnedPost(null);
+      // If unpinning, no limit check needed
+      if (post.is_pinned) {
+        setOldestPinnedPost(null);
+        setPostForPinToggle(post);
+        setPinModalVisible(true);
+        return;
+      }
+
+      // Count pinned posts only within the SAME tab as this post
+      const isCommunity = isCommunityTabPost(post);
+      const currentlyPinned = posts.filter(
+        (p) => p.is_pinned && isCommunityTabPost(p) === isCommunity,
+      );
+
+      if (currentlyPinned.length >= MAX_PINS) {
+        // Find the oldest pinned post (by created_at) within the same tab
+        const oldest = [...currentlyPinned].sort(
+          (a, b) => new Date(a.created_at) - new Date(b.created_at),
+        )[0];
+        setOldestPinnedPost(oldest);
+      } else {
+        setOldestPinnedPost(null);
+      }
+
       setPostForPinToggle(post);
       setPinModalVisible(true);
-      return;
-    }
-
-    // Count pinned posts only within the SAME tab as this post
-    const isCommunity = isCommunityTabPost(post);
-    const currentlyPinned = posts.filter(
-      (p) => p.is_pinned && isCommunityTabPost(p) === isCommunity,
-    );
-
-    if (currentlyPinned.length >= MAX_PINS) {
-      // Find the oldest pinned post (by created_at) within the same tab
-      const oldest = [...currentlyPinned].sort(
-        (a, b) => new Date(a.created_at) - new Date(b.created_at),
-      )[0];
-      setOldestPinnedPost(oldest);
-    } else {
-      setOldestPinnedPost(null);
-    }
-
-    setPostForPinToggle(post);
-    setPinModalVisible(true);
-  }, [posts]);
+    },
+    [posts],
+  );
 
   const handlePinToggleConfirm = async (post) => {
     try {
@@ -865,12 +954,12 @@ export default function CommunityProfileScreen({ navigation, route }) {
           await unpinPost(post.id, token);
         }
         setPosts((prev) =>
-          prev.map((p) =>
-            p.id === post.id ? { ...p, is_pinned: false } : p,
-          ),
+          prev.map((p) => (p.id === post.id ? { ...p, is_pinned: false } : p)),
         );
         if (selectedPost?.id === post.id) {
-          setSelectedPost((prev) => prev ? { ...prev, is_pinned: false } : null);
+          setSelectedPost((prev) =>
+            prev ? { ...prev, is_pinned: false } : null,
+          );
         }
       } else {
         // Pinning — count only same-tab pins
@@ -900,7 +989,8 @@ export default function CommunityProfileScreen({ navigation, route }) {
           setPosts((prev) =>
             prev.map((p) => {
               if (p.id === post.id) return { ...p, is_pinned: true };
-              if (oldest && p.id === oldest.id) return { ...p, is_pinned: false };
+              if (oldest && p.id === oldest.id)
+                return { ...p, is_pinned: false };
               return p;
             }),
           );
@@ -912,13 +1002,13 @@ export default function CommunityProfileScreen({ navigation, route }) {
             await pinPost(post.id, token);
           }
           setPosts((prev) =>
-            prev.map((p) =>
-              p.id === post.id ? { ...p, is_pinned: true } : p,
-            ),
+            prev.map((p) => (p.id === post.id ? { ...p, is_pinned: true } : p)),
           );
         }
         if (selectedPost?.id === post.id) {
-          setSelectedPost((prev) => prev ? { ...prev, is_pinned: true } : null);
+          setSelectedPost((prev) =>
+            prev ? { ...prev, is_pinned: true } : null,
+          );
         }
       }
       setOldestPinnedPost(null);
@@ -927,12 +1017,15 @@ export default function CommunityProfileScreen({ navigation, route }) {
     }
   };
 
-
   useEffect(() => {
     // Underline sliding animation
     if (tabOffsets[activeTab] !== undefined) {
-      tabUnderlineX.value = withTiming(tabOffsets[activeTab], { duration: 200 });
-      tabUnderlineScale.value = withTiming(tabWidths[activeTab], { duration: 200 });
+      tabUnderlineX.value = withTiming(tabOffsets[activeTab], {
+        duration: 200,
+      });
+      tabUnderlineScale.value = withTiming(tabWidths[activeTab], {
+        duration: 200,
+      });
     }
   }, [activeTab]);
 
@@ -941,7 +1034,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
     if (width <= 0 || !Number.isFinite(x) || !Number.isFinite(width)) {
       return;
     }
-    
+
     if (tabOffsets[tab] === x && tabWidths[tab] === width) return;
 
     tabOffsets[tab] = x;
@@ -1148,7 +1241,10 @@ export default function CommunityProfileScreen({ navigation, route }) {
       setPosts((prevPosts) =>
         prevPosts.map((post) =>
           post.id === payload.postId
-            ? { ...post, share_count: (post.share_count || 0) + (payload.increment || 1) }
+            ? {
+                ...post,
+                share_count: (post.share_count || 0) + (payload.increment || 1),
+              }
             : post,
         ),
       );
@@ -1159,15 +1255,28 @@ export default function CommunityProfileScreen({ navigation, route }) {
       setPosts((prevPosts) =>
         prevPosts.map((post) =>
           post.id === payload.postId
-            ? { ...post, is_saved: payload.isSaved, save_count: payload.saveCount }
+            ? {
+                ...post,
+                is_saved: payload.isSaved,
+                save_count: payload.saveCount,
+              }
             : post,
         ),
       );
     };
 
-    const unsubscribeView = EventBus.on("post-view-updated", handlePostViewUpdate);
-    const unsubscribeShare = EventBus.on("post-share-updated", handlePostShareUpdate);
-    const unsubscribeSave = EventBus.on("post-save-updated", handlePostSaveUpdate);
+    const unsubscribeView = EventBus.on(
+      "post-view-updated",
+      handlePostViewUpdate,
+    );
+    const unsubscribeShare = EventBus.on(
+      "post-share-updated",
+      handlePostShareUpdate,
+    );
+    const unsubscribeSave = EventBus.on(
+      "post-save-updated",
+      handlePostSaveUpdate,
+    );
 
     return () => {
       if (unsubscribeLike) unsubscribeLike();
@@ -1182,7 +1291,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
     const unsubscribe = EventBus.on("post-created", () => {
       loadProfile();
     });
-    
+
     return () => {
       if (unsubscribe) unsubscribe();
     };
@@ -1214,7 +1323,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
         const profileRes = await getCommunityProfile();
         fullProfile = profileRes?.profile || null;
         role = "community";
-        console.log('[CommunityProfile] RAW fullProfile college fields:', {
+        console.log("[CommunityProfile] RAW fullProfile college fields:", {
           community_type: fullProfile?.community_type,
           college_id: fullProfile?.college_id,
           campus_id: fullProfile?.campus_id,
@@ -1309,8 +1418,16 @@ export default function CommunityProfileScreen({ navigation, route }) {
             creator_id: o.creator_id || userId,
             creator_type: o.creator_type || userType,
             // Inject creator profile info (GET /opportunities doesn't return these)
-            creator_name: o.creator_name || fullProfile?.name || fullProfile?.full_name || "Community",
-            creator_photo: o.creator_photo || fullProfile?.logo_url || fullProfile?.profile_photo_url || null,
+            creator_name:
+              o.creator_name ||
+              fullProfile?.name ||
+              fullProfile?.full_name ||
+              "Community",
+            creator_photo:
+              o.creator_photo ||
+              fullProfile?.logo_url ||
+              fullProfile?.profile_photo_url ||
+              null,
             creator_username: o.creator_username || fullProfile?.username || "",
             // Use API-returned is_liked/is_saved — do NOT hardcode false
             is_liked: o.is_liked === true,
@@ -1381,7 +1498,10 @@ export default function CommunityProfileScreen({ navigation, route }) {
         events_hosted_count: fullProfile?.events_hosted_count || 0,
         college_info: fullProfile?.college_info || null,
       };
-      console.log('[CommunityProfile] mappedProfile.college_info:', mappedProfile.college_info);
+      console.log(
+        "[CommunityProfile] mappedProfile.college_info:",
+        mappedProfile.college_info,
+      );
 
       console.log(
         "[CommunityProfile] phones",
@@ -1499,7 +1619,11 @@ export default function CommunityProfileScreen({ navigation, route }) {
             ...currentAccount,
             username: currentAccount.username || profile?.username || "",
             name: currentAccount.name || profile?.name || "",
-            profilePicture: currentAccount.profilePicture || profile?.logo_url || profile?.profile_photo_url || null,
+            profilePicture:
+              currentAccount.profilePicture ||
+              profile?.logo_url ||
+              profile?.profile_photo_url ||
+              null,
           }
         : profile;
 
@@ -1646,32 +1770,34 @@ export default function CommunityProfileScreen({ navigation, route }) {
     }
   };
 
+  const handleHeadPress = useCallback(
+    (head) => {
+      if (!head) return;
+      const hasProfile = !!head.member_id;
+      const hasEmail = !!head.email;
+      const hasPhone = !!head.phone;
 
-  const handleHeadPress = useCallback((head) => {
-    if (!head) return;
-    const hasProfile = !!head.member_id;
-    const hasEmail = !!head.email;
-    const hasPhone = !!head.phone;
+      if (!hasProfile && !hasEmail && !hasPhone) return;
 
-    if (!hasProfile && !hasEmail && !hasPhone) return;
+      HapticsService.triggerImpactLight();
 
-    HapticsService.triggerImpactLight();
+      const navigateToProfile = (memberId) => {
+        navigation.navigate("MemberPublicProfile", {
+          memberId: memberId,
+        });
+      };
 
-    const navigateToProfile = (memberId) => {
-      navigation.navigate("MemberPublicProfile", {
-        memberId: memberId,
-      });
-    };
+      // If ONLY profile is available and no other details, directly navigate
+      if (hasProfile && !hasEmail && !hasPhone) {
+        navigateToProfile(head.member_id);
+        return;
+      }
 
-    // If ONLY profile is available and no other details, directly navigate
-    if (hasProfile && !hasEmail && !hasPhone) {
-      navigateToProfile(head.member_id);
-      return;
-    }
-
-    setSelectedHeadForContact(head);
-    setContactModalVisible(true);
-  }, [navigation]);
+      setSelectedHeadForContact(head);
+      setContactModalVisible(true);
+    },
+    [navigation],
+  );
 
   const postsCount =
     polledCounts.posts || (profile?.posts_count ?? profile?.post_count ?? 0);
@@ -1715,17 +1841,20 @@ export default function CommunityProfileScreen({ navigation, route }) {
     setSelectedPost(null);
   }, []);
 
-  const renderGridItem = useCallback(({ item }) => {
-    const itemSize = (screenWidth - 2 * 2) / 3;
-    return (
-      <CommunityPostGridCell
-        item={item}
-        itemSize={itemSize}
-        onPress={openPostModal}
-        onLongPress={handlePinToggle}
-      />
-    );
-  }, [openPostModal, handlePinToggle]);
+  const renderGridItem = useCallback(
+    ({ item }) => {
+      const itemSize = (screenWidth - 2 * 2) / 3;
+      return (
+        <CommunityPostGridCell
+          item={item}
+          itemSize={itemSize}
+          onPress={openPostModal}
+          onLongPress={handlePinToggle}
+        />
+      );
+    },
+    [openPostModal, handlePinToggle],
+  );
 
   const openCommentsModal = useCallback((postId, postType = "post") => {
     if (postId) {
@@ -1776,10 +1905,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <AlertCircle
-            size={64}
-            color={COLORS.error || "#FF4B2B"}
-          />
+          <AlertCircle size={64} color={COLORS.error || "#FF4B2B"} />
           <Text style={styles.errorText}>
             Unexpected error. Please re-login
           </Text>
@@ -1798,380 +1924,411 @@ export default function CommunityProfileScreen({ navigation, route }) {
       <View style={styles.container}>
         <DynamicStatusBar style="light-content" />
 
-      {/* Add gradient overlay only when no banner */}
-      {!profile.banner_url && <GradientSafeArea variant="primary" />}
+        {/* Add gradient overlay only when no banner */}
+        {!profile.banner_url && <GradientSafeArea variant="primary" />}
 
-      {/* Custom Fixed Header (Status Bar Scrim Only) */}
-      {/* Custom Fixed Header */}
-      <View style={[styles.headerContainer, { height: insets.top + 50 }]}>
-        {/* iOS Blur */}
-        {Platform.OS === "ios" && (
+        {/* Custom Fixed Header (Status Bar Scrim Only) */}
+        {/* Custom Fixed Header */}
+        <View style={[styles.headerContainer, { height: insets.top + 50 }]}>
+          {/* iOS Blur */}
+          {Platform.OS === "ios" && (
+            <Animated.View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  opacity: scrollY.interpolate({
+                    inputRange: [0, 20],
+                    outputRange: [0, 1],
+                    extrapolate: "clamp",
+                  }),
+                },
+              ]}
+            >
+              <BlurView
+                intensity={20}
+                tint="light"
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
+          )}
+
+          {/* Background Fade */}
           <Animated.View
             style={[
               StyleSheet.absoluteFill,
               {
+                backgroundColor: "rgba(250, 249, 247, 0.98)",
                 opacity: scrollY.interpolate({
                   inputRange: [0, 20],
-                  outputRange: [0, 1],
+                  outputRange: [0, 1], // Fades in background
                   extrapolate: "clamp",
                 }),
               },
             ]}
-          >
-            <BlurView
-              intensity={20}
-              tint="light"
-              style={StyleSheet.absoluteFill}
+          />
+
+          {/* Header Content containing Settings and Saved Icons (Only when no banner) */}
+          {!profile.banner_url && (
+            <View style={[styles.headerContent, { marginTop: insets.top }]}>
+              <View style={{ flex: 1 }} />
+              <View style={styles.headerRight}>
+                <GHPressable
+                  style={styles.headerIconButton}
+                  onPress={() => {
+                    HapticsService.triggerSavePress();
+                    navigation.navigate("SavedPostsScreen");
+                  }}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                  <Bookmark size={24} color="#0F172A" />
+                </GHPressable>
+                <GHPressable
+                  style={styles.headerIconButton}
+                  onPress={() => {
+                    HapticsService.triggerSettingsPress();
+                    navigation.navigate("Settings", {
+                      profile,
+                      hapticsEnabled,
+                      accountType: "community",
+                    });
+                  }}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                  <Settings size={24} color="#0F172A" />
+                </GHPressable>
+              </View>
+            </View>
+          )}
+        </View>
+
+        <Animated.ScrollView
+          ref={scrollViewRef}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: true },
+          )}
+          scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => loadProfile(true)}
+              colors={[PRIMARY_COLOR]}
+              tintColor={PRIMARY_COLOR}
             />
-          </Animated.View>
-        )}
+          }
+        >
+          <CommunityProfileHeaderBioSection
+            profile={profile}
+            insets={insets}
+            bannerUploading={bannerUploading}
+            onBannerAction={handleBannerAction}
+            onShowAccountSwitcher={handleShowAccountSwitcher}
+            onShowCollegeHub={handleShowCollegeHub}
+            onShowSettings={() => {
+              HapticsService.triggerSettingsPress();
+              navigation.navigate("Settings", {
+                profile,
+                hapticsEnabled,
+                accountType: "community",
+              });
+            }}
+            onShowBookmark={() => {
+              HapticsService.triggerSavePress();
+              navigation.navigate("SavedPostsScreen");
+            }}
+          />
 
-        {/* Background Fade */}
-        <Animated.View
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              backgroundColor: "rgba(250, 249, 247, 0.98)",
-              opacity: scrollY.interpolate({
-                inputRange: [0, 20],
-                outputRange: [0, 1], // Fades in background
-                extrapolate: "clamp",
-              }),
-            },
-          ]}
-        />
-
-        {/* Header Content containing Settings and Saved Icons (Only when no banner) */}
-        {!profile.banner_url && (
-          <View style={[styles.headerContent, { marginTop: insets.top }]}>
-            <View style={{ flex: 1 }} />
-            <View style={styles.headerRight}>
-              <GHPressable
-                style={styles.headerIconButton}
-                onPress={() => navigation.navigate("SavedPostsScreen")}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <Bookmark size={24} color="#0F172A" />
-              </GHPressable>
-              <GHPressable
-                style={styles.headerIconButton}
+          <View style={styles.summarySection}>
+            {/* Stats Row */}
+            <View style={[styles.statsRow, { justifyContent: "space-evenly" }]}>
+              <TouchableOpacity
+                style={styles.statItem}
                 onPress={() => {
-                  HapticsService.triggerImpactLight();
-                  navigation.navigate('Settings', { profile, hapticsEnabled, accountType: 'community' });
+                  HapticsService.triggerStatsTap();
+                  navigation.navigate("CommunityEventsList", {
+                    initialTab: "upcoming",
+                  });
                 }}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
-                <Settings size={24} color="#0F172A" />
+                <Text style={styles.statNumber}>
+                  {(profile.events_scheduled_count || 0) +
+                    (profile.events_hosted_count || 0)}
+                </Text>
+                <Text style={styles.statLabel}>Events</Text>
+              </TouchableOpacity>
+              <GHPressable
+                style={styles.statItem}
+                onPress={() => {
+                  HapticsService.triggerStatsTap();
+                  navigation.navigate("CommunityFollowersList", {
+                    communityId: profile.id,
+                    title: "Followers",
+                  });
+                }}
+              >
+                <Text style={styles.statNumber}>{followersCount}</Text>
+                <Text style={styles.statLabel}>Followers</Text>
               </GHPressable>
+              <GHPressable
+                style={styles.statItem}
+                onPress={() => {
+                  HapticsService.triggerStatsTap();
+                  navigation.navigate("CommunityFollowingList", {
+                    communityId: profile.id,
+                    title: "Following",
+                  });
+                }}
+              >
+                <Text style={styles.statNumber}>{followingCount}</Text>
+                <Text style={styles.statLabel}>Following</Text>
+              </GHPressable>
+              <View style={styles.statItem}>
+                <Text style={styles.statNumber}>{postsCount}</Text>
+                <Text style={styles.statLabel}>Posts</Text>
+              </View>
+            </View>
+
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 10,
+                marginTop: 10,
+                marginBottom: 20,
+                width: "100%",
+              }}
+            >
+              <GradientButton
+                title="Edit Profile"
+                onPress={() => {
+                  HapticsService.triggerEditProfile();
+                  navigation.navigate("EditCommunityProfile", { profile });
+                }}
+                style={{
+                  flex: 1,
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: "rgba(68, 138, 255, 0.2)",
+                  backgroundColor: "rgba(68, 138, 255, 0.12)",
+                  shadowColor: "transparent",
+                  shadowOpacity: 0,
+                  shadowRadius: 0,
+                  elevation: 0,
+                  overflow: "hidden",
+                }}
+                gradientStyle={{
+                  borderRadius: 0,
+                  paddingHorizontal: 20,
+                }}
+                colors={["transparent", "transparent"]}
+                textStyle={{ fontFamily: FONTS.medium, color: "#2962FF" }}
+              />
+              <GradientButton
+                title="Create Post"
+                onPress={() => {
+                  HapticsService.triggerCreatePost();
+                  navigation.navigate("CommunityCreatePost", {
+                    role: "community",
+                  });
+                }}
+                style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
+                gradientStyle={{ borderRadius: 16 }}
+                textStyle={{ fontFamily: FONTS.semiBold }}
+              />
             </View>
           </View>
-        )}
-      </View>
 
-      <Animated.ScrollView
-        ref={scrollViewRef}
-        contentContainerStyle={{ paddingBottom: 100 }}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true },
-        )}
-        scrollEventThrottle={16}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => loadProfile(true)}
-            colors={[PRIMARY_COLOR]}
-            tintColor={PRIMARY_COLOR}
+          <CommunityProfileHostsAndSponsors
+            profile={profile}
+            onHeadPress={handleHeadPress}
+            onShowHeadsMenu={handleShowHeadsMenu}
+            navigation={navigation}
           />
-        }
-      >
-        <CommunityProfileHeaderBioSection
-          profile={profile}
-          insets={insets}
-          bannerUploading={bannerUploading}
-          onBannerAction={handleBannerAction}
-          onShowAccountSwitcher={handleShowAccountSwitcher}
-          onShowCollegeHub={handleShowCollegeHub}
-          onShowSettings={() => {
-            HapticsService.triggerImpactLight();
-            navigation.navigate('Settings', { profile, hapticsEnabled, accountType: 'community' });
-          }}
-          onShowBookmark={() => navigation.navigate("SavedPostsScreen")}
-        />
 
-        <View style={styles.summarySection}>
-          {/* Stats Row */}
-          <View style={[styles.statsRow, { justifyContent: "space-evenly" }]}>
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={() =>
-                navigation.navigate("CommunityEventsList", {
-                  initialTab: "upcoming",
-                })
-              }
-            >
-              <Text style={styles.statNumber}>
-                {(profile.events_scheduled_count || 0) +
-                  (profile.events_hosted_count || 0)}
-              </Text>
-              <Text style={styles.statLabel}>Events</Text>
-            </TouchableOpacity>
-            <GHPressable
-              style={styles.statItem}
-              onPress={() =>
-                navigation.navigate("CommunityFollowersList", {
-                  communityId: profile.id,
-                  title: "Followers",
-                })
-              }
-            >
-              <Text style={styles.statNumber}>{followersCount}</Text>
-              <Text style={styles.statLabel}>Followers</Text>
-            </GHPressable>
-            <GHPressable
-              style={styles.statItem}
-              onPress={() =>
-                navigation.navigate("CommunityFollowingList", {
-                  communityId: profile.id,
-                  title: "Following",
-                })
-              }
-            >
-              <Text style={styles.statNumber}>{followingCount}</Text>
-              <Text style={styles.statLabel}>Following</Text>
-            </GHPressable>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{postsCount}</Text>
-              <Text style={styles.statLabel}>Posts</Text>
-            </View>
+          {/* Tab Bar */}
+          <View style={styles.tabBar}>
+            {["posts", "community", "events"].map((tab) => (
+              <TouchableOpacity
+                key={tab}
+                style={styles.tabItem}
+                onPress={() => {
+                  HapticsService.triggerImpactLight();
+                  setActiveTab(tab);
+                  // Lazy-load voice posts on first Community tab open
+                  if (
+                    tab === "community" &&
+                    !communityVoiceFetchedRef.current
+                  ) {
+                    communityVoiceFetchedRef.current = true;
+                    loadCommunityVoicePosts();
+                  }
+                }}
+                onLayout={(e) => handleTabLayout(tab, e)}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeTab === tab && styles.tabTextActive,
+                  ]}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            {/* Sliding indicator */}
+            <Reanimated.View
+              style={[styles.activeTabIndicator, animatedUnderlineStyle]}
+            />
           </View>
 
           <View
-            style={{
-              flexDirection: "row",
-              gap: 10,
-              marginTop: 10,
-              marginBottom: 20,
-              width: "100%",
+            style={styles.postsSection}
+            onLayout={(e) => {
+              postsSectionYRef.current = e.nativeEvent.layout.y;
             }}
           >
-            <GradientButton
-              title="Edit Profile"
-              onPress={() => {
-                HapticsService.triggerImpactLight();
-                navigation.navigate("EditCommunityProfile", { profile });
-              }}
-              style={{
-                flex: 1,
-                borderRadius: 16,
-                borderWidth: 1,
-                borderColor: "rgba(68, 138, 255, 0.2)",
-                backgroundColor: "rgba(68, 138, 255, 0.12)",
-                shadowColor: "transparent",
-                shadowOpacity: 0,
-                shadowRadius: 0,
-                elevation: 0,
-                overflow: "hidden",
-              }}
-              gradientStyle={{
-                borderRadius: 0,
-                paddingHorizontal: 20,
-              }}
-              colors={["transparent", "transparent"]}
-              textStyle={{ fontFamily: FONTS.medium, color: "#2962FF" }}
-            />
-            <GradientButton
-              title="Create Post"
-              onPress={() => {
-                HapticsService.triggerImpactLight();
-                navigation.navigate("CommunityCreatePost", {
-                  role: "community",
-                });
-              }}
-              style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
-              gradientStyle={{ borderRadius: 16 }}
-              textStyle={{ fontFamily: FONTS.semiBold }}
-            />
-          </View>
-        </View>
+            {/* Posts Tab - Media Only (Images/Videos) */}
+            {activeTab === "posts" && (
+              <View style={{ display: "flex" }}>
+                {(() => {
+                  const mediaPosts = posts.filter((p) => {
+                    // Exclude interactive post types from Posts tab
+                    const postType = p.post_type || p.type;
+                    const isInteractive = [
+                      "poll",
+                      "prompt",
+                      "qna",
+                      "challenge",
+                      "opportunity",
+                    ].includes(postType);
 
-        <CommunityProfileHostsAndSponsors
-          profile={profile}
-          onHeadPress={handleHeadPress}
-          onShowHeadsMenu={handleShowHeadsMenu}
-          navigation={navigation}
-        />
+                    // Only show media posts that are NOT interactive types
+                    const hasImages = p.image_urls && p.image_urls.length > 0;
+                    const hasVideo = !!p.video_url;
+                    const hasMedia = hasImages || hasVideo;
 
-        {/* Tab Bar */}
-        <View style={styles.tabBar}>
-          {["posts", "community", "events"].map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={styles.tabItem}
-              onPress={() => {
-                HapticsService.triggerImpactLight();
-                setActiveTab(tab);
-                // Lazy-load voice posts on first Community tab open
-                if (tab === 'community' && !communityVoiceFetchedRef.current) {
-                  communityVoiceFetchedRef.current = true;
-                  loadCommunityVoicePosts();
-                }
-              }}
-              onLayout={(e) => handleTabLayout(tab, e)}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === tab && styles.tabTextActive,
-                ]}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-          {/* Sliding indicator */}
-          <Reanimated.View
-            style={[
-              styles.activeTabIndicator,
-              animatedUnderlineStyle,
-            ]}
-          />
-        </View>
+                    return hasMedia && !isInteractive;
+                  });
 
-        <View
-          style={styles.postsSection}
-          onLayout={(e) => {
-            postsSectionYRef.current = e.nativeEvent.layout.y;
-          }}
-        >
-          {/* Posts Tab - Media Only (Images/Videos) */}
-          {activeTab === "posts" && (
-            <View style={{ display: "flex" }}>
-              {(() => {
-                const mediaPosts = posts.filter((p) => {
-                  // Exclude interactive post types from Posts tab
-                  const postType = p.post_type || p.type;
-                  const isInteractive = [
-                    "poll",
-                    "prompt",
-                    "qna",
-                    "challenge",
-                    "opportunity",
-                  ].includes(postType);
+                  const gap = 2;
+                  const itemSize = (screenWidth - gap * 2) / 3;
+                  const numRows = Math.ceil(mediaPosts.length / 3);
+                  const gridHeight =
+                    numRows > 0
+                      ? numRows * (itemSize * 1.35) + (numRows - 1) * gap
+                      : 0;
 
-                  // Only show media posts that are NOT interactive types
-                  const hasImages = p.image_urls && p.image_urls.length > 0;
-                  const hasVideo = !!p.video_url;
-                  const hasMedia = hasImages || hasVideo;
-
-                  return hasMedia && !isInteractive;
-                });
-
-                const gap = 2;
-                const itemSize = (screenWidth - gap * 2) / 3;
-                const numRows = Math.ceil(mediaPosts.length / 3);
-                const gridHeight = numRows > 0 ? numRows * (itemSize * 1.35) + (numRows - 1) * gap : 0;
-
-                return mediaPosts.length > 0 ? (
-                  <View style={[styles.postsGrid, { height: gridHeight }]}>
-                    <FlatList
-                      data={mediaPosts}
-                      keyExtractor={(item) => String(item.id)}
-                      numColumns={3}
-                      scrollEnabled={false}
-                      columnWrapperStyle={{
-                        justifyContent: "flex-start",
-                        marginBottom: gap,
-                        gap: gap,
-                      }}
-                      renderItem={renderGridItem}
-                      initialNumToRender={12}
-                      maxToRenderPerBatch={6}
-                      windowSize={5}
-                      removeClippedSubviews={false}
-                      updateCellsBatchingPeriod={50}
-                      getItemLayout={(data, index) => ({
-                        length: itemSize * 1.35,
-                        offset: (itemSize * 1.35 + gap) * Math.floor(index / 3),
-                        index,
-                      })}
-                    />
-                  </View>
-                ) : (
-                  <EmptyPostsState
-                    isOwnProfile={true}
-                    onCreatePost={() => {
-                      navigation.navigate("CommunityCreatePost", {
-                        role: "community",
-                      });
-                    }}
-                  />
-                );
-              })()}
-            </View>
-          )}
-
-          {/* Community Tab - Interactive Posts + Voice Box */}
-          {activeTab === "community" && (
-            <View style={{ display: "flex" }}>
-              {(() => {
-                const interactivePosts = posts.filter((p) => {
-                  const postType = p.post_type || p.type;
-                  return [
-                    "poll",
-                    "prompt",
-                    "qna",
-                    "challenge",
-                    "opportunity",
-                  ].includes(postType);
-                });
-
-                // Sort: pinned first, then by created_at
-                const sortedPosts = [...interactivePosts].sort((a, b) => {
-                  if (a.is_pinned && !b.is_pinned) return -1;
-                  if (!a.is_pinned && b.is_pinned) return 1;
-                  return new Date(b.created_at) - new Date(a.created_at);
-                });
-
-                return (
-                  <View style={{ paddingBottom: 8 }}>
-                    {/* Voice Box at top — any member can post */}
-                    <CommunityVoiceBox
-                      targetId={profile?.id}
-                      targetType="community"
-                      currentUser={profile}
-                      onPostCreated={(newPost) => {
-                        setVoicePosts((prev) => [newPost, ...prev]);
-                      }}
-                    />
-
-                    {sortedPosts.length > 0 ? (
-                      <View
-                        style={styles.communityPostsList}
-                        onLayout={(e) => {
-                          interactiveListYRef.current = e.nativeEvent.layout.y;
+                  return mediaPosts.length > 0 ? (
+                    <View style={[styles.postsGrid, { height: gridHeight }]}>
+                      <FlatList
+                        data={mediaPosts}
+                        keyExtractor={(item) => String(item.id)}
+                        numColumns={3}
+                        scrollEnabled={false}
+                        columnWrapperStyle={{
+                          justifyContent: "flex-start",
+                          marginBottom: gap,
+                          gap: gap,
                         }}
-                      >
-                        {sortedPosts.map((post) => {
-                          const postType = post.post_type || post.type;
-                          const isOpportunity = postType === "opportunity";
-                          return (
-                            <View
-                              key={post.id}
-                              onLayout={(e) => {
-                                if (String(post.id) === String(scrollToPostIdRef.current)) {
-                                  scrollToPostIdRef.current = null;
-                                  const itemY = e.nativeEvent.layout.y;
-                                  const targetY = postsSectionYRef.current + interactiveListYRef.current + itemY;
-                                  setTimeout(() => {
-                                    scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
-                                  }, 100);
-                                }
-                              }}
-                              style={styles.communityPostItem}
-                            >
-                              {isOpportunity ? (
-                                <OpportunityFeedCard
+                        renderItem={renderGridItem}
+                        initialNumToRender={12}
+                        maxToRenderPerBatch={6}
+                        windowSize={5}
+                        removeClippedSubviews={false}
+                        updateCellsBatchingPeriod={50}
+                        getItemLayout={(data, index) => ({
+                          length: itemSize * 1.35,
+                          offset:
+                            (itemSize * 1.35 + gap) * Math.floor(index / 3),
+                          index,
+                        })}
+                      />
+                    </View>
+                  ) : (
+                    <EmptyPostsState
+                      isOwnProfile={true}
+                      onCreatePost={() => {
+                        navigation.navigate("CommunityCreatePost", {
+                          role: "community",
+                        });
+                      }}
+                    />
+                  );
+                })()}
+              </View>
+            )}
+
+            {/* Community Tab - Interactive Posts + Voice Box */}
+            {activeTab === "community" && (
+              <View style={{ display: "flex" }}>
+                {(() => {
+                  const interactivePosts = posts.filter((p) => {
+                    const postType = p.post_type || p.type;
+                    return [
+                      "poll",
+                      "prompt",
+                      "qna",
+                      "challenge",
+                      "opportunity",
+                    ].includes(postType);
+                  });
+
+                  // Sort: pinned first, then by created_at
+                  const sortedPosts = [...interactivePosts].sort((a, b) => {
+                    if (a.is_pinned && !b.is_pinned) return -1;
+                    if (!a.is_pinned && b.is_pinned) return 1;
+                    return new Date(b.created_at) - new Date(a.created_at);
+                  });
+
+                  return (
+                    <View style={{ paddingBottom: 8 }}>
+                      {/* Voice Box at top — any member can post */}
+                      <CommunityVoiceBox
+                        targetId={profile?.id}
+                        targetType="community"
+                        currentUser={profile}
+                        onPostCreated={(newPost) => {
+                          setVoicePosts((prev) => [newPost, ...prev]);
+                        }}
+                      />
+
+                      {sortedPosts.length > 0 ? (
+                        <View
+                          style={styles.communityPostsList}
+                          onLayout={(e) => {
+                            interactiveListYRef.current =
+                              e.nativeEvent.layout.y;
+                          }}
+                        >
+                          {sortedPosts.map((post) => {
+                            const postType = post.post_type || post.type;
+                            const isOpportunity = postType === "opportunity";
+                            return (
+                              <View
+                                key={post.id}
+                                onLayout={(e) => {
+                                  if (
+                                    String(post.id) ===
+                                    String(scrollToPostIdRef.current)
+                                  ) {
+                                    scrollToPostIdRef.current = null;
+                                    const itemY = e.nativeEvent.layout.y;
+                                    const targetY =
+                                      postsSectionYRef.current +
+                                      interactiveListYRef.current +
+                                      itemY;
+                                    setTimeout(() => {
+                                      scrollViewRef.current?.scrollTo({
+                                        y: Math.max(0, targetY - 60),
+                                        animated: true,
+                                      });
+                                    }, 100);
+                                  }
+                                }}
+                                style={styles.communityPostItem}
+                              >
+                                {isOpportunity ? (
+                                  <OpportunityFeedCard
                                     opportunity={post}
                                     showManagementControls={true}
                                     onPress={(opp) =>
@@ -2184,12 +2341,18 @@ export default function CommunityProfileScreen({ navigation, route }) {
                                       setPosts((prevPosts) =>
                                         prevPosts.map((p) =>
                                           p.id === postId
-                                            ? { ...p, is_liked: isLiked, like_count: count }
+                                            ? {
+                                                ...p,
+                                                is_liked: isLiked,
+                                                like_count: count,
+                                              }
                                             : p,
                                         ),
                                       );
                                     }}
-                                    onComment={(postId) => openCommentsModal(postId, "opportunity")}
+                                    onComment={(postId) =>
+                                      openCommentsModal(postId, "opportunity")
+                                    }
                                     onSave={(postId, isSaved) => {
                                       setPosts((prevPosts) =>
                                         prevPosts.map((p) =>
@@ -2200,435 +2363,489 @@ export default function CommunityProfileScreen({ navigation, route }) {
                                       );
                                     }}
                                     onShare={() => {}}
-                                  onPinToggle={() => handlePinToggle(post)}
-                                  onDelete={(opportunityId) => {
-                                    setPosts((prev) => prev.filter((p) => p.id !== opportunityId));
-                                  }}
-                                  onUserPress={(userId, userType) => {
-                                    if (userType === "community") {
-                                      navigation.navigate("CommunityPublicProfile", {
-                                        communityId: userId,
-                                        viewerRole: "community",
-                                      });
-                                    } else {
-                                      navigation.navigate("MemberPublicProfile", { memberId: userId });
+                                    onPinToggle={() => handlePinToggle(post)}
+                                    onDelete={(opportunityId) => {
+                                      setPosts((prev) =>
+                                        prev.filter(
+                                          (p) => p.id !== opportunityId,
+                                        ),
+                                      );
+                                    }}
+                                    onUserPress={(userId, userType) => {
+                                      if (userType === "community") {
+                                        navigation.navigate(
+                                          "CommunityPublicProfile",
+                                          {
+                                            communityId: userId,
+                                            viewerRole: "community",
+                                          },
+                                        );
+                                      } else {
+                                        navigation.navigate(
+                                          "MemberPublicProfile",
+                                          { memberId: userId },
+                                        );
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <EditorialPostCard
+                                    post={post}
+                                    onLike={(postId, isLiked, count) => {
+                                      setPosts((prevPosts) =>
+                                        prevPosts.map((p) =>
+                                          p.id === postId
+                                            ? {
+                                                ...p,
+                                                is_liked: isLiked,
+                                                like_count: count,
+                                              }
+                                            : p,
+                                        ),
+                                      );
+                                    }}
+                                    onComment={(postId) =>
+                                      openCommentsModal(postId)
                                     }
-                                  }}
-                                />
-                              ) : (
-                                <EditorialPostCard
-                                  post={post}
-                                  onLike={(postId, isLiked, count) => {
-                                    setPosts((prevPosts) =>
-                                      prevPosts.map((p) =>
-                                        p.id === postId
-                                          ? { ...p, is_liked: isLiked, like_count: count }
-                                          : p,
-                                      ),
-                                    );
-                                  }}
-                                  onComment={(postId) => openCommentsModal(postId)}
-                                  onShare={() => {}}
-                                  onFollow={() => {}}
-                                  showFollowButton={false}
-                                  currentUserId={currentUserId}
-                                  currentUserType={currentUserType}
-                                  onUserPress={(userId, userType) => {}}
-                                  onDelete={async (postId) => {
-                                    try {
-                                      const token = await getAuthToken();
-                                      if (!token) return;
-                                      await apiDelete(`/posts/${postId}`, null, 15000, token);
-                                      setPosts((prevPosts) => prevPosts.filter((p) => p.id !== postId));
-                                      EventBus.emit("post-deleted", { postId });
-                                    } catch (error) {
-                                      console.error("Error deleting post:", error);
-                                      Alert.alert("Error", "Failed to delete post");
-                                    }
-                                  }}
-                                  onPinToggle={handlePinToggle}
-                                  showManagementControls={true}
-                                  onPostUpdate={(updatedPost) => {
-                                    setPosts((prevPosts) =>
-                                      prevPosts.map((p) =>
-                                        p.id === updatedPost.id ? updatedPost : p,
-                                      ),
-                                    );
-                                  }}
-                                />
-                              )}
-                            </View>
-                          );
-                        })}
-                      </View>
-                    ) : null}
-
-                    {/* Voice posts from community members */}
-                    {loadingVoicePosts ? (
-                      <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-                        <SnooLoader size="small" color={COLORS.primary} />
-                      </View>
-                    ) : (
-                      voicePosts.map((vp) => (
-                        <View
-                          key={vp.id}
-                          onLayout={(e) => {
-                            if (String(vp.id) === String(scrollToPostIdRef.current)) {
-                              scrollToPostIdRef.current = null;
-                              const itemY = e.nativeEvent.layout.y;
-                              const targetY = postsSectionYRef.current + itemY;
-                              setTimeout(() => {
-                                scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
-                              }, 100);
-                            }
-                          }}
-                        >
-                          <VoicePostCard
-                            post={vp}
-                            onComment={(postId) => openCommentsModal(postId)}
-                          />
+                                    onShare={() => {}}
+                                    onFollow={() => {}}
+                                    showFollowButton={false}
+                                    currentUserId={currentUserId}
+                                    currentUserType={currentUserType}
+                                    onUserPress={(userId, userType) => {}}
+                                    onDelete={async (postId) => {
+                                      try {
+                                        const token = await getAuthToken();
+                                        if (!token) return;
+                                        await apiDelete(
+                                          `/posts/${postId}`,
+                                          null,
+                                          15000,
+                                          token,
+                                        );
+                                        setPosts((prevPosts) =>
+                                          prevPosts.filter(
+                                            (p) => p.id !== postId,
+                                          ),
+                                        );
+                                        EventBus.emit("post-deleted", {
+                                          postId,
+                                        });
+                                      } catch (error) {
+                                        console.error(
+                                          "Error deleting post:",
+                                          error,
+                                        );
+                                        Alert.alert(
+                                          "Error",
+                                          "Failed to delete post",
+                                        );
+                                      }
+                                    }}
+                                    onPinToggle={handlePinToggle}
+                                    showManagementControls={true}
+                                    onPostUpdate={(updatedPost) => {
+                                      setPosts((prevPosts) =>
+                                        prevPosts.map((p) =>
+                                          p.id === updatedPost.id
+                                            ? updatedPost
+                                            : p,
+                                        ),
+                                      );
+                                    }}
+                                  />
+                                )}
+                              </View>
+                            );
+                          })}
                         </View>
-                      ))
-                    )}
+                      ) : null}
 
-                    {sortedPosts.length === 0 && voicePosts.length === 0 && !loadingVoicePosts && (
-                      <EmptyCommunityState
-                        isOwnProfile={true}
-                        onCreatePost={() => {
-                          navigation.navigate("CommunityCreatePost", {
-                            role: "community",
-                          });
-                        }}
-                      />
-                    )}
-                  </View>
-                );
-              })()}
-            </View>
-          )}
+                      {/* Voice posts from community members */}
+                      {loadingVoicePosts ? (
+                        <View
+                          style={{ paddingVertical: 20, alignItems: "center" }}
+                        >
+                          <SnooLoader size="small" color={COLORS.primary} />
+                        </View>
+                      ) : (
+                        voicePosts.map((vp) => (
+                          <View
+                            key={vp.id}
+                            onLayout={(e) => {
+                              if (
+                                String(vp.id) ===
+                                String(scrollToPostIdRef.current)
+                              ) {
+                                scrollToPostIdRef.current = null;
+                                const itemY = e.nativeEvent.layout.y;
+                                const targetY =
+                                  postsSectionYRef.current + itemY;
+                                setTimeout(() => {
+                                  scrollViewRef.current?.scrollTo({
+                                    y: Math.max(0, targetY - 60),
+                                    animated: true,
+                                  });
+                                }, 100);
+                              }
+                            }}
+                          >
+                            <VoicePostCard
+                              post={vp}
+                              onComment={(postId) => openCommentsModal(postId)}
+                            />
+                          </View>
+                        ))
+                      )}
 
-          {/* Events Tab */}
-          {activeTab === "events" && (
-            <View style={{ display: "flex" }}>
-              {(() => {
-                if (communityEvents.length === 0) {
-                  return (
-                    <EmptyEventsState
-                      isOwnProfile={true}
-                      onCreateEvent={handleCreateEvent}
-                    />
+                      {sortedPosts.length === 0 &&
+                        voicePosts.length === 0 &&
+                        !loadingVoicePosts && (
+                          <EmptyCommunityState
+                            isOwnProfile={true}
+                            onCreatePost={() => {
+                              navigation.navigate("CommunityCreatePost", {
+                                role: "community",
+                              });
+                            }}
+                          />
+                        )}
+                    </View>
                   );
-                }
+                })()}
+              </View>
+            )}
 
-                return (
-                  <View style={{ paddingTop: 16 }}>
-                    {communityEvents.map((item) => (
-                      <EventCard
-                        key={item.id}
-                        event={item}
-                        onPress={(eventData) =>
-                          navigation.navigate("EventDetails", {
-                            eventId: eventData.id,
-                            eventData: eventData,
-                          })
-                        }
-                        onComment={(id) => openCommentsModal(id, "event")}
+            {/* Events Tab */}
+            {activeTab === "events" && (
+              <View style={{ display: "flex" }}>
+                {(() => {
+                  if (communityEvents.length === 0) {
+                    return (
+                      <EmptyEventsState
+                        isOwnProfile={true}
+                        onCreateEvent={handleCreateEvent}
                       />
-                    ))}
-                  </View>
-                );
-              })()}
-            </View>
-          )}
-        </View>
-      </Animated.ScrollView>
+                    );
+                  }
 
-      {/* Settings is now a Screen — navigated via navigation.navigate('Settings') */}
+                  return (
+                    <View style={{ paddingTop: 16 }}>
+                      {communityEvents.map((item) => (
+                        <EventCard
+                          key={item.id}
+                          event={item}
+                          onPress={(eventData) =>
+                            navigation.navigate("EventDetails", {
+                              eventId: eventData.id,
+                              eventData: eventData,
+                            })
+                          }
+                          onComment={(id) => openCommentsModal(id, "event")}
+                        />
+                      ))}
+                    </View>
+                  );
+                })()}
+              </View>
+            )}
+          </View>
+        </Animated.ScrollView>
 
-      {showLogoutModal && (
-        <LogoutModal
-          visible={showLogoutModal}
-          onClose={() => setShowLogoutModal(false)}
-          onLogoutCurrent={() => performLogout(false)}
-          onLogoutAll={() => performLogout(true)}
-          currentAccount={logoutModalData.currentAccount}
-          hasMultipleAccounts={logoutModalData.hasMultiple}
-        />
-      )}
+        {/* Settings is now a Screen — navigated via navigation.navigate('Settings') */}
 
-      {/* Old Delete Account Modal removed */}
+        {showLogoutModal && (
+          <LogoutModal
+            visible={showLogoutModal}
+            onClose={() => setShowLogoutModal(false)}
+            onLogoutCurrent={() => performLogout(false)}
+            onLogoutAll={() => performLogout(true)}
+            currentAccount={logoutModalData.currentAccount}
+            hasMultipleAccounts={logoutModalData.hasMultiple}
+          />
+        )}
 
-      {/* Meet the Host — Hide/Show action modal */}
-      {showHeadsMenu && (
-        <Modal
-          visible={showHeadsMenu}
-          transparent
-          animationType="fade"
-          statusBarTranslucent
-          onRequestClose={() => setShowHeadsMenu(false)}
-        >
-          <TouchableOpacity
-            style={{
-              flex: 1,
-              backgroundColor: "rgba(0,0,0,0.4)",
-              justifyContent: "flex-end",
-            }}
-            activeOpacity={1}
-            onPress={() => setShowHeadsMenu(false)}
+        {/* Old Delete Account Modal removed */}
+
+        {/* Meet the Host — Hide/Show action modal */}
+        {showHeadsMenu && (
+          <Modal
+            visible={showHeadsMenu}
+            transparent
+            animationType="fade"
+            statusBarTranslucent
+            onRequestClose={() => setShowHeadsMenu(false)}
           >
-            <View
+            <TouchableOpacity
               style={{
-                backgroundColor: "#FFFFFF",
-                borderTopLeftRadius: 24,
-                borderTopRightRadius: 24,
-                paddingTop: 12,
-                paddingBottom: 36,
-                paddingHorizontal: 20,
+                flex: 1,
+                backgroundColor: "rgba(0,0,0,0.4)",
+                justifyContent: "flex-end",
               }}
+              activeOpacity={1}
+              onPress={() => setShowHeadsMenu(false)}
             >
-              {/* Handle bar */}
               <View
                 style={{
-                  width: 40,
-                  height: 4,
-                  borderRadius: 2,
-                  backgroundColor: "#E5E7EB",
-                  alignSelf: "center",
-                  marginBottom: 20,
-                }}
-              />
-              <Text
-                style={{
-                  fontFamily: FONTS.primary,
-                  fontSize: 16,
-                  color: TEXT_COLOR,
-                  marginBottom: 16,
+                  backgroundColor: "#FFFFFF",
+                  borderTopLeftRadius: 24,
+                  borderTopRightRadius: 24,
+                  paddingTop: 12,
+                  paddingBottom: 36,
+                  paddingHorizontal: 20,
                 }}
               >
-                Meet the Host
-              </Text>
+                {/* Handle bar */}
+                <View
+                  style={{
+                    width: 40,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: "#E5E7EB",
+                    alignSelf: "center",
+                    marginBottom: 20,
+                  }}
+                />
+                <Text
+                  style={{
+                    fontFamily: FONTS.primary,
+                    fontSize: 16,
+                    color: TEXT_COLOR,
+                    marginBottom: 16,
+                  }}
+                >
+                  Meet the Host
+                </Text>
 
-              {/* Hide / Show option */}
-              <TouchableOpacity
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 14,
-                  paddingVertical: 14,
-                  borderRadius: 16,
-                }}
-                onPress={async () => {
-                  setShowHeadsMenu(false);
-                  const newVal = profile.show_heads === false ? true : false;
-                  // Optimistic local update
-                  setProfile((prev) =>
-                    prev ? { ...prev, show_heads: newVal } : prev,
-                  );
-                  try {
-                    await updateCommunityProfile({ show_heads: newVal });
-                  } catch (e) {
-                    // Revert on error
+                {/* Hide / Show option */}
+                <TouchableOpacity
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 14,
+                    paddingVertical: 14,
+                    borderRadius: 16,
+                  }}
+                  onPress={async () => {
+                    setShowHeadsMenu(false);
+                    const newVal = profile.show_heads === false ? true : false;
+                    // Optimistic local update
                     setProfile((prev) =>
-                      prev ? { ...prev, show_heads: !newVal } : prev,
+                      prev ? { ...prev, show_heads: newVal } : prev,
                     );
-                    Alert.alert("Error", "Could not update visibility.");
-                  }
-                }}
-              >
-                {profile.show_heads === false ? (
-                  <Eye size={20} color={PRIMARY_COLOR} strokeWidth={2} />
-                ) : (
-                  <EyeOff size={20} color="#B45309" strokeWidth={2} />
-                )}
-                <Text
-                  style={{
-                    fontFamily: FONTS.medium,
-                    fontSize: 15,
-                    color: profile.show_heads === false ? PRIMARY_COLOR : "#B45309",
+                    try {
+                      await updateCommunityProfile({ show_heads: newVal });
+                    } catch (e) {
+                      // Revert on error
+                      setProfile((prev) =>
+                        prev ? { ...prev, show_heads: !newVal } : prev,
+                      );
+                      Alert.alert("Error", "Could not update visibility.");
+                    }
                   }}
                 >
-                  {profile.show_heads === false
-                    ? "Show on public profile"
-                    : "Hide from public profile"}
-                </Text>
-              </TouchableOpacity>
+                  {profile.show_heads === false ? (
+                    <Eye size={20} color={PRIMARY_COLOR} strokeWidth={2} />
+                  ) : (
+                    <EyeOff size={20} color="#B45309" strokeWidth={2} />
+                  )}
+                  <Text
+                    style={{
+                      fontFamily: FONTS.medium,
+                      fontSize: 15,
+                      color:
+                        profile.show_heads === false
+                          ? PRIMARY_COLOR
+                          : "#B45309",
+                    }}
+                  >
+                    {profile.show_heads === false
+                      ? "Show on public profile"
+                      : "Hide from public profile"}
+                  </Text>
+                </TouchableOpacity>
 
-              {/* Cancel */}
-              <TouchableOpacity
-                style={{
-                  paddingVertical: 14,
-                  alignItems: "center",
-                  marginTop: 4,
-                }}
-                onPress={() => setShowHeadsMenu(false)}
-              >
-                <Text
+                {/* Cancel */}
+                <TouchableOpacity
                   style={{
-                    fontFamily: FONTS.medium,
-                    fontSize: 15,
-                    color: LIGHT_TEXT_COLOR,
+                    paddingVertical: 14,
+                    alignItems: "center",
+                    marginTop: 4,
                   }}
+                  onPress={() => setShowHeadsMenu(false)}
                 >
-                  Cancel
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
-      )}
+                  <Text
+                    style={{
+                      fontFamily: FONTS.medium,
+                      fontSize: 15,
+                      color: LIGHT_TEXT_COLOR,
+                    }}
+                  >
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+        )}
 
-      {selectedPost && (
-        <ProfilePostFeed
-          visible={postModalVisible}
-          onPinToggle={handlePinToggleConfirm}
-          posts={posts.filter((p) => {
-            // Only show media posts in modal (exclude Community tab content)
-            const postType = p.post_type || p.type;
-            const isInteractive = [
-              "poll",
-              "prompt",
-              "qna",
-              "challenge",
-              "opportunity",
-            ].includes(postType);
+        {selectedPost && (
+          <ProfilePostFeed
+            visible={postModalVisible}
+            onPinToggle={handlePinToggleConfirm}
+            posts={posts.filter((p) => {
+              // Only show media posts in modal (exclude Community tab content)
+              const postType = p.post_type || p.type;
+              const isInteractive = [
+                "poll",
+                "prompt",
+                "qna",
+                "challenge",
+                "opportunity",
+              ].includes(postType);
 
-            const hasImages = p.image_urls && p.image_urls.length > 0;
-            const hasVideo = !!p.video_url;
-            const hasMedia = hasImages || hasVideo;
+              const hasImages = p.image_urls && p.image_urls.length > 0;
+              const hasVideo = !!p.video_url;
+              const hasMedia = hasImages || hasVideo;
 
-            return hasMedia && !isInteractive;
-          })}
-          initialPostId={selectedPost?.id}
-          onClose={closePostModal}
-          currentUserId={currentUserId}
-          currentUserType="community"
-          navigation={navigation}
-          onLikeUpdate={(postId, isLiked, count) => {
-            // Optimistically update local state
-            console.log(
-              "[CommunityProfile] Post like update:",
-              postId,
-              "isLiked:",
-              isLiked,
-              "count:",
-              count,
-            );
-            setPosts((prevPosts) =>
-              prevPosts.map((p) =>
-                p.id === postId
-                  ? { ...p, is_liked: isLiked, like_count: count }
-                  : p,
-              ),
-            );
-            if (selectedPost && selectedPost.id === postId) {
-              setSelectedPost((prev) =>
-                prev ? { ...prev, is_liked: isLiked, like_count: count } : prev,
+              return hasMedia && !isInteractive;
+            })}
+            initialPostId={selectedPost?.id}
+            onClose={closePostModal}
+            currentUserId={currentUserId}
+            currentUserType="community"
+            navigation={navigation}
+            onLikeUpdate={(postId, isLiked, count) => {
+              // Optimistically update local state
+              console.log(
+                "[CommunityProfile] Post like update:",
+                postId,
+                "isLiked:",
+                isLiked,
+                "count:",
+                count,
               );
-            }
-          }}
-          onComment={(postId) => openCommentsModal(postId)}
-          onShare={(postId) => {
-            Alert.alert("Share", "Sharing not implemented yet");
-          }}
-          onSave={(postId, isSaved) => {
-            // Save logic
-          }}
-          onFollow={() => {}}
-          onUserPress={(userId, userType) => {
-            // Handle navigation
-          }}
-          onPostUpdate={(updatedPost) => {
-            setPosts((prevPosts) =>
-              prevPosts.map((p) =>
-                p.id === updatedPost.id ? { ...p, ...updatedPost } : p,
-              ),
-            );
-            if (selectedPost && selectedPost.id === updatedPost.id) {
-              setSelectedPost((prev) =>
-                prev ? { ...prev, ...updatedPost } : prev,
+              setPosts((prevPosts) =>
+                prevPosts.map((p) =>
+                  p.id === postId
+                    ? { ...p, is_liked: isLiked, like_count: count }
+                    : p,
+                ),
               );
-            }
-          }}
-          onDelete={async (postId) => {
-            try {
-              const token = await getAuthToken();
-              if (!token) {
-                Alert.alert("Error", "Not authenticated");
-                return;
-              }
-
-              // Delete post via API
-              await apiDelete(`/posts/${postId}`, null, 15000, token);
-
-              // Remove post from local state
-              setPosts((prevPosts) => prevPosts.filter((p) => p.id !== postId));
-
-              // Emit event for other screens listening
-              EventBus.emit("post-deleted", { postId });
-
-              // Close modal if the deleted post was being viewed
-              if (selectedPost?.id === postId) {
-                closePostModal();
-              }
-
-              showToast("Success", "Post deleted successfully");
-            } catch (error) {
-              console.error("Error deleting post:", error);
-              Alert.alert("Error", "Failed to delete post");
-            }
-          }}
-        />
-      )}
-
-      {commentsModalState.visible && (
-        <CommentsModal
-          visible={commentsModalState.visible}
-          postId={commentsModalState.postId}
-          baseRoute={
-            commentsModalState.postType === "opportunity"
-              ? "/opportunities"
-              : commentsModalState.postType === "event"
-              ? "/events"
-              : "/posts"
-          }
-          replyBaseRoute={
-            commentsModalState.postType === "opportunity"
-              ? "/opportunity-comments"
-              : commentsModalState.postType === "event"
-              ? "/event-comments"
-              : "/comments"
-          }
-          onClose={closeCommentsModal}
-          onCommentCountChange={(newCount) => {
-            if (commentsModalState.postId) {
-              if (commentsModalState.postType === "event") {
-                setCommunityEvents((prevEvents) =>
-                  prevEvents.map((e) =>
-                    e.id === commentsModalState.postId
-                      ? { ...e, comment_count: newCount }
-                      : e,
-                  ),
+              if (selectedPost && selectedPost.id === postId) {
+                setSelectedPost((prev) =>
+                  prev
+                    ? { ...prev, is_liked: isLiked, like_count: count }
+                    : prev,
                 );
-              } else {
+              }
+            }}
+            onComment={(postId) => openCommentsModal(postId)}
+            onShare={(postId) => {
+              Alert.alert("Share", "Sharing not implemented yet");
+            }}
+            onSave={(postId, isSaved) => {
+              // Save logic
+            }}
+            onFollow={() => {}}
+            onUserPress={(userId, userType) => {
+              // Handle navigation
+            }}
+            onPostUpdate={(updatedPost) => {
+              setPosts((prevPosts) =>
+                prevPosts.map((p) =>
+                  p.id === updatedPost.id ? { ...p, ...updatedPost } : p,
+                ),
+              );
+              if (selectedPost && selectedPost.id === updatedPost.id) {
+                setSelectedPost((prev) =>
+                  prev ? { ...prev, ...updatedPost } : prev,
+                );
+              }
+            }}
+            onDelete={async (postId) => {
+              try {
+                const token = await getAuthToken();
+                if (!token) {
+                  Alert.alert("Error", "Not authenticated");
+                  return;
+                }
+
+                // Delete post via API
+                await apiDelete(`/posts/${postId}`, null, 15000, token);
+
+                // Remove post from local state
                 setPosts((prevPosts) =>
-                  prevPosts.map((p) =>
-                    p.id === commentsModalState.postId
-                      ? { ...p, comment_count: newCount }
-                      : p,
-                  ),
+                  prevPosts.filter((p) => p.id !== postId),
                 );
-              }
-            }
-          }}
-          navigation={navigation}
-        />
-      )}
 
-      {showAccountSwitcher && (
+                // Emit event for other screens listening
+                EventBus.emit("post-deleted", { postId });
+
+                // Close modal if the deleted post was being viewed
+                if (selectedPost?.id === postId) {
+                  closePostModal();
+                }
+
+                showToast("Success", "Post deleted successfully");
+              } catch (error) {
+                console.error("Error deleting post:", error);
+                Alert.alert("Error", "Failed to delete post");
+              }
+            }}
+          />
+        )}
+
+        {commentsModalState.visible && (
+          <CommentsModal
+            visible={commentsModalState.visible}
+            postId={commentsModalState.postId}
+            baseRoute={
+              commentsModalState.postType === "opportunity"
+                ? "/opportunities"
+                : commentsModalState.postType === "event"
+                  ? "/events"
+                  : "/posts"
+            }
+            replyBaseRoute={
+              commentsModalState.postType === "opportunity"
+                ? "/opportunity-comments"
+                : commentsModalState.postType === "event"
+                  ? "/event-comments"
+                  : "/comments"
+            }
+            onClose={closeCommentsModal}
+            onCommentCountChange={(newCount) => {
+              if (commentsModalState.postId) {
+                if (commentsModalState.postType === "event") {
+                  setCommunityEvents((prevEvents) =>
+                    prevEvents.map((e) =>
+                      e.id === commentsModalState.postId
+                        ? { ...e, comment_count: newCount }
+                        : e,
+                    ),
+                  );
+                } else {
+                  setPosts((prevPosts) =>
+                    prevPosts.map((p) =>
+                      p.id === commentsModalState.postId
+                        ? { ...p, comment_count: newCount }
+                        : p,
+                    ),
+                  );
+                }
+              }
+            }}
+            navigation={navigation}
+          />
+        )}
+
         <AccountSwitcherModal
           visible={showAccountSwitcher}
           onClose={() => setShowAccountSwitcher(false)}
-          currentAccountId={profile?.id ? `community_${profile.id}` : undefined}
+          currentAccountId={
+            profile?.id ? `community_${profile.id}` : undefined
+          }
           currentProfile={profile ? { ...profile, type: "community" } : null}
           onAccountSwitch={(account) => {
             // Navigate to correct home screen based on account type
@@ -2694,7 +2911,10 @@ export default function CommunityProfileScreen({ navigation, route }) {
             try {
               if (navigation.getParent) {
                 const parent1 = navigation.getParent();
-                console.log("[CommunityProfile] Parent navigator:", !!parent1);
+                console.log(
+                  "[CommunityProfile] Parent navigator:",
+                  !!parent1,
+                );
                 if (parent1 && parent1.getParent) {
                   const parent2 = parent1.getParent();
                   console.log(
@@ -2715,7 +2935,9 @@ export default function CommunityProfileScreen({ navigation, route }) {
               "[CommunityProfile] Root navigator obtained:",
               !!rootNavigator,
             );
-            console.log("[CommunityProfile] Attempting navigation to Login...");
+            console.log(
+              "[CommunityProfile] Attempting navigation to Login...",
+            );
 
             try {
               console.log(
@@ -2745,7 +2967,9 @@ export default function CommunityProfileScreen({ navigation, route }) {
                   index: 0,
                   routes: [{ name: "Landing" }],
                 });
-                console.log("[CommunityProfile] Fallback navigation completed");
+                console.log(
+                  "[CommunityProfile] Fallback navigation completed",
+                );
               } catch (fallbackError) {
                 console.error(
                   "[CommunityProfile] Fallback navigation ALSO failed!",
@@ -2758,9 +2982,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
             );
           }}
         />
-      )}
 
-      {showAddAccountModal && (
         <AddAccountModal
           visible={showAddAccountModal}
           onClose={() => setShowAddAccountModal(false)}
@@ -2771,262 +2993,293 @@ export default function CommunityProfileScreen({ navigation, route }) {
             navigation.navigate("Landing", { fromSwitcher: true })
           }
         />
-      )}
 
-      {showBannerActionSheet && (
-        <ActionSheet
-          visible={showBannerActionSheet}
-          onClose={() => setShowBannerActionSheet(false)}
-          title="Banner"
-          message="Update your community banner"
-          actions={[
-            {
-              text: "Change banner",
-              icon: "Image",
-              onPress: () => {
-                setShowBannerActionSheet(false);
-                pickBannerImage();
+        {showBannerActionSheet && (
+          <ActionSheet
+            visible={showBannerActionSheet}
+            onClose={() => setShowBannerActionSheet(false)}
+            title="Banner"
+            message="Update your community banner"
+            actions={[
+              {
+                text: "Change banner",
+                icon: "Image",
+                onPress: () => {
+                  setShowBannerActionSheet(false);
+                  pickBannerImage();
+                },
               },
-            },
-            ...(profile?.banner_url
-              ? [
-                  {
-                    text: "Remove banner",
-                    icon: "Trash2",
-                    style: "destructive",
-                    onPress: () => {
-                      setShowBannerActionSheet(false);
-                      removeBanner();
+              ...(profile?.banner_url
+                ? [
+                    {
+                      text: "Remove banner",
+                      icon: "Trash2",
+                      style: "destructive",
+                      onPress: () => {
+                        setShowBannerActionSheet(false);
+                        removeBanner();
+                      },
                     },
-                  },
-                ]
-              : []),
-          ]}
-        />
-      )}
+                  ]
+                : []),
+            ]}
+          />
+        )}
 
-      {/* College Hub Bottom Sheet */}
-      {showCollegeHub && (
-        <CollegeHubSheet
-          visible={showCollegeHub}
-          collegeId={profile?.college_info?.college_id}
-          onClose={() => setShowCollegeHub(false)}
-          onCommunityPress={(communityId) => {
-            setShowCollegeHub(false);
-            navigation.navigate("CommunityPublicProfile", { communityId });
-          }}
-        />
-      )}
+        {/* College Hub Bottom Sheet */}
+        {showCollegeHub && (
+          <CollegeHubSheet
+            visible={showCollegeHub}
+            collegeId={profile?.college_info?.college_id}
+            onClose={() => setShowCollegeHub(false)}
+            onCommunityPress={(communityId) => {
+              setShowCollegeHub(false);
+              navigation.navigate("CommunityPublicProfile", { communityId });
+            }}
+          />
+        )}
 
-      {showCreateEventModal && (
-        <CreateEventModal
-          visible={showCreateEventModal}
-          onClose={() => {
-            setShowCreateEventModal(false);
-            setResumeDraft(false);
-          }}
-          onEventCreated={handleEventCreated}
-          resumeDraft={resumeDraft}
-        />
-      )}
+        {showCreateEventModal && (
+          <CreateEventModal
+            visible={showCreateEventModal}
+            onClose={() => {
+              setShowCreateEventModal(false);
+              setResumeDraft(false);
+            }}
+            onEventCreated={handleEventCreated}
+            resumeDraft={resumeDraft}
+          />
+        )}
 
-      {showDraftPrompt && (
-        <ActionModal
-          visible={showDraftPrompt}
-          title="Resume Draft?"
-          message={`You have an unsaved event draft from ${formatLastSaved(draftLastSaved)}. Would you like to resume where you left off?`}
-          actions={[
-            {
-              text: "Resume Draft",
-              onPress: () => {
-                setShowDraftPrompt(false);
-                setResumeDraft(true);
-                setShowCreateEventModal(true);
+        {showDraftPrompt && (
+          <ActionModal
+            visible={showDraftPrompt}
+            title="Resume Draft?"
+            message={`You have an unsaved event draft from ${formatLastSaved(draftLastSaved)}. Would you like to resume where you left off?`}
+            actions={[
+              {
+                text: "Resume Draft",
+                onPress: () => {
+                  setShowDraftPrompt(false);
+                  setResumeDraft(true);
+                  setShowCreateEventModal(true);
+                },
+                style: "primary",
               },
-              style: "primary",
-            },
-            {
-              text: "Start Fresh",
-              onPress: async () => {
-                setShowDraftPrompt(false);
-                const account = await getActiveAccount();
-                if (account?.id) await deleteDraftUtil(account.id);
-                setResumeDraft(false);
-                setShowCreateEventModal(true);
+              {
+                text: "Start Fresh",
+                onPress: async () => {
+                  setShowDraftPrompt(false);
+                  const account = await getActiveAccount();
+                  if (account?.id) await deleteDraftUtil(account.id);
+                  setResumeDraft(false);
+                  setShowCreateEventModal(true);
+                },
+                style: "secondary",
               },
-              style: "secondary",
-            },
-          ]}
-          onClose={() => setShowDraftPrompt(false)}
-        />
-      )}
+            ]}
+            onClose={() => setShowDraftPrompt(false)}
+          />
+        )}
 
-      {pinModalVisible && (
-        <ActionModal
-          visible={pinModalVisible}
-          title={
-            postForPinToggle?.is_pinned
-              ? "Unpin Post"
-              : oldestPinnedPost
-              ? "Pin Limit Reached"
-              : "Pin Post"
-          }
-          message={
-            postForPinToggle?.is_pinned
-              ? "Remove this post from your pinned posts?"
-              : oldestPinnedPost
-              ? `You already have ${MAX_PINS} pinned posts. Pinning this will replace your oldest pin.`
-              : "Pin this post to the top of your Community tab?"
-          }
-          actions={[
-            {
-              text: postForPinToggle?.is_pinned
-                ? "Unpin"
+        {pinModalVisible && (
+          <ActionModal
+            visible={pinModalVisible}
+            title={
+              postForPinToggle?.is_pinned
+                ? "Unpin Post"
                 : oldestPinnedPost
-                ? "Replace Oldest Pin"
-                : "Pin to Top",
-              onPress: async () => {
-                setPinModalVisible(false);
-                if (postForPinToggle) {
-                  await handlePinToggleConfirm(postForPinToggle);
-                }
+                  ? "Pin Limit Reached"
+                  : "Pin Post"
+            }
+            message={
+              postForPinToggle?.is_pinned
+                ? "Remove this post from your pinned posts?"
+                : oldestPinnedPost
+                  ? `You already have ${MAX_PINS} pinned posts. Pinning this will replace your oldest pin.`
+                  : "Pin this post to the top of your Community tab?"
+            }
+            actions={[
+              {
+                text: postForPinToggle?.is_pinned
+                  ? "Unpin"
+                  : oldestPinnedPost
+                    ? "Replace Oldest Pin"
+                    : "Pin to Top",
+                onPress: async () => {
+                  setPinModalVisible(false);
+                  if (postForPinToggle) {
+                    await handlePinToggleConfirm(postForPinToggle);
+                  }
+                },
+                style: oldestPinnedPost ? "warning" : "success",
               },
-              style: oldestPinnedPost ? "warning" : "success",
-            },
-            {
-              text: "Cancel",
-              onPress: () => {
-                setPinModalVisible(false);
-                setOldestPinnedPost(null);
+              {
+                text: "Cancel",
+                onPress: () => {
+                  setPinModalVisible(false);
+                  setOldestPinnedPost(null);
+                },
+                style: "cancel",
               },
-              style: "cancel",
-            },
-          ]}
-          onClose={() => {
-            setPinModalVisible(false);
-            setOldestPinnedPost(null);
-          }}
-        />
-      )}
+            ]}
+            onClose={() => {
+              setPinModalVisible(false);
+              setOldestPinnedPost(null);
+            }}
+          />
+        )}
 
-      {/* Premium Contact Info Modal */}
-      {contactModalVisible && (
-        <Modal
-          visible={contactModalVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setContactModalVisible(false)}
-          statusBarTranslucent={true}
-        >
-          <TouchableOpacity
-            style={styles.contactModalOverlay}
-            activeOpacity={1}
-            onPress={() => setContactModalVisible(false)}
+        {/* Premium Contact Info Modal */}
+        {contactModalVisible && (
+          <Modal
+            visible={contactModalVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setContactModalVisible(false)}
+            statusBarTranslucent={true}
           >
             <TouchableOpacity
-              style={styles.contactModalContent}
+              style={styles.contactModalOverlay}
               activeOpacity={1}
-              onPress={(e) => e.stopPropagation()}
+              onPress={() => setContactModalVisible(false)}
             >
-              {/* Header */}
-              <View style={styles.contactModalHeader}>
-                <Text style={styles.contactModalTitle}>
-                  {selectedHeadForContact ? `${selectedHeadForContact.name}'s Contact Info` : "Contact Info"}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setContactModalVisible(false)}
-                  style={styles.contactModalCloseBtn}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <X size={20} color="#0F172A" strokeWidth={2.2} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Options Body */}
-              <View style={styles.contactModalBody}>
-                {selectedHeadForContact?.member_id && (
+              <TouchableOpacity
+                style={styles.contactModalContent}
+                activeOpacity={1}
+                onPress={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <View style={styles.contactModalHeader}>
+                  <Text style={styles.contactModalTitle}>
+                    {selectedHeadForContact
+                      ? `${selectedHeadForContact.name}'s Contact Info`
+                      : "Contact Info"}
+                  </Text>
                   <TouchableOpacity
-                    style={styles.contactModalOption}
-                    onPress={() => {
-                      setContactModalVisible(false);
-                      const memberId = selectedHeadForContact.member_id;
-                      const isOwnProfile = currentUserId && memberId === currentUserId;
-                      if (isOwnProfile) {
-                        const root = navigation.getParent()?.getParent();
-                        if (root) {
-                          root.navigate("MemberHome", {
-                            screen: "Profile",
-                            params: {
-                              screen: "MemberProfile",
-                            },
-                          });
+                    onPress={() => setContactModalVisible(false)}
+                    style={styles.contactModalCloseBtn}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <X size={20} color="#0F172A" strokeWidth={2.2} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Options Body */}
+                <View style={styles.contactModalBody}>
+                  {selectedHeadForContact?.member_id && (
+                    <TouchableOpacity
+                      style={styles.contactModalOption}
+                      onPress={() => {
+                        setContactModalVisible(false);
+                        const memberId = selectedHeadForContact.member_id;
+                        const isOwnProfile =
+                          currentUserId && memberId === currentUserId;
+                        if (isOwnProfile) {
+                          const root = navigation.getParent()?.getParent();
+                          if (root) {
+                            root.navigate("MemberHome", {
+                              screen: "Profile",
+                              params: {
+                                screen: "MemberProfile",
+                              },
+                            });
+                          } else {
+                            navigation.navigate("MemberProfile");
+                          }
                         } else {
-                          navigation.navigate("MemberProfile");
+                          navigation.navigate("MemberPublicProfile", {
+                            memberId: memberId,
+                          });
                         }
-                      } else {
-                        navigation.navigate("MemberPublicProfile", {
-                          memberId: memberId,
+                      }}
+                    >
+                      <View
+                        style={[
+                          styles.contactIconWrapper,
+                          { backgroundColor: "rgba(41, 98, 255, 0.08)" },
+                        ]}
+                      >
+                        <User size={20} color="#2962FF" strokeWidth={2.2} />
+                      </View>
+                      <View style={styles.contactOptionTextContainer}>
+                        <Text style={styles.contactOptionTitle}>
+                          Visit Profile
+                        </Text>
+                        <Text style={styles.contactOptionSubtitle}>
+                          Go to user profile
+                        </Text>
+                      </View>
+                      <ChevronRight size={16} color="#8E8E93" />
+                    </TouchableOpacity>
+                  )}
+
+                  {selectedHeadForContact?.email && (
+                    <TouchableOpacity
+                      style={styles.contactModalOption}
+                      onPress={() => {
+                        setContactModalVisible(false);
+                        Linking.openURL(
+                          `mailto:${selectedHeadForContact.email}`,
+                        ).catch(() => {
+                          Alert.alert("Error", "Could not open mail app");
                         });
-                      }
-                    }}
-                  >
-                    <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(41, 98, 255, 0.08)" }]}>
-                      <User size={20} color="#2962FF" strokeWidth={2.2} />
-                    </View>
-                    <View style={styles.contactOptionTextContainer}>
-                      <Text style={styles.contactOptionTitle}>Visit Profile</Text>
-                      <Text style={styles.contactOptionSubtitle}>Go to user profile</Text>
-                    </View>
-                    <ChevronRight size={16} color="#8E8E93" />
-                  </TouchableOpacity>
-                )}
+                      }}
+                    >
+                      <View
+                        style={[
+                          styles.contactIconWrapper,
+                          { backgroundColor: "rgba(16, 185, 129, 0.08)" },
+                        ]}
+                      >
+                        <Mail size={20} color="#10B981" strokeWidth={2.2} />
+                      </View>
+                      <View style={styles.contactOptionTextContainer}>
+                        <Text style={styles.contactOptionTitle}>Email</Text>
+                        <Text style={styles.contactOptionSubtitle}>
+                          {selectedHeadForContact.email}
+                        </Text>
+                      </View>
+                      <ChevronRight size={16} color="#8E8E93" />
+                    </TouchableOpacity>
+                  )}
 
-                {selectedHeadForContact?.email && (
-                  <TouchableOpacity
-                    style={styles.contactModalOption}
-                    onPress={() => {
-                      setContactModalVisible(false);
-                      Linking.openURL(`mailto:${selectedHeadForContact.email}`).catch(() => {
-                        Alert.alert("Error", "Could not open mail app");
-                      });
-                    }}
-                  >
-                    <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(16, 185, 129, 0.08)" }]}>
-                      <Mail size={20} color="#10B981" strokeWidth={2.2} />
-                    </View>
-                    <View style={styles.contactOptionTextContainer}>
-                      <Text style={styles.contactOptionTitle}>Email</Text>
-                      <Text style={styles.contactOptionSubtitle}>{selectedHeadForContact.email}</Text>
-                    </View>
-                    <ChevronRight size={16} color="#8E8E93" />
-                  </TouchableOpacity>
-                )}
-
-                {selectedHeadForContact?.phone && (
-                  <TouchableOpacity
-                    style={styles.contactModalOption}
-                    onPress={() => {
-                      setContactModalVisible(false);
-                      Linking.openURL(`tel:${selectedHeadForContact.phone}`).catch(() => {
-                        Alert.alert("Error", "Could not initiate call");
-                      });
-                    }}
-                  >
-                    <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(245, 158, 11, 0.08)" }]}>
-                      <Phone size={20} color="#F59E0B" strokeWidth={2.2} />
-                    </View>
-                    <View style={styles.contactOptionTextContainer}>
-                      <Text style={styles.contactOptionTitle}>Call / Message</Text>
-                      <Text style={styles.contactOptionSubtitle}>{formatPhoneNumber(selectedHeadForContact.phone)}</Text>
-                    </View>
-                    <ChevronRight size={16} color="#8E8E93" />
-                  </TouchableOpacity>
-                )}
-              </View>
+                  {selectedHeadForContact?.phone && (
+                    <TouchableOpacity
+                      style={styles.contactModalOption}
+                      onPress={() => {
+                        setContactModalVisible(false);
+                        Linking.openURL(
+                          `tel:${selectedHeadForContact.phone}`,
+                        ).catch(() => {
+                          Alert.alert("Error", "Could not initiate call");
+                        });
+                      }}
+                    >
+                      <View
+                        style={[
+                          styles.contactIconWrapper,
+                          { backgroundColor: "rgba(245, 158, 11, 0.08)" },
+                        ]}
+                      >
+                        <Phone size={20} color="#F59E0B" strokeWidth={2.2} />
+                      </View>
+                      <View style={styles.contactOptionTextContainer}>
+                        <Text style={styles.contactOptionTitle}>
+                          Call / Message
+                        </Text>
+                        <Text style={styles.contactOptionSubtitle}>
+                          {formatPhoneNumber(selectedHeadForContact.phone)}
+                        </Text>
+                      </View>
+                      <ChevronRight size={16} color="#8E8E93" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </TouchableOpacity>
             </TouchableOpacity>
-          </TouchableOpacity>
-        </Modal>
-      )}
+          </Modal>
+        )}
       </View>
     </GestureHandlerRootView>
   );
