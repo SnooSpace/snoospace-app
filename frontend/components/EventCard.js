@@ -33,7 +33,12 @@ import {
 import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../constants/theme";
 import { getGradientForName, getInitials } from "../utils/AvatarGenerator";
 import { useLocationName } from "../utils/locationNameCache";
-import { toggleEventInterest, toggleEventLike, recordEventView, trackEventShare } from "../api/events";
+import {
+  toggleEventInterest,
+  toggleEventLike,
+  recordEventView,
+  trackEventShare,
+} from "../api/events";
 import { formatPrice } from "../utils/pricingUtils";
 import HapticsService from "../services/HapticsService";
 import EventBus from "../utils/EventBus";
@@ -57,8 +62,18 @@ const parseDisplayDate = (dateStr) => {
   let day = "•";
 
   const monthNames = [
-    "jan", "feb", "mar", "apr", "may", "jun",
-    "jul", "aug", "sep", "oct", "nov", "dec"
+    "jan",
+    "feb",
+    "mar",
+    "apr",
+    "may",
+    "jun",
+    "jul",
+    "aug",
+    "sep",
+    "oct",
+    "nov",
+    "dec",
   ];
 
   for (let part of parts) {
@@ -143,7 +158,7 @@ export default function EventCard({
     setHeartRot(Math.random() * 30 - 15);
     setShowHeart(true);
     heartScale.setValue(0);
-    
+
     Animated.sequence([
       Animated.timing(heartScale, {
         toValue: 1.2,
@@ -184,14 +199,14 @@ export default function EventCard({
     };
   }, []);
 
-  const handleCardPress = (event) => {
+  const handleCardPress = (e) => {
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;
       }
-      const { pageX, pageY } = event.nativeEvent;
+      const { pageX, pageY } = e.nativeEvent;
       cardRef.current?.measure((x, y, width, height, cardPageX, cardPageY) => {
         const relativeX = pageX - cardPageX;
         const relativeY = pageY - cardPageY;
@@ -224,7 +239,8 @@ export default function EventCard({
   }, [event?.like_count]);
 
   useEffect(() => {
-    if (event?.comment_count !== undefined) setCommentCount(event.comment_count);
+    if (event?.comment_count !== undefined)
+      setCommentCount(event.comment_count);
   }, [event?.comment_count]);
 
   useEffect(() => {
@@ -248,14 +264,18 @@ export default function EventCard({
   // Also sync view_count from prop when the event ID changes (new card load), but NOT on every
   // prop change — to avoid clobbering mid-session server-tracked view increments.
   useEffect(() => {
-    console.log(`[EventCard] Reset viewTrackedRef for event ${event?.id}, current view_count from prop: ${event?.view_count}`);
+    console.log(
+      `[EventCard] Reset viewTrackedRef for event ${event?.id}, current view_count from prop: ${event?.view_count}`,
+    );
     viewTrackedRef.current = false;
     if (event?.view_count !== undefined) setViewCount(event.view_count);
   }, [event?.id]);
 
   // View tracking: record a view after the card has been visible for 2.5s
   useEffect(() => {
-    console.log(`[EventCard] Tracking effect fired for event ${event?.id}, tracked=${viewTrackedRef.current}`);
+    console.log(
+      `[EventCard] Tracking effect fired for event ${event?.id}, tracked=${viewTrackedRef.current}`,
+    );
     if (!event?.id || viewTrackedRef.current) return;
     const timer = setTimeout(async () => {
       if (viewTrackedRef.current) return;
@@ -263,14 +283,20 @@ export default function EventCard({
       console.log(`[EventCard] Calling recordEventView for event ${event.id}`);
       try {
         const res = await recordEventView(event.id);
-        console.log(`[EventCard] recordEventView response for event ${event.id}:`, JSON.stringify(res));
+        console.log(
+          `[EventCard] recordEventView response for event ${event.id}:`,
+          JSON.stringify(res),
+        );
         if (res?.view_count !== undefined) {
           setViewCount(res.view_count);
         } else if (res?.is_new) {
           setViewCount((c) => c + 1);
         }
       } catch (err) {
-        console.error(`[EventCard] recordEventView failed for event ${event.id}:`, err?.message);
+        console.error(
+          `[EventCard] recordEventView failed for event ${event.id}:`,
+          err?.message,
+        );
       }
     }, 2500);
     return () => clearTimeout(timer);
@@ -304,14 +330,16 @@ export default function EventCard({
   // Listen for like updates from other EventCard instances showing the same event
   useEffect(() => {
     if (!event?.id) return;
-    const unsubscribe = EventBus.on('event-like-updated', (payload) => {
+    const unsubscribe = EventBus.on("event-like-updated", (payload) => {
       if (isEmittingRef.current) return;
       if (payload?.eventId === event.id) {
         setIsLiked(Boolean(payload.isLiked));
         if (payload.likeCount !== undefined) setLikeCount(payload.likeCount);
       }
     });
-    return () => { if (unsubscribe) unsubscribe(); };
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [event?.id]);
 
   // Check if user is registered for this event
@@ -319,7 +347,7 @@ export default function EventCard({
     event?.is_registered ||
     event?.registration_status === "registered" ||
     event?.registration_status === "attended" ||
-    event?.registration_status === "confirmed"
+    event?.registration_status === "confirmed",
   );
 
   if (!event) return null;
@@ -354,13 +382,14 @@ export default function EventCard({
     !isRegistered;
 
   // Get banners array - prioritize carousel, then banner_url
-  const banners = banner_carousel?.length > 0
-    ? banner_carousel
-    : event?.banners?.length > 0
-      ? event.banners
-      : banner_url
-        ? [{ image_url: banner_url }]
-        : [];
+  const banners =
+    banner_carousel?.length > 0
+      ? banner_carousel
+      : event?.banners?.length > 0
+        ? event.banners
+        : banner_url
+          ? [{ image_url: banner_url }]
+          : [];
 
   // Format date if not pre-formatted
   const displayDate =
@@ -453,8 +482,14 @@ export default function EventCard({
         setLikeCount(resp.like_count ?? nextCount);
         // Emit so other EventCard instances of the same event stay in sync
         isEmittingRef.current = true;
-        EventBus.emit('event-like-updated', { eventId: id, isLiked: resp.is_liked, likeCount: resp.like_count ?? nextCount });
-        setTimeout(() => { isEmittingRef.current = false; }, 0);
+        EventBus.emit("event-like-updated", {
+          eventId: id,
+          isLiked: resp.is_liked,
+          likeCount: resp.like_count ?? nextCount,
+        });
+        setTimeout(() => {
+          isEmittingRef.current = false;
+        }, 0);
       } else {
         setIsLiked(!nextLiked);
         setLikeCount(likeCount);
@@ -475,7 +510,10 @@ export default function EventCard({
     } else {
       // Fallback: native share sheet
       try {
-        await Share.share({ message: 'Check out ' + title + ' on SnooSpace!', title });
+        await Share.share({
+          message: "Check out " + title + " on SnooSpace!",
+          title,
+        });
       } catch (_) {}
     }
     // Always track the share server-side
@@ -553,7 +591,9 @@ export default function EventCard({
 
   const lowestPrice = getLowestPrice();
   const isFree = lowestPrice <= 0;
-  const displayPrice = isFree ? "Free" : `₹${lowestPrice.toLocaleString("en-IN")} onwards`;
+  const displayPrice = isFree
+    ? "Free"
+    : `₹${lowestPrice.toLocaleString("en-IN")} onwards`;
 
   const { month, day } = parseDisplayDate(displayDate);
   const eventDateObj = event_date ? new Date(event_date) : null;
@@ -563,15 +603,34 @@ export default function EventCard({
     <View style={[styles.container, compact && styles.containerCompact, style]}>
       {/* Event Label */}
       <View style={[styles.eventLabel, compact && styles.eventLabelCompact]}>
-        <Calendar size={compact ? 11 : 13} color={COLORS.primary} strokeWidth={2} />
-        <Text style={[styles.eventLabelText, compact && styles.eventLabelTextCompact]}>Event</Text>
+        <Calendar
+          size={compact ? 11 : 13}
+          color={COLORS.primary}
+          strokeWidth={2}
+        />
+        <Text
+          style={[
+            styles.eventLabelText,
+            compact && styles.eventLabelTextCompact,
+          ]}
+        >
+          Event
+        </Text>
       </View>
 
       {/* Main Card */}
-      <TouchableOpacity ref={cardRef} style={styles.card} activeOpacity={1} onPress={handleCardPress}>
+      <TouchableOpacity
+        ref={cardRef}
+        style={styles.card}
+        activeOpacity={1}
+        onPress={handleCardPress}
+      >
         {/* Banner Image */}
-        <View 
-          style={[styles.imageContainer, compact && styles.imageContainerCompact]}
+        <View
+          style={[
+            styles.imageContainer,
+            compact && styles.imageContainerCompact,
+          ]}
           onLayout={(e) => {
             setContainerWidth(e.nativeEvent.layout.width);
           }}
@@ -582,12 +641,18 @@ export default function EventCard({
                 <ScrollView
                   horizontal
                   pagingEnabled
+                  scrollEnabled={true}
                   showsHorizontalScrollIndicator={false}
+                  onTouchStart={() => EventBus.emit("disable-tab-swipe")}
+                  onTouchEnd={() => EventBus.emit("enable-tab-swipe")}
+                  onTouchCancel={() => EventBus.emit("enable-tab-swipe")}
                   onMomentumScrollEnd={(e) => {
                     const index = Math.round(
-                      e.nativeEvent.contentOffset.x / (containerWidth || CARD_WIDTH),
+                      e.nativeEvent.contentOffset.x /
+                        (containerWidth || CARD_WIDTH),
                     );
                     setCurrentBannerIndex(index);
+                    EventBus.emit("enable-tab-swipe");
                   }}
                   nestedScrollEnabled={true}
                   disallowInterruption={true}
@@ -598,7 +663,10 @@ export default function EventCard({
                     <Image
                       key={index}
                       source={{ uri: banner.image_url || banner.url }}
-                      style={{ width: containerWidth || CARD_WIDTH, height: "100%" }}
+                      style={{
+                        width: containerWidth || CARD_WIDTH,
+                        height: "100%",
+                      }}
                       resizeMode="cover"
                     />
                   ))}
@@ -630,24 +698,49 @@ export default function EventCard({
               end={{ x: 1, y: 1 }}
               style={styles.placeholderBanner}
             >
-              <Calendar size={compact ? 24 : 40} color="rgba(255,255,255,0.7)" strokeWidth={1.8} />
+              <Calendar
+                size={compact ? 24 : 40}
+                color="rgba(255,255,255,0.7)"
+                strokeWidth={1.8}
+              />
             </LinearGradient>
           )}
 
           {/* Date Badge */}
           <View style={[styles.dateBadge, compact && styles.dateBadgeCompact]}>
-            <Text style={[styles.dateBadgeHeader, compact && styles.dateBadgeHeaderCompact]}>{month}</Text>
-            <Text style={[styles.dateBadgeNumber, compact && styles.dateBadgeNumberCompact]}>{day}</Text>
+            <Text
+              style={[
+                styles.dateBadgeHeader,
+                compact && styles.dateBadgeHeaderCompact,
+              ]}
+            >
+              {month}
+            </Text>
+            <Text
+              style={[
+                styles.dateBadgeNumber,
+                compact && styles.dateBadgeNumberCompact,
+              ]}
+            >
+              {day}
+            </Text>
           </View>
 
           {/* Status Badge overlay inside image container */}
           {showStatusLabel && (
-            <View style={[
-              styles.statusBadge, 
-              compact && styles.statusBadgeCompact,
-              isPast ? styles.pastBadge : styles.upcomingBadge
-            ]}>
-              <Text style={[styles.statusBadgeNumber, compact && styles.statusBadgeNumberCompact]}>
+            <View
+              style={[
+                styles.statusBadge,
+                compact && styles.statusBadgeCompact,
+                isPast ? styles.pastBadge : styles.upcomingBadge,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusBadgeNumber,
+                  compact && styles.statusBadgeNumberCompact,
+                ]}
+              >
                 {isPast ? "PAST" : "UPCOMING"}
               </Text>
             </View>
@@ -663,33 +756,58 @@ export default function EventCard({
         {/* Content */}
         <View style={[styles.content, compact && styles.contentCompact]}>
           {/* Organizer/Community Row + QR Ticket shortcut */}
-          <View style={[styles.communityQrRow, compact && styles.communityQrRowCompact]}>
+          <View
+            style={[
+              styles.communityQrRow,
+              compact && styles.communityQrRowCompact,
+            ]}
+          >
             <TouchableOpacity
               style={styles.communityRow}
               onPress={() => {
                 if (community_id) {
-                  navigation.navigate("CommunityPublicProfile", { communityId: community_id });
+                  navigation.navigate("CommunityPublicProfile", {
+                    communityId: community_id,
+                  });
                 }
               }}
             >
               {hasValidPhoto ? (
                 <Image
                   source={{ uri: community_logo }}
-                  style={[styles.communityAvatar, compact && styles.communityAvatarCompact]}
+                  style={[
+                    styles.communityAvatar,
+                    compact && styles.communityAvatarCompact,
+                  ]}
                 />
               ) : (
                 <LinearGradient
                   colors={getGradientForName(community_name || "Community")}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={[styles.communityAvatar, styles.communityAvatarGradient, compact && styles.communityAvatarCompact]}
+                  style={[
+                    styles.communityAvatar,
+                    styles.communityAvatarGradient,
+                    compact && styles.communityAvatarCompact,
+                  ]}
                 >
-                  <Text style={[styles.communityInitials, compact && styles.communityInitialsCompact]}>
+                  <Text
+                    style={[
+                      styles.communityInitials,
+                      compact && styles.communityInitialsCompact,
+                    ]}
+                  >
                     {getInitials(community_name || "C")}
                   </Text>
                 </LinearGradient>
               )}
-              <Text style={[styles.communityName, compact && styles.communityNameCompact]} numberOfLines={1}>
+              <Text
+                style={[
+                  styles.communityName,
+                  compact && styles.communityNameCompact,
+                ]}
+                numberOfLines={1}
+              >
                 {community_name}
               </Text>
               {is_following_community && (
@@ -714,7 +832,10 @@ export default function EventCard({
           {/* Clickable Content Area */}
           <View>
             {/* Title */}
-            <Text style={[styles.title, compact && styles.titleCompact]} numberOfLines={2}>
+            <Text
+              style={[styles.title, compact && styles.titleCompact]}
+              numberOfLines={2}
+            >
               {title}
             </Text>
 
@@ -722,9 +843,14 @@ export default function EventCard({
             {compact ? (
               <View style={styles.metaGridCompact}>
                 <View style={styles.metaItemCompact}>
-                  <Clock size={13} color={COLORS.textSecondary} strokeWidth={2} />
+                  <Clock
+                    size={13}
+                    color={COLORS.textSecondary}
+                    strokeWidth={2}
+                  />
                   <Text style={styles.metaTextCompact} numberOfLines={1}>
-                    {displayDate} • {displayTime}{locationName ? ` • ${locationName}` : ""}
+                    {displayDate} • {displayTime}
+                    {locationName ? ` • ${locationName}` : ""}
                   </Text>
                 </View>
               </View>
@@ -732,16 +858,30 @@ export default function EventCard({
               <View style={styles.metaGrid}>
                 {/* Combined Date & Time Row */}
                 <View style={styles.metaItem}>
-                  <Clock size={14} color={COLORS.textSecondary} strokeWidth={2} />
-                  <Text style={styles.metaText}>{displayDate} • {displayTime}</Text>
+                  <Clock
+                    size={14}
+                    color={COLORS.textSecondary}
+                    strokeWidth={2}
+                  />
+                  <Text style={styles.metaText}>
+                    {displayDate} • {displayTime}
+                  </Text>
                 </View>
 
                 {locationName && (
                   <View style={styles.metaItem}>
                     {event_type === "virtual" ? (
-                      <Video size={14} color={COLORS.textSecondary} strokeWidth={2} />
+                      <Video
+                        size={14}
+                        color={COLORS.textSecondary}
+                        strokeWidth={2}
+                      />
                     ) : (
-                      <MapPin size={14} color={COLORS.textSecondary} strokeWidth={2} />
+                      <MapPin
+                        size={14}
+                        color={COLORS.textSecondary}
+                        strokeWidth={2}
+                      />
                     )}
                     <Text style={styles.metaText} numberOfLines={1}>
                       {locationName}
@@ -756,7 +896,9 @@ export default function EventCard({
           {!hidePriceDetails && (
             <View style={styles.priceDetailsRow}>
               <View style={styles.priceContainer}>
-                <Text style={[styles.priceText, isFree && styles.freePriceText]}>
+                <Text
+                  style={[styles.priceText, isFree && styles.freePriceText]}
+                >
                   {displayPrice}
                 </Text>
               </View>
@@ -775,59 +917,118 @@ export default function EventCard({
           {/* Bottom Row: Attendees Stack + RSVP CTA Button */}
           <View style={[styles.bottomRow, compact && styles.bottomRowCompact]}>
             {/* Attendee Stack */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.attendeesContainer}
               onPress={handleAttendeesPress}
               activeOpacity={0.7}
             >
               {attendee_count > 0 ? (
                 (() => {
-                  const hasAvatars = Array.isArray(event.attendee_avatars) && event.attendee_avatars.length > 0;
-                  const shownCount = hasAvatars ? Math.min(event.attendee_avatars.length, 3) : Math.min(attendee_count, 3);
+                  const hasAvatars =
+                    Array.isArray(event.attendee_avatars) &&
+                    event.attendee_avatars.length > 0;
+                  const shownCount = hasAvatars
+                    ? Math.min(event.attendee_avatars.length, 3)
+                    : Math.min(attendee_count, 3);
                   const remainingCount = attendee_count - shownCount;
                   return (
                     <>
-                      <View style={[styles.avatarStack, compact && styles.avatarStackCompact]}>
+                      <View
+                        style={[
+                          styles.avatarStack,
+                          compact && styles.avatarStackCompact,
+                        ]}
+                      >
                         {hasAvatars ? (
-                          event.attendee_avatars.slice(0, 3).map((avatarData, index) => {
-                            const hasPhoto = avatarData?.profile_photo_url && /^https?:\/\//.test(avatarData.profile_photo_url);
-                            const zIndex = 3 - index;
-                            const marginLeft = index > 0 ? (compact ? -6 : -8) : 0;
-                            if (hasPhoto) {
-                              return (
-                                <Image
-                                  key={`attendee-avatar-${index}`}
-                                  source={{ uri: avatarData.profile_photo_url }}
-                                  style={[styles.avatar, compact && styles.avatarCompact, { marginLeft, zIndex }]}
-                                />
-                              );
-                            } else {
-                              const initials = getInitials(avatarData?.name || "U");
-                              const gradientColors = getGradientForName(avatarData?.name || "U");
-                              return (
-                                <LinearGradient
-                                  key={`attendee-avatar-${index}`}
-                                  colors={gradientColors}
-                                  start={{ x: 0, y: 0 }}
-                                  end={{ x: 1, y: 1 }}
-                                  style={[styles.avatar, styles.avatarGradient, compact && styles.avatarCompact, { marginLeft, zIndex }]}
-                                >
-                                  <Text style={styles.avatarInitials}>{initials}</Text>
-                                </LinearGradient>
-                              );
-                            }
-                          })
+                          event.attendee_avatars
+                            .slice(0, 3)
+                            .map((avatarData, index) => {
+                              const hasPhoto =
+                                avatarData?.profile_photo_url &&
+                                /^https?:\/\//.test(
+                                  avatarData.profile_photo_url,
+                                );
+                              const zIndex = 3 - index;
+                              const marginLeft =
+                                index > 0 ? (compact ? -6 : -8) : 0;
+                              if (hasPhoto) {
+                                return (
+                                  <Image
+                                    key={`attendee-avatar-${index}`}
+                                    source={{
+                                      uri: avatarData.profile_photo_url,
+                                    }}
+                                    style={[
+                                      styles.avatar,
+                                      compact && styles.avatarCompact,
+                                      { marginLeft, zIndex },
+                                    ]}
+                                  />
+                                );
+                              } else {
+                                const initials = getInitials(
+                                  avatarData?.name || "U",
+                                );
+                                const gradientColors = getGradientForName(
+                                  avatarData?.name || "U",
+                                );
+                                return (
+                                  <LinearGradient
+                                    key={`attendee-avatar-${index}`}
+                                    colors={gradientColors}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 1 }}
+                                    style={[
+                                      styles.avatar,
+                                      styles.avatarGradient,
+                                      compact && styles.avatarCompact,
+                                      { marginLeft, zIndex },
+                                    ]}
+                                  >
+                                    <Text style={styles.avatarInitials}>
+                                      {initials}
+                                    </Text>
+                                  </LinearGradient>
+                                );
+                              }
+                            })
                         ) : (
                           // Fallback placeholders when no actual attendee profiles are loaded
                           <>
                             {attendee_count >= 1 && (
-                              <View style={[styles.avatar, compact && styles.avatarCompact, { backgroundColor: "#E5E7EB", zIndex: 3 }]} />
+                              <View
+                                style={[
+                                  styles.avatar,
+                                  compact && styles.avatarCompact,
+                                  { backgroundColor: "#E5E7EB", zIndex: 3 },
+                                ]}
+                              />
                             )}
                             {attendee_count >= 2 && (
-                              <View style={[styles.avatar, compact && styles.avatarCompact, { backgroundColor: "#D1D5DB", marginLeft: compact ? -6 : -8, zIndex: 2 }]} />
+                              <View
+                                style={[
+                                  styles.avatar,
+                                  compact && styles.avatarCompact,
+                                  {
+                                    backgroundColor: "#D1D5DB",
+                                    marginLeft: compact ? -6 : -8,
+                                    zIndex: 2,
+                                  },
+                                ]}
+                              />
                             )}
                             {attendee_count >= 3 && (
-                              <View style={[styles.avatar, compact && styles.avatarCompact, { backgroundColor: "#9CA3AF", marginLeft: compact ? -6 : -8, zIndex: 1 }]} />
+                              <View
+                                style={[
+                                  styles.avatar,
+                                  compact && styles.avatarCompact,
+                                  {
+                                    backgroundColor: "#9CA3AF",
+                                    marginLeft: compact ? -6 : -8,
+                                    zIndex: 1,
+                                  },
+                                ]}
+                              />
                             )}
                           </>
                         )}
@@ -866,7 +1067,9 @@ export default function EventCard({
                     {isInterested === true ? (
                       <View style={styles.interestedActiveContent}>
                         <Check size={14} color="#16A34A" strokeWidth={2.2} />
-                        <Text style={styles.interestedActiveText}>Marked as Interested</Text>
+                        <Text style={styles.interestedActiveText}>
+                          Marked as Interested
+                        </Text>
                       </View>
                     ) : (
                       <LinearGradient
@@ -888,11 +1091,30 @@ export default function EventCard({
           {/* Engagement Row */}
           {!hideEngagement && (
             <View style={styles.engagementRow}>
-              <TouchableOpacity style={styles.engagementBtn} onPress={handleLikePress} disabled={isLiking}>
-                <Heart size={22} color={isLiked ? COLORS.error : '#5e8d9b'} fill={isLiked ? COLORS.error : 'transparent'} strokeWidth={2} />
-                <Text style={[styles.engagementCount, isLiked && { color: COLORS.error }]}>{likeCount}</Text>
+              <TouchableOpacity
+                style={styles.engagementBtn}
+                onPress={handleLikePress}
+                disabled={isLiking}
+              >
+                <Heart
+                  size={22}
+                  color={isLiked ? COLORS.error : "#5e8d9b"}
+                  fill={isLiked ? COLORS.error : "transparent"}
+                  strokeWidth={2}
+                />
+                <Text
+                  style={[
+                    styles.engagementCount,
+                    isLiked && { color: COLORS.error },
+                  ]}
+                >
+                  {likeCount}
+                </Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.engagementBtn} onPress={handleCommentPress}>
+              <TouchableOpacity
+                style={styles.engagementBtn}
+                onPress={handleCommentPress}
+              >
                 <MessageCircle size={22} color="#5e8d9b" strokeWidth={2} />
                 <Text style={styles.engagementCount}>{commentCount}</Text>
               </TouchableOpacity>
@@ -901,10 +1123,17 @@ export default function EventCard({
                 activeOpacity={1}
                 onPress={() => HapticsService.triggerView()}
               >
-                <ChartNoAxesCombined size={22} color="#5e8d9b" strokeWidth={2} />
+                <ChartNoAxesCombined
+                  size={22}
+                  color="#5e8d9b"
+                  strokeWidth={2}
+                />
                 <Text style={styles.engagementCount}>{viewCount}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.engagementBtn} onPress={handleSharePress}>
+              <TouchableOpacity
+                style={styles.engagementBtn}
+                onPress={handleSharePress}
+              >
                 <Send size={22} color="#5e8d9b" strokeWidth={2} />
                 <Text style={styles.engagementCount}>{shareCount}</Text>
               </TouchableOpacity>
@@ -914,12 +1143,12 @@ export default function EventCard({
           {showHeart && (
             <Animated.View
               style={{
-                position: 'absolute',
+                position: "absolute",
                 top: heartPos.y - 75,
                 left: heartPos.x - 75,
                 transform: [
                   { scale: heartScale },
-                  { rotate: `${heartRot}deg` }
+                  { rotate: `${heartRot}deg` },
                 ],
                 opacity: heartScale.interpolate({
                   inputRange: [0, 1],
@@ -1267,17 +1496,17 @@ const styles = StyleSheet.create({
     color: "#16A34A",
   },
   engagementRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingTop: 10,
     paddingHorizontal: 4,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: "#F3F4F6",
   },
   engagementBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 5,
     paddingVertical: 6,
     paddingHorizontal: 8,
@@ -1286,7 +1515,7 @@ const styles = StyleSheet.create({
   engagementCount: {
     fontSize: 13,
     fontFamily: FONTS.medium,
-    color: '#5e8d9b',
+    color: "#5e8d9b",
   },
   containerCompact: {
     marginVertical: 6,

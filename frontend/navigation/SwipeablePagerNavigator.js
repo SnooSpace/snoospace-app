@@ -313,6 +313,20 @@ function SwipeablePagerNavigator({
   const isSelfDrivenRef = useRef(false);
 
   const [loaded, setLoaded] = useState([]);
+  const [pagerSwipeEnabled, setPagerSwipeEnabled] = useState(true);
+
+  useEffect(() => {
+    const unsubDisable = EventBus.on("disable-tab-swipe", () => {
+      setPagerSwipeEnabled(false);
+    });
+    const unsubEnable = EventBus.on("enable-tab-swipe", () => {
+      setPagerSwipeEnabled(true);
+    });
+    return () => {
+      if (unsubDisable) unsubDisable();
+      if (unsubEnable) unsubEnable();
+    };
+  }, []);
 
   useEffect(() => {
     setLoaded((prev) => {
@@ -382,7 +396,7 @@ function SwipeablePagerNavigator({
   // horizontal movement before we claim the touch ourselves. No foreign native
   // recognizer is involved, so there's no race condition to lose.
   const directionLockGesture = Gesture.Pan()
-    .enabled(!shouldHideTabBar)
+    .enabled(!shouldHideTabBar && pagerSwipeEnabled)
     .activeOffsetX([-15, 15])
     .failOffsetY([-8, 8])
     .onStart(() => {

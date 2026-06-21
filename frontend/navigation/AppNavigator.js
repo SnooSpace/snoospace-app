@@ -38,6 +38,10 @@ import DeleteConfirmationScreen from "../screens/profile/DeleteConfirmationScree
 import ConsentScreen from "../screens/Privacy/ConsentScreen";
 import MyDataScreen from "../screens/Privacy/MyDataScreen";
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
+import SettingsScreen from "../screens/profile/member/SettingsScreen";
+import LinkedAccountsScreen from "../screens/profile/member/LinkedAccountsScreen";
+import BlockedAccountsScreen from "../screens/profile/member/BlockedAccountsScreen";
+import CommunityMonetizationScreen from "../screens/profile/community/CommunityMonetizationScreen";
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
 import ApplicantsListScreen from "../screens/home/community/ApplicantsListScreen";
 import ApplicantDetailScreen from "../screens/home/community/ApplicantDetailScreen";
@@ -50,6 +54,13 @@ import CommunityFollowersListScreen from "../screens/profile/community/Community
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
 import CircleListScreen from "../screens/profile/member/CircleListScreen";
 import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
+
+import PlansDiscoverFeedScreen from "../screens/plans/PlansDiscoverFeedScreen";
+import PlanDetailScreen from "../screens/plans/PlanDetailScreen";
+import HostRequestsScreen from "../screens/plans/HostRequestsScreen";
+import MyPlansScreen from "../screens/plans/MyPlansScreen";
+import BlockedUsersScreen from "../screens/plans/BlockedUsersScreen";
+import VerificationSubmitScreen from "../screens/plans/VerificationSubmitScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -262,6 +273,17 @@ export default function AppNavigator({ initialRouteName }) {
         name="SavedPostsScreen"
         component={SavedPostsScreen}
       />
+      <Stack.Screen name="PlansDiscoverFeed" component={PlansDiscoverFeedScreen} />
+      <Stack.Screen name="PlanDetail" component={PlanDetailScreen} />
+      <Stack.Screen name="HostRequests" component={HostRequestsScreen} />
+      <Stack.Screen name="MyPlans" component={MyPlansScreen} />
+      <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
+      <Stack.Screen name="VerificationSubmit" component={VerificationSubmitScreen} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="LinkedAccounts" component={LinkedAccountsScreen} />
+      <Stack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
+      <Stack.Screen name="CreatorMonetization" component={CommunityMonetizationScreen} />
+      <Stack.Screen name="CommunityMonetization" component={CommunityMonetizationScreen} />
     </Stack.Navigator>
   );
 }

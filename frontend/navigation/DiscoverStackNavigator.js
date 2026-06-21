@@ -12,13 +12,7 @@ import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen"
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
 import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
 
-// Open Plans screens
-import PlansDiscoverFeedScreen from "../screens/plans/PlansDiscoverFeedScreen";
-import PlanDetailScreen from "../screens/plans/PlanDetailScreen";
-import HostRequestsScreen from "../screens/plans/HostRequestsScreen";
-import MyPlansScreen from "../screens/plans/MyPlansScreen";
-import BlockedUsersScreen from "../screens/plans/BlockedUsersScreen";
-import VerificationSubmitScreen from "../screens/plans/VerificationSubmitScreen";
+
 
 const DiscoverScreenWithSwipe = (props) => (
   <TabSwipeHandler currentTab="Discover">
@@ -55,14 +49,6 @@ export default function DiscoverStackNavigator() {
         name="ApplyToOpportunity"
         component={ApplyToOpportunityScreen}
       />
-
-      {/* ── Open Plans ─────────────────────────────────────────────────── */}
-      <Stack.Screen name="PlansDiscoverFeed" component={PlansDiscoverFeedScreen} />
-      <Stack.Screen name="PlanDetail" component={PlanDetailScreen} />
-      <Stack.Screen name="HostRequests" component={HostRequestsScreen} />
-      <Stack.Screen name="MyPlans" component={MyPlansScreen} />
-      <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
-      <Stack.Screen name="VerificationSubmit" component={VerificationSubmitScreen} />
     </Stack.Navigator>
   );
 }

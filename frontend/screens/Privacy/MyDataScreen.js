@@ -253,18 +253,6 @@ const CACHE_DURATION = 15000; // Cache valid for 15 seconds
 // ── MyDataScreen — router shell ───────────────────────────────────────────────
 
 const MyDataScreen = ({ navigation, route }) => {
-  // Hide parent tab bar on mount, restore on unmount
-  useEffect(() => {
-    navigation.getParent()?.setOptions({
-      tabBarStyle: { display: "none" },
-    });
-    return () => {
-      navigation.getParent()?.setOptions({
-        tabBarStyle: undefined,
-      });
-    };
-  }, [navigation]);
-
   const [accountType, setAccountType] = useState(dataCache.accountType || "member");
   const [loading, setLoading] = useState(!dataCache.accountType);
   const initialTab = route?.params?.initialTab || "personal";

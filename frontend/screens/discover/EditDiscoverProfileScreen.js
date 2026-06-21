@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Svg, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { getAuthToken } from "../../api/auth";
@@ -90,6 +90,45 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   const [initialState, setInitialState] = useState(null);
   const imageUploaderRef = useRef(null);
   const hasLoadedRef = useRef(false);
+
+  // Scroll and validation tracking
+  const scrollViewRef = useRef(null);
+  const sectionCoords = useRef({});
+  const [validationErrors, setValidationErrors] = useState({
+    photos: false,
+    sparks: false,
+    openers: false,
+  });
+
+  // Shake animations for validation feedback
+  const photosShakeAnim = useRef(new Animated.Value(0)).current;
+  const sparksShakeAnim = useRef(new Animated.Value(0)).current;
+  const openersShakeAnim = useRef(new Animated.Value(0)).current;
+
+  // Trigger error highlight and animation helper
+  const triggerSectionError = useCallback((sectionKey, shakeAnim) => {
+    setValidationErrors((prev) => ({ ...prev, [sectionKey]: true }));
+    HapticsService.triggerNotificationWarning();
+
+    // Scroll to the failing section
+    const yCoord = sectionCoords.current[sectionKey];
+    if (yCoord !== undefined && scrollViewRef.current) {
+      const scrollToY = Math.max(0, yCoord - 16);
+      scrollViewRef.current.scrollTo({ y: scrollToY, animated: true });
+    }
+
+    // Micro-animation: Shake sequence
+    shakeAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 8, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -8, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 6, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -6, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 4, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -4, duration: 45, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 45, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -191,23 +230,20 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   }, [handleBackPress]);
 
   const handleSave = useCallback(async () => {
+    // Reset validation errors
+    setValidationErrors({ photos: false, sparks: false, openers: false });
+
     // Validation
     if (photos.length < 3) {
-      Alert.alert(
-        "Photos Required",
-        "Please add at least 3 photos to appear in discovery",
-      );
+      triggerSectionError("photos", photosShakeAnim);
       return;
     }
     if (goalBadges.length === 0) {
-      Alert.alert(
-        "Required",
-        "Please add at least 1 Spark to appear in discovery",
-      );
+      triggerSectionError("sparks", sparksShakeAnim);
       return;
     }
     if (openers.length === 0) {
-      Alert.alert("Required", "Please add at least 1 conversation starter");
+      triggerSectionError("openers", openersShakeAnim);
       return;
     }
 
@@ -294,6 +330,9 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   // ImageUploader callback - receives array of image URIs
   const handlePhotosChange = useCallback((newPhotos) => {
     setPhotos(newPhotos);
+    if (newPhotos.length >= 3) {
+      setValidationErrors((prev) => ({ ...prev, photos: false }));
+    }
     HapticsService.triggerSelection();
   }, []);
 
@@ -307,7 +346,11 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     }
     navigation.navigate("OpenerSelection", {
       onSelect: (opener) => {
-        setOpeners((prev) => [...prev, opener]);
+        setOpeners((prev) => {
+          const next = [...prev, opener];
+          setValidationErrors((prevErrors) => ({ ...prevErrors, openers: false }));
+          return next;
+        });
       },
     });
   }, [navigation, openers.length]);
@@ -316,6 +359,9 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     setOpeners((prev) => {
       const newOpeners = [...prev];
       newOpeners.splice(index, 1);
+      if (newOpeners.length > 0) {
+        setValidationErrors((prevErrors) => ({ ...prevErrors, openers: false }));
+      }
       return newOpeners;
     });
     HapticsService.triggerSelection();
@@ -324,15 +370,20 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   const toggleGoal = useCallback((goal) => {
     HapticsService.triggerSelection();
     setGoalBadges((prev) => {
+      let next;
       if (prev.includes(goal)) {
-        return prev.filter((g) => g !== goal);
+        next = prev.filter((g) => g !== goal);
       } else {
         if (prev.length >= 3) {
           Alert.alert("Limit Reached", "You can select up to 3 Sparks.");
           return prev;
         }
-        return [...prev, goal];
+        next = [...prev, goal];
       }
+      if (next.length > 0) {
+        setValidationErrors((prevErrors) => ({ ...prevErrors, sparks: false }));
+      }
+      return next;
     });
   }, []);
 
@@ -347,7 +398,11 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       Alert.alert("Limit Reached", "You can select up to 3 Sparks.");
       return;
     }
-    setGoalBadges((prev) => [...prev, trimmed]);
+    setGoalBadges((prev) => {
+      const next = [...prev, trimmed];
+      setValidationErrors((prevErrors) => ({ ...prevErrors, sparks: false }));
+      return next;
+    });
     setCustomGoal("");
     setShowCustomGoalInput(false);
     HapticsService.triggerSelection();
@@ -520,10 +575,27 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         </View>
       )}
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {/* SECTION 1: Photos (Edge-to-Edge Editorial) */}
-        <View style={styles.sectionEditorial}>
-          <View style={styles.sectionCardEditorial}>
+        <Animated.View
+          onLayout={(event) => {
+            sectionCoords.current.photos = event.nativeEvent.layout.y;
+          }}
+          style={[
+            styles.sectionEditorial,
+            { transform: [{ translateX: photosShakeAnim }] }
+          ]}
+        >
+          <View
+            style={[
+              styles.sectionCardEditorial,
+              validationErrors.photos && styles.cardErrorEditorial,
+            ]}
+          >
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
                 <View
@@ -567,7 +639,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
               )}
             </View>
           </View>
-        </View>
+        </Animated.View>
 
         {/* SECTION 2: Identity (Rounded Card) */}
         <View style={styles.section}>
@@ -646,8 +718,21 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         </View>
 
         {/* SECTION 3: Sparks (Edge-to-Edge Editorial) */}
-        <View style={styles.sectionEditorial}>
-          <View style={styles.sectionCardEditorial}>
+        <Animated.View
+          onLayout={(event) => {
+            sectionCoords.current.sparks = event.nativeEvent.layout.y;
+          }}
+          style={[
+            styles.sectionEditorial,
+            { transform: [{ translateX: sparksShakeAnim }] }
+          ]}
+        >
+          <View
+            style={[
+              styles.sectionCardEditorial,
+              validationErrors.sparks && styles.cardErrorEditorial,
+            ]}
+          >
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
                 <View
@@ -761,11 +846,24 @@ export default function EditDiscoverProfileScreen({ navigation }) {
               )}
             </View>
           </View>
-        </View>
+        </Animated.View>
 
         {/* SECTION 4: Conversation Starters (Rounded Card) */}
-        <View style={styles.section}>
-          <View style={styles.sectionCardRounded}>
+        <Animated.View
+          onLayout={(event) => {
+            sectionCoords.current.openers = event.nativeEvent.layout.y;
+          }}
+          style={[
+            styles.section,
+            { transform: [{ translateX: openersShakeAnim }] }
+          ]}
+        >
+          <View
+            style={[
+              styles.sectionCardRounded,
+              validationErrors.openers && styles.cardErrorRounded,
+            ]}
+          >
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
                 <View
@@ -831,7 +929,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
               )}
             </View>
           </View>
-        </View>
+        </Animated.View>
 
         {/* SECTION 5: Privacy (Rounded Card) */}
         <View style={styles.section}>
@@ -894,6 +992,18 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
+            {/* Close / Discard Icon in Top Right */}
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              activeOpacity={0.7}
+              onPress={() => {
+                setUnsavedModalVisible(false);
+                navigation.goBack();
+              }}
+            >
+              <X size={20} color="#64748B" strokeWidth={2.5} />
+            </TouchableOpacity>
+
             {/* Warning Icon with Tinted Background */}
             <View style={styles.modalIconContainer}>
               <AlertCircle size={22} color="#EA580C" />
@@ -926,17 +1036,6 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                 onPress={() => setUnsavedModalVisible(false)}
               >
                 <Text style={styles.modalSecondaryButtonText}>Keep Editing</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.modalDestructiveButton}
-                activeOpacity={0.8}
-                onPress={() => {
-                  setUnsavedModalVisible(false);
-                  navigation.goBack();
-                }}
-              >
-                <Text style={styles.modalDestructiveButtonText}>Discard</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1451,15 +1550,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#475569",
   },
-  modalDestructiveButton: {
-    width: "100%",
-    height: 48,
+  modalCloseButton: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "transparent",
     justifyContent: "center",
     alignItems: "center",
   },
-  modalDestructiveButtonText: {
-    fontFamily: FONTS.semiBold, // Manrope SemiBold
-    fontSize: 16,
-    color: "#DC2626", // Red Discard text
+  cardErrorEditorial: {
+    backgroundColor: "#FFF5F5",
+    borderBottomColor: "#FCA5A5",
+  },
+  cardErrorRounded: {
+    backgroundColor: "#FFF5F5",
+    borderColor: "#FCA5A5",
   },
 });

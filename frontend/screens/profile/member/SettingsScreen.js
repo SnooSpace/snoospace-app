@@ -235,18 +235,6 @@ export default function SettingsScreen({ route, navigation }) {
     onAddAccountPress,
   } = route?.params || {};
 
-  // Hide parent tab bar on mount, restore on unmount
-  useEffect(() => {
-    navigation.getParent()?.setOptions({
-      tabBarStyle: { display: "none" },
-    });
-    return () => {
-      navigation.getParent()?.setOptions({
-        tabBarStyle: undefined,
-      });
-    };
-  }, [navigation]);
-
   const [profile, setProfile] = useState(initialProfile);
 
   useEffect(() => {
