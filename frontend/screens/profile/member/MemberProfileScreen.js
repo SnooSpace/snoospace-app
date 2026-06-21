@@ -485,7 +485,6 @@ export default function MemberProfileScreen({ navigation }) {
     postId: null,
     postType: "post",
   });
-  const [hapticsEnabled, setHapticsEnabled] = useState(true);
   const [activeEmail, setActiveEmail] = useState("");
   const [pinModalVisible, setPinModalVisible] = useState(false);
   const [postForPinToggle, setPostForPinToggle] = useState(null);
@@ -574,18 +573,6 @@ export default function MemberProfileScreen({ navigation }) {
     paused: isAnyModalOpen,
   });
 
-  // Load haptics preference asynchronously
-  useEffect(() => {
-    (async () => {
-      const enabled = await HapticsService.getEnabled();
-      setHapticsEnabled(enabled);
-    })();
-  }, []);
-
-  const handleToggleHaptics = async (value) => {
-    setHapticsEnabled(value);
-    await HapticsService.setEnabled(value);
-  };
 
   const MAX_PINS = 3;
 
@@ -1544,7 +1531,7 @@ export default function MemberProfileScreen({ navigation }) {
               style={styles.settingsButton}
               onPress={() => {
                 HapticsService.triggerSettingsPress();
-                navigation.navigate("Settings", { profile, hapticsEnabled });
+                navigation.navigate("Settings", { profile });
               }}
               hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
             >

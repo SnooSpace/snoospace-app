@@ -266,9 +266,17 @@ export default function SettingsScreen({ route, navigation }) {
 
   const isCommunity = accountType === "community" || profile?.community_type != null;
 
-  const [hapticsEnabled, setHapticsEnabled] = React.useState(
-    initialHaptics ?? true,
+  const [hapticsEnabled, setHapticsEnabled] = useState(
+    HapticsService.isEnabled,
   );
+
+  useEffect(() => {
+    async function loadHaptics() {
+      const val = await HapticsService.getEnabled();
+      setHapticsEnabled(val);
+    }
+    loadHaptics();
+  }, []);
 
   const appVersion =
     Constants.expoConfig?.version || Constants.manifest?.version || "—";

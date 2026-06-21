@@ -764,7 +764,6 @@ export default function CommunityProfileScreen({ navigation, route }) {
   const initialLoadCompletedRef = useRef(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
-  const [hapticsEnabled, setHapticsEnabled] = useState(true);
   const [contactModalVisible, setContactModalVisible] = useState(false);
   const [selectedHeadForContact, setSelectedHeadForContact] = useState(null);
   const [pinModalVisible, setPinModalVisible] = useState(false);
@@ -817,18 +816,6 @@ export default function CommunityProfileScreen({ navigation, route }) {
     paused: isAnyModalOpen,
   });
 
-  // Load haptics preference asynchronously
-  useEffect(() => {
-    (async () => {
-      const enabled = await HapticsService.getEnabled();
-      setHapticsEnabled(enabled);
-    })();
-  }, []);
-
-  const handleToggleHaptics = async (value) => {
-    setHapticsEnabled(value);
-    await HapticsService.setEnabled(value);
-  };
 
   // Handle actions triggered from SettingsScreen via EventBus
   useEffect(() => {
@@ -1988,7 +1975,6 @@ export default function CommunityProfileScreen({ navigation, route }) {
                     HapticsService.triggerSettingsPress();
                     navigation.navigate("Settings", {
                       profile,
-                      hapticsEnabled,
                       accountType: "community",
                     });
                   }}
@@ -2029,7 +2015,6 @@ export default function CommunityProfileScreen({ navigation, route }) {
               HapticsService.triggerSettingsPress();
               navigation.navigate("Settings", {
                 profile,
-                hapticsEnabled,
                 accountType: "community",
               });
             }}
