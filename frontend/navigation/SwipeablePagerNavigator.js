@@ -64,6 +64,7 @@ const ProfileTabButton = ({
       }
 
       hapticsService.triggerImpactLight();
+      EventBus.emit("account-switch-start");
 
       const activeAccount = await getActiveAccount();
       const activeCompositeId = activeAccount
@@ -83,31 +84,42 @@ const ProfileTabButton = ({
       console.log(`[DoubleTapCycle] Switching to ${nextCompositeId}`);
       await switchAccount(nextCompositeId);
 
-      const routeName =
-        nextAccount.type === "member"
-          ? "MemberHome"
-          : nextAccount.type === "community"
-            ? "CommunityHome"
-            : nextAccount.type === "sponsor"
-              ? "SponsorHome"
-              : nextAccount.type === "venue"
-                ? "VenueHome"
-                : "Landing";
+      EventBus.emit("account-switch-done", {
+        name: nextAccount.name || nextAccount.username || "",
+        username: nextAccount.username || "",
+        photoUrl: nextAccount.profilePicture || null,
+      });
 
-      let rootNav = navigation;
-      while (rootNav.getParent && rootNav.getParent()) {
-        rootNav = rootNav.getParent();
-      }
+      // Small delay to ensure state propagates, then navigate to correct home
+      setTimeout(() => {
+        const routeName =
+          nextAccount.type === "member"
+            ? "MemberHome"
+            : nextAccount.type === "community"
+              ? "CommunityHome"
+              : nextAccount.type === "sponsor"
+                ? "SponsorHome"
+                : nextAccount.type === "venue"
+                  ? "VenueHome"
+                  : "Landing";
 
-      rootNav.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [{ name: routeName }],
-        }),
-      );
+        let rootNav = navigation;
+        while (rootNav.getParent && rootNav.getParent()) {
+          rootNav = rootNav.getParent();
+        }
+
+        rootNav.dispatch(
+          CommonActions.reset({
+            index: 0,
+            routes: [{ name: routeName }],
+          }),
+        );
+      }, 50);
     } catch (error) {
       console.error("[DoubleTapCycle] Error cycling account:", error);
       navigateToProfile();
+    } finally {
+      EventBus.emit("account-switch-end");
     }
   };
 
