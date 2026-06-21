@@ -249,6 +249,7 @@ export default function CustomImagePicker({
       const tooLong      = isVideoTooLong(item);
       const selectionNumber = getSelectionIndex(item.id);
       const isSelected = selectionNumber !== null;
+      const isMaxReached = selectedAssets.length >= selectionLimit && !isSelected;
 
       return (
         <ImagePickerThumbnail
@@ -256,11 +257,12 @@ export default function CustomImagePicker({
           isSelected={isSelected}
           selectionNumber={selectionNumber}
           tooLong={tooLong}
-          onPress={() => !tooLong && toggleAsset(item)}
+          isMaxReached={isMaxReached}
+          onPress={toggleAsset}
         />
       );
     },
-    [selectedAssets, toggleAsset, isVideoTooLong]
+    [selectedAssets, toggleAsset, isVideoTooLong, selectionLimit]
   );
 
   const keyExtractor = useCallback((item) => item.id, []);
@@ -484,33 +486,47 @@ export default function CustomImagePicker({
   );
 }
 
+const StaticThumbnailImage = React.memo(({ uri }) => (
+  <Image
+    source={{ uri }}
+    style={styles.thumb}
+    resizeMode="cover"
+  />
+), (prev, next) => prev.uri === next.uri);
+
 const ImagePickerThumbnail = React.memo(({
   item,
   isSelected,
   selectionNumber,
   tooLong,
+  isMaxReached,
   onPress,
 }) => {
+  const showDim = tooLong || isMaxReached;
+
+  const handlePress = () => {
+    if (!tooLong && !isMaxReached) {
+      onPress(item);
+    }
+  };
+
   return (
     <TouchableOpacity
-      activeOpacity={tooLong ? 1 : 0.85}
-      onPress={onPress}
+      activeOpacity={showDim ? 1 : 0.85}
+      onPress={handlePress}
       style={styles.thumbWrapper}
     >
-      <Image
-        source={{ uri: item.uri }}
-        style={[styles.thumb, tooLong && styles.thumbDisabled]}
-        resizeMode="cover"
-      />
+      <StaticThumbnailImage uri={item.uri} />
 
-      {/* Grey-out overlay for too-long videos */}
+      {/* Grey-out overlay for too-long videos or max reached */}
       {tooLong && <View style={styles.tooLongOverlay} />}
+      {isMaxReached && <View style={styles.maxReachedOverlay} />}
 
       {/* Dim overlay when selected */}
       {isSelected && !tooLong && <View style={styles.selectedDim} />}
 
       {/* Selection badge — only shown for valid assets */}
-      {!tooLong && (
+      {!tooLong && !isMaxReached && (
         <View
           style={[
             styles.badge,
@@ -525,8 +541,8 @@ const ImagePickerThumbnail = React.memo(({
 
       {/* Video duration badge */}
       {item.mediaType === "video" && (
-        <View style={[styles.videoBadge, tooLong && styles.videoBadgeTooLong]}>
-          <Text style={[styles.videoDuration, tooLong && styles.videoDurationTooLong]}>
+        <View style={[styles.videoBadge, showDim && styles.videoBadgeTooLong]}>
+          <Text style={[styles.videoDuration, showDim && styles.videoDurationTooLong]}>
             {tooLong ? "Too long" : formatDuration(item.duration)}
           </Text>
         </View>
@@ -539,7 +555,9 @@ const ImagePickerThumbnail = React.memo(({
     prev.item.uri === next.item.uri &&
     prev.isSelected === next.isSelected &&
     prev.selectionNumber === next.selectionNumber &&
-    prev.tooLong === next.tooLong
+    prev.tooLong === next.tooLong &&
+    prev.isMaxReached === next.isMaxReached &&
+    prev.onPress === next.onPress
   );
 });
 
@@ -697,6 +715,10 @@ const styles = StyleSheet.create({
   tooLongOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.38)",
+  },
+  maxReachedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.6)", // Soft white translucent overlay
   },
 
   // ── Bottom bar ───────────────────────────────────────────

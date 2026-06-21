@@ -184,6 +184,7 @@ const ImageUploader = forwardRef(
       style,
       enableCrop = true, // Enable crop by default for feed posts
       cropPreset = "feed_portrait", // Default to 4:5 with toggle to 1:1
+      lockAspectRatio = false, // Strictly lock to cropPreset aspect ratio (no toggle)
       horizontal = false, // Support horizontal media tray
       hingeStyle = false, // Enable Hinge-style 2x3 grid
       allowVideos = false, // Enable video picking
@@ -458,7 +459,9 @@ const ImageUploader = forwardRef(
       specificMediaType,
     ) => {
       const isSingleReplace =
-        targetIndex !== null && typeof targetIndex === "number";
+        targetIndex !== null &&
+        typeof targetIndex === "number" &&
+        images[targetIndex] !== null;
       const selectionLimit = isSingleReplace ? 1 : Math.min(remainingSlots, 10);
 
       setPickerConfig({
@@ -577,7 +580,7 @@ const ImageUploader = forwardRef(
         navigation.navigate("BatchCropScreen", {
           imageUris: urisToProcess,
           defaultPreset: targetDefaultPreset,
-          lockedPreset: shouldLock ? existingPreset : null,
+          lockedPreset: lockAspectRatio ? cropPreset : (shouldLock ? existingPreset : null),
           onComplete: (results) => {
             if (resolveRef.current) {
               resolveRef.current(results);
@@ -655,7 +658,24 @@ const ImageUploader = forwardRef(
           nextPresets[targetIndex] = newPresetKeys[0];
           nextMeta[targetIndex] = newCropMetadata[0];
           nextMediaTypes[targetIndex] = newMediaTypes[0];
-          // If more results (not expected if selectionLimit=1), could fill subsequent empty slots
+          
+          // If more results, fill subsequent empty slots
+          let resultIdx = 1;
+          for (
+            let i = 0;
+            i < maxImages && resultIdx < newImageUris.length;
+            i++
+          ) {
+            if (i !== targetIndex && nextImages[i] === null) {
+              nextImages[i] = newImageUris[resultIdx];
+              nextOriginals[i] = newOriginalUris[resultIdx];
+              nextRatios[i] = newAspectRatios[resultIdx];
+              nextPresets[i] = newPresetKeys[resultIdx];
+              nextMeta[i] = newCropMetadata[resultIdx];
+              nextMediaTypes[i] = newMediaTypes[resultIdx];
+              resultIdx++;
+            }
+          }
         } else {
           // Auto-fill empty slots
           for (
@@ -786,13 +806,13 @@ const ImageUploader = forwardRef(
         // the user from changing the ratio during re-editing (same rule as BatchCropScreen).
         const activeImageCount = images.filter(Boolean).length;
         const firstImagePreset = presetKeys.find((p) => p != null);
-        const shouldLockPreset = !isVideo && activeImageCount > 1 && firstImagePreset;
+        const shouldLockPreset = lockAspectRatio || (!isVideo && activeImageCount > 1 && firstImagePreset);
 
         // Pass saved crop data for position restoration
         const result = await cropImage(originalUri, savedPreset, {
           initialCropData: savedCropData,
           customPreset: customPreset, // Natural aspect ratio for videos; null for photos
-          lockedPreset: shouldLockPreset ? firstImagePreset : null, // Enforce consistent AR
+          lockedPreset: lockAspectRatio ? cropPreset : (shouldLockPreset ? firstImagePreset : null), // Enforce consistent AR
           // Raw pixel AR of the video file — used by CropView to compute pan room.
           // (distinct from the capped display AR stored in metadata.aspectRatio)
           videoNaturalAR: isVideo

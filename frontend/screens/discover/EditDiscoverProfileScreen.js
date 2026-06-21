@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Svg, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { getAuthToken } from "../../api/auth";
@@ -71,6 +71,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [unsavedModalVisible, setUnsavedModalVisible] = useState(false);
 
   // Profile data
   const [name, setName] = useState("");
@@ -162,28 +163,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   // Handle back button with unsaved changes confirmation
   const handleBackPress = useCallback(() => {
     if (hasChanges()) {
-      Alert.alert(
-        "Unsaved Changes",
-        "You have unsaved changes. What would you like to do?",
-        [
-          {
-            text: "Discard",
-            style: "destructive",
-            onPress: () => navigation.goBack(),
-          },
-          {
-            text: "Keep Editing",
-            style: "cancel",
-          },
-          {
-            text: "Save & Exit",
-            onPress: async () => {
-              await handleSave();
-              // Note: handleSave navigates back on success
-            },
-          },
-        ],
-      );
+      setUnsavedModalVisible(true);
       return true; // Prevent default back behavior
     }
     navigation.goBack();
@@ -566,6 +546,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                 minRequired={3}
                 enableCrop={true}
                 cropPreset="feed_portrait"
+                lockAspectRatio={true}
                 initialImages={photos}
                 hingeStyle={true}
                 containerPadding={32}
@@ -903,6 +884,64 @@ export default function EditDiscoverProfileScreen({ navigation }) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Unsaved Changes Custom Alert Modal */}
+      <Modal
+        visible={unsavedModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setUnsavedModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {/* Warning Icon with Tinted Background */}
+            <View style={styles.modalIconContainer}>
+              <AlertCircle size={22} color="#EA580C" />
+            </View>
+
+            {/* Title */}
+            <Text style={styles.modalTitle}>Unsaved Changes</Text>
+
+            {/* Description */}
+            <Text style={styles.modalDescription}>
+              You have unsaved changes. What would you like to do?
+            </Text>
+
+            {/* Action Buttons */}
+            <View style={styles.modalButtonContainer}>
+              <TouchableOpacity
+                style={styles.modalPrimaryButton}
+                activeOpacity={0.8}
+                onPress={async () => {
+                  setUnsavedModalVisible(false);
+                  await handleSave();
+                }}
+              >
+                <Text style={styles.modalPrimaryButtonText}>Save & Exit</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalSecondaryButton}
+                activeOpacity={0.8}
+                onPress={() => setUnsavedModalVisible(false)}
+              >
+                <Text style={styles.modalSecondaryButtonText}>Keep Editing</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalDestructiveButton}
+                activeOpacity={0.8}
+                onPress={() => {
+                  setUnsavedModalVisible(false);
+                  navigation.goBack();
+                }}
+              >
+                <Text style={styles.modalDestructiveButtonText}>Discard</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1336,5 +1375,91 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 16,
     color: PRIMARY_COLOR,
+  },
+  
+  // Custom Alert Modal Styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(15, 23, 42, 0.4)", // Slate overlay
+  },
+  modalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    width: "86%",
+    maxWidth: 340,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  modalIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#FFF7ED", // Soft Orange Tint background
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 20,
+    color: "#0F172A",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  modalDescription: {
+    fontFamily: FONTS.regular, // Manrope Regular
+    fontSize: 15,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  modalButtonContainer: {
+    width: "100%",
+    gap: 10,
+  },
+  modalPrimaryButton: {
+    width: "100%",
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#2962FF", // Brand Blue
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalPrimaryButtonText: {
+    fontFamily: FONTS.semiBold, // Manrope SemiBold
+    fontSize: 16,
+    color: "#FFFFFF",
+  },
+  modalSecondaryButton: {
+    width: "100%",
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#F1F5F9", // Neutral Slate background
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalSecondaryButtonText: {
+    fontFamily: FONTS.semiBold, // Manrope SemiBold
+    fontSize: 16,
+    color: "#475569",
+  },
+  modalDestructiveButton: {
+    width: "100%",
+    height: 48,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalDestructiveButtonText: {
+    fontFamily: FONTS.semiBold, // Manrope SemiBold
+    fontSize: 16,
+    color: "#DC2626", // Red Discard text
   },
 });
