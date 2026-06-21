@@ -410,9 +410,9 @@ function SwipeablePagerNavigator({
       const maxX = 0;
 
       if (proposed > maxX) {
-        translateX.value = maxX + (proposed - maxX) * 0.3; // rubber band, first page
+        translateX.value = maxX; // Disable rubber-banding past the first page (Home)
       } else if (proposed < minX) {
-        translateX.value = minX + (proposed - minX) * 0.3; // rubber band, last page
+        translateX.value = minX; // Disable rubber-banding past the last page (Profile)
       } else {
         translateX.value = proposed;
       }
