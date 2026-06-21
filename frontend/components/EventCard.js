@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -9,8 +9,9 @@ import {
   Share,
   Animated,
 } from "react-native";
+import { ScrollView, Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 import { GradientHeart } from "./ui/GradientHeart";
-import { ScrollView } from "react-native-gesture-handler";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -130,6 +131,28 @@ export default function EventCard({
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [containerWidth, setContainerWidth] = useState(CARD_WIDTH);
   const navigation = useNavigation();
+
+  const disableSwipe = () => {
+    EventBus.emit("disable-tab-swipe");
+  };
+  const enableSwipe = () => {
+    EventBus.emit("enable-tab-swipe");
+  };
+
+  const manualGesture = useMemo(
+    () =>
+      Gesture.Manual()
+        .onTouchesDown(() => {
+          runOnJS(disableSwipe)();
+        })
+        .onTouchesUp(() => {
+          runOnJS(enableSwipe)();
+        })
+        .onTouchesCancelled(() => {
+          runOnJS(enableSwipe)();
+        }),
+    [],
+  );
 
   // Engagement state
   const [isLiked, setIsLiked] = useState(Boolean(event?.is_liked));
@@ -636,54 +659,52 @@ export default function EventCard({
           }}
         >
           {banners.length > 0 ? (
-            banners.length > 1 ? (
-              <View style={StyleSheet.absoluteFill}>
-                <ScrollView
-                  horizontal
-                  pagingEnabled
-                  scrollEnabled={true}
-                  showsHorizontalScrollIndicator={false}
-                  onTouchStart={() => EventBus.emit("disable-tab-swipe")}
-                  onTouchEnd={() => EventBus.emit("enable-tab-swipe")}
-                  onTouchCancel={() => EventBus.emit("enable-tab-swipe")}
-                  onMomentumScrollEnd={(e) => {
-                    const index = Math.round(
-                      e.nativeEvent.contentOffset.x /
-                        (containerWidth || CARD_WIDTH),
-                    );
-                    setCurrentBannerIndex(index);
-                    EventBus.emit("enable-tab-swipe");
-                  }}
-                  nestedScrollEnabled={true}
-                  disallowInterruption={true}
-                  style={StyleSheet.absoluteFill}
-                  contentContainerStyle={{ minWidth: "100%" }}
-                >
-                  {banners.map((banner, index) => (
-                    <Image
-                      key={index}
-                      source={{ uri: banner.image_url || banner.url }}
-                      style={{
-                        width: containerWidth || CARD_WIDTH,
-                        height: "100%",
-                      }}
-                      resizeMode="cover"
-                    />
-                  ))}
-                </ScrollView>
-                {/* Banner Indicator Dots */}
-                <View style={styles.bannerDotsContainer}>
-                  {banners.map((_, index) => (
-                    <View
-                      key={index}
-                      style={[
-                        styles.bannerDot,
-                        currentBannerIndex === index && styles.bannerDotActive,
-                      ]}
-                    />
-                  ))}
+            banners.length > 1 && containerWidth > 0 ? (
+              <GestureDetector gesture={manualGesture}>
+                <View style={StyleSheet.absoluteFill}>
+                  <ScrollView
+                    horizontal
+                    pagingEnabled
+                    scrollEnabled={true}
+                    showsHorizontalScrollIndicator={false}
+                    onMomentumScrollEnd={(e) => {
+                      const index = Math.round(
+                        e.nativeEvent.contentOffset.x /
+                          (containerWidth || CARD_WIDTH),
+                      );
+                      setCurrentBannerIndex(index);
+                    }}
+                    nestedScrollEnabled={true}
+                    disallowInterruption={true}
+                    style={StyleSheet.absoluteFill}
+                    contentContainerStyle={{ minWidth: "100%" }}
+                  >
+                    {banners.map((banner, index) => (
+                      <Image
+                        key={index}
+                        source={{ uri: banner.image_url || banner.url }}
+                        style={{
+                          width: containerWidth || CARD_WIDTH,
+                          height: "100%",
+                        }}
+                        resizeMode="cover"
+                      />
+                    ))}
+                  </ScrollView>
+                  {/* Banner Indicator Dots */}
+                  <View style={styles.bannerDotsContainer} pointerEvents="none">
+                    {banners.map((_, index) => (
+                      <View
+                        key={index}
+                        style={[
+                          styles.bannerDot,
+                          currentBannerIndex === index && styles.bannerDotActive,
+                        ]}
+                      />
+                    ))}
+                  </View>
                 </View>
-              </View>
+              </GestureDetector>
             ) : (
               <Image
                 source={{ uri: banners[0].image_url || banners[0].url }}
@@ -707,7 +728,10 @@ export default function EventCard({
           )}
 
           {/* Date Badge */}
-          <View style={[styles.dateBadge, compact && styles.dateBadgeCompact]}>
+          <View
+            style={[styles.dateBadge, compact && styles.dateBadgeCompact]}
+            pointerEvents="none"
+          >
             <Text
               style={[
                 styles.dateBadgeHeader,
@@ -734,6 +758,7 @@ export default function EventCard({
                 compact && styles.statusBadgeCompact,
                 isPast ? styles.pastBadge : styles.upcomingBadge,
               ]}
+              pointerEvents="none"
             >
               <Text
                 style={[
@@ -750,6 +775,7 @@ export default function EventCard({
           <LinearGradient
             colors={["transparent", "rgba(0,0,0,0.4)"]}
             style={styles.imageOverlay}
+            pointerEvents="none"
           />
         </View>
 

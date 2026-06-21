@@ -36,6 +36,7 @@ import {
   COLORS,
   SPACING,
   BORDER_RADIUS,
+  FONTS,
   EDITORIAL_TYPOGRAPHY,
   EDITORIAL_SPACING,
 } from "../constants/theme";
@@ -1144,12 +1145,10 @@ const ImageUploader = forwardRef(
                   style={[
                     styles.hingePhotoContainer,
                     { width: slotWidth, height: slotHeight },
-                    isSelected && styles.hingePhotoSelected,
                   ]}
                 >
                   <TouchableOpacity
                     onPress={() => handlePhotoTapForReorder(index)}
-                    onLongPress={() => handleEditImage(index)}
                     activeOpacity={0.7}
                     style={styles.imageTouch}
                   >
@@ -1157,7 +1156,7 @@ const ImageUploader = forwardRef(
                       key={`img-${index}-${imageUri}`}
                       source={{ uri: imageUri }}
                       style={styles.image}
-                      resizeMode="contain"
+                      resizeMode="cover"
                       onError={(e) =>
                         console.log(
                           "[ImageUploader] Image load error at index",
@@ -1173,6 +1172,9 @@ const ImageUploader = forwardRef(
                         )
                       }
                     />
+                    {isSelected && (
+                      <View style={styles.reorderSelectedBorder} pointerEvents="none" />
+                    )}
                     {isSelected && (
                       <View style={styles.hingeSelectedOverlay}>
                         <Ionicons
@@ -1201,7 +1203,7 @@ const ImageUploader = forwardRef(
               );
             })}
           </View>
-
+ 
           {/* Required indicator and hint */}
           <View style={styles.hingeFooter}>
             <View style={styles.hingeRequiredRow}>
@@ -1218,7 +1220,7 @@ const ImageUploader = forwardRef(
             <Text style={styles.hingeHintText}>
               {selectedForReorder !== null
                 ? "Tap another photo to swap"
-                : "Tap to reorder, hold to edit"}
+                : "Tap to reorder"}
             </Text>
           </View>
         </View>
@@ -1410,7 +1412,6 @@ const ImageUploader = forwardRef(
               >
                 <TouchableOpacity
                   onPress={() => handleThumbnailTap(index)}
-                  onLongPress={() => handleEditImage(index)}
                   activeOpacity={enableCrop ? 0.7 : 1}
                   disabled={!enableCrop}
                   style={styles.imageTouch}
@@ -1711,9 +1712,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   label: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: LEGACY_COLORS.textDark,
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textSecondary,
     marginBottom: 12,
   },
   addButton: {
@@ -1893,9 +1894,16 @@ const styles = StyleSheet.create({
     position: "relative",
     backgroundColor: "#F0F0F0",
   },
-  hingePhotoSelected: {
+  reorderSelectedBorder: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     borderWidth: 3,
-    borderColor: LEGACY_COLORS.primary,
+    borderColor: COLORS.primary,
+    borderRadius: 12,
+    zIndex: 15,
   },
   hingeSelectedOverlay: {
     position: "absolute",
@@ -1936,22 +1944,23 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   hingeRequiredText: {
+    fontFamily: FONTS.medium,
     fontSize: 13,
-    fontWeight: "500",
-    color: "#666666",
+    color: COLORS.textSecondary,
   },
   hingeRequiredTextError: {
-    color: "#B8627D",
+    color: COLORS.error || "#DC2626",
   },
   hingeErrorDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#E74C3C",
+    backgroundColor: COLORS.error || "#DC2626",
   },
   hingeHintText: {
-    fontSize: 12,
-    color: "#999999",
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: COLORS.textSecondary,
   },
 
   // Preview Modal Styles

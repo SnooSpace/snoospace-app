@@ -72,6 +72,8 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [unsavedModalVisible, setUnsavedModalVisible] = useState(false);
+  const [incompleteSaveModalVisible, setIncompleteSaveModalVisible] = useState(false);
+  const [incompleteMissingMsg, setIncompleteMissingMsg] = useState("");
 
   // Profile data
   const [name, setName] = useState("");
@@ -229,24 +231,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     return () => backHandler.remove();
   }, [handleBackPress]);
 
-  const handleSave = useCallback(async () => {
-    // Reset validation errors
-    setValidationErrors({ photos: false, sparks: false, openers: false });
-
-    // Validation
-    if (photos.length < 3) {
-      triggerSectionError("photos", photosShakeAnim);
-      return;
-    }
-    if (goalBadges.length === 0) {
-      triggerSectionError("sparks", sparksShakeAnim);
-      return;
-    }
-    if (openers.length === 0) {
-      triggerSectionError("openers", openersShakeAnim);
-      return;
-    }
-
+  const saveProfileData = useCallback(async (autoExit = true) => {
     try {
       setSaving(true);
 
@@ -303,14 +288,18 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         appearInDiscover,
       });
 
-      setShowSuccess(true);
-      setTimeout(() => {
-        setShowSuccess(false);
-        navigation.goBack();
-      }, 1500);
+      if (autoExit) {
+        setShowSuccess(true);
+        setTimeout(() => {
+          setShowSuccess(false);
+          navigation.goBack();
+        }, 1500);
+      }
+      return true;
     } catch (error) {
       console.error("Error saving:", error);
       Alert.alert("Error", "Failed to save. Please try again.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -325,6 +314,47 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     openers,
     appearInDiscover,
     navigation,
+  ]);
+
+  const handleSave = useCallback(async () => {
+    // Reset validation errors
+    setValidationErrors({ photos: false, sparks: false, openers: false });
+
+    // Photos are strictly required to save/exit discover profile at all
+    if (photos.length < 3) {
+      triggerSectionError("photos", photosShakeAnim);
+      return;
+    }
+
+    const hasSparks = goalBadges.length > 0;
+    const hasOpeners = openers.length > 0;
+
+    if (!hasSparks || !hasOpeners) {
+      let missingMsg = "";
+      if (!hasSparks && !hasOpeners) {
+        missingMsg = "at least 1 Spark and 1 conversation starter";
+      } else if (!hasSparks) {
+        missingMsg = "at least 1 Spark";
+      } else {
+        missingMsg = "at least 1 conversation starter";
+      }
+      setIncompleteMissingMsg(missingMsg);
+
+      const success = await saveProfileData(false);
+      if (success) {
+        setIncompleteSaveModalVisible(true);
+      }
+      return;
+    }
+
+    await saveProfileData(true);
+  }, [
+    photos,
+    goalBadges,
+    openers,
+    triggerSectionError,
+    photosShakeAnim,
+    saveProfileData,
   ]);
 
   // ImageUploader callback - receives array of image URIs
@@ -1041,6 +1071,48 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* Incomplete Profile Save Custom Modal */}
+      <Modal
+        visible={incompleteSaveModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setIncompleteSaveModalVisible(false);
+          navigation.goBack();
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            {/* Warning Icon with Tinted Background */}
+            <View style={[styles.modalIconContainer, { backgroundColor: "#FEF2F2" }]}>
+              <AlertCircle size={22} color="#DC2626" />
+            </View>
+
+            {/* Title */}
+            <Text style={styles.modalTitle}>Profile Saved (Incomplete)</Text>
+
+            {/* Description */}
+            <Text style={styles.modalDescription}>
+              Your changes have been saved. Note that you won't be able to access Discover People until you add {incompleteMissingMsg}.
+            </Text>
+
+            {/* Action Buttons */}
+            <View style={styles.modalButtonContainer}>
+              <TouchableOpacity
+                style={styles.modalPrimaryButton}
+                activeOpacity={0.8}
+                onPress={() => {
+                  setIncompleteSaveModalVisible(false);
+                  navigation.goBack();
+                }}
+              >
+                <Text style={styles.modalPrimaryButtonText}>Got It</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1102,7 +1174,7 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: "#FFFFFF",
     fontSize: 14,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.semiBold,
   },
   saveButtonTextDisabled: {
     color: CONSTANTS_COLORS.textSecondary,
@@ -1127,7 +1199,7 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: 11,
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.medium,
     color: CONSTANTS_COLORS.primaryBlue,
   },
   // Removed old progressBar styling
@@ -1171,7 +1243,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cardTitle: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.primary,
     fontSize: 20,
     color: "#0F172A",
   },
@@ -1182,7 +1254,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   cardRequiredBadgeText: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.medium,
     fontSize: 11,
     color: "#F43F5E",
   },
@@ -1234,7 +1306,7 @@ const styles = StyleSheet.create({
     // NO BORDER
   },
   identityLabel: {
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.regular,
     fontSize: 16,
     color: LIGHT_TEXT_COLOR,
   },
@@ -1249,12 +1321,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   identityValue: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.medium,
     fontSize: 16,
     color: TEXT_COLOR,
   },
   pronounsPreview: {
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.regular,
     fontSize: 16,
     color: CONSTANTS_COLORS.textPrimary, // Selected state Primary Text
   },
@@ -1382,7 +1454,7 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   openerPromptSmall: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.medium,
     fontSize: 11,
     color: "#94A3B8",
     marginBottom: 8,

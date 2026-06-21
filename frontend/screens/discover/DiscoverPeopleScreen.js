@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, FlatList, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { ArrowLeft, Users, ChevronRight, Lock } from "lucide-react-native";
 import { Image } from "expo-image";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
-import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
+import { COLORS, SPACING, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import SnooLoader from "../../components/ui/SnooLoader";
 
 const TEXT_COLOR = COLORS.textPrimary;
@@ -19,6 +19,7 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
   const [attendees, setAttendees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
+  const [profileComplete, setProfileComplete] = useState(true);
 
   const loadAttendees = useCallback(async () => {
     if (!event?.id) return;
@@ -29,12 +30,22 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
       const token = await getAuthToken();
 
       if (token) {
-        const response = await apiGet(
-          `/events/${event.id}/attendees`,
-          15000,
-          token
-        );
-        setAttendees(response.attendees || []);
+        const profileRes = await apiGet("/members/profile", 15000, token);
+        const profile = profileRes.profile || profileRes;
+        const ownPhotos = Array.isArray(profile.discover_photos) ? profile.discover_photos : [];
+        const ownBadges = Array.isArray(profile.intent_badges) ? profile.intent_badges : [];
+        const ownOpeners = Array.isArray(profile.openers) ? profile.openers : [];
+        const isComplete = ownPhotos.length >= 3 && ownBadges.length >= 1 && ownOpeners.length >= 1;
+        setProfileComplete(isComplete);
+
+        if (isComplete) {
+          const response = await apiGet(
+            `/events/${event.id}/attendees`,
+            15000,
+            token
+          );
+          setAttendees(response.attendees || []);
+        }
       }
     } catch (error) {
       console.error("Error loading attendees:", error);
@@ -85,6 +96,45 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
     );
   }
 
+  if (!profileComplete) {
+    return (
+      <SafeAreaView style={styles.container} edges={EDGES}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBack}
+          >
+            <ArrowLeft size={24} color={TEXT_COLOR} />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              {event?.title || "Discover People"}
+            </Text>
+          </View>
+          <View style={styles.headerRight} />
+        </View>
+
+        <View style={styles.emptyContainer}>
+          <View style={styles.lockBadge}>
+            <Lock size={32} color="#FFFFFF" strokeWidth={2} />
+          </View>
+          <Text style={styles.emptyTitle}>Access Locked</Text>
+          <Text style={styles.emptyText}>
+            Complete your Discover Profile to view other attendees. Please ensure you have added at least 3 photos, 1 Spark, and 1 Icebreaker.
+          </Text>
+          <TouchableOpacity
+            style={styles.gateButton}
+            onPress={() => navigation.navigate("EditDiscoverProfile")}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.gateButtonText}>Complete Profile</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={EDGES}>
       {/* Header */}
@@ -93,7 +143,7 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
           style={styles.backButton}
           onPress={handleBack}
         >
-          <Ionicons name="arrow-back" size={24} color={TEXT_COLOR} />
+          <ArrowLeft size={24} color={TEXT_COLOR} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle} numberOfLines={1}>
@@ -119,7 +169,7 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
       {/* People List */}
       {attendees.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <Ionicons name="people-outline" size={60} color={LIGHT_TEXT_COLOR} />
+          <Users size={60} color={LIGHT_TEXT_COLOR} />
           <Text style={styles.emptyTitle}>No people yet</Text>
           <Text style={styles.emptyText}>
             Be the first to connect with others at this event
@@ -172,7 +222,7 @@ const PersonCard = React.memo(({ attendee, onPress, lightTextColor }) => {
           </View>
         )}
       </View>
-      <Ionicons name="chevron-forward" size={20} color={lightTextColor} />
+      <ChevronRight size={20} color={lightTextColor} />
     </TouchableOpacity>
   );
 });
@@ -191,7 +241,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.m,
     fontSize: 16,
     color: LIGHT_TEXT_COLOR,
-    fontFamily: "Manrope-Medium",
+    fontFamily: FONTS.medium,
   },
   header: {
     flexDirection: "row",
@@ -208,13 +258,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
+    fontSize: 20,
+    fontFamily: FONTS.black,
     color: TEXT_COLOR,
   },
   headerSubtitle: {
     fontSize: 13,
     color: LIGHT_TEXT_COLOR,
+    fontFamily: FONTS.medium,
     marginTop: 2,
   },
   headerRight: {
@@ -243,11 +294,12 @@ const styles = StyleSheet.create({
   },
   personName: {
     fontSize: 16,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
     color: TEXT_COLOR,
   },
   personPronouns: {
     fontSize: 13,
+    fontFamily: FONTS.regular,
     color: LIGHT_TEXT_COLOR,
     marginTop: 2,
   },
@@ -262,7 +314,7 @@ const styles = StyleSheet.create({
   intentBadgeSmallText: {
     fontSize: 11,
     color: "#2E7D32",
-    fontWeight: "500",
+    fontFamily: FONTS.regular,
   },
   emptyContainer: {
     flex: 1,
@@ -272,12 +324,13 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: FONTS.primary,
     color: TEXT_COLOR,
     marginTop: SPACING.m,
   },
   emptyText: {
     fontSize: 14,
+    fontFamily: FONTS.regular,
     color: LIGHT_TEXT_COLOR,
     textAlign: "center",
     marginTop: SPACING.s,
@@ -300,6 +353,32 @@ const styles = StyleSheet.create({
   },
   retryText: {
     color: PRIMARY_COLOR,
-    fontWeight: "600",
+    fontFamily: FONTS.semiBold,
+  },
+  gateButton: {
+    backgroundColor: PRIMARY_COLOR,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: BORDER_RADIUS.m,
+    marginTop: 20,
+  },
+  gateButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontFamily: FONTS.semiBold,
+  },
+  lockBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#2962FF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+    shadowColor: "#2962FF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
 });

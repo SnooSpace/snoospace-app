@@ -10,6 +10,7 @@ import { getAuthToken } from "../../api/auth";
 import SnooLoader from "../../components/ui/SnooLoader";
 import OpenPlansSection from "../plans/OpenPlansSection";
 import EventCard from "../../components/EventCard";
+import EventBus from "../../utils/EventBus";
 import {
   COLORS,
   SPACING,
@@ -40,6 +41,21 @@ export default function DiscoverScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [profileComplete, setProfileComplete] = useState(true);
   const hasLoadedRef = useRef(false);
+
+  const [listScrollEnabled, setListScrollEnabled] = useState(true);
+
+  useEffect(() => {
+    const unsubDisable = EventBus.on("disable-tab-swipe", () => {
+      setListScrollEnabled(false);
+    });
+    const unsubEnable = EventBus.on("enable-tab-swipe", () => {
+      setListScrollEnabled(true);
+    });
+    return () => {
+      if (unsubDisable) unsubDisable();
+      if (unsubEnable) unsubEnable();
+    };
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -159,6 +175,7 @@ export default function DiscoverScreen({ navigation }) {
         </View>
         <ScrollView
           horizontal
+          scrollEnabled={listScrollEnabled}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalList}
         >
