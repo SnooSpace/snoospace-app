@@ -25,7 +25,6 @@ import {
   StyleSheet,
   Dimensions,
   Pressable,
-  ScrollView,
   Modal,
   Animated,
 } from "react-native";
@@ -48,7 +47,7 @@ import {
   Info,
   HatGlasses,
 } from "lucide-react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { ScrollView, Gesture, GestureDetector } from "react-native-gesture-handler";
 import AnimatedReanimated, {
   useSharedValue,
   useAnimatedStyle,
@@ -362,6 +361,28 @@ const EditorialPostCard = ({
   // Carousel state
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   const scrollViewRef = useRef(null);
+
+  const disableSwipe = () => {
+    EventBus.emit("disable-tab-swipe");
+  };
+  const enableSwipe = () => {
+    EventBus.emit("enable-tab-swipe");
+  };
+
+  const manualGesture = useMemo(
+    () =>
+      Gesture.Manual()
+        .onTouchesDown(() => {
+          runOnJS(disableSwipe)();
+        })
+        .onTouchesUp(() => {
+          runOnJS(enableSwipe)();
+        })
+        .onTouchesCancelled(() => {
+          runOnJS(enableSwipe)();
+        }),
+    [],
+  );
 
   // Image/text dwell time tracking - starts timer when component mounts
   const imageDwellStartRef = React.useRef(null);
@@ -928,72 +949,74 @@ const EditorialPostCard = ({
             </View>
           ) : hasMultipleMedia ? (
             // Carousel for multiple images
-            <View style={{ width: CONTENT_WIDTH, overflow: 'hidden' }}>
-              {/* Counter badge */}
-              <View style={styles.carouselBadge} pointerEvents="none">
-                <Text style={styles.carouselBadgeText}>
-                  {currentMediaIndex + 1}/{imageUrls.length}
-                </Text>
-              </View>
+            <GestureDetector gesture={manualGesture}>
+              <View style={{ width: CONTENT_WIDTH, overflow: 'hidden' }}>
+                {/* Counter badge */}
+                <View style={styles.carouselBadge} pointerEvents="none">
+                  <Text style={styles.carouselBadgeText}>
+                    {currentMediaIndex + 1}/{imageUrls.length}
+                  </Text>
+                </View>
 
-              <ScrollView
-                ref={scrollViewRef}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={(event) => {
-                  const offsetX = event.nativeEvent.contentOffset.x;
-                  const index = Math.round(offsetX / CONTENT_WIDTH);
-                  setCurrentMediaIndex(index);
-                }}
-                scrollEventThrottle={16}
-                style={{ width: CONTENT_WIDTH }}
-                decelerationRate="fast"
-                // nestedScrollEnabled: Android — tells the OS this inner
-                // ScrollView should receive horizontal touches before the
-                // parent pager ScrollView does.
-                nestedScrollEnabled={true}
-                // directionalLockEnabled: iOS — once the user commits to a
-                // horizontal swipe inside the carousel, this prevents the
-                // parent pager from also interpreting the gesture.
-                directionalLockEnabled={true}
-              >
-                {imageUrls.map((url, index) => {
-                  // Handle both array and single number formats for aspect_ratios
-                  const aspectRatio = Array.isArray(post.aspect_ratios)
-                    ? post.aspect_ratios[index] || firstAspectRatio
-                    : firstAspectRatio;
-                  return (
+                <ScrollView
+                  ref={scrollViewRef}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onMomentumScrollEnd={(event) => {
+                    const offsetX = event.nativeEvent.contentOffset.x;
+                    const index = Math.round(offsetX / CONTENT_WIDTH);
+                    setCurrentMediaIndex(index);
+                  }}
+                  scrollEventThrottle={16}
+                  style={{ width: CONTENT_WIDTH }}
+                  decelerationRate="fast"
+                  // nestedScrollEnabled: Android — tells the OS this inner
+                  // ScrollView should receive horizontal touches before the
+                  // parent pager ScrollView does.
+                  nestedScrollEnabled={true}
+                  // directionalLockEnabled: iOS — once the user commits to a
+                  // horizontal swipe inside the carousel, this prevents the
+                  // parent pager from also interpreting the gesture.
+                  directionalLockEnabled={true}
+                >
+                  {imageUrls.map((url, index) => {
+                    // Handle both array and single number formats for aspect_ratios
+                    const aspectRatio = Array.isArray(post.aspect_ratios)
+                      ? post.aspect_ratios[index] || firstAspectRatio
+                      : firstAspectRatio;
+                    return (
+                      <View
+                        key={index}
+                        style={[
+                          styles.mediaWrapper,
+                          { aspectRatio, width: CONTENT_WIDTH },
+                        ]}
+                      >
+                        <Image
+                          source={{ uri: url }}
+                          style={styles.mediaImage}
+                          resizeMode="cover"
+                        />
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Pagination Dots */}
+                <View style={styles.paginationContainer} pointerEvents="none">
+                  {imageUrls.map((_, index) => (
                     <View
                       key={index}
                       style={[
-                        styles.mediaWrapper,
-                        { aspectRatio, width: CONTENT_WIDTH },
+                        styles.paginationDot,
+                        index === currentMediaIndex && styles.paginationDotActive,
                       ]}
-                    >
-                      <Image
-                        source={{ uri: url }}
-                        style={styles.mediaImage}
-                        resizeMode="cover"
-                      />
-                    </View>
-                  );
-                })}
-              </ScrollView>
-
-              {/* Pagination Dots */}
-              <View style={styles.paginationContainer}>
-                {imageUrls.map((_, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.paginationDot,
-                      index === currentMediaIndex && styles.paginationDotActive,
-                    ]}
-                  />
-                ))}
+                    />
+                  ))}
+                </View>
               </View>
-            </View>
+            </GestureDetector>
           ) : (
             // Single image
             <View
