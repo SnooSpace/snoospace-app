@@ -307,7 +307,11 @@ const LoginOtpScreen = ({ navigation, route }) => {
             { text: "Cancel", style: "cancel" },
             {
               text: "Create Account",
-              onPress: () => navigation.navigate("Landing"),
+              onPress: () =>
+                navigation.navigate(
+                  "Landing",
+                  isAddingAccount ? { fromSwitcher: true } : undefined
+                ),
             },
           ],
         );
@@ -367,7 +371,11 @@ const LoginOtpScreen = ({ navigation, route }) => {
               },
               {
                 text: "Create new account",
-                onPress: () => navigation.navigate("Landing"),
+                onPress: () =>
+                  navigation.navigate(
+                    "Landing",
+                    isAddingAccount ? { fromSwitcher: true } : undefined
+                  ),
               },
             ],
           );

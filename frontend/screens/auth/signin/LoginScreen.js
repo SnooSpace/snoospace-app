@@ -134,7 +134,7 @@ const LoginScreen = ({ navigation, route }) => {
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
-              navigation.navigate("Landing");
+              navigation.navigate("Landing", isAddingAccount ? { fromSwitcher: true } : undefined);
             }
           }}
         />
@@ -211,7 +211,7 @@ const LoginScreen = ({ navigation, route }) => {
               </TouchableOpacity>
               <View style={styles.signupLinkContainer}>
                 <Text style={styles.signupText}>New here? </Text>
-                <TouchableOpacity onPress={() => navigation.navigate("Landing")}>
+                <TouchableOpacity onPress={() => navigation.navigate("Landing", isAddingAccount ? { fromSwitcher: true } : undefined)}>
                   <Text style={styles.signupLinkText}> Create an account</Text>
                 </TouchableOpacity>
               </View>
