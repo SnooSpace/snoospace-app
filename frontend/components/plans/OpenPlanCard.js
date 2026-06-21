@@ -217,6 +217,7 @@ const OpenPlanCard = ({
   onRequestPress,
   onLike,
   onShare,
+  onComment,
   isInterested: isInterestedProp = false,
   onInterest,
   navigation: navProp,
@@ -305,8 +306,12 @@ const OpenPlanCard = ({
 
   const handleComment = useCallback(() => {
     HapticsService.triggerImpactLight();
-    setCommentsVisible(true);
-  }, []);
+    if (onComment) {
+      onComment(plan?.id);
+    } else {
+      setCommentsVisible(true);
+    }
+  }, [onComment, plan?.id]);
 
   // ── Bookmark / Interest handler ──────────────────────────────────────────
 

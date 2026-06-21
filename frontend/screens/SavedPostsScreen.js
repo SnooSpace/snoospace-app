@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -32,6 +32,7 @@ import QnAPostCard from "../components/posts/QnAPostCard";
 import ChallengePostCard from "../components/posts/ChallengePostCard";
 import OpportunityFeedCard from "../components/OpportunityFeedCard";
 import { VoicePostCard } from "../components/CommunityVoiceBox";
+import CommentsModal from "../components/CommentsModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -72,6 +73,23 @@ const SavedPostsScreen = ({ navigation }) => {
 
   // Tab underline animation
   const tabUnderline = useRef(new Animated.Value(0)).current;
+
+  // Screen-level comments modal state and callbacks
+  const [commentsModalState, setCommentsModalState] = useState({
+    visible: false,
+    postId: null,
+    postType: "post",
+  });
+
+  const openCommentsModal = useCallback((postId, postType = "post") => {
+    if (postId) {
+      setCommentsModalState({ visible: true, postId, postType });
+    }
+  }, []);
+
+  const closeCommentsModal = useCallback(() => {
+    setCommentsModalState({ visible: false, postId: null, postType: "post" });
+  }, []);
 
   // Load logged-in user info
   useEffect(() => {
@@ -229,7 +247,7 @@ const SavedPostsScreen = ({ navigation }) => {
       post: item,
       onUserPress: handleUserPress,
       onLike: () => {},
-      onComment: () => {},
+      onComment: (postId) => openCommentsModal(postId, "post"),
       onSave: () => handleUnsave(item.id),
       onShare: () => {},
       currentUserId,
@@ -246,7 +264,7 @@ const SavedPostsScreen = ({ navigation }) => {
       case "challenge":
         return <ChallengePostCard {...sharedProps} />;
       case "community_voice":
-        return <VoicePostCard post={item} onComment={() => {}} />;
+        return <VoicePostCard post={item} onComment={(postId) => openCommentsModal(postId, "post")} />;
       case "opportunity":
         return (
           <OpportunityFeedCard
@@ -258,7 +276,7 @@ const SavedPostsScreen = ({ navigation }) => {
             }}
             onUserPress={handleUserPress}
             onLike={() => {}}
-            onComment={() => {}}
+            onComment={(postId) => openCommentsModal(postId, "opportunity")}
             onSave={() => handleUnsave(item.id)}
             onShare={() => {}}
             currentUserId={currentUserId}
@@ -419,6 +437,38 @@ const SavedPostsScreen = ({ navigation }) => {
         />
       )}
       </SafeAreaView>
+
+      <CommentsModal
+        visible={commentsModalState.visible}
+        postId={commentsModalState.postId}
+        baseRoute={
+          commentsModalState.postType === "opportunity"
+            ? "/opportunities"
+            : commentsModalState.postType === "event"
+            ? "/events"
+            : "/posts"
+        }
+        replyBaseRoute={
+          commentsModalState.postType === "opportunity"
+            ? "/opportunity-comments"
+            : commentsModalState.postType === "event"
+            ? "/event-comments"
+            : "/comments"
+        }
+        onClose={closeCommentsModal}
+        onCommentCountChange={(newCount) => {
+          if (commentsModalState.postId) {
+            setAllPosts((prevPosts) =>
+              prevPosts.map((p) =>
+                p.id === commentsModalState.postId
+                  ? { ...p, comment_count: newCount }
+                  : p,
+              ),
+            );
+          }
+        }}
+        navigation={navigation}
+      />
     </GestureHandlerRootView>
   );
 };

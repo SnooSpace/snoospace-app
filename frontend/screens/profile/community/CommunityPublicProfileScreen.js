@@ -742,6 +742,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
     postId: null,
+    postType: "post",
   });
   const pendingPostUpdateRef = useRef(null);
   const [currentUserId, setCurrentUserId] = useState(null);
@@ -1221,14 +1222,14 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     setSelectedPost(null);
   }, []);
 
-  const openCommentsModal = useCallback((postId) => {
+  const openCommentsModal = useCallback((postId, postType = "post") => {
     if (postId) {
-      setCommentsModalState({ visible: true, postId });
+      setCommentsModalState({ visible: true, postId, postType });
     }
   }, []);
 
   const closeCommentsModal = useCallback(() => {
-    setCommentsModalState({ visible: false, postId: null });
+    setCommentsModalState({ visible: false, postId: null, postType: "post" });
   }, []);
 
   const handlePostLike = (postId, isLiked, likeCount) => {
@@ -2080,6 +2081,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                             eventData: item,
                           })
                         }
+                        onComment={(id) => openCommentsModal(id, "event")}
                       />
                     ))}
                   </View>
@@ -2160,16 +2162,41 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       <CommentsModal
         visible={commentsModalState.visible}
         postId={commentsModalState.postId}
+        baseRoute={
+          commentsModalState.postType === "opportunity"
+            ? "/opportunities"
+            : commentsModalState.postType === "event"
+            ? "/events"
+            : "/posts"
+        }
+        replyBaseRoute={
+          commentsModalState.postType === "opportunity"
+            ? "/opportunity-comments"
+            : commentsModalState.postType === "event"
+            ? "/event-comments"
+            : "/comments"
+        }
         onClose={closeCommentsModal}
-        onCommentCountChange={(postId) => {
-          // Update comment count in posts
-          setPosts((prevPosts) =>
-            prevPosts.map((p) =>
-              p.id === postId
-                ? { ...p, comment_count: (p.comment_count || 0) + 1 }
-                : p,
-            ),
-          );
+        onCommentCountChange={(newCount) => {
+          if (commentsModalState.postId) {
+            if (commentsModalState.postType === "event") {
+              setCommunityEvents((prevEvents) =>
+                prevEvents.map((e) =>
+                  e.id === commentsModalState.postId
+                    ? { ...e, comment_count: newCount }
+                    : e,
+                ),
+              );
+            } else {
+              setPosts((prevPosts) =>
+                prevPosts.map((p) =>
+                  p.id === commentsModalState.postId
+                    ? { ...p, comment_count: newCount }
+                    : p,
+                ),
+              );
+            }
+          }
         }}
         navigation={navigation}
       />

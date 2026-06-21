@@ -11,6 +11,7 @@ import OpenPlanCard from '../../components/plans/OpenPlanCard';
 import HostPlanBottomSheet from './HostPlanBottomSheet';
 import RequestBottomSheet from './RequestBottomSheet';
 import SnooLoader from '../../components/ui/SnooLoader';
+import CommentsModal from '../../components/CommentsModal';
 
 export default function PlansDiscoverFeedScreen({ navigation, route }) {
   const [plans, setPlans] = useState([]);
@@ -22,6 +23,22 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [hostSheetOpen, setHostSheetOpen] = useState(false);
   const [requestSheet, setRequestSheet] = useState(null);
+
+  // Screen-level comments modal state and callbacks
+  const [commentsModalState, setCommentsModalState] = useState({
+    visible: false,
+    postId: null,
+  });
+
+  const openCommentsModal = useCallback((postId) => {
+    if (postId) {
+      setCommentsModalState({ visible: true, postId });
+    }
+  }, []);
+
+  const closeCommentsModal = useCallback(() => {
+    setCommentsModalState({ visible: false, postId: null });
+  }, []);
 
   const loadPlans = useCallback(async (cursorVal = null, isRefresh = false) => {
     if (!isRefresh && !cursorVal && plans.length > 0) return;
@@ -88,10 +105,11 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
         onRequestPress={(id) => setRequestSheet({ planId: id, planTitle: item.title })}
         onLike={handleLike}
         onShare={() => handleShare(item)}
+        onComment={openCommentsModal}
         navigation={navigation}
       />
     </View>
-  ), [currentUserId, navigation, handleLike, handleShare]);
+  ), [currentUserId, navigation, handleLike, handleShare, openCommentsModal]);
 
   return (
     <View style={styles.container}>
@@ -160,6 +178,24 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
           onRequested={() => { handleRequestSuccess(requestSheet.planId); setRequestSheet(null); }}
         />
       )}
+      <CommentsModal
+        visible={commentsModalState.visible}
+        postId={commentsModalState.postId}
+        baseRoute="/plans"
+        onClose={closeCommentsModal}
+        onCommentCountChange={(newCount) => {
+          if (commentsModalState.postId) {
+            setPlans((prevPlans) =>
+              prevPlans.map((p) =>
+                p.id === commentsModalState.postId
+                  ? { ...p, comment_count: newCount }
+                  : p,
+              ),
+            );
+          }
+        }}
+        navigation={navigation}
+      />
     </View>
   );
 }

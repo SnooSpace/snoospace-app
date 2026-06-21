@@ -97,6 +97,7 @@ export default function EventCard({
   onPress,
   onInterestedPress,
   onShare,
+  onComment,
   style,
   hideEngagement = false,
   hideRsvp = false,
@@ -484,7 +485,11 @@ export default function EventCard({
 
   const handleCommentPress = () => {
     HapticsService.triggerImpactLight();
-    setCommentsVisible(true);
+    if (onComment) {
+      onComment(id);
+    } else {
+      setCommentsVisible(true);
+    }
   };
 
   const handleQrPress = () => {

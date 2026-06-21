@@ -395,6 +395,7 @@ export default function MemberProfileScreen({ navigation }) {
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
     postId: null,
+    postType: "post",
   });
   const [hapticsEnabled, setHapticsEnabled] = useState(true);
   const [activeEmail, setActiveEmail] = useState("");
@@ -1186,16 +1187,16 @@ export default function MemberProfileScreen({ navigation }) {
   }, []);
 
   // Memoized callback to open comments modal - uses single state update to prevent unnecessary re-renders
-  const openCommentsModal = useCallback((postId) => {
+  const openCommentsModal = useCallback((postId, postType = "post") => {
     if (postId) {
       // Single state update instead of two separate updates
-      setCommentsModalState({ visible: true, postId });
+      setCommentsModalState({ visible: true, postId, postType });
     }
   }, []);
 
   // Memoized callback to close comments modal
   const closeCommentsModal = useCallback(() => {
-    setCommentsModalState({ visible: false, postId: null });
+    setCommentsModalState({ visible: false, postId: null, postType: "post" });
   }, []);
 
   // Add utility for updating posts global state (so modal & grid stay in sync)
@@ -1673,6 +1674,7 @@ export default function MemberProfileScreen({ navigation }) {
                         onLike={(postId, isLiked, count) =>
                           setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, is_liked: isLiked, like_count: count } : p))
                         }
+                        onComment={(postId) => openCommentsModal(postId, "opportunity")}
                         onSave={(postId, isSaved) =>
                           setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, is_saved: isSaved } : p))
                         }
@@ -1784,6 +1786,7 @@ export default function MemberProfileScreen({ navigation }) {
                         key={`ev-${ev.id}`}
                         event={ev}
                         onPress={(eventData) => navigation.navigate('EventDetails', { eventId: eventData.id, eventData })}
+                        onComment={(id) => openCommentsModal(id, "event")}
                       />
                     ))}
                   </>
@@ -1804,6 +1807,7 @@ export default function MemberProfileScreen({ navigation }) {
                             if (liked) await likePlan(planId, token);
                             else await unlikePlan(planId, token);
                           }}
+                          onComment={(id) => openCommentsModal(id, "plan")}
                           navigation={navigation}
                         />
                       </View>
@@ -1966,24 +1970,63 @@ export default function MemberProfileScreen({ navigation }) {
       <CommentsModal
         visible={commentsModalState.visible && !postModalVisible}
         postId={commentsModalState.postId}
+        baseRoute={
+          commentsModalState.postType === "opportunity"
+            ? "/opportunities"
+            : commentsModalState.postType === "event"
+            ? "/events"
+            : commentsModalState.postType === "plan"
+            ? "/plans"
+            : "/posts"
+        }
+        replyBaseRoute={
+          commentsModalState.postType === "opportunity"
+            ? "/opportunity-comments"
+            : commentsModalState.postType === "event"
+            ? "/event-comments"
+            : "/comments"
+        }
         onClose={() => {
-          setCommentsModalState({ visible: false, postId: null });
+          setCommentsModalState({ visible: false, postId: null, postType: "post" });
         }}
         onCommentCountChange={(newCount) => {
-          // Update comment count in posts array
           if (commentsModalState.postId) {
-            setPosts((prevPosts) =>
-              prevPosts.map((p) =>
-                p.id === commentsModalState.postId
-                  ? { ...p, comment_count: newCount }
-                  : p,
-              ),
-            );
-            // Update selectedPost so PostModal's comment count updates immediately
-            if (selectedPost && selectedPost.id === commentsModalState.postId) {
-              setSelectedPost((prev) =>
-                prev ? { ...prev, comment_count: newCount } : prev,
+            if (commentsModalState.postType === "event") {
+              setProfileEvents((prevEvents) =>
+                prevEvents.map((e) =>
+                  e.id === commentsModalState.postId
+                    ? { ...e, comment_count: newCount }
+                    : e,
+                ),
               );
+            } else if (commentsModalState.postType === "plan") {
+              setProfilePlans((prev) => ({
+                ...prev,
+                hosted: prev.hosted.map((p) =>
+                  p.id === commentsModalState.postId
+                    ? { ...p, comment_count: newCount }
+                    : p,
+                ),
+                attending: prev.attending.map((p) =>
+                  p.id === commentsModalState.postId
+                    ? { ...p, comment_count: newCount }
+                    : p,
+                ),
+              }));
+            } else {
+              setPosts((prevPosts) =>
+                prevPosts.map((p) =>
+                  p.id === commentsModalState.postId
+                    ? { ...p, comment_count: newCount }
+                    : p,
+                ),
+              );
+              // Update selectedPost so PostModal's comment count updates immediately
+              if (selectedPost && selectedPost.id === commentsModalState.postId) {
+                setSelectedPost((prev) =>
+                  prev ? { ...prev, comment_count: newCount } : prev,
+                );
+              }
             }
           }
           // IMPORTANT: Modal should remain open - don't change commentsModalState

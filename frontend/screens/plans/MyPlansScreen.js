@@ -11,6 +11,7 @@ import SnooLoader from '../../components/ui/SnooLoader';
 import HostPlanBottomSheet from './HostPlanBottomSheet';
 import OpenPlanCard from '../../components/plans/OpenPlanCard';
 import RequestBottomSheet from './RequestBottomSheet';
+import CommentsModal from '../../components/CommentsModal';
 
 // Matches OpenPlanCard PILL_COLORS — all 16 activity types
 const ACTIVITY_COLORS = {
@@ -129,6 +130,22 @@ export default function MyPlansScreen({ navigation }) {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [requestSheet, setRequestSheet] = useState(null);
 
+  // Screen-level comments modal state and callbacks
+  const [commentsModalState, setCommentsModalState] = useState({
+    visible: false,
+    postId: null,
+  });
+
+  const openCommentsModal = useCallback((postId) => {
+    if (postId) {
+      setCommentsModalState({ visible: true, postId });
+    }
+  }, []);
+
+  const closeCommentsModal = useCallback(() => {
+    setCommentsModalState({ visible: false, postId: null });
+  }, []);
+
   const loadData = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
@@ -184,11 +201,12 @@ export default function MyPlansScreen({ navigation }) {
           onRequestPress={(id) => setRequestSheet({ planId: id, planTitle: item.title })}
           onLike={handleLike}
           onShare={() => handleShare(item)}
+          onComment={openCommentsModal}
           navigation={navigation}
         />
       </View>
     );
-  }, [activeTab, currentUserId, navigation, handleLike, handleShare]);
+  }, [activeTab, currentUserId, navigation, handleLike, handleShare, openCommentsModal]);
 
   return (
     <View style={styles.container}>
@@ -273,6 +291,24 @@ export default function MyPlansScreen({ navigation }) {
           }}
         />
       )}
+      <CommentsModal
+        visible={commentsModalState.visible}
+        postId={commentsModalState.postId}
+        baseRoute="/plans"
+        onClose={closeCommentsModal}
+        onCommentCountChange={(newCount) => {
+          if (commentsModalState.postId) {
+            setAttendingPlans((prev) =>
+              prev.map((p) =>
+                p.id === commentsModalState.postId
+                  ? { ...p, comment_count: newCount }
+                  : p,
+              ),
+            );
+          }
+        }}
+        navigation={navigation}
+      />
     </View>
   );
 }

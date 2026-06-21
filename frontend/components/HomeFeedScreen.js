@@ -216,6 +216,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [errorMsg, setErrorMsg] = useState("");
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState(null);
+  const [selectedPostType, setSelectedPostType] = useState("post");
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [selectedSharePost, setSelectedSharePost] = useState(null);
   const { unread } = useNotifications();
@@ -973,8 +974,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     );
   };
 
-  const handleCommentPress = (postId) => {
+  const handleCommentPress = (postId, postType = "post") => {
     setSelectedPostId(postId);
+    setSelectedPostType(postType);
     setCommentsModalVisible(true);
   };
 
@@ -990,18 +992,27 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }
   };
 
-  const handleCommentCountChange = (postId) => {
+  const handleCommentCountChange = (postId, postType) => {
     return (prevCount) => {
-      setPosts((prevPosts) =>
-        prevPosts.map((p) =>
-          p.id === postId ? { ...p, comment_count: prevCount } : p,
-        ),
-      );
-      setOpportunities((prevOpps) =>
-        prevOpps.map((o) =>
-          o.id === postId ? { ...o, comment_count: prevCount } : o,
-        ),
-      );
+      if (postType === "post") {
+        setPosts((prevPosts) =>
+          prevPosts.map((p) =>
+            p.id === postId ? { ...p, comment_count: prevCount } : p,
+          ),
+        );
+      } else if (postType === "opportunity") {
+        setOpportunities((prevOpps) =>
+          prevOpps.map((o) =>
+            o.id === postId ? { ...o, comment_count: prevCount } : o,
+          ),
+        );
+      } else if (postType === "event") {
+        setEvents((prevEvents) =>
+          prevEvents.map((e) =>
+            e.id === postId ? { ...e, comment_count: prevCount } : e,
+          ),
+        );
+      }
     };
   };
 
@@ -1116,6 +1127,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           onPress={handleEventPress}
           onInterestedPress={handleInterestedPress}
           onShare={handleSharePress}
+          onComment={(id) => handleCommentPress(id, "event")}
         />
       );
     }
@@ -1130,6 +1142,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             });
           }}
           onLike={handleLikeUpdate}
+          onComment={(id) => handleCommentPress(id, "opportunity")}
           onShare={handleSharePress}
           onSave={(id, saved) => {
             setOpportunities((prev) =>
@@ -1494,12 +1507,15 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         <CommentsModal
           visible={commentsModalVisible}
           postId={selectedPostId}
+          baseRoute={selectedPostType === "opportunity" ? "/opportunities" : selectedPostType === "event" ? "/events" : "/posts"}
+          replyBaseRoute={selectedPostType === "opportunity" ? "/opportunity-comments" : selectedPostType === "event" ? "/event-comments" : "/comments"}
           onClose={() => {
             setCommentsModalVisible(false);
             setSelectedPostId(null);
+            setSelectedPostType("post");
           }}
           onCommentCountChange={
-            selectedPostId ? handleCommentCountChange(selectedPostId) : undefined
+            selectedPostId ? handleCommentCountChange(selectedPostId, selectedPostType) : undefined
           }
           navigation={navigation}
         />

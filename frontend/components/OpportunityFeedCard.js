@@ -421,8 +421,12 @@ const OpportunityFeedCard = React.memo(({
   }, [onUserPress, opportunity.creator_id, opportunity.creator_type, navigation]);
 
   const handleComment = useCallback(() => {
-    setCommentsVisible(true);
-  }, []);
+    if (onComment) {
+      onComment(opportunity.id);
+    } else {
+      setCommentsVisible(true);
+    }
+  }, [onComment, opportunity.id]);
 
   const handleShare = useCallback(() => {
     if (onShare) onShare(opportunity.id);

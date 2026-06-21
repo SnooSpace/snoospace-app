@@ -257,16 +257,17 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
     postId: null,
+    postType: "post",
   });
 
-  const openCommentsModal = useCallback((postId) => {
+  const openCommentsModal = useCallback((postId, postType = "post") => {
     if (postId) {
-      setCommentsModalState({ visible: true, postId });
+      setCommentsModalState({ visible: true, postId, postType });
     }
   }, []);
 
   const closeCommentsModal = useCallback(() => {
-    setCommentsModalState({ visible: false, postId: null });
+    setCommentsModalState({ visible: false, postId: null, postType: "post" });
   }, []);
 
   // Underline sliding animation (Reanimated)
@@ -1380,6 +1381,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                           onLike={(postId, isLiked, count) =>
                             setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, is_liked: isLiked, like_count: count } : p))
                           }
+                          onComment={(postId) => openCommentsModal(postId, "opportunity")}
                           onSave={(postId, isSaved) =>
                             setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, is_saved: isSaved } : p))
                           }
@@ -1480,6 +1482,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                           key={`ev-${ev.id}`}
                           event={ev}
                           onPress={(eventData) => navigation.navigate('EventDetails', { eventId: eventData.id, eventData })}
+                          onComment={(id) => openCommentsModal(id, "event")}
                         />
                       ))}
                     </>
@@ -1500,6 +1503,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                               if (liked) await likePlan(planId, token);
                               else await unlikePlan(planId, token);
                             }}
+                            onComment={(id) => openCommentsModal(id, "plan")}
                             navigation={navigation}
                           />
                         </View>
@@ -1604,15 +1608,57 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         <CommentsModal
           visible={commentsModalState.visible}
           postId={commentsModalState.postId}
+          baseRoute={
+            commentsModalState.postType === "opportunity"
+              ? "/opportunities"
+              : commentsModalState.postType === "event"
+              ? "/events"
+              : commentsModalState.postType === "plan"
+              ? "/plans"
+              : "/posts"
+          }
+          replyBaseRoute={
+            commentsModalState.postType === "opportunity"
+              ? "/opportunity-comments"
+              : commentsModalState.postType === "event"
+              ? "/event-comments"
+              : "/comments"
+          }
           onClose={closeCommentsModal}
-          onCommentCountChange={(postId) => {
-            setPosts((prevPosts) =>
-              prevPosts.map((p) =>
-                p.id === postId
-                  ? { ...p, comment_count: (p.comment_count || 0) + 1 }
-                  : p,
-              ),
-            );
+          onCommentCountChange={(newCount) => {
+            if (commentsModalState.postId) {
+              if (commentsModalState.postType === "event") {
+                setProfileEvents((prevEvents) =>
+                  prevEvents.map((e) =>
+                    e.id === commentsModalState.postId
+                      ? { ...e, comment_count: newCount }
+                      : e,
+                  ),
+                );
+              } else if (commentsModalState.postType === "plan") {
+                setProfilePlans((prev) => ({
+                  ...prev,
+                  hosted: prev.hosted.map((p) =>
+                    p.id === commentsModalState.postId
+                      ? { ...p, comment_count: newCount }
+                      : p,
+                  ),
+                  attending: prev.attending.map((p) =>
+                    p.id === commentsModalState.postId
+                      ? { ...p, comment_count: newCount }
+                      : p,
+                  ),
+                }));
+              } else {
+                setPosts((prevPosts) =>
+                  prevPosts.map((p) =>
+                    p.id === commentsModalState.postId
+                      ? { ...p, comment_count: newCount }
+                      : p,
+                  ),
+                );
+              }
+            }
           }}
           navigation={navigation}
         />

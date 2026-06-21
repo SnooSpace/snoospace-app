@@ -20,6 +20,7 @@ import { getGradientForName } from "../../utils/AvatarGenerator";
 import { useLocationName } from "../../utils/locationNameCache";
 import SnooLoader from "../../components/ui/SnooLoader";
 import EventCard from "../../components/EventCard";
+import CommentsModal from "../../components/CommentsModal";
 
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
@@ -31,11 +32,13 @@ const EventListCard = ({
   item,
   onPress,
   isPast,
+  onComment,
 }) => {
   return (
     <EventCard
       event={item}
       onPress={onPress}
+      onComment={onComment}
       style={{ marginBottom: 20 }}
     />
   );
@@ -387,6 +390,23 @@ export default function YourEventsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Screen-level comments modal state and callbacks
+  const [commentsModalState, setCommentsModalState] = useState({
+    visible: false,
+    postId: null,
+    postType: "post",
+  });
+
+  const openCommentsModal = useCallback((postId, postType = "post") => {
+    if (postId) {
+      setCommentsModalState({ visible: true, postId, postType });
+    }
+  }, []);
+
+  const closeCommentsModal = useCallback(() => {
+    setCommentsModalState({ visible: false, postId: null, postType: "post" });
+  }, []);
+
   // Tab underline animation
   const tabUnderlineX = React.useRef(new Animated.Value(0)).current;
   const tabUnderlineScale = React.useRef(new Animated.Value(0)).current;
@@ -729,9 +749,10 @@ export default function YourEventsScreen({ navigation }) {
         formatTime={formatTime}
         showRemoveButton={activeTab === "Interested"}
         isPast={activeTab === "Past"}
+        onComment={(id) => openCommentsModal(id, "event")}
       />
     );
-  }, [handleEventPress, handleRemoveInterest, handleTogglePlanInterest, interestedPlans, activeTab, navigation]);
+  }, [handleEventPress, handleRemoveInterest, handleTogglePlanInterest, interestedPlans, activeTab, navigation, openCommentsModal]);
 
   const filteredEvents = getFilteredEvents();
 
@@ -868,6 +889,44 @@ export default function YourEventsScreen({ navigation }) {
           />
         </Animated.View>
       )}
+      <CommentsModal
+        visible={commentsModalState.visible}
+        postId={commentsModalState.postId}
+        baseRoute={
+          commentsModalState.postType === "opportunity"
+            ? "/opportunities"
+            : commentsModalState.postType === "event"
+            ? "/events"
+            : "/posts"
+        }
+        replyBaseRoute={
+          commentsModalState.postType === "opportunity"
+            ? "/opportunity-comments"
+            : commentsModalState.postType === "event"
+            ? "/event-comments"
+            : "/comments"
+        }
+        onClose={closeCommentsModal}
+        onCommentCountChange={(newCount) => {
+          if (commentsModalState.postId) {
+            setEvents((prev) =>
+              prev.map((e) =>
+                e.id === commentsModalState.postId
+                  ? { ...e, comment_count: newCount }
+                  : e,
+              ),
+            );
+            setInterestedEvents((prev) =>
+              prev.map((e) =>
+                e.id === commentsModalState.postId
+                  ? { ...e, comment_count: newCount }
+                  : e,
+              ),
+            );
+          }
+        }}
+        navigation={navigation}
+      />
     </View>
   );
 }

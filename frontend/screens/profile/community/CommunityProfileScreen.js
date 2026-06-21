@@ -684,6 +684,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
     postId: null,
+    postType: "post",
   });
   const [showBannerActionSheet, setShowBannerActionSheet] = useState(false);
   const [authError, setAuthError] = useState(false);
@@ -1726,14 +1727,14 @@ export default function CommunityProfileScreen({ navigation, route }) {
     );
   }, [openPostModal, handlePinToggle]);
 
-  const openCommentsModal = useCallback((postId) => {
+  const openCommentsModal = useCallback((postId, postType = "post") => {
     if (postId) {
-      setCommentsModalState({ visible: true, postId });
+      setCommentsModalState({ visible: true, postId, postType });
     }
   }, []);
 
   const closeCommentsModal = useCallback(() => {
-    setCommentsModalState({ visible: false, postId: null });
+    setCommentsModalState({ visible: false, postId: null, postType: "post" });
   }, []);
 
   const updatePostsGlobalState = (postId, isLiked, likes) => {
@@ -2171,33 +2172,34 @@ export default function CommunityProfileScreen({ navigation, route }) {
                             >
                               {isOpportunity ? (
                                 <OpportunityFeedCard
-                                  opportunity={post}
-                                  showManagementControls={true}
-                                  onPress={(opp) =>
-                                    navigation.navigate("OpportunityView", {
-                                      opportunityId: opp.id,
-                                      opportunity: opp,
-                                    })
-                                  }
-                                  onLike={(postId, isLiked, count) => {
-                                    setPosts((prevPosts) =>
-                                      prevPosts.map((p) =>
-                                        p.id === postId
-                                          ? { ...p, is_liked: isLiked, like_count: count }
-                                          : p,
-                                      ),
-                                    );
-                                  }}
-                                  onSave={(postId, isSaved) => {
-                                    setPosts((prevPosts) =>
-                                      prevPosts.map((p) =>
-                                        p.id === postId
-                                          ? { ...p, is_saved: isSaved }
-                                          : p,
-                                      ),
-                                    );
-                                  }}
-                                  onShare={() => {}}
+                                    opportunity={post}
+                                    showManagementControls={true}
+                                    onPress={(opp) =>
+                                      navigation.navigate("OpportunityView", {
+                                        opportunityId: opp.id,
+                                        opportunity: opp,
+                                      })
+                                    }
+                                    onLike={(postId, isLiked, count) => {
+                                      setPosts((prevPosts) =>
+                                        prevPosts.map((p) =>
+                                          p.id === postId
+                                            ? { ...p, is_liked: isLiked, like_count: count }
+                                            : p,
+                                        ),
+                                      );
+                                    }}
+                                    onComment={(postId) => openCommentsModal(postId, "opportunity")}
+                                    onSave={(postId, isSaved) => {
+                                      setPosts((prevPosts) =>
+                                        prevPosts.map((p) =>
+                                          p.id === postId
+                                            ? { ...p, is_saved: isSaved }
+                                            : p,
+                                        ),
+                                      );
+                                    }}
+                                    onShare={() => {}}
                                   onPinToggle={() => handlePinToggle(post)}
                                   onDelete={(opportunityId) => {
                                     setPosts((prev) => prev.filter((p) => p.id !== opportunityId));
@@ -2330,6 +2332,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
                             eventData: eventData,
                           })
                         }
+                        onComment={(id) => openCommentsModal(id, "event")}
                       />
                     ))}
                   </View>
@@ -2581,16 +2584,41 @@ export default function CommunityProfileScreen({ navigation, route }) {
         <CommentsModal
           visible={commentsModalState.visible}
           postId={commentsModalState.postId}
+          baseRoute={
+            commentsModalState.postType === "opportunity"
+              ? "/opportunities"
+              : commentsModalState.postType === "event"
+              ? "/events"
+              : "/posts"
+          }
+          replyBaseRoute={
+            commentsModalState.postType === "opportunity"
+              ? "/opportunity-comments"
+              : commentsModalState.postType === "event"
+              ? "/event-comments"
+              : "/comments"
+          }
           onClose={closeCommentsModal}
-          onCommentCountChange={(postId) => {
-            // Update comment count in posts
-            setPosts((prevPosts) =>
-              prevPosts.map((p) =>
-                p.id === postId
-                  ? { ...p, comment_count: (p.comment_count || 0) + 1 }
-                  : p,
-              ),
-            );
+          onCommentCountChange={(newCount) => {
+            if (commentsModalState.postId) {
+              if (commentsModalState.postType === "event") {
+                setCommunityEvents((prevEvents) =>
+                  prevEvents.map((e) =>
+                    e.id === commentsModalState.postId
+                      ? { ...e, comment_count: newCount }
+                      : e,
+                  ),
+                );
+              } else {
+                setPosts((prevPosts) =>
+                  prevPosts.map((p) =>
+                    p.id === commentsModalState.postId
+                      ? { ...p, comment_count: newCount }
+                      : p,
+                  ),
+                );
+              }
+            }
           }}
           navigation={navigation}
         />
