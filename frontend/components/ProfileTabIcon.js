@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { View, Image, StyleSheet, ActivityIndicator } from "react-native";
+import { View, StyleSheet, ActivityIndicator } from "react-native";
+import { Image } from "expo-image"; // ── PERF: memory-disk cache so tab bar avatar never re-fetches
 import { User } from "lucide-react-native";
 import { getAuthToken, getAuthEmail, getActiveAccount } from "../api/auth";
 import { apiPost } from "../api/client";
@@ -76,7 +77,12 @@ const ProfileTabIcon = ({ focused, color, userType = "member" }) => {
           { borderColor: focused ? "#3565F2" : "transparent" },
         ]}
       >
-        <Image source={{ uri: photoUrl }} style={styles.image} />
+        <Image
+          source={{ uri: photoUrl }}
+          style={styles.image}
+          cachePolicy="memory-disk"
+          contentFit="cover"
+        />
       </View>
     );
   }

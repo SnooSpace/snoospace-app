@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Animated } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated } from "react-native";
+import { Image } from "expo-image"; // ── PERF: memory-disk cache for mention search avatars
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, FONTS, SHADOWS } from "../constants/theme";
 import SnooLoader from "./ui/SnooLoader";
@@ -65,7 +66,12 @@ const MentionSearchDropdown = ({
         onPress={() => onSelect(item)}
       >
         {profilePhotoUrl ? (
-          <Image source={{ uri: profilePhotoUrl }} style={styles.avatar} />
+          <Image
+            source={{ uri: profilePhotoUrl }}
+            style={styles.avatar}
+            cachePolicy="memory-disk"
+            contentFit="cover"
+          />
         ) : (
           <View style={[styles.avatar, styles.placeholderAvatar]}>
             <Ionicons

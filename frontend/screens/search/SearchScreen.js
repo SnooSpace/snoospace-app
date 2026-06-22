@@ -5,7 +5,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { View, TextInput, FlatList, Text, Image, TouchableOpacity, StyleSheet, Keyboard, ScrollView } from "react-native";
+import { View, TextInput, FlatList, Text, TouchableOpacity, StyleSheet, Keyboard, ScrollView } from "react-native";
+import { Image } from "expo-image"; // ── PERF: memory-disk cache for search avatars
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Search,
@@ -509,7 +510,7 @@ export default function SearchScreen({ navigation }) {
           onPress={() => onPressProfile(item, false)}
         >
           {hasValidPhoto ? (
-            <Image source={{ uri: photoUrl }} style={styles.avatar} />
+            <Image source={{ uri: photoUrl }} style={styles.avatar} cachePolicy="memory-disk" contentFit="cover" />
           ) : entityType === "community" ? (
             <LinearGradient
               colors={getGradientForName(
@@ -530,6 +531,8 @@ export default function SearchScreen({ navigation }) {
             <Image
               source={{ uri: "https://via.placeholder.com/64" }}
               style={styles.avatar}
+              cachePolicy="memory-disk"
+              contentFit="cover"
             />
           )}
           <View style={styles.meta}>
@@ -620,7 +623,7 @@ export default function SearchScreen({ navigation }) {
           activeOpacity={0.7}
         >
           {hasValidPhoto ? (
-            <Image source={{ uri: photoUrl }} style={styles.avatar} />
+            <Image source={{ uri: photoUrl }} style={styles.avatar} cachePolicy="memory-disk" contentFit="cover" />
           ) : entityType === "community" ? (
             <LinearGradient
               colors={getGradientForName(item.name || item.full_name || "Community")}

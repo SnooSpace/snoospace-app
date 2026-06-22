@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, RefreshControl } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from "react-native";
+import { Image } from "expo-image"; // ── PERF: memory-disk cache eliminates re-fetches on list scroll
 import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
@@ -201,6 +202,8 @@ export default function FollowerList({
           <Image
             source={{ uri: item.avatarUrl || placeholderImage }}
             style={styles.avatar}
+            cachePolicy="memory-disk"
+            contentFit="cover"
           />
           <View style={styles.meta}>
             <Text style={styles.name} numberOfLines={1}>
