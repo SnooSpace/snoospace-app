@@ -165,5 +165,6 @@ const styles = StyleSheet.create({
   },
   animatedSheet: {
     width: "100%",
+    alignItems: "stretch",
   },
 });

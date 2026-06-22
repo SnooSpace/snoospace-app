@@ -446,7 +446,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: "80%",
+    maxHeight: SCREEN_HEIGHT * 0.75,
+    minHeight: SCREEN_HEIGHT * 0.4,
     paddingBottom: Platform.OS === "ios" ? 40 : 30,
   },
   handleBar: {
