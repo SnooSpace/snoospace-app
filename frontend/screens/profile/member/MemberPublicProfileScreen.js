@@ -8,7 +8,8 @@ import React, {
 import { useFocusEffect } from "@react-navigation/native";
 import { CommonActions } from "@react-navigation/native";
 import {
-  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, Modal, ScrollView, Platform, Pressable, RefreshControl, Animated } from "react-native";
+  View, Text, Image, StyleSheet, TouchableOpacity, FlatList, Dimensions, ScrollView, Platform, Pressable, RefreshControl, Animated } from "react-native";
+import SwipeableModal from "../../../components/modals/SwipeableModal";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { Image as ExpoImage } from "expo-image";
@@ -211,24 +212,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [postModalVisible, setPostModalVisible] = useState(false);
   const [showCollegeHub, setShowCollegeHub] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
-  const slideAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    if (menuVisible) {
-      slideAnim.setValue(0);
-      Animated.spring(slideAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 11,
-      }).start();
-    }
-  }, [menuVisible]);
-
-  const sheetTranslateY = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [300, 0],
-  });
   const [blocking, setBlocking] = useState(false);
   const [unblocking, setUnblocking] = useState(false);
   const [blocked, setBlocked] = useState(false);
@@ -773,65 +757,59 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       </View>
 
       {/* Block / Options Bottom Sheet */}
-      <Modal
+      <SwipeableModal
         visible={menuVisible}
-        transparent
-        animationType="none"
-        onRequestClose={() => setMenuVisible(false)}
+        onClose={() => setMenuVisible(false)}
+        sheetStyle={menuStyles.sheet}
+        backdropColor="rgba(0,0,0,0.4)"
       >
-        <Pressable style={menuStyles.overlay} onPress={() => setMenuVisible(false)}>
-          <Animated.View
-            style={[menuStyles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}
-          >
-            <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
-              <View style={menuStyles.handle} />
-            {profile?.created_at && (() => {
-              const createdDate = new Date(profile.created_at);
-              const accountAge = Math.floor((Date.now() - createdDate.getTime()) / 86400000);
-              const joinDate = createdDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-              return (
-                <>
-                  <View style={menuStyles.row}>
-                    <View style={[menuStyles.iconBox, { backgroundColor: 'rgba(59,130,246,0.08)' }]}>
-                      <CalendarDays size={20} color="#3B82F6" strokeWidth={2} />
-                    </View>
-                    <View style={menuStyles.rowText}>
-                      <Text style={[menuStyles.rowLabel, { color: COLORS.textPrimary }]}>
-                        {accountAge}d
-                      </Text>
-                      <Text style={menuStyles.rowSub}>
-                        Joined on {joinDate}
-                      </Text>
-                    </View>
+        <View style={{ width: '100%' }}>
+          <View style={menuStyles.handle} />
+          {profile?.created_at && (() => {
+            const createdDate = new Date(profile.created_at);
+            const accountAge = Math.floor((Date.now() - createdDate.getTime()) / 86400000);
+            const joinDate = createdDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+            return (
+              <>
+                <View style={menuStyles.row}>
+                  <View style={[menuStyles.iconBox, { backgroundColor: 'rgba(59,130,246,0.08)' }]}>
+                    <CalendarDays size={20} color="#3B82F6" strokeWidth={2} />
                   </View>
-                  <View style={{ height: 1, backgroundColor: '#F3F4F6', marginVertical: 8 }} />
-                </>
-              );
-            })()}
-            <TouchableOpacity
-              style={menuStyles.row}
-              onPress={youHaveBlocked ? () => { setMenuVisible(false); handleUnblockUser(); } : handleBlockUser}
-              activeOpacity={0.7}
-              disabled={blocking || unblocking}
-            >
-              <View style={[menuStyles.iconBox, youHaveBlocked && { backgroundColor: 'rgba(53,101,242,0.08)' }]}>
-                {youHaveBlocked
-                  ? <ShieldOff size={20} color="#3565F2" strokeWidth={2.5} />
-                  : <UserX    size={20} color="#E53935" strokeWidth={2.5} />}
-              </View>
-              <View style={menuStyles.rowText}>
-                <Text style={[menuStyles.rowLabel, youHaveBlocked && { color: '#3565F2' }]}>
-                  {youHaveBlocked ? 'Unblock User' : 'Block User'}
-                </Text>
-                <Text style={menuStyles.rowSub}>
-                  {youHaveBlocked ? 'Remove block and restore access' : "They won't be able to message or find you"}
-                </Text>
-              </View>
-            </TouchableOpacity>
-            </Pressable>
-          </Animated.View>
-        </Pressable>
-      </Modal>
+                  <View style={menuStyles.rowText}>
+                    <Text style={[menuStyles.rowLabel, { color: COLORS.textPrimary }]}>
+                      {accountAge}d
+                    </Text>
+                    <Text style={menuStyles.rowSub}>
+                      Joined on {joinDate}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ height: 1, backgroundColor: '#F3F4F6', marginVertical: 8 }} />
+              </>
+            );
+          })()}
+          <TouchableOpacity
+            style={menuStyles.row}
+            onPress={youHaveBlocked ? () => { setMenuVisible(false); handleUnblockUser(); } : handleBlockUser}
+            activeOpacity={0.7}
+            disabled={blocking || unblocking}
+          >
+            <View style={[menuStyles.iconBox, youHaveBlocked && { backgroundColor: 'rgba(53,101,242,0.08)' }]}>
+              {youHaveBlocked
+                ? <ShieldOff size={20} color="#3565F2" strokeWidth={2.5} />
+                : <UserX    size={20} color="#E53935" strokeWidth={2.5} />}
+            </View>
+            <View style={menuStyles.rowText}>
+              <Text style={[menuStyles.rowLabel, youHaveBlocked && { color: '#3565F2' }]}>
+                {youHaveBlocked ? 'Unblock User' : 'Block User'}
+              </Text>
+              <Text style={menuStyles.rowSub}>
+                {youHaveBlocked ? 'Remove block and restore access' : "They won't be able to message or find you"}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </SwipeableModal>
 
       {/* "You've blocked this user" banner */}
       {youHaveBlocked && !loading && (

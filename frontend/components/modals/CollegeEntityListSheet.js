@@ -3,16 +3,13 @@ import {
   StyleSheet,
   View,
   Text,
-  Modal,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   FlatList,
   Image,
   ActivityIndicator,
   Dimensions,
-  Animated,
 } from "react-native";
-import { BlurView } from "expo-blur";
+import SwipeableModal from "./SwipeableModal";
 import {
   ArrowLeft,
   Users,
@@ -65,25 +62,7 @@ export default function CollegeEntityListSheet({
   // Map of id -> loading (in-flight follow toggle)
   const [followLoading, setFollowLoading] = useState({});
 
-  const slideAnim = useRef(new Animated.Value(screenHeight)).current;
 
-  useEffect(() => {
-    if (visible) {
-      slideAnim.setValue(screenHeight);
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 50,
-        friction: 8,
-      }).start();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: screenHeight,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [visible]);
 
   const isMemberMode = mode === "members";
 
@@ -335,25 +314,17 @@ export default function CollegeEntityListSheet({
 
 
   return (
-    <Modal
-      transparent
+    <SwipeableModal
       visible={visible}
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
+      onClose={onClose}
+      sheetStyle={styles.sheet}
+      useBlur={true}
+      blurIntensity={20}
+      blurTint="dark"
+      statusBarTranslucent={true}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.overlay}>
-          <BlurView
-            intensity={20}
-            style={StyleSheet.absoluteFill}
-            tint="dark"
-          />
-
-          <TouchableWithoutFeedback onPress={() => {}}>
-            <Animated.View style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}>
-              {/* Handle */}
-              <View style={styles.handle} />
+      {/* Handle */}
+      <View style={styles.handle} />
 
               {/* Header */}
               <View style={styles.header}>
@@ -430,11 +401,7 @@ export default function CollegeEntityListSheet({
                   }
                 />
               )}
-            </Animated.View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
+    </SwipeableModal>
   );
 }
 

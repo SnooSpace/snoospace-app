@@ -3,15 +3,12 @@ import {
   StyleSheet,
   View,
   Text,
-  Modal,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   FlatList,
   Image,
   Dimensions,
-  Animated,
 } from "react-native";
-import { BlurView } from "expo-blur";
+import SwipeableModal from "./SwipeableModal";
 import {
   X,
   GraduationCap,
@@ -61,25 +58,7 @@ export default function CollegeHubSheet({
   const [followState, setFollowState] = useState({});
   const [followLoading, setFollowLoading] = useState({});
 
-  const slideAnim = useRef(new Animated.Value(screenHeight)).current;
 
-  useEffect(() => {
-    if (visible) {
-      slideAnim.setValue(screenHeight);
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 50,
-        friction: 8,
-      }).start();
-    } else {
-      Animated.timing(slideAnim, {
-        toValue: screenHeight,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [visible]);
 
   const fetchHubData = useCallback(async () => {
     if (!collegeId) return;
@@ -312,75 +291,65 @@ export default function CollegeHubSheet({
   );
 
   return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.overlay}>
-          <BlurView
-            intensity={20}
-            style={StyleSheet.absoluteFill}
-            tint="dark"
+    <>
+      <SwipeableModal
+        visible={visible}
+        onClose={onClose}
+        sheetStyle={styles.sheetContainer}
+        useBlur={true}
+        blurIntensity={20}
+        blurTint="dark"
+        statusBarTranslucent={true}
+      >
+        {/* Handle bar */}
+        <View style={styles.handleBar} />
+
+        {/* Close button */}
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={onClose}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <X size={20} color="#9CA3AF" />
+        </TouchableOpacity>
+
+        {loading ? (
+          <View style={styles.loadingWrap}>
+            <SnooLoader size="medium" />
+            <Text style={styles.loadingText}>
+              Loading college info...
+            </Text>
+          </View>
+        ) : error ? (
+          <View style={styles.errorWrap}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity
+              onPress={fetchHubData}
+              style={styles.retryButton}
+            >
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={communities}
+            renderItem={renderCommunityItem}
+            keyExtractor={(item) => String(item.id)}
+            ListHeaderComponent={ListHeader}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyWrap}>
+                <Building2 size={32} color="#D1D5DB" strokeWidth={1.5} />
+                <Text style={styles.emptyText}>
+                  No affiliated communities yet
+                </Text>
+              </View>
+            }
           />
-
-          <TouchableWithoutFeedback onPress={() => {}}>
-            <Animated.View style={[styles.sheetContainer, { transform: [{ translateY: slideAnim }] }]}>
-              {/* Handle bar */}
-              <View style={styles.handleBar} />
-
-              {/* Close button */}
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={onClose}
-                activeOpacity={0.7}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <X size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-
-              {loading ? (
-                <View style={styles.loadingWrap}>
-                  <SnooLoader size="medium" />
-                  <Text style={styles.loadingText}>
-                    Loading college info...
-                  </Text>
-                </View>
-              ) : error ? (
-                <View style={styles.errorWrap}>
-                  <Text style={styles.errorText}>{error}</Text>
-                  <TouchableOpacity
-                    onPress={fetchHubData}
-                    style={styles.retryButton}
-                  >
-                    <Text style={styles.retryText}>Retry</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <FlatList
-                  data={communities}
-                  renderItem={renderCommunityItem}
-                  keyExtractor={(item) => String(item.id)}
-                  ListHeaderComponent={ListHeader}
-                  contentContainerStyle={styles.listContent}
-                  showsVerticalScrollIndicator={false}
-                  ListEmptyComponent={
-                    <View style={styles.emptyWrap}>
-                      <Building2 size={32} color="#D1D5DB" strokeWidth={1.5} />
-                      <Text style={styles.emptyText}>
-                        No affiliated communities yet
-                      </Text>
-                    </View>
-                  }
-                />
-              )}
-            </Animated.View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
+        )}
+      </SwipeableModal>
 
       {/* Entity list sub-sheet */}
       <CollegeEntityListSheet
@@ -401,7 +370,7 @@ export default function CollegeHubSheet({
           onCommunityPress?.(communityId);
         }}
       />
-    </Modal>
+    </>
   );
 }
 

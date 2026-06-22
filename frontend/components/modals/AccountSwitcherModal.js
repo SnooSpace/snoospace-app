@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
-  Modal,
   View,
   Text,
   StyleSheet,
@@ -12,6 +11,7 @@ import {
   Pressable,
   Platform,
 } from "react-native";
+import SwipeableModal from "./SwipeableModal";
 import {
   GestureHandlerRootView,
   Pressable as GHPressable,
@@ -48,46 +48,10 @@ export default function AccountSwitcherModal({
     useState(false);
   const shakeAnimation = useRef(new Animated.Value(0)).current;
 
-  const [shouldRender, setShouldRender] = useState(visible);
-  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
     if (visible) {
       loadAccounts();
       setShowCurrentAccountSubtitle(false);
-      setShouldRender(true);
-      // Entrance
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 350,
-          useNativeDriver: true,
-        }),
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          stiffness: 200,
-          damping: 25,
-          mass: 1,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      // Exit
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: SCREEN_HEIGHT,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setShouldRender(false);
-      });
     }
   }, [visible]);
 
@@ -412,81 +376,60 @@ export default function AccountSwitcherModal({
 
   const canAddMore = accounts.length < 5;
 
-  if (!shouldRender) return null;
-
   return (
-    <Modal
-      transparent
-      visible={shouldRender}
-      animationType="none"
-      onRequestClose={onClose}
+    <SwipeableModal
+      visible={visible}
+      onClose={onClose}
+      sheetStyle={styles.modalContent}
+      useBlur={true}
+      blurIntensity={20}
+      blurTint="dark"
       statusBarTranslucent={true}
     >
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={styles.overlay}>
-          <Animated.View style={[styles.backdrop, { opacity: fadeAnim }]}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
-              <BlurView
-                intensity={20}
-                tint="dark"
-                style={StyleSheet.absoluteFill}
-              />
-            </Pressable>
-          </Animated.View>
+      {/* Handle bar */}
+      <View style={styles.handleBar} />
 
-          <Animated.View
-            style={[
-              styles.modalContent,
-              { transform: [{ translateY: slideAnim }] },
-            ]}
-          >
-            {/* Handle bar */}
-            <View style={styles.handleBar} />
+      {/* Account List */}
+      <FlatList
+        data={accounts}
+        keyExtractor={(item) => `${item.type}_${item.id}`}
+        renderItem={renderAccountItem}
+        style={styles.accountList}
+        contentContainerStyle={styles.listContent}
+      />
 
-            {/* Account List */}
-            <FlatList
-              data={accounts}
-              keyExtractor={(item) => `${item.type}_${item.id}`}
-              renderItem={renderAccountItem}
-              style={styles.accountList}
-              contentContainerStyle={styles.listContent}
-            />
+      {/* Add Account Button */}
+      <GHPressable
+        style={({ pressed }) => [
+          styles.addAccountButton,
+          !canAddMore && styles.addAccountButtonDisabled,
+          { opacity: pressed ? 0.6 : 1 },
+        ]}
+        onPress={() => {
+          onClose();
+          onAddAccount();
+        }}
+        disabled={!canAddMore}
+      >
+        <PlusCircle size={20} color={canAddMore ? "#1D1D1F" : "#8E8E93"} />
+        <Text
+          style={[
+            styles.addAccountText,
+            !canAddMore && styles.addAccountTextDisabled,
+          ]}
+        >
+          Add account
+        </Text>
+        {!canAddMore && (
+          <Text style={styles.maxReachedText}>(Max reached)</Text>
+        )}
+      </GHPressable>
 
-            {/* Add Account Button */}
-            <GHPressable
-              style={({ pressed }) => [
-                styles.addAccountButton,
-                !canAddMore && styles.addAccountButtonDisabled,
-                { opacity: pressed ? 0.6 : 1 },
-              ]}
-              onPress={() => {
-                onClose();
-                onAddAccount();
-              }}
-              disabled={!canAddMore}
-            >
-              <PlusCircle size={20} color={canAddMore ? "#1D1D1F" : "#8E8E93"} />
-              <Text
-                style={[
-                  styles.addAccountText,
-                  !canAddMore && styles.addAccountTextDisabled,
-                ]}
-              >
-                Add account
-              </Text>
-              {!canAddMore && (
-                <Text style={styles.maxReachedText}>(Max reached)</Text>
-              )}
-            </GHPressable>
-
-            {/* SnooSpace Branding */}
-            <View style={styles.footer}>
-              <Text style={styles.metaText}>SnooSpace</Text>
-            </View>
-          </Animated.View>
-        </View>
-      </GestureHandlerRootView>
-    </Modal>
+      {/* SnooSpace Branding */}
+      <View style={styles.footer}>
+        <Text style={styles.metaText}>SnooSpace</Text>
+      </View>
+    </SwipeableModal>
   );
 }
 

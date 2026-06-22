@@ -3,9 +3,7 @@ import {
   StyleSheet,
   View,
   Text,
-  Modal,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   TextInput,
   FlatList,
   Image,
@@ -13,7 +11,7 @@ import {
   Keyboard,
   Platform,
 } from "react-native";
-import { BlurView } from "expo-blur";
+import SwipeableModal from "./SwipeableModal";
 import {
   X,
   Search,
@@ -98,7 +96,7 @@ export default function CollegePickerModal({
     };
   }, [visible]);
 
-  if (!visible) return null;
+
 
   const handleSelectItem = (item) => {
     Keyboard.dismiss();
@@ -146,25 +144,17 @@ export default function CollegePickerModal({
   );
 
   return (
-    <Modal
-      transparent
+    <SwipeableModal
       visible={visible}
-      animationType="slide"
-      onRequestClose={onClose}
-      statusBarTranslucent
+      onClose={onClose}
+      sheetStyle={styles.sheetContainer}
+      useBlur={true}
+      blurIntensity={20}
+      blurTint="dark"
+      statusBarTranslucent={true}
     >
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.overlay}>
-          <BlurView
-            intensity={20}
-            style={StyleSheet.absoluteFill}
-            tint="dark"
-          />
-
-          <TouchableWithoutFeedback onPress={() => {}}>
-            <View style={styles.sheetContainer}>
-              {/* Handle bar */}
-              <View style={styles.handleBar} />
+      {/* Handle bar */}
+      <View style={styles.handleBar} />
 
               {/* Header */}
               <View style={styles.header}>
@@ -249,11 +239,7 @@ export default function CollegePickerModal({
                   />
                 )}
               </View>
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
+    </SwipeableModal>
   );
 }
 

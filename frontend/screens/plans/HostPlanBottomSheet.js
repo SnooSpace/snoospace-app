@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Modal, Platform, Switch, Alert, ActivityIndicator,
+  ScrollView, Platform, Switch, Alert, ActivityIndicator,
   TouchableWithoutFeedback, KeyboardAvoidingView, Dimensions, Keyboard,
 } from 'react-native';
+import SwipeableModal from '../../components/modals/SwipeableModal';
 import {
   Users, Globe, ChevronDown, Minus, Plus, RefreshCw,
   AlertCircle, Calendar, Lock, MapPin, Clock,
@@ -169,26 +170,18 @@ export default function HostPlanBottomSheet({ isVisible, onClose, onPlanCreated,
   };
 
   return (
-    <Modal
-      visible={isVisible}
-      animationType="slide"
-      transparent
-      onRequestClose={() => { resetState(); onClose(); }}
-      statusBarTranslucent
-    >
-      <KeyboardAvoidingView
+    <>
+      <SwipeableModal
+        visible={isVisible}
+        onClose={() => { resetState(); onClose(); }}
+        sheetStyle={styles.sheet}
+        keyboardAvoiding={true}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1 }}
+        backdropColor="rgba(0,0,0,0.5)"
       >
-        <View style={styles.modalContainer}>
-          <TouchableWithoutFeedback onPress={() => { resetState(); onClose(); }}>
-            <View style={styles.backdrop} />
-          </TouchableWithoutFeedback>
-
-          <View style={styles.sheet}>
-            {/* Handle */}
-            <View style={styles.handle} />
-            <Text style={styles.sheetTitle}>Host an open plan</Text>
+        {/* Handle */}
+        <View style={styles.handle} />
+        <Text style={styles.sheetTitle}>Host an open plan</Text>
 
             <ScrollView
               showsVerticalScrollIndicator={false}
@@ -407,9 +400,7 @@ export default function HostPlanBottomSheet({ isVisible, onClose, onPlanCreated,
                   : <Text style={styles.submitBtnText}>Post open plan</Text>}
               </TouchableOpacity>
             </ScrollView>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
+      </SwipeableModal>
 
       {/* Date picker modal */}
       <CustomDatePicker
@@ -436,7 +427,7 @@ export default function HostPlanBottomSheet({ isVisible, onClose, onPlanCreated,
           }}
         />
       )}
-    </Modal>
+    </>
   );
 }
 

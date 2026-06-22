@@ -3,9 +3,7 @@ import {
   StyleSheet,
   View,
   Text,
-  Modal,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   TextInput,
   FlatList,
   SectionList,
@@ -13,7 +11,7 @@ import {
   Keyboard,
   Platform,
 } from "react-native";
-import { BlurView } from "expo-blur";
+import SwipeableModal from "./SwipeableModal";
 import {
   X,
   Search,
@@ -107,7 +105,7 @@ export default function DegreePickerModal({
     onClose();
   };
 
-  if (!visible) return null;
+
 
   const hasQuery = query.trim().length > 0;
 
@@ -155,25 +153,18 @@ export default function DegreePickerModal({
   };
 
   return (
-    <Modal
-      transparent
+    <SwipeableModal
       visible={visible}
-      animationType="slide"
+      onClose={onClose}
+      sheetStyle={styles.sheet}
+      useBlur={true}
+      blurIntensity={20}
+      blurTint="dark"
+      statusBarTranslucent={true}
       onRequestClose={handleClose}
-      statusBarTranslucent
     >
-      <TouchableWithoutFeedback onPress={handleClose}>
-        <View style={styles.overlay}>
-          <BlurView
-            intensity={20}
-            style={StyleSheet.absoluteFill}
-            tint="dark"
-          />
-
-          <TouchableWithoutFeedback onPress={() => {}}>
-            <View style={styles.sheet}>
-              {/* Handle */}
-              <View style={styles.handleBar} />
+      {/* Handle */}
+      <View style={styles.handleBar} />
 
               {/* Header */}
               <View style={styles.header}>
@@ -257,11 +248,7 @@ export default function DegreePickerModal({
                   </View>
                 }
               />
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
+    </SwipeableModal>
   );
 }
 

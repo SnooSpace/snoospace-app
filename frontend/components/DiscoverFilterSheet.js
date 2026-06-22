@@ -4,16 +4,15 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Modal,
   TextInput,
   Platform,
 } from "react-native";
 import { Search, ChevronDown, ChevronUp, X } from "lucide-react-native";
 import {
   KeyboardAwareScrollView,
-  KeyboardAvoidingView,
 } from "react-native-keyboard-controller";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import SwipeableModal from "./modals/SwipeableModal";
 import { COLORS, SPACING, BORDER_RADIUS, FONTS } from "../constants/theme";
 import HapticsService from "../services/HapticsService";
 import {
@@ -304,29 +303,18 @@ export default function DiscoverFilterSheet({
   };
 
   return (
-    <Modal
+    <SwipeableModal
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-      statusBarTranslucent={true}
+      onClose={onClose}
+      sheetStyle={styles.sheet}
+      keyboardAvoiding={true}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      backdropColor="rgba(0,0,0,0.5)"
     >
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <View style={styles.overlay}>
-          <TouchableOpacity
-            style={styles.backdrop}
-            activeOpacity={1}
-            onPress={onClose}
-          />
-
-          <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={styles.sheet}
-          >
-            <View style={styles.sheetHeader}>
-              <View style={styles.handle} />
-              <View style={styles.headerRow}>
-                <Text style={styles.sheetTitle}>Filter Profiles</Text>
+      <View style={styles.sheetHeader}>
+        <View style={styles.handle} />
+        <View style={styles.headerRow}>
+          <Text style={styles.sheetTitle}>Filter Profiles</Text>
                 {hasActiveFilters && (
                   <TouchableOpacity onPress={handleReset}>
                     <Text style={styles.resetText}>Reset</Text>
@@ -564,10 +552,7 @@ export default function DiscoverFilterSheet({
                 </Text>
               </TouchableOpacity>
             </View>
-          </KeyboardAvoidingView>
-        </View>
-      </GestureHandlerRootView>
-    </Modal>
+    </SwipeableModal>
   );
 }
 

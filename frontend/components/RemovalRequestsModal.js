@@ -7,12 +7,12 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
-  Modal,
   TouchableOpacity,
   StyleSheet,
   FlatList,
   Image,
 } from "react-native";
+import SwipeableModal from "./modals/SwipeableModal";
 import {
   X,
   CheckCircle,
@@ -284,45 +284,43 @@ const RemovalRequestsModal = ({
   );
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <View style={styles.overlay}>
-        <View style={styles.container}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.handle} />
-            <View style={styles.headerRow}>
-              <Text style={styles.headerTitle}>Removal Requests</Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <X size={24} color={COLORS.textPrimary} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.headerSubtitle}>
-              Review requests from participants to remove their submissions
-            </Text>
+    <>
+      <SwipeableModal
+        visible={visible}
+        onClose={onClose}
+        sheetStyle={styles.container}
+        backdropColor="rgba(0,0,0,0.5)"
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.handle} />
+          <View style={styles.headerRow}>
+            <Text style={styles.headerTitle}>Removal Requests</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <X size={24} color={COLORS.textPrimary} />
+            </TouchableOpacity>
           </View>
-
-          {/* Content */}
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <SnooLoader size="large" color="#FF9500" />
-            </View>
-          ) : (
-            <FlatList
-              data={requests}
-              renderItem={renderRequest}
-              keyExtractor={(item) => item.id.toString()}
-              ListEmptyComponent={renderEmpty}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-            />
-          )}
+          <Text style={styles.headerSubtitle}>
+            Review requests from participants to remove their submissions
+          </Text>
         </View>
-      </View>
+
+        {/* Content */}
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <SnooLoader size="large" color="#FF9500" />
+          </View>
+        ) : (
+          <FlatList
+            data={requests}
+            renderItem={renderRequest}
+            keyExtractor={(item) => item.id.toString()}
+            ListEmptyComponent={renderEmpty}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+      </SwipeableModal>
 
       <CustomAlertModal
         visible={alertVisible}
@@ -334,7 +332,7 @@ const RemovalRequestsModal = ({
         icon={alertConfig.icon}
         iconColor={alertConfig.iconColor}
       />
-    </Modal>
+    </>
   );
 };
 

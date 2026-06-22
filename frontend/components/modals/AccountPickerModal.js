@@ -5,7 +5,6 @@
  */
 import React, { useState, useEffect } from "react";
 import {
-  Modal,
   View,
   Text,
   Image,
@@ -14,6 +13,7 @@ import {
   FlatList,
   Platform,
 } from "react-native";
+import SwipeableModal from "./SwipeableModal";
 import {
   Check,
   User,
@@ -265,20 +265,13 @@ export default function AccountPickerModal({
   };
 
   return (
-    <Modal
+    <SwipeableModal
       visible={visible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={() => {}}
-      statusBarTranslucent={true}
+      onClose={onClose}
+      sheetStyle={styles.modalContent}
+      backdropColor="rgba(0, 0, 0, 0.5)"
     >
-      <View style={styles.overlay}>
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.modalContent}
-          onPress={(e) => e.stopPropagation()}
-        >
-          <View style={styles.handleBar} />
+      <View style={styles.handleBar} />
 
           <Text style={styles.title}>Multiple Accounts Detected</Text>
           <Text style={styles.subtitle}>
@@ -375,9 +368,7 @@ export default function AccountPickerModal({
               </LinearGradient>
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-      </View>
-    </Modal>
+    </SwipeableModal>
   );
 }
 

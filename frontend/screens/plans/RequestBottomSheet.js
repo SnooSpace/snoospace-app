@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  Modal, TouchableWithoutFeedback, Keyboard,
+  TouchableWithoutFeedback, Keyboard,
   Platform, ActivityIndicator, Alert,
 } from 'react-native';
+import SwipeableModal from '../../components/modals/SwipeableModal';
 import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import { Info } from 'lucide-react-native';
 import { COLORS, FONTS } from '../../constants/theme';
@@ -46,57 +47,52 @@ export default function RequestBottomSheet({
   };
 
   return (
-    <Modal
+    <SwipeableModal
       visible={isVisible}
-      animationType="slide"
-      transparent
-      onRequestClose={handleClose}
-      statusBarTranslucent
+      onClose={handleClose}
+      sheetStyle={styles.keyboardView}
+      backdropColor="rgba(0,0,0,0.5)"
     >
-      <TouchableWithoutFeedback onPress={handleClose}>
-        <View style={styles.backdrop}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <KeyboardStickyView style={styles.keyboardView}>
-              <View style={styles.sheet}>
-                <View style={styles.handle} />
-                <Text style={styles.title}>Request to join</Text>
-                <Text style={styles.subtitle} numberOfLines={1}>{planTitle}</Text>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <KeyboardStickyView style={styles.keyboardView}>
+          <View style={styles.sheet}>
+            <View style={styles.handle} />
+            <Text style={styles.title}>Request to join</Text>
+            <Text style={styles.subtitle} numberOfLines={1}>{planTitle}</Text>
 
-                <TextInput
-                  style={styles.noteInput}
-                  placeholder="Add a note to the host (optional)"
-                  placeholderTextColor={COLORS.textMuted}
-                  multiline
-                  numberOfLines={3}
-                  maxLength={200}
-                  value={note}
-                  onChangeText={setNote}
-                  textAlignVertical="top"
-                />
+            <TextInput
+              style={styles.noteInput}
+              placeholder="Add a note to the host (optional)"
+              placeholderTextColor={COLORS.textMuted}
+              multiline
+              numberOfLines={3}
+              maxLength={200}
+              value={note}
+              onChangeText={setNote}
+              textAlignVertical="top"
+            />
 
-                <View style={styles.infoRow}>
-                  <Info size={14} color={COLORS.textMuted} strokeWidth={1.8} />
-                  <Text style={styles.infoText}>
-                    The host will review your profile before approving.{'\n'}
-                    Exact meetup details are shared only after approval.
-                  </Text>
-                </View>
+            <View style={styles.infoRow}>
+              <Info size={14} color={COLORS.textMuted} strokeWidth={1.8} />
+              <Text style={styles.infoText}>
+                The host will review your profile before approving.{'\n'}
+                Exact meetup details are shared only after approval.
+              </Text>
+            </View>
 
-                <TouchableOpacity
-                  style={[styles.sendBtn, loading && styles.sendBtnDisabled]}
-                  onPress={handleSend}
-                  disabled={loading}
-                >
-                  {loading
-                    ? <ActivityIndicator color="#FFF" />
-                    : <Text style={styles.sendBtnText}>Send request</Text>}
-                </TouchableOpacity>
-              </View>
-            </KeyboardStickyView>
-          </TouchableWithoutFeedback>
-        </View>
+            <TouchableOpacity
+              style={[styles.sendBtn, loading && styles.sendBtnDisabled]}
+              onPress={handleSend}
+              disabled={loading}
+            >
+              {loading
+                ? <ActivityIndicator color="#FFF" />
+                : <Text style={styles.sendBtnText}>Send request</Text>}
+            </TouchableOpacity>
+          </View>
+        </KeyboardStickyView>
       </TouchableWithoutFeedback>
-    </Modal>
+    </SwipeableModal>
   );
 }
 
