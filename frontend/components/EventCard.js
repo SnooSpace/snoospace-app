@@ -9,7 +9,7 @@ import {
   Share,
   Animated,
 } from "react-native";
-import { ScrollView, Gesture, GestureDetector } from "react-native-gesture-handler";
+import { ScrollView, Gesture, GestureDetector, Pressable as GHPressable } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 import { GradientHeart } from "./ui/GradientHeart";
 import { useNavigation } from "@react-navigation/native";
@@ -1117,7 +1117,7 @@ export default function EventCard({
           {/* Engagement Row */}
           {!hideEngagement && (
             <View style={styles.engagementRow}>
-              <TouchableOpacity
+              <GHPressable
                 style={styles.engagementBtn}
                 onPress={handleLikePress}
                 disabled={isLiking}
@@ -1136,17 +1136,16 @@ export default function EventCard({
                 >
                   {likeCount}
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </GHPressable>
+              <GHPressable
                 style={styles.engagementBtn}
                 onPress={handleCommentPress}
               >
                 <MessageCircle size={22} color="#5e8d9b" strokeWidth={2} />
                 <Text style={styles.engagementCount}>{commentCount}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </GHPressable>
+              <GHPressable
                 style={styles.engagementBtn}
-                activeOpacity={1}
                 onPress={() => HapticsService.triggerView()}
               >
                 <ChartNoAxesCombined
@@ -1155,14 +1154,14 @@ export default function EventCard({
                   strokeWidth={2}
                 />
                 <Text style={styles.engagementCount}>{viewCount}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </GHPressable>
+              <GHPressable
                 style={styles.engagementBtn}
                 onPress={handleSharePress}
               >
                 <Send size={22} color="#5e8d9b" strokeWidth={2} />
                 <Text style={styles.engagementCount}>{shareCount}</Text>
-              </TouchableOpacity>
+              </GHPressable>
             </View>
           )}
 

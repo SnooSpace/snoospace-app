@@ -19,6 +19,7 @@ import {
   TouchableWithoutFeedback,
   Animated,
 } from "react-native";
+import { Pressable as GHPressable } from "react-native-gesture-handler";
 import { Image } from "expo-image"; // ── PERF: memory-disk cache for author avatar
 import { GradientHeart } from "../ui/GradientHeart";
 import * as ImagePicker from "expo-image-picker";
@@ -798,7 +799,7 @@ const PromptPostCard = React.memo(({
       {/* Engagement Row */}
       <View style={styles.engagementRow}>
         {/* Like */}
-        <TouchableOpacity
+        <GHPressable
           style={styles.engagementButton}
           onPress={handleLike}
           disabled={isLiking}
@@ -811,10 +812,10 @@ const PromptPostCard = React.memo(({
           <Text style={[styles.engagementCount, isLiked && styles.likedCount]}>
             {formatCount(likeCount)}
           </Text>
-        </TouchableOpacity>
+        </GHPressable>
 
         {/* Comment */}
-        <TouchableOpacity
+        <GHPressable
           style={styles.engagementButton}
           onPress={handleCommentPress}
         >
@@ -822,28 +823,27 @@ const PromptPostCard = React.memo(({
           <Text style={styles.engagementCount}>
             {formatCount(post.comment_count || 0)}
           </Text>
-        </TouchableOpacity>
+        </GHPressable>
 
         {/* Views */}
-        <TouchableOpacity
+        <GHPressable
           style={styles.engagementButton}
-          activeOpacity={1}
           onPress={() => HapticsService.triggerView()}
         >
           <ChartNoAxesCombined size={22} color="#5e8d9b" />
           <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
-        </TouchableOpacity>
+        </GHPressable>
 
         {/* Share */}
-        <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>
+        <GHPressable style={styles.engagementButton} onPress={handleShare}>
           <Send size={22} color="#5e8d9b" />
           <Text style={styles.engagementCount}>
             {formatCount(post.share_count || 0)}
           </Text>
-        </TouchableOpacity>
+        </GHPressable>
 
         {/* Bookmark */}
-        <TouchableOpacity style={styles.engagementButton} onPress={handleSave}>
+        <GHPressable style={styles.engagementButton} onPress={handleSave}>
           <Bookmark
             size={22}
             color="#5e8d9b"
@@ -852,8 +852,8 @@ const PromptPostCard = React.memo(({
           {saveCount > 0 && (
             <Text style={styles.engagementCount}>{formatCount(saveCount)}</Text>
           )}
-        </TouchableOpacity>
-        </View>
+        </GHPressable>
+      </View>
 
         {showHeart && (
           <Animated.View

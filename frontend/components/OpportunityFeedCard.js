@@ -10,6 +10,7 @@ import {
   Dimensions,
   Animated as RNAnimated,
 } from "react-native";
+import { Pressable as GHPressable } from "react-native-gesture-handler";
 import { GradientHeart } from "./ui/GradientHeart";
 import Animated, {
   useSharedValue,
@@ -803,7 +804,7 @@ const OpportunityFeedCard = React.memo(({
         {/* ── Engagement Row ────────────────────────────────────────────── */}
         <View style={styles.engagementRow}>
           {/* Like */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={handleLike}
             disabled={isLiking}
@@ -817,32 +818,32 @@ const OpportunityFeedCard = React.memo(({
             <Text style={[styles.engagementCount, isLiked && styles.likedCount]}>
               {formatCount(likeCount)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Comment */}
-          <TouchableOpacity style={styles.engagementButton} onPress={handleComment}>
+          <GHPressable style={styles.engagementButton} onPress={handleComment}>
             <MessageCircle size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engagementCount}>
               {formatCount(commentCount)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Views */}
-          <TouchableOpacity style={styles.engagementButton} activeOpacity={1} onPress={() => { HapticsService.triggerView(); }}>
+          <GHPressable style={styles.engagementButton} onPress={() => { HapticsService.triggerView(); }}>
             <ChartNoAxesCombined size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Share */}
-          <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>
+          <GHPressable style={styles.engagementButton} onPress={handleShare}>
             <Send size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engagementCount}>
               {formatCount(opportunity.share_count || 0)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Bookmark */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={handleSave}
             disabled={isSaving}
@@ -856,7 +857,7 @@ const OpportunityFeedCard = React.memo(({
             <Text style={styles.engagementCount}>
               {formatCount(saveCount)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
         </View>
 
       {/* ── 3-dot Menu Modal ──────────────────────────────────────────────── */}

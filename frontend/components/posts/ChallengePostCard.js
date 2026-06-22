@@ -15,6 +15,7 @@ import {
   Dimensions,
   TouchableWithoutFeedback,
 } from "react-native";
+import { Pressable as GHPressable } from "react-native-gesture-handler";
 import { Image } from "expo-image"; // ── PERF: memory-disk cache + off-thread decode
 import { GradientHeart } from "../ui/GradientHeart";
 import { LinearGradient } from "expo-linear-gradient";
@@ -1225,7 +1226,7 @@ const ChallengePostCard = React.memo(({
         {/* Engagement Row */}
         <View style={styles.engagementRow}>
           {/* Like */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={handleLike}
             disabled={isLiking}
@@ -1240,10 +1241,10 @@ const ChallengePostCard = React.memo(({
             >
               {formatCount(likeCount)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Comment */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={handleCommentPress}
           >
@@ -1251,18 +1252,18 @@ const ChallengePostCard = React.memo(({
             <Text style={styles.engagementCount}>
               {formatCount(post.comment_count || 0)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Views */}
-          <TouchableOpacity style={styles.engagementButton} activeOpacity={1} onPress={() => HapticsService.triggerView()}>
+          <GHPressable style={styles.engagementButton} onPress={() => HapticsService.triggerView()}>
             <ChartNoAxesCombined size={22} color="#5e8d9b" />
             <Text style={styles.engagementCount}>
               {formatCount(viewCount)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Share */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={handleShare}
           >
@@ -1270,10 +1271,10 @@ const ChallengePostCard = React.memo(({
             <Text style={styles.engagementCount}>
               {formatCount(post.share_count || 0)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Bookmark */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={handleSave}
           >
@@ -1287,7 +1288,7 @@ const ChallengePostCard = React.memo(({
                 {formatCount(saveCount)}
               </Text>
             )}
-          </TouchableOpacity>
+          </GHPressable>
         </View>
 
         {/* Submission Activity Teaser — shown as soon as any approved submission exists */}

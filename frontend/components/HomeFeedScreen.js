@@ -1509,23 +1509,21 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       />
 
       {/* Comments Modal */}
-      {commentsModalVisible && (
-        <CommentsModal
-          visible={commentsModalVisible}
-          postId={selectedPostId}
-          baseRoute={selectedPostType === "opportunity" ? "/opportunities" : selectedPostType === "event" ? "/events" : "/posts"}
-          replyBaseRoute={selectedPostType === "opportunity" ? "/opportunity-comments" : selectedPostType === "event" ? "/event-comments" : "/comments"}
-          onClose={() => {
-            setCommentsModalVisible(false);
-            setSelectedPostId(null);
-            setSelectedPostType("post");
-          }}
-          onCommentCountChange={
-            selectedPostId ? handleCommentCountChange(selectedPostId, selectedPostType) : undefined
-          }
-          navigation={navigation}
-        />
-      )}
+      <CommentsModal
+        visible={commentsModalVisible}
+        postId={selectedPostId}
+        baseRoute={selectedPostType === "opportunity" ? "/opportunities" : selectedPostType === "event" ? "/events" : "/posts"}
+        replyBaseRoute={selectedPostType === "opportunity" ? "/opportunity-comments" : selectedPostType === "event" ? "/event-comments" : "/comments"}
+        onClose={() => {
+          setCommentsModalVisible(false);
+          setSelectedPostId(null);
+          setSelectedPostType("post");
+        }}
+        onCommentCountChange={
+          selectedPostId ? handleCommentCountChange(selectedPostId, selectedPostType) : undefined
+        }
+        navigation={navigation}
+      />
 
       {/* Share Modal */}
       {shareModalVisible && (

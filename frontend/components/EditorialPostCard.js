@@ -47,7 +47,7 @@ import {
   Info,
   HatGlasses,
 } from "lucide-react-native";
-import { ScrollView, Gesture, GestureDetector } from "react-native-gesture-handler";
+import { ScrollView, Gesture, GestureDetector, Pressable as GHPressable } from "react-native-gesture-handler";
 import AnimatedReanimated, {
   useSharedValue,
   useAnimatedStyle,
@@ -1047,7 +1047,7 @@ const EditorialPostCard = ({
       {/* Engagement Row */}
       <View style={styles.engagementRow}>
         {/* Like */}
-        <Pressable
+        <GHPressable
           style={styles.engagementButton}
           onPress={handleLike}
           disabled={isLiking}
@@ -1060,10 +1060,10 @@ const EditorialPostCard = ({
           <Text style={[styles.engagementCount, isLiked && styles.likedCount]}>
             {formatCount(likeCount)}
           </Text>
-        </Pressable>
+        </GHPressable>
 
         {/* Comment */}
-        <Pressable style={styles.engagementButton} onPress={handleCommentPress}>
+        <GHPressable style={styles.engagementButton} onPress={handleCommentPress}>
           <MessageCircle
             size={EDITORIAL_SPACING.iconSize}
             color={COLORS.editorial.textSecondary}
@@ -1071,10 +1071,10 @@ const EditorialPostCard = ({
           <Text style={styles.engagementCount}>
             {formatCount(post.comment_count || 0)}
           </Text>
-        </Pressable>
+        </GHPressable>
 
         {/* Views */}
-        <Pressable style={styles.engagementButton} onPress={handleViewPress}>
+        <GHPressable style={styles.engagementButton} onPress={handleViewPress}>
           <ChartNoAxesCombined
             size={EDITORIAL_SPACING.iconSize}
             color={COLORS.editorial.textSecondary}
@@ -1082,10 +1082,10 @@ const EditorialPostCard = ({
           <Text style={styles.engagementCount}>
             {formatCount(post.public_view_count || post.view_count || 0)}
           </Text>
-        </Pressable>
+        </GHPressable>
 
         {/* Share */}
-        <Pressable style={styles.engagementButton} onPress={handleShare}>
+        <GHPressable style={styles.engagementButton} onPress={handleShare}>
           <Send
             size={EDITORIAL_SPACING.iconSize}
             color={COLORS.editorial.textSecondary}
@@ -1093,11 +1093,11 @@ const EditorialPostCard = ({
           <Text style={styles.engagementCount}>
             {formatCount(post.share_count || 0)}
           </Text>
-        </Pressable>
+        </GHPressable>
 
         {/* Bookmark */}
         {!hideSave && (
-          <Pressable style={styles.engagementButton} onPress={handleSave}>
+          <GHPressable style={styles.engagementButton} onPress={handleSave}>
             <Bookmark
               size={EDITORIAL_SPACING.iconSize}
               color={COLORS.editorial.textSecondary}
@@ -1108,7 +1108,7 @@ const EditorialPostCard = ({
                 {formatCount(saveCount)}
               </Text>
             )}
-          </Pressable>
+          </GHPressable>
         )}
       </View>
 

@@ -23,6 +23,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, Image,
   Dimensions, Share, Animated,
 } from 'react-native';
+import { Pressable as GHPressable } from 'react-native-gesture-handler';
 import { GradientHeart } from '../ui/GradientHeart';
 import {
   Users, User, Check, MapPin, Calendar, Heart, MessageCircle,
@@ -544,7 +545,7 @@ const OpenPlanCard = ({
         {/* Engagement row */}
         <View style={styles.engRow}>
           {/* Like */}
-          <TouchableOpacity style={styles.engBtn} onPress={handleLike} disabled={isLiking}>
+          <GHPressable style={styles.engBtn} onPress={handleLike} disabled={isLiking}>
             <Heart
               size={20}
               color={isLiked ? COLORS.error : '#5e8d9b'}
@@ -554,38 +555,37 @@ const OpenPlanCard = ({
             <Text style={[styles.engCount, isLiked && { color: COLORS.error }]}>
               {fmt(likeCount)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Comment */}
-          <TouchableOpacity style={styles.engBtn} onPress={handleComment}>
+          <GHPressable style={styles.engBtn} onPress={handleComment}>
             <MessageCircle size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engCount}>{fmt(commentCount)}</Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Views */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engBtn}
-            activeOpacity={1}
             onPress={() => HapticsService.triggerView()}
           >
             <ChartNoAxesCombined size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engCount}>{fmt(viewCount)}</Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Share */}
-          <TouchableOpacity style={styles.engBtn} onPress={handleShare}>
+          <GHPressable style={styles.engBtn} onPress={handleShare}>
             <Send size={20} color="#5e8d9b" strokeWidth={2} />
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Bookmark/Save */}
-          <TouchableOpacity style={styles.engBtn} onPress={handleInterest} disabled={isSaving}>
+          <GHPressable style={styles.engBtn} onPress={handleInterest} disabled={isSaving}>
             <Bookmark
               size={20}
               color={isSaved ? COLORS.primary : '#5e8d9b'}
               fill={isSaved ? COLORS.primary : 'transparent'}
               strokeWidth={2}
             />
-          </TouchableOpacity>
+          </GHPressable>
         </View>
 
         {/* Request / Owner section */}

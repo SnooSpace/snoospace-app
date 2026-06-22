@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
+import { Pressable } from 'react-native-gesture-handler';
 import { ChartNoAxesCombined, Heart, MessageCircle, Send } from 'lucide-react-native';
 import { COLORS, FONTS } from '../../constants/theme';
 

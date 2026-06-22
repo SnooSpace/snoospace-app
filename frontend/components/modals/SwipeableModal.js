@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Modal,
   StyleSheet,
@@ -43,21 +43,28 @@ export default function SwipeableModal({
   const [shouldRender, setShouldRender] = useState(visible);
   const translateY = useSharedValue(SCREEN_HEIGHT);
   const backdropOpacity = useSharedValue(0);
+  const isSwipedDownRef = useRef(false);
 
   useEffect(() => {
     if (visible) {
+      isSwipedDownRef.current = false;
       setShouldRender(true);
       translateY.value = withSpring(0, springConfig);
       backdropOpacity.value = withTiming(1, { duration: 300 });
     } else {
-      backdropOpacity.value = withTiming(0, { duration: 250 });
-      translateY.value = withTiming(SCREEN_HEIGHT, { duration: 250 }, () => {
-        runOnJS(setShouldRender)(false);
-      });
+      if (isSwipedDownRef.current) {
+        setShouldRender(false);
+      } else {
+        backdropOpacity.value = withTiming(0, { duration: 250 });
+        translateY.value = withTiming(SCREEN_HEIGHT, { duration: 250 }, () => {
+          runOnJS(setShouldRender)(false);
+        });
+      }
     }
   }, [visible]);
 
   const handleDismiss = () => {
+    isSwipedDownRef.current = true;
     hapticsService.triggerClose();
     onClose();
   };
@@ -100,8 +107,6 @@ export default function SwipeableModal({
       opacity: backdropOpacity.value * opacity,
     };
   });
-
-  if (!shouldRender) return null;
 
   return (
     <Modal
