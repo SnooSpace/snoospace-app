@@ -15,6 +15,7 @@ import {
   X,
   UserPlus,
   ChevronsRight,
+  Undo2,
 } from "lucide-react-native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
@@ -233,10 +234,8 @@ export default function ProfileFeedScreen({ route, navigation }) {
   }, [photos, openers]);
 
   const handleNext = useCallback(() => {
-    if (currentIndex < attendees.length - 1)
-      setCurrentIndex((prev) => prev + 1);
-    else Alert.alert("All Done", "You've seen everyone.");
-  }, [currentIndex, attendees.length]);
+    setCurrentIndex((prev) => prev + 1);
+  }, []);
 
   const handleSkip = useCallback(() => {
     HapticsService.triggerImpactLight();
@@ -437,6 +436,138 @@ export default function ProfileFeedScreen({ route, navigation }) {
               >
                 <Text style={styles.gateButtonText}>Complete My Profile</Text>
               </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </LinearGradient>
+      );
+    }
+
+    if (attendees.length > 0 && currentIndex >= attendees.length) {
+      return (
+        <LinearGradient
+          colors={["#DCEFFE", "#F0F7FF", "#FFFFFF"]}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.gradientContainer}
+        >
+          <SafeAreaView style={styles.container} edges={EDGES}>
+            {/* Header */}
+            <View style={styles.header}>
+              <TouchableOpacity onPress={handleBack} activeOpacity={0.8}>
+                <View style={styles.glassButton}>
+                  <ArrowLeft size={20} color="#1a2d4a" strokeWidth={2.5} />
+                </View>
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>Discover</Text>
+              <View style={{ width: 42 }} />
+            </View>
+
+            <View style={styles.endOfFeedContainer}>
+              <View style={styles.endOfFeedCard}>
+                {/* Coffee Break Illustration */}
+                <View style={styles.coffeeIllustrationContainer}>
+                  <Svg width="100%" height="100%" viewBox="80 30 240 200">
+                    <Defs>
+                      {/* Emerald / Mint Gradient */}
+                      <SvgLinearGradient id="emeraldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <Stop offset="0%" stopColor="#A7F3D0" />
+                        <Stop offset="100%" stopColor="#10B981" />
+                      </SvgLinearGradient>
+                      <SvgLinearGradient id="mugGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <Stop offset="0%" stopColor="#34D399" />
+                        <Stop offset="100%" stopColor="#059669" />
+                      </SvgLinearGradient>
+                    </Defs>
+
+                    {/* Ambient window shadow backdrop dynamic design */}
+                    <Rect x={110} y={60} width={180} height={150} rx={12} fill="url(#emeraldGradient)" opacity={0.06} />
+                    <Path d="M 200 60 L 200 210" stroke="url(#emeraldGradient)" strokeWidth={1.5} opacity={0.15} />
+                    <Path d="M 110 135 L 290 135" stroke="url(#emeraldGradient)" strokeWidth={1.5} opacity={0.15} />
+
+                    {/* Tabletop line */}
+                    <Path d="M 90 210 L 310 210" stroke="#E2E8F0" strokeWidth={3} strokeLinecap="round" />
+
+                    {/* Laptop outline / notebook */}
+                    <G transform="translate(105, 150)">
+                      {/* Laptop Drop Shadow */}
+                      <Rect x={2} y={4} width={90} height={55} rx={8} fill="#000000" opacity={0.04} />
+                      {/* Laptop Body */}
+                      <Rect width={90} height={55} rx={8} fill="#FFFFFF" stroke="#F1F5F9" strokeWidth={1.5} />
+                      {/* Mock text lines */}
+                      <Rect x={15} y={15} width={45} height={5} rx={2.5} fill="#E2E8F0" />
+                      <Rect x={15} y={25} width={30} height={5} rx={2.5} fill="#E2E8F0" />
+                      <Circle cx={70} cy={35} r={5} fill="#10B981" opacity={0.8} />
+                    </G>
+
+                    {/* Warm Mug */}
+                    <G transform="translate(215, 150)">
+                      {/* Mug handle */}
+                      <Path
+                        d="M 38 12 C 48 12, 48 38, 38 38"
+                        fill="none"
+                        stroke="#A7F3D0"
+                        strokeWidth={5}
+                        strokeLinecap="round"
+                      />
+                      {/* Mug handle core */}
+                      <Path
+                        d="M 38 12 C 48 12, 48 38, 38 38"
+                        fill="none"
+                        stroke="#FFFFFF"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                      />
+                      {/* Mug Body */}
+                      <Rect width={40} height={50} rx={10} fill="url(#mugGrad)" />
+                      {/* Steam */}
+                      <Path
+                        d="M 12 -6 Q 19 -14, 11 -22"
+                        fill="none"
+                        stroke="#10B981"
+                        strokeWidth={2.5}
+                        strokeLinecap="round"
+                        opacity={0.7}
+                      />
+                      <Path
+                        d="M 24 -4 Q 17 -11, 26 -19"
+                        fill="none"
+                        stroke="#10B981"
+                        strokeWidth={2.5}
+                        strokeLinecap="round"
+                        opacity={0.5}
+                      />
+                    </G>
+                  </Svg>
+                </View>
+
+                {/* Bold Title */}
+                <Text style={styles.endOfFeedTitle}>All caught up!</Text>
+
+                {/* Description */}
+                <Text style={styles.endOfFeedBody}>
+                  You've viewed all participants.
+                </Text>
+
+                {/* Revisit Profiles Button */}
+                <TouchableOpacity
+                  style={styles.revisitButtonContainer}
+                  activeOpacity={0.85}
+                  onPress={() => {
+                    HapticsService.triggerImpactLight();
+                    setCurrentIndex(0);
+                  }}
+                >
+                  <LinearGradient
+                    colors={["#10B981", "#059669"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.revisitButtonGradient}
+                  >
+                    <Text style={styles.revisitButtonText}>Revisit Profiles</Text>
+                    <Undo2 size={16} color="#FFFFFF" strokeWidth={2.5} />
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             </View>
           </SafeAreaView>
         </LinearGradient>
@@ -1899,6 +2030,74 @@ const styles = StyleSheet.create({
   },
   skipInfoButtonText: {
     fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
+  },
+  endOfFeedContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
+  endOfFeedCard: {
+    width: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 32,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  coffeeIllustrationContainer: {
+    width: 270,
+    height: 180,
+    position: "relative",
+    marginBottom: 24,
+  },
+  endOfFeedTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 24,
+    color: "#0F172A",
+    marginBottom: 10,
+    textAlign: "center",
+    letterSpacing: -0.5,
+  },
+  endOfFeedBody: {
+    fontFamily: FONTS.regular, // Manrope-Regular
+    fontSize: 14,
+    color: "#64748B",
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: 24,
+    paddingHorizontal: 12,
+  },
+  revisitButtonContainer: {
+    width: "100%",
+    height: 48,
+    borderRadius: 24,
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  revisitButtonGradient: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 24,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  revisitButtonText: {
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
     fontSize: 16,
     color: "#FFFFFF",
     letterSpacing: 0.2,
