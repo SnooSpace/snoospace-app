@@ -289,3 +289,74 @@ export async function getMemberPublicPlans(memberId) {
   const token = await getAuthToken();
   return apiGet(`/members/${memberId}/plans`, 15000, token);
 }
+
+// ── Creator Insights API ──────────────────────────────────────────────────────
+
+/**
+ * GET /members/me/creator-insights/summary
+ * Returns audience score, follow quality breakdown, follower count and delta.
+ */
+export async function getCreatorAudienceSummary() {
+  const token = await getAuthToken();
+  return apiGet("/members/me/creator-insights/summary", 15000, token);
+}
+
+/**
+ * GET /members/me/creator-insights/reach?period=7d|30d|90d
+ * Returns content reach stats (views, watch%, top posts) for the given period.
+ */
+export async function getCreatorReachStats(period = "30d") {
+  const token = await getAuthToken();
+  return apiGet(`/members/me/creator-insights/reach?period=${period}`, 15000, token);
+}
+
+/**
+ * GET /members/me/creator-insights/follower-trend
+ * Returns 30-day daily follower count array for sparkline rendering.
+ */
+export async function getCreatorFollowerTrend() {
+  const token = await getAuthToken();
+  return apiGet("/members/me/creator-insights/follower-trend", 15000, token);
+}
+
+// ── Creator Follow API ────────────────────────────────────────────────────────
+
+/**
+ * POST /creators/:creatorId/follow
+ * Follow a Creator Mode member's content feed.
+ */
+export async function followCreator(creatorId) {
+  const token = await getAuthToken();
+  return apiPost(`/creators/${creatorId}/follow`, {}, 8000, token);
+}
+
+/**
+ * DELETE /creators/:creatorId/follow
+ * Permanently unfollow a creator (row deleted, not dormant).
+ */
+export async function unfollowCreator(creatorId) {
+  const token = await getAuthToken();
+  return apiDelete(`/creators/${creatorId}/follow`, 8000, token);
+}
+
+/**
+ * GET /creators/:creatorId/followers?page&limit&type
+ * Returns paginated follower list. type: 'all' | 'notable'
+ */
+export async function getCreatorFollowers(creatorId, { page = 1, limit = 20, type = "all" } = {}) {
+  const token = await getAuthToken();
+  return apiGet(
+    `/creators/${creatorId}/followers?page=${page}&limit=${limit}&type=${type}`,
+    10000,
+    token
+  );
+}
+
+/**
+ * GET /creators/:creatorId/follow-status
+ * Returns { is_following, is_in_circle } for the current viewer.
+ */
+export async function getCreatorFollowStatus(creatorId) {
+  const token = await getAuthToken();
+  return apiGet(`/creators/${creatorId}/follow-status`, 8000, token);
+}

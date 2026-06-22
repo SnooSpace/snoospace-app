@@ -54,6 +54,7 @@ import CommunityFollowersListScreen from "../screens/profile/community/Community
 import CommunityFollowingListScreen from "../screens/profile/community/CommunityFollowingListScreen";
 import CircleListScreen from "../screens/profile/member/CircleListScreen";
 import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
+import CreatorFollowersScreen from "../screens/profile/member/CreatorFollowersScreen";
 
 import PlansDiscoverFeedScreen from "../screens/plans/PlansDiscoverFeedScreen";
 import PlanDetailScreen from "../screens/plans/PlanDetailScreen";
@@ -268,6 +269,10 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="CircleRequests"
         component={CircleRequestsScreen}
+      />
+      <Stack.Screen
+        name="CreatorFollowers"
+        component={CreatorFollowersScreen}
       />
       <Stack.Screen
         name="SavedPostsScreen"

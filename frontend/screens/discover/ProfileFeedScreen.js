@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   MessageCircle,
@@ -13,6 +12,8 @@ import {
   Camera,
   Target,
   Check,
+  X,
+  UserPlus,
 } from "lucide-react-native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
@@ -25,22 +26,15 @@ import SnooLoader from "../../components/ui/SnooLoader";
 
 const { width } = Dimensions.get("window");
 const CARD_RADIUS = 24;
-const CARD_SHADOW = {
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 12 },
-  shadowOpacity: 0.08,
-  shadowRadius: 32,
-  elevation: 5,
-};
 
 // Strict Typography Mappings
 const TYPOGRAPHY = {
-  name: { fontFamily: "BasicCommercial-Bold", fontSize: 20, color: "#1E293B" },
+  name: { fontFamily: "BasicCommercial-Black", fontSize: 20, color: "#1E293B" },
   role: { fontFamily: FONTS.regular, fontSize: 14, color: "#64748B" },
-  body: { fontFamily: FONTS.regular, fontSize: 16, color: "#334155" },
+  body: { fontFamily: FONTS.regular, fontSize: 15, color: "#334155" },
   chip: { fontFamily: FONTS.medium, fontSize: 12, color: "#475569" },
-  button: { fontFamily: FONTS.medium, fontSize: 14, color: "#FFFFFF" },
-  header: { fontFamily: FONTS.semiBold, fontSize: 18, color: "#0F172A" },
+  button: { fontFamily: FONTS.semiBold, fontSize: 16, color: "#FFFFFF" },
+  header: { fontFamily: FONTS.primary, fontSize: 18, color: "#0F172A" },
 };
 
 const GOAL_COLORS = {
@@ -168,7 +162,30 @@ export default function ProfileFeedScreen({ route, navigation }) {
     "Member";
   const age = currentAttendee?.age;
   const gender = currentAttendee?.gender;
-  const pronouns = currentAttendee?.pronouns;
+  const pronouns = useMemo(() => {
+    const raw = currentAttendee?.pronouns;
+    if (!raw) return null;
+    if (Array.isArray(raw)) {
+      const filtered = raw.filter(
+        (p) => p && String(p).trim() && String(p).trim() !== "Prefer not to say"
+      );
+      return filtered.length > 0 ? filtered.join("/") : null;
+    }
+    if (typeof raw === "string") {
+      let clean = raw.trim();
+      if (clean.startsWith("{") && clean.endsWith("}")) {
+        clean = clean.substring(1, clean.length - 1);
+      }
+      const parts = clean
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s && s !== "Prefer not to say");
+      return parts.length > 0 ? parts.join("/") : null;
+    }
+    return null;
+  }, [currentAttendee?.pronouns]);
+
+  console.log("[ProfileFeedScreen] Render attendee:", name, "Age:", age, "Gender:", gender, "Pronouns:", pronouns);
   const goalBadges = currentAttendee?.intent_badges || [];
   const interests = currentAttendee?.interests || [];
   const openers = currentAttendee?.openers || [];
@@ -246,122 +263,131 @@ export default function ProfileFeedScreen({ route, navigation }) {
       const attendeeCount = eventData?.attendee_count || 0;
 
       return (
-        <SafeAreaView style={styles.gateScreenContainer} edges={EDGES}>
-          <View style={styles.gateHeader}>
-            <TouchableOpacity onPress={handleBack} style={styles.gateBackBtn}>
-              <ArrowLeft size={26} color="#0F172A" />
-            </TouchableOpacity>
-            <View style={styles.headerTitleContainer}>
-              <Text style={styles.gateHeaderTitle}>Discover People</Text>
-              {subtitle ? (
-                <Text style={styles.gateHeaderSubtitle} numberOfLines={1}>
-                  {subtitle}
-                </Text>
-              ) : null}
-            </View>
-            <View style={{ width: 40 }} />
-          </View>
-          <View style={styles.gateContainer}>
-            {/* Locked Card Stack Illustration */}
-            <View style={styles.lockIllustrationContainer}>
-              <View style={[styles.lockedCard, styles.lockedCardLeft]}>
-                <View style={styles.cardAvatarPlaceholder} />
-                <View style={styles.cardTextPlaceholderLong} />
-                <View style={styles.cardTextPlaceholderShort} />
-              </View>
-              <View style={[styles.lockedCard, styles.lockedCardRight]}>
-                <View style={styles.cardAvatarPlaceholder} />
-                <View style={styles.cardTextPlaceholderLong} />
-                <View style={styles.cardTextPlaceholderShort} />
-              </View>
-              <View style={styles.lockBadge}>
-                <Lock size={20} color="#FFFFFF" strokeWidth={2.5} />
-              </View>
-            </View>
-
-            <Text style={styles.gateTitle}>
-              {attendeeCount > 0 
-                ? `${attendeeCount} ${attendeeCount === 1 ? 'person is' : 'people are'} waiting to connect`
-                : "People are waiting to connect"}
-            </Text>
-            <Text style={styles.gateBody}>
-              Complete your Discover Profile to start matching with people from this event.
-            </Text>
-
-            {/* Checklist Container */}
-            <View style={styles.checklistCard}>
-              <View style={styles.checklistHeader}>
-                <Text style={styles.checklistTitle}>Profile completion</Text>
-                <Text style={styles.checklistProgressText}>{metCount} of 3</Text>
-              </View>
-              
-              <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, { width: `${(metCount / 3) * 100}%` }]} />
-              </View>
-
-              <View style={styles.checklistItems}>
-                {/* Item 1: Photos */}
-                <View style={styles.checklistItem}>
-                  <View style={[styles.checkIconContainer, photosMet && styles.checkIconContainerMet]}>
-                    {photosMet ? (
-                      <Check size={18} color="#16A34A" strokeWidth={3} />
-                    ) : (
-                      <Camera size={18} color="#64748B" strokeWidth={2} />
-                    )}
-                  </View>
-                  <Text style={[styles.checkItemText, photosMet && styles.checkItemTextMet]}>
-                    At least 3 photos
-                  </Text>
-                  <Text style={[styles.checkItemCount, photosMet && styles.checkItemCountMet]}>
-                    {Math.min(profileProgress.photos, 3)}/3
-                  </Text>
+        <LinearGradient
+          colors={["#ace1ff", "#ebfff6"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradientContainer}
+        >
+          <SafeAreaView style={styles.gateScreenContainer} edges={EDGES}>
+            <View style={styles.gateHeader}>
+              <TouchableOpacity onPress={handleBack} activeOpacity={0.8}>
+                <View style={styles.glassButton}>
+                  <ArrowLeft size={20} color="#1a2d4a" strokeWidth={2.5} />
                 </View>
-
-                {/* Item 2: Spark */}
-                <View style={styles.checklistItem}>
-                  <View style={[styles.checkIconContainer, sparksMet && styles.checkIconContainerMet]}>
-                    {sparksMet ? (
-                      <Check size={18} color="#16A34A" strokeWidth={3} />
-                    ) : (
-                      <Target size={18} color="#64748B" strokeWidth={2} />
-                    )}
-                  </View>
-                  <Text style={[styles.checkItemText, sparksMet && styles.checkItemTextMet]}>
-                    At least 1 Spark
+              </TouchableOpacity>
+              <View style={styles.headerTitleContainer}>
+                <Text style={styles.gateHeaderTitle}>Discover People</Text>
+                {subtitle ? (
+                  <Text style={styles.gateHeaderSubtitle} numberOfLines={1}>
+                    {subtitle}
                   </Text>
-                  <Text style={[styles.checkItemCount, sparksMet && styles.checkItemCountMet]}>
-                    {Math.min(profileProgress.sparks, 1)}/1
-                  </Text>
+                ) : null}
+              </View>
+              <View style={{ width: 42 }} />
+            </View>
+            <View style={styles.gateContainer}>
+              {/* Locked Card Stack Illustration */}
+              <View style={styles.lockIllustrationContainer}>
+                <View style={[styles.lockedCard, styles.lockedCardLeft]}>
+                  <View style={styles.cardAvatarPlaceholder} />
+                  <View style={styles.cardTextPlaceholderLong} />
+                  <View style={styles.cardTextPlaceholderShort} />
                 </View>
-
-                {/* Item 3: Icebreaker */}
-                <View style={styles.checklistItem}>
-                  <View style={[styles.checkIconContainer, icebreakersMet && styles.checkIconContainerMet]}>
-                    {icebreakersMet ? (
-                      <Check size={18} color="#16A34A" strokeWidth={3} />
-                    ) : (
-                      <MessageCircle size={18} color="#64748B" strokeWidth={2} />
-                    )}
-                  </View>
-                  <Text style={[styles.checkItemText, icebreakersMet && styles.checkItemTextMet]}>
-                    At least 1 icebreaker
-                  </Text>
-                  <Text style={[styles.checkItemCount, icebreakersMet && styles.checkItemCountMet]}>
-                    {Math.min(profileProgress.icebreakers, 1)}/1
-                  </Text>
+                <View style={[styles.lockedCard, styles.lockedCardRight]}>
+                  <View style={styles.cardAvatarPlaceholder} />
+                  <View style={styles.cardTextPlaceholderLong} />
+                  <View style={styles.cardTextPlaceholderShort} />
+                </View>
+                <View style={styles.lockBadge}>
+                  <Lock size={20} color="#FFFFFF" strokeWidth={2.5} />
                 </View>
               </View>
-            </View>
 
-            <TouchableOpacity
-              style={styles.gateButton}
-              onPress={() => navigation.navigate("EditDiscoverProfile")}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.gateButtonText}>Complete My Profile</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+              <Text style={styles.gateTitle}>
+                {attendeeCount > 0 
+                  ? `${attendeeCount} ${attendeeCount === 1 ? 'person is' : 'people are'} waiting to connect`
+                  : "People are waiting to connect"}
+              </Text>
+              <Text style={styles.gateBody}>
+                Complete your Discover Profile to start matching with people from this event.
+              </Text>
+
+              {/* Checklist Container */}
+              <View style={styles.checklistCard}>
+                <View style={styles.checklistHeader}>
+                  <Text style={styles.checklistTitle}>Profile completion</Text>
+                  <Text style={styles.checklistProgressText}>{metCount} of 3</Text>
+                </View>
+                
+                <View style={styles.progressBarBg}>
+                  <View style={[styles.progressBarFill, { width: `${(metCount / 3) * 100}%` }]} />
+                </View>
+
+                <View style={styles.checklistItems}>
+                  {/* Item 1: Photos */}
+                  <View style={styles.checklistItem}>
+                    <View style={[styles.checkIconContainer, photosMet && styles.checkIconContainerMet]}>
+                      {photosMet ? (
+                        <Check size={18} color="#16A34A" strokeWidth={3} />
+                      ) : (
+                        <Camera size={18} color="#64748B" strokeWidth={2} />
+                      )}
+                    </View>
+                    <Text style={[styles.checkItemText, photosMet && styles.checkItemTextMet]}>
+                      At least 3 photos
+                    </Text>
+                    <Text style={[styles.checkItemCount, photosMet && styles.checkItemCountMet]}>
+                      {Math.min(profileProgress.photos, 3)}/3
+                    </Text>
+                  </View>
+
+                  {/* Item 2: Spark */}
+                  <View style={styles.checklistItem}>
+                    <View style={[styles.checkIconContainer, sparksMet && styles.checkIconContainerMet]}>
+                      {sparksMet ? (
+                        <Check size={18} color="#16A34A" strokeWidth={3} />
+                      ) : (
+                        <Target size={18} color="#64748B" strokeWidth={2} />
+                      )}
+                    </View>
+                    <Text style={[styles.checkItemText, sparksMet && styles.checkItemTextMet]}>
+                      At least 1 Spark
+                    </Text>
+                    <Text style={[styles.checkItemCount, sparksMet && styles.checkItemCountMet]}>
+                      {Math.min(profileProgress.sparks, 1)}/1
+                    </Text>
+                  </View>
+
+                  {/* Item 3: Icebreaker */}
+                  <View style={styles.checklistItem}>
+                    <View style={[styles.checkIconContainer, icebreakersMet && styles.checkIconContainerMet]}>
+                      {icebreakersMet ? (
+                        <Check size={18} color="#16A34A" strokeWidth={3} />
+                      ) : (
+                        <MessageCircle size={18} color="#64748B" strokeWidth={2} />
+                      )}
+                    </View>
+                    <Text style={[styles.checkItemText, icebreakersMet && styles.checkItemTextMet]}>
+                      At least 1 icebreaker
+                    </Text>
+                    <Text style={[styles.checkItemCount, icebreakersMet && styles.checkItemCountMet]}>
+                      {Math.min(profileProgress.icebreakers, 1)}/1
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.gateButton}
+                onPress={() => navigation.navigate("EditDiscoverProfile")}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.gateButtonText}>Complete My Profile</Text>
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </LinearGradient>
       );
     }
 
@@ -386,153 +412,149 @@ export default function ProfileFeedScreen({ route, navigation }) {
     }
 
   return (
-    <SafeAreaView style={styles.container} edges={EDGES}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={handleBack}
-          style={styles.backBtn}
-        >
-          <ArrowLeft size={26} color={COLORS.editorial.textSecondary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Discover</Text>
-        <TouchableOpacity
-          onPress={handleOpenFilters}
-          style={styles.filterBtn}
-        >
-          <SlidersHorizontal size={26} color={COLORS.editorial.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Main Profile Header (Name) */}
-        <View style={styles.profileHeader}>
-          <Text style={styles.nameText}>{name}</Text>
+    <LinearGradient
+      colors={["#abe0ff", "#e9fef7"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradientContainer}
+    >
+      <SafeAreaView style={styles.container} edges={EDGES}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleBack} activeOpacity={0.8}>
+            <View style={styles.glassButton}>
+              <ArrowLeft size={20} color="#1a2d4a" strokeWidth={2.5} />
+            </View>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Discover</Text>
+          <TouchableOpacity onPress={handleOpenFilters} activeOpacity={0.8}>
+            <View style={styles.glassButton}>
+              <SlidersHorizontal size={20} color="#1a2d4a" strokeWidth={2.5} />
+            </View>
+          </TouchableOpacity>
         </View>
 
-        {/* Hero Photo */}
-        {photos[0] && <PhotoCard url={photos[0].url} />}
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Hero Photo with Name, Age & Gender Overlay */}
+          {photos[0] && (
+            <PhotoCard
+              url={photos[0].url}
+              isHero={true}
+              name={name}
+              age={age}
+              gender={gender}
+              pronouns={pronouns}
+            />
+          )}
 
-        {/* Vitals & Goals Group (Positioned after the first photo) */}
-        <View style={styles.vitalsSection}>
-          {/* Top Row: Demographics */}
-          <View style={styles.vitalsRow}>
-            {/* Age */}
-            {!!age && (
-              <View style={[styles.chip, styles.ageChip]}>
-                <Text style={styles.ageChipText}>
-                  <Text style={styles.cakeEmoji}>🎂 </Text>
-                  <Text style={styles.ageNumber}>{age}</Text>
-                </Text>
-              </View>
-            )}
-            {/* Gender */}
-            {gender && (
-              <View
-                style={[
-                  styles.chip,
-                  gender.toLowerCase() === "binary"
-                    ? styles.binaryGenderChip
-                    : styles.genderChip,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    gender.toLowerCase() === "binary"
-                      ? styles.binaryGenderChipText
-                      : styles.genderChipText,
-                  ]}
-                >
-                  {gender}
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Bottom Row: Goals */}
+          {/* Goals Group (Positioned after the first photo) */}
           {goalBadges.length > 0 && (
-            <View style={[styles.vitalsRow, styles.marginTop20]}>
-              {goalBadges.map((badge, i) => {
-                const goalStyle = getGoalStyle(badge);
-                return (
-                  <View
-                    key={`goal-${i}`}
-                    style={[
-                      styles.chip,
-                      styles.goalChip,
-                      { backgroundColor: goalStyle.bg },
-                    ]}
-                  >
-                    <Text
+            <View style={styles.vitalsSection}>
+              <View style={styles.vitalsRow}>
+                {goalBadges.map((badge, i) => {
+                  const goalStyle = getGoalStyle(badge);
+                  return (
+                    <View
+                      key={`goal-${i}`}
                       style={[
-                        styles.chipText,
-                        styles.goalChipText,
-                        { color: goalStyle.text },
+                        styles.chip,
+                        styles.goalChip,
+                        { backgroundColor: goalStyle.bg },
                       ]}
                     >
-                      {badge}
-                    </Text>
-                  </View>
-                );
-              })}
+                      <Text
+                        style={[
+                          styles.chipText,
+                          styles.goalChipText,
+                          { color: goalStyle.text },
+                        ]}
+                      >
+                        {badge}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
             </View>
           )}
+
+          {/* Interleaved Prompts & Photos */}
+          {interleavedContent.map((item, i) => (
+            <View key={i} style={styles.feedItem}>
+              {item.type === "prompt" ? (
+                <PromptCard item={item} />
+              ) : (
+                <PhotoCard url={item.data.url} />
+              )}
+            </View>
+          ))}
+
+          {/* Interests Group (Bottom of Profile) */}
+          {interests.length > 0 && (
+            <View style={styles.interestsSection}>
+              <Text style={styles.sectionLabel}>Interests</Text>
+              <View style={styles.interestsContainer}>
+                {interests.map((interest, i) => (
+                  <ThemeChip
+                    key={`int-${i}`}
+                    label={interest}
+                    index={i}
+                    style={styles.interestChipOverride}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+
+          <View style={styles.bottomSpacer} />
+        </ScrollView>
+
+        {/* Floating Action Bar */}
+        <View style={styles.actionBar}>
+          <TouchableOpacity style={styles.skipButton} onPress={handleNext} activeOpacity={0.8}>
+            <X size={22} color="#64748B" strokeWidth={2.5} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.connectButton} onPress={handleConnect} activeOpacity={0.8}>
+            <View style={styles.connectButtonGradientContainer}>
+              {/* Frosted glass backing */}
+              <LinearGradient
+                colors={["rgba(255, 255, 255, 0.45)", "rgba(255, 255, 255, 0.9)"]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.connectButtonBacking}
+              />
+              
+              {/* Concentrated blue glow bubble in the center top */}
+              <LinearGradient
+                colors={["#0052FF", "#0088FF", "rgba(0, 136, 255, 0.45)", "transparent"]}
+                locations={[0, 0.4, 0.75, 1]}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={styles.connectButtonGlowBubble}
+              />
+              
+              {/* Text & Icon content */}
+              <View style={styles.connectButtonContent}>
+                <Text style={styles.connectButtonText}>Connect</Text>
+                <UserPlus size={18} color="#133d70" strokeWidth={2.5} />
+              </View>
+            </View>
+          </TouchableOpacity>
         </View>
 
-        {/* Interleaved Prompts & Photos */}
-        {interleavedContent.map((item, i) => (
-          <View key={i} style={styles.feedItem}>
-            {item.type === "prompt" ? (
-              <PromptCard item={item} />
-            ) : (
-              <PhotoCard url={item.data.url} />
-            )}
-          </View>
-        ))}
-
-        {/* Interests Group (Bottom of Profile) */}
-        {interests.length > 0 && (
-          <View style={styles.interestsSection}>
-            <Text style={styles.sectionLabel}>Interests</Text>
-            <View style={styles.interestsContainer}>
-              {interests.map((interest, i) => (
-                <ThemeChip
-                  key={`int-${i}`}
-                  label={interest}
-                  index={i}
-                  style={styles.interestChipOverride}
-                />
-              ))}
-            </View>
-          </View>
+        {filterSheetVisible && (
+          <DiscoverFilterSheet
+            visible={filterSheetVisible}
+            onClose={handleCloseFilters}
+            onApply={setActiveFilters}
+            initialFilters={activeFilters}
+          />
         )}
-
-        <View style={styles.bottomSpacer} />
-      </ScrollView>
-
-      {/* Floating Action Bar */}
-      <View style={styles.actionBar}>
-        <TouchableOpacity style={styles.skipButton} onPress={handleNext}>
-          <Ionicons name="close" size={24} color="#64748B" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.connectButton} onPress={handleConnect}>
-          <Text style={styles.connectButtonText}>Connect</Text>
-        </TouchableOpacity>
-      </View>
-
-      {filterSheetVisible && (
-        <DiscoverFilterSheet
-          visible={filterSheetVisible}
-          onClose={handleCloseFilters}
-          onApply={setActiveFilters}
-          initialFilters={activeFilters}
-        />
-      )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </LinearGradient>
   );
   } catch (err) {
     console.error("[ProfileFeedScreen] Render crash:", err);
@@ -552,30 +574,102 @@ export default function ProfileFeedScreen({ route, navigation }) {
   }
 }
 
-const ContentCard = React.memo(({ children, onPress, style }) => (
-  <TouchableOpacity
-    style={[styles.cardContainer, style]}
-    activeOpacity={0.9}
-    onPress={onPress}
-  >
-    {children}
-  </TouchableOpacity>
-));
+const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant }) => {
+  const isPrompt = variant === "prompt";
+  // Prompt: warm horizontal amber→magenta→cyan→blue
+  // Photo: soft vertical rose→lavender→sky (aurora, portrait-oriented)
+  const colors = isPrompt
+    ? ["#f59e0b", "#d150e0", "#3db4f4", "#2b3ca7"]
+    : ["#F9A8D4", "#C4B5FD", "#93C5FD"];
+  
+  const start = isPrompt ? { x: 0, y: 1 } : { x: 0, y: 0 };
+  const end = isPrompt ? { x: 1, y: 0 } : { x: 0, y: 1 };
+  const shadowStyle = isPrompt ? styles.promptShadow : styles.photoShadow;
+
+  // Define toned-down, highly subtle glow colors with low opacities
+  const glowColorsLayer1 = isPrompt
+    ? ["rgba(245, 158, 11, 0.22)", "rgba(209, 80, 224, 0.22)", "rgba(61, 180, 244, 0.22)", "rgba(43, 60, 167, 0.22)"]
+    : ["rgba(249, 168, 212, 0.28)", "rgba(196, 181, 253, 0.28)", "rgba(147, 197, 253, 0.28)"];
+
+  const glowColorsLayer2 = isPrompt
+    ? ["rgba(245, 158, 11, 0.11)", "rgba(209, 80, 224, 0.11)", "rgba(61, 180, 244, 0.11)", "rgba(43, 60, 167, 0.11)"]
+    : ["rgba(249, 168, 212, 0.13)", "rgba(196, 181, 253, 0.13)", "rgba(147, 197, 253, 0.13)"];
+
+  const glowColorsLayer3 = isPrompt
+    ? ["rgba(245, 158, 11, 0.04)", "rgba(209, 80, 224, 0.04)", "rgba(61, 180, 244, 0.04)", "rgba(43, 60, 167, 0.04)"]
+    : ["rgba(249, 168, 212, 0.05)", "rgba(196, 181, 253, 0.05)", "rgba(147, 197, 253, 0.05)"];
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.9}
+      style={[shadowStyle, style]}
+    >
+      {/* Glow Layer 3 (Toned-down widest spread, 12px) */}
+      <LinearGradient
+        colors={glowColorsLayer3}
+        start={start}
+        end={end}
+        style={[styles.glowHalo, { top: -12, bottom: -12, left: -12, right: -12, borderRadius: CARD_RADIUS + 12 }]}
+        pointerEvents="none"
+      />
+      {/* Glow Layer 2 (Toned-down medium spread, 7px) */}
+      <LinearGradient
+        colors={glowColorsLayer2}
+        start={start}
+        end={end}
+        style={[styles.glowHalo, { top: -7, bottom: -7, left: -7, right: -7, borderRadius: CARD_RADIUS + 7 }]}
+        pointerEvents="none"
+      />
+      {/* Glow Layer 1 (Toned-down tightest spread, 3px) */}
+      <LinearGradient
+        colors={glowColorsLayer1}
+        start={start}
+        end={end}
+        style={[styles.glowHalo, { top: -3, bottom: -3, left: -3, right: -3, borderRadius: CARD_RADIUS + 3 }]}
+        pointerEvents="none"
+      />
+
+      {isPrompt ? (
+        <View style={[styles.cardInnerContentPrompt, innerStyle]}>
+          {children}
+        </View>
+      ) : (
+        <LinearGradient
+          colors={colors}
+          start={start}
+          end={end}
+          style={[styles.gradientBorder, innerStyle]}
+        >
+          <View style={[styles.cardInnerContent, innerStyle]}>
+            {children}
+          </View>
+        </LinearGradient>
+      )}
+    </TouchableOpacity>
+  );
+});
+
 
 const PromptCard = React.memo(({ item }) => (
-  <ContentCard onPress={() => {}} style={styles.promptCardContainer}>
+  <ContentCard onPress={() => {}} style={styles.promptCardContainer} variant="prompt">
     <View style={styles.promptContent}>
       <Text style={styles.promptLabel}>{item.data.prompt}</Text>
       <Text style={styles.promptAnswer}>{item.data.response}</Text>
     </View>
     <View style={styles.actionIconBubble}>
-      <MessageCircle size={22} color="#0F3D3E" />
+      <MessageCircle size={20} color={COLORS.primary} strokeWidth={2} />
     </View>
   </ContentCard>
 ));
 
-const PhotoCard = React.memo(({ url }) => (
-  <ContentCard onPress={() => {}} style={styles.photoCardContainer}>
+const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns }) => (
+  <ContentCard
+    onPress={() => {}}
+    style={styles.photoCardContainer}
+    innerStyle={{ flex: 1, height: "100%" }}
+    variant="photo"
+  >
     <Image
       source={{ uri: url }}
       style={styles.photoImage}
@@ -583,11 +677,35 @@ const PhotoCard = React.memo(({ url }) => (
       cachePolicy="memory-disk"
     />
     <LinearGradient
-      colors={["transparent", "rgba(0,0,0,0.2)"]}
-      style={styles.gradientOverlay}
+      colors={["transparent", isHero ? "rgba(0,0,0,0.7)" : "rgba(0,0,0,0.2)"]}
+      style={isHero ? styles.gradientOverlayHero : styles.gradientOverlay}
     />
+    {isHero ? (
+      <View style={styles.heroOverlayContent}>
+        <Text style={styles.heroNameText} numberOfLines={1}>
+          {name}
+        </Text>
+        <View style={styles.heroVitalsRow}>
+          {!!age && (
+            <View style={styles.heroAgeChip}>
+              <Text style={styles.heroAgeText}>🎂 {age}</Text>
+            </View>
+          )}
+          {!!gender && (
+            <View style={styles.heroGenderChip}>
+              <Text style={styles.heroGenderText}>{gender}</Text>
+            </View>
+          )}
+          {!!pronouns && pronouns !== "Prefer not to say" && (
+            <View style={styles.heroGenderChip}>
+              <Text style={styles.heroGenderText}>{pronouns}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    ) : null}
     <View style={styles.actionIconBubble}>
-      <MessageCircle size={22} color="#0F3D3E" />
+      <MessageCircle size={20} color={COLORS.primary} strokeWidth={2} />
     </View>
   </ContentCard>
 ));
@@ -595,12 +713,15 @@ const PhotoCard = React.memo(({ url }) => (
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#faf9f7", // Soft Off-White
+    backgroundColor: "transparent",
+  },
+  gradientContainer: {
+    flex: 1,
   },
   // Profile completion gate styles (Premium Light Theme)
   gateScreenContainer: {
     flex: 1,
-    backgroundColor: "#faf9f7",
+    backgroundColor: "transparent",
   },
   gateHeader: {
     flexDirection: "row",
@@ -608,18 +729,18 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: SPACING.l,
     paddingVertical: SPACING.m,
-    backgroundColor: "#faf9f7",
+    backgroundColor: "transparent",
   },
   gateHeaderTitle: {
     fontFamily: FONTS.primary, // BasicCommercial-Bold
     fontSize: 18,
-    color: "#0F172A",
+    color: "#1a2d4a",
     textAlign: "center",
   },
   gateHeaderSubtitle: {
     fontFamily: FONTS.medium,
     fontSize: 12,
-    color: "#64748B",
+    color: "rgba(26, 45, 74, 0.7)",
     marginTop: 2,
     textAlign: "center",
   },
@@ -828,16 +949,32 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: SPACING.l,
     paddingVertical: SPACING.m,
-    backgroundColor: "#faf9f7",
+    backgroundColor: "transparent",
   },
   headerTitle: {
-    ...TYPOGRAPHY.header,
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 18,
+    color: "#1a2d4a",
   },
   backBtn: {
     padding: 4,
   },
   filterBtn: {
     padding: 4,
+  },
+  glassButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255, 255, 255, 0.65)", // Opaque frosted glass background
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.85)", // Defined white edge border
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
   },
   emptyText: {
     ...TYPOGRAPHY.body,
@@ -866,19 +1003,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   sectionLabel: {
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
     fontSize: 15,
-    color: "#64748B",
+    color: "#475569",
     marginBottom: 12,
     marginLeft: 4,
+    letterSpacing: -0.2,
   },
   nameText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 32,
+    fontFamily: FONTS.black, // BasicCommercial-Black only once
+    fontSize: 36,
     color: "#0F172A",
     marginBottom: 8,
     marginLeft: 4, // Align visually with chips
-    letterSpacing: -0.5,
+    letterSpacing: -0.8,
   },
   roleText: {
     fontFamily: FONTS.medium,
@@ -898,20 +1036,24 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   chip: {
-    backgroundColor: "#F3F4F6", // Soft neutral (Cool Gray 100)
-    height: 30, // Compact height for base chips
-    borderRadius: 999, // Pill shape
-    paddingHorizontal: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.75)",
+    height: 32,
+    borderRadius: 16,
+    paddingHorizontal: 14,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 0,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.45)",
   },
   goalChip: {
-    height: 34, // Taller than Gender/Age as requested
+    height: 36,
+    borderRadius: 18,
     paddingHorizontal: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
   },
   genderChip: {
-    backgroundColor: "#EEE9FF",
+    backgroundColor: "rgba(238, 233, 255, 0.85)",
+    borderColor: "rgba(238, 233, 255, 0.95)",
   },
   interestChipOverride: {
     marginRight: 0,
@@ -922,10 +1064,11 @@ const styles = StyleSheet.create({
     height: 30,
     paddingHorizontal: 0,
     marginRight: 4,
+    borderWidth: 0,
   },
   chipText: {
-    fontFamily: FONTS.regular, // Strict Manrope Regular
-    fontSize: 14,
+    fontFamily: FONTS.medium,
+    fontSize: 13,
     color: "#374151", // Gray 700
   },
   genderChipText: {
@@ -933,7 +1076,7 @@ const styles = StyleSheet.create({
   },
   goalChipText: {
     fontFamily: FONTS.semiBold,
-    fontSize: 14,
+    fontSize: 13,
   },
   ageChipText: {
     flexDirection: "row",
@@ -946,26 +1089,62 @@ const styles = StyleSheet.create({
     textShadowRadius: 15, // Increased radius for more spread
   },
   ageNumber: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 19,
+    fontFamily: FONTS.medium,
+    fontSize: 18,
     color: "#374151", // Slightly darker Neutral-800
   },
 
   // Cards
-  cardContainer: {
+  promptShadow: {
+    width: "100%",
+    marginBottom: SPACING.l,
+    shadowColor: "#d150e0", // Vibrant magenta/purple glow
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    elevation: 0, // Disable native Android dark shadow to let gradient glows shine
+    overflow: "visible",
+  },
+  photoShadow: {
+    width: "100%",
+    marginBottom: SPACING.l,
+    shadowColor: "#C4B5FD", // Soft lavender glow matching the aurora border
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    elevation: 0, // Disable native Android dark shadow to let gradient glows shine
+    overflow: "visible",
+  },
+  glowHalo: {
+    position: "absolute",
+  },
+  gradientBorder: {
+    width: "100%",
+    padding: 3, // Slightly thicker colored halo ring
+    borderRadius: CARD_RADIUS,
+  },
+  cardInnerContent: {
     width: "100%",
     backgroundColor: "#FFFFFF",
+    borderRadius: CARD_RADIUS - 3,
+    overflow: "hidden", // Clip inner contents to the border radius
+    borderWidth: 1, // Inner white core of the neon light
+    borderColor: "rgba(255, 255, 255, 0.85)", // High brightness core line
+  },
+  cardInnerContentPrompt: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.82)", // Frosted glass backing to let background glow show through
     borderRadius: CARD_RADIUS,
-    marginBottom: SPACING.l,
-    ...CARD_SHADOW,
-    overflow: "visible", // For shadow
+    overflow: "hidden", // Clip inner contents to the border radius
+    borderWidth: 1.5, // Crisp white outline glass highlight rim
+    borderColor: "rgba(255, 255, 255, 0.9)", // White glass edge
+    paddingBottom: 40, // Move padding here to center absolute glows correctly
   },
   photoCardContainer: {
     aspectRatio: 4 / 5, // Portrait Cards (Photos)
   },
   promptCardContainer: {
     minHeight: 140, // Ensure a base presence even for very short text
-    paddingBottom: 40, // Extra space for the floating chat icon
   },
   photoImage: {
     width: "100%",
@@ -982,8 +1161,65 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: CARD_RADIUS,
     borderBottomRightRadius: CARD_RADIUS,
   },
+  gradientOverlayHero: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: "45%",
+    borderBottomLeftRadius: CARD_RADIUS,
+    borderBottomRightRadius: CARD_RADIUS,
+  },
+  heroOverlayContent: {
+    position: "absolute",
+    bottom: 24,
+    left: 20,
+    right: 70, // Maintain spacing for actionIconBubble
+  },
+  heroNameText: {
+    fontFamily: FONTS.black, // BasicCommercial-Black
+    fontSize: 32,
+    color: "#FFFFFF",
+    textShadowColor: "rgba(0, 0, 0, 0.2)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
+  heroVitalsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 8,
+  },
+  heroAgeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.22)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.35)",
+  },
+  heroGenderChip: {
+    backgroundColor: "rgba(255, 255, 255, 0.22)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.35)",
+  },
+  heroAgeText: {
+    fontFamily: FONTS.medium, // Manrope-Medium
+    fontSize: 13,
+    color: "#FFFFFF",
+  },
+  heroGenderText: {
+    fontFamily: FONTS.medium, // Manrope-Medium
+    fontSize: 13,
+    color: "#FFFFFF",
+  },
   promptContent: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     borderRadius: CARD_RADIUS,
     padding: 24,
     paddingTop: 32,
@@ -992,15 +1228,15 @@ const styles = StyleSheet.create({
   },
   promptLabel: {
     fontFamily: FONTS.regular,
-    fontSize: 15,
+    fontSize: 14,
     color: "#64748B",
     marginBottom: 8,
   },
   promptAnswer: {
     fontFamily: FONTS.semiBold,
-    fontSize: 24, // Filling space better
+    fontSize: 22, // Filling space better
     color: "#0F172A",
-    lineHeight: 32,
+    lineHeight: 30,
   },
 
   // Interactive Elements on Cards
@@ -1011,14 +1247,16 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#D4EEEF",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.6)",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowRadius: 12,
+    elevation: 3,
   },
 
   // Feed Items
@@ -1043,23 +1281,59 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(0, 0, 0, 0.05)",
     ...SHADOWS.md,
   },
   connectButton: {
     flex: 1,
     height: 56,
-    borderRadius: 14,
-    backgroundColor: "#4186ff", // Calm, confident blue
+    borderRadius: 28,
+    backgroundColor: "transparent",
+    shadowColor: "#1a2d4a",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  connectButtonGradientContainer: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 28,
+    overflow: "hidden", // Crucial for clipping the glow bubble!
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.85)", // Outer glass highlight border
+    position: "relative",
     justifyContent: "center",
     alignItems: "center",
-    ...SHADOWS.sm,
+  },
+  connectButtonBacking: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  connectButtonGlowBubble: {
+    position: "absolute",
+    top: -24,
+    left: "22%",
+    right: "22%",
+    height: 52,
+    borderRadius: 26,
+  },
+  connectButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    zIndex: 2, // Ensure text is above the glow bubble
   },
   connectButtonText: {
-    ...TYPOGRAPHY.button,
+    fontFamily: FONTS.semiBold,
     fontSize: 16,
+    color: "#133d70", // Deep slate blue matching the reference
+    letterSpacing: 0.3,
   },
   binaryGenderChip: {
-    backgroundColor: "#E2E8F1",
+    backgroundColor: "rgba(226, 232, 241, 0.85)",
+    borderColor: "rgba(226, 232, 241, 0.95)",
   },
   binaryGenderChipText: {
     color: "#2F3A55",

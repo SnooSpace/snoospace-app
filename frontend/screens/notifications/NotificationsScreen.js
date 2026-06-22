@@ -39,7 +39,12 @@ import {
   UserPlus,
 } from "lucide-react-native";
 import { useNotifications } from "../../context/NotificationsContext";
-import { followMember, unfollowMember, getFollowStatusForMember } from "../../api/members";
+import {
+  followMember,
+  unfollowMember,
+  getFollowStatusForMember,
+  sendCircleRequest,
+} from "../../api/members";
 import hapticsService from "../../services/HapticsService";
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from "../../constants/theme";
 
@@ -105,6 +110,9 @@ const NotificationRow = ({
   followedUserIds,
   followLoading,
   handleFollowToggle,
+  circleRequestedIds,
+  circleRequestLoading,
+  handleSendCircleRequest,
   navigateToProfile,
   navigateToEvent,
   navigation,
@@ -244,6 +252,11 @@ const NotificationRow = ({
           icon: <CheckCircle2 size={18} color="#34C759" strokeWidth={2} />,
           bg: "rgba(52, 199, 89, 0.08)",
         };
+      case "creator_follow_received":
+        return {
+          icon: <UserPlus size={18} color="#7C3AED" strokeWidth={2} />,
+          bg: "rgba(124, 58, 237, 0.08)",
+        };
       case "follow":
         return {
           icon: <UserPlus size={18} color="#2962FF" strokeWidth={2} />,
@@ -259,7 +272,7 @@ const NotificationRow = ({
 
   const renderLeftSection = () => {
     const iconInfo = getNotificationIconInfo(group.type);
-    const hasAvatar = ["follow", "like", "comment", "tag", "event_registration", "circle_request_received", "circle_request_accepted"].includes(group.type) && payload.actorAvatar;
+    const hasAvatar = ["follow", "like", "comment", "tag", "event_registration", "circle_request_received", "circle_request_accepted", "creator_follow_received"].includes(group.type) && payload.actorAvatar;
 
     if (hasAvatar) {
       return (
@@ -303,6 +316,46 @@ const NotificationRow = ({
           <Text style={styles.bold}>{payload.actorName || "Someone"}</Text> wants to connect with you
         </Text>
       );
+      break;
+
+    case "creator_follow_received":
+      isNavigable = true;
+      onPress = () => navigateToProfile(firstItem.actor_id, firstItem.actor_type);
+      title = (
+        <Text style={styles.title}>
+          <Text style={styles.bold}>{payload.actorName || "Someone"}</Text> started following your creator content
+        </Text>
+      );
+      // Only show Add to Circle for member followers
+      if (firstItem.actor_type === "member") {
+        const circleState = circleRequestedIds[firstItem.actor_id] || "none";
+        const isCircleLoading = circleRequestLoading[firstItem.actor_id];
+        if (circleState !== "in_circle") {
+          rightComponent = (
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                circleState === "requested" ? styles.actionButtonActive : styles.actionButtonInactive,
+              ]}
+              onPress={() => handleSendCircleRequest(firstItem.actor_id)}
+              disabled={isCircleLoading || circleState === "requested"}
+            >
+              {isCircleLoading ? (
+                <ActivityIndicator size="small" color={COLORS.textSecondary} />
+              ) : (
+                <Text
+                  style={[
+                    styles.actionButtonText,
+                    circleState === "requested" ? styles.actionButtonTextActive : styles.actionButtonTextInactive,
+                  ]}
+                >
+                  {circleState === "requested" ? "Requested" : "Add to Circle"}
+                </Text>
+              )}
+            </TouchableOpacity>
+          );
+        }
+      }
       break;
 
     case "circle_request_accepted":
@@ -627,6 +680,9 @@ export default function NotificationsScreen({ navigation }) {
   const { items, unread, loading, loadMore, markAllRead } = useNotifications();
   const [followedUserIds, setFollowedUserIds] = useState({});
   const [followLoading, setFollowLoading] = useState({});
+  // Inline Add to Circle state for creator_follow_received notifications
+  const [circleRequestedIds, setCircleRequestedIds] = useState({}); // { [actorId]: 'none' | 'requested' | 'in_circle' }
+  const [circleRequestLoading, setCircleRequestLoading] = useState({}); // { [actorId]: boolean }
 
   const scrollY = useSharedValue(0);
   const overscrollBottom = useSharedValue(0);
@@ -797,6 +853,20 @@ export default function NotificationsScreen({ navigation }) {
     }
   }, [followedUserIds]);
 
+  const handleSendCircleRequest = useCallback(async (actorId) => {
+    hapticsService.triggerImpactMedium();
+    setCircleRequestLoading((prev) => ({ ...prev, [actorId]: true }));
+    setCircleRequestedIds((prev) => ({ ...prev, [actorId]: 'requested' })); // optimistic
+    try {
+      await sendCircleRequest(actorId);
+    } catch (e) {
+      console.warn('[Notifications] sendCircleRequest failed:', e);
+      setCircleRequestedIds((prev) => ({ ...prev, [actorId]: 'none' })); // revert
+    } finally {
+      setCircleRequestLoading((prev) => ({ ...prev, [actorId]: false }));
+    }
+  }, []);
+
   const renderItem = useCallback(({ item, index, section }) => (
     <NotificationRow
       group={item}
@@ -808,11 +878,14 @@ export default function NotificationsScreen({ navigation }) {
       followedUserIds={followedUserIds}
       followLoading={followLoading}
       handleFollowToggle={handleFollowToggle}
+      circleRequestedIds={circleRequestedIds}
+      circleRequestLoading={circleRequestLoading}
+      handleSendCircleRequest={handleSendCircleRequest}
       navigateToProfile={navigateToProfile}
       navigateToEvent={navigateToEvent}
       navigation={navigation}
     />
-  ), [sections, scrollY, overscrollBottom, followedUserIds, followLoading, handleFollowToggle, navigateToProfile, navigateToEvent, navigation]);
+  ), [sections, scrollY, overscrollBottom, followedUserIds, followLoading, handleFollowToggle, circleRequestedIds, circleRequestLoading, handleSendCircleRequest, navigateToProfile, navigateToEvent, navigation]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>

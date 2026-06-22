@@ -36,6 +36,8 @@ const ShareController = require("../controllers/shareController");
 const SaveController = require("../controllers/saveController");
 const AudienceIntelligenceController = require("../controllers/audienceIntelligenceController");
 const PrivacyController = require("../controllers/privacyController");
+const CreatorInsightsController = require("../controllers/creatorInsightsController");
+const CreatorFollowController = require("../controllers/creatorFollowController");
 const CommunityVoiceController = require("../controllers/communityVoiceController");
 const PaymentController = require("../controllers/paymentController");
 const SessionController = require("../controllers/sessionController");
@@ -475,6 +477,33 @@ router.post(
   MemberController.verifyEmailChange,
 );
 router.get("/members/search", authMiddleware, MemberController.searchMembers);
+// ── Creator Insights — MUST be before /members/:id/* wildcard routes ──────────
+// These are scoped to the authenticated member ("me") and return member-level
+// audience intelligence. Registering here prevents /members/:id handlers from
+// swallowing the literal string "me".
+router.get(
+  "/members/me/creator-insights/summary",
+  authMiddleware,
+  CreatorInsightsController.getCreatorAudienceSummary,
+);
+router.get(
+  "/members/me/creator-insights/reach",
+  authMiddleware,
+  CreatorInsightsController.getCreatorReachStats,
+);
+router.get(
+  "/members/me/creator-insights/follower-trend",
+  authMiddleware,
+  CreatorInsightsController.getCreatorFollowerTrend,
+);
+
+// ── Creator Follows — one-way content-interest relationship ───────────────────
+// Must be before /members/:id/* and other wildcard routes.
+router.post("/creators/:creatorId/follow", authMiddleware, CreatorFollowController.followCreator);
+router.delete("/creators/:creatorId/follow", authMiddleware, CreatorFollowController.unfollowCreator);
+router.get("/creators/:creatorId/followers", authMiddleware, CreatorFollowController.getCreatorFollowers);
+router.get("/creators/:creatorId/follow-status", authMiddleware, CreatorFollowController.getFollowStatus);
+
 // Member public events & plans (must be before :id/public wildcard)
 router.get(
   "/members/:id/events",

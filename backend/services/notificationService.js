@@ -465,6 +465,85 @@ const createNotification = async ({
   }
 };
 
+/**
+ * Create or reactivate a creator follow notification
+ * Uses UPSERT to ensure only ONE active notification per (follower, creator)
+ *
+ * @param {Pool} pool - Database connection pool
+ * @param {Object} params
+ * @param {number} params.creatorId - The creator receiving the follow
+ * @param {number} params.followerId - The member who followed
+ * @param {string} params.followerType - 'member' | 'community' | 'page'
+ */
+const createCreatorFollowNotification = async (
+  pool,
+  { creatorId, followerId, followerType = "member" }
+) => {
+  if (shouldSuppressNotifications()) {
+    console.log(
+      "[NotificationService] Suppressed creator_follow_received notification in current environment"
+    );
+    return null;
+  }
+
+  try {
+    // Resolve follower name and avatar for payload
+    let followerName = null;
+    let followerAvatar = null;
+    if (followerType === "member") {
+      const r = await pool.query(
+        `SELECT name, profile_photo_url FROM members WHERE id = $1`,
+        [followerId]
+      );
+      followerName = r.rows[0]?.name || null;
+      followerAvatar = r.rows[0]?.profile_photo_url || null;
+    } else if (followerType === "community") {
+      const r = await pool.query(
+        `SELECT name, logo_url FROM communities WHERE id = $1`,
+        [followerId]
+      );
+      followerName = r.rows[0]?.name || null;
+      followerAvatar = r.rows[0]?.logo_url || null;
+    }
+
+    const payload = JSON.stringify({
+      actorName: followerName,
+      actorAvatar: followerAvatar,
+    });
+
+    const query = `
+      INSERT INTO notifications (
+        recipient_id, recipient_type, actor_id, actor_type,
+        type, payload, is_active, is_read, updated_at
+      )
+      VALUES ($1, 'member', $2, $3, 'creator_follow_received', $4, TRUE, FALSE, NOW())
+      ON CONFLICT (actor_id, actor_type, recipient_id, recipient_type, type)
+        WHERE type IN ('creator_follow_received') AND is_active = TRUE
+      DO UPDATE SET
+        is_active = TRUE,
+        payload = EXCLUDED.payload,
+        updated_at = NOW(),
+        is_read = FALSE
+      RETURNING id;
+    `;
+
+    const result = await pool.query(query, [
+      creatorId,
+      followerId,
+      followerType,
+      payload,
+    ]);
+
+    return result.rows[0]?.id || null;
+  } catch (error) {
+    console.error(
+      "[NotificationService] Failed to create creator_follow_received notification:",
+      error
+    );
+    throw error;
+  }
+};
+
 module.exports = {
   createFollowNotification,
   deactivateFollowNotification,
@@ -474,4 +553,6 @@ module.exports = {
   deactivateNotification,
   shouldSuppressNotifications,
   createNotification,
+  createCreatorFollowNotification,
 };
+

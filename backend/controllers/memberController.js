@@ -460,6 +460,7 @@ async function getPublicMember(req, res) {
               occupation_details, occupation_category, portfolio_link, education, campus_id, show_college,
               instagram_username, is_creator_mode_enabled,
               follower_count AS followers_count, following_count, circle_count,
+              creator_follower_count,
               (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member')::int AS posts_count,
               (
                 (SELECT COUNT(*) FROM event_registrations WHERE member_id = $1
@@ -536,6 +537,7 @@ async function getPublicMember(req, res) {
       followers_count: parseInt(profile.followers_count || 0, 10),
       following_count: parseInt(profile.following_count || 0, 10),
       circle_count: parseInt(profile.circle_count || 0, 10),
+      creator_follower_count: parseInt(profile.creator_follower_count || 0, 10),
       is_following: isFollowing,
       you_have_blocked: youHaveBlocked,
       is_creator_mode_enabled: !!profile.is_creator_mode_enabled,
@@ -1686,8 +1688,9 @@ async function getMemberPublicPlans(req, res) {
  * Toggles Creator Mode on the authenticated member's account.
  */
 async function toggleCreatorMode(req, res) {
+  const pool = req.app.locals.pool;
+  const client = await pool.connect();
   try {
-    const pool = req.app.locals.pool;
     const memberId = req.user?.id;
     if (!memberId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -1696,8 +1699,10 @@ async function toggleCreatorMode(req, res) {
       return res.status(400).json({ error: "enabled must be a boolean" });
     }
 
+    await client.query("BEGIN");
+
     // Set creator_mode_enabled_at only on the first activation
-    const result = await pool.query(
+    const result = await client.query(
       `UPDATE members
        SET
          is_creator_mode_enabled = $1,
@@ -1712,8 +1717,26 @@ async function toggleCreatorMode(req, res) {
     );
 
     if (result.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ error: "Member not found" });
     }
+
+    // Sync creator_follows dormancy state with the mode toggle
+    // ON disable: mark all follower rows as dormant (count drops to 0 via trigger)
+    // ON re-enable: restore all dormant rows (count restores via trigger)
+    if (enabled) {
+      await client.query(
+        `UPDATE creator_follows SET is_dormant = false WHERE creator_id = $1 AND is_dormant = true`,
+        [memberId]
+      );
+    } else {
+      await client.query(
+        `UPDATE creator_follows SET is_dormant = true WHERE creator_id = $1 AND is_dormant = false`,
+        [memberId]
+      );
+    }
+
+    await client.query("COMMIT");
 
     return res.json({
       success: true,
@@ -1721,6 +1744,7 @@ async function toggleCreatorMode(req, res) {
       creator_mode_enabled_at: result.rows[0].creator_mode_enabled_at,
     });
   } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
     console.error("[MemberController] toggleCreatorMode error:", err.message);
     // If column doesn't exist yet (migration pending), return graceful error
     if (err.code === "42703") {
@@ -1730,6 +1754,8 @@ async function toggleCreatorMode(req, res) {
       });
     }
     return res.status(500).json({ error: "Failed to toggle Creator Mode" });
+  } finally {
+    client.release();
   }
 }
 

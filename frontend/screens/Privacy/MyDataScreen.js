@@ -14,7 +14,9 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, StyleSheet, TouchableOpacity, Dimensions,
   StatusBar, Animated, ScrollView, Modal, TouchableWithoutFeedback, Pressable,
+  Image,
 } from "react-native";
+import { VictoryLine } from "victory-native";
 import LottieView from "lottie-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -32,8 +34,12 @@ import {
   updateConsent,
   requestDataDeletion,
 } from "../../api/privacy";
-import { getActiveAccount, getAuthToken } from "../../api/auth";
-import { apiGet } from "../../api/client";
+import { getActiveAccount } from "../../api/auth";
+import {
+  getCreatorAudienceSummary,
+  getCreatorReachStats,
+  getCreatorFollowerTrend,
+} from "../../api/members";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import loadingAnimation from "../../assets/animations/loading.json";
 
@@ -297,8 +303,6 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
   const [loading, setLoading]     = useState(!hasCachedData);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [isCreatorMode, setIsCreatorMode] = useState(false);
-  const [creatorData, setCreatorData] = useState(null);
-  const [creatorLoading, setCreatorLoading] = useState(false);
   const tabUnderlineX = useRef(new Animated.Value(initialTab === 'creator' ? 1 : 0)).current;
   const consents_init = {
       behavioral: cachedData?.consentState?.behavioral ?? false,
@@ -310,6 +314,23 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
   const [deleting, setDeleting]   = useState(false);
   const [infoModal, setInfoModal] = useState({ visible: false, title: "", body: "", breakdown: null, showTiers: false });
   const fadeAnim = useRef(new Animated.Value(hasCachedData ? 1 : 0)).current;
+
+  // ── Creator tab state — three independent sections ───────────────────────
+  const [summaryData,    setSummaryData]    = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError,   setSummaryError]   = useState(false);
+
+  const [reachData,    setReachData]    = useState(null);
+  const [reachLoading, setReachLoading] = useState(false);
+  const [reachError,   setReachError]   = useState(false);
+  const [reachPeriod,  setReachPeriod]  = useState('30d');
+
+  const [trendData,    setTrendData]    = useState(null);
+  const [trendLoading, setTrendLoading] = useState(false);
+  const [trendError,   setTrendError]   = useState(false);
+
+  // Guard: only fetch creator data once (lazy load on first Creator tab open)
+  const creatorTabActivated = useRef(false);
 
   const loadData = useCallback(async (showLoading = true) => {
     try {
@@ -347,21 +368,62 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
     });
   }, []);
 
-  // Load lightweight creator insights when Creator tab is first activated
-  const loadCreatorData = useCallback(async () => {
-    if (creatorData || creatorLoading) return;
-    setCreatorLoading(true);
+  // Load reach data independently so period changes only re-fetch reach
+  const loadReachData = useCallback(async (period) => {
+    setReachLoading(true);
+    setReachError(false);
     try {
-      const token = await getAuthToken();
-      const result = await apiGet("/creator/me/insights", 15000, token);
-      setCreatorData(result);
-    } catch (e) {
-      // Endpoint may not exist yet — show placeholder gracefully
-      setCreatorData({ notAvailable: true });
+      const result = await getCreatorReachStats(period);
+      setReachData(result);
+    } catch (_) {
+      setReachError(true);
     } finally {
-      setCreatorLoading(false);
+      setReachLoading(false);
     }
-  }, [creatorData, creatorLoading]);
+  }, []);
+
+  // Load all three creator sections independently (Promise.allSettled)
+  const loadAllCreatorData = useCallback(async () => {
+    if (creatorTabActivated.current) return; // lazy: only load once
+    creatorTabActivated.current = true;
+
+    setSummaryLoading(true);
+    setTrendLoading(true);
+    setReachLoading(true);
+    setSummaryError(false);
+    setTrendError(false);
+    setReachError(false);
+
+    const [summaryResult, trendResult, reachResult] = await Promise.allSettled([
+      getCreatorAudienceSummary(),
+      getCreatorFollowerTrend(),
+      getCreatorReachStats(reachPeriod),
+    ]);
+
+    if (summaryResult.status === 'fulfilled') {
+      setSummaryData(summaryResult.value);
+    } else {
+      console.error('[CreatorTab] summary error:', summaryResult.reason);
+      setSummaryError(true);
+    }
+    setSummaryLoading(false);
+
+    if (trendResult.status === 'fulfilled') {
+      setTrendData(trendResult.value);
+    } else {
+      console.error('[CreatorTab] trend error:', trendResult.reason);
+      setTrendError(true);
+    }
+    setTrendLoading(false);
+
+    if (reachResult.status === 'fulfilled') {
+      setReachData(reachResult.value);
+    } else {
+      console.error('[CreatorTab] reach error:', reachResult.reason);
+      setReachError(true);
+    }
+    setReachLoading(false);
+  }, [reachPeriod]);
 
   const switchTab = (tab) => {
     setActiveTab(tab);
@@ -371,7 +433,13 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
       tension: 60,
       useNativeDriver: true,
     }).start();
-    if (tab === 'creator') loadCreatorData();
+    if (tab === 'creator') loadAllCreatorData();
+  };
+
+  // Period selector re-fetch — resets the lazy guard for reach only
+  const handlePeriodChange = (period) => {
+    setReachPeriod(period);
+    loadReachData(period);
   };
 
   const handleToggle = async (field, apiField) => {
@@ -710,81 +778,226 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
             contentContainerStyle={[styles.scrollContent, { paddingTop: 8 }]}
             showsVerticalScrollIndicator={false}
           >
-            {creatorLoading ? (
-              <View style={{ flex: 1, alignItems: 'center', paddingTop: 60 }}>
-                <LottieView source={loadingAnimation} autoPlay loop style={{ width: 100, height: 100 }} />
-                <Text style={[styles.sectionTitle, { marginTop: 16, color: '#9CA3AF', textAlign: 'center' }]}>Loading creator insights…</Text>
-              </View>
-            ) : creatorData?.notAvailable ? (
-              <View style={tabStyles.placeholderWrap}>
-                <View style={tabStyles.comingSoonCard}>
-                  <View style={tabStyles.comingSoonIcon}>
-                    <BarChart2 size={32} color="#7C3AED" strokeWidth={1.5} />
+
+            {/* ─── Section 1: Audience Score ─────────────────────────────── */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Audience Score</Text>
+              {summaryLoading ? (
+                <View style={tabStyles.skeletonCard}>
+                  <View style={[tabStyles.skeletonBlock, { width: 72, height: 72, borderRadius: 36, alignSelf: 'center', marginBottom: 12 }]} />
+                  <View style={[tabStyles.skeletonLine, { width: '60%', alignSelf: 'center' }]} />
+                  <View style={[tabStyles.skeletonLine, { width: '80%', alignSelf: 'center', marginTop: 8 }]} />
+                </View>
+              ) : summaryError ? (
+                <View style={tabStyles.scoreCard}>
+                  <Text style={tabStyles.sectionErrorText}>Couldn't load data. Pull to refresh.</Text>
+                </View>
+              ) : (
+                <View style={tabStyles.scoreCard}>
+                  <View style={tabStyles.scoreCircle}>
+                    <Text style={tabStyles.scoreValue}>{summaryData?.audience_score ?? '--'}</Text>
+                    <Text style={tabStyles.scoreMax}>/100</Text>
                   </View>
-                  <Text style={tabStyles.comingSoonTitle}>Creator Analytics</Text>
-                  <Text style={tabStyles.comingSoonSub}>
-                    Your creator-scoped audience intelligence — Follow Quality, Audience Score, and content reach — will appear here once the analytics pipeline is live.
+                  <View style={{ flex: 1 }}>
+                    <Text style={tabStyles.scoreSub}>
+                      {(() => {
+                        const s = summaryData?.audience_score ?? 0;
+                        if (s >= 80) return "Excellent. Your audience is highly engaged and intent-driven.";
+                        if (s >= 65) return "Strong audience quality. Your content is resonating.";
+                        if (s >= 40) return "You're building momentum. Engage more to push higher.";
+                        return "Your audience is still warming up — keep posting consistently.";
+                      })()}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* ─── Section 2: Follow Quality ─────────────────────────────── */}
+            <View style={styles.section}>
+              <View style={tabStyles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Follow Quality</Text>
+                {!summaryLoading && !summaryError && summaryData?.follow_quality && (
+                  <Text style={tabStyles.sectionBadge}>
+                    {summaryData.follow_quality.score} — {summaryData.follow_quality.label}
                   </Text>
-                  <View style={tabStyles.featureList}>
-                    {[
-                      { icon: TrendingUp, color: '#10B981', label: 'Follow Quality Score',  sub: 'How genuine & engaged your followers are' },
-                      { icon: Sparkles,   color: '#8B5CF6', label: 'Audience Score',         sub: 'Overall creator audience strength' },
-                      { icon: Users,      color: '#3B82F6', label: 'Follower Reach',         sub: 'Estimated reach of your content' },
-                      { icon: Zap,        color: '#F59E0B', label: 'Content Interactions',  sub: 'Engagement across all post types' },
-                    ].map(({ icon: Icon, color, label, sub }) => (
-                      <View key={label} style={tabStyles.featureRow}>
-                        <View style={[tabStyles.featureIconWrap, { backgroundColor: color + '18' }]}>
-                          <Icon size={16} color={color} strokeWidth={2} />
+                )}
+              </View>
+              {summaryLoading ? (
+                <View style={tabStyles.skeletonCard}>
+                  {[1,2,3].map((i) => (
+                    <View key={i} style={{ marginBottom: 12 }}>
+                      <View style={[tabStyles.skeletonLine, { width: '40%', marginBottom: 6 }]} />
+                      <View style={tabStyles.qualityBarTrack}>
+                        <View style={[tabStyles.skeletonBlock, { width: `${30 + i * 15}%`, height: 8, borderRadius: 4 }]} />
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              ) : summaryError ? (
+                <Text style={tabStyles.sectionErrorText}>Couldn't load data. Pull to refresh.</Text>
+              ) : (() => {
+                const bd = summaryData?.follow_quality?.breakdown;
+                const total = bd ? (bd.high_intent + bd.interested + bd.casual) : 0;
+                const hiPct = total > 0 ? Math.round((bd.high_intent / total) * 100) : 0;
+                const intPct = total > 0 ? Math.round((bd.interested / total) * 100) : 0;
+                const casPct = total > 0 ? Math.max(0, 100 - hiPct - intPct) : 0;
+                const bars = [
+                  { label: 'High-intent', pct: hiPct, count: bd?.high_intent ?? 0, color: '#10B981' },
+                  { label: 'Interested',  pct: intPct, count: bd?.interested  ?? 0, color: '#3B82F6' },
+                  { label: 'Casual',      pct: casPct, count: bd?.casual      ?? 0, color: '#9CA3AF' },
+                ];
+                return (
+                  <View style={tabStyles.qualityCard}>
+                    {bars.map(({ label, pct, count, color }) => (
+                      <View key={label} style={tabStyles.qualityBarRow}>
+                        <View style={tabStyles.qualityBarLabelRow}>
+                          <Text style={tabStyles.qualityBarLabel}>{label}</Text>
+                          <Text style={[tabStyles.qualityBarPct, { color }]}>{pct}%</Text>
                         </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={tabStyles.featureLabel}>{label}</Text>
-                          <Text style={tabStyles.featureSub}>{sub}</Text>
+                        <View style={tabStyles.qualityBarTrack}>
+                          <View style={[tabStyles.qualityBarFill, { width: `${pct}%`, backgroundColor: color }]} />
                         </View>
                       </View>
                     ))}
+                    <Text style={tabStyles.qualityExplainer}>
+                      Based on how deeply people engage with your content before following.
+                    </Text>
                   </View>
+                );
+              })()}
+            </View>
+
+            {/* ─── Section 3: Follower Growth ─────────────────────────────── */}
+            <View style={styles.section}>
+              <View style={tabStyles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Followers</Text>
+                {!summaryLoading && !summaryError && summaryData && (() => {
+                  const delta = summaryData.followers_delta_7d ?? 0;
+                  const isPos = delta >= 0;
+                  return (
+                    <View style={[tabStyles.deltaChip, isPos ? tabStyles.deltaChipPositive : tabStyles.deltaChipNegative]}>
+                      <Text style={[tabStyles.deltaChipText, { color: isPos ? '#059669' : '#DC2626' }]}>
+                        {isPos ? '+' : ''}{delta} this week
+                      </Text>
+                    </View>
+                  );
+                })()}
+              </View>
+              {summaryLoading || trendLoading ? (
+                <View style={tabStyles.skeletonCard}>
+                  <View style={[tabStyles.skeletonLine, { width: '30%', marginBottom: 12 }]} />
+                  <View style={[tabStyles.skeletonBlock, { height: 80, borderRadius: 8 }]} />
+                </View>
+              ) : summaryError && trendError ? (
+                <Text style={tabStyles.sectionErrorText}>Couldn't load data. Pull to refresh.</Text>
+              ) : (
+                <View style={tabStyles.followerCard}>
+                  <Text style={tabStyles.followerTotal}>
+                    {(summaryData?.total_followers ?? 0).toLocaleString()}
+                  </Text>
+                  <Text style={tabStyles.followerLabel}>Total Followers</Text>
+                  {trendData?.trend && trendData.trend.length > 1 && (
+                    <View style={{ height: 80, marginTop: 12 }}>
+                      <VictoryLine
+                        data={trendData.trend}
+                        x="date"
+                        y="count"
+                        style={{
+                          data: { stroke: '#7C3AED', strokeWidth: 2 },
+                          parent: { overflow: 'visible' },
+                        }}
+                        padding={{ top: 4, bottom: 4, left: 0, right: 0 }}
+                        height={80}
+                        width={width - 80}
+                        animate={false}
+                      />
+                    </View>
+                  )}
+                  {trendError && (
+                    <Text style={tabStyles.sectionErrorText}>Trend unavailable.</Text>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* ─── Section 4: Content Reach ─────────────────────────────── */}
+            <View style={[styles.section, { marginBottom: 40 }]}>
+              <View style={tabStyles.sectionHeaderRow}>
+                <Text style={styles.sectionTitle}>Content Reach</Text>
+                {/* Period selector */}
+                <View style={tabStyles.periodSelector}>
+                  {['7d', '30d', '90d'].map((p) => (
+                    <TouchableOpacity
+                      key={p}
+                      style={[tabStyles.periodPill, reachPeriod === p && tabStyles.periodPillActive]}
+                      onPress={() => handlePeriodChange(p)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[tabStyles.periodPillText, reachPeriod === p && tabStyles.periodPillTextActive]}>{p}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               </View>
-            ) : (
-              <Animated.View style={{ opacity: fadeAnim }}>
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Audience Score</Text>
-                  <View style={tabStyles.scoreCard}>
-                    <View style={tabStyles.scoreCircle}>
-                      <Text style={tabStyles.scoreValue}>{creatorData?.audienceScore ?? '--'}</Text>
-                      <Text style={tabStyles.scoreMax}>/100</Text>
+
+              {reachLoading ? (
+                <View style={tabStyles.skeletonCard}>
+                  <View style={tabStyles.reachStatsRow}>
+                    <View style={[tabStyles.skeletonBlock, { flex: 1, height: 60, borderRadius: 12 }]} />
+                    <View style={[tabStyles.skeletonBlock, { flex: 1, height: 60, borderRadius: 12, marginLeft: 12 }]} />
+                  </View>
+                </View>
+              ) : reachError ? (
+                <Text style={tabStyles.sectionErrorText}>Couldn't load data. Pull to refresh.</Text>
+              ) : reachData?.total_views == null && reachData?.total_impressions == null ? (
+                /* Coming soon — tracking not yet built */
+                <View style={tabStyles.comingSoonCard}>
+                  <View style={tabStyles.comingSoonIcon}>
+                    <BarChart2 size={28} color="#7C3AED" strokeWidth={1.5} />
+                  </View>
+                  <Text style={tabStyles.comingSoonTitle}>Coming Soon</Text>
+                  <Text style={tabStyles.comingSoonSub}>
+                    View counts, impressions, and watch analytics for your posts will appear here once the content tracking pipeline is live.
+                  </Text>
+                </View>
+              ) : (
+                <View>
+                  <View style={tabStyles.reachStatsRow}>
+                    <View style={tabStyles.reachStatCard}>
+                      <Text style={tabStyles.reachStatValue}>
+                        {reachData?.total_views != null ? reachData.total_views.toLocaleString() : '—'}
+                      </Text>
+                      <Text style={tabStyles.reachStatLabel}>Total Views</Text>
                     </View>
-                    <Text style={tabStyles.scoreSub}>A composite measure of how engaged and genuine your audience is.</Text>
+                    <View style={tabStyles.reachStatCard}>
+                      <Text style={tabStyles.reachStatValue}>
+                        {reachData?.avg_watch_pct != null ? `${reachData.avg_watch_pct}%` : '—'}
+                      </Text>
+                      <Text style={tabStyles.reachStatLabel}>Avg Watch</Text>
+                    </View>
                   </View>
+                  {reachData?.top_content && reachData.top_content.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
+                      {reachData.top_content.map((item, idx) => (
+                        <View key={item.post_id ?? idx} style={tabStyles.thumbnailCard}>
+                          {item.thumbnail_url ? (
+                            <Image source={{ uri: item.thumbnail_url }} style={tabStyles.thumbnailView} />
+                          ) : (
+                            <View style={[tabStyles.thumbnailView, { backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }]}>
+                              <BarChart2 size={20} color="#D1D5DB" strokeWidth={1.5} />
+                            </View>
+                          )}
+                          <Text style={tabStyles.thumbnailMeta}>
+                            {item.views != null ? item.views.toLocaleString() + ' views' : 'No views yet'}
+                          </Text>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  )}
                 </View>
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>Follow Quality</Text>
-                  <View style={styles.statsRow}>
-                    <Pressable style={({ pressed }) => [styles.statCard, pressed && { backgroundColor: '#F2F2F7' }]}>
-                      <View style={styles.statHeader}>
-                        <View style={[styles.statIconWrap, { backgroundColor: 'rgba(16,185,129,0.1)' }]}><TrendingUp size={14} color="#10B981" strokeWidth={2} /></View>
-                      </View>
-                      <Text style={styles.statValue}>{creatorData?.followQuality ?? '--'}%</Text>
-                      <Text style={styles.statLabel}>Follow Quality</Text>
-                    </Pressable>
-                    <Pressable style={({ pressed }) => [styles.statCard, pressed && { backgroundColor: '#F2F2F7' }]}>
-                      <View style={styles.statHeader}>
-                        <View style={[styles.statIconWrap, { backgroundColor: 'rgba(59,130,246,0.1)' }]}><Users size={14} color="#3B82F6" strokeWidth={2} /></View>
-                      </View>
-                      <Text style={styles.statValue}>{creatorData?.followerCount ?? '--'}</Text>
-                      <Text style={styles.statLabel}>Followers</Text>
-                    </Pressable>
-                    <Pressable style={({ pressed }) => [styles.statCard, pressed && { backgroundColor: '#F2F2F7' }]}>
-                      <View style={styles.statHeader}>
-                        <View style={[styles.statIconWrap, { backgroundColor: 'rgba(139,92,246,0.1)' }]}><Zap size={14} color="#8B5CF6" strokeWidth={2} /></View>
-                      </View>
-                      <Text style={styles.statValue}>{creatorData?.engagementRate ?? '--'}%</Text>
-                      <Text style={styles.statLabel}>Eng. Rate</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              </Animated.View>
-            )}
+              )}
+            </View>
+
           </ScrollView>
         )}
 
@@ -1572,6 +1785,220 @@ const tabStyles = StyleSheet.create({
     fontFamily: "Manrope-SemiBold",
     fontSize: 14,
     color: "#111827",
+  },
+
+  // ── Follow quality bars
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  sectionBadge: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 13,
+    color: "#7C3AED",
+  },
+  qualityCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.04)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
+    gap: 14,
+  },
+  qualityBarRow: { gap: 6 },
+  qualityBarLabelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  qualityBarLabel: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 13,
+    color: "#374151",
+  },
+  qualityBarPct: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 13,
+  },
+  qualityBarTrack: {
+    height: 8,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  qualityBarFill: {
+    height: 8,
+    borderRadius: 4,
+  },
+  qualityExplainer: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 12,
+    color: "#9CA3AF",
+    lineHeight: 17,
+    marginTop: 4,
+  },
+
+  // ── Delta chip
+  deltaChip: {
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+  },
+  deltaChipPositive: {
+    backgroundColor: "rgba(16,185,129,0.08)",
+    borderColor: "rgba(16,185,129,0.2)",
+  },
+  deltaChipNegative: {
+    backgroundColor: "rgba(239,68,68,0.08)",
+    borderColor: "rgba(239,68,68,0.2)",
+  },
+  deltaChipText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 12,
+  },
+
+  // ── Follower card
+  followerCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.04)",
+    shadowColor: "#7C3AED",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  followerTotal: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 32,
+    color: "#111827",
+    lineHeight: 38,
+  },
+  followerLabel: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 13,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+
+  // ── Period selector
+  periodSelector: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  periodPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  periodPillActive: {
+    backgroundColor: "rgba(124,58,237,0.1)",
+    borderColor: "rgba(124,58,237,0.2)",
+  },
+  periodPillText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#6B7280",
+  },
+  periodPillTextActive: {
+    color: "#7C3AED",
+    fontFamily: "Manrope-SemiBold",
+  },
+
+  // ── Reach stats
+  reachStatsRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  reachStatCard: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.04)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  reachStatValue: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 20,
+    color: "#111827",
+    marginBottom: 4,
+  },
+  reachStatLabel: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 12,
+    color: "#6B7280",
+  },
+
+  // ── Thumbnail row (top content)
+  thumbnailCard: {
+    marginRight: 12,
+    width: 100,
+  },
+  thumbnailView: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    backgroundColor: "#F3F4F6",
+    marginBottom: 6,
+  },
+  thumbnailMeta: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 11,
+    color: "#6B7280",
+    textAlign: "center",
+  },
+
+  // ── Skeleton placeholders
+  skeletonCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.04)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  skeletonLine: {
+    height: 14,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 7,
+    marginBottom: 4,
+  },
+  skeletonBlock: {
+    backgroundColor: "#E5E7EB",
+    width: "100%",
+  },
+
+  // ── Inline error
+  sectionErrorText: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 13,
+    color: "#9CA3AF",
+    textAlign: "center",
+    paddingVertical: 12,
+    fontStyle: "italic",
   },
 });
 
