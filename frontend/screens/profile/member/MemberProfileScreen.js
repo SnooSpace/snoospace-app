@@ -103,6 +103,7 @@ import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
 import HapticsService from "../../../services/HapticsService";
 import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling";
+import { useProfileCache } from "../../../context/ProfileCacheContext";
 // import { useAuthState } from "../../../contexts/AuthStateContext"; // Unused
 import UnexpectedLogoutBanner from "../../../components/UnexpectedLogoutBanner";
 import SnooLoader from "../../../components/ui/SnooLoader";
@@ -437,9 +438,49 @@ const MemberPostGridCell = React.memo(
 export default function MemberProfileScreen({ navigation }) {
   const route = useRoute();
   const { showToast } = useToast();
-  const [profile, setProfile] = useState(null);
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { memberProfile, memberPosts, setMemberProfile, setMemberPosts } = useProfileCache();
+  const [profile, setProfileState] = useState(memberProfile);
+  const [posts, setPostsState] = useState(memberPosts || []);
+  const [loading, setLoading] = useState(!memberProfile);
+
+  const setProfile = useCallback((updater) => {
+    if (typeof updater === "function") {
+      setProfileState((prev) => {
+        const next = updater(prev);
+        setMemberProfile(next);
+        return next;
+      });
+    } else {
+      setProfileState(updater);
+      setMemberProfile(updater);
+    }
+  }, [setMemberProfile]);
+
+  const setPosts = useCallback((updater) => {
+    if (typeof updater === "function") {
+      setPostsState((prev) => {
+        const next = updater(prev);
+        setMemberPosts(next);
+        return next;
+      });
+    } else {
+      setPostsState(updater);
+      setMemberPosts(updater);
+    }
+  }, [setMemberPosts]);
+
+  useEffect(() => {
+    if (memberProfile) {
+      setProfileState((prev) => (prev === memberProfile ? prev : memberProfile));
+    }
+  }, [memberProfile]);
+
+  useEffect(() => {
+    if (memberPosts) {
+      setPostsState((prev) => (prev === memberPosts ? prev : memberPosts));
+    }
+  }, [memberPosts]);
+
   const [error, setError] = useState(null);
   const [isOwnProfile, setIsOwnProfile] = useState(true);
   // Settings is now a Screen — no modal state needed
@@ -826,7 +867,7 @@ export default function MemberProfileScreen({ navigation }) {
     try {
       if (isRefresh) {
         setRefreshing(true);
-      } else {
+      } else if (!memberProfile) {
         setLoading(true);
         setPosts([]); // clear posts to prevent stale data
       }

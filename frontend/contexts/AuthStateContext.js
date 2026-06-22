@@ -42,10 +42,20 @@ export function AuthStateProvider({ children }) {
       setLogoutDetails(details);
     };
 
+    const handleAccountSwitched = (details) => {
+      console.log(
+        "[AuthStateProvider] Received accountSwitched event:",
+        details,
+      );
+      setActiveAccountEmail(details?.email || null);
+    };
+
     authEventEmitter.on("unexpectedLogout", handleUnexpectedLogout);
+    authEventEmitter.on("accountSwitched", handleAccountSwitched);
 
     return () => {
       authEventEmitter.off("unexpectedLogout", handleUnexpectedLogout);
+      authEventEmitter.off("accountSwitched", handleAccountSwitched);
     };
   }, []);
 

@@ -135,6 +135,7 @@ import GradientButton from "../../../components/GradientButton";
 import ThemeChip from "../../../components/ThemeChip";
 import HapticsService from "../../../services/HapticsService";
 import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling";
+import { useProfileCache } from "../../../context/ProfileCacheContext";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import GradientSafeArea from "../../../components/GradientSafeArea";
 import CollegeChip from "../../../components/CollegeChip";
@@ -654,10 +655,49 @@ const CommunityPostGridCell = React.memo(
 export default function CommunityProfileScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
-  const [profile, setProfile] = useState(null);
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [initialLoadCompleted, setInitialLoadCompleted] = useState(false);
+  const { communityProfile, communityPosts, setCommunityProfile, setCommunityPosts } = useProfileCache();
+  const [profile, setProfileState] = useState(communityProfile);
+  const [posts, setPostsState] = useState(communityPosts || []);
+  const [loading, setLoading] = useState(!communityProfile);
+
+  const setProfile = useCallback((updater) => {
+    if (typeof updater === "function") {
+      setProfileState((prev) => {
+        const next = updater(prev);
+        setCommunityProfile(next);
+        return next;
+      });
+    } else {
+      setProfileState(updater);
+      setCommunityProfile(updater);
+    }
+  }, [setCommunityProfile]);
+
+  const setPosts = useCallback((updater) => {
+    if (typeof updater === "function") {
+      setPostsState((prev) => {
+        const next = updater(prev);
+        setCommunityPosts(next);
+        return next;
+      });
+    } else {
+      setPostsState(updater);
+      setCommunityPosts(updater);
+    }
+  }, [setCommunityPosts]);
+
+  useEffect(() => {
+    if (communityProfile) {
+      setProfileState((prev) => (prev === communityProfile ? prev : communityProfile));
+    }
+  }, [communityProfile]);
+
+  useEffect(() => {
+    if (communityPosts) {
+      setPostsState((prev) => (prev === communityPosts ? prev : communityPosts));
+    }
+  }, [communityPosts]);
+  const [initialLoadCompleted, setInitialLoadCompleted] = useState(!!communityProfile);
   const [refreshing, setRefreshing] = useState(false);
   // Settings is now a Screen — no modal state needed
   const [showHeadsModal, setShowHeadsModal] = useState(false);
@@ -761,7 +801,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
   const [showCollegeHub, setShowCollegeHub] = useState(false);
   const pendingPostUpdateRef = useRef(null);
   const hasInitialLoadRef = useRef(false);
-  const initialLoadCompletedRef = useRef(false);
+  const initialLoadCompletedRef = useRef(!!communityProfile);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
   const [contactModalVisible, setContactModalVisible] = useState(false);
@@ -1286,12 +1326,12 @@ export default function CommunityProfileScreen({ navigation, route }) {
 
   const loadProfile = useCallback(async (isRefresh = false) => {
     try {
-      if (initialLoadCompletedRef.current === false) {
+      if (!communityProfile && initialLoadCompletedRef.current === false) {
         setLoading(true);
       }
       if (isRefresh) {
         setRefreshing(true);
-      } else {
+      } else if (!communityProfile) {
         setLoading(true);
         setPosts([]); // clear posts to prevent stale data
       }

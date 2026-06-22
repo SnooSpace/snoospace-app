@@ -215,6 +215,15 @@ export async function addAccount(accountData) {
     console.log("[addAccount] Setting active account to:", compositeActiveId);
     await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, compositeActiveId);
 
+    // Emit event for global handling
+    if (global.authEventEmitter) {
+      global.authEventEmitter.emit("accountSwitched", {
+        accountId: accountId,
+        email: accountData.email,
+        type: accountType,
+      });
+    }
+
     // Verify it was set correctly
     const verifyActiveId = await AsyncStorage.getItem(ACTIVE_ACCOUNT_KEY);
     console.log("[addAccount] Verified active account ID:", verifyActiveId);
@@ -326,6 +335,15 @@ export async function switchAccount(accountId) {
     // Set as active using composite key
     await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, compositeId);
     console.log("[switchAccount] Set active account ID:", compositeId);
+
+    // Emit event for global handling
+    if (global.authEventEmitter) {
+      global.authEventEmitter.emit("accountSwitched", {
+        accountId: account.id,
+        email: account.email,
+        type: account.type,
+      });
+    }
 
     // Double-check the active account after switch
     const verifyActiveAccount = await getActiveAccount();
@@ -445,6 +463,15 @@ export async function removeAccount(accountId) {
         // Use composite key for new active account
         const nextCompositeId = `${nextLoggedIn.type}_${nextLoggedIn.id}`;
         await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, nextCompositeId);
+
+        // Emit event for global handling
+        if (global.authEventEmitter) {
+          global.authEventEmitter.emit("accountSwitched", {
+            accountId: nextLoggedIn.id,
+            email: nextLoggedIn.email,
+            type: nextLoggedIn.type,
+          });
+        }
       } else if (updatedAccounts.length > 0) {
         const firstCompositeId = `${updatedAccounts[0].type}_${updatedAccounts[0].id}`;
         await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, firstCompositeId);
@@ -643,6 +670,12 @@ export async function clearAllAccounts() {
     await AsyncStorage.removeItem(ACCOUNTS_KEY);
     await AsyncStorage.removeItem(ACTIVE_ACCOUNT_KEY);
     await clearEncryptionKey();
+
+    // Emit event for global handling
+    if (global.authEventEmitter) {
+      global.authEventEmitter.emit("accountSwitched", null);
+    }
+
     return true;
   } catch (error) {
     console.error("Error clearing all accounts:", error);
@@ -781,6 +814,16 @@ export async function removeAccountAndAutoSwitch(accountId) {
           "[removeAccountAndAutoSwitch] Switched to:",
           nextLoggedIn.email,
         );
+
+        // Emit event for global handling
+        if (global.authEventEmitter) {
+          global.authEventEmitter.emit("accountSwitched", {
+            accountId: nextLoggedIn.id,
+            email: nextLoggedIn.email,
+            type: nextLoggedIn.type,
+          });
+        }
+
         return {
           removedAccount: accountToRemove,
           switchedToAccount: nextLoggedIn,

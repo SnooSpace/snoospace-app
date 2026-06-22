@@ -27,6 +27,7 @@ import {
 import NotificationBanner from "./components/NotificationBanner";
 import { useTokenRefresh } from "./hooks/useTokenRefresh";
 import { AuthStateProvider } from "./contexts/AuthStateContext";
+import { ProfileCacheProvider } from "./context/ProfileCacheContext";
 import { StatusBarManagerProvider } from "./contexts/StatusBarManager";
 import { VideoProvider } from "./context/VideoContext";
 import AnimatedSplashScreen from "./components/ui/AnimatedSplashScreen";
@@ -148,19 +149,21 @@ export default function App() {
         <KeyboardProvider>
           <StatusBarManagerProvider>
             <AuthStateProvider>
-              <NotificationsProvider>
-                <VideoProvider>
-                  <ToastProvider>
-                    <AppContent />
-                  </ToastProvider>
-                  
-                  {!isSplashAnimationComplete && (
-                    <AnimatedSplashScreen
-                      onAnimationComplete={() => setAnimationComplete(true)}
-                    />
-                  )}
-                </VideoProvider>
-              </NotificationsProvider>
+              <ProfileCacheProvider>
+                <NotificationsProvider>
+                  <VideoProvider>
+                    <ToastProvider>
+                      <AppContent />
+                    </ToastProvider>
+                    
+                    {!isSplashAnimationComplete && (
+                      <AnimatedSplashScreen
+                        onAnimationComplete={() => setAnimationComplete(true)}
+                      />
+                    )}
+                  </VideoProvider>
+                </NotificationsProvider>
+              </ProfileCacheProvider>
             </AuthStateProvider>
           </StatusBarManagerProvider>
         </KeyboardProvider>
