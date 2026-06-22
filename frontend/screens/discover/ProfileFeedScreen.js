@@ -413,9 +413,9 @@ export default function ProfileFeedScreen({ route, navigation }) {
 
   return (
     <LinearGradient
-      colors={["#abe0ff", "#e9fef7"]}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
+      colors={["#DCEFFE", "#F0F7FF", "#FFFFFF"]}
+      start={{ x: 0.5, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
       style={styles.gradientContainer}
     >
       <SafeAreaView style={styles.container} edges={EDGES}>
@@ -452,7 +452,8 @@ export default function ProfileFeedScreen({ route, navigation }) {
 
           {/* Goals Group (Positioned after the first photo) */}
           {goalBadges.length > 0 && (
-            <View style={styles.vitalsSection}>
+            <View style={styles.sparksGlassContainer}>
+              <Text style={styles.sectionLabel}>Sparks</Text>
               <View style={styles.vitalsRow}>
                 {goalBadges.map((badge, i) => {
                   const goalStyle = getGoalStyle(badge);
@@ -494,7 +495,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
 
           {/* Interests Group (Bottom of Profile) */}
           {interests.length > 0 && (
-            <View style={styles.interestsSection}>
+            <View style={styles.interestsGlassContainer}>
               <Text style={styles.sectionLabel}>Interests</Text>
               <View style={styles.interestsContainer}>
                 {interests.map((interest, i) => (
@@ -521,18 +522,17 @@ export default function ProfileFeedScreen({ route, navigation }) {
             <View style={styles.connectButtonGradientContainer}>
               {/* Frosted glass backing */}
               <LinearGradient
-                colors={["rgba(255, 255, 255, 0.45)", "rgba(255, 255, 255, 0.9)"]}
+                colors={["rgba(255, 255, 255, 0.25)", "rgba(255, 255, 255, 0.65)"]}
                 start={{ x: 0.5, y: 0 }}
                 end={{ x: 0.5, y: 1 }}
                 style={styles.connectButtonBacking}
               />
               
-              {/* Concentrated blue glow bubble in the center top */}
+              {/* Gorgeous diagonal blue glow wash across the glass button */}
               <LinearGradient
-                colors={["#0052FF", "#0088FF", "rgba(0, 136, 255, 0.45)", "transparent"]}
-                locations={[0, 0.4, 0.75, 1]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
+                colors={["rgba(0, 82, 255, 0.72)", "rgba(0, 136, 255, 0.45)", "rgba(0, 136, 255, 0.1)"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
                 style={styles.connectButtonGlowBubble}
               />
               
@@ -574,40 +574,83 @@ export default function ProfileFeedScreen({ route, navigation }) {
   }
 }
 
-const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant }) => {
+// Utility to convert hex color to rgba with opacity
+const hexToRgba = (hex, alpha) => {
+  const clean = hex.replace("#", "");
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant, seed }) => {
   const isPrompt = variant === "prompt";
   // Prompt: warm horizontal amber→magenta→cyan→blue
-  // Photo: soft vertical rose→lavender→sky (aurora, portrait-oriented)
-  const colors = isPrompt
+  // Photo: soft vertical pastel mint green→pastel yellow→soft sky blue (base aurora flow)
+  const baseColors = isPrompt
     ? ["#f59e0b", "#d150e0", "#3db4f4", "#2b3ca7"]
-    : ["#F9A8D4", "#C4B5FD", "#93C5FD"];
+    : ["#A7F3D0", "#FED7AA", "#BAE6FD", "#C4B5FD"];
   
+  // Deterministic shuffle for photo variant based on unique seed (like url)
+  const colors = useMemo(() => {
+    if (isPrompt || !seed) return baseColors;
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = seed.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const result = [...baseColors];
+    for (let i = result.length - 1; i > 0; i--) {
+      const j = Math.abs(hash + i) % (i + 1);
+      const temp = result[i];
+      result[i] = result[j];
+      result[j] = temp;
+    }
+    return result;
+  }, [isPrompt, seed]);
+
+  const locations = useMemo(() => {
+    if (isPrompt) return null;
+    return [0, 0.15, 0.65, 1]; // Uneven color boundaries
+  }, [isPrompt]);
+
   const start = isPrompt ? { x: 0, y: 1 } : { x: 0, y: 0 };
   const end = isPrompt ? { x: 1, y: 0 } : { x: 0, y: 1 };
   const shadowStyle = isPrompt ? styles.promptShadow : styles.photoShadow;
 
-  // Define toned-down, highly subtle glow colors with low opacities
-  const glowColorsLayer1 = isPrompt
-    ? ["rgba(245, 158, 11, 0.22)", "rgba(209, 80, 224, 0.22)", "rgba(61, 180, 244, 0.22)", "rgba(43, 60, 167, 0.22)"]
-    : ["rgba(249, 168, 212, 0.28)", "rgba(196, 181, 253, 0.28)", "rgba(147, 197, 253, 0.28)"];
+  // Dynamic shadow color matching the bottom of the card gradient
+  const dynamicShadowStyle = useMemo(() => {
+    if (isPrompt) return {};
+    return {
+      shadowColor: colors[colors.length - 1],
+    };
+  }, [colors, isPrompt]);
 
-  const glowColorsLayer2 = isPrompt
-    ? ["rgba(245, 158, 11, 0.11)", "rgba(209, 80, 224, 0.11)", "rgba(61, 180, 244, 0.11)", "rgba(43, 60, 167, 0.11)"]
-    : ["rgba(249, 168, 212, 0.13)", "rgba(196, 181, 253, 0.13)", "rgba(147, 197, 253, 0.13)"];
+  // Dynamically derive the layers based on the selected colors
+  const glowColorsLayer1 = useMemo(() => {
+    const alpha = isPrompt ? 0.22 : 0.28;
+    return colors.map((c) => hexToRgba(c, alpha));
+  }, [colors, isPrompt]);
 
-  const glowColorsLayer3 = isPrompt
-    ? ["rgba(245, 158, 11, 0.04)", "rgba(209, 80, 224, 0.04)", "rgba(61, 180, 244, 0.04)", "rgba(43, 60, 167, 0.04)"]
-    : ["rgba(249, 168, 212, 0.05)", "rgba(196, 181, 253, 0.05)", "rgba(147, 197, 253, 0.05)"];
+  const glowColorsLayer2 = useMemo(() => {
+    const alpha = isPrompt ? 0.11 : 0.13;
+    return colors.map((c) => hexToRgba(c, alpha));
+  }, [colors, isPrompt]);
+
+  const glowColorsLayer3 = useMemo(() => {
+    const alpha = isPrompt ? 0.04 : 0.05;
+    return colors.map((c) => hexToRgba(c, alpha));
+  }, [colors, isPrompt]);
 
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.9}
-      style={[shadowStyle, style]}
+      style={[shadowStyle, dynamicShadowStyle, style]}
     >
       {/* Glow Layer 3 (Toned-down widest spread, 12px) */}
       <LinearGradient
         colors={glowColorsLayer3}
+        locations={locations}
         start={start}
         end={end}
         style={[styles.glowHalo, { top: -12, bottom: -12, left: -12, right: -12, borderRadius: CARD_RADIUS + 12 }]}
@@ -616,6 +659,7 @@ const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant 
       {/* Glow Layer 2 (Toned-down medium spread, 7px) */}
       <LinearGradient
         colors={glowColorsLayer2}
+        locations={locations}
         start={start}
         end={end}
         style={[styles.glowHalo, { top: -7, bottom: -7, left: -7, right: -7, borderRadius: CARD_RADIUS + 7 }]}
@@ -624,6 +668,7 @@ const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant 
       {/* Glow Layer 1 (Toned-down tightest spread, 3px) */}
       <LinearGradient
         colors={glowColorsLayer1}
+        locations={locations}
         start={start}
         end={end}
         style={[styles.glowHalo, { top: -3, bottom: -3, left: -3, right: -3, borderRadius: CARD_RADIUS + 3 }]}
@@ -637,6 +682,7 @@ const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant 
       ) : (
         <LinearGradient
           colors={colors}
+          locations={locations}
           start={start}
           end={end}
           style={[styles.gradientBorder, innerStyle]}
@@ -669,6 +715,7 @@ const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns }) => (
     style={styles.photoCardContainer}
     innerStyle={{ flex: 1, height: "100%" }}
     variant="photo"
+    seed={url}
   >
     <Image
       source={{ uri: url }}
@@ -992,23 +1039,38 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 4,
   },
-  vitalsSection: {
-    marginTop: 12,
-    marginBottom: 16,
-    paddingHorizontal: 4,
+  vitalsSection: {},
+  interestsSection: {},
+  sparksGlassContainer: {
+    backgroundColor: "rgba(119, 141, 94, 0.18)", // Sage Green tinted glass (#778d5e)
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(119, 141, 94, 0.35)", // Tinted matching border
+    marginBottom: 24, // spacing between components
+    shadowColor: "#778d5e",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
   },
-  interestsSection: {
-    marginTop: 32,
-    marginBottom: 32,
-    paddingHorizontal: 4,
+  interestsGlassContainer: {
+    backgroundColor: "rgba(139, 140, 223, 0.18)", // Soft Purple tinted glass (#8b8cdf)
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(139, 140, 223, 0.35)", // Tinted matching border
+    marginBottom: 24, // spacing between components
+    shadowColor: "#8b8cdf",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
   },
   sectionLabel: {
     fontFamily: FONTS.primary, // BasicCommercial-Bold
-    fontSize: 15,
-    color: "#475569",
+    fontSize: 18, // Bigger title size
+    color: "#1e2d4a", // Premium dark contrast color
     marginBottom: 12,
-    marginLeft: 4,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
   },
   nameText: {
     fontFamily: FONTS.black, // BasicCommercial-Black only once
@@ -1044,6 +1106,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.45)",
+    alignSelf: "flex-start", // Prevents chips from stretching to 100% width
   },
   goalChip: {
     height: 36,
@@ -1108,7 +1171,7 @@ const styles = StyleSheet.create({
   photoShadow: {
     width: "100%",
     marginBottom: SPACING.l,
-    shadowColor: "#C4B5FD", // Soft lavender glow matching the aurora border
+    shadowColor: "#93C5FD", // Soft pastel sky blue glow matching the bottom of the photo card
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.45,
     shadowRadius: 18,
@@ -1247,16 +1310,16 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(255, 255, 255, 0.92)",
+    backgroundColor: "rgba(255, 255, 255, 0.94)",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.6)",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    borderWidth: 1.5,
+    borderColor: "rgba(41, 98, 255, 0.25)", // Subtle brand blue glass border core
+    shadowColor: "#2962FF", // Premium brand blue glow
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 4,
   },
 
   // Feed Items
@@ -1268,10 +1331,11 @@ const styles = StyleSheet.create({
   actionBar: {
     position: "absolute",
     bottom: 24, // Floating
-    left: SPACING.l,
-    right: SPACING.l,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 16,
   },
   skipButton: {
@@ -1286,7 +1350,7 @@ const styles = StyleSheet.create({
     ...SHADOWS.md,
   },
   connectButton: {
-    flex: 1,
+    width: 220,
     height: 56,
     borderRadius: 28,
     backgroundColor: "transparent",
@@ -1311,12 +1375,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
   },
   connectButtonGlowBubble: {
-    position: "absolute",
-    top: -24,
-    left: "22%",
-    right: "22%",
-    height: 52,
-    borderRadius: 26,
+    ...StyleSheet.absoluteFillObject,
   },
   connectButtonContent: {
     flexDirection: "row",
