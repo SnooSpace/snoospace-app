@@ -65,6 +65,7 @@ export default function SwipeableModal({
   const context = useSharedValue({ y: 0 });
 
   const panGesture = Gesture.Pan()
+    .hitSlop({ top: 0, height: 120 })
     .onStart(() => {
       context.value = { y: translateY.value };
     })
@@ -144,7 +145,7 @@ export default function SwipeableModal({
           {/* Sheet container with pan gesture */}
           <GestureDetector gesture={panGesture}>
             <Animated.View style={[styles.animatedSheet, animatedSheetStyle]}>
-              <View style={sheetStyle} onStartShouldSetResponder={() => true}>
+              <View style={sheetStyle}>
                 {children}
               </View>
             </Animated.View>

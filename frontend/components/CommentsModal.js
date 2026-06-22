@@ -18,6 +18,7 @@ import {
   Alert,
   ScrollView,
   Keyboard,
+  Dimensions,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -32,9 +33,12 @@ import EventBus from "../utils/EventBus";
 import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
 import MentionInput from "./MentionInput";
 import HapticsService from "../services/HapticsService";
+import SwipeableModal from "./modals/SwipeableModal";
 
 import { COLORS as GLOBAL_COLORS, FONTS } from "../constants/theme";
 import SnooLoader from "./ui/SnooLoader";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const COLORS = {
   ...GLOBAL_COLORS,
@@ -1075,16 +1079,150 @@ const CommentsModal = ({
 
   return (
     <>
-      <Modal
+      <SwipeableModal
         visible={visible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={onClose}
+        onClose={onClose}
+        sheetStyle={styles.modalContent}
+        useBlur={true}
+        blurIntensity={20}
+        blurTint="dark"
         statusBarTranslucent={true}
-        presentationStyle="overFullScreen"
       >
-        {content}
-      </Modal>
+        <View style={styles.handleBar} />
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Comments</Text>
+          <TouchableOpacity
+            onPress={() => {
+              HapticsService.triggerClose();
+              onClose();
+            }}
+            style={styles.closeButton}
+          >
+            <X size={24} color="#111827" strokeWidth={2} />
+          </TouchableOpacity>
+        </View>
+
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <SnooLoader size="small" color={COLORS.textSecondary} />
+          </View>
+        ) : (
+          <FlatList
+            data={flatComments}
+            keyExtractor={(item) => item.id?.toString()}
+            renderItem={renderComment}
+            initialNumToRender={8}
+            maxToRenderPerBatch={5}
+            windowSize={5}
+            removeClippedSubviews={Platform.OS === "android"}
+            updateCellsBatchingPeriod={50}
+            style={styles.commentsList}
+            contentContainerStyle={styles.commentsListContent}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No comments yet</Text>
+                <Text style={styles.emptySubtext}>Be the first to comment</Text>
+              </View>
+            }
+            keyboardShouldPersistTaps="handled"
+          />
+        )}
+
+        <KeyboardAwareToolbar style={styles.toolbarContainer}>
+          <ScrollView
+            keyboardShouldPersistTaps="always"
+            scrollEnabled={false}
+            style={styles.inputScrollView}
+            contentContainerStyle={styles.inputContainer}
+          >
+            {replyingTo && (
+              <Animated.View
+                style={[styles.replyingIndicator, animatedReplyStyle]}
+              >
+                <View style={styles.replyingContent}>
+                  <CornerUpLeft size={14} color="#9CA3AF" strokeWidth={2} />
+                  <Text style={styles.replyingText}>
+                    Replying to{" "}
+                    <Text style={styles.replyingName}>@{replyingTo.name}</Text>
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={cancelReply}
+                  style={styles.cancelReplyButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <X size={14} color="#9CA3AF" strokeWidth={2} />
+                </TouchableOpacity>
+              </Animated.View>
+            )}
+            <View style={styles.inputRow}>
+              <Image
+                source={{
+                  uri:
+                    (userProfile?.profile_photo_url &&
+                      /^https?:\/\//.test(userProfile.profile_photo_url)) ||
+                    (userProfile?.logo_url &&
+                      /^https?:\/\//.test(userProfile.logo_url))
+                      ? userProfile.profile_photo_url || userProfile.logo_url
+                      : userProfile?.name
+                        ? `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                            userProfile.name,
+                          )}&background=${
+                            userProfile?.logo_url ? "5f27cd" : "6A0DAD"
+                          }&color=FFFFFF&size=32`
+                        : `https://ui-avatars.com/api/?name=User&background=6A0DAD&color=FFFFFF&size=32`,
+                }}
+                style={styles.inputAvatar}
+              />
+              <View style={{ flex: 1 }}>
+                <MentionInput
+                  value={commentInput}
+                  onChangeText={handleCommentInputChange}
+                  onTaggedEntitiesChange={setTaggedEntities}
+                  placeholder={
+                    replyingTo
+                      ? `Reply to @${replyingTo.name}...`
+                      : "Add a comment..."
+                  }
+                  placeholderTextColor="#9CA3AF"
+                  inputStyle={{
+                    ...styles.input,
+                    maxHeight: 120, // Allow some expansion
+                    paddingTop: 10,
+                  }}
+                  inputContainerStyle={{
+                    borderWidth: 0,
+                    paddingHorizontal: 0,
+                    paddingVertical: 0,
+                  }}
+                  dropdownStyle={{
+                    top: "auto",
+                    bottom: "100%",
+                    marginTop: 0,
+                    marginBottom: 8,
+                  }}
+                />
+              </View>
+              <TouchableOpacity
+                onPressIn={replyingTo ? handleReplyComment : handlePostComment}
+                disabled={!commentInput.trim() || posting}
+                style={[
+                  styles.sendButton,
+                  (!commentInput.trim() || posting) && styles.sendButtonDisabled,
+                ]}
+              >
+                {posting ? (
+                  <SnooLoader size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Send size={20} color="#FFFFFF" strokeWidth={2.6} />
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAwareToolbar>
+      </SwipeableModal>
       {renderDeleteModal()}
     </>
   );
@@ -1117,11 +1255,20 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.3)",
   },
   modalContent: {
-    height: "95%",
     backgroundColor: COLORS.dark,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     overflow: "hidden",
+    height: SCREEN_HEIGHT * 0.9,
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#E5E5EA",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 10,
   },
   header: {
     flexDirection: "row",
