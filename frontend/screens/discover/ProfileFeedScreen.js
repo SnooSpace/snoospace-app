@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Keyboard } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Keyboard, Animated } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -63,14 +63,19 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const [eventData, setEventData] = useState(initialEvent || null);
   const [attendees, setAttendees] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const translateX = React.useRef(new Animated.Value(0)).current;
+  const opacity = React.useRef(new Animated.Value(1)).current;
   const [loading, setLoading] = useState(true);
   const [messageModalVisible, setMessageModalVisible] = useState(false);
   const [selectedContent, setSelectedContent] = useState(null);
   const [activeFilters, setActiveFilters] = useState({});
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
   const [profileGated, setProfileGated] = useState(false); // true if user's own profile is incomplete
-  const [hasSeenSkipInfo, setHasSeenSkipInfo] = useState(true);
+  const [hasSeenSkipInfo, setHasSeenSkipInfo] = useState(false);
   const [showSkipTooltip, setShowSkipTooltip] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
+  const toastY = React.useRef(new Animated.Value(-20)).current;
+  const toastOpacity = React.useRef(new Animated.Value(0)).current;
   const [profileProgress, setProfileProgress] = useState({
     photos: 0,
     sparks: 0,
@@ -233,20 +238,88 @@ export default function ProfileFeedScreen({ route, navigation }) {
     return content;
   }, [photos, openers]);
 
-  const handleNext = useCallback(() => {
-    setCurrentIndex((prev) => prev + 1);
-  }, []);
+  const handleNext = useCallback((direction = "left") => {
+    Animated.parallel([
+      Animated.timing(translateX, {
+        toValue: direction === "left" ? -width : width,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setCurrentIndex((prev) => prev + 1);
+      translateX.setValue(width); // Always slide in from right
+      opacity.setValue(0);
+
+      Animated.parallel([
+        Animated.timing(translateX, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    });
+  }, [translateX, opacity]);
 
   const handleSkip = useCallback(() => {
     HapticsService.triggerImpactLight();
-    setShowSkipTooltip(true);
-  }, []);
+    if (!hasSeenSkipInfo) {
+      setShowSkipTooltip(true);
+    } else {
+      handleNext("left");
+    }
+  }, [hasSeenSkipInfo, handleNext]);
 
   const handleConnect = useCallback(() => {
     HapticsService.triggerImpactMedium();
-    Alert.alert("Request Sent", `Connection request sent to ${name}`);
-    handleNext();
-  }, [name, handleNext]);
+    
+    // Capture the name of the attendee before moving index
+    const targetName = name;
+    setToastMessage(`Connection request sent to ${targetName}`);
+
+    // Animate toast in
+    Animated.parallel([
+      Animated.timing(toastY, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Auto-hide toast after 2.5 seconds
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(toastY, {
+          toValue: -20,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(toastOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setToastMessage("");
+      });
+    }, 2500);
+
+    handleNext("right");
+  }, [name, handleNext, toastY, toastOpacity]);
 
   const handleBack = useCallback(() => {
     navigation.goBack();
@@ -617,10 +690,11 @@ export default function ProfileFeedScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
 
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
+        <Animated.View style={{ flex: 1, transform: [{ translateX }], opacity }}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
           {/* Hero Photo with Name, Age & Gender Overlay */}
           {photos[0] && (
             <PhotoCard
@@ -709,6 +783,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
 
           <View style={styles.bottomSpacer} />
         </ScrollView>
+        </Animated.View>
 
         {/* Floating Action Bar */}
         <View style={styles.actionBar}>
@@ -964,6 +1039,26 @@ export default function ProfileFeedScreen({ route, navigation }) {
             </View>
           </View>
         </Modal>
+
+        {/* Floating Toast Notification */}
+        {!!toastMessage && (
+          <Animated.View
+            style={[
+              styles.toastContainer,
+              {
+                opacity: toastOpacity,
+                transform: [{ translateY: toastY }],
+              },
+            ]}
+          >
+            <View style={styles.toastInner}>
+              <View style={styles.toastIconBg}>
+                <Check size={14} color="#FFFFFF" strokeWidth={3} />
+              </View>
+              <Text style={styles.toastText}>{toastMessage}</Text>
+            </View>
+          </Animated.View>
+        )}
       </SafeAreaView>
     </LinearGradient>
   );
@@ -2101,5 +2196,42 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#FFFFFF",
     letterSpacing: 0.2,
+  },
+  toastContainer: {
+    position: "absolute",
+    top: 90, // Just below the header
+    left: 20,
+    right: 20,
+    alignItems: "center",
+    zIndex: 999, // Ensure it's on top of everything
+  },
+  toastInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+    gap: 10,
+  },
+  toastIconBg: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#10B981", // Growth green circle
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  toastText: {
+    fontFamily: FONTS.medium, // Manrope-Medium
+    fontSize: 14,
+    color: "#0F172A",
   },
 });
