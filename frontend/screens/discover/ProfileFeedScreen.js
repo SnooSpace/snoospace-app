@@ -14,6 +14,7 @@ import {
   Check,
   X,
   UserPlus,
+  ChevronsRight,
 } from "lucide-react-native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
@@ -23,6 +24,8 @@ import DiscoverFilterSheet from "../../components/DiscoverFilterSheet";
 import HapticsService from "../../services/HapticsService";
 import ThemeChip from "../../components/ThemeChip";
 import SnooLoader from "../../components/ui/SnooLoader";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Svg, { Path } from "react-native-svg";
 
 const { width } = Dimensions.get("window");
 const CARD_RADIUS = 24;
@@ -65,6 +68,8 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const [activeFilters, setActiveFilters] = useState({});
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
   const [profileGated, setProfileGated] = useState(false); // true if user's own profile is incomplete
+  const [hasSeenSkipInfo, setHasSeenSkipInfo] = useState(true);
+  const [showSkipTooltip, setShowSkipTooltip] = useState(false);
   const [profileProgress, setProfileProgress] = useState({
     photos: 0,
     sparks: 0,
@@ -134,6 +139,18 @@ export default function ProfileFeedScreen({ route, navigation }) {
   useEffect(() => {
     checkAndLoadAttendees();
   }, [checkAndLoadAttendees]);
+
+  useEffect(() => {
+    const checkSkipInfo = async () => {
+      try {
+        const val = await AsyncStorage.getItem("has_seen_skip_info");
+        setHasSeenSkipInfo(!!val);
+      } catch (e) {
+        console.warn(e);
+      }
+    };
+    checkSkipInfo();
+  }, []);
 
   // Reload when filters change (only if not gated)
   const loadAttendees = useCallback(async (filters = activeFilters) => {
@@ -220,6 +237,11 @@ export default function ProfileFeedScreen({ route, navigation }) {
       setCurrentIndex((prev) => prev + 1);
     else Alert.alert("All Done", "You've seen everyone.");
   }, [currentIndex, attendees.length]);
+
+  const handleSkip = useCallback(() => {
+    HapticsService.triggerImpactLight();
+    setShowSkipTooltip(true);
+  }, []);
 
   const handleConnect = useCallback(() => {
     HapticsService.triggerImpactMedium();
@@ -559,8 +581,11 @@ export default function ProfileFeedScreen({ route, navigation }) {
 
         {/* Floating Action Bar */}
         <View style={styles.actionBar}>
-          <TouchableOpacity style={styles.skipButton} onPress={handleNext} activeOpacity={0.8}>
-            <X size={22} color="#64748B" strokeWidth={2.5} />
+          <TouchableOpacity style={styles.skipButton} onPress={handleSkip} activeOpacity={0.8}>
+            <View style={styles.skipButtonGradientContainer}>
+              <Text style={styles.skipButtonText}>Skip</Text>
+              <ChevronsRight size={18} color="#64748B" strokeWidth={2.5} />
+            </View>
           </TouchableOpacity>
           <TouchableOpacity style={styles.connectButton} onPress={handleConnect} activeOpacity={0.8}>
             <View style={styles.connectButtonGradientContainer}>
@@ -683,6 +708,87 @@ export default function ProfileFeedScreen({ route, navigation }) {
                 </View>
               </View>
             </KeyboardAvoidingView>
+          </View>
+        </Modal>
+
+        {/* Custom Skipping Onboarding Modal */}
+        <Modal
+          visible={showSkipTooltip}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowSkipTooltip(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.skipInfoCard}>
+              {/* Custom Graphic Illustration */}
+              <View style={styles.skipIllustrationContainer}>
+                {/* Dotted path SVG in the background */}
+                <View style={styles.skipIllustrationSvgContainer}>
+                  <Svg width="180" height="90" viewBox="0 0 180 90">
+                    <Path
+                      d="M 45 42 C 55 10, 160 10, 162 42 C 164 70, 75 82, 58 55"
+                      fill="none"
+                      stroke="#818CF8"
+                      strokeWidth="2"
+                      strokeDasharray="4 4"
+                    />
+                  </Svg>
+                </View>
+
+                {/* Left side card (tilted) */}
+                <View style={styles.illustrationCardContainer}>
+                  <View style={styles.illustrationCard}>
+                    <LinearGradient
+                      colors={["#C7D2FE", "#818CF8"]}
+                      style={styles.illustrationCardAvatarBox}
+                    >
+                      {/* Avatar silhouette */}
+                      <View style={styles.illustrationCardAvatarHead} />
+                      <View style={styles.illustrationCardAvatarBody} />
+                    </LinearGradient>
+                    <View style={styles.illustrationCardPlaceholder} />
+                  </View>
+                </View>
+
+                {/* Right side ripple buttons */}
+                <View style={styles.illustrationRippleContainer}>
+                  <View style={styles.illustrationRippleOuter}>
+                    <View style={styles.illustrationRippleInner}>
+                      <View style={styles.illustrationButtonCircle}>
+                        <ArrowLeft size={16} color="#FFFFFF" strokeWidth={3} />
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* Bold Title */}
+              <Text style={styles.skipInfoTitle}>Skipping</Text>
+
+              {/* Centered Description */}
+              <Text style={styles.skipInfoBody}>
+                Revisit this event to view the skipped People.
+              </Text>
+
+              {/* Got It Button */}
+              <TouchableOpacity
+                style={styles.skipInfoButton}
+                activeOpacity={0.8}
+                onPress={async () => {
+                  HapticsService.triggerImpactLight();
+                  setShowSkipTooltip(false);
+                  setHasSeenSkipInfo(true);
+                  try {
+                    await AsyncStorage.setItem("has_seen_skip_info", "true");
+                  } catch (e) {
+                    console.warn(e);
+                  }
+                  handleNext();
+                }}
+              >
+                <Text style={styles.skipInfoButtonText}>Got It</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </Modal>
       </SafeAreaView>
@@ -1479,18 +1585,36 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   skipButton: {
-    width: 56,
+    width: 120,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#FFFFFF",
-    justifyContent: "center",
+    backgroundColor: "transparent",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  skipButtonGradientContainer: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 28,
+    backgroundColor: "rgba(255, 255, 255, 0.75)", // Frosted glass backing
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.85)", // Outer glass highlight border
+    flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(0, 0, 0, 0.05)",
-    ...SHADOWS.md,
+    justifyContent: "center",
+    gap: 8,
+  },
+  skipButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: "#64748B", // Slate grey text color
+    letterSpacing: 0.3,
   },
   connectButton: {
-    width: 220,
+    width: 200,
     height: 56,
     borderRadius: 28,
     backgroundColor: "transparent",
@@ -1677,5 +1801,147 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: 12,
     color: "#64748B",
+  },
+  skipInfoCard: {
+    width: 290,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 6,
+  },
+  skipIllustrationContainer: {
+    width: 180,
+    height: 90,
+    position: "relative",
+    marginBottom: 20,
+  },
+  skipIllustrationSvgContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  illustrationCardContainer: {
+    position: "absolute",
+    left: 12,
+    top: 8,
+    transform: [{ rotate: "-12deg" }],
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  illustrationCard: {
+    width: 56,
+    height: 74,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+    padding: 5,
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  illustrationCardAvatarBox: {
+    width: "100%",
+    height: 50,
+    borderRadius: 8,
+    justifyContent: "flex-end",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  illustrationCardAvatarHead: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#FFFFFF",
+    marginBottom: 2,
+  },
+  illustrationCardAvatarBody: {
+    width: 26,
+    height: 14,
+    borderTopLeftRadius: 13,
+    borderTopRightRadius: 13,
+    backgroundColor: "#FFFFFF",
+  },
+  illustrationCardPlaceholder: {
+    width: 22,
+    height: 5,
+    borderRadius: 2.5,
+    backgroundColor: "#E2E8F0",
+    marginBottom: 2,
+  },
+  illustrationRippleContainer: {
+    position: "absolute",
+    right: 15,
+    bottom: 5,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  illustrationRippleOuter: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "rgba(95, 93, 236, 0.06)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  illustrationRippleInner: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "rgba(95, 93, 236, 0.12)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  illustrationButtonCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#5F5DEC",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  skipInfoTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 22,
+    color: "#0F172A",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  skipInfoBody: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: "#64748B",
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: 24,
+    paddingHorizontal: 12,
+  },
+  skipInfoButton: {
+    width: "100%",
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#6366F1", // Indigo Skip primary CTA
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  skipInfoButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: "#FFFFFF",
   },
 });

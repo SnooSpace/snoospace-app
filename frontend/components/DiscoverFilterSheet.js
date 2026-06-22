@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   TextInput,
   Platform,
+  Dimensions,
 } from "react-native";
 import { Search, ChevronDown, ChevronUp, X } from "lucide-react-native";
 import {
@@ -20,6 +21,8 @@ import {
   INTEREST_CATEGORIES,
 } from "../screens/profile/member/EditProfileConstants";
 import RangeSlider from "./RangeSlider";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Spark Color Logic (Semantic Grouping)
 const GOAL_COLORS = {
@@ -569,7 +572,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: "85%",
+    maxHeight: SCREEN_HEIGHT * 0.85,
+    paddingBottom: Platform.OS === "ios" ? 40 : 30,
   },
   sheetHeader: {
     alignItems: "center",
@@ -609,7 +613,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   sectionTitle: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.primary,
     fontSize: 16,
     color: COLORS.textPrimary,
     marginBottom: 4,
