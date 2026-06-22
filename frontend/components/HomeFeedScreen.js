@@ -8,12 +8,12 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
-  FlatList,
   Platform,
   Easing,
   Animated as RNAnimated,
   InteractionManager,
 } from "react-native";
+import { FlashList } from "@shopify/flash-list"; // Using FlashList for smooth cell recycling
 import Animated, {
   useSharedValue,
   useAnimatedScrollHandler,
@@ -68,6 +68,8 @@ import EmptyFeedState from "./EmptyFeedState";
 import SnooLoader from "./ui/SnooLoader";
 import { LinearGradient } from "expo-linear-gradient";
 import JoinGroupChatModal from "./modals/JoinGroupChatModal";
+
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList);
 
 
 // SnooSpace Logo SVG (full wordmark)
@@ -1438,7 +1440,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         </View>
       ) : null}
 
-      <Animated.FlatList
+      <AnimatedFlashList
         ref={flatListRef}
         nestedScrollEnabled={true}
         data={loading && feedItems.length === 0 ? [1, 2, 3] : feedItems}
@@ -1457,6 +1459,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           styles.feedContent,
           { paddingTop: totalHeaderHeight },
         ]}
+        estimatedItemSize={650}
+        drawDistance={3000}
         // Progress view offset pushes the spinner down so it doesn't hide behind the header
         progressViewOffset={totalHeaderHeight}
         refreshControl={
@@ -1475,18 +1479,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         onScrollBeginDrag={onScrollBeginDrag}
         onScrollEndDrag={onScrollEndDrag}
         onMomentumScrollEnd={onMomentumScrollEnd}
-        // Video optimization: prevent aggressive unmounting of video components
-        removeClippedSubviews={Platform.OS === "android"}
-        // ── PERF: windowSize bumped 5→8 to reduce blank-flash during fast scrolls.
-        //    5 was too small for tall editorial cards — items mounted/unmounted
-        //    too aggressively, causing visible whitespace on quick flings.
-        windowSize={8}
-        maxToRenderPerBatch={5}
-        initialNumToRender={8}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
-        // Memory efficiency: update items less frequently during fast scroll
-        updateCellsBatchingPeriod={50}
         ListHeaderComponent={<HomeGreetingHeader name={greetingName} />}
         ListEmptyComponent={() =>
           !loading ? (

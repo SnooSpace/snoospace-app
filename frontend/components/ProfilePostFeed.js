@@ -5,9 +5,9 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  FlatList,
   Dimensions,
 } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
@@ -197,7 +197,7 @@ const ProfilePostFeed = ({
             <View style={{ width: 40 }} />
           </View>
 
-          <FlatList
+          <FlashList
             ref={flatListRef}
             nestedScrollEnabled={true}
             data={posts}
@@ -205,25 +205,12 @@ const ProfilePostFeed = ({
             renderItem={renderItem}
             initialScrollIndex={initialIndex !== -1 ? initialIndex : 0}
             onScrollToIndexFailed={onScrollToIndexFailed}
-            getItemLayout={(data, index) => ({
-              length: 600, // Estimated height, helps with initial scroll
-              offset: 600 * index,
-              index,
-            })}
+            estimatedItemSize={650}
+            drawDistance={2500}
             onViewableItemsChanged={onViewableItemsChanged}
             viewabilityConfig={viewabilityConfig}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
-            // Video optimization: prevent aggressive unmounting of video components
-            removeClippedSubviews={false}
-            // Increase window for better video preloading
-            // windowSize=8 means 4 screens above and 4 below are kept mounted
-            windowSize={8}
-            // Controlled render batching for smooth scrolling
-            maxToRenderPerBatch={3}
-            initialNumToRender={3}
-            // Memory efficiency: update items less frequently during fast scroll
-            updateCellsBatchingPeriod={50}
           />
 
           {/* Comments Modal */}
