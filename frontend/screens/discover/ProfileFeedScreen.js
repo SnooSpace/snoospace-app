@@ -25,7 +25,7 @@ import HapticsService from "../../services/HapticsService";
 import ThemeChip from "../../components/ThemeChip";
 import SnooLoader from "../../components/ui/SnooLoader";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import Svg, { Path } from "react-native-svg";
+import Svg, { Path, Circle, Rect, G, Defs, LinearGradient as SvgLinearGradient, Stop } from "react-native-svg";
 
 const { width } = Dimensions.get("window");
 const CARD_RADIUS = 24;
@@ -722,44 +722,79 @@ export default function ProfileFeedScreen({ route, navigation }) {
             <View style={styles.skipInfoCard}>
               {/* Custom Graphic Illustration */}
               <View style={styles.skipIllustrationContainer}>
-                {/* Dotted path SVG in the background */}
-                <View style={styles.skipIllustrationSvgContainer}>
-                  <Svg width="180" height="90" viewBox="0 0 180 90">
+                <Svg width="100%" height="100%" viewBox="50 70 300 200">
+                  <Defs>
+                    {/* Gradients and Visual Shadows */}
+                    <SvgLinearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <Stop offset="0%" stopColor="#C7D2FE" />
+                      <Stop offset="100%" stopColor="#6366F1" />
+                    </SvgLinearGradient>
+                    <SvgLinearGradient id="avatarGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <Stop offset="0%" stopColor="#E0E7FF" />
+                      <Stop offset="100%" stopColor="#4F46E5" />
+                    </SvgLinearGradient>
+                  </Defs>
+
+                  {/* Dynamic Curved Path representing "revisit / loop" motion */}
+                  <Path
+                    d="M 120 180 C 120 100, 280 100, 280 180 C 280 230, 210 240, 185 200"
+                    fill="none"
+                    stroke="url(#primaryGradient)"
+                    strokeWidth={5}
+                    strokeLinecap="round"
+                    strokeDasharray={[8, 8]}
+                  />
+                  
+                  {/* Decorative glowing orbit stars */}
+                  <Circle cx={215} cy={90} r={4} fill="#6366F1" opacity={0.6} />
+                  <Circle cx={265} cy={115} r={3} fill="#6366F1" opacity={0.4} />
+                  <Circle cx={100} cy={150} r={5} fill="#6366F1" opacity={0.5} />
+                  <Circle cx={160} cy={100} r={3} fill="#6366F1" opacity={0.3} />
+
+                  {/* Playful Skipped Card (Tilts and fades away into loop) */}
+                  <G transform="translate(65, 120) rotate(-12)">
+                    {/* Simulated Shadow */}
+                    <Rect x={2} y={6} width={80} height={110} rx={16} fill="#000000" opacity={0.08} />
+                    
+                    {/* Card shape */}
+                    <Rect width={80} height={110} rx={16} fill="#FFFFFF" stroke="#F1F5F9" strokeWidth={1.5} />
+                    {/* Inner Avatar Placeholder */}
+                    <Rect x={8} y={8} width={64} height={74} rx={10} fill="url(#avatarGrad)" opacity={0.8} />
+                    {/* Cute face silhouette */}
+                    <Circle cx={40} cy={40} r={14} fill="#FFFFFF" opacity={0.85} />
+                    <Path d="M18,72 C18,58 28,56 40,56 C52,56 62,58 62,72" fill="#FFFFFF" opacity={0.85} />
+                    {/* Heart icon overlay placeholder */}
+                    <Rect x={25} y={90} width={30} height={8} rx={4} fill="#6366F1" opacity={0.15} />
+                  </G>
+
+                  {/* Dynamic Destination Arrow representing history box/revisit */}
+                  <G transform="translate(160, 185)">
+                    {/* Base glow ring */}
+                    <Circle cx={35} cy={35} r={35} fill="url(#primaryGradient)" opacity={0.15} />
+                    <Circle cx={35} cy={35} r={25} fill="url(#primaryGradient)" opacity={0.3} />
+                    <Circle cx={35} cy={35} r={16} fill="#6366F1" />
+                    
+                    {/* Beautiful Arrow shape */}
                     <Path
-                      d="M 45 42 C 55 10, 160 10, 162 42 C 164 70, 75 82, 58 55"
-                      fill="none"
-                      stroke="#818CF8"
-                      strokeWidth="2"
-                      strokeDasharray="4 4"
+                      d="M 31 35 L 35 31 M 31 35 L 35 39 M 31 35 L 41 35"
+                      stroke="white"
+                      strokeWidth={3}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     />
-                  </Svg>
-                </View>
+                  </G>
 
-                {/* Left side card (tilted) */}
-                <View style={styles.illustrationCardContainer}>
-                  <View style={styles.illustrationCard}>
-                    <LinearGradient
-                      colors={["#C7D2FE", "#818CF8"]}
-                      style={styles.illustrationCardAvatarBox}
-                    >
-                      {/* Avatar silhouette */}
-                      <View style={styles.illustrationCardAvatarHead} />
-                      <View style={styles.illustrationCardAvatarBody} />
-                    </LinearGradient>
-                    <View style={styles.illustrationCardPlaceholder} />
-                  </View>
-                </View>
-
-                {/* Right side ripple buttons */}
-                <View style={styles.illustrationRippleContainer}>
-                  <View style={styles.illustrationRippleOuter}>
-                    <View style={styles.illustrationRippleInner}>
-                      <View style={styles.illustrationButtonCircle}>
-                        <ArrowLeft size={16} color="#FFFFFF" strokeWidth={3} />
-                      </View>
-                    </View>
-                  </View>
-                </View>
+                  {/* Dotted connections looping back */}
+                  <Path
+                    d="M 195 220 Q 155 240, 130 200"
+                    fill="none"
+                    stroke="#6366F1"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeDasharray={[3, 3]}
+                    opacity={0.5}
+                  />
+                </Svg>
               </View>
 
               {/* Bold Title */}
@@ -770,10 +805,10 @@ export default function ProfileFeedScreen({ route, navigation }) {
                 Revisit this event to view the skipped People.
               </Text>
 
-              {/* Got It Button */}
+              {/* Got It Button with Gradient */}
               <TouchableOpacity
-                style={styles.skipInfoButton}
-                activeOpacity={0.8}
+                style={styles.skipInfoButtonContainer}
+                activeOpacity={0.85}
                 onPress={async () => {
                   HapticsService.triggerImpactLight();
                   setShowSkipTooltip(false);
@@ -786,7 +821,14 @@ export default function ProfileFeedScreen({ route, navigation }) {
                   handleNext();
                 }}
               >
-                <Text style={styles.skipInfoButtonText}>Got It</Text>
+                <LinearGradient
+                  colors={["#818CF8", "#6366F1"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.skipInfoButtonGradient}
+                >
+                  <Text style={styles.skipInfoButtonText}>Got It</Text>
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           </View>
@@ -1803,119 +1845,31 @@ const styles = StyleSheet.create({
     color: "#64748B",
   },
   skipInfoCard: {
-    width: 290,
+    width: 320,
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
+    borderRadius: 32, // Matches rx="32" from the reference HTML!
     paddingVertical: 32,
     paddingHorizontal: 24,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 8,
   },
   skipIllustrationContainer: {
-    width: 180,
-    height: 90,
+    width: 270,
+    height: 180,
     position: "relative",
-    marginBottom: 20,
-  },
-  skipIllustrationSvgContainer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  illustrationCardContainer: {
-    position: "absolute",
-    left: 12,
-    top: 8,
-    transform: [{ rotate: "-12deg" }],
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-  illustrationCard: {
-    width: 56,
-    height: 74,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
-    padding: 5,
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  illustrationCardAvatarBox: {
-    width: "100%",
-    height: 50,
-    borderRadius: 8,
-    justifyContent: "flex-end",
-    alignItems: "center",
-    overflow: "hidden",
-  },
-  illustrationCardAvatarHead: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "#FFFFFF",
-    marginBottom: 2,
-  },
-  illustrationCardAvatarBody: {
-    width: 26,
-    height: 14,
-    borderTopLeftRadius: 13,
-    borderTopRightRadius: 13,
-    backgroundColor: "#FFFFFF",
-  },
-  illustrationCardPlaceholder: {
-    width: 22,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: "#E2E8F0",
-    marginBottom: 2,
-  },
-  illustrationRippleContainer: {
-    position: "absolute",
-    right: 15,
-    bottom: 5,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  illustrationRippleOuter: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "rgba(95, 93, 236, 0.06)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  illustrationRippleInner: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "rgba(95, 93, 236, 0.12)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  illustrationButtonCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#5F5DEC",
-    justifyContent: "center",
-    alignItems: "center",
+    marginBottom: 24,
   },
   skipInfoTitle: {
     fontFamily: FONTS.primary, // BasicCommercial-Bold
-    fontSize: 22,
+    fontSize: 24,
     color: "#0F172A",
     marginBottom: 10,
     textAlign: "center",
+    letterSpacing: -0.5,
   },
   skipInfoBody: {
     fontFamily: FONTS.regular,
@@ -1926,22 +1880,27 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     paddingHorizontal: 12,
   },
-  skipInfoButton: {
+  skipInfoButtonContainer: {
     width: "100%",
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#6366F1", // Indigo Skip primary CTA
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  skipInfoButtonGradient: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#6366F1",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 2,
   },
   skipInfoButtonText: {
     fontFamily: FONTS.semiBold,
-    fontSize: 15,
+    fontSize: 16,
     color: "#FFFFFF",
+    letterSpacing: 0.2,
   },
 });
