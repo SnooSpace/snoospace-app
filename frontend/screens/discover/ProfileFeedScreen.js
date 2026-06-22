@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Keyboard } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -239,6 +239,36 @@ export default function ProfileFeedScreen({ route, navigation }) {
     setFilterSheetVisible(false);
   }, []);
 
+  const [messageText, setMessageText] = useState("");
+
+  const handleOpenCommentModal = useCallback((content) => {
+    HapticsService.triggerImpactLight();
+    setSelectedContent(content);
+    setMessageModalVisible(true);
+  }, []);
+
+  const handleSendIcebreaker = useCallback(() => {
+    if (!messageText.trim()) {
+      Alert.alert("Empty Message", "Please type a message before sending.");
+      return;
+    }
+    HapticsService.triggerImpactMedium();
+    setMessageModalVisible(false);
+    setMessageText("");
+    Alert.alert(
+      "Message Sent!",
+      `Your icebreaker has been sent to ${name} along with a connection request.`,
+      [
+        {
+          text: "OK",
+          onPress: () => {
+            handleNext();
+          }
+        }
+      ]
+    );
+  }, [name, messageText, handleNext]);
+
   try {
     if (loading) {
       return (
@@ -447,6 +477,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
               age={age}
               gender={gender}
               pronouns={pronouns}
+              onCommentPress={() => handleOpenCommentModal({ type: "photo", url: photos[0].url })}
             />
           )}
 
@@ -458,13 +489,15 @@ export default function ProfileFeedScreen({ route, navigation }) {
                 {goalBadges.map((badge, i) => {
                   const goalStyle = getGoalStyle(badge);
                   return (
-                    <View
+                    <TouchableOpacity
                       key={`goal-${i}`}
                       style={[
                         styles.chip,
                         styles.goalChip,
                         { backgroundColor: goalStyle.bg },
                       ]}
+                      onPress={() => handleOpenCommentModal({ type: "spark", label: badge })}
+                      activeOpacity={0.8}
                     >
                       <Text
                         style={[
@@ -475,7 +508,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
                       >
                         {badge}
                       </Text>
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
@@ -486,9 +519,15 @@ export default function ProfileFeedScreen({ route, navigation }) {
           {interleavedContent.map((item, i) => (
             <View key={i} style={styles.feedItem}>
               {item.type === "prompt" ? (
-                <PromptCard item={item} />
+                <PromptCard
+                  item={item}
+                  onCommentPress={() => handleOpenCommentModal({ type: "prompt", prompt: item.data.prompt, response: item.data.response })}
+                />
               ) : (
-                <PhotoCard url={item.data.url} />
+                <PhotoCard
+                  url={item.data.url}
+                  onCommentPress={() => handleOpenCommentModal({ type: "photo", url: item.data.url })}
+                />
               )}
             </View>
           ))}
@@ -499,12 +538,17 @@ export default function ProfileFeedScreen({ route, navigation }) {
               <Text style={styles.sectionLabel}>Interests</Text>
               <View style={styles.interestsContainer}>
                 {interests.map((interest, i) => (
-                  <ThemeChip
+                  <TouchableOpacity
                     key={`int-${i}`}
-                    label={interest}
-                    index={i}
-                    style={styles.interestChipOverride}
-                  />
+                    onPress={() => handleOpenCommentModal({ type: "interest", label: interest })}
+                    activeOpacity={0.8}
+                  >
+                    <ThemeChip
+                      label={interest}
+                      index={i}
+                      style={styles.interestChipOverride}
+                    />
+                  </TouchableOpacity>
                 ))}
               </View>
             </View>
@@ -553,6 +597,94 @@ export default function ProfileFeedScreen({ route, navigation }) {
             initialFilters={activeFilters}
           />
         )}
+
+        {/* Comment/Message Icebreaker Modal */}
+        <Modal
+          visible={messageModalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setMessageModalVisible(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <TouchableOpacity 
+              style={StyleSheet.absoluteFillObject} 
+              activeOpacity={1} 
+              onPress={() => {
+                Keyboard.dismiss();
+                setMessageModalVisible(false);
+              }}
+            />
+            <KeyboardAvoidingView 
+              behavior={Platform.OS === "ios" ? "padding" : "height"} 
+              style={styles.modalContainer}
+            >
+              <View style={styles.modalContentCard}>
+                <Text style={styles.modalTitle}>Send a message to {name}</Text>
+                
+                {selectedContent?.type === "prompt" ? (
+                  <View style={styles.modalPromptPreview}>
+                    <Text style={styles.modalPromptLabel}>{selectedContent.prompt}</Text>
+                    <Text style={styles.modalPromptAnswer} numberOfLines={2}>{selectedContent.response}</Text>
+                  </View>
+                ) : selectedContent?.type === "photo" ? (
+                  <View style={styles.modalPhotoPreviewContainer}>
+                    <Image source={{ uri: selectedContent.url }} style={styles.modalPhotoPreview} />
+                    <Text style={styles.modalPhotoPreviewText}>Commenting on their photo</Text>
+                  </View>
+                ) : selectedContent?.type === "spark" ? (
+                  <View style={styles.modalChipPreviewContainer}>
+                    <Text style={styles.modalChipPreviewLabel}>Commenting on spark:</Text>
+                    <View style={[styles.chip, styles.goalChip, { backgroundColor: getGoalStyle(selectedContent.label).bg, borderStyle: "solid" }]}>
+                      <Text style={[styles.chipText, styles.goalChipText, { color: getGoalStyle(selectedContent.label).text }]}>
+                        {selectedContent.label}
+                      </Text>
+                    </View>
+                  </View>
+                ) : selectedContent?.type === "interest" ? (
+                  <View style={styles.modalChipPreviewContainer}>
+                    <Text style={styles.modalChipPreviewLabel}>Commenting on interest:</Text>
+                    <ThemeChip
+                      label={selectedContent.label}
+                      style={{ alignSelf: "flex-start" }}
+                    />
+                  </View>
+                ) : null}
+
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Type an icebreaker..."
+                  placeholderTextColor="#64748B"
+                  multiline={true}
+                  numberOfLines={4}
+                  value={messageText}
+                  onChangeText={setMessageText}
+                  autoFocus={true}
+                />
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity 
+                    style={styles.modalCancelButton} 
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setMessageModalVisible(false);
+                    }}
+                  >
+                    <Text style={styles.modalCancelButtonText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.modalSendButton} 
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      handleSendIcebreaker();
+                    }}
+                  >
+                    <Text style={styles.modalSendButtonText}>Send</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+        </Modal>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -697,21 +829,25 @@ const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant,
 });
 
 
-const PromptCard = React.memo(({ item }) => (
-  <ContentCard onPress={() => {}} style={styles.promptCardContainer} variant="prompt">
+const PromptCard = React.memo(({ item, onCommentPress }) => (
+  <ContentCard onPress={onCommentPress} style={styles.promptCardContainer} variant="prompt">
     <View style={styles.promptContent}>
       <Text style={styles.promptLabel}>{item.data.prompt}</Text>
       <Text style={styles.promptAnswer}>{item.data.response}</Text>
     </View>
-    <View style={styles.actionIconBubble}>
+    <TouchableOpacity 
+      style={styles.actionIconBubble}
+      onPress={onCommentPress}
+      activeOpacity={0.8}
+    >
       <MessageCircle size={20} color={COLORS.primary} strokeWidth={2} />
-    </View>
+    </TouchableOpacity>
   </ContentCard>
 ));
 
-const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns }) => (
+const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, onCommentPress }) => (
   <ContentCard
-    onPress={() => {}}
+    onPress={onCommentPress}
     style={styles.photoCardContainer}
     innerStyle={{ flex: 1, height: "100%" }}
     variant="photo"
@@ -751,9 +887,13 @@ const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns }) => (
         </View>
       </View>
     ) : null}
-    <View style={styles.actionIconBubble}>
+    <TouchableOpacity 
+      style={styles.actionIconBubble}
+      onPress={onCommentPress}
+      activeOpacity={0.8}
+    >
       <MessageCircle size={20} color={COLORS.primary} strokeWidth={2} />
-    </View>
+    </TouchableOpacity>
   </ContentCard>
 ));
 
@@ -1402,5 +1542,140 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 120,
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(15, 23, 42, 0.45)", // Smooth dark backdrop wash
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    width: "100%",
+    paddingHorizontal: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContentCard: {
+    width: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 20,
+    color: "#0F172A",
+    marginBottom: 16,
+    letterSpacing: -0.4,
+  },
+  modalPromptPreview: {
+    backgroundColor: "rgba(241, 245, 249, 0.6)",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 20,
+  },
+  modalPromptLabel: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: "#64748B",
+    marginBottom: 4,
+  },
+  modalPromptAnswer: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: "#0F172A",
+  },
+  modalPhotoPreviewContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "rgba(241, 245, 249, 0.6)",
+    borderRadius: 14,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 20,
+  },
+  modalPhotoPreview: {
+    width: 48,
+    height: 48,
+    borderRadius: 8,
+    backgroundColor: "#E2E8F0",
+  },
+  modalPhotoPreviewText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: "#334155",
+  },
+  modalInput: {
+    width: "100%",
+    height: 100,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+    color: "#0F172A",
+    textAlignVertical: "top",
+    marginBottom: 20,
+  },
+  modalActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 12,
+  },
+  modalCancelButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  modalCancelButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: "#64748B",
+  },
+  modalSendButton: {
+    backgroundColor: "#2962FF",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: "#2962FF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  modalSendButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: "#FFFFFF",
+  },
+  modalChipPreviewContainer: {
+    gap: 8,
+    backgroundColor: "rgba(241, 245, 249, 0.6)",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 20,
+    alignItems: "flex-start",
+  },
+  modalChipPreviewLabel: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: "#64748B",
   },
 });
