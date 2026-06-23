@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -21,7 +21,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
-import { Camera, Info, X, Video, Trophy, AlertTriangle } from "lucide-react-native";
+import { Camera, Info, X, Video, Trophy, TriangleAlert } from "lucide-react-native";
 import { apiPost } from "../api/client";
 import ImageUploader from "./ImageUploader";
 import MentionInput from "./MentionInput";
@@ -592,7 +592,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
       onClose={() => setShowRemoveMediaModal(false)}
       title="Remove Media?"
       message="Switching post types will remove your attached media. Continue?"
-      icon={AlertTriangle}
+      icon={TriangleAlert}
       iconColor="#FF3B30"
       primaryAction={{
         text: "Remove & Switch",
@@ -700,7 +700,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
       onClose={() => setShowDiscardModal(false)}
       title="Discard Post"
       message="Are you sure you want to discard this post? All your progress will be lost."
-      icon={AlertTriangle}
+      icon={TriangleAlert}
       iconColor="#FF3B30"
       primaryAction={{
         text: "Discard",
@@ -725,7 +725,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
       onClose={() => setConflictModal((prev) => ({ ...prev, visible: false }))}
       title={conflictModal.title}
       message={conflictModal.message}
-      icon={AlertTriangle}
+      icon={TriangleAlert}
       iconColor="#F59E0B"
       primaryAction={{
         text: "Continue",

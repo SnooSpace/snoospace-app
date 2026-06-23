@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+﻿import React, { useState, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -14,7 +14,7 @@ import {
   ArrowLeft,
   ChevronRight,
   Info,
-  CheckCircle,
+  CircleCheck,
   Lightbulb,
   Rocket,
   Calendar,
@@ -281,7 +281,7 @@ export default function OpenerSelectionScreen({ navigation, route }) {
             </View>
             <View style={styles.guidanceList}>
               <View style={styles.guidanceItem}>
-                <CheckCircle
+                <CircleCheck
                   size={18}
                   color="#D1D5DB"
                   strokeWidth={2}
@@ -290,7 +290,7 @@ export default function OpenerSelectionScreen({ navigation, route }) {
                 <Text style={styles.guidanceText}>Specific and personal</Text>
               </View>
               <View style={styles.guidanceItem}>
-                <CheckCircle
+                <CircleCheck
                   size={18}
                   color="#D1D5DB"
                   strokeWidth={2}
@@ -299,7 +299,7 @@ export default function OpenerSelectionScreen({ navigation, route }) {
                 <Text style={styles.guidanceText}>Easy to respond to</Text>
               </View>
               <View style={styles.guidanceItem}>
-                <CheckCircle
+                <CircleCheck
                   size={18}
                   color="#D1D5DB"
                   strokeWidth={2}

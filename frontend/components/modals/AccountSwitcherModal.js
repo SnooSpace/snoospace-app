@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import {
   Pressable as GHPressable,
 } from "react-native-gesture-handler";
 import { BlurView } from "expo-blur";
-import { CheckCircle2, XCircle, PlusCircle } from "lucide-react-native";
+import { CheckCircle2, CircleX, PlusCircle } from "lucide-react-native";
 import PropTypes from "prop-types";
 import { getAllAccounts, switchAccount, validateToken } from "../../api/auth";
 import * as accountManager from "../../utils/accountManager";
@@ -367,7 +367,7 @@ export default function AccountSwitcherModal({
             ]}
             onPress={() => handleRemoveAccount(item)}
           >
-            <XCircle size={20} color="#FF3B30" />
+            <CircleX size={20} color="#FF3B30" />
           </GHPressable>
         )}
       </View>

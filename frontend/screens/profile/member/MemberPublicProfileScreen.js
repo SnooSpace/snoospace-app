@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -13,7 +13,7 @@ import SwipeableModal from "../../../components/modals/SwipeableModal";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { Image as ExpoImage } from "expo-image";
-import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, AlertTriangle, CheckCircle, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock } from "lucide-react-native";
+import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, TriangleAlert, CircleCheck, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import {
   getPublicMemberProfile,
@@ -329,7 +329,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               showAlert({
                 title: "Blocked",
                 message: `${recipientName} has been blocked.`,
-                icon: CheckCircle,
+                icon: CircleCheck,
                 iconColor: "#34C759",
                 primaryAction: {
                   text: "OK",
@@ -344,7 +344,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 title: "Error",
                 message: err?.message || "Failed to block user. Please try again.",
                 primaryAction: { text: "OK", onPress: hideAlert },
-                icon: AlertTriangle,
+                icon: TriangleAlert,
                 iconColor: "#E53935",
               });
             } finally {
@@ -367,7 +367,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         title: "Error",
         message: err?.message || "Failed to unblock. Please try again.",
         primaryAction: { text: "OK", onPress: hideAlert },
-        icon: AlertTriangle,
+        icon: TriangleAlert,
         iconColor: "#E53935",
       });
     } finally {
@@ -411,6 +411,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       setCreatorFollowerCount(p?.creator_follower_count || 0);
       setYouHaveBlocked(!!p?.you_have_blocked);
     } catch (e) {
+      console.error('[MemberPublicProfile] loadProfile error:', e?.status, e?.message, e?.data);
       if (e?.status === 403 && e?.data?.error === 'user_unavailable') {
         setBlocked(true);
       } else {

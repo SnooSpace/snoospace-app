@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+﻿import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, Alert, KeyboardAvoidingView, Platform,
@@ -6,7 +6,7 @@ import {
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { ArrowLeft, Search, X, Check, Users, AlertTriangle } from "lucide-react-native";
+import { ArrowLeft, Search, X, Check, Users, TriangleAlert } from "lucide-react-native";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import { searchAccounts } from "../../api/search";
 import { createGroupConversation } from "../../api/messages";
@@ -167,7 +167,7 @@ export default function CreateGroupScreen({ navigation }) {
 
   const handleCreate = async () => {
     if (!groupName.trim()) {
-      showAlert({ title: "Name required", message: "Please give your group a name.", primaryAction: { text: "OK", onPress: hideAlert }, icon: AlertTriangle });
+      showAlert({ title: "Name required", message: "Please give your group a name.", primaryAction: { text: "OK", onPress: hideAlert }, icon: TriangleAlert });
       return;
     }
     if (selected.length < 2) {
@@ -186,7 +186,7 @@ export default function CreateGroupScreen({ navigation }) {
         groupName: groupName.trim(),
       });
     } catch (err) {
-      showAlert({ title: "Error", message: err?.message || "Failed to create group chat.", primaryAction: { text: "OK", onPress: hideAlert }, icon: AlertTriangle });
+      showAlert({ title: "Error", message: err?.message || "Failed to create group chat.", primaryAction: { text: "OK", onPress: hideAlert }, icon: TriangleAlert });
     } finally {
       setCreating(false);
     }

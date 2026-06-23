@@ -1,4 +1,4 @@
-import { useFocusEffect } from "@react-navigation/native";
+﻿import { useFocusEffect } from "@react-navigation/native";
 /**
  * ChallengeSubmitScreen
  * Allows users to submit proof for a challenge (image or video)
@@ -36,8 +36,8 @@ import {
   Camera,
   Video,
   Circle,
-  CheckCircle,
-  XCircle,
+  CircleCheck,
+  CircleX,
   Layers,
   Clock,
   FileText,
@@ -627,13 +627,13 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
             {submissionStatus && (
               <View style={styles.guidelineRow}>
                 {canSubmitMore ? (
-                  <CheckCircle
+                  <CircleCheck
                     size={16}
                     color="#22C55E"
                     strokeWidth={2}
                   />
                 ) : (
-                  <XCircle size={16} color="#EF4444" strokeWidth={2} />
+                  <CircleX size={16} color="#EF4444" strokeWidth={2} />
                 )}
                 <Text
                   style={[
@@ -716,19 +716,19 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
               <BlurView intensity={30} tint="light" style={styles.tipsSection}>
                 <Text style={styles.tipsTitle}>Tips for a great submission:</Text>
                 <View style={styles.tipRow}>
-                  <CheckCircle size={16} color="#22C55E" strokeWidth={2} />
+                  <CircleCheck size={16} color="#22C55E" strokeWidth={2} />
                   <Text style={styles.tipText}>Show clear proof of completion</Text>
                 </View>
                 {submissionType !== "text" && (
                   <View style={styles.tipRow}>
-                    <CheckCircle size={16} color="#22C55E" strokeWidth={2} />
+                    <CircleCheck size={16} color="#22C55E" strokeWidth={2} />
                     <Text style={styles.tipText}>
                       Add a description to give context
                     </Text>
                   </View>
                 )}
                 <View style={styles.tipRow}>
-                  <CheckCircle size={16} color="#22C55E" strokeWidth={2} />
+                  <CircleCheck size={16} color="#22C55E" strokeWidth={2} />
                   <Text style={styles.tipText}>
                     {submissionType === "video"
                       ? "Keep it under 60 seconds"

@@ -21,8 +21,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import {
-  Sparkles, Handshake, Users, BarChart2,
-  ChevronRight, Shield, CheckCircle,
+  Sparkles, Handshake, Users, ChartNoAxesColumn,
+  ChevronRight, Shield, CircleCheck,
 } from "lucide-react-native";
 import { FONTS } from "../../constants/theme";
 import { updateConsent } from "../../api/privacy";
@@ -65,7 +65,7 @@ const PEOPLE_CARDS = [
 
 const COMMUNITY_EXTRA_CARD = {
   id: "eventAudience",
-  icon: BarChart2, iconColor: "#F59E0B", iconBg: "rgba(245,158,11,0.15)",
+  icon: ChartNoAxesColumn, iconColor: "#F59E0B", iconBg: "rgba(245,158,11,0.15)",
   title: "Event Audience Intelligence",
   subtitle: "Let brands see your event audience quality",
   description:
@@ -215,7 +215,7 @@ const ConsentScreen = ({ navigation, route }) => {
               <Text style={styles.sponsorCardTitle}>By using SnooSpace's audience intelligence tools you agree to:</Text>
               {SPONSOR_BULLETS.map((bullet, i) => (
                 <View key={i} style={styles.bulletRow}>
-                  <CheckCircle size={16} color="#A78BFA" strokeWidth={2} style={{ flexShrink: 0 }} />
+                  <CircleCheck size={16} color="#A78BFA" strokeWidth={2} style={{ flexShrink: 0 }} />
                   <Text style={styles.bulletText}>{bullet}</Text>
                 </View>
               ))}

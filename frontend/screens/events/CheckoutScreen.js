@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CheckoutScreen - Review booking and confirm
  * Shows order summary, timer, promo codes, and confirmation
  *
@@ -32,8 +32,8 @@ import {
   Hourglass,
   Tag,
   QrCode,
-  CheckCircle,
-  AlertTriangle,
+  CircleCheck,
+  TriangleAlert,
   ChevronRight,
   Info,
 } from "lucide-react-native";
@@ -611,7 +611,7 @@ export default function CheckoutScreen({ route, navigation }) {
 
             {appliedDiscount && (
               <View style={styles.appliedPromo}>
-                <CheckCircle size={14} color={SUCCESS_COLOR} strokeWidth={2.5} />
+                <CircleCheck size={14} color={SUCCESS_COLOR} strokeWidth={2.5} />
                 <Text style={styles.appliedPromoText}>
                   Code "{appliedDiscount.code}" applied:
                   {appliedDiscount.discount_type === "percentage"

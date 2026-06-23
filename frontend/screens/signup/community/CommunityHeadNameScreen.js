@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CommunityHeadNameScreen.js
  *
  * Combined head name + profile photo screen for Organization and Individual
@@ -36,7 +36,7 @@ import Animated, {
   withSpring,
   withSequence,
 } from "react-native-reanimated";
-import { XCircle, PlusCircle, Camera, Link, User, X, ChevronRight } from "lucide-react-native";
+import { CircleX, PlusCircle, Camera, Link, User, X, ChevronRight } from "lucide-react-native";
 import { apiGet } from "../../../api/client";
 import { getAuthToken } from "../../../api/auth";
 import { LinearGradient } from "expo-linear-gradient";
@@ -114,7 +114,7 @@ const HeadEntry = ({
         </Text>
         {showRemove && (
           <TouchableOpacity onPress={onRemove} style={styles.removeButton}>
-            <XCircle size={22} color={COLORS.error} />
+            <CircleX size={22} color={COLORS.error} />
           </TouchableOpacity>
         )}
       </View>

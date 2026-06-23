@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import {
   Modal,
   View,
@@ -21,7 +21,7 @@ import {
   Bell,
   ChevronRight,
   Shield,
-  HelpCircle,
+  CircleQuestionMark,
   Smartphone,
   UserPlus,
   LogOut,
@@ -146,7 +146,7 @@ export default function SettingsModal({
                   style={styles.settingsOption}
                   onPress={() => handleAction(onHelpPress)}
                 >
-                  <HelpCircle size={24} color={textColor} />
+                  <CircleQuestionMark size={24} color={textColor} />
                   <Text
                     style={[styles.settingsOptionText, { color: textColor }]}
                   >

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
   Tags,
-  XCircle,
+  CircleX,
   AlertCircle,
   CheckCircle2,
   ChevronDown,

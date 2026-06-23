@@ -331,7 +331,7 @@ const PromptRepliesScreen = ({ route, navigation }) => {
 
   const handleUserPress = (userId, userType) => {
     if (userType === "member") {
-      navigation.navigate("MemberPublicProfile", { userId });
+      navigation.navigate("MemberPublicProfile", { memberId: userId });
     } else if (userType === "community") {
       navigation.navigate("CommunityPublicProfile", { communityId: userId });
     }

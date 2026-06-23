@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CancelSignupModal.js
  *
  * Confirmation modal when user wants to cancel creating a new account.
@@ -14,7 +14,7 @@ import {
   StyleSheet,
   Dimensions,
 } from "react-native";
-import { AlertTriangle } from "lucide-react-native";
+import { TriangleAlert } from "lucide-react-native";
 import { COLORS, BORDER_RADIUS, FONTS, SHADOWS } from "../../constants/theme";
 
 const { width } = Dimensions.get("window");
@@ -38,7 +38,7 @@ export default function CancelSignupModal({
         <View style={styles.modalContainer}>
           {/* Icon */}
           <View style={styles.iconContainer}>
-            <AlertTriangle size={32} color="#FF9500" strokeWidth={2} />
+            <TriangleAlert size={32} color="#FF9500" strokeWidth={2} />
           </View>
 
           {/* Title */}

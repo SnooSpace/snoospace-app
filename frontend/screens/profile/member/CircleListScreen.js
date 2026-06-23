@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+﻿import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, FlatList, TextInput,
@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { Pressable as GHPressable, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Search, Users, Bell, X, UserMinus, AlertTriangle, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, Search, Users, Bell, X, UserMinus, TriangleAlert, CircleCheck } from 'lucide-react-native';
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, FadeInDown } from 'react-native-reanimated';
 import { COLORS, FONTS, BORDER_RADIUS, SPACING } from '../../../constants/theme';
 import { getCircleMembers, removeFromCircle, getIncomingCircleRequestCount, getPublicCircleMembers } from '../../../api/members';
@@ -175,7 +175,7 @@ export default function CircleListScreen({ route, navigation }) {
             showAlert({
               title: 'Error',
               message: err?.message || 'Failed to remove. Please try again.',
-              icon: AlertTriangle,
+              icon: TriangleAlert,
               iconColor: '#E53935',
               primaryAction: { text: 'OK', onPress: hideAlert },
             });

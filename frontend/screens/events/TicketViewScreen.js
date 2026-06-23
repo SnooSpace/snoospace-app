@@ -1,4 +1,4 @@
-/**
+﻿/**
  * TicketViewScreen - Display user's event ticket with QR code
  * Shows: QR code for entry, event details, ticket breakdown
  */
@@ -15,7 +15,7 @@ import {
   ChevronRight,
   Clock,
   AlertCircle,
-  AlertTriangle,
+  TriangleAlert,
 } from "lucide-react-native";
 import QRCode from "react-native-qrcode-svg";
 import { LinearGradient } from "expo-linear-gradient";
@@ -260,7 +260,7 @@ export default function TicketViewScreen({ route, navigation }) {
           {/* Revoked Banner */}
           {isRevoked && ticket?.revokedReason && (
             <View style={styles.revokedBanner}>
-              <AlertTriangle size={18} color={ERROR_COLOR} strokeWidth={2} />
+              <TriangleAlert size={18} color={ERROR_COLOR} strokeWidth={2} />
               <Text style={styles.revokedText}>{ticket.revokedReason}</Text>
             </View>
           )}

@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useState,
   useEffect,
   useCallback,
@@ -39,7 +39,7 @@ import {
   Hourglass,
   PieChart,
   Lightbulb,
-  AlertTriangle,
+  TriangleAlert,
   ChevronRight,
   ChevronLeft,
   ArrowLeft,
@@ -48,13 +48,13 @@ import {
   Settings,
   Layers,
   CircleDollarSign,
-  HelpCircle,
+  CircleQuestionMark,
   Eye,
   FileCheck,
   Award,
   Coins,
   ArrowRight,
-  CheckCircle,
+  CircleCheck,
   Clock,
   Calendar,
   FileText,
@@ -2416,7 +2416,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         <View style={styles.sectionHeaderNew}>
           <View style={styles.sectionHeaderTitleRow}>
             <View style={styles.sectionHeaderIconContainer}>
-              <HelpCircle size={22} color={MODAL_TOKENS.primary} strokeWidth={2} />
+              <CircleQuestionMark size={22} color={MODAL_TOKENS.primary} strokeWidth={2} />
             </View>
             <Text style={styles.sectionHeaderTitle}>Application Questions</Text>
           </View>
@@ -2633,7 +2633,7 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         <View style={styles.sectionHeaderNew}>
           <View style={styles.sectionHeaderTitleRow}>
             <View style={styles.sectionHeaderIconContainer}>
-              <CheckCircle size={22} color={MODAL_TOKENS.primary} strokeWidth={2} />
+              <CircleCheck size={22} color={MODAL_TOKENS.primary} strokeWidth={2} />
             </View>
             <Text style={styles.sectionHeaderTitle}>Review & Publish</Text>
           </View>

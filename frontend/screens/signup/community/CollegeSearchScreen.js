@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+﻿import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
-import { School, ChevronRight, Search, XCircle, Plus, X } from "lucide-react-native";
+import { School, ChevronRight, Search, CircleX, Plus, X } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.webp";
@@ -372,7 +372,7 @@ const CollegeSearchScreen = ({ navigation, route }) => {
                   />
                   {searchQuery.length > 0 && (
                     <TouchableOpacity onPress={() => setSearchQuery("")}>
-                      <XCircle
+                      <CircleX
                         size={20}
                         color={COLORS.textSecondary}
                       />

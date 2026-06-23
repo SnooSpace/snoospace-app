@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PromptPostCard
  * Displays a prompt post with submission functionality
  */
@@ -47,9 +47,9 @@ import {
   Image as LucideImage,
   Camera,
   Lock,
-  AlertTriangle,
+  TriangleAlert,
   CheckCircle2,
-  XCircle,
+  CircleX,
   Info,
   Pin,
   Pencil,
@@ -132,7 +132,7 @@ const PromptPostCard = React.memo(({
           onPress: () => setAlertVisible(false),
         },
         secondaryAction: null,
-        icon: icon || (isSuccess ? CheckCircle2 : isError ? XCircle : Info),
+        icon: icon || (isSuccess ? CheckCircle2 : isError ? CircleX : Info),
         iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
       });
       setAlertVisible(true);
@@ -164,7 +164,7 @@ const PromptPostCard = React.memo(({
             },
           }
         : null,
-      icon: icon || (actionBtn?.style === "destructive" ? AlertTriangle : Info),
+      icon: icon || (actionBtn?.style === "destructive" ? TriangleAlert : Info),
       iconColor: iconColor || (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
     });
     setAlertVisible(true);
@@ -569,7 +569,7 @@ const PromptPostCard = React.memo(({
       rejected: {
         label: "Not selected",
         color: "#8E8E93",
-        icon: XCircle,
+        icon: CircleX,
       },
     };
 
@@ -918,7 +918,7 @@ const PromptPostCard = React.memo(({
                         style={styles.imageRemoveBtn}
                         onPress={() => removeImage(index)}
                       >
-                        <XCircle
+                        <CircleX
                           size={22}
                           color="#FFFFFF"
                         />

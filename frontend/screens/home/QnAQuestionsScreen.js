@@ -1,9 +1,9 @@
-import { useFocusEffect } from "@react-navigation/native";
+﻿import { useFocusEffect } from "@react-navigation/native";
 import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Alert, Dimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
-import { ArrowLeft, MessageSquare, TrendingUp, Clock, Send, ArrowUp, User, Pin, CheckCircle, Lock, ChevronDown, ChevronUp, Star, MoreVertical, X, EyeOff } from "lucide-react-native";
+import { ArrowLeft, MessageSquare, TrendingUp, Clock, Send, ArrowUp, User, Pin, CircleCheck, Lock, ChevronDown, ChevronUp, Star, MoreVertical, X, EyeOff } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete } from "../../api/client";
 import { getAuthToken, getActiveAccount } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
@@ -307,7 +307,7 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
           <View style={styles.badgesRow}>
             {item.is_answered && (
               <View style={styles.answeredBadge}>
-                <CheckCircle size={14} color="#34C759" />
+                <CircleCheck size={14} color="#34C759" />
                 <Text style={styles.answeredBadgeText}>Answered</Text>
               </View>
             )}

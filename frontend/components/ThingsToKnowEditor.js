@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import {
   Users,
-  AlertTriangle,
+  TriangleAlert,
   CreditCard,
   Smile,
   Gift,
@@ -40,7 +40,7 @@ import {
   Wifi,
   Smartphone,
   Shirt,
-  XCircle,
+  CircleX,
   Clock,
   ArrowRightLeft,
   CameraOff,
@@ -54,7 +54,7 @@ import {
   Hourglass,
   Zap,
   Ticket,
-  CheckCircle,
+  CircleCheck,
   AlertCircle,
   MapPin,
   Calendar,
@@ -89,7 +89,7 @@ const TOKENS = {
 
 const ICON_MAP = {
   Users,
-  AlertTriangle,
+  TriangleAlert,
   CreditCard,
   Smile,
   Gift,
@@ -113,7 +113,7 @@ const ICON_MAP = {
   Wifi,
   Smartphone,
   Shirt,
-  XCircle,
+  CircleX,
   Clock,
   ArrowRightLeft,
   CameraOff,
@@ -127,7 +127,7 @@ const ICON_MAP = {
   Hourglass,
   Zap,
   Ticket,
-  CheckCircle,
+  CircleCheck,
   AlertCircle,
   MapPin,
   Calendar,
@@ -144,7 +144,7 @@ const ICON_MAP = {
 const PRESETS = {
   "Age & Entry": [
     { id: "all-ages", label: "All ages allowed", icon: "Users" },
-    { id: "18-plus", label: "18+ only", icon: "AlertTriangle" },
+    { id: "18-plus", label: "18+ only", icon: "TriangleAlert" },
     { id: "21-plus", label: "21+ only (ID required)", icon: "CreditCard" },
     { id: "family-friendly", label: "Family-friendly", icon: "Smile" },
     { id: "kids-free", label: "Kids under 12 free", icon: "Gift" },
@@ -189,7 +189,7 @@ const PRESETS = {
     { id: "coat-check", label: "Coat check available", icon: "Shirt" },
   ],
   Policies: [
-    { id: "no-refund", label: "No refunds", icon: "XCircle" },
+    { id: "no-refund", label: "No refunds", icon: "CircleX" },
     { id: "refund-7days", label: "Refund up to 7 days before", icon: "Clock" },
     {
       id: "transferable",
@@ -251,7 +251,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
     { name: "Info", label: "Info" },
     { name: "RockingChair", label: "Seating" },
     { name: "Shirt", label: "Dress Code" },
-    { name: "AlertTriangle", label: "Warning" },
+    { name: "TriangleAlert", label: "Warning" },
     { name: "Heart", label: "Heart" },
     { name: "Gift", label: "Gift" },
     { name: "Ticket", label: "Ticket" },
@@ -512,7 +512,7 @@ const ThingsToKnowEditor = ({ items = [], onChange, minItems = 3 }) => {
                         {preset.label}
                       </Text>
                       {isAdded && (
-                        <CheckCircle
+                        <CircleCheck
                           size={20}
                           color={TOKENS.success}
                           strokeWidth={2}

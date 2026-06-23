@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useState, useEffect, useCallback, useRef, useMemo,
 } from "react";
 import {
@@ -17,7 +17,7 @@ import * as Haptics from "expo-haptics";
 import HapticsService from "../../services/HapticsService";
 
 import {
-  ChevronDown, PenSquare, Search, Users, Trash2, LogOut, X, ArrowLeft, AlertTriangle,
+  ChevronDown, PenSquare, Search, Users, Trash2, LogOut, X, ArrowLeft, TriangleAlert,
   Bell, BellOff, User as UserIcon,
 } from "lucide-react-native";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";

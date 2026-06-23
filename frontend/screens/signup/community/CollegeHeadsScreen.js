@@ -1,4 +1,4 @@
-/**
+﻿/**
  * CollegeHeadsScreen.js
  *
  * Combined "Who manages this community?" + per-head profile photo screen
@@ -30,7 +30,7 @@ import Animated, {
   withSpring,
   withSequence,
 } from "react-native-reanimated";
-import { XCircle, PlusCircle, Camera } from "lucide-react-native";
+import { CircleX, PlusCircle, Camera } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.webp";
@@ -103,7 +103,7 @@ const HeadEntry = ({
         </Text>
         {showRemove && (
           <TouchableOpacity onPress={onRemove} style={styles.removeButton}>
-            <XCircle size={22} color={COLORS.error} />
+            <CircleX size={22} color={COLORS.error} />
           </TouchableOpacity>
         )}
       </View>

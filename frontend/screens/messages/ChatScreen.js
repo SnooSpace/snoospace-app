@@ -50,11 +50,10 @@ import {
   Reply,
   TriangleAlert,
   Trash2,
-  AlertTriangle,
   PartyPopper,
   MoreVertical,
   Flag,
-  CheckCircle,
+  CircleCheck,
   Bell,
   BellOff,
   Image as ImageIcon,
@@ -1828,7 +1827,7 @@ export default function ChatScreen({ route, navigation }) {
           title: "Error",
           message: "Unable to process RSVP",
           primaryAction: { text: "OK", onPress: hideAlert },
-          icon: AlertTriangle,
+          icon: TriangleAlert,
         });
         return;
       }
@@ -1854,7 +1853,7 @@ export default function ChatScreen({ route, navigation }) {
           title: "Error",
           message: err?.message || "Failed to confirm RSVP",
           primaryAction: { text: "OK", onPress: hideAlert },
-          icon: AlertTriangle,
+          icon: TriangleAlert,
         });
       } finally {
         const doneState = { ...rsvpLoadingRef.current, [msg.id]: false };
@@ -2052,7 +2051,7 @@ export default function ChatScreen({ route, navigation }) {
               navigation.goBack();
             },
           },
-          icon: AlertTriangle,
+          icon: TriangleAlert,
         });
       } finally {
         setLoading(false);
@@ -2365,7 +2364,7 @@ export default function ChatScreen({ route, navigation }) {
           title: "Error",
           message: err?.message || "Failed to send message.",
           primaryAction: { text: "OK", onPress: hideAlert },
-          icon: AlertTriangle,
+          icon: TriangleAlert,
         });
       }
     } finally {
@@ -2398,7 +2397,7 @@ export default function ChatScreen({ route, navigation }) {
           message:
             "One or more files exceeded the size limit and were removed.",
           primaryAction: { text: "OK", onPress: hideAlert },
-          icon: AlertTriangle,
+          icon: TriangleAlert,
         });
       }
 
@@ -2480,7 +2479,7 @@ export default function ChatScreen({ route, navigation }) {
         title: "Error",
         message: "Could not unsend message.",
         primaryAction: { text: "OK", onPress: hideAlert },
-        icon: AlertTriangle,
+        icon: TriangleAlert,
       });
       // Revert on failure
       updateMessageById(id, {
@@ -2518,7 +2517,7 @@ export default function ChatScreen({ route, navigation }) {
                 title: "Error",
                 message: err?.message || "Failed to delete chat.",
                 primaryAction: { text: "OK", onPress: hideAlert },
-                icon: AlertTriangle,
+                icon: TriangleAlert,
               });
             }
           },
@@ -2549,7 +2548,7 @@ export default function ChatScreen({ route, navigation }) {
             title: "Error",
             message: "Failed to unmute. Please try again.",
             primaryAction: { text: "OK", onPress: hideAlert },
-            icon: AlertTriangle,
+            icon: TriangleAlert,
           });
         }
       }, 300);
@@ -2583,7 +2582,7 @@ export default function ChatScreen({ route, navigation }) {
                 title: "Error",
                 message: "Failed to mute. Please try again.",
                 primaryAction: { text: "OK", onPress: hideAlert },
-                icon: AlertTriangle,
+                icon: TriangleAlert,
               });
             }
           },
@@ -2626,7 +2625,7 @@ export default function ChatScreen({ route, navigation }) {
               showAlert({
                 title: "Blocked",
                 message: `${recipientName} has been blocked.`,
-                icon: CheckCircle,
+                icon: CircleCheck,
                 iconColor: "#34C759",
                 primaryAction: {
                   text: "OK",
@@ -2642,7 +2641,7 @@ export default function ChatScreen({ route, navigation }) {
                 message:
                   err?.message || "Failed to block user. Please try again.",
                 primaryAction: { text: "OK", onPress: hideAlert },
-                icon: AlertTriangle,
+                icon: TriangleAlert,
               });
             }
           },
@@ -2669,7 +2668,7 @@ export default function ChatScreen({ route, navigation }) {
         title: "Error",
         message: err?.message || "Failed to unblock user. Please try again.",
         primaryAction: { text: "OK", onPress: hideAlert },
-        icon: AlertTriangle,
+        icon: TriangleAlert,
         iconColor: "#E53935",
       });
     } finally {
@@ -2695,7 +2694,7 @@ export default function ChatScreen({ route, navigation }) {
           message:
             "This conversation hasn't started yet. Send a message first.",
           primaryAction: { text: "OK", onPress: hideAlert },
-          icon: AlertTriangle,
+          icon: TriangleAlert,
         });
       }, 300);
       return;
@@ -2712,7 +2711,7 @@ export default function ChatScreen({ route, navigation }) {
           title: "Report Submitted",
           message:
             "Thanks for letting us know. Our team will review this conversation.",
-          icon: CheckCircle,
+          icon: CircleCheck,
           iconColor: "#34C759",
           primaryAction: { text: "OK", onPress: hideAlert },
         });
@@ -2729,7 +2728,7 @@ export default function ChatScreen({ route, navigation }) {
             ? "You've already reported this conversation. Our team is reviewing it."
             : err?.message || "Failed to submit report. Please try again.",
           primaryAction: { text: "OK", onPress: hideAlert },
-          icon: alreadyReported ? CheckCircle : AlertTriangle,
+          icon: alreadyReported ? CircleCheck : TriangleAlert,
           iconColor: alreadyReported ? "#FF9800" : undefined,
         });
       }, 300);

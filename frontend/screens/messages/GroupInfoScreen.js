@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+﻿import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, Alert, ScrollView, ActivityIndicator, Switch,
@@ -8,7 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { useCrop } from "../../components/MediaCrop";
 import { ArrowLeft, Edit2, Check, X, UserMinus, Shield, ShieldOff, ShieldCheck, UserPlus,
-  MoreHorizontal, Camera, LogOut, AlertTriangle, Info, LockKeyhole, Megaphone, Users, Crown,
+  MoreHorizontal, Camera, LogOut, TriangleAlert, Info, LockKeyhole, Megaphone, Users, Crown,
 } from "lucide-react-native";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import {
@@ -222,7 +222,7 @@ function AddMemberSheet({ conversationId, existingIds, currentUserId, currentUse
         title: "Error",
         message: err?.message || "Could not add member.",
         primaryAction: { text: "OK", onPress: hideAlert },
-        icon: AlertTriangle,
+        icon: TriangleAlert,
       });
     } finally {
       setAdding((p) => ({ ...p, [user.id]: false }));
@@ -505,7 +505,7 @@ export default function GroupInfoScreen({ route, navigation }) {
         title: "Error",
         message: "Could not update group photo.",
         primaryAction: { text: "OK", onPress: hideAlert },
-        icon: AlertTriangle,
+        icon: TriangleAlert,
       });
     } finally {
       setUploadingAvatar(false);
@@ -524,7 +524,7 @@ export default function GroupInfoScreen({ route, navigation }) {
         title: "Error",
         message: err?.message || "Could not update group name.",
         primaryAction: { text: "OK", onPress: hideAlert },
-        icon: AlertTriangle,
+        icon: TriangleAlert,
       });
     } finally {
       setSavingName(false);
@@ -551,7 +551,7 @@ export default function GroupInfoScreen({ route, navigation }) {
               title: "Error",
               message: err?.message || "Could not remove member.",
               primaryAction: { text: "OK", onPress: hideAlert },
-              icon: AlertTriangle,
+              icon: TriangleAlert,
             });
           }
         },
@@ -580,7 +580,7 @@ export default function GroupInfoScreen({ route, navigation }) {
               title: "Error",
               message: err?.message || "Could not promote member.",
               primaryAction: { text: "OK", onPress: hideAlert },
-              icon: AlertTriangle,
+              icon: TriangleAlert,
             });
           }
         },
@@ -610,7 +610,7 @@ export default function GroupInfoScreen({ route, navigation }) {
               title: "Error",
               message: err?.message || "Could not demote admin.",
               primaryAction: { text: "OK", onPress: hideAlert },
-              icon: AlertTriangle,
+              icon: TriangleAlert,
             });
           }
         },
@@ -637,7 +637,7 @@ export default function GroupInfoScreen({ route, navigation }) {
               title: "Error",
               message: err?.message || "Could not transfer admin.",
               primaryAction: { text: "OK", onPress: hideAlert },
-              icon: AlertTriangle,
+              icon: TriangleAlert,
             });
           }
         },
@@ -722,7 +722,7 @@ export default function GroupInfoScreen({ route, navigation }) {
                 ? "You're the only admin. Promote another member before leaving."
                 : (err?.message || "Could not leave group."),
               primaryAction: { text: "OK", onPress: hideAlert },
-              icon: isLastAdminErr ? Shield : AlertTriangle,
+              icon: isLastAdminErr ? Shield : TriangleAlert,
               iconColor: isLastAdminErr ? GOLD : DANGER,
             });
           }
@@ -768,7 +768,7 @@ export default function GroupInfoScreen({ route, navigation }) {
         title:         "Error",
         message:       err?.message || "Could not transfer ownership.",
         primaryAction: { text: "OK", onPress: hideAlert },
-        icon:          AlertTriangle,
+        icon:          TriangleAlert,
       });
     }
   }, [conversationId, currentUser, navigation]);
@@ -827,7 +827,7 @@ export default function GroupInfoScreen({ route, navigation }) {
               title:         "Error",
               message:       err?.message || "Could not leave group.",
               primaryAction: { text: "OK", onPress: hideAlert },
-              icon:          AlertTriangle,
+              icon:          TriangleAlert,
             });
           }
         },
@@ -857,7 +857,7 @@ export default function GroupInfoScreen({ route, navigation }) {
         title: "Error",
         message: err?.message || "Could not update restriction.",
         primaryAction: { text: "OK", onPress: hideAlert },
-        icon: AlertTriangle,
+        icon: TriangleAlert,
       });
     } finally {
       setTogglingRestrict(false);
@@ -875,7 +875,7 @@ export default function GroupInfoScreen({ route, navigation }) {
         title: "Error",
         message: err?.message || "Could not update invite setting.",
         primaryAction: { text: "OK", onPress: hideAlert },
-        icon: AlertTriangle,
+        icon: TriangleAlert,
       });
     } finally {
       setTogglingAdminInvite(false);
@@ -893,7 +893,7 @@ export default function GroupInfoScreen({ route, navigation }) {
         title: "Error",
         message: err?.message || "Could not update auto-join setting.",
         primaryAction: { text: "OK", onPress: hideAlert },
-        icon: AlertTriangle,
+        icon: TriangleAlert,
       });
     } finally {
       setTogglingAutoJoin(false);

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * BatchCropScreen.js
  * Multi-image batch crop editor with thumbnail strip.
  * Allows selecting multiple images, cropping each one, then returning all results.

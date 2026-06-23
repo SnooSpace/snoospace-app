@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
+﻿import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import {
   View,
   Text,
@@ -27,11 +27,11 @@ import {
   Users,
   Lock,
   MoveRight,
-  XCircle,
+  CircleX,
   AlertCircle,
   ImagePlus,
   BadgeCheck,
-  AlertTriangle,
+  TriangleAlert,
   CreditCard,
   Smile,
   Gift,
@@ -66,7 +66,7 @@ import {
   Tag,
   Hourglass,
   Zap,
-  CheckCircle,
+  CircleCheck,
   RockingChair,
   Trophy,
   Music,
@@ -80,7 +80,7 @@ import {
 // Icon map for Things to Know + Highlights items (keyed by icon_name string stored in DB)
 const THINGS_ICON_MAP = {
   Users,
-  AlertTriangle,
+  TriangleAlert,
   CreditCard,
   Smile,
   Gift,
@@ -104,7 +104,7 @@ const THINGS_ICON_MAP = {
   Wifi,
   Smartphone,
   Shirt,
-  XCircle,
+  CircleX,
   Clock,
   ArrowRightLeft,
   CameraOff,
@@ -118,7 +118,7 @@ const THINGS_ICON_MAP = {
   Hourglass,
   Zap,
   Ticket,
-  CheckCircle,
+  CircleCheck,
   AlertCircle,
   MapPin,
   Calendar,
@@ -1759,7 +1759,7 @@ const EventDetailsScreen = ({ route, navigation }) => {
                         onPress={() => setShowScheduleModal(false)}
                         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                       >
-                        <XCircle size={22} color={MUTED_TEXT} strokeWidth={2} />
+                        <CircleX size={22} color={MUTED_TEXT} strokeWidth={2} />
                       </TouchableOpacity>
                     </View>
 

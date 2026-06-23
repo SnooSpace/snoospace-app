@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState, useMemo } from "react";
+﻿import React, { useEffect, useCallback, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -29,11 +29,11 @@ import {
   AlertCircle,
   Banknote,
   Trash2,
-  XCircle,
+  CircleX,
   Gift,
   Mail,
   Hand,
-  CheckCircle,
+  CircleCheck,
   CheckCircle2,
   MinusCircle,
   UserPlus,
@@ -184,7 +184,7 @@ const NotificationRow = ({
         };
       case "event_cancelled":
         return {
-          icon: <XCircle size={18} color="#FF9500" strokeWidth={2} />,
+          icon: <CircleX size={18} color="#FF9500" strokeWidth={2} />,
           bg: "rgba(255, 149, 0, 0.1)",
         };
       case "ticket_gifted":
@@ -199,7 +199,7 @@ const NotificationRow = ({
         };
       case "gift_revoked":
         return {
-          icon: <XCircle size={18} color="#FF3B30" strokeWidth={2} />,
+          icon: <CircleX size={18} color="#FF3B30" strokeWidth={2} />,
           bg: "rgba(255, 59, 48, 0.1)",
         };
       case "invite_request":
@@ -209,7 +209,7 @@ const NotificationRow = ({
         };
       case "invite_approved":
         return {
-          icon: <CheckCircle size={18} color="#34C759" strokeWidth={2} />,
+          icon: <CircleCheck size={18} color="#34C759" strokeWidth={2} />,
           bg: "rgba(52, 199, 89, 0.1)",
         };
       case "invite_declined":
@@ -224,7 +224,7 @@ const NotificationRow = ({
         };
       case "submission_rejected":
         return {
-          icon: <XCircle size={18} color="#FF3B30" strokeWidth={2} />,
+          icon: <CircleX size={18} color="#FF3B30" strokeWidth={2} />,
           bg: "rgba(255, 59, 48, 0.1)",
         };
       case "like":

@@ -11,21 +11,22 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View, Text, StyleSheet, TouchableOpacity, Dimensions,
   StatusBar, Animated, ScrollView, Modal, TouchableWithoutFeedback, Pressable,
   Image,
 } from "react-native";
-import { VictoryLine } from "victory-native";
+import { CartesianChart, Line } from "victory-native";
 import LottieView from "lottie-react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   ArrowLeft, TrendingUp, TrendingDown, Minus,
   Sparkles, Handshake, Users, Trash2, Zap,
-  ShieldCheck, Calendar, BarChart2, CheckCircle,
-  ChevronRight, Info, ThumbsUp, HelpCircle, MessageSquare, Share2, Play,
-  AlertTriangle, XCircle, FileText, CalendarDays, Ticket,
+  ShieldCheck, Calendar, ChartNoAxesColumn, CircleCheck,
+  ChevronRight, Info, ThumbsUp, CircleQuestionMark, MessageSquare, Share2, Play,
+  TriangleAlert, CircleX, FileText, CalendarDays, Ticket,
 } from "lucide-react-native";
 import { FONTS, COLORS } from "../../constants/theme";
 import {
@@ -126,7 +127,7 @@ const COMMUNITY_TOGGLES = [
     field: "dataSharing", apiField: "dataSharing",
   },
   {
-    icon: BarChart2, iconColor: "#F59E0B",
+    icon: ChartNoAxesColumn, iconColor: "#F59E0B",
     title: "Event Audience Intelligence",
     description: "Let brands see aggregated quality reports of who attends your events — group data only, never individual identities",
     field: "eventAudienceIntelligence", apiField: "eventAudienceIntelligence",
@@ -146,7 +147,7 @@ const HEALTH_CONFIG = {
     subtext: "Brands can discover your community for partnerships.",
   },
   under_review: {
-    Icon: AlertTriangle,
+    Icon: TriangleAlert,
     color: "#F59E0B",
     bg: "rgba(245,158,11,0.08)",
     border: "rgba(245,158,11,0.2)",
@@ -155,7 +156,7 @@ const HEALTH_CONFIG = {
     subtext: "This may temporarily affect your brand partnership visibility.",
   },
   restricted: {
-    Icon: XCircle,
+    Icon: CircleX,
     color: "#EF4444",
     bg: "rgba(239,68,68,0.08)",
     border: "rgba(239,68,68,0.2)",
@@ -259,12 +260,15 @@ const CACHE_DURATION = 15000; // Cache valid for 15 seconds
 // ── MyDataScreen — router shell ───────────────────────────────────────────────
 
 const MyDataScreen = ({ navigation, route }) => {
-  const [accountType, setAccountType] = useState(dataCache.accountType || "member");
-  const [loading, setLoading] = useState(!dataCache.accountType);
+  // Always start with "member" and re-fetch on every mount.
+  // The module-level dataCache.accountType is intentionally NOT used as initial
+  // state here — it can be stale across account switches in multi-account setups,
+  // causing a member to see CommunityPrivacyScreen (and vice-versa).
+  const [accountType, setAccountType] = useState("member");
+  const [loading, setLoading] = useState(true);
   const initialTab = route?.params?.initialTab || "personal";
 
   useEffect(() => {
-    if (dataCache.accountType) return;
     let isMounted = true;
     getActiveAccount()
       .then((account) => {
@@ -329,8 +333,23 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
   const [trendLoading, setTrendLoading] = useState(false);
   const [trendError,   setTrendError]   = useState(false);
 
-  // Guard: only fetch creator data once (lazy load on first Creator tab open)
+  // Guard: only fetch creator data once per screen visit (lazy load on first Creator tab open).
+  // Reset on every focus so re-entering the screen from Settings (or anywhere) works correctly.
   const creatorTabActivated = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      // Reset the lazy-load guard each time the screen comes into focus so
+      // navigating away and back always triggers a fresh creator data fetch.
+      creatorTabActivated.current = false;
+      console.log('[CreatorTab] useFocusEffect: reset guard, initialTab=', initialTab);
+      // Return cleanup: runs when screen loses focus (user navigates away)
+      return () => {
+        // Reset again on blur so the NEXT focus will always fetch fresh data
+        creatorTabActivated.current = false;
+      };
+    }, [])
+  );
 
   const loadData = useCallback(async (showLoading = true) => {
     try {
@@ -384,6 +403,7 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
 
   // Load all three creator sections independently (Promise.allSettled)
   const loadAllCreatorData = useCallback(async () => {
+    console.log('[CreatorTab] loadAllCreatorData called, guard=', creatorTabActivated.current);
     if (creatorTabActivated.current) return; // lazy: only load once
     creatorTabActivated.current = true;
 
@@ -435,6 +455,16 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
     }).start();
     if (tab === 'creator') loadAllCreatorData();
   };
+
+  // When the screen mounts directly on the Creator tab (e.g. via the Creator
+  // Dashboard button on ProfileScreen), kick off the data fetch immediately.
+  useEffect(() => {
+    console.log('[CreatorTab] mount useEffect: initialTab=', initialTab, 'guard=', creatorTabActivated.current);
+    if (initialTab === 'creator') {
+      loadAllCreatorData();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Period selector re-fetch — resets the lazy guard for reach only
   const handlePeriodChange = (period) => {
@@ -899,19 +929,22 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
                   <Text style={tabStyles.followerLabel}>Total Followers</Text>
                   {trendData?.trend && trendData.trend.length > 1 && (
                     <View style={{ height: 80, marginTop: 12 }}>
-                      <VictoryLine
+                      <CartesianChart
                         data={trendData.trend}
-                        x="date"
-                        y="count"
-                        style={{
-                          data: { stroke: '#7C3AED', strokeWidth: 2 },
-                          parent: { overflow: 'visible' },
-                        }}
-                        padding={{ top: 4, bottom: 4, left: 0, right: 0 }}
-                        height={80}
+                        xKey="date"
+                        yKeys={["count"]}
                         width={width - 80}
-                        animate={false}
-                      />
+                        height={80}
+                        domainPadding={{ top: 4, bottom: 4 }}
+                      >
+                        {({ points }) => (
+                          <Line
+                            points={points.count}
+                            color="#7C3AED"
+                            strokeWidth={2}
+                          />
+                        )}
+                      </CartesianChart>
                     </View>
                   )}
                   {trendError && (
@@ -953,7 +986,7 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
                 /* Coming soon — tracking not yet built */
                 <View style={tabStyles.comingSoonCard}>
                   <View style={tabStyles.comingSoonIcon}>
-                    <BarChart2 size={28} color="#7C3AED" strokeWidth={1.5} />
+                    <ChartNoAxesColumn size={28} color="#7C3AED" strokeWidth={1.5} />
                   </View>
                   <Text style={tabStyles.comingSoonTitle}>Coming Soon</Text>
                   <Text style={tabStyles.comingSoonSub}>
@@ -984,7 +1017,7 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
                             <Image source={{ uri: item.thumbnail_url }} style={tabStyles.thumbnailView} />
                           ) : (
                             <View style={[tabStyles.thumbnailView, { backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }]}>
-                              <BarChart2 size={20} color="#D1D5DB" strokeWidth={1.5} />
+                              <ChartNoAxesColumn size={20} color="#D1D5DB" strokeWidth={1.5} />
                             </View>
                           )}
                           <Text style={tabStyles.thumbnailMeta}>
@@ -1028,8 +1061,8 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
                   <View style={styles.breakdownContainer}>
                     {[
                       { icon: ThumbsUp,      color: "#EC4899", label: "Post Likes",         key: "postLikes" },
-                      { icon: BarChart2,     color: "#F59E0B", label: "Poll Votes",          key: "pollVotes" },
-                      { icon: HelpCircle,    color: "#3B82F6", label: "Questions Asked",     key: "questionsAsked" },
+                      { icon: ChartNoAxesColumn, color: "#F59E0B", label: "Poll Votes",          key: "pollVotes" },
+                      { icon: CircleQuestionMark, color: "#3B82F6", label: "Questions Asked", key: "questionsAsked" },
                       { icon: TrendingUp,    color: "#10B981", label: "Question Upvotes",    key: "questionUpvotes" },
                       { icon: Zap,           color: "#8B5CF6", label: "Challenge Actions",   key: "challengeActions" },
                       { icon: MessageSquare, color: "#6366F1", label: "Prompt Responses",    key: "promptResponses" },
@@ -1158,7 +1191,7 @@ function SponsorPrivacyScreen({ navigation }) {
                 </Text>
                 {SPONSOR_BULLETS.map((b, i) => (
                   <View key={i} style={styles.bulletRow}>
-                    <CheckCircle size={14} color="#8B5CF6" strokeWidth={2} />
+                    <CircleCheck size={14} color="#8B5CF6" strokeWidth={2} />
                     <Text style={styles.bulletText}>{b}</Text>
                   </View>
                 ))}
@@ -1176,7 +1209,7 @@ function SponsorPrivacyScreen({ navigation }) {
               <View style={styles.statsRow}>
                 <View style={styles.statCard}>
                   <View style={styles.statHeader}>
-                    <View style={[styles.statIconWrap, { backgroundColor: "rgba(139,92,246,0.1)" }]}><BarChart2 size={14} color="#8B5CF6" strokeWidth={2} /></View>
+                    <View style={[styles.statIconWrap, { backgroundColor: "rgba(139,92,246,0.1)" }]}><ChartNoAxesColumn size={14} color="#8B5CF6" strokeWidth={2} /></View>
                   </View>
                   <Text style={styles.statValue}>{summary?.campaignCount || 0}</Text>
                   <Text style={styles.statLabel}>Campaigns</Text>

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PollPostCard
  * Displays a poll post with voting functionality
  */
@@ -33,9 +33,9 @@ import {
   Send,
   Bookmark,
   Ellipsis,
-  AlertTriangle,
+  TriangleAlert,
   CheckCircle2,
-  XCircle,
+  CircleX,
   Info,
   Pin,
   Pencil,
@@ -103,7 +103,7 @@ const PollPostCard = React.memo(({
           onPress: () => setAlertVisible(false),
         },
         secondaryAction: null,
-        icon: icon || (isSuccess ? CheckCircle2 : isError ? XCircle : Info),
+        icon: icon || (isSuccess ? CheckCircle2 : isError ? CircleX : Info),
         iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
       });
       setAlertVisible(true);
@@ -135,7 +135,7 @@ const PollPostCard = React.memo(({
             },
           }
         : null,
-      icon: icon || (actionBtn?.style === "destructive" ? AlertTriangle : Info),
+      icon: icon || (actionBtn?.style === "destructive" ? TriangleAlert : Info),
       iconColor: iconColor || (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
     });
     setAlertVisible(true);

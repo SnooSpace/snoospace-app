@@ -1,4 +1,4 @@
-/**
+﻿/**
  * QnAPostCard
  * Displays a Q&A post with question submission, upvoting, and top answer preview
  */
@@ -43,16 +43,16 @@ import {
   Bookmark,
   Ellipsis,
   Check,
-  AlertTriangle,
+  TriangleAlert,
   CheckCircle2,
-  XCircle,
+  CircleX,
   Info,
   Pin,
   Pencil,
   Trash2,
   MoveRight,
   ArrowUp,
-  HelpCircle,
+  CircleQuestionMark,
 } from "lucide-react-native";
 import { savePost, unsavePost } from "../../api/client";
 import { postService } from "../../services/postService";
@@ -127,7 +127,7 @@ const QnAPostCard = React.memo(({
           onPress: () => setAlertVisible(false),
         },
         secondaryAction: null,
-        icon: icon || (isSuccess ? CheckCircle2 : isError ? XCircle : Info),
+        icon: icon || (isSuccess ? CheckCircle2 : isError ? CircleX : Info),
         iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
       });
       setAlertVisible(true);
@@ -159,7 +159,7 @@ const QnAPostCard = React.memo(({
             },
           }
         : null,
-      icon: icon || (actionBtn?.style === "destructive" ? AlertTriangle : Info),
+      icon: icon || (actionBtn?.style === "destructive" ? TriangleAlert : Info),
       iconColor: iconColor || (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
     });
     setAlertVisible(true);
@@ -699,7 +699,7 @@ const QnAPostCard = React.memo(({
             </View>
 
             <View style={styles.questionIconContainer}>
-              <HelpCircle size={28} color="#334456" />
+              <CircleQuestionMark size={28} color="#334456" />
             </View>
           </View>
         </View>

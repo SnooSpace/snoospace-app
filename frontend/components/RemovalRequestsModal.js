@@ -1,4 +1,4 @@
-/**
+﻿/**
  * RemovalRequestsModal
  * Modal for challenge hosts to review & approve/reject submission removal requests
  */
@@ -15,11 +15,11 @@ import {
 import SwipeableModal from "./modals/SwipeableModal";
 import {
   X,
-  CheckCircle,
-  XCircle,
+  CircleCheck,
+  CircleX,
   User,
   MessageCircle,
-  AlertTriangle,
+  TriangleAlert,
   Check,
   Info,
 } from "lucide-react-native";
@@ -63,7 +63,7 @@ const RemovalRequestsModal = ({
           onPress: () => setAlertVisible(false),
         },
         secondaryAction: null,
-        icon: icon || (isSuccess ? CheckCircle : isError ? XCircle : Info),
+        icon: icon || (isSuccess ? CircleCheck : isError ? CircleX : Info),
         iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
       });
       setAlertVisible(true);
@@ -95,7 +95,7 @@ const RemovalRequestsModal = ({
             },
           }
         : null,
-      icon: icon || (actionBtn?.style === "destructive" ? AlertTriangle : Info),
+      icon: icon || (actionBtn?.style === "destructive" ? TriangleAlert : Info),
       iconColor: iconColor || (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
     });
     setAlertVisible(true);
@@ -277,7 +277,7 @@ const RemovalRequestsModal = ({
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
-      <CheckCircle size={48} color="#34C759" />
+      <CircleCheck size={48} color="#34C759" />
       <Text style={styles.emptyTitle}>All caught up!</Text>
       <Text style={styles.emptySubtitle}>No pending removal requests</Text>
     </View>

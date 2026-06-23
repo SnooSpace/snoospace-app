@@ -1,4 +1,4 @@
-/**
+﻿/**
  * PollCreateForm
  * Form for creating poll posts with a premium, card-based design.
  */
@@ -18,7 +18,7 @@ import {
 } from "react-native";
 import CustomDatePicker from "../ui/CustomDatePicker";
 import CustomTimePicker from "../ui/CustomTimePicker";
-import { Trash2, Plus, Calendar, Clock, BarChart2, Pencil } from "lucide-react-native";
+import { Trash2, Plus, Calendar, Clock, ChartBar, Pencil } from "lucide-react-native";
 import { COLORS, FONTS, SHADOWS } from "../../constants/theme";
 
 // Enable LayoutAnimation
@@ -154,7 +154,7 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
       <View style={styles.card}>
         <View style={styles.heroHeader}>
           <Text style={styles.subtleLabel}>ASK YOUR COMMUNITY</Text>
-          <BarChart2 size={22} color={COLORS.primary} strokeWidth={2.5} />
+          <ChartBar size={22} color={COLORS.primary} strokeWidth={2.5} />
         </View>
         <TextInput
           style={styles.questionInput}

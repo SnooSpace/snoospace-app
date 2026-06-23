@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ChallengePostCard
  * Displays a Challenge post with joining, progress, and submission preview
  */
@@ -43,7 +43,7 @@ import {
   ChevronRight,
   MoveRight,
   Clock,
-  AlertTriangle,
+  TriangleAlert,
   Pin,
   Pencil,
 } from "lucide-react-native";
@@ -135,7 +135,7 @@ const ChallengePostCard = React.memo(({
           onPress: () => setAlertVisible(false),
         },
         secondaryAction: null,
-        icon: icon || (isSuccess ? CheckCircle2 : isError ? XCircle : Info),
+        icon: icon || (isSuccess ? CheckCircle2 : isError ? CircleX : Info),
         iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
       });
       setAlertVisible(true);
@@ -167,7 +167,7 @@ const ChallengePostCard = React.memo(({
             },
           }
         : null,
-      icon: icon || (actionBtn?.style === "destructive" ? AlertTriangle : Info),
+      icon: icon || (actionBtn?.style === "destructive" ? TriangleAlert : Info),
       iconColor: iconColor || (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
     });
     setAlertVisible(true);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ import {
   ArrowLeft,
   Clock,
   Star,
-  XCircle,
+  CircleX,
   Undo2,
   AlertCircle,
   Link,
@@ -32,7 +32,7 @@ import {
   FileText,
   MessageCircle,
   X,
-  AlertTriangle,
+  TriangleAlert,
 } from "lucide-react-native";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
@@ -58,7 +58,7 @@ const COLORS = {
 const STATUS_CONFIG = {
   pending: { label: "New", color: COLORS.primary, icon: Clock },
   shortlisted: { label: "Shortlisted", color: COLORS.success, icon: Star },
-  rejected: { label: "Rejected", color: COLORS.error, icon: XCircle },
+  rejected: { label: "Rejected", color: COLORS.error, icon: CircleX },
   withdrawn: {
     label: "Withdrawn",
     color: COLORS.textLight,
@@ -115,7 +115,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
     showAlert({
       title: isShortlist ? "Shortlist Applicant" : "Reject Applicant",
       message: `Are you sure you want to ${isShortlist ? "shortlist" : "reject"} this application?`,
-      icon: isShortlist ? Star : XCircle,
+      icon: isShortlist ? Star : CircleX,
       iconColor: isShortlist ? COLORS.success : COLORS.error,
       secondaryAction: { text: "Cancel", onPress: hideAlert },
       primaryAction: {
@@ -137,7 +137,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
             showAlert({
               title: "Error",
               message: "Failed to update application status",
-              icon: AlertTriangle,
+              icon: TriangleAlert,
               iconColor: COLORS.error,
               primaryAction: { text: "OK", onPress: hideAlert },
             });
@@ -228,7 +228,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
           showAlert({
             title: "Error",
             message: "PDF viewer not available on this device.",
-            icon: AlertTriangle,
+            icon: TriangleAlert,
             iconColor: COLORS.error,
             primaryAction: { text: "OK", onPress: hideAlert },
           });
@@ -239,7 +239,7 @@ export default function ApplicantDetailScreen({ route, navigation }) {
       showAlert({
         title: "Error",
         message: "Could not open resume. Please try again.",
-        icon: AlertTriangle,
+        icon: TriangleAlert,
         iconColor: COLORS.error,
         primaryAction: { text: "OK", onPress: hideAlert },
       });

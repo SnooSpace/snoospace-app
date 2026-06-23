@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+﻿import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
   Image, ActivityIndicator,
 } from 'react-native';
 import { Pressable as GHPressable, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, UserCheck, UserX, X, Users, AlertTriangle } from 'lucide-react-native';
+import { ArrowLeft, UserCheck, UserX, X, Users, TriangleAlert } from 'lucide-react-native';
 import EventBus from '../../../utils/EventBus';
 import Reanimated, { FadeInDown, useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { COLORS, FONTS } from '../../../constants/theme';
@@ -175,7 +175,7 @@ export default function CircleRequestsScreen({ navigation }) {
     } catch (err) {
       showAlert({
         title: 'Error', message: err?.message || 'Failed to accept. Try again.',
-        icon: AlertTriangle, iconColor: '#E53935',
+        icon: TriangleAlert, iconColor: '#E53935',
         primaryAction: { text: 'OK', onPress: hideAlert },
       });
     } finally { setActionLoading((p) => ({ ...p, [item.id]: false })); }
@@ -190,7 +190,7 @@ export default function CircleRequestsScreen({ navigation }) {
     } catch (err) {
       showAlert({
         title: 'Error', message: err?.message || 'Failed to decline. Try again.',
-        icon: AlertTriangle, iconColor: '#E53935',
+        icon: TriangleAlert, iconColor: '#E53935',
         primaryAction: { text: 'OK', onPress: hideAlert },
       });
     } finally { setActionLoading((p) => ({ ...p, [item.id]: false })); }
@@ -215,7 +215,7 @@ export default function CircleRequestsScreen({ navigation }) {
           } catch (err) {
             showAlert({
               title: 'Error', message: err?.message || 'Failed to cancel.',
-              icon: AlertTriangle, iconColor: '#E53935',
+              icon: TriangleAlert, iconColor: '#E53935',
               primaryAction: { text: 'OK', onPress: hideAlert },
             });
           } finally { setActionLoading((p) => ({ ...p, [item.id]: false })); }

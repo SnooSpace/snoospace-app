@@ -47,7 +47,7 @@ import {
   MapPin,
   Users,
   CalendarDays,
-  BarChart2,
+  ChartNoAxesColumn,
 } from "lucide-react-native";
 import {
   getHostedPlans,
@@ -1773,7 +1773,7 @@ export default function MemberProfileScreen({ navigation }) {
                     justifyContent: "center",
                   }}
                 >
-                  <BarChart2 size={18} color="#7C3AED" strokeWidth={2} />
+                  <ChartNoAxesColumn size={18} color="#7C3AED" strokeWidth={2} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text

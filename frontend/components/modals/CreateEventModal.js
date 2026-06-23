@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import {
   Modal,
   View,
@@ -41,7 +41,7 @@ import {
   ChevronUp,
   Plus,
   PlusCircle,
-  XCircle,
+  CircleX,
   ArrowRight,
   Info,
   X,

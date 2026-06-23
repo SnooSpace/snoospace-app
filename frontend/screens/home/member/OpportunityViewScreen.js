@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+﻿import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -28,7 +28,7 @@ import {
   CheckCircle2,
   Info,
   Banknote,
-  HelpCircle,
+  CircleQuestionMark,
   Users,
   ArrowRight,
   AlertCircle,
@@ -605,7 +605,7 @@ export default function OpportunityViewScreen({ route, navigation }) {
               <Text style={styles.sectionHeader}>Application Questions</Text>
               <View style={styles.questionsCard}>
                 <View style={styles.questionsIconContainer}>
-                  <HelpCircle size={20} color={COLORS.primary} />
+                  <CircleQuestionMark size={20} color={COLORS.primary} />
                 </View>
                 <Text style={styles.questionsText}>
                   You'll be asked {opportunity.questions.length} question

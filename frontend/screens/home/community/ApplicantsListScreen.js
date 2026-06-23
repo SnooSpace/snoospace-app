@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useCallback } from "react";
+﻿import React, { useState, useEffect, useCallback } from "react";
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, Image, StatusBar } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { 
   ArrowLeft, 
   Clock, 
   Star, 
-  XCircle, 
+  CircleX, 
   Undo2, 
   Link, 
   FileText,
@@ -32,7 +32,7 @@ const COLORS = {
 const STATUS_CONFIG = {
   pending: { label: "New", color: COLORS.primary, icon: Clock },
   shortlisted: { label: "Shortlisted", color: COLORS.success, icon: Star },
-  rejected: { label: "Rejected", color: COLORS.error, icon: XCircle },
+  rejected: { label: "Rejected", color: COLORS.error, icon: CircleX },
   withdrawn: {
     label: "Withdrawn",
     color: COLORS.textLight,

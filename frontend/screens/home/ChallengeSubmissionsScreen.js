@@ -1,4 +1,4 @@
-import { useFocusEffect, useIsFocused } from "@react-navigation/native";
+﻿import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 /**
  * ChallengeSubmissionsScreen
  * Gallery view of all submissions for a challenge
@@ -27,7 +27,7 @@ import {
   ChartNoAxesCombined,
   Check,
   CheckCircle2,
-  XCircle,
+  CircleX,
   User,
   Info,
   Mail,
@@ -36,7 +36,7 @@ import {
   MinusCircle,
   Edit2,
   Trash2,
-  AlertTriangle,
+  TriangleAlert,
 } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete, apiPatch, sharePost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
@@ -186,7 +186,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
           onPress: () => setAlertVisible(false),
         },
         secondaryAction: null,
-        icon: icon || (isSuccess ? CheckCircle2 : isError ? XCircle : Info),
+        icon: icon || (isSuccess ? CheckCircle2 : isError ? CircleX : Info),
         iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
       });
       setAlertVisible(true);
@@ -799,7 +799,7 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
             )}
             {item.is_own_submission && item.status === "rejected" && (
               <View style={styles.rejectedBadgeInline}>
-                <XCircle size={11} color={COLORS.error} />
+                <CircleX size={11} color={COLORS.error} />
                 <Text style={styles.rejectedBadgeInlineText}>Rejected</Text>
               </View>
             )}

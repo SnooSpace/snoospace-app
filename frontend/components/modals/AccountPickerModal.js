@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Account Picker Modal
  * Shown when OTP verification returns multiple accounts for the same email
  * User can select one, multiple, or all accounts to log into

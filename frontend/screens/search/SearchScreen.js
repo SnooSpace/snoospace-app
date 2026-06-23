@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -11,7 +11,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Search,
   ArrowLeft,
-  XCircle,
+  CircleX,
   X,
   Calendar,
   Clock,
@@ -719,7 +719,7 @@ export default function SearchScreen({ navigation }) {
               onPress={() => setQuery("")}
               hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
             >
-              <XCircle size={20} color="#8E8E93" />
+              <CircleX size={20} color="#8E8E93" />
             </TouchableOpacity>
           )}
         </View>

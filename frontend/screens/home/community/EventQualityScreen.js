@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+﻿import React, { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet, View, Text, ScrollView,
   TouchableOpacity, Dimensions, RefreshControl,
@@ -16,7 +16,7 @@ import Svg, {
 import {
   ArrowLeft, Award, Users, TrendingUp, Target,
   BarChart3, Sparkles, ShieldCheck, Clock,
-  CheckCircle, AlertCircle,
+  CircleCheck, AlertCircle,
 } from "lucide-react-native";
 
 import { COLORS, FONTS, SHADOWS } from "../../../constants/theme";
@@ -236,7 +236,7 @@ const ScoreHero = ({ quality }) => {
       {/* Status pill */}
       <View style={[styles.statusPill, { backgroundColor: isPostEvent ? GREEN + "15" : BLUE + "15" }]}>
         {isPostEvent
-          ? <CheckCircle size={14} color={GREEN} />
+          ? <CircleCheck size={14} color={GREEN} />
           : <Clock size={14} color={BLUE} />
         }
         <Text style={[styles.statusPillText, { color: isPostEvent ? GREEN : BLUE }]}>

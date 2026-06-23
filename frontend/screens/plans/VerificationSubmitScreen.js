@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Alert,
   ActivityIndicator, ScrollView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, ShieldCheck, Video, CheckCircle, XCircle, Clock } from 'lucide-react-native';
+import { ArrowLeft, ShieldCheck, Video, CircleCheck, CircleX, Clock } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { getAuthToken } from '../../api/auth';
@@ -107,7 +107,7 @@ export default function VerificationSubmitScreen({ navigation }) {
 
           {!showUploadForm && verification?.status === 'approved' && (
             <View style={[styles.statusCard, styles.statusApproved]}>
-              <CheckCircle size={28} color="#2E7D32" strokeWidth={1.8} />
+              <CircleCheck size={28} color="#2E7D32" strokeWidth={1.8} />
               <Text style={[styles.statusTitle, { color: '#2E7D32' }]}>You're verified!</Text>
               <Text style={styles.statusBody}>
                 Your verified badge is now visible on your profile. You can host and join Open Plans.
@@ -117,7 +117,7 @@ export default function VerificationSubmitScreen({ navigation }) {
 
           {!showUploadForm && verification?.status === 'rejected' && (
             <View style={[styles.statusCard, styles.statusRejected]}>
-              <XCircle size={28} color="#C62828" strokeWidth={1.8} />
+              <CircleX size={28} color="#C62828" strokeWidth={1.8} />
               <Text style={[styles.statusTitle, { color: '#C62828' }]}>Verification not approved</Text>
               {verification.rejection_reason && (
                 <Text style={styles.statusBody}>{verification.rejection_reason}</Text>

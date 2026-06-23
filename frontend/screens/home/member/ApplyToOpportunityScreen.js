@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+﻿import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -32,7 +32,7 @@ import {
   Sparkles,
   CheckCircle2,
   FileCheck,
-  AlertTriangle,
+  TriangleAlert,
   AlertCircle,
 } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
@@ -690,7 +690,7 @@ export default function ApplyToOpportunityScreen({ route, navigation }) {
         await Linking.openURL(resumeFile.url);
       }
     } catch (err) {
-      showAlert("Error", "Could not preview resume.", AlertTriangle, "#EF6C00");
+      showAlert("Error", "Could not preview resume.", TriangleAlert, "#EF6C00");
     }
   };
 

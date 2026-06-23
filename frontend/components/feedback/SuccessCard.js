@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+﻿import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -21,7 +21,7 @@ import Animated, {
 import { BlurView } from "expo-blur";
 import {
   Camera,
-  BarChart2,
+  ChartBar,
   Sparkles,
   MessageCircle,
   Trophy,
@@ -103,7 +103,7 @@ const SuccessCard = ({
         };
       case "poll":
         return {
-          icon: BarChart2,
+          icon: ChartBar,
           accent: "#3B82F6", // Blue
           title: "Poll is live",
           subtitle: "Members can now vote and share their opinion.",

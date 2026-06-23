@@ -1,4 +1,4 @@
-/**
+﻿/**
  * OpenPlanCard — Premium event discovery card for Open Plans feed.
  *
  * Layout (360–380px total):
@@ -611,7 +611,7 @@ const OpenPlanCard = ({
             >
               {reqStatus === 'approved' ? (
                 <View style={styles.approvedBtnContent}>
-                  <View style={styles.checkCircle}>
+                  <View style={styles.CircleCheck}>
                     <Check size={10} color="#FFF" strokeWidth={3} />
                   </View>
                   <Text style={[styles.requestBtnText, { color: btnCfg.color }]}>
@@ -870,7 +870,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  checkCircle: {
+  CircleCheck: {
     width: 20,
     height: 20,
     borderRadius: 10,

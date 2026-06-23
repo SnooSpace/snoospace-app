@@ -26,10 +26,10 @@ import {
   Users,
   Instagram,
   UserX,
-  BarChart2,
+  ChartNoAxesColumn,
   Bell,
   Smartphone,
-  HelpCircle,
+  CircleQuestionMark,
   Info,
   LogOut,
   Trash2,
@@ -131,7 +131,11 @@ function SettingsRow({
         pressed && onPress && { backgroundColor: "#F2F2F7" },
       ]}
       onPress={onPress}
-      disabled={!onPress}
+      // When there's no onPress (e.g. toggle rows where rightElement is the
+      // interactive element), use pointerEvents="box-none" so the outer
+      // Pressable doesn't consume touches meant for children like AnimatedSwitch.
+      // "disabled" alone can block child touch events on Android.
+      pointerEvents={onPress ? "auto" : "box-none"}
     >
       <View style={[rowStyles.iconBox, { backgroundColor: `${iconColor}14` }]}>
         <Icon size={18} color={iconColor} strokeWidth={1.8} />
@@ -148,6 +152,7 @@ function SettingsRow({
     </Pressable>
   );
 }
+
 
 const rowStyles = StyleSheet.create({
   row: {
@@ -572,7 +577,7 @@ export default function SettingsScreen({ route, navigation }) {
           <SectionLabel title="My Activity" />
           <Card>
             <SettingsRow
-              icon={BarChart2}
+              icon={ChartNoAxesColumn}
               iconColor="#8B5CF6"
               label="My Activity"
               sublabel="How SnooSpace understands you"
@@ -620,7 +625,7 @@ export default function SettingsScreen({ route, navigation }) {
           <SectionLabel title="Support & Legal" />
           <Card>
             <SettingsRow
-              icon={HelpCircle}
+              icon={CircleQuestionMark}
               iconColor="#2962FF"
               label="Help & Support"
               onPress={handleHelp}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+﻿import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Modal,
   View,
@@ -44,7 +44,7 @@ import {
   AlertCircle,
   Trash2,
   Search,
-  CheckCircle,
+  CircleCheck,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SHADOWS, BORDER_RADIUS } from "../../constants/theme";
@@ -1732,7 +1732,7 @@ export default function EditEventModal({
                 <ArrowRight size={18} color="#fff" style={{ marginLeft: 8 }} />
               )}
               {!loading && currentStep === 7 && (
-                <CheckCircle size={18} color="#fff" style={{ marginLeft: 8 }} />
+                <CircleCheck size={18} color="#fff" style={{ marginLeft: 8 }} />
               )}
             </TouchableOpacity>
           </View>
@@ -1777,7 +1777,7 @@ export default function EditEventModal({
                 end={{ x: 1, y: 0 }}
                 style={styles.unsavedPrimaryBtn}
               >
-                <CheckCircle size={18} color="#FFF" />
+                <CircleCheck size={18} color="#FFF" />
                 <Text style={styles.unsavedPrimaryText}>Save & Exit</Text>
               </LinearGradient>
             </TouchableOpacity>

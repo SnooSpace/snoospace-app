@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import { exitSignupToAuthGate } from "../../../utils/signupNavigation";
 import {
   StyleSheet,
@@ -15,7 +15,7 @@ import {
   ImageBackground,
 } from "react-native";
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
-import { LocateFixed, CheckCircle2, XCircle, MapPin } from "lucide-react-native";
+import { LocateFixed, CheckCircle2, CircleX, MapPin } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.webp";
 
@@ -535,7 +535,7 @@ const CommunityLocationScreen = ({ navigation, route }) => {
 
                   {urlValid === false && (
                     <View style={styles.validationRow}>
-                      <XCircle
+                      <CircleX
                         size={20}
                         color={COLORS.error}
                       />

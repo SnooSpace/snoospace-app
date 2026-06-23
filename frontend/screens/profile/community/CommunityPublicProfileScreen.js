@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -48,8 +48,8 @@ import {
   ShieldOff,
   CalendarDays,
   UserX,
-  AlertTriangle,
-  CheckCircle,
+  TriangleAlert,
+  CircleCheck,
 } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import DynamicStatusBar from "../../../components/DynamicStatusBar";
@@ -674,7 +674,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               showAlert({
                 title: "Blocked",
                 message: `${communityName} has been blocked.`,
-                icon: CheckCircle,
+                icon: CircleCheck,
                 iconColor: "#34C759",
                 primaryAction: {
                   text: "OK",
@@ -689,7 +689,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 title: "Error",
                 message: err?.message || "Failed to block community. Please try again.",
                 primaryAction: { text: "OK", onPress: hideAlert },
-                icon: AlertTriangle,
+                icon: TriangleAlert,
                 iconColor: "#E53935",
               });
             } finally {
@@ -712,7 +712,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         title: "Error",
         message: err?.message || "Failed to unblock. Please try again.",
         primaryAction: { text: "OK", onPress: hideAlert },
-        icon: AlertTriangle,
+        icon: TriangleAlert,
         iconColor: "#E53935",
       });
     } finally {

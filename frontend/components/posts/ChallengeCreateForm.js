@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ChallengeCreateForm
  * Form for community admins to create Challenge posts with premium design
  */

@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useRef } from "react";
+﻿import React, { useEffect, useState, useRef } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform, Image, Modal, LayoutAnimation, UIManager, Keyboard } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
-import { Camera, Info, X, Video, Trophy, AlertTriangle } from "lucide-react-native";
+import { Camera, Info, X, Video, Trophy, TriangleAlert } from "lucide-react-native";
 import { Ionicons } from "@expo/vector-icons";
 import SuccessCard from "../../../components/feedback/SuccessCard";
 import HapticsService from "../../../services/HapticsService";
@@ -504,7 +504,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
       onClose={() => setShowDiscardModal(false)}
       title="Discard Post"
       message="Are you sure you want to discard this post? All your progress will be lost."
-      icon={AlertTriangle}
+      icon={TriangleAlert}
       iconColor="#FF3B30"
       primaryAction={{
         text: "Discard",
@@ -531,7 +531,7 @@ export default function CommunityCreatePostScreen({ navigation }) {
       onClose={() => setShowRemoveMediaModal(false)}
       title="Remove Media?"
       message="Switching post types will remove your attached media. Continue?"
-      icon={AlertTriangle}
+      icon={TriangleAlert}
       iconColor="#FF3B30"
       primaryAction={{
         text: "Remove & Switch",

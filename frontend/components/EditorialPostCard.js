@@ -1,4 +1,4 @@
-/**
+﻿/**
  * EditorialPostCard Component
  *
  * Premium, editorial-first post card design inspired by X (Twitter) and YouTube.
@@ -40,10 +40,10 @@ import {
   Users,
   RefreshCw,
   X,
-  BarChart2,
-  AlertTriangle,
+  ChartBar,
+  TriangleAlert,
   CheckCircle2,
-  XCircle,
+  CircleX,
   Info,
   HatGlasses,
 } from "lucide-react-native";
@@ -266,7 +266,7 @@ const EditorialPostCard = ({
           onPress: () => setAlertVisible(false),
         },
         secondaryAction: null,
-        icon: icon || (isSuccess ? CheckCircle2 : isError ? XCircle : Info),
+        icon: icon || (isSuccess ? CheckCircle2 : isError ? CircleX : Info),
         iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
       });
       setAlertVisible(true);
@@ -298,7 +298,7 @@ const EditorialPostCard = ({
             },
           }
         : null,
-      icon: icon || (actionBtn?.style === "destructive" ? AlertTriangle : Info),
+      icon: icon || (actionBtn?.style === "destructive" ? TriangleAlert : Info),
       iconColor: iconColor || (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
     });
     setAlertVisible(true);
@@ -882,10 +882,10 @@ const EditorialPostCard = ({
           </TouchableOpacity>
         )}
 
-        {/* [VIDEO INSIGHTS - DEFERRED] BarChart2 insights button removed for v1 launch.
+        {/* [VIDEO INSIGHTS - DEFERRED] ChartBar insights button removed for v1 launch.
           Restore when re-enabling: isOwnPost && isVideo && navigation &&
           <TouchableOpacity style={styles.insightsButton} onPress={handleVideoInsightsPress} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <BarChart2 size={18} color={COLORS.primary} strokeWidth={2} />
+            <ChartBar size={18} color={COLORS.primary} strokeWidth={2} />
           </TouchableOpacity>
         */}
       </View>

@@ -13,9 +13,6 @@
  *   GET /members/me/creator-insights/follower-trend
  */
 
-const { createPool } = require("../config/db");
-const pool = createPool();
-
 // ── Follow quality label mapping ──────────────────────────────────────────────
 function followQualityLabel(score) {
   if (score >= 80) return "Strong";
@@ -58,6 +55,10 @@ function periodToInterval(period) {
  */
 async function getCreatorAudienceSummary(req, res) {
   try {
+    // Use the shared pool from app.locals — same connection as all other controllers.
+    // NEVER create a module-level pool here; that causes a separate DB connection
+    // with potentially stale/wrong env vars and bypasses the app's connection management.
+    const pool = req.app.locals.pool;
     const memberId = req.user?.id;
     if (!memberId) return res.status(401).json({ error: "Authentication required" });
 
@@ -102,37 +103,42 @@ async function getCreatorAudienceSummary(req, res) {
 
     // ── 5. Follow quality breakdown via follow_source proxy ───────────────────
     // // NOTE: Replace with dwell-time bucketing when total_duration is available
-    const intentResult = await pool.query(
-      `SELECT
-         COUNT(*) FILTER (
-           WHERE follow_source IN ('content_post', 'content_video')
-         ) AS high_intent,
-         COUNT(*) FILTER (
-           WHERE follow_source IN ('event_attendance', 'event_recap')
-         ) AS interested,
-         COUNT(*) FILTER (
-           WHERE follow_source NOT IN (
-             'content_post', 'content_video', 'event_attendance', 'event_recap'
-           ) OR follow_source IS NULL
-         ) AS casual,
-         COUNT(*) AS total_follow_events
-       FROM follow_events
-       WHERE creator_id = $1`,
-      [memberId]
-    );
+    let highIntent = 0, interested = 0, casual = 0, followQualityScore = 0;
+    try {
+      const intentResult = await pool.query(
+        `SELECT
+           COUNT(*) FILTER (
+             WHERE follow_source IN ('content_post', 'content_video')
+           ) AS high_intent,
+           COUNT(*) FILTER (
+             WHERE follow_source IN ('event_attendance', 'event_recap')
+           ) AS interested,
+           COUNT(*) FILTER (
+             WHERE follow_source NOT IN (
+               'content_post', 'content_video', 'event_attendance', 'event_recap'
+             ) OR follow_source IS NULL
+           ) AS casual,
+           COUNT(*) AS total_follow_events
+         FROM follow_events
+         WHERE creator_id = $1`,
+        [memberId]
+      );
 
-    const intentRow = intentResult.rows[0] || {};
-    const highIntent = parseInt(intentRow.high_intent ?? 0);
-    const interested = parseInt(intentRow.interested ?? 0);
-    const casual     = parseInt(intentRow.casual     ?? 0);
-    const totalIntentEvents = parseInt(intentRow.total_follow_events ?? 0);
+      const intentRow = intentResult.rows[0] || {};
+      highIntent = parseInt(intentRow.high_intent ?? 0);
+      interested = parseInt(intentRow.interested ?? 0);
+      casual     = parseInt(intentRow.casual     ?? 0);
+      const totalIntentEvents = parseInt(intentRow.total_follow_events ?? 0);
 
-    // Weighted score: High-intent × 1.0 + Interested × 0.6 + Casual × 0.2, normalized 0–100
-    let followQualityScore = 0;
-    if (totalIntentEvents > 0) {
-      const rawWeighted =
-        (highIntent * 1.0 + interested * 0.6 + casual * 0.2) / totalIntentEvents;
-      followQualityScore = Math.min(100, Math.round(rawWeighted * 100));
+      // Weighted score: High-intent × 1.0 + Interested × 0.6 + Casual × 0.2, normalized 0–100
+      if (totalIntentEvents > 0) {
+        const rawWeighted =
+          (highIntent * 1.0 + interested * 0.6 + casual * 0.2) / totalIntentEvents;
+        followQualityScore = Math.min(100, Math.round(rawWeighted * 100));
+      }
+    } catch (followEventsErr) {
+      // follow_events table may not exist yet — non-fatal, return zeros
+      console.warn("[CreatorInsights] follow_events query failed (table may not exist):", followEventsErr.message);
     }
 
     res.json({
@@ -170,6 +176,7 @@ async function getCreatorAudienceSummary(req, res) {
  */
 async function getCreatorReachStats(req, res) {
   try {
+    const pool = req.app.locals.pool;
     const memberId = req.user?.id;
     if (!memberId) return res.status(401).json({ error: "Authentication required" });
 
@@ -181,7 +188,7 @@ async function getCreatorReachStats(req, res) {
     // Fetch top 3 most recent posts by this creator in the period
     // (using created_at as a proxy for relevance until view tracking is live)
     const postsResult = await pool.query(
-      `SELECT id, media_urls, created_at
+      `SELECT id, image_urls, created_at
        FROM posts
        WHERE author_id = $1
          AND author_type = 'member'
@@ -193,9 +200,9 @@ async function getCreatorReachStats(req, res) {
 
     const topContent = postsResult.rows.map((row) => ({
       post_id: row.id,
-      // Extract first media URL as thumbnail (if available)
-      thumbnail_url: Array.isArray(row.media_urls) && row.media_urls.length > 0
-        ? row.media_urls[0]
+      // Extract first image URL as thumbnail (if available)
+      thumbnail_url: Array.isArray(row.image_urls) && row.image_urls.length > 0
+        ? row.image_urls[0]
         : null,
       views: null,      // TODO: populate from view tracking table
       watch_pct: null,  // TODO: populate from watch duration tracking
@@ -230,6 +237,7 @@ async function getCreatorReachStats(req, res) {
  */
 async function getCreatorFollowerTrend(req, res) {
   try {
+    const pool = req.app.locals.pool;
     const memberId = req.user?.id;
     if (!memberId) return res.status(401).json({ error: "Authentication required" });
 

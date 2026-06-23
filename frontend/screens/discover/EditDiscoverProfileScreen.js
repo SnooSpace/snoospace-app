@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+﻿import React, { useState, useEffect, useRef, useCallback } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Svg, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
@@ -25,7 +25,7 @@ import {
   User,
   Sparkles,
   ArrowLeft,
-  CheckCircle,
+  CircleCheck,
   AlertCircle,
 } from "lucide-react-native";
 import { INTEREST_CATEGORIES } from "../profile/member/EditProfileConstants";
@@ -600,7 +600,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
 
       {showSuccess && (
         <View style={styles.successToast}>
-          <CheckCircle size={24} color="#FFFFFF" strokeWidth={2} />
+          <CircleCheck size={24} color="#FFFFFF" strokeWidth={2} />
           <Text style={styles.successToastText}>Saved successfully!</Text>
         </View>
       )}
