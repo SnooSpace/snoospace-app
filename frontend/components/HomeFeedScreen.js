@@ -376,65 +376,28 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // Refs for scroll handling
   const flatListRef = useRef(null);
   const isInitialLoadRef = useRef(true);
-  // Tracks whether a scroll-to-top is pending (survives across layout passes)
-  const pendingScrollResetRef = useRef(false);
 
-  // Helper: force scroll to top using a multi-frame rAF chain to outlast
-  // Android RecyclerView's internal layout/restore passes.
-  const forceScrollToTop = useCallback((ref) => {
-    const target = ref || flatListRef.current;
-    if (!target) return;
-    target.scrollToOffset({ offset: 0, animated: false });
-    requestAnimationFrame(() => {
-      target.scrollToOffset({ offset: 0, animated: false });
-      requestAnimationFrame(() => {
-        target.scrollToOffset({ offset: 0, animated: false });
-      });
-    });
+  // Scroll-to-top via onContentSizeChange — fires from the NATIVE layer after
+  // RecyclerView finishes its layout pass. This is the correct moment to set
+  // the scroll position: earlier hooks (useEffect, listRefCallback commit phase)
+  // fire before the native layout, so RecyclerView can override them.
+  // isInitialLoadRef gates it to a single fire per mount; subsequent calls
+  // from image-load content expansions are ignored.
+  const onListContentSizeChange = useCallback(() => {
+    if (isInitialLoadRef.current && flatListRef.current) {
+      isInitialLoadRef.current = false;
+      flatListRef.current.scrollToOffset({ offset: 0, animated: false });
+    }
   }, []);
 
-  // Ensure scroll is at 0 after feed items load and layout completes.
-  // Uses a 200ms timeout (instead of 50ms) to outlast Android RecyclerView
-  // internal scroll-state restoration that fires after the layout pass.
-  useEffect(() => {
-    if (feedItems.length > 0 && !loading && isInitialLoadRef.current) {
-      isInitialLoadRef.current = false;
-      pendingScrollResetRef.current = true;
-      const timeout = setTimeout(() => {
-        pendingScrollResetRef.current = false;
-        forceScrollToTop();
-      }, 200);
-      return () => clearTimeout(timeout);
-    }
-  }, [feedItems.length, loading, forceScrollToTop]);
-
-  // Callback ref: fires whenever the FlashList mounts or remounts (e.g. when
-  // key changes after currentUserId resolves). Resets isInitialLoadRef and
-  // immediately scrolls to top with a multi-frame chain to beat RecyclerView.
+  // Ref callback: store the ref and re-arm isInitialLoadRef so
+  // onListContentSizeChange fires once for the new FlashList instance.
   const listRefCallback = useCallback((ref) => {
     flatListRef.current = ref;
     if (ref) {
-      // Always reset the guard on (re)mount so the feedItems effect can re-arm
       isInitialLoadRef.current = true;
-      pendingScrollResetRef.current = true;
-      forceScrollToTop(ref);
-      // Fire again after interactions settle (after RecyclerView layout)
-      const task = InteractionManager.runAfterInteractions(() => {
-        pendingScrollResetRef.current = false;
-        forceScrollToTop(ref);
-      });
-      // Also fire after a longer delay as a safety net
-      const timeout = setTimeout(() => {
-        if (flatListRef.current) {
-          forceScrollToTop(flatListRef.current);
-        }
-      }, 300);
-      // Note: we can't easily clean up here since this is a ref callback,
-      // but the timeouts are short-lived and harmless.
-      void task;
-      void timeout;
     }
-  }, [forceScrollToTop]);
+  }, []);
 
   // Reanimated shared value for premium scroll-reactive header
   const scrollY = useSharedValue(0);
@@ -1546,7 +1509,6 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
       <AnimatedFlashList
         key={loading ? "feed-list-loading" : "feed-list-loaded"}
-        initialScrollIndex={0}
         ref={listRefCallback}
         nestedScrollEnabled={true}
         data={loading ? [1, 2, 3] : feedItems}
@@ -1585,6 +1547,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         onScrollBeginDrag={onScrollBeginDrag}
         onScrollEndDrag={onScrollEndDrag}
         onMomentumScrollEnd={onMomentumScrollEnd}
+        onContentSizeChange={onListContentSizeChange}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         ListHeaderComponent={<HomeGreetingHeader name={greetingName} />}

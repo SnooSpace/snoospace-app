@@ -103,9 +103,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginTop: 10,
     marginBottom: 10,
-    // Fixed height to prevent layout shifts with different name lengths
-    // Approximately: greeting line (24px) + name line (2 lines max ~70px) + spacing
-    minHeight: 90,
+    // Fixed height — must NOT use minHeight here. When greetingName loads
+    // asynchronously and the text changes (e.g. "User" → "SnooSpace"), a
+    // minHeight would let the container grow, causing FlashList to scroll-
+    // anchor the first item downward and then snap back when forceScrollToTop
+    // fires. A fixed height keeps the ListHeaderComponent size completely
+    // stable across all name lengths so FlashList never adjusts scroll offset.
+    height: 90,
   },
   greetingLine: {
     flexDirection: "row",
