@@ -825,6 +825,7 @@ export default function MemberProfileScreen({ navigation }) {
         following_count: polledCounts.following,
         post_count: polledCounts.posts,
         circle_count: (polledCounts.circles || 0) + 1,
+        creator_follower_count: polledCounts.creatorFollowers || 0,
       });
     });
     return () => {
@@ -975,9 +976,10 @@ export default function MemberProfileScreen({ navigation }) {
       }
       const userId = fullProfile.id;
       const userType = "member";
+      // Use /profile/counts which returns circle_count + creator_follower_count + following in ONE call
       const [countsResponse, postsResponse, eventsResponse] = await Promise.all(
         [
-          apiGet(`/follow/counts/${userId}/${userType}`, 15000, token),
+          apiGet(`/profile/counts/${userId}/${userType}`, 15000, token),
           apiGet(`/posts/user/${userId}/${userType}?limit=20`, 15000, token),
           apiGet("/events/my-events", 15000, token).catch(() => ({
             events: [],
@@ -995,6 +997,8 @@ export default function MemberProfileScreen({ navigation }) {
         typeof countsResponse?.following_count === "number"
           ? countsResponse.following_count
           : parseInt(countsResponse?.following_count || 0, 10);
+      const circleCount = parseInt(countsResponse?.circle_count || 0, 10);
+      const creatorFollowerCount = parseInt(countsResponse?.creator_follower_count || 0, 10);
       const userPosts = Array.isArray(postsResponse?.posts)
         ? postsResponse.posts
         : [];
@@ -1032,13 +1036,14 @@ export default function MemberProfileScreen({ navigation }) {
         college_info: fullProfile.college_info || null,
         // Social profiles
         instagram_username: fullProfile.instagram_username || null,
-        circle_count: fullProfile.circle_count || 0,
-        following_count: fullProfile.following_count || 0,
+        circle_count: circleCount,
+        following_count: followingCount,
         events_attended_count:
           eventsResponse?.total_events ?? eventsResponse?.events?.length ?? 0,
         // Creator Mode
         is_creator_mode_enabled: fullProfile.is_creator_mode_enabled === true,
         creator_mode_enabled_at: fullProfile.creator_mode_enabled_at || null,
+        creator_follower_count: creatorFollowerCount,
       };
       setProfile(mappedProfile);
 
@@ -1055,12 +1060,13 @@ export default function MemberProfileScreen({ navigation }) {
       // Update pagination state from initial load
       setPostCursor(postsResponse?.next_cursor || null);
       setHasMorePosts(postsResponse?.has_more === true);
-      // Initialize counts polling with initial values (includes circle_count)
+      // Initialize counts polling — seeds polledCounts before first render so no flicker
       initializeCounts({
         follower_count: followerCount,
         following_count: followingCount,
         post_count: userPosts.length,
-        circle_count: fullProfile.circle_count || 0,
+        circle_count: circleCount,
+        creator_follower_count: creatorFollowerCount,
       });
       // Pre-populate events — but do NOT set eventsFetchedRef here.
       // Plans are fetched by loadProfileEvents() which runs on first Events tab tap.
@@ -1749,16 +1755,19 @@ export default function MemberProfileScreen({ navigation }) {
                   style={styles.statItem}
                   onPress={() => {
                     HapticsService.triggerStatsTap();
+                    const circlesVal = Math.max(polledCounts.circles, profile.circle_count || 0);
+                    const crFollowersVal = Math.max(polledCounts.creatorFollowers, profile.creator_follower_count || 0);
                     navigation.navigate("CreatorFollowers", {
                       creatorId: profile.id,
                       isOwnProfile: true,
-                      initialFollowersCount: polledCounts.followers || profile.follower_count || 0,
-                      initialCircleCount: polledCounts.circles || profile.circle_count || 0,
+                      initialFollowersCount: crFollowersVal,
+                      initialCircleCount: circlesVal,
                     });
                   }}
                 >
                   <Text style={styles.statNumber}>
-                    {(polledCounts.circles || profile.circle_count || 0) + (polledCounts.followers || profile.follower_count || 0)}
+                    {Math.max(polledCounts.circles, profile.circle_count || 0) +
+                     Math.max(polledCounts.creatorFollowers, profile.creator_follower_count || 0)}
                   </Text>
                   <Text style={styles.statLabel}>Followers</Text>
                 </GHPressable>

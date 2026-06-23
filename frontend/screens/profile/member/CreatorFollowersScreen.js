@@ -1,57 +1,41 @@
 /**
  * CreatorFollowersScreen
  *
- * Displays a creator's followers in two sections:
- *   • Notable Followers — community/page accounts (horizontal card strip)
- *   • All Followers — paginated member list with inline "Add to Circle" CTA
+ * Two-tab screen opened when a viewer taps the "Followers" stat on a Creator profile.
+ *
+ *   • Followers tab — people who explicitly followed this creator (creator_follows table)
+ *   • Circle tab    — mutual circle members (circles table)
  *
  * Route: CreatorFollowers
- * Params: { creatorId, isOwnProfile }
+ * Params: { creatorId, isOwnProfile, initialFollowersCount, initialCircleCount }
  */
 
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useRef,
-} from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
   Image,
   StyleSheet,
-  SectionList,
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  RefreshControl,
   TextInput,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
   Users,
-  Building2,
   UserPlus,
-  UserCheck,
   Clock,
   Search,
-  X,
-  UserMinus,
-  TriangleAlert,
 } from "lucide-react-native";
-import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from "../../../constants/theme";
-import {
-  getCreatorFollowers,
-  sendCircleRequest,
-  getCircleMembers,
-  getPublicCircleMembers,
-  removeFromCircle,
-} from "../../../api/members";
+import { COLORS, FONTS } from "../../../constants/theme";
+import { getCreatorFollowers, getPublicCircleMembers, sendCircleRequest } from "../../../api/members";
 import hapticsService from "../../../services/HapticsService";
-import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 
-// ── Relative time helper ──────────────────────────────────────────────────────
+// ── helpers ──────────────────────────────────────────────────────────────────
+
 function relativeTime(ts) {
   if (!ts) return "";
   const secs = Math.floor((Date.now() - new Date(ts)) / 1000);
@@ -65,94 +49,51 @@ function relativeTime(ts) {
   return new Date(ts).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 }
 
-// ── Notable Follower Card ─────────────────────────────────────────────────────
-function NotableCard({ follower, onPress }) {
-  const initials = (follower.name || "?")
+function Avatar({ uri, name, size = 44 }) {
+  const initials = (name || "?")
     .split(" ")
     .map((w) => w[0])
     .join("")
     .slice(0, 2)
     .toUpperCase();
-
-  return (
-    <TouchableOpacity style={cardStyles.card} onPress={onPress} activeOpacity={0.78}>
-      <View style={cardStyles.avatarContainer}>
-        {follower.avatar_url ? (
-          <Image source={{ uri: follower.avatar_url }} style={cardStyles.avatar} />
-        ) : (
-          <View style={[cardStyles.avatar, cardStyles.avatarFallback]}>
-            <Text style={cardStyles.avatarInitials}>{initials}</Text>
-          </View>
-        )}
-        <View style={[cardStyles.typeBadge, follower.follower_type === "community" ? cardStyles.communityBadge : cardStyles.pageBadge]}>
-          <Building2 size={9} color="#fff" strokeWidth={2.5} />
-        </View>
-      </View>
-      <Text style={cardStyles.name} numberOfLines={2}>
-        {follower.name}
-      </Text>
-    </TouchableOpacity>
+  return uri ? (
+    <Image source={{ uri }} style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]} />
+  ) : (
+    <View style={[styles.avatar, styles.avatarFallback, { width: size, height: size, borderRadius: size / 2 }]}>
+      <Text style={[styles.avatarInitials, { fontSize: size * 0.34 }]}>{initials}</Text>
+    </View>
   );
 }
 
-// ── Follower Row ──────────────────────────────────────────────────────────────
-function FollowerRow({ follower, isOwnProfile, circleState, circleLoading, onAddToCircle, onPress }) {
-  const initials = (follower.name || "?")
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+// ── Person Row ────────────────────────────────────────────────────────────────
 
+function PersonRow({ item, isOwnProfile, circleState, circleLoading, onAddToCircle, onPress }) {
   return (
-    <TouchableOpacity style={rowStyles.row} onPress={onPress} activeOpacity={0.78}>
-      {/* Avatar */}
-      <View style={rowStyles.avatarWrap}>
-        {follower.avatar_url ? (
-          <Image source={{ uri: follower.avatar_url }} style={rowStyles.avatar} />
-        ) : (
-          <View style={[rowStyles.avatar, rowStyles.avatarFallback]}>
-            <Text style={rowStyles.avatarInitials}>{initials}</Text>
-          </View>
-        )}
+    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.78}>
+      <Avatar uri={item.avatar_url} name={item.name} />
+      <View style={styles.rowBody}>
+        <Text style={styles.rowName} numberOfLines={1}>{item.name || "Unknown"}</Text>
+        {item.username ? (
+          <Text style={styles.rowUsername} numberOfLines={1}>@{item.username}</Text>
+        ) : null}
+        <Text style={styles.rowTime}>{relativeTime(item.created_at)}</Text>
       </View>
 
-      {/* Name + meta */}
-      <View style={rowStyles.body}>
-        <Text style={rowStyles.name} numberOfLines={1}>
-          {follower.name || "Unknown"}
-        </Text>
-        {follower.username && (
-          <Text style={rowStyles.username} numberOfLines={1}>
-            @{follower.username}
-          </Text>
-        )}
-        <Text style={rowStyles.time}>{relativeTime(follower.created_at)}</Text>
-      </View>
-
-      {/* Add to Circle CTA — member followers + only on creator's own profile */}
-      {isOwnProfile && follower.follower_type === "member" && circleState !== "in_circle" && (
+      {/* Add to Circle CTA — only on own profile, for member followers, when not in circle */}
+      {isOwnProfile && item.follower_type === "member" && circleState !== "in_circle" && (
         <TouchableOpacity
-          style={[
-            rowStyles.ctaBtn,
-            circleState === "requested" ? rowStyles.ctaBtnRequested : rowStyles.ctaBtnDefault,
-          ]}
-          onPress={() => onAddToCircle(follower.id)}
+          style={[styles.ctaBtn, circleState === "requested" ? styles.ctaBtnRequested : styles.ctaBtnDefault]}
+          onPress={() => onAddToCircle(item.id)}
           disabled={circleLoading || circleState === "requested"}
           activeOpacity={0.75}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           {circleLoading ? (
-            <ActivityIndicator size="small" color={COLORS.textSecondary} />
+            <ActivityIndicator size="small" color={COLORS.textSecondary} style={{ width: 60 }} />
           ) : circleState === "requested" ? (
-            <>
-              <Clock size={13} color={COLORS.textSecondary} strokeWidth={2} style={{ marginRight: 4 }} />
-              <Text style={rowStyles.ctaTextRequested}>Requested</Text>
-            </>
+            <Text style={styles.ctaTextRequested}>Requested</Text>
           ) : (
-            <>
-              <UserPlus size={13} color="#2962FF" strokeWidth={2} style={{ marginRight: 4 }} />
-              <Text style={rowStyles.ctaTextDefault}>Add</Text>
-            </>
+            <Text style={styles.ctaTextDefault}>Add</Text>
           )}
         </TouchableOpacity>
       )}
@@ -160,55 +101,8 @@ function FollowerRow({ follower, isOwnProfile, circleState, circleLoading, onAdd
   );
 }
 
-// ── Circle Row ────────────────────────────────────────────────────────────────
-function CircleRow({ member, isOwnProfile, onRemove, onPress }) {
-  const initials = (member.name || "?")
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-
-  const avatarUrl = member.profile_photo_url || member.avatar_url;
-
-  return (
-    <TouchableOpacity style={rowStyles.row} onPress={onPress} activeOpacity={0.78}>
-      <View style={rowStyles.avatarWrap}>
-        {avatarUrl ? (
-          <Image source={{ uri: avatarUrl }} style={rowStyles.avatar} />
-        ) : (
-          <View style={[rowStyles.avatar, rowStyles.avatarFallback]}>
-            <Text style={rowStyles.avatarInitials}>{initials}</Text>
-          </View>
-        )}
-      </View>
-
-      <View style={rowStyles.body}>
-        <Text style={rowStyles.name} numberOfLines={1}>
-          {member.name || "Unknown"}
-        </Text>
-        {member.username && (
-          <Text style={rowStyles.username} numberOfLines={1}>
-            @{member.username}
-          </Text>
-        )}
-      </View>
-
-      {isOwnProfile && (
-        <TouchableOpacity
-          style={circleRowStyles.removeBtn}
-          onPress={onRemove}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          activeOpacity={0.7}
-        >
-          <UserMinus size={18} color={COLORS.textSecondary} strokeWidth={2} />
-        </TouchableOpacity>
-      )}
-    </TouchableOpacity>
-  );
-}
-
 // ── Main Screen ───────────────────────────────────────────────────────────────
+
 export default function CreatorFollowersScreen({ route, navigation }) {
   const {
     creatorId,
@@ -217,180 +111,148 @@ export default function CreatorFollowersScreen({ route, navigation }) {
     initialCircleCount = 0,
   } = route?.params || {};
 
-  // Tabs State
-  const [activeTab, setActiveTab] = useState("followers"); // 'followers' | 'circles'
+  const [activeTab, setActiveTab] = useState("followers");
 
-  // Followers State
-  const [notableFollowers, setNotableFollowers] = useState([]);
+  // Followers tab state
   const [followers, setFollowers] = useState([]);
-  const [total, setTotal] = useState(initialFollowersCount);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
-  const [followersSearch, setFollowersSearch] = useState("");
-  const followersSearchTimer = useRef(null);
+  const [followersTotal, setFollowersTotal] = useState(initialFollowersCount);
+  const [followerPage, setFollowerPage] = useState(1);
+  const [followerHasMore, setFollowerHasMore] = useState(true);
+  const [followerLoading, setFollowerLoading] = useState(true);
+  const [followerLoadingMore, setFollowerLoadingMore] = useState(false);
+  const [followerSearch, setFollowerSearch] = useState("");
 
-  // Circles State
+  // Circle tab state
   const [circleMembers, setCircleMembers] = useState([]);
-  const [circleTotalCount, setCircleTotalCount] = useState(initialCircleCount);
+  const [circleTotal, setCircleTotal] = useState(initialCircleCount);
   const [circlePage, setCirclePage] = useState(1);
-  const [hasMoreCircles, setHasMoreCircles] = useState(true);
-  const [circlesLoading, setCirclesLoading] = useState(false);
-  const [circlesLoadingMore, setCirclesLoadingMore] = useState(false);
-  const [circlesRefreshing, setCirclesRefreshing] = useState(false);
+  const [circleHasMore, setCircleHasMore] = useState(true);
+  const [circleLoading, setCircleLoading] = useState(false);
+  const [circleLoadingMore, setCircleLoadingMore] = useState(false);
   const [circleSearch, setCircleSearch] = useState("");
-  const [alertConfig, setAlertConfig] = useState({ visible: false });
-  const circleSearchTimer = useRef(null);
+  const circleFetchedRef = useRef(false);
 
-  // Session-level circle request state per follower
-  const [circleStates, setCircleStates] = useState({}); // { [followerId]: 'none' | 'requested' | 'in_circle' }
-  const [circleLoading, setCircleLoading] = useState({}); // { [followerId]: boolean }
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadingMoreRef = useRef(false);
+  // Per-follower Add-to-Circle state
+  const [circleStates, setCircleStates] = useState({});
+  const [circleActionLoading, setCircleActionLoading] = useState({});
 
-  // ── Data loading (Followers) ───────────────────────────────────────────────
+  const followerLoadingMoreRef = useRef(false);
+  const circleLoadingMoreRef = useRef(false);
 
-  const loadInitial = useCallback(async (searchQuery = "") => {
+  // ── Data fetching ─────────────────────────────────────────────────────────
+
+  const loadFollowers = useCallback(async (page = 1, search = "") => {
     try {
-      setError(null);
-      if (searchQuery) {
-        setNotableFollowers([]);
-        const allRes = await getCreatorFollowers(creatorId, { page: 1, limit: 20, type: "all", search: searchQuery });
-        setFollowers(allRes?.followers || []);
-        setTotal(allRes?.total || 0);
-        setPage(1);
-        setHasMore(!!allRes?.hasMore);
+      const res = await getCreatorFollowers(creatorId, { page, limit: 20, type: "all", search });
+      const rows = res?.followers || [];
+      if (page === 1) {
+        setFollowers(rows);
       } else {
-        const [notableRes, allRes] = await Promise.all([
-          getCreatorFollowers(creatorId, { type: "notable", limit: 10 }),
-          getCreatorFollowers(creatorId, { page: 1, limit: 20, type: "all" }),
-        ]);
-        setNotableFollowers(notableRes?.followers || []);
-        setFollowers(allRes?.followers || []);
-        setTotal(allRes?.total || 0);
-        setPage(1);
-        setHasMore(!!allRes?.hasMore);
+        setFollowers((prev) => [...prev, ...rows]);
       }
+      setFollowersTotal(res?.total ?? (page === 1 ? rows.length : followersTotal));
+      setFollowerPage(page);
+      setFollowerHasMore(!!res?.hasMore);
     } catch (e) {
-      console.warn("[CreatorFollowers] loadInitial error:", e);
-      setError("Couldn't load followers. Pull to retry.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      console.warn("[CreatorFollowers] loadFollowers error:", e);
     }
   }, [creatorId]);
 
-  const loadMore = useCallback(async () => {
-    if (!hasMore || loadingMoreRef.current) return;
-    loadingMoreRef.current = true;
-    setLoadingMore(true);
+  const loadCircle = useCallback(async (page = 1, search = "") => {
     try {
-      const nextPage = page + 1;
-      const res = await getCreatorFollowers(creatorId, { page: nextPage, limit: 20, type: "all", search: followersSearch });
-      setFollowers((prev) => [...prev, ...(res?.followers || [])]);
-      setPage(nextPage);
-      setHasMore(!!res?.hasMore);
+      // Read-only circle members for a given member (works for own + public profiles)
+      const res = await getPublicCircleMembers(creatorId, { page, limit: 20, search });
+      const rows = res?.members || [];
+      if (page === 1) {
+        setCircleMembers(rows);
+      } else {
+        setCircleMembers((prev) => [...prev, ...rows]);
+      }
+      // endpoint returns no total — use rows.length for page 1, accumulate for subsequent pages
+      if (page === 1) setCircleTotal(rows.length);
+      setCirclePage(page);
+      // no hasMore from this endpoint — stop after first empty page
+      setCircleHasMore(rows.length === 20);
     } catch (e) {
-      console.warn("[CreatorFollowers] loadMore error:", e);
-    } finally {
-      loadingMoreRef.current = false;
-      setLoadingMore(false);
+      console.warn("[CreatorFollowers] loadCircle error:", e);
     }
-  }, [hasMore, page, creatorId, followersSearch]);
+  }, [creatorId]);
 
+  // Initial followers load
+  useEffect(() => {
+    setFollowerLoading(true);
+    loadFollowers(1, "").finally(() => setFollowerLoading(false));
+  }, [loadFollowers]);
+
+  // Lazy load circle tab on first open
+  const handleTabPress = useCallback((tab) => {
+    hapticsService.triggerImpactLight();
+    setActiveTab(tab);
+    if (tab === "circle" && !circleFetchedRef.current) {
+      circleFetchedRef.current = true;
+      setCircleLoading(true);
+      loadCircle(1, "").finally(() => setCircleLoading(false));
+    }
+  }, [loadCircle]);
+
+  // Pull-to-refresh
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     setCircleStates({});
-    await loadInitial(followersSearch);
-  }, [loadInitial, followersSearch]);
+    const activeSearch = activeTab === "followers" ? followerSearch : circleSearch;
+    if (activeTab === "followers") {
+      await loadFollowers(1, activeSearch);
+    } else {
+      await loadCircle(1, activeSearch);
+    }
+    setRefreshing(false);
+  }, [activeTab, followerSearch, circleSearch, loadFollowers, loadCircle]);
+
+  // Load more followers
+  const loadMoreFollowers = useCallback(async () => {
+    if (!followerHasMore || followerLoadingMoreRef.current) return;
+    followerLoadingMoreRef.current = true;
+    setFollowerLoadingMore(true);
+    await loadFollowers(followerPage + 1, followerSearch);
+    followerLoadingMoreRef.current = false;
+    setFollowerLoadingMore(false);
+  }, [followerHasMore, followerPage, followerSearch, loadFollowers]);
+
+  // Load more circle
+  const loadMoreCircle = useCallback(async () => {
+    if (!circleHasMore || circleLoadingMoreRef.current) return;
+    circleLoadingMoreRef.current = true;
+    setCircleLoadingMore(true);
+    await loadCircle(circlePage + 1, circleSearch);
+    circleLoadingMoreRef.current = false;
+    setCircleLoadingMore(false);
+  }, [circleHasMore, circlePage, circleSearch, loadCircle]);
+
+  // Search handlers (debounced via useEffect)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setFollowerLoading(true);
+      loadFollowers(1, followerSearch).finally(() => setFollowerLoading(false));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [followerSearch]); // eslint-disable-line
 
   useEffect(() => {
-    loadInitial();
-  }, [loadInitial]);
-
-  const handleFollowersSearchChange = (text) => {
-    setFollowersSearch(text);
-    clearTimeout(followersSearchTimer.current);
-    followersSearchTimer.current = setTimeout(() => {
-      loadInitial(text);
+    if (!circleFetchedRef.current) return;
+    const t = setTimeout(() => {
+      setCircleLoading(true);
+      loadCircle(1, circleSearch).finally(() => setCircleLoading(false));
     }, 350);
-  };
+    return () => clearTimeout(t);
+  }, [circleSearch]); // eslint-disable-line
 
-  // ── Load circles ──────────────────────────────────────────────────────────
-  const loadCirclesInitial = useCallback(async () => {
-    try {
-      setCirclesLoading(true);
-      setError(null);
-      const res = isOwnProfile
-        ? await getCircleMembers({ page: 1, limit: 20, search: circleSearch })
-        : await getPublicCircleMembers(creatorId, { page: 1, limit: 20, search: circleSearch });
-      
-      const fetched = res?.members || [];
-      setCircleMembers(fetched);
-      setCirclePage(1);
-      setHasMoreCircles(fetched.length >= 20);
-
-      if (typeof res?.total === "number") {
-        setCircleTotalCount(res.total);
-      } else if (!circleSearch) {
-        setCircleTotalCount(Math.max(fetched.length, initialCircleCount));
-      }
-    } catch (e) {
-      console.warn("[CreatorFollowers] loadCirclesInitial error:", e);
-      setError("Couldn't load circle members. Pull to retry.");
-    } finally {
-      setCirclesLoading(false);
-      setCirclesRefreshing(false);
-    }
-  }, [creatorId, isOwnProfile, circleSearch, initialCircleCount]);
-
-  const loadMoreCircles = useCallback(async () => {
-    if (!hasMoreCircles || circlesLoadingMore) return;
-    setCirclesLoadingMore(true);
-    try {
-      const nextPage = circlePage + 1;
-      const res = isOwnProfile
-        ? await getCircleMembers({ page: nextPage, limit: 20, search: circleSearch })
-        : await getPublicCircleMembers(creatorId, { page: nextPage, limit: 20, search: circleSearch });
-      
-      const fetched = res?.members || [];
-      setCircleMembers((prev) => [...prev, ...fetched]);
-      setCirclePage(nextPage);
-      setHasMoreCircles(fetched.length >= 20);
-    } catch (e) {
-      console.warn("[CreatorFollowers] loadMoreCircles error:", e);
-    } finally {
-      setCirclesLoadingMore(false);
-    }
-  }, [hasMoreCircles, circlePage, creatorId, isOwnProfile, circleSearch, circlesLoadingMore]);
-
-  const onCirclesRefresh = useCallback(async () => {
-    setCirclesRefreshing(true);
-    await loadCirclesInitial();
-  }, [loadCirclesInitial]);
-
-  useEffect(() => {
-    if (activeTab === "circles") {
-      loadCirclesInitial();
-    }
-  }, [activeTab]);
-
-  const handleCircleSearchChange = (text) => {
-    setCircleSearch(text);
-    clearTimeout(circleSearchTimer.current);
-    circleSearchTimer.current = setTimeout(() => {
-      loadCirclesInitial();
-    }, 350);
-  };
-
-  // ── Add to Circle handler ─────────────────────────────────────────────────
+  // ── Add to Circle ─────────────────────────────────────────────────────────
 
   const handleAddToCircle = useCallback(async (followerId) => {
     hapticsService.triggerImpactMedium();
-    setCircleLoading((prev) => ({ ...prev, [followerId]: true }));
+    setCircleActionLoading((prev) => ({ ...prev, [followerId]: true }));
     setCircleStates((prev) => ({ ...prev, [followerId]: "requested" })); // optimistic
     try {
       await sendCircleRequest(followerId);
@@ -398,113 +260,76 @@ export default function CreatorFollowersScreen({ route, navigation }) {
       console.warn("[CreatorFollowers] sendCircleRequest failed:", e);
       setCircleStates((prev) => ({ ...prev, [followerId]: "none" })); // revert
     } finally {
-      setCircleLoading((prev) => ({ ...prev, [followerId]: false }));
+      setCircleActionLoading((prev) => ({ ...prev, [followerId]: false }));
     }
   }, []);
 
-  // ── Remove from Circle handler ────────────────────────────────────────────
+  // ── Navigation ────────────────────────────────────────────────────────────
 
-  const handleRemoveFromCircle = useCallback((member) => {
-    hapticsService.triggerImpactLight();
-    setAlertConfig({
-      visible: true,
-      title: "Remove from Circle?",
-      message: `${member.name || "This person"} will be removed from your circle. They can still message you and find your profile.`,
-      icon: UserMinus,
-      iconColor: "#E53935",
-      secondaryAction: {
-        text: "Cancel",
-        onPress: () => setAlertConfig({ visible: false }),
-      },
-      primaryAction: {
-        text: "Remove",
-        style: "destructive",
-        onPress: async () => {
-          setAlertConfig({ visible: false });
-          try {
-            await removeFromCircle(member.member_id || member.id);
-            setCircleMembers((prev) => prev.filter((m) => (m.member_id || m.id) !== (member.member_id || member.id)));
-            setCircleTotalCount((c) => Math.max(0, c - 1));
-            hapticsService.triggerImpactLight();
-          } catch (err) {
-            setAlertConfig({
-              visible: true,
-              title: "Error",
-              message: err?.message || "Failed to remove. Please try again.",
-              icon: TriangleAlert,
-              iconColor: "#E53935",
-              primaryAction: {
-                text: "OK",
-                onPress: () => setAlertConfig({ visible: false }),
-              },
-            });
-          }
-        },
-      },
-    });
-  }, []);
-
-  // ── Navigation helpers ────────────────────────────────────────────────────
-
-  const navigateToProfile = useCallback((follower) => {
-    const memberId = follower.member_id || follower.id;
-    if (follower.follower_type === "community") {
-      navigation.navigate("CommunityPublicProfile", { communityId: memberId });
-    } else {
-      // Default to member profile
-      navigation.navigate("MemberPublicProfile", { memberId });
+  const navigateTo = useCallback((item) => {
+    const type = item.follower_type || item.type || "member";
+    if (type === "member") {
+      navigation.navigate("MemberPublicProfile", { memberId: item.id });
+    } else if (type === "community") {
+      navigation.navigate("CommunityPublicProfile", { communityId: item.id });
     }
   }, [navigation]);
 
-  // ── Section data (Followers Tab) ──────────────────────────────────────────
+  // ── Render helpers ────────────────────────────────────────────────────────
 
-  const sections = [];
+  const renderFollowerItem = useCallback(({ item }) => (
+    <PersonRow
+      item={item}
+      isOwnProfile={isOwnProfile}
+      circleState={circleStates[item.id] || "none"}
+      circleLoading={!!circleActionLoading[item.id]}
+      onAddToCircle={handleAddToCircle}
+      onPress={() => navigateTo(item)}
+    />
+  ), [isOwnProfile, circleStates, circleActionLoading, handleAddToCircle, navigateTo]);
 
-  if (notableFollowers.length > 0) {
-    sections.push({
-      type: "notable",
-      title: "Notable Followers",
-      data: [{ key: "notable_row" }],
-    });
-  }
-
-  sections.push({
-    type: "all",
-    title: `All Followers${total > 0 ? `  ${total.toLocaleString("en-IN")}` : ""}`,
-    data: followers.length > 0 ? followers : [{ key: "empty" }],
-  });
-
-  const renderCircleEmptyState = () => {
-    if (circlesLoading) return null;
-    return (
-      <View style={styles.emptyState}>
-        <View style={styles.emptyIcon}>
-          <Users size={32} color={COLORS.textSecondary} strokeWidth={1.5} />
-        </View>
-        <Text style={styles.emptyTitle}>
-          {circleSearch ? "No results found" : (isOwnProfile ? "Your circle is empty" : "No connections yet")}
-        </Text>
-        <Text style={styles.emptyBody}>
-          {circleSearch
-            ? "Try a different name or username."
-            : (isOwnProfile
-              ? "When you connect with people, they'll appear here."
-              : "This member hasn't connected with anyone yet.")}
-        </Text>
+  const renderCircleItem = useCallback(({ item }) => (
+    <TouchableOpacity
+      style={styles.row}
+      onPress={() => navigation.navigate("MemberPublicProfile", { memberId: item.member_id || item.id })}
+      activeOpacity={0.78}
+    >
+      <Avatar uri={item.profile_photo_url || item.avatar_url} name={item.name} />
+      <View style={styles.rowBody}>
+        <Text style={styles.rowName} numberOfLines={1}>{item.name || item.full_name || "Member"}</Text>
+        {(item.username) ? (
+          <Text style={styles.rowUsername} numberOfLines={1}>@{item.username}</Text>
+        ) : null}
       </View>
-    );
-  };
+    </TouchableOpacity>
+  ), [navigation]);
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const renderEmpty = (label) => (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyIcon}>
+        <Users size={32} color={COLORS.textSecondary} strokeWidth={1.5} />
+      </View>
+      <Text style={styles.emptyTitle}>No {label} yet</Text>
+    </View>
+  );
+
+  const renderFooter = (loading) =>
+    loading ? (
+      <View style={styles.loadMoreWrap}>
+        <ActivityIndicator size="small" color="#2962FF" />
+      </View>
+    ) : null;
+
+  const isFollowersTab = activeTab === "followers";
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
-      {/* Header */}
+      {/* ── Header ─────────────────────────────────────────────────────── */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => navigation.goBack()}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
           <ArrowLeft size={22} color={COLORS.textPrimary} strokeWidth={2} />
         </TouchableOpacity>
@@ -512,220 +337,101 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         <View style={{ width: 38 }} />
       </View>
 
-      {/* Tabs */}
-      <View style={tabStyles.tabBar}>
+      {/* ── Tab Bar ────────────────────────────────────────────────────── */}
+      <View style={styles.tabBar}>
         <TouchableOpacity
-          style={[tabStyles.tab, activeTab === "followers" && tabStyles.tabActive]}
-          onPress={() => {
-            hapticsService.triggerImpactLight();
-            setActiveTab("followers");
-          }}
+          style={[styles.tab, isFollowersTab && styles.tabActive]}
+          onPress={() => handleTabPress("followers")}
         >
-          <Text style={[tabStyles.tabText, activeTab === "followers" && tabStyles.tabTextActive]}>
-            Followers • {total || 0}
+          <Text style={[styles.tabText, isFollowersTab && styles.tabTextActive]}>
+            Followers{followersTotal > 0 ? ` • ${followersTotal}` : ""}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[tabStyles.tab, activeTab === "circles" && tabStyles.tabActive]}
-          onPress={() => {
-            hapticsService.triggerImpactLight();
-            setActiveTab("circles");
-          }}
+          style={[styles.tab, !isFollowersTab && styles.tabActive]}
+          onPress={() => handleTabPress("circle")}
         >
-          <Text style={[tabStyles.tabText, activeTab === "circles" && tabStyles.tabTextActive]}>
-            Circle • {circleTotalCount || 0}
+          <Text style={[styles.tabText, !isFollowersTab && styles.tabTextActive]}>
+            Circle{circleTotal > 0 ? ` • ${circleTotal}` : ""}
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Content */}
-      {activeTab === "followers" ? (
-        <View style={{ flex: 1 }}>
-          {/* Search bar for Followers */}
-          <View style={tabStyles.searchRow}>
-            <View style={tabStyles.searchBox}>
-              <Search size={16} color={COLORS.textSecondary} strokeWidth={2} style={{ marginRight: 8 }} />
-              <TextInput
-                style={tabStyles.searchInput}
-                placeholder={isOwnProfile ? "Search your followers…" : "Search followers…"}
-                placeholderTextColor={COLORS.textSecondary}
-                value={followersSearch}
-                onChangeText={handleFollowersSearchChange}
-                returnKeyType="search"
-              />
-              {followersSearch.length > 0 && (
-                <TouchableOpacity onPress={() => handleFollowersSearchChange("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <X size={16} color={COLORS.textSecondary} strokeWidth={2} />
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
+      {/* ── Search Bar ─────────────────────────────────────────────────── */}
+      <View style={styles.searchWrap}>
+        <Search size={16} color={COLORS.textSecondary} strokeWidth={2} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder={isFollowersTab ? "Search followers..." : "Search circle..."}
+          placeholderTextColor={COLORS.textSecondary}
+          value={isFollowersTab ? followerSearch : circleSearch}
+          onChangeText={isFollowersTab ? setFollowerSearch : setCircleSearch}
+          returnKeyType="search"
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
+      </View>
 
-          {loading && followers.length === 0 ? (
-            <View style={styles.loaderCenter}>
-              <ActivityIndicator size="large" color="#2962FF" />
-            </View>
-          ) : error ? (
-            <View style={styles.loaderCenter}>
-              <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity style={styles.retryBtn} onPress={() => loadInitial(followersSearch)}>
-                <Text style={styles.retryText}>Retry</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <SectionList
-              sections={sections}
-              keyExtractor={(item, idx) => item?.id ? String(item.id) : `${item?.key}-${idx}`}
-              contentContainerStyle={styles.listContent}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  tintColor="#2962FF"
-                  colors={["#2962FF"]}
-                />
-              }
-              onEndReached={loadMore}
-              onEndReachedThreshold={0.3}
-              stickySectionHeadersEnabled={false}
-              renderSectionHeader={({ section }) => (
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>{section.title}</Text>
+      {/* ── Content ────────────────────────────────────────────────────── */}
+      {isFollowersTab ? (
+        followerLoading ? (
+          <View style={styles.loaderCenter}>
+            <ActivityIndicator size="large" color="#2962FF" />
+          </View>
+        ) : (
+          <FlatList
+            data={followers}
+            keyExtractor={(item, i) => `f-${item.id ?? i}`}
+            renderItem={renderFollowerItem}
+            ListHeaderComponent={
+              followers.length > 0 ? (
+                <View style={styles.listHeader}>
+                  <Text style={styles.listHeaderText}>
+                    All Followers {followersTotal > 0 ? followersTotal : ""}
+                  </Text>
                 </View>
-              )}
-              renderItem={({ item, section }) => {
-                // Notable section: render horizontal scroll
-                if (section.type === "notable") {
-                  return (
-                    <FlatList
-                      horizontal
-                      data={notableFollowers}
-                      keyExtractor={(f) => String(f.id)}
-                      contentContainerStyle={styles.notableList}
-                      showsHorizontalScrollIndicator={false}
-                      renderItem={({ item: follower }) => (
-                        <NotableCard
-                          follower={follower}
-                          onPress={() => navigateToProfile(follower)}
-                        />
-                      )}
-                    />
-                  );
-                }
-
-                // Empty state
-                if (item?.key === "empty") {
-                  return (
-                    <View style={styles.emptyState}>
-                      <View style={styles.emptyIcon}>
-                        <Users size={32} color={COLORS.textSecondary} strokeWidth={1.5} />
-                      </View>
-                      <Text style={styles.emptyTitle}>
-                        {followersSearch ? "No results found" : "No followers yet"}
-                      </Text>
-                      <Text style={styles.emptyBody}>
-                        {followersSearch
-                          ? "Try a different name or username."
-                          : "Share your profile to grow your audience."}
-                      </Text>
-                    </View>
-                  );
-                }
-
-                // Regular follower row
-                return (
-                  <FollowerRow
-                    follower={item}
-                    isOwnProfile={isOwnProfile}
-                    circleState={circleStates[item.id] || "none"}
-                    circleLoading={!!circleLoading[item.id]}
-                    onAddToCircle={handleAddToCircle}
-                    onPress={() => navigateToProfile(item)}
-                  />
-                );
-              }}
-              ListFooterComponent={
-                loadingMore ? (
-                  <View style={styles.loadMoreIndicator}>
-                    <ActivityIndicator size="small" color="#2962FF" />
-                  </View>
-                ) : null
-              }
-            />
-          )}
-        </View>
+              ) : null
+            }
+            ListEmptyComponent={renderEmpty("followers")}
+            ListFooterComponent={renderFooter(followerLoadingMore)}
+            onEndReached={loadMoreFollowers}
+            onEndReachedThreshold={0.3}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2962FF" colors={["#2962FF"]} />
+            }
+            contentContainerStyle={[styles.listContent, followers.length === 0 && { flex: 1 }]}
+          />
+        )
       ) : (
-        /* Circles tab */
-        <View style={{ flex: 1 }}>
-          <View style={tabStyles.searchRow}>
-            <View style={tabStyles.searchBox}>
-              <Search size={16} color={COLORS.textSecondary} strokeWidth={2} style={{ marginRight: 8 }} />
-              <TextInput
-                style={tabStyles.searchInput}
-                placeholder={isOwnProfile ? "Search your circle…" : "Search circle…"}
-                placeholderTextColor={COLORS.textSecondary}
-                value={circleSearch}
-                onChangeText={handleCircleSearchChange}
-                returnKeyType="search"
-              />
-              {circleSearch.length > 0 && (
-                <TouchableOpacity onPress={() => handleCircleSearchChange("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <X size={16} color={COLORS.textSecondary} strokeWidth={2} />
-                </TouchableOpacity>
-              )}
-            </View>
+        circleLoading ? (
+          <View style={styles.loaderCenter}>
+            <ActivityIndicator size="large" color="#2962FF" />
           </View>
-
-          {circlesLoading && circleMembers.length === 0 ? (
-            <View style={styles.loaderCenter}>
-              <ActivityIndicator size="large" color="#2962FF" />
-            </View>
-          ) : (
-            <FlatList
-              data={circleMembers}
-              keyExtractor={(item) => String(item.member_id || item.id)}
-              contentContainerStyle={styles.listContent}
-              renderItem={({ item }) => (
-                <CircleRow
-                  member={item}
-                  isOwnProfile={isOwnProfile}
-                  onRemove={() => handleRemoveFromCircle(item)}
-                  onPress={() => navigateToProfile(item)}
-                />
-              )}
-              ListEmptyComponent={renderCircleEmptyState}
-              onEndReached={loadMoreCircles}
-              onEndReachedThreshold={0.3}
-              refreshControl={
-                <RefreshControl
-                  refreshing={circlesRefreshing}
-                  onRefresh={onCirclesRefresh}
-                  tintColor="#2962FF"
-                  colors={["#2962FF"]}
-                />
-              }
-              ListFooterComponent={
-                circlesLoadingMore ? (
-                  <View style={styles.loadMoreIndicator}>
-                    <ActivityIndicator size="small" color="#2962FF" />
-                  </View>
-                ) : null
-              }
-            />
-          )}
-        </View>
+        ) : (
+          <FlatList
+            data={circleMembers}
+            keyExtractor={(item, i) => `c-${item.id ?? item.member_id ?? i}`}
+            renderItem={renderCircleItem}
+            ListHeaderComponent={
+              circleMembers.length > 0 ? (
+                <View style={styles.listHeader}>
+                  <Text style={styles.listHeaderText}>
+                    Circle Members {circleTotal > 0 ? circleTotal : ""}
+                  </Text>
+                </View>
+              ) : null
+            }
+            ListEmptyComponent={renderEmpty("circle members")}
+            ListFooterComponent={renderFooter(circleLoadingMore)}
+            onEndReached={loadMoreCircle}
+            onEndReachedThreshold={0.3}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2962FF" colors={["#2962FF"]} />
+            }
+            contentContainerStyle={[styles.listContent, circleMembers.length === 0 && { flex: 1 }]}
+          />
+        )
       )}
-
-      <CustomAlertModal
-        visible={alertConfig.visible}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        icon={alertConfig.icon}
-        iconColor={alertConfig.iconColor}
-        primaryAction={alertConfig.primaryAction}
-        secondaryAction={alertConfig.secondaryAction}
-        onClose={() => setAlertConfig({ visible: false })}
-      />
     </SafeAreaView>
   );
 }
@@ -744,6 +450,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: "#fff",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border || "#E5E7EB",
   },
   backBtn: {
     width: 38,
@@ -759,230 +467,17 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     letterSpacing: -0.3,
   },
-  listContent: {
-    paddingBottom: 40,
-  },
-  sectionHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 10,
-    backgroundColor: "#fff",
-  },
-  sectionTitle: {
-    fontFamily: FONTS.bold || FONTS.semiBold,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    letterSpacing: -0.2,
-  },
-  notableList: {
-    paddingHorizontal: 16,
-    paddingBottom: 4,
-    gap: 12,
-  },
-  loaderCenter: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 32,
-  },
-  errorText: {
-    fontFamily: FONTS.regular,
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: "center",
-    marginBottom: 16,
-  },
-  retryBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    backgroundColor: "#2962FF",
-    borderRadius: 20,
-  },
-  retryText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 14,
-    color: "#fff",
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 48,
-    paddingHorizontal: 32,
-  },
-  emptyIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "rgba(0,0,0,0.04)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 16,
-    color: COLORS.textPrimary,
-    marginBottom: 6,
-    textAlign: "center",
-  },
-  emptyBody: {
-    fontFamily: FONTS.regular,
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  loadMoreIndicator: {
-    paddingVertical: 20,
-    alignItems: "center",
-  },
-});
-
-// Notable card styles
-const cardStyles = StyleSheet.create({
-  card: {
-    width: 80,
-    alignItems: "center",
-    gap: 6,
-  },
-  avatarContainer: {
-    position: "relative",
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "#F3F4F6",
-  },
-  avatarFallback: {
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(41, 98, 255, 0.08)",
-  },
-  avatarInitials: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 18,
-    color: "#2962FF",
-  },
-  typeBadge: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
-  communityBadge: {
-    backgroundColor: "#2962FF",
-  },
-  pageBadge: {
-    backgroundColor: "#34C759",
-  },
-  name: {
-    fontFamily: FONTS.medium || FONTS.semiBold,
-    fontSize: 11,
-    color: COLORS.textPrimary,
-    textAlign: "center",
-    lineHeight: 14,
-  },
-});
-
-// Row styles
-const rowStyles = StyleSheet.create({
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border || "#E5E7EB",
-    gap: 12,
-    backgroundColor: "#fff",
-  },
-  avatarWrap: {
-    position: "relative",
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#F3F4F6",
-  },
-  avatarFallback: {
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(41, 98, 255, 0.06)",
-  },
-  avatarInitials: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 15,
-    color: "#2962FF",
-  },
-  body: {
-    flex: 1,
-    gap: 1,
-  },
-  name: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 14,
-    color: COLORS.textPrimary,
-    letterSpacing: -0.1,
-  },
-  username: {
-    fontFamily: FONTS.regular,
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  time: {
-    fontFamily: FONTS.regular,
-    fontSize: 11,
-    color: COLORS.textTertiary || COLORS.textSecondary,
-    marginTop: 2,
-  },
-  ctaBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1.5,
-  },
-  ctaBtnDefault: {
-    borderColor: "#2962FF",
-    backgroundColor: "rgba(41, 98, 255, 0.06)",
-  },
-  ctaBtnRequested: {
-    borderColor: COLORS.border || "#E5E7EB",
-    backgroundColor: "rgba(0,0,0,0.04)",
-  },
-  ctaTextDefault: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 12,
-    color: "#2962FF",
-  },
-  ctaTextRequested: {
-    fontFamily: FONTS.medium || FONTS.regular,
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-});
-
-const tabStyles = StyleSheet.create({
+  // ── Tabs
   tabBar: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    borderBottomColor: COLORS.border || "#E5E7EB",
     backgroundColor: "#fff",
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
     alignItems: "center",
-    justifyContent: "center",
+    paddingVertical: 12,
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   },
@@ -992,40 +487,146 @@ const tabStyles = StyleSheet.create({
   tabText: {
     fontFamily: FONTS.semiBold,
     fontSize: 14,
-    color: COLORS.textSecondary || "#6B7280",
+    color: COLORS.textSecondary,
   },
   tabTextActive: {
     color: "#2962FF",
   },
-  searchRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: "#fff",
-  },
-  searchBox: {
+  // ── Search
+  searchWrap: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F2F2F7",
+    marginHorizontal: 16,
+    marginVertical: 10,
+    backgroundColor: "#F5F5F7",
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
+  searchIcon: {
+    marginRight: 8,
+  },
   searchInput: {
     flex: 1,
     fontFamily: FONTS.regular,
-    fontSize: 15,
-    color: COLORS.textPrimary || "#1a2d4a",
-    padding: 0,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    paddingVertical: 0,
   },
-});
-
-const circleRowStyles = StyleSheet.create({
-  removeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F2F2F7",
+  // ── List
+  listContent: {
+    paddingBottom: 40,
+  },
+  listHeader: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    paddingTop: 4,
+  },
+  listHeaderText: {
+    fontFamily: FONTS.bold || FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+  },
+  // ── Row
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border || "#E5E7EB",
+    gap: 12,
+    backgroundColor: "#fff",
+  },
+  avatar: {
+    backgroundColor: "#F3F4F6",
+  },
+  avatarFallback: {
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "rgba(41, 98, 255, 0.06)",
+  },
+  avatarInitials: {
+    fontFamily: FONTS.semiBold,
+    color: "#2962FF",
+  },
+  rowBody: {
+    flex: 1,
+    gap: 1,
+  },
+  rowName: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    letterSpacing: -0.1,
+  },
+  rowUsername: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  rowTime: {
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  // ── CTA
+  ctaBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    minWidth: 62,
+    alignItems: "center",
+  },
+  ctaBtnDefault: {
+    borderColor: "#2962FF",
+    backgroundColor: "rgba(41, 98, 255, 0.06)",
+  },
+  ctaBtnRequested: {
+    borderColor: COLORS.border || "#E5E7EB",
+    backgroundColor: "rgba(0,0,0,0.03)",
+  },
+  ctaTextDefault: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: "#2962FF",
+  },
+  ctaTextRequested: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  // ── States
+  loaderCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+  },
+  emptyIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "rgba(0,0,0,0.04)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  emptyTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+  },
+  loadMoreWrap: {
+    paddingVertical: 20,
+    alignItems: "center",
   },
 });

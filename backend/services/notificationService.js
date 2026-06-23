@@ -511,30 +511,39 @@ const createCreatorFollowNotification = async (
       actorAvatar: followerAvatar,
     });
 
-    const query = `
-      INSERT INTO notifications (
-        recipient_id, recipient_type, actor_id, actor_type,
-        type, payload, is_active, is_read, updated_at
-      )
-      VALUES ($1, 'member', $2, $3, 'creator_follow_received', $4, TRUE, FALSE, NOW())
-      ON CONFLICT (actor_id, actor_type, recipient_id, recipient_type, type)
-        WHERE type IN ('creator_follow_received') AND is_active = TRUE
-      DO UPDATE SET
-        is_active = TRUE,
-        payload = EXCLUDED.payload,
-        updated_at = NOW(),
-        is_read = FALSE
-      RETURNING id;
-    `;
+    // Check for an existing active notification to avoid duplicates
+    // (avoids ON CONFLICT which requires a partial unique index that may not exist)
+    const existing = await pool.query(
+      `SELECT id FROM notifications
+       WHERE actor_id = $1 AND actor_type = $2
+         AND recipient_id = $3 AND recipient_type = 'member'
+         AND type = 'creator_follow_received'
+         AND is_active = TRUE
+       LIMIT 1`,
+      [followerId, followerType, creatorId]
+    );
 
-    const result = await pool.query(query, [
-      creatorId,
-      followerId,
-      followerType,
-      payload,
-    ]);
+    if (existing.rows.length > 0) {
+      // Reactivate / refresh the existing notification
+      await pool.query(
+        `UPDATE notifications SET is_read = FALSE, payload = $1, updated_at = NOW()
+         WHERE id = $2`,
+        [payload, existing.rows[0].id]
+      );
+      return existing.rows[0].id;
+    }
+
+    const result = await pool.query(
+      `INSERT INTO notifications
+         (recipient_id, recipient_type, actor_id, actor_type,
+          type, payload, is_active, is_read, updated_at)
+       VALUES ($1, 'member', $2, $3, 'creator_follow_received', $4, TRUE, FALSE, NOW())
+       RETURNING id`,
+      [creatorId, followerId, followerType, payload]
+    );
 
     return result.rows[0]?.id || null;
+
   } catch (error) {
     console.error(
       "[NotificationService] Failed to create creator_follow_received notification:",

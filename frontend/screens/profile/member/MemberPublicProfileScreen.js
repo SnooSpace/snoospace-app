@@ -475,6 +475,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       setCircleCount(p?.circle_count || 0);
       setCreatorFollowerCount(p?.creator_follower_count || 0);
       setYouHaveBlocked(!!p?.you_have_blocked);
+      return normalized; // ← callers use this to conditionally fetch follow status
     } catch (e) {
       console.error('[MemberPublicProfile] loadProfile error:', e?.status, e?.message, e?.data);
       if (e?.status === 403 && e?.data?.error === 'user_unavailable') {

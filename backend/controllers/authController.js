@@ -453,6 +453,17 @@ async function getUserProfile(req, res) {
           const row = result.rows[0];
           if (config.role === "member") {
             const collegeInfo = await fetchCollegeInfoForMember(pool, row.campus_id);
+            // Live counts to avoid stale denormalized values
+            const [cfCountR, cfFollowingR] = await Promise.all([
+              pool.query(
+                `SELECT COUNT(*) FROM creator_follows WHERE creator_id = $1 AND is_dormant = false`,
+                [row.id]
+              ),
+              pool.query(
+                `SELECT COUNT(*) FROM creator_follows WHERE follower_id = $1 AND is_dormant = false`,
+                [row.id]
+              ),
+            ]);
             const normalized = {
               ...row,
               interests:
@@ -465,6 +476,8 @@ async function getUserProfile(req, res) {
                   ? JSON.parse(row.location)
                   : row.location,
               college_info: collegeInfo,
+              creator_follower_count: parseInt(cfCountR.rows[0]?.count ?? 0, 10),
+              following_count: (parseInt(row.following_count ?? 0, 10)) + parseInt(cfFollowingR.rows[0]?.count ?? 0, 10),
             };
             return res.json({ role: config.role, profile: normalized });
           }
@@ -492,6 +505,17 @@ async function getUserProfile(req, res) {
         const row = result.rows[0];
         if (role === "member") {
           const collegeInfo = await fetchCollegeInfoForMember(pool, row.campus_id);
+          // Live counts to avoid stale denormalized values
+          const [cfCountR, cfFollowingR] = await Promise.all([
+            pool.query(
+              `SELECT COUNT(*) FROM creator_follows WHERE creator_id = $1 AND is_dormant = false`,
+              [row.id]
+            ),
+            pool.query(
+              `SELECT COUNT(*) FROM creator_follows WHERE follower_id = $1 AND is_dormant = false`,
+              [row.id]
+            ),
+          ]);
           const normalized = {
             ...row,
             interests:
@@ -504,6 +528,8 @@ async function getUserProfile(req, res) {
                 ? JSON.parse(row.location)
                 : row.location,
             college_info: collegeInfo,
+            creator_follower_count: parseInt(cfCountR.rows[0]?.count ?? 0, 10),
+            following_count: (parseInt(row.following_count ?? 0, 10)) + parseInt(cfFollowingR.rows[0]?.count ?? 0, 10),
           };
           return res.json({ role, profile: normalized });
         }

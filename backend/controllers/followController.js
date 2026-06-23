@@ -401,21 +401,28 @@ const getProfileCounts = async (req, res) => {
     }
 
     let followers_count, following_count, post_count;
-
     let circle_count = 0;
+    let creator_follower_count = 0;
 
     if (userType === 'member') {
       const r = await pool.query(
         `SELECT follower_count, following_count, circle_count,
+                (SELECT COUNT(*) FROM creator_follows
+                 WHERE creator_id = $1 AND is_dormant = false)::int AS creator_follower_count,
+                (SELECT COUNT(*) FROM creator_follows
+                 WHERE follower_id = $1 AND is_dormant = false)::int AS creator_following_count,
                 (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member')::int AS post_count
          FROM members WHERE id = $1`,
         [userId]
       );
       const row = r.rows[0];
-      followers_count = parseInt(row?.follower_count  ?? 0, 10);
-      following_count = parseInt(row?.following_count ?? 0, 10);
-      post_count      = parseInt(row?.post_count      ?? 0, 10);
-      circle_count    = parseInt(row?.circle_count    ?? 0, 10);
+      const communityFollowing    = parseInt(row?.following_count        ?? 0, 10);
+      const creatorFollowing      = parseInt(row?.creator_following_count ?? 0, 10);
+      followers_count        = parseInt(row?.follower_count         ?? 0, 10);
+      following_count        = communityFollowing + creatorFollowing; // all entities this member follows
+      post_count             = parseInt(row?.post_count             ?? 0, 10);
+      circle_count           = parseInt(row?.circle_count           ?? 0, 10);
+      creator_follower_count = parseInt(row?.creator_follower_count ?? 0, 10);
     } else if (userType === 'community') {
       const r = await pool.query(
         `SELECT follower_count, following_count,
@@ -443,7 +450,7 @@ const getProfileCounts = async (req, res) => {
       post_count      = parseInt(row.post_count,      10);
     }
 
-    res.json({ followers_count, following_count, post_count, circle_count });
+    res.json({ followers_count, following_count, post_count, circle_count, creator_follower_count });
   } catch (error) {
     console.error("Error getting profile counts:", error);
     res.status(500).json({ error: "Internal server error" });
