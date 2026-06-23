@@ -260,6 +260,84 @@ const getFollowing = async (req, res) => {
     const { page = 1, limit = 20, search = "" } = req.query;
     const offset = (page - 1) * limit;
 
+    if (userType === 'member') {
+      // For members: combine old-style follows (communities/venues/sponsors) with
+      // creator_follows (creator accounts this member follows)
+      const params = [userId, limit, offset];
+      if (search) params.push(`%${search}%`);
+      const sIdx = search ? `$${params.length}` : null; // position of search param
+
+      const searchOldClause = search ? `
+        AND (
+          (f.following_type = 'member' AND (m.name ILIKE ${sIdx} OR m.username ILIKE ${sIdx})) OR
+          (f.following_type = 'community' AND (c.name ILIKE ${sIdx} OR c.username ILIKE ${sIdx})) OR
+          (f.following_type = 'sponsor' AND (s.brand_name ILIKE ${sIdx} OR s.username ILIKE ${sIdx})) OR
+          (f.following_type = 'venue' AND (v.name ILIKE ${sIdx} OR v.username ILIKE ${sIdx}))
+        )` : '';
+
+      const searchCreatorClause = search ? `
+        AND (cr.name ILIKE ${sIdx} OR cr.username ILIKE ${sIdx})` : '';
+
+      const query = `
+        SELECT
+          following_id, following_type, following_name, following_username,
+          following_photo_url, created_at, true AS is_following
+        FROM (
+          -- Old-style follows (communities, venues, sponsors, old member follows)
+          SELECT
+            f.following_id,
+            f.following_type,
+            CASE
+              WHEN f.following_type = 'member'    THEN m.name
+              WHEN f.following_type = 'community' THEN c.name
+              WHEN f.following_type = 'sponsor'   THEN s.brand_name
+              WHEN f.following_type = 'venue'     THEN v.name
+            END AS following_name,
+            CASE
+              WHEN f.following_type = 'member'    THEN m.username
+              WHEN f.following_type = 'community' THEN c.username
+              WHEN f.following_type = 'sponsor'   THEN s.username
+              WHEN f.following_type = 'venue'     THEN v.username
+            END AS following_username,
+            CASE
+              WHEN f.following_type = 'member'    THEN m.profile_photo_url
+              WHEN f.following_type = 'community' THEN c.logo_url
+              WHEN f.following_type = 'sponsor'   THEN s.logo_url
+              WHEN f.following_type = 'venue'     THEN NULL
+            END AS following_photo_url,
+            f.created_at
+          FROM follows f
+          LEFT JOIN members     m ON f.following_type = 'member'    AND f.following_id = m.id
+          LEFT JOIN communities c ON f.following_type = 'community' AND f.following_id = c.id
+          LEFT JOIN sponsors    s ON f.following_type = 'sponsor'   AND f.following_id = s.id
+          LEFT JOIN venues      v ON f.following_type = 'venue'     AND f.following_id = v.id
+          WHERE f.follower_id = $1 AND f.follower_type = 'member'
+            ${searchOldClause}
+
+          UNION ALL
+
+          -- Creator follows (member → creator member)
+          SELECT
+            cf.creator_id  AS following_id,
+            'member'       AS following_type,
+            cr.name        AS following_name,
+            cr.username    AS following_username,
+            cr.profile_photo_url AS following_photo_url,
+            cf.created_at
+          FROM creator_follows cf
+          JOIN members cr ON cr.id = cf.creator_id
+          WHERE cf.follower_id = $1 AND cf.is_dormant = false
+            ${searchCreatorClause}
+        ) combined
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3
+      `;
+
+      const result = await pool.query(query, params);
+      return res.json({ following: result.rows });
+    }
+
+    // Non-member user types (community etc.) — original logic
     const searchClause = search ? `
       AND (
         (f.following_type = 'member' AND (m.name ILIKE $5 OR m.username ILIKE $5)) OR
@@ -269,43 +347,43 @@ const getFollowing = async (req, res) => {
       )
     ` : '';
 
-    const params = [userId, userType, limit, offset];
-    if (search) params.push(`%${search}%`);
+    const params2 = [userId, userType, limit, offset];
+    if (search) params2.push(`%${search}%`);
 
-    const query = `
-      SELECT 
+    const query2 = `
+      SELECT
         f.*,
-        CASE 
-          WHEN f.following_type = 'member' THEN m.name
+        CASE
+          WHEN f.following_type = 'member'    THEN m.name
           WHEN f.following_type = 'community' THEN c.name
-          WHEN f.following_type = 'sponsor' THEN s.brand_name
-          WHEN f.following_type = 'venue' THEN v.name
+          WHEN f.following_type = 'sponsor'   THEN s.brand_name
+          WHEN f.following_type = 'venue'     THEN v.name
         END as following_name,
-        CASE 
-          WHEN f.following_type = 'member' THEN m.username
+        CASE
+          WHEN f.following_type = 'member'    THEN m.username
           WHEN f.following_type = 'community' THEN c.username
-          WHEN f.following_type = 'sponsor' THEN s.username
-          WHEN f.following_type = 'venue' THEN v.username
+          WHEN f.following_type = 'sponsor'   THEN s.username
+          WHEN f.following_type = 'venue'     THEN v.username
         END as following_username,
-        CASE 
-          WHEN f.following_type = 'member' THEN m.profile_photo_url
+        CASE
+          WHEN f.following_type = 'member'    THEN m.profile_photo_url
           WHEN f.following_type = 'community' THEN c.logo_url
-          WHEN f.following_type = 'sponsor' THEN s.logo_url
-          WHEN f.following_type = 'venue' THEN NULL
+          WHEN f.following_type = 'sponsor'   THEN s.logo_url
+          WHEN f.following_type = 'venue'     THEN NULL
         END as following_photo_url
       FROM follows f
-      LEFT JOIN members m ON f.following_type = 'member' AND f.following_id = m.id
+      LEFT JOIN members     m ON f.following_type = 'member'    AND f.following_id = m.id
       LEFT JOIN communities c ON f.following_type = 'community' AND f.following_id = c.id
-      LEFT JOIN sponsors s ON f.following_type = 'sponsor' AND f.following_id = s.id
-      LEFT JOIN venues v ON f.following_type = 'venue' AND f.following_id = v.id
+      LEFT JOIN sponsors    s ON f.following_type = 'sponsor'   AND f.following_id = s.id
+      LEFT JOIN venues      v ON f.following_type = 'venue'     AND f.following_id = v.id
       WHERE f.follower_id = $1 AND f.follower_type = $2
         ${searchClause}
       ORDER BY f.created_at DESC
       LIMIT $3 OFFSET $4
     `;
 
-    const result = await pool.query(query, params);
-    res.json({ following: result.rows });
+    const result2 = await pool.query(query2, params2);
+    res.json({ following: result2.rows });
   } catch (error) {
     console.error("Error getting following:", error);
     res.status(500).json({ error: "Internal server error" });
