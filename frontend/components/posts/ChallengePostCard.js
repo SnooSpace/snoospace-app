@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ChallengePostCard
  * Displays a Challenge post with joining, progress, and submission preview
  */
@@ -1347,23 +1347,27 @@ const ChallengePostCard = React.memo(({
         )}
       </View>
     </TouchableWithoutFeedback>
-      <ChallengeEditModal
-        visible={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        post={post}
-        onSave={handleSaveEdit}
-        isLoading={isUpdating}
-      />
-      <CustomAlertModal
-        visible={alertVisible}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        onClose={() => setAlertVisible(false)}
-        primaryAction={alertConfig.primaryAction}
-        secondaryAction={alertConfig.secondaryAction}
-        icon={alertConfig.icon}
-        iconColor={alertConfig.iconColor}
-      />
+      {showEditModal && (
+        <ChallengeEditModal
+          visible={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          post={post}
+          onSave={handleSaveEdit}
+          isLoading={isUpdating}
+        />
+      )}
+      {alertVisible && (
+        <CustomAlertModal
+          visible={alertVisible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          onClose={() => setAlertVisible(false)}
+          primaryAction={alertConfig.primaryAction}
+          secondaryAction={alertConfig.secondaryAction}
+          icon={alertConfig.icon}
+          iconColor={alertConfig.iconColor}
+        />
+      )}
     </>
   );
 });

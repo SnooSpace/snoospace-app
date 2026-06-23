@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PollPostCard
  * Displays a poll post with voting functionality
  */
@@ -837,25 +837,29 @@ const PollPostCard = React.memo(({
         )}
       </View>
     </TouchableWithoutFeedback>
-    {renderModal()}
+    {showEditModal && renderModal()}
 
       {/* Poll Voters Modal */}
-      <PollVotersModal
-        visible={showVotersModal}
-        onClose={() => setShowVotersModal(false)}
-        postId={post.id}
-        options={options}
-      />
-      <CustomAlertModal
-        visible={alertVisible}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        onClose={() => setAlertVisible(false)}
-        primaryAction={alertConfig.primaryAction}
-        secondaryAction={alertConfig.secondaryAction}
-        icon={alertConfig.icon}
-        iconColor={alertConfig.iconColor}
-      />
+      {showVotersModal && (
+        <PollVotersModal
+          visible={showVotersModal}
+          onClose={() => setShowVotersModal(false)}
+          postId={post.id}
+          options={options}
+        />
+      )}
+      {alertVisible && (
+        <CustomAlertModal
+          visible={alertVisible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          onClose={() => setAlertVisible(false)}
+          primaryAction={alertConfig.primaryAction}
+          secondaryAction={alertConfig.secondaryAction}
+          icon={alertConfig.icon}
+          iconColor={alertConfig.iconColor}
+        />
+      )}
     </>
   );
 });

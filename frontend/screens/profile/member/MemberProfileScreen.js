@@ -15,6 +15,7 @@ import {
   TextInput,
   RefreshControl,
   Pressable,
+  InteractionManager,
 } from "react-native";
 import Reanimated, {
   useSharedValue,
@@ -442,6 +443,9 @@ export default function MemberProfileScreen({ navigation }) {
   const [profile, setProfileState] = useState(memberProfile);
   const [posts, setPostsState] = useState(memberPosts || []);
   const [loading, setLoading] = useState(!memberProfile);
+  const [renderedPostsLimit, setRenderedPostsLimit] = useState(12);
+  const [renderedEventsLimit, setRenderedEventsLimit] = useState(3);
+  const [renderedCommunityLimit, setRenderedCommunityLimit] = useState(2);
 
   const setProfile = useCallback((updater) => {
     if (typeof updater === "function") {
@@ -538,6 +542,17 @@ export default function MemberProfileScreen({ navigation }) {
 
   // Events tab state
   const [activeProfileTab, setActiveProfileTab] = useState("posts");
+  const [renderedProfileTab, setRenderedProfileTab] = useState("posts");
+
+  useEffect(() => {
+    setRenderedPostsLimit(12);
+    setRenderedEventsLimit(5);
+    setRenderedCommunityLimit(5);
+    setRenderedProfileTab(null);
+    InteractionManager.runAfterInteractions(() => {
+      setRenderedProfileTab(activeProfileTab);
+    });
+  }, [activeProfileTab]);
   const [profileEvents, setProfileEvents] = useState([]);
   const [profilePlans, setProfilePlans] = useState({
     hosted: [],
@@ -1012,6 +1027,21 @@ export default function MemberProfileScreen({ navigation }) {
         setProfileEvents(eventsResponse.events);
       }
       console.log("[Profile] loadProfile: setProfile & setPosts");
+
+      // Fetch community voice posts in background to warm cache (if creator mode is enabled)
+      if (fullProfile?.is_creator_mode_enabled === true) {
+        try {
+          const res = await apiGet(
+            `/community-voice-posts?target_id=${userId}&target_type=member`,
+            15000,
+            token,
+          );
+          setVoicePosts(res?.posts || []);
+          communityPostsFetchedRef.current = true;
+        } catch (voiceErr) {
+          console.log("[Profile] Failed to load voice posts in background:", voiceErr);
+        }
+      }
     } catch (err) {
       console.log("[Profile] loadProfile: error caught:", err);
       setError(err.message || "An unexpected error occurred.");
@@ -1597,19 +1627,29 @@ export default function MemberProfileScreen({ navigation }) {
           }
           scrollEventThrottle={400}
           onScroll={({ nativeEvent }) => {
-            const { layoutMeasurement, contentOffset, contentSize } =
-              nativeEvent;
-            const isNearBottom =
-              layoutMeasurement.height + contentOffset.y >=
-              contentSize.height - 200;
-            if (
-              isNearBottom &&
-              activeProfileTab === "posts" &&
-              !loading &&
-              !loadingMorePosts &&
-              hasMorePosts
-            ) {
-              loadMorePosts();
+            const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+            const isNearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 300;
+            if (isNearBottom) {
+              if (activeProfileTab === "posts") {
+                if (renderedPostsLimit < posts.length) {
+                  setRenderedPostsLimit((prev) => prev + 12);
+                } else if (!loading && !loadingMorePosts && hasMorePosts) {
+                  loadMorePosts();
+                }
+              } else if (activeProfileTab === "events") {
+                const totalEvents = profileEvents.length + profilePlans.hosted.length + profilePlans.attending.length;
+                if (renderedEventsLimit < totalEvents) {
+                  setRenderedEventsLimit((prev) => prev + 5);
+                }
+              } else if (activeProfileTab === "community") {
+                const interactivePostsCount = posts.filter((p) =>
+                  ["poll", "prompt", "qna", "challenge", "opportunity"].includes(p.post_type || p.type)
+                ).length;
+                const totalCommunity = interactivePostsCount + voicePosts.length;
+                if (renderedCommunityLimit < totalCommunity) {
+                  setRenderedCommunityLimit((prev) => prev + 5);
+                }
+              }
             }
           }}
         >
@@ -1846,14 +1886,18 @@ export default function MemberProfileScreen({ navigation }) {
                   setActiveProfileTab(tab);
                   if (tab === "events" && !eventsFetchedRef.current) {
                     eventsFetchedRef.current = true;
-                    loadProfileEvents();
+                    InteractionManager.runAfterInteractions(() => {
+                      loadProfileEvents();
+                    });
                   }
                   if (
                     tab === "community" &&
                     !communityPostsFetchedRef.current
                   ) {
                     communityPostsFetchedRef.current = true;
-                    loadCommunityVoicePosts();
+                    InteractionManager.runAfterInteractions(() => {
+                      loadCommunityVoicePosts();
+                    });
                   }
                 }}
               >
@@ -1879,19 +1923,26 @@ export default function MemberProfileScreen({ navigation }) {
             />
           </View>
 
+          {renderedProfileTab === null && (
+            <View style={{ paddingVertical: 40, alignItems: "center" }}>
+              <SnooLoader size="small" color={PRIMARY_COLOR} />
+            </View>
+          )}
+
           {/* Posts Tab Content */}
-          {activeProfileTab === "posts" && (
+          {renderedProfileTab === "posts" && (
             <View style={{ display: "flex" }}>
               {(() => {
-                const numRows = Math.ceil(posts.length / 3);
+                const visiblePosts = posts.slice(0, renderedPostsLimit);
+                const numRows = Math.ceil(visiblePosts.length / 3);
                 const gridHeight =
                   numRows > 0
                     ? numRows * (itemSize * 1.35) + (numRows - 1) * gap
                     : 0;
-                return posts.length > 0 ? (
+                return visiblePosts.length > 0 ? (
                   <View style={{ height: gridHeight, marginTop: 10 }}>
                     <FlatList
-                      data={posts}
+                      data={visiblePosts}
                       keyExtractor={(item) => String(item.id)}
                       numColumns={3}
                       columnWrapperStyle={{
@@ -1920,15 +1971,14 @@ export default function MemberProfileScreen({ navigation }) {
             </View>
           )}
 
-          {loadingMorePosts && activeProfileTab === "posts" && (
+          {loadingMorePosts && renderedProfileTab === "posts" && (
             <View style={{ paddingVertical: 20, alignItems: "center" }}>
               <SnooLoader size="small" color={COLORS.primary} />
             </View>
           )}
 
-          {/* Community Posts Tab Content */}
           {profile.is_creator_mode_enabled &&
-            activeProfileTab === "community" && (
+            renderedProfileTab === "community" && (
               <View
                 style={{ display: "flex", paddingTop: 4, paddingBottom: 8 }}
                 onLayout={(e) => {
@@ -1946,190 +1996,202 @@ export default function MemberProfileScreen({ navigation }) {
                 />
 
                 {/* Creator's own interactive posts */}
-                {posts
-                  .filter((p) =>
-                    [
-                      "poll",
-                      "prompt",
-                      "qna",
-                      "challenge",
-                      "opportunity",
-                    ].includes(p.post_type || p.type),
-                  )
-                  .sort((a, b) => {
-                    if (a.is_pinned && !b.is_pinned) return -1;
-                    if (!a.is_pinned && b.is_pinned) return 1;
-                    return new Date(b.created_at) - new Date(a.created_at);
-                  })
-                  .map((post) => {
-                    const postType = post.post_type || post.type;
-                    if (postType === "opportunity") {
-                      return (
-                        <View
-                          key={post.id}
-                          onLayout={(e) => {
-                            if (
-                              String(post.id) ===
-                              String(scrollToPostIdRef.current)
-                            ) {
-                              scrollToPostIdRef.current = null;
-                              const itemY = e.nativeEvent.layout.y;
-                              const targetY = tabContentYRef.current + itemY;
-                              setTimeout(() => {
-                                scrollViewRef.current?.scrollTo({
-                                  y: Math.max(0, targetY - 60),
-                                  animated: true,
-                                });
-                              }, 100);
-                            }
-                          }}
-                          style={{ marginHorizontal: 16, marginBottom: 12 }}
-                        >
-                          <OpportunityFeedCard
-                            opportunity={post}
-                            showManagementControls={isOwnProfile}
-                            onPress={(opp) =>
-                              navigation.navigate("OpportunityView", {
-                                opportunityId: opp.id,
-                                opportunity: opp,
-                              })
-                            }
-                            onLike={(postId, isLiked, count) =>
-                              setPosts((prev) =>
-                                prev.map((p) =>
-                                  p.id === postId
-                                    ? {
-                                        ...p,
-                                        is_liked: isLiked,
-                                        like_count: count,
-                                      }
-                                    : p,
-                                ),
-                              )
-                            }
-                            onComment={(postId) =>
-                              openCommentsModal(postId, "opportunity")
-                            }
-                            onSave={(postId, isSaved) =>
-                              setPosts((prev) =>
-                                prev.map((p) =>
-                                  p.id === postId
-                                    ? { ...p, is_saved: isSaved }
-                                    : p,
-                                ),
-                              )
-                            }
-                            onShare={() => {}}
-                          />
-                        </View>
-                      );
-                    }
-                    return (
-                      <View
-                        key={post.id}
-                        onLayout={(e) => {
-                          if (
-                            String(post.id) ===
-                            String(scrollToPostIdRef.current)
-                          ) {
-                            scrollToPostIdRef.current = null;
-                            const itemY = e.nativeEvent.layout.y;
-                            const targetY = tabContentYRef.current + itemY;
-                            setTimeout(() => {
-                              scrollViewRef.current?.scrollTo({
-                                y: Math.max(0, targetY - 60),
-                                animated: true,
-                              });
-                            }, 100);
-                          }
-                        }}
-                        style={{ marginBottom: 4 }}
-                      >
-                        <EditorialPostCard
-                          post={post}
-                          onLike={(postId, isLiked, count) =>
-                            setPosts((prev) =>
-                              prev.map((p) =>
-                                p.id === postId
-                                  ? {
-                                      ...p,
-                                      is_liked: isLiked,
-                                      like_count: count,
-                                    }
-                                  : p,
-                              ),
-                            )
-                          }
-                          onComment={(postId) => openCommentsModal(postId)}
-                          onShare={() => {}}
-                          onFollow={() => {}}
-                          showFollowButton={false}
-                          currentUserId={profile?.id}
-                          currentUserType="member"
-                          onUserPress={() => {}}
-                          showManagementControls={isOwnProfile}
-                          onDelete={async (postId) => {
-                            try {
-                              const token = await getAuthToken();
-                              await apiDelete(
-                                `/posts/${postId}`,
-                                null,
-                                15000,
-                                token,
-                              );
-                              setPosts((prev) =>
-                                prev.filter((p) => p.id !== postId),
-                              );
-                              EventBus.emit("post-deleted", { postId });
-                            } catch (e) {
-                              Alert.alert("Error", "Failed to delete post");
-                            }
-                          }}
-                          onPostUpdate={(updatedPost) =>
-                            setPosts((prev) =>
-                              prev.map((p) =>
-                                p.id === updatedPost.id ? updatedPost : p,
-                              ),
-                            )
-                          }
-                        />
-                      </View>
-                    );
-                  })}
+                {(() => {
+                  const sortedInteractive = posts
+                    .filter((p) =>
+                      [
+                        "poll",
+                        "prompt",
+                        "qna",
+                        "challenge",
+                        "opportunity",
+                      ].includes(p.post_type || p.type),
+                    )
+                    .sort((a, b) => {
+                      if (a.is_pinned && !b.is_pinned) return -1;
+                      if (!a.is_pinned && b.is_pinned) return 1;
+                      return new Date(b.created_at) - new Date(a.created_at);
+                    })
+                    .map((p) => ({ ...p, itemType: "interactive" }));
 
-                {/* Voice posts from community members */}
-                {loadingVoicePosts ? (
-                  <View style={{ paddingVertical: 20, alignItems: "center" }}>
-                    <SnooLoader size="small" color={COLORS.primary} />
-                  </View>
-                ) : (
-                  voicePosts.map((vp) => (
-                    <View
-                      key={vp.id}
-                      onLayout={(e) => {
-                        if (
-                          String(vp.id) === String(scrollToPostIdRef.current)
-                        ) {
-                          scrollToPostIdRef.current = null;
-                          const itemY = e.nativeEvent.layout.y;
-                          const targetY = tabContentYRef.current + itemY;
-                          setTimeout(() => {
-                            scrollViewRef.current?.scrollTo({
-                              y: Math.max(0, targetY - 60),
-                              animated: true,
-                            });
-                          }, 100);
+                  const mappedVoicePosts = voicePosts.map((vp) => ({ ...vp, itemType: "voice" }));
+                  const allCommunityItems = [...sortedInteractive, ...mappedVoicePosts];
+                  const visibleCommunityItems = allCommunityItems.slice(0, renderedCommunityLimit);
+
+                  return (
+                    <>
+                      {visibleCommunityItems.map((item) => {
+                        if (item.itemType === "interactive") {
+                          const postType = item.post_type || item.type;
+                          if (postType === "opportunity") {
+                            return (
+                              <View
+                                key={item.id}
+                                onLayout={(e) => {
+                                  if (
+                                    String(item.id) ===
+                                    String(scrollToPostIdRef.current)
+                                  ) {
+                                    scrollToPostIdRef.current = null;
+                                    const itemY = e.nativeEvent.layout.y;
+                                    const targetY = tabContentYRef.current + itemY;
+                                    setTimeout(() => {
+                                      scrollViewRef.current?.scrollTo({
+                                        y: Math.max(0, targetY - 60),
+                                        animated: true,
+                                      });
+                                    }, 100);
+                                  }
+                                }}
+                                style={{ marginHorizontal: 16, marginBottom: 12 }}
+                              >
+                                <OpportunityFeedCard
+                                  opportunity={item}
+                                  showManagementControls={isOwnProfile}
+                                  onPress={(opp) =>
+                                    navigation.navigate("OpportunityView", {
+                                      opportunityId: opp.id,
+                                      opportunity: opp,
+                                    })
+                                  }
+                                  onLike={(postId, isLiked, count) =>
+                                    setPosts((prev) =>
+                                      prev.map((p) =>
+                                        p.id === postId
+                                          ? {
+                                              ...p,
+                                              is_liked: isLiked,
+                                              like_count: count,
+                                            }
+                                          : p,
+                                      ),
+                                    )
+                                  }
+                                  onComment={(postId) =>
+                                    openCommentsModal(postId, "opportunity")
+                                  }
+                                  onSave={(postId, isSaved) =>
+                                    setPosts((prev) =>
+                                      prev.map((p) =>
+                                        p.id === postId
+                                          ? { ...p, is_saved: isSaved }
+                                          : p,
+                                      ),
+                                    )
+                                  }
+                                  onShare={() => {}}
+                                />
+                              </View>
+                            );
+                          }
+                          return (
+                            <View
+                              key={item.id}
+                              onLayout={(e) => {
+                                if (
+                                  String(item.id) ===
+                                  String(scrollToPostIdRef.current)
+                                ) {
+                                  scrollToPostIdRef.current = null;
+                                  const itemY = e.nativeEvent.layout.y;
+                                  const targetY = tabContentYRef.current + itemY;
+                                  setTimeout(() => {
+                                    scrollViewRef.current?.scrollTo({
+                                      y: Math.max(0, targetY - 60),
+                                      animated: true,
+                                    });
+                                  }, 100);
+                                }
+                              }}
+                              style={{ marginBottom: 4 }}
+                            >
+                              <EditorialPostCard
+                                post={item}
+                                onLike={(postId, isLiked, count) =>
+                                  setPosts((prev) =>
+                                    prev.map((p) =>
+                                      p.id === postId
+                                        ? {
+                                            ...p,
+                                            is_liked: isLiked,
+                                            like_count: count,
+                                          }
+                                        : p,
+                                    ),
+                                  )
+                                }
+                                onComment={(postId) => openCommentsModal(postId)}
+                                onShare={() => {}}
+                                onFollow={() => {}}
+                                showFollowButton={false}
+                                currentUserId={profile?.id}
+                                currentUserType="member"
+                                onUserPress={() => {}}
+                                showManagementControls={isOwnProfile}
+                                onDelete={async (postId) => {
+                                  try {
+                                    const token = await getAuthToken();
+                                    await apiDelete(
+                                      `/posts/${postId}`,
+                                      null,
+                                      15000,
+                                      token,
+                                    );
+                                    setPosts((prev) =>
+                                      prev.filter((p) => p.id !== postId),
+                                    );
+                                    EventBus.emit("post-deleted", { postId });
+                                  } catch (e) {
+                                    Alert.alert("Error", "Failed to delete post");
+                                  }
+                                }}
+                                onPostUpdate={(updatedPost) =>
+                                  setPosts((prev) =>
+                                    prev.map((p) =>
+                                      p.id === updatedPost.id ? updatedPost : p,
+                                    ),
+                                  )
+                                }
+                              />
+                            </View>
+                          );
+                        } else {
+                          return (
+                            <View
+                              key={item.id}
+                              onLayout={(e) => {
+                                if (
+                                  String(item.id) === String(scrollToPostIdRef.current)
+                                ) {
+                                  scrollToPostIdRef.current = null;
+                                  const itemY = e.nativeEvent.layout.y;
+                                  const targetY = tabContentYRef.current + itemY;
+                                  setTimeout(() => {
+                                    scrollViewRef.current?.scrollTo({
+                                      y: Math.max(0, targetY - 60),
+                                      animated: true,
+                                    });
+                                  }, 100);
+                                }
+                              }}
+                            >
+                              <VoicePostCard
+                                key={item.id}
+                                post={item}
+                                onComment={(postId) => openCommentsModal(postId)}
+                              />
+                            </View>
+                          );
                         }
-                      }}
-                    >
-                      <VoicePostCard
-                        key={vp.id}
-                        post={vp}
-                        onComment={(postId) => openCommentsModal(postId)}
-                      />
-                    </View>
-                  ))
-                )}
+                      })}
+                      {loadingVoicePosts && voicePosts.length === 0 && (
+                        <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                          <SnooLoader size="small" color={COLORS.primary} />
+                        </View>
+                      )}
+                    </>
+                  );
+                })()}
 
                 {posts.filter((p) =>
                   [
@@ -2151,7 +2213,7 @@ export default function MemberProfileScreen({ navigation }) {
             )}
 
           {/* Events Tab Content */}
-          {activeProfileTab === "events" && (
+          {renderedProfileTab === "events" && (
             <View style={profileTabStyles.eventsContainer}>
               {loadingEvents ? (
                 <View style={profileTabStyles.loadingWrap}>
@@ -2159,71 +2221,67 @@ export default function MemberProfileScreen({ navigation }) {
                 </View>
               ) : (
                 <>
-                  {/* Attended Events */}
-                  {profileEvents.length > 0 && (
-                    <>
-                      {profileEvents.map((ev) => (
-                        <EventCard
-                          key={`ev-${ev.id}`}
-                          event={ev}
-                          onPress={(eventData) =>
-                            navigation.navigate("EventDetails", {
-                              eventId: eventData.id,
-                              eventData,
-                            })
-                          }
-                          onComment={(id) => openCommentsModal(id, "event")}
-                        />
-                      ))}
-                    </>
-                  )}
+                  {(() => {
+                    const allEventsAndPlans = [
+                      ...profileEvents.map((ev) => ({ ...ev, itemType: "event" })),
+                      ...[...profilePlans.hosted, ...profilePlans.attending].map((plan) => ({ ...plan, itemType: "plan" }))
+                    ];
+                    const visibleEvents = allEventsAndPlans.slice(0, renderedEventsLimit);
 
-                  {/* Open Plans — full OpenPlanCard */}
-                  {(profilePlans.hosted.length > 0 ||
-                    profilePlans.attending.length > 0) && (
-                    <>
-                      {[...profilePlans.hosted, ...profilePlans.attending].map(
-                        (plan) => (
-                          <View
-                            key={`plan-${plan.id}-${plan.role}`}
-                            style={{ paddingHorizontal: 16 }}
-                          >
-                            <OpenPlanCard
-                              plan={plan}
-                              currentUserId={profile?.id}
-                              onPress={(id) =>
-                                navigation.navigate("PlanDetail", {
-                                  planId: id,
-                                })
-                              }
-                              onRequestPress={(id) =>
-                                setPlanRequestSheet({
-                                  planId: id,
-                                  planTitle: plan.title,
-                                })
-                              }
-                              onLike={async (planId, liked) => {
-                                const token = await getAuthToken();
-                                if (liked) await likePlan(planId, token);
-                                else await unlikePlan(planId, token);
-                              }}
-                              onComment={(id) => openCommentsModal(id, "plan")}
-                              navigation={navigation}
-                            />
-                          </View>
-                        ),
-                      )}
-                    </>
-                  )}
+                    return (
+                      <>
+                        {visibleEvents.map((item) => {
+                          if (item.itemType === "event") {
+                            return (
+                              <EventCard
+                                key={`ev-${item.id}`}
+                                event={item}
+                                onPress={(eventData) =>
+                                  navigation.navigate("EventDetails", {
+                                    eventId: eventData.id,
+                                    eventData,
+                                  })
+                                }
+                                onComment={(id) => openCommentsModal(id, "event")}
+                              />
+                            );
+                          } else {
+                            return (
+                              <View
+                                key={`plan-${item.id}-${item.role}`}
+                                style={{ paddingHorizontal: 16 }}
+                              >
+                                <OpenPlanCard
+                                  plan={item}
+                                  currentUserId={profile?.id}
+                                  onPress={(id) =>
+                                    navigation.navigate("PlanDetail", {
+                                      planId: id,
+                                    })
+                                  }
+                                  onRequestPress={(id) =>
+                                    setPlanRequestSheet({
+                                      visible: true,
+                                      planId: id,
+                                    })
+                                  }
+                                />
+                              </View>
+                            );
+                          }
+                        })}
+                      </>
+                    );
+                  })()}
 
                   {/* Empty state */}
                   {profileEvents.length === 0 &&
                     profilePlans.hosted.length === 0 &&
                     profilePlans.attending.length === 0 && (
                       <EmptyEventsState
-                        isOwnProfile={false}
+                        isOwnProfile={isOwnProfile}
                         title="No events yet"
-                        subtitle="Events and plans you attend will show here."
+                        subtitle="Events and plans you host or attend will show here."
                       />
                     )}
                 </>

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * EditorialPostCard Component
  *
  * Premium, editorial-first post card design inspired by X (Twitter) and YouTube.
@@ -1113,7 +1113,7 @@ const EditorialPostCard = ({
       </View>
 
       {/* Fullscreen Video Modal */}
-      {isVideo && (
+      {isVideo && fullscreenVisible && (
         <FullscreenVideoModal
           visible={fullscreenVisible}
           source={post.video_url || firstMediaUrl}

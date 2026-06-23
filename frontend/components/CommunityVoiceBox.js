@@ -356,11 +356,13 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
       </View>
 
       {/* Share Modal */}
-      <ShareModal
-        visible={shareModalVisible}
-        post={post}
-        onClose={() => setShareModalVisible(false)}
-      />
+      {shareModalVisible && (
+        <ShareModal
+          visible={shareModalVisible}
+          post={post}
+          onClose={() => setShareModalVisible(false)}
+        />
+      )}
     </View>
   );
 });
@@ -553,190 +555,196 @@ export default function CommunityVoiceBox({
       </TouchableOpacity>
 
       {/* ── Full-Screen Composer Modal ───────────────────────── */}
-      <Modal
-        visible={composerVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={closeComposer}
-      >
-        <SafeAreaView style={styles.safeArea} edges={["top"]}>
-          <KeyboardAvoidingView
-            style={styles.modal}
-            behavior={Platform.OS === "ios" ? "padding" : undefined}
-            keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-          >
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <TouchableOpacity
-                style={styles.closeBtn}
-                onPress={closeComposer}
-                hitSlop={12}
+      {composerVisible && (
+        <Modal
+          visible={composerVisible}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={closeComposer}
+        >
+          <>
+            <SafeAreaView style={styles.safeArea} edges={["top"]}>
+              <KeyboardAvoidingView
+                style={styles.modal}
+                behavior={Platform.OS === "ios" ? "padding" : undefined}
+                keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
               >
-                <X size={20} color={COLORS.textPrimary} strokeWidth={2} />
-              </TouchableOpacity>
-              <Text style={styles.modalTitle}>Share a Thought</Text>
-              <TouchableOpacity
-                style={[styles.postBtn, !canPost && styles.postBtnDisabled]}
-                onPress={handleSubmit}
-                disabled={!canPost}
-              >
-                {submitting ? (
-                  <ActivityIndicator
-                    size="small"
-                    color={canPost ? "#fff" : "#9CA3AF"}
-                  />
-                ) : (
-                  <Text
-                    style={[
-                      styles.postBtnText,
-                      !canPost && styles.postBtnTextDisabled,
-                    ]}
-                  >
-                    Post
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              style={styles.modalBody}
-              contentContainerStyle={{ paddingBottom: 120 }}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Author identity row */}
-              <View style={styles.authorRow}>
-                <View style={styles.avatarWrap}>
-                  {!isAnonymous && avatarUri ? (
-                    <ExpoImage
-                      source={{ uri: avatarUri }}
-                      style={styles.avatar}
-                      cachePolicy="memory-disk"
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <View style={[styles.avatar, styles.anonAvatar]}>
-                      <HatGlasses
-                        size={18}
-                        color={COLORS.primary}
-                        strokeWidth={2}
-                      />
-                    </View>
-                  )}
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.authorName}>
-                    {isAnonymous
-                      ? "Anonymous"
-                      : resolvedUser?.name || resolvedUser?.full_name || "You"}
-                  </Text>
-                  <Text style={styles.authorSub}>
-                    {isAnonymous ? "Posting anonymously" : "Posting publicly"}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Dedicated toggle row below the author row */}
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleLeft}>
-                  <HatGlasses
-                    size={18}
-                    color={isAnonymous ? COLORS.primary : COLORS.textSecondary}
-                    strokeWidth={2}
-                  />
-                  <Text style={styles.toggleText}>Post Anonymously</Text>
-                </View>
-                <Switch
-                  trackColor={{
-                    false: "#E5E5EA",
-                    true: "rgba(41, 98, 255, 0.3)",
-                  }}
-                  thumbColor={isAnonymous ? COLORS.primary : "#FFFFFF"}
-                  ios_backgroundColor="#E5E5EA"
-                  onValueChange={(value) => {
-                    HapticsService.triggerImpactLight();
-                    setIsAnonymous(value);
-                  }}
-                  value={isAnonymous}
-                />
-              </View>
-
-              {/* Text input */}
-              <TextInput
-                ref={inputRef}
-                style={styles.textInput}
-                placeholder="Share what's on your mind…"
-                placeholderTextColor={COLORS.textMuted}
-                value={text}
-                onChangeText={(t) => {
-                  if (t.length <= MAX_CHARS) setText(t);
-                }}
-                multiline
-                maxLength={MAX_CHARS}
-                autoFocus
-                textAlignVertical="top"
-                selectionColor={COLORS.primary}
-              />
-
-              {/* Char count */}
-              <Text
-                style={[
-                  styles.charCount,
-                  charCount > MAX_CHARS * 0.9 && { color: "#E53935" },
-                ]}
-              >
-                {charCount}/{MAX_CHARS}
-              </Text>
-
-              {/* Attached image preview */}
-              {imageUri && (
-                <View style={styles.imagePreviewWrap}>
-                  <ExpoImage
-                    source={{ uri: imageUri }}
-                    style={styles.imagePreview}
-                    contentFit="cover"
-                    cachePolicy="memory"
-                  />
+                {/* Header */}
+                <View style={styles.modalHeader}>
                   <TouchableOpacity
-                    style={styles.removeImgBtn}
-                    onPress={() => setImageUri(null)}
-                    hitSlop={8}
+                    style={styles.closeBtn}
+                    onPress={closeComposer}
+                    hitSlop={12}
                   >
-                    <X size={14} color="#fff" strokeWidth={2.5} />
+                    <X size={20} color={COLORS.textPrimary} strokeWidth={2} />
+                  </TouchableOpacity>
+                  <Text style={styles.modalTitle}>Share a Thought</Text>
+                  <TouchableOpacity
+                    style={[styles.postBtn, !canPost && styles.postBtnDisabled]}
+                    onPress={handleSubmit}
+                    disabled={!canPost}
+                  >
+                    {submitting ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={canPost ? "#fff" : "#9CA3AF"}
+                      />
+                    ) : (
+                      <Text
+                        style={[
+                          styles.postBtnText,
+                          !canPost && styles.postBtnTextDisabled,
+                        ]}
+                      >
+                        Post
+                      </Text>
+                    )}
                   </TouchableOpacity>
                 </View>
-              )}
-            </ScrollView>
-          </KeyboardAvoidingView>
 
-          {/* Toolbar outside KeyboardAvoidingView using KeyboardAwareToolbar */}
-          <KeyboardAwareToolbar>
-            <View style={styles.toolbar}>
-              <TouchableOpacity
-                style={styles.toolbarBtn}
-                onPress={pickImage}
-                disabled={uploadingImage}
-              >
-                {uploadingImage ? (
-                  <ActivityIndicator size="small" color={COLORS.primary} />
-                ) : (
-                  <ImagePlus size={22} color={COLORS.primary} strokeWidth={2} />
-                )}
-              </TouchableOpacity>
-            </View>
-          </KeyboardAwareToolbar>
-        </SafeAreaView>
+                <ScrollView
+                  style={styles.modalBody}
+                  contentContainerStyle={{ paddingBottom: 120 }}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {/* Author identity row */}
+                  <View style={styles.authorRow}>
+                    <View style={styles.avatarWrap}>
+                      {!isAnonymous && avatarUri ? (
+                        <ExpoImage
+                          source={{ uri: avatarUri }}
+                          style={styles.avatar}
+                          cachePolicy="memory-disk"
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <View style={[styles.avatar, styles.anonAvatar]}>
+                          <HatGlasses
+                            size={18}
+                            color={COLORS.primary}
+                            strokeWidth={2}
+                          />
+                        </View>
+                      )}
+                    </View>
 
-        {/* Custom Image Picker Modal */}
-        <CustomImagePicker
-          visible={pickerVisible}
-          onClose={() => setPickerVisible(false)}
-          onDone={handlePickerDone}
-          selectionLimit={1}
-          allowVideos={false}
-          allowImages={true}
-        />
-      </Modal>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.authorName}>
+                        {isAnonymous
+                          ? "Anonymous"
+                          : resolvedUser?.name || resolvedUser?.full_name || "You"}
+                      </Text>
+                      <Text style={styles.authorSub}>
+                        {isAnonymous ? "Posting anonymously" : "Posting publicly"}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Dedicated toggle row below the author row */}
+                  <View style={styles.toggleRow}>
+                    <View style={styles.toggleLeft}>
+                      <HatGlasses
+                        size={18}
+                        color={isAnonymous ? COLORS.primary : COLORS.textSecondary}
+                        strokeWidth={2}
+                      />
+                      <Text style={styles.toggleText}>Post Anonymously</Text>
+                    </View>
+                    <Switch
+                      trackColor={{
+                        false: "#E5E5EA",
+                        true: "rgba(41, 98, 255, 0.3)",
+                      }}
+                      thumbColor={isAnonymous ? COLORS.primary : "#FFFFFF"}
+                      ios_backgroundColor="#E5E5EA"
+                      onValueChange={(value) => {
+                        HapticsService.triggerImpactLight();
+                        setIsAnonymous(value);
+                      }}
+                      value={isAnonymous}
+                    />
+                  </View>
+
+                  {/* Text input */}
+                  <TextInput
+                    ref={inputRef}
+                    style={styles.textInput}
+                    placeholder="Share what's on your mind…"
+                    placeholderTextColor={COLORS.textMuted}
+                    value={text}
+                    onChangeText={(t) => {
+                      if (t.length <= MAX_CHARS) setText(t);
+                    }}
+                    multiline
+                    maxLength={MAX_CHARS}
+                    autoFocus
+                    textAlignVertical="top"
+                    selectionColor={COLORS.primary}
+                  />
+
+                  {/* Char count */}
+                  <Text
+                    style={[
+                      styles.charCount,
+                      charCount > MAX_CHARS * 0.9 && { color: "#E53935" },
+                    ]}
+                  >
+                    {charCount}/{MAX_CHARS}
+                  </Text>
+
+                  {/* Attached image preview */}
+                  {imageUri && (
+                    <View style={styles.imagePreviewWrap}>
+                      <ExpoImage
+                        source={{ uri: imageUri }}
+                        style={styles.imagePreview}
+                        contentFit="cover"
+                        cachePolicy="memory"
+                      />
+                      <TouchableOpacity
+                        style={styles.removeImgBtn}
+                        onPress={() => setImageUri(null)}
+                        hitSlop={8}
+                      >
+                        <X size={14} color="#fff" strokeWidth={2.5} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </ScrollView>
+              </KeyboardAvoidingView>
+
+              {/* Toolbar outside KeyboardAvoidingView using KeyboardAwareToolbar */}
+              <KeyboardAwareToolbar>
+                <View style={styles.toolbar}>
+                  <TouchableOpacity
+                    style={styles.toolbarBtn}
+                    onPress={pickImage}
+                    disabled={uploadingImage}
+                  >
+                    {uploadingImage ? (
+                      <ActivityIndicator size="small" color={COLORS.primary} />
+                    ) : (
+                      <ImagePlus size={22} color={COLORS.primary} strokeWidth={2} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </KeyboardAwareToolbar>
+            </SafeAreaView>
+
+            {/* Custom Image Picker Modal */}
+            {pickerVisible && (
+              <CustomImagePicker
+                visible={pickerVisible}
+                onClose={() => setPickerVisible(false)}
+                onDone={handlePickerDone}
+                selectionLimit={1}
+                allowVideos={false}
+                allowImages={true}
+              />
+            )}
+          </>
+        </Modal>
+      )}
     </>
   );
 }

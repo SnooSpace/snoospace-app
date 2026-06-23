@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PromptPostCard
  * Displays a prompt post with submission functionality
  */
@@ -880,12 +880,13 @@ const PromptPostCard = React.memo(({
     </TouchableWithoutFeedback>
 
       {/* Submit Modal */}
-      <Modal
-        visible={showSubmitModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowSubmitModal(false)}
-      >
+      {showSubmitModal && (
+        <Modal
+          visible={showSubmitModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowSubmitModal(false)}
+        >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}
@@ -1014,6 +1015,7 @@ const PromptPostCard = React.memo(({
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      )}
 
       {/* Custom Image Picker Modal */}
       {showCustomPicker && (
@@ -1026,23 +1028,27 @@ const PromptPostCard = React.memo(({
         />
       )}
 
-      <PromptEditModal
-        visible={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        post={post}
-        onSave={handleSaveEdit}
-        isLoading={isUpdating}
-      />
-      <CustomAlertModal
-        visible={alertVisible}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        onClose={() => setAlertVisible(false)}
-        primaryAction={alertConfig.primaryAction}
-        secondaryAction={alertConfig.secondaryAction}
-        icon={alertConfig.icon}
-        iconColor={alertConfig.iconColor}
-      />
+      {showEditModal && (
+        <PromptEditModal
+          visible={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          post={post}
+          onSave={handleSaveEdit}
+          isLoading={isUpdating}
+        />
+      )}
+      {alertVisible && (
+        <CustomAlertModal
+          visible={alertVisible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          onClose={() => setAlertVisible(false)}
+          primaryAction={alertConfig.primaryAction}
+          secondaryAction={alertConfig.secondaryAction}
+          icon={alertConfig.icon}
+          iconColor={alertConfig.iconColor}
+        />
+      )}
     </>
   );
 });

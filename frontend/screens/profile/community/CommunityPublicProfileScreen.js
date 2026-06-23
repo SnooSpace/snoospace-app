@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
   StatusBar,
   Linking,
   Pressable,
+  InteractionManager,
 } from "react-native";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
@@ -760,6 +761,10 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
   // Tabs state
   const [activeTab, setActiveTab] = useState("posts");
+  const [renderedTab, setRenderedTab] = useState("posts");
+  const [renderedPostsLimit, setRenderedPostsLimit] = useState(12);
+  const [renderedEventsLimit, setRenderedEventsLimit] = useState(3);
+  const [renderedCommunityLimit, setRenderedCommunityLimit] = useState(2);
   const [communityEvents, setCommunityEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
 
@@ -775,6 +780,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
   const loadCommunityVoicePosts = useCallback(async () => {
     if (!communityId) return;
+    communityVoiceFetchedRef.current = true;
     try {
       setLoadingVoicePosts(true);
       const token = await getAuthToken();
@@ -804,6 +810,17 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       navigation.setParams({ initialTab: undefined, postId: undefined });
     }
   }, [route?.params?.initialTab, route?.params?.postId, loadCommunityVoicePosts, navigation]);
+
+  useEffect(() => {
+    setRenderedPostsLimit(12);
+    setRenderedEventsLimit(5);
+    setRenderedCommunityLimit(5);
+    setRenderedTab(null);
+    InteractionManager.runAfterInteractions(() => {
+      setRenderedTab(activeTab);
+    });
+  }, [activeTab]);
+
   const [tabLayouts, setTabLayouts] = useState({});
   // Tab underline animation (Reanimated)
   const tabUnderlineX = useSharedValue(0);
@@ -967,7 +984,12 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     setPreResolvedConversationId(null);
     (async () => {
       setLoading(true);
-      await Promise.all([loadProfile(), loadPosts(true), loadEvents()]);
+      await Promise.all([
+        loadProfile(),
+        loadPosts(true),
+        loadEvents(),
+        loadCommunityVoicePosts(),
+      ]);
       if (mounted) setLoading(false);
     })();
 
@@ -1291,6 +1313,41 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     setContactModalVisible(true);
   };
 
+  const handleScroll = useCallback(({ nativeEvent }) => {
+    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+    const isNearBottom =
+      layoutMeasurement.height + contentOffset.y >= contentSize.height - 300;
+    if (isNearBottom) {
+      if (activeTab === "posts") {
+        if (renderedPostsLimit < posts.length) {
+          setRenderedPostsLimit((prev) => prev + 12);
+        }
+      } else if (activeTab === "events") {
+        if (renderedEventsLimit < communityEvents.length) {
+          setRenderedEventsLimit((prev) => prev + 5);
+        }
+      } else if (activeTab === "community") {
+        const interactivePostsCount = posts.filter((p) =>
+          ["poll", "prompt", "qna", "challenge", "opportunity"].includes(
+            p.post_type || p.type
+          )
+        ).length;
+        const totalCommunity = interactivePostsCount + voicePosts.length;
+        if (renderedCommunityLimit < totalCommunity) {
+          setRenderedCommunityLimit((prev) => prev + 5);
+        }
+      }
+    }
+  }, [
+    activeTab,
+    renderedPostsLimit,
+    posts.length,
+    renderedEventsLimit,
+    communityEvents.length,
+    renderedCommunityLimit,
+    voicePosts.length,
+  ]);
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -1402,7 +1459,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         contentContainerStyle={{ paddingBottom: 100 }}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true },
+          { useNativeDriver: true, listener: handleScroll },
         )}
         scrollEventThrottle={16}
         refreshControl={
@@ -1413,6 +1470,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               loadProfile();
               loadPosts(true);
               loadEvents();
+              loadCommunityVoicePosts();
             }}
             colors={[PRIMARY_COLOR]}
             tintColor={PRIMARY_COLOR}
@@ -1817,7 +1875,9 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 // Lazy-load voice posts when Community tab first opened
                 if (tab === 'community' && !communityVoiceFetchedRef.current) {
                   communityVoiceFetchedRef.current = true;
-                  loadCommunityVoicePosts();
+                  InteractionManager.runAfterInteractions(() => {
+                    loadCommunityVoicePosts();
+                  });
                 }
               }}
               onLayout={(e) => handleTabLayout(tab, e)}
@@ -1841,13 +1901,19 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         </View>
 
         <View
-          style={styles.postsSection}
+        style={styles.postsSection}
           onLayout={(e) => {
             postsSectionYRef.current = e.nativeEvent.layout.y;
           }}
         >
+            {renderedTab === null && (
+              <View style={{ paddingVertical: 40, alignItems: "center" }}>
+                <SnooLoader size="small" color={PRIMARY_COLOR} />
+              </View>
+            )}
+
           {/* Posts Tab - Media Only (Images/Videos) */}
-          {activeTab === "posts" && (
+          {renderedTab === "posts" && (
             <View style={{ display: "flex" }}>
               {(() => {
                 const INTERACTIVE_TYPES = [
@@ -1862,13 +1928,14 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   return !INTERACTIVE_TYPES.includes(postType);
                 });
 
-                const numRows = Math.ceil(mediaPosts.length / 3);
+                const visiblePosts = mediaPosts.slice(0, renderedPostsLimit);
+                const numRows = Math.ceil(visiblePosts.length / 3);
                 const gridHeight = numRows > 0 ? numRows * (ITEM_SIZE * 1.35) + (numRows - 1) * GAP : 0;
 
                 return mediaPosts.length > 0 ? (
                   <View style={{ height: gridHeight }}>
                     <FlatList
-                      data={mediaPosts}
+                      data={visiblePosts}
                       keyExtractor={(item) => String(item.id)}
                       numColumns={3}
                       columnWrapperStyle={{
@@ -1898,7 +1965,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           )}
 
           {/* Community Tab - Interactive Posts + Voice Box */}
-          {activeTab === "community" && (
+          {renderedTab === "community" && (
             <View style={{ display: "flex" }}>
               {(() => {
                 const interactivePosts = posts.filter((p) => {
@@ -1919,6 +1986,30 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   return new Date(b.created_at) - new Date(a.created_at);
                 });
 
+                const mappedInteractive = sortedPosts.map((p) => ({
+                  ...p,
+                  itemType: "interactive",
+                }));
+                const mappedVoice = voicePosts.map((vp) => ({
+                  ...vp,
+                  itemType: "voice",
+                }));
+                const allItems = [...mappedInteractive, ...mappedVoice];
+                const visibleItems = allItems.slice(0, renderedCommunityLimit);
+
+                const visibleInteractive = visibleItems
+                  .filter((item) => item.itemType === "interactive")
+                  .map((item) => {
+                    const { itemType, ...rest } = item;
+                    return rest;
+                  });
+                const visibleVoice = visibleItems
+                  .filter((item) => item.itemType === "voice")
+                  .map((item) => {
+                    const { itemType, ...rest } = item;
+                    return rest;
+                  });
+
                 return (
                   <View style={{ paddingBottom: 8 }}>
                     {/* Voice Box — any viewer can post */}
@@ -1932,14 +2023,14 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                     />
 
                     {/* Community's own interactive posts */}
-                    {sortedPosts.length > 0 && (
+                    {visibleInteractive.length > 0 && (
                       <View
                         style={styles.communityPostsList}
                         onLayout={(e) => {
                           interactiveListYRef.current = e.nativeEvent.layout.y;
                         }}
                       >
-                        {sortedPosts.map((post) => {
+                        {visibleInteractive.map((post) => {
                           const postType = post.post_type || post.type;
                           const isOpportunity = postType === "opportunity";
                           return (
@@ -2036,7 +2127,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                         <SnooLoader size="small" color={COLORS.primary} />
                       </View>
                     ) : (
-                      voicePosts.map((vp) => (
+                      visibleVoice.map((vp) => (
                         <View
                           key={vp.id}
                           onLayout={(e) => {
@@ -2068,7 +2159,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           )}
 
           {/* Events Tab */}
-          {activeTab === "events" && (
+          {renderedTab === "events" && (
             <View style={{ display: "flex" }}>
               {(() => {
                 if (communityEvents.length === 0) {
@@ -2077,7 +2168,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
                 return (
                   <View style={{ paddingTop: 16 }}>
-                    {communityEvents.map((item) => (
+                    {communityEvents.slice(0, renderedEventsLimit).map((item) => (
                       <EventCard
                         key={item.id}
                         event={item}

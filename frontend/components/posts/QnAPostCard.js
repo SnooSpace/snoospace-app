@@ -1,4 +1,4 @@
-﻿/**
+/**
  * QnAPostCard
  * Displays a Q&A post with question submission, upvoting, and top answer preview
  */
@@ -969,23 +969,27 @@ const QnAPostCard = React.memo(({
         )}
       </View>
     </TouchableWithoutFeedback>
-      <QnAEditModal
-        visible={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        post={post}
-        onSave={handleSaveEdit}
-        isLoading={isUpdating}
-      />
-      <CustomAlertModal
-        visible={alertVisible}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        onClose={() => setAlertVisible(false)}
-        primaryAction={alertConfig.primaryAction}
-        secondaryAction={alertConfig.secondaryAction}
-        icon={alertConfig.icon}
-        iconColor={alertConfig.iconColor}
-      />
+      {showEditModal && (
+        <QnAEditModal
+          visible={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          post={post}
+          onSave={handleSaveEdit}
+          isLoading={isUpdating}
+        />
+      )}
+      {alertVisible && (
+        <CustomAlertModal
+          visible={alertVisible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          onClose={() => setAlertVisible(false)}
+          primaryAction={alertConfig.primaryAction}
+          secondaryAction={alertConfig.secondaryAction}
+          icon={alertConfig.icon}
+          iconColor={alertConfig.iconColor}
+        />
+      )}
     </>
   );
 });

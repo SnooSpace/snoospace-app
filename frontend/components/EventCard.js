@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -1186,15 +1186,17 @@ export default function EventCard({
               <GradientHeart />
             </Animated.View>
           )}
-          <CommentsModal
-            visible={commentsVisible}
-            postId={id}
-            baseRoute="/events"
-            replyBaseRoute="/event-comments"
-            onCommentCountChange={(n) => setCommentCount(n)}
-            onClose={() => setCommentsVisible(false)}
-            navigation={navigation}
-          />
+          {commentsVisible && (
+            <CommentsModal
+              visible={commentsVisible}
+              postId={id}
+              baseRoute="/events"
+              replyBaseRoute="/event-comments"
+              onCommentCountChange={(n) => setCommentCount(n)}
+              onClose={() => setCommentsVisible(false)}
+              navigation={navigation}
+            />
+          )}
         </View>
       </TouchableOpacity>
     </View>

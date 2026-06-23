@@ -861,99 +861,103 @@ const OpportunityFeedCard = React.memo(({
         </View>
 
       {/* ── 3-dot Menu Modal ──────────────────────────────────────────────── */}
-      <Modal
-        visible={menuVisible}
-        transparent
-        animationType="none"
-        onRequestClose={closeMenu}
-      >
-        <Pressable style={styles.modalBackdrop} onPress={closeMenu}>
-          <View
-            style={[
-              styles.menuContainerModal,
-              {
-                top: menuPosition.y,
-                right: menuPosition.x,
-              },
-            ]}
-          >
-            {/* View Submissions */}
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                closeMenu();
-                navigation.navigate("ApplicantsList", {
-                  opportunityId: opportunity.id,
-                  opportunityTitle: opportunity.title,
-                });
-              }}
-              activeOpacity={0.7}
+      {menuVisible && (
+        <Modal
+          visible={menuVisible}
+          transparent
+          animationType="none"
+          onRequestClose={closeMenu}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={closeMenu}>
+            <View
+              style={[
+                styles.menuContainerModal,
+                {
+                  top: menuPosition.y,
+                  right: menuPosition.x,
+                },
+              ]}
             >
-              <View style={[styles.menuIconWrap, { backgroundColor: "rgba(16, 185, 129, 0.08)" }]}>
-                <Users size={15} color="#10B981" strokeWidth={2} />
-              </View>
-              <View style={styles.menuItemTextContainer}>
-                <Text style={styles.menuItemTitle}>View Submissions</Text>
-                <Text style={styles.menuItemSub}>See all applicants & requests</Text>
-              </View>
-            </TouchableOpacity>
+              {/* View Submissions */}
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  closeMenu();
+                  navigation.navigate("ApplicantsList", {
+                    opportunityId: opportunity.id,
+                    opportunityTitle: opportunity.title,
+                  });
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuIconWrap, { backgroundColor: "rgba(16, 185, 129, 0.08)" }]}>
+                  <Users size={15} color="#10B981" strokeWidth={2} />
+                </View>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={styles.menuItemTitle}>View Submissions</Text>
+                  <Text style={styles.menuItemSub}>See all applicants & requests</Text>
+                </View>
+              </TouchableOpacity>
 
-            <View style={styles.menuDivider} />
+              <View style={styles.menuDivider} />
 
-            {/* Edit */}
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                closeMenu();
-                navigation.navigate("CreateOpportunityScreen", {
-                  opportunityToEdit: opportunity,
-                });
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={styles.menuIconWrap}>
-                <Pencil size={15} color="#2962FF" strokeWidth={2} />
-              </View>
-              <View style={styles.menuItemTextContainer}>
-                <Text style={styles.menuItemTitle}>Edit Opportunity</Text>
-                <Text style={styles.menuItemSub}>Update details or requirements</Text>
-              </View>
-            </TouchableOpacity>
+              {/* Edit */}
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  closeMenu();
+                  navigation.navigate("CreateOpportunityScreen", {
+                    opportunityToEdit: opportunity,
+                  });
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.menuIconWrap}>
+                  <Pencil size={15} color="#2962FF" strokeWidth={2} />
+                </View>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={styles.menuItemTitle}>Edit Opportunity</Text>
+                  <Text style={styles.menuItemSub}>Update details or requirements</Text>
+                </View>
+              </TouchableOpacity>
 
-            <View style={styles.menuDivider} />
+              <View style={styles.menuDivider} />
 
-            {/* Delete */}
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={handleDelete}
-              activeOpacity={0.7}
-              disabled={isDeleting}
-            >
-              <View style={[styles.menuIconWrap, styles.menuIconDestructive]}>
-                <Trash2 size={15} color="#EF4444" strokeWidth={2} />
-              </View>
-              <View style={styles.menuItemTextContainer}>
-                <Text style={[styles.menuItemTitle, styles.menuItemDestructive]}>
-                  {isDeleting ? "Deleting…" : "Delete Opportunity"}
-                </Text>
-                <Text style={styles.menuItemSub}>This action cannot be undone</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
+              {/* Delete */}
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={handleDelete}
+                activeOpacity={0.7}
+                disabled={isDeleting}
+              >
+                <View style={[styles.menuIconWrap, styles.menuIconDestructive]}>
+                  <Trash2 size={15} color="#EF4444" strokeWidth={2} />
+                </View>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={[styles.menuItemTitle, styles.menuItemDestructive]}>
+                    {isDeleting ? "Deleting…" : "Delete Opportunity"}
+                  </Text>
+                  <Text style={styles.menuItemSub}>This action cannot be undone</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
+      )}
       </LinearGradient>
 
     {/* ── Opportunity Comments Modal ──────────────────────────────────────── */}
-    <CommentsModal
-      visible={commentsVisible}
-      postId={opportunity.id}
-      onClose={() => setCommentsVisible(false)}
-      onCommentCountChange={(newCount) => setCommentCount(newCount)}
-      baseRoute="/opportunities"
-      replyBaseRoute="/opportunity-comments"
-      navigation={navigation}
-    />
+    {commentsVisible && (
+      <CommentsModal
+        visible={commentsVisible}
+        postId={opportunity.id}
+        onClose={() => setCommentsVisible(false)}
+        onCommentCountChange={(newCount) => setCommentCount(newCount)}
+        baseRoute="/opportunities"
+        replyBaseRoute="/opportunity-comments"
+        navigation={navigation}
+      />
+    )}
     </>
   );
 });
