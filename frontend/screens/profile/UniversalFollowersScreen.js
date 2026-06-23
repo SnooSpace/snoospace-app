@@ -49,14 +49,14 @@ export default function UniversalFollowersScreen({ route, navigation }) {
   const title = route?.params?.title || "Followers";
 
   const fetchFollowersPage = useCallback(
-    async ({ offset, limit }) => {
+    async ({ offset, limit, search }) => {
       const fetchFn = API_MAP[userType];
       if (!fetchFn) {
         console.error(`No API function for userType: ${userType}`);
         return { items: [], hasMore: false };
       }
 
-      const data = await fetchFn(userId, { limit, offset });
+      const data = await fetchFn(userId, { limit, offset, search });
       const raw = data?.results || data?.followers || data?.items || data || [];
       const baseList = raw.map((entry) => ({
         id: entry.follower_id || entry.id,

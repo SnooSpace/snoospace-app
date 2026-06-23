@@ -308,6 +308,15 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [isCreatorMode, setIsCreatorMode] = useState(false);
   const tabUnderlineX = useRef(new Animated.Value(initialTab === 'creator' ? 1 : 0)).current;
+  const [tabWidth, setTabWidth] = useState(0);
+  const onTabBarLayout = (e) => {
+    const { width } = e.nativeEvent.layout;
+    setTabWidth((width - 8) / 2);
+  };
+  const translateX = tabUnderlineX.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, tabWidth],
+  });
   const consents_init = {
       behavioral: cachedData?.consentState?.behavioral ?? false,
       brand: cachedData?.consentState?.brand ?? false,
@@ -569,15 +578,25 @@ function MemberPrivacyScreen({ navigation, initialTab = "personal" }) {
           <View style={{ width: 40 }} />
         </View>
 
-        {/* Tab bar — only visible when Creator Mode is ON */}
         {isCreatorMode && (
-          <View style={tabStyles.tabBar}>
+          <View style={tabStyles.tabBar} onLayout={onTabBarLayout}>
+            {tabWidth > 0 && (
+              <Animated.View
+                style={[
+                  tabStyles.activeIndicator,
+                  {
+                    width: tabWidth,
+                    transform: [{ translateX }],
+                  },
+                ]}
+              />
+            )}
             {['personal', 'creator'].map((tab) => {
               const isActive = activeTab === tab;
               return (
                 <TouchableOpacity
                   key={tab}
-                  style={[tabStyles.tabItem, isActive && tabStyles.tabItemActive]}
+                  style={tabStyles.tabItem}
                   onPress={() => switchTab(tab)}
                   activeOpacity={0.8}
                 >
@@ -1659,17 +1678,22 @@ const tabStyles = StyleSheet.create({
     marginBottom: 4,
     marginTop: 4,
     backgroundColor: "#F3F4F6",
-    borderRadius: 14,
+    borderRadius: 100,
     padding: 4,
   },
   tabItem: {
     flex: 1,
     alignItems: "center",
     paddingVertical: 9,
-    borderRadius: 10,
+    borderRadius: 100,
   },
-  tabItemActive: {
+  activeIndicator: {
+    position: "absolute",
+    top: 4,
+    bottom: 4,
+    left: 4,
     backgroundColor: "#FFFFFF",
+    borderRadius: 100,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
@@ -1696,6 +1720,8 @@ const tabStyles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.04)",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
@@ -1764,6 +1790,8 @@ const tabStyles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.04)",
     shadowColor: "#7C3AED",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,

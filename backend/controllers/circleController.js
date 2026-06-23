@@ -516,8 +516,12 @@ const getPublicCircleMembers = async (req, res) => {
     if (!myId) return res.status(401).json({ error: 'Authentication required' });
 
     const { userId } = req.params;
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, search = '' } = req.query;
     const offset = (page - 1) * limit;
+
+    const searchClause = search ? `AND (m.name ILIKE $4 OR m.username ILIKE $4)` : '';
+    const params = [userId, limit, offset];
+    if (search) params.push(`%${search}%`);
 
     const result = await pool.query(`
       SELECT
@@ -531,9 +535,10 @@ const getPublicCircleMembers = async (req, res) => {
         ELSE c.user_a_id
       END
       WHERE (c.user_a_id = $1 OR c.user_b_id = $1)
+        ${searchClause}
       ORDER BY c.created_at DESC
       LIMIT $2 OFFSET $3
-    `, [userId, limit, offset]);
+    `, params);
 
     return res.json({ members: result.rows });
   } catch (err) {

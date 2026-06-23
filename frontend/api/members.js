@@ -116,9 +116,11 @@ export async function removeFromCircle(userId) {
 }
 
 /** Get another member's circle list (public/read-only view). */
-export async function getPublicCircleMembers(userId, { page = 1, limit = 20 } = {}) {
+export async function getPublicCircleMembers(userId, { page = 1, limit = 20, search = "" } = {}) {
   const token = await getAuthToken();
-  return apiGet(`/circles/${userId}/members?page=${page}&limit=${limit}`, 15000, token);
+  const params = new URLSearchParams({ page, limit });
+  if (search) params.set("search", search);
+  return apiGet(`/circles/${userId}/members?${params.toString()}`, 15000, token);
 }
 
 export async function updateMemberProfile(updates, token) {
@@ -192,7 +194,7 @@ export async function fetchPronouns() {
 
 export async function getMemberFollowers(
   memberId,
-  { limit = 30, offset = 0 } = {}
+  { limit = 30, offset = 0, search = "" } = {}
 ) {
   const token = await getAuthToken();
   // Backend expects page + limit
@@ -200,6 +202,7 @@ export async function getMemberFollowers(
   const params = new URLSearchParams();
   params.set("limit", String(limit));
   params.set("page", String(page));
+  if (search) params.set("search", search);
   return apiGet(
     `/followers/${memberId}/member?${params.toString()}`,
     15000,
@@ -209,7 +212,7 @@ export async function getMemberFollowers(
 
 export async function getMemberFollowing(
   memberId,
-  { limit = 30, offset = 0 } = {}
+  { limit = 30, offset = 0, search = "" } = {}
 ) {
   const token = await getAuthToken();
   // Backend expects page + limit
@@ -217,6 +220,7 @@ export async function getMemberFollowing(
   const params = new URLSearchParams();
   params.set("limit", String(limit));
   params.set("page", String(page));
+  if (search) params.set("search", search);
   return apiGet(
     `/following/${memberId}/member?${params.toString()}`,
     15000,
@@ -343,10 +347,12 @@ export async function unfollowCreator(creatorId) {
  * GET /creators/:creatorId/followers?page&limit&type
  * Returns paginated follower list. type: 'all' | 'notable'
  */
-export async function getCreatorFollowers(creatorId, { page = 1, limit = 20, type = "all" } = {}) {
+export async function getCreatorFollowers(creatorId, { page = 1, limit = 20, type = "all", search = "" } = {}) {
   const token = await getAuthToken();
+  const params = new URLSearchParams({ page, limit, type });
+  if (search) params.set("search", search);
   return apiGet(
-    `/creators/${creatorId}/followers?page=${page}&limit=${limit}&type=${type}`,
+    `/creators/${creatorId}/followers?${params.toString()}`,
     10000,
     token
   );

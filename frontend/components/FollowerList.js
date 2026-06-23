@@ -1,11 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, TextInput } from "react-native";
 import { Image } from "expo-image"; // ── PERF: memory-disk cache eliminates re-fetches on list scroll
 import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { ArrowLeft } from "lucide-react-native";
+import { ArrowLeft, Search, X } from "lucide-react-native";
 import { COLORS, FONTS } from "../constants/theme";
 import PropTypes from "prop-types";
 import EventBus from "../utils/EventBus";
@@ -46,6 +46,8 @@ export default function FollowerList({
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [myId, setMyId] = useState(null);
+  const [search, setSearch] = useState("");
+  const searchTimer = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -75,7 +77,7 @@ export default function FollowerList({
   }, [resolveMyId]);
 
   const load = useCallback(
-    async ({ reset = false, refresh = false } = {}) => {
+    async ({ reset = false, refresh = false, searchQuery = search } = {}) => {
       if (!fetchPage) return;
       if (refresh && refreshing) return;
       if (!reset && loadingMore) return;
@@ -95,6 +97,7 @@ export default function FollowerList({
         const result = await fetchPage({
           offset: nextOffset,
           limit: PAGE_SIZE,
+          search: searchQuery,
         });
         const newItems = Array.isArray(result?.items) ? result.items : [];
         setItems((prev) => {
@@ -123,12 +126,20 @@ export default function FollowerList({
         setRefreshing(false);
       }
     },
-    [fetchPage, hasMore, loadingMore, offset, refreshing],
+    [fetchPage, hasMore, loadingMore, offset, refreshing, search],
   );
 
   useEffect(() => {
     load({ reset: true });
   }, []);
+
+  const handleSearchChange = (text) => {
+    setSearch(text);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      load({ reset: true, searchQuery: text });
+    }, 350);
+  };
 
   // Listen for follow updates from EventBus
   useEffect(() => {
@@ -271,13 +282,20 @@ export default function FollowerList({
 
   const listEmptyComponent = useMemo(() => {
     if (loading) return null;
+    if (search) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>No results found for "{search}"</Text>
+        </View>
+      );
+    }
     if (!emptyMessage) return null;
     return (
       <View style={styles.emptyContainer}>
         <Text style={styles.emptyText}>{emptyMessage}</Text>
       </View>
     );
-  }, [emptyMessage, loading]);
+  }, [emptyMessage, loading, search]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -293,6 +311,26 @@ export default function FollowerList({
           <View style={styles.headerSpacer} />
         </View>
 
+        {/* Search Bar */}
+        <View style={styles.searchRow}>
+          <View style={styles.searchBox}>
+            <Search size={16} color="#8E8E93" strokeWidth={2} style={{ marginRight: 8 }} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search..."
+              placeholderTextColor="#8E8E93"
+              value={search}
+              onChangeText={handleSearchChange}
+              returnKeyType="search"
+            />
+            {search.length > 0 && (
+              <TouchableOpacity onPress={() => handleSearchChange("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <X size={16} color="#8E8E93" strokeWidth={2} />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
       {loading && items.length === 0 ? (
         <View style={styles.loadingContainer}>
           {Array.from({ length: 10 }).map((_, index) => (
@@ -305,11 +343,11 @@ export default function FollowerList({
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
           onEndReachedThreshold={0.6}
-          onEndReached={() => load({ reset: false })}
+          onEndReached={() => load({ reset: false, searchQuery: search })}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => load({ reset: true, refresh: true })}
+              onRefresh={() => load({ reset: true, refresh: true, searchQuery: search })}
               tintColor={primaryColor}
               colors={[primaryColor]}
             />
@@ -438,6 +476,26 @@ const styles = StyleSheet.create({
   },
   footerLoader: {
     marginVertical: 16,
+  },
+  searchRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#fff",
+  },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F2F2F7",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: "Manrope-Regular",
+    fontSize: 15,
+    color: "#1C1C1E",
+    padding: 0,
   },
 });
 

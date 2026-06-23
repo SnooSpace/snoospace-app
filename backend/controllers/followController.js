@@ -198,8 +198,20 @@ const unfollow = async (req, res) => {
 const getFollowers = async (req, res) => {
   try {
     const { userId, userType } = req.params;
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, search = "" } = req.query;
     const offset = (page - 1) * limit;
+
+    const searchClause = search ? `
+      AND (
+        (f.follower_type = 'member' AND (m.name ILIKE $5 OR m.username ILIKE $5)) OR
+        (f.follower_type = 'community' AND (c.name ILIKE $5 OR c.username ILIKE $5)) OR
+        (f.follower_type = 'sponsor' AND (s.brand_name ILIKE $5 OR s.username ILIKE $5)) OR
+        (f.follower_type = 'venue' AND (v.name ILIKE $5 OR v.username ILIKE $5))
+      )
+    ` : '';
+
+    const params = [userId, userType, limit, offset];
+    if (search) params.push(`%${search}%`);
 
     const query = `
       SELECT 
@@ -228,11 +240,12 @@ const getFollowers = async (req, res) => {
       LEFT JOIN sponsors s ON f.follower_type = 'sponsor' AND f.follower_id = s.id
       LEFT JOIN venues v ON f.follower_type = 'venue' AND f.follower_id = v.id
       WHERE f.following_id = $1 AND f.following_type = $2
+        ${searchClause}
       ORDER BY f.created_at DESC
       LIMIT $3 OFFSET $4
     `;
 
-    const result = await pool.query(query, [userId, userType, limit, offset]);
+    const result = await pool.query(query, params);
     res.json({ followers: result.rows });
   } catch (error) {
     console.error("Error getting followers:", error);
@@ -244,8 +257,20 @@ const getFollowers = async (req, res) => {
 const getFollowing = async (req, res) => {
   try {
     const { userId, userType } = req.params;
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, search = "" } = req.query;
     const offset = (page - 1) * limit;
+
+    const searchClause = search ? `
+      AND (
+        (f.following_type = 'member' AND (m.name ILIKE $5 OR m.username ILIKE $5)) OR
+        (f.following_type = 'community' AND (c.name ILIKE $5 OR c.username ILIKE $5)) OR
+        (f.following_type = 'sponsor' AND (s.brand_name ILIKE $5 OR s.username ILIKE $5)) OR
+        (f.following_type = 'venue' AND (v.name ILIKE $5 OR v.username ILIKE $5))
+      )
+    ` : '';
+
+    const params = [userId, userType, limit, offset];
+    if (search) params.push(`%${search}%`);
 
     const query = `
       SELECT 
@@ -274,11 +299,12 @@ const getFollowing = async (req, res) => {
       LEFT JOIN sponsors s ON f.following_type = 'sponsor' AND f.following_id = s.id
       LEFT JOIN venues v ON f.following_type = 'venue' AND f.following_id = v.id
       WHERE f.follower_id = $1 AND f.follower_type = $2
+        ${searchClause}
       ORDER BY f.created_at DESC
       LIMIT $3 OFFSET $4
     `;
 
-    const result = await pool.query(query, [userId, userType, limit, offset]);
+    const result = await pool.query(query, params);
     res.json({ following: result.rows });
   } catch (error) {
     console.error("Error getting following:", error);

@@ -153,11 +153,29 @@ async function getCreatorFollowers(req, res) {
     const page = Math.max(1, parseInt(req.query.page || "1", 10));
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || "20", 10)));
     const type = req.query.type || "all"; // 'all' | 'notable'
+    const search = req.query.search || "";
     const offset = (page - 1) * limit;
 
     let whereClause = `cf.creator_id = $1 AND cf.is_dormant = false`;
     if (type === "notable") {
       whereClause += ` AND cf.follower_type IN ('community', 'page')`;
+    }
+
+    const params = [creatorId, limit, offset];
+    if (search) {
+      whereClause += ` AND (m.name ILIKE $4 OR m.username ILIKE $4 OR c.name ILIKE $4)`;
+      params.push(`%${search}%`);
+    }
+
+    let countWhereClause = `cf.creator_id = $1 AND cf.is_dormant = false`;
+    if (type === "notable") {
+      countWhereClause += ` AND cf.follower_type IN ('community', 'page')`;
+    }
+
+    const countParams = [creatorId];
+    if (search) {
+      countWhereClause += ` AND (m.name ILIKE $2 OR m.username ILIKE $2 OR c.name ILIKE $2)`;
+      countParams.push(`%${search}%`);
     }
 
     // Order: notable followers first, then members by most recent
@@ -205,12 +223,17 @@ async function getCreatorFollowers(req, res) {
     const countQuery = `
       SELECT COUNT(*) AS total
       FROM creator_follows cf
-      WHERE ${whereClause}
+      LEFT JOIN members m
+        ON m.id = cf.follower_id AND cf.follower_type = 'member'
+      LEFT JOIN communities c
+        ON c.id = cf.follower_id AND cf.follower_type = 'community'
+      WHERE ${countWhereClause}
     `;
 
+
     const [followersResult, countResult] = await Promise.all([
-      pool.query(query, [creatorId, limit, offset]),
-      pool.query(countQuery, [creatorId]),
+      pool.query(query, params),
+      pool.query(countQuery, countParams),
     ]);
 
     const total = parseInt(countResult.rows[0]?.total || 0, 10);

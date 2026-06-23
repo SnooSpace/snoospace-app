@@ -72,21 +72,23 @@ export async function unfollowCommunity(communityId) {
   return apiDelete('/follow', { followingId: communityId, followingType: 'community' }, 15000, token);
 }
 
-export async function getCommunityFollowers(communityId, { limit = 30, offset = 0 } = {}) {
+export async function getCommunityFollowers(communityId, { limit = 30, offset = 0, search = "" } = {}) {
   const token = await getAuthToken();
   const page = Math.floor(offset / limit) + 1;
   const params = new URLSearchParams();
   params.set('limit', String(limit));
   params.set('page', String(page));
+  if (search) params.set('search', search);
   return apiGet(`/followers/${communityId}/community?${params.toString()}`, 15000, token);
 }
 
-export async function getCommunityFollowing(communityId, { limit = 30, offset = 0 } = {}) {
+export async function getCommunityFollowing(communityId, { limit = 30, offset = 0, search = "" } = {}) {
   const token = await getAuthToken();
   const page = Math.floor(offset / limit) + 1;
   const params = new URLSearchParams();
   params.set('limit', String(limit));
   params.set('page', String(page));
+  if (search) params.set('search', search);
   return apiGet(`/following/${communityId}/community?${params.toString()}`, 15000, token);
 }
 

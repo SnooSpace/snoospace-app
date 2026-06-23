@@ -1,4 +1,4 @@
-﻿import React, {
+import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -1015,22 +1015,24 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 </Text>
                 <Text style={styles.statLabel}>Events</Text>
               </GHPressable>
-              <GHPressable
-                style={styles.statItem}
-                onPress={() => {
-                  HapticsService.triggerStatsTap();
-                  navigation.navigate('CircleList', {
-                    memberId: profile?.id,
-                    memberName: profile?.full_name,
-                    readOnly: true,
-                  });
-                }}
-              >
-                <Text style={styles.statNumber}>
-                  {circleCount}
-                </Text>
-                <Text style={styles.statLabel}>Circle</Text>
-              </GHPressable>
+              {!profile?.is_creator_mode_enabled && (
+                <GHPressable
+                  style={styles.statItem}
+                  onPress={() => {
+                    HapticsService.triggerStatsTap();
+                    navigation.navigate('CircleList', {
+                      memberId: profile?.id,
+                      memberName: profile?.full_name,
+                      readOnly: true,
+                    });
+                  }}
+                >
+                  <Text style={styles.statNumber}>
+                    {circleCount}
+                  </Text>
+                  <Text style={styles.statLabel}>Circle</Text>
+                </GHPressable>
+              )}
               {profile?.is_creator_mode_enabled && (
                 <GHPressable
                   style={styles.statItem}
@@ -1039,11 +1041,13 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     navigation.navigate('CreatorFollowers', {
                       creatorId: profile?.id,
                       isOwnProfile: false,
+                      initialFollowersCount: creatorFollowerCount,
+                      initialCircleCount: circleCount,
                     });
                   }}
                 >
                   <Text style={styles.statNumber}>
-                    {creatorFollowerCount}
+                    {circleCount + creatorFollowerCount}
                   </Text>
                   <Text style={styles.statLabel}>Followers</Text>
                 </GHPressable>

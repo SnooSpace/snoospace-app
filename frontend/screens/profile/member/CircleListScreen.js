@@ -1,4 +1,4 @@
-﻿import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, FlatList, TextInput,
@@ -79,7 +79,7 @@ export default function CircleListScreen({ route, navigation }) {
       if (pageNum === 1) setLoading(true); else setLoadingMore(true);
       let fetched;
       if (readOnly && targetMemberId) {
-        const data = await getPublicCircleMembers(targetMemberId, { page: pageNum, limit: 20 });
+        const data = await getPublicCircleMembers(targetMemberId, { page: pageNum, limit: 20, search: searchQuery });
         fetched = data?.members || [];
       } else {
         const data = await getCircleMembers({ page: pageNum, limit: 20, search: searchQuery });
@@ -238,27 +238,25 @@ export default function CircleListScreen({ route, navigation }) {
           )}
         </View>
 
-        {/* Search bar — only shown in own circle view */}
-        {!readOnly && (
-          <View style={styles.searchRow}>
-            <View style={styles.searchBox}>
-              <Search size={16} color={COLORS.textSecondary} strokeWidth={2} style={{ marginRight: 8 }} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search your circle…"
-                placeholderTextColor={COLORS.textSecondary}
-                value={search}
-                onChangeText={handleSearchChange}
-                returnKeyType="search"
-              />
-              {search.length > 0 && (
-                <GHPressable onPress={() => handleSearchChange('')} hitSlop={8}>
-                  <X size={16} color={COLORS.textSecondary} strokeWidth={2} />
-                </GHPressable>
-              )}
-            </View>
+        {/* Search bar */}
+        <View style={styles.searchRow}>
+          <View style={styles.searchBox}>
+            <Search size={16} color={COLORS.textSecondary} strokeWidth={2} style={{ marginRight: 8 }} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder={readOnly ? "Search circle…" : "Search your circle…"}
+              placeholderTextColor={COLORS.textSecondary}
+              value={search}
+              onChangeText={handleSearchChange}
+              returnKeyType="search"
+            />
+            {search.length > 0 && (
+              <GHPressable onPress={() => handleSearchChange('')} hitSlop={8}>
+                <X size={16} color={COLORS.textSecondary} strokeWidth={2} />
+              </GHPressable>
+            )}
           </View>
-        )}
+        </View>
 
       {/* List */}
       {loading ? (

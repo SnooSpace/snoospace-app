@@ -1645,18 +1645,38 @@ export default function MemberProfileScreen({ navigation }) {
                 </Text>
                 <Text style={styles.statLabel}>Events</Text>
               </TouchableOpacity>
-              <GHPressable
-                style={[styles.statItem, { position: "relative" }]}
-                onPress={() => {
-                  HapticsService.triggerStatsTap();
-                  navigation.navigate("CircleList");
-                }}
-              >
-                <Text style={styles.statNumber}>
-                  {polledCounts.circles || profile.circle_count || 0}
-                </Text>
-                <Text style={styles.statLabel}>Circle</Text>
-              </GHPressable>
+              {profile.is_creator_mode_enabled ? (
+                <GHPressable
+                  style={styles.statItem}
+                  onPress={() => {
+                    HapticsService.triggerStatsTap();
+                    navigation.navigate("CreatorFollowers", {
+                      creatorId: profile.id,
+                      isOwnProfile: true,
+                      initialFollowersCount: polledCounts.followers || profile.follower_count || 0,
+                      initialCircleCount: polledCounts.circles || profile.circle_count || 0,
+                    });
+                  }}
+                >
+                  <Text style={styles.statNumber}>
+                    {(polledCounts.circles || profile.circle_count || 0) + (polledCounts.followers || profile.follower_count || 0)}
+                  </Text>
+                  <Text style={styles.statLabel}>Followers</Text>
+                </GHPressable>
+              ) : (
+                <GHPressable
+                  style={[styles.statItem, { position: "relative" }]}
+                  onPress={() => {
+                    HapticsService.triggerStatsTap();
+                    navigation.navigate("CircleList");
+                  }}
+                >
+                  <Text style={styles.statNumber}>
+                    {polledCounts.circles || profile.circle_count || 0}
+                  </Text>
+                  <Text style={styles.statLabel}>Circle</Text>
+                </GHPressable>
+              )}
               <GHPressable
                 style={styles.statItem}
                 onPress={() => {

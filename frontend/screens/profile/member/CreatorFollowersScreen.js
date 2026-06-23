@@ -25,6 +25,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -34,10 +35,21 @@ import {
   UserPlus,
   UserCheck,
   Clock,
+  Search,
+  X,
+  UserMinus,
+  TriangleAlert,
 } from "lucide-react-native";
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from "../../../constants/theme";
-import { getCreatorFollowers, sendCircleRequest } from "../../../api/members";
+import {
+  getCreatorFollowers,
+  sendCircleRequest,
+  getCircleMembers,
+  getPublicCircleMembers,
+  removeFromCircle,
+} from "../../../api/members";
 import hapticsService from "../../../services/HapticsService";
+import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 
 // ── Relative time helper ──────────────────────────────────────────────────────
 function relativeTime(ts) {
@@ -148,19 +160,90 @@ function FollowerRow({ follower, isOwnProfile, circleState, circleLoading, onAdd
   );
 }
 
+// ── Circle Row ────────────────────────────────────────────────────────────────
+function CircleRow({ member, isOwnProfile, onRemove, onPress }) {
+  const initials = (member.name || "?")
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const avatarUrl = member.profile_photo_url || member.avatar_url;
+
+  return (
+    <TouchableOpacity style={rowStyles.row} onPress={onPress} activeOpacity={0.78}>
+      <View style={rowStyles.avatarWrap}>
+        {avatarUrl ? (
+          <Image source={{ uri: avatarUrl }} style={rowStyles.avatar} />
+        ) : (
+          <View style={[rowStyles.avatar, rowStyles.avatarFallback]}>
+            <Text style={rowStyles.avatarInitials}>{initials}</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={rowStyles.body}>
+        <Text style={rowStyles.name} numberOfLines={1}>
+          {member.name || "Unknown"}
+        </Text>
+        {member.username && (
+          <Text style={rowStyles.username} numberOfLines={1}>
+            @{member.username}
+          </Text>
+        )}
+      </View>
+
+      {isOwnProfile && (
+        <TouchableOpacity
+          style={circleRowStyles.removeBtn}
+          onPress={onRemove}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.7}
+        >
+          <UserMinus size={18} color={COLORS.textSecondary} strokeWidth={2} />
+        </TouchableOpacity>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 // ── Main Screen ───────────────────────────────────────────────────────────────
 export default function CreatorFollowersScreen({ route, navigation }) {
-  const { creatorId, isOwnProfile = false } = route?.params || {};
+  const {
+    creatorId,
+    isOwnProfile = false,
+    initialFollowersCount = 0,
+    initialCircleCount = 0,
+  } = route?.params || {};
 
+  // Tabs State
+  const [activeTab, setActiveTab] = useState("followers"); // 'followers' | 'circles'
+
+  // Followers State
   const [notableFollowers, setNotableFollowers] = useState([]);
   const [followers, setFollowers] = useState([]);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState(initialFollowersCount);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [followersSearch, setFollowersSearch] = useState("");
+  const followersSearchTimer = useRef(null);
+
+  // Circles State
+  const [circleMembers, setCircleMembers] = useState([]);
+  const [circleTotalCount, setCircleTotalCount] = useState(initialCircleCount);
+  const [circlePage, setCirclePage] = useState(1);
+  const [hasMoreCircles, setHasMoreCircles] = useState(true);
+  const [circlesLoading, setCirclesLoading] = useState(false);
+  const [circlesLoadingMore, setCirclesLoadingMore] = useState(false);
+  const [circlesRefreshing, setCirclesRefreshing] = useState(false);
+  const [circleSearch, setCircleSearch] = useState("");
+  const [alertConfig, setAlertConfig] = useState({ visible: false });
+  const circleSearchTimer = useRef(null);
 
   // Session-level circle request state per follower
   const [circleStates, setCircleStates] = useState({}); // { [followerId]: 'none' | 'requested' | 'in_circle' }
@@ -168,20 +251,29 @@ export default function CreatorFollowersScreen({ route, navigation }) {
 
   const loadingMoreRef = useRef(false);
 
-  // ── Data loading ──────────────────────────────────────────────────────────
+  // ── Data loading (Followers) ───────────────────────────────────────────────
 
-  const loadInitial = useCallback(async () => {
+  const loadInitial = useCallback(async (searchQuery = "") => {
     try {
       setError(null);
-      const [notableRes, allRes] = await Promise.all([
-        getCreatorFollowers(creatorId, { type: "notable", limit: 10 }),
-        getCreatorFollowers(creatorId, { page: 1, limit: 20, type: "all" }),
-      ]);
-      setNotableFollowers(notableRes?.followers || []);
-      setFollowers(allRes?.followers || []);
-      setTotal(allRes?.total || 0);
-      setPage(1);
-      setHasMore(!!allRes?.hasMore);
+      if (searchQuery) {
+        setNotableFollowers([]);
+        const allRes = await getCreatorFollowers(creatorId, { page: 1, limit: 20, type: "all", search: searchQuery });
+        setFollowers(allRes?.followers || []);
+        setTotal(allRes?.total || 0);
+        setPage(1);
+        setHasMore(!!allRes?.hasMore);
+      } else {
+        const [notableRes, allRes] = await Promise.all([
+          getCreatorFollowers(creatorId, { type: "notable", limit: 10 }),
+          getCreatorFollowers(creatorId, { page: 1, limit: 20, type: "all" }),
+        ]);
+        setNotableFollowers(notableRes?.followers || []);
+        setFollowers(allRes?.followers || []);
+        setTotal(allRes?.total || 0);
+        setPage(1);
+        setHasMore(!!allRes?.hasMore);
+      }
     } catch (e) {
       console.warn("[CreatorFollowers] loadInitial error:", e);
       setError("Couldn't load followers. Pull to retry.");
@@ -197,7 +289,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
     setLoadingMore(true);
     try {
       const nextPage = page + 1;
-      const res = await getCreatorFollowers(creatorId, { page: nextPage, limit: 20, type: "all" });
+      const res = await getCreatorFollowers(creatorId, { page: nextPage, limit: 20, type: "all", search: followersSearch });
       setFollowers((prev) => [...prev, ...(res?.followers || [])]);
       setPage(nextPage);
       setHasMore(!!res?.hasMore);
@@ -207,17 +299,92 @@ export default function CreatorFollowersScreen({ route, navigation }) {
       loadingMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, [hasMore, page, creatorId]);
+  }, [hasMore, page, creatorId, followersSearch]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     setCircleStates({});
-    await loadInitial();
-  }, [loadInitial]);
+    await loadInitial(followersSearch);
+  }, [loadInitial, followersSearch]);
 
   useEffect(() => {
     loadInitial();
   }, [loadInitial]);
+
+  const handleFollowersSearchChange = (text) => {
+    setFollowersSearch(text);
+    clearTimeout(followersSearchTimer.current);
+    followersSearchTimer.current = setTimeout(() => {
+      loadInitial(text);
+    }, 350);
+  };
+
+  // ── Load circles ──────────────────────────────────────────────────────────
+  const loadCirclesInitial = useCallback(async () => {
+    try {
+      setCirclesLoading(true);
+      setError(null);
+      const res = isOwnProfile
+        ? await getCircleMembers({ page: 1, limit: 20, search: circleSearch })
+        : await getPublicCircleMembers(creatorId, { page: 1, limit: 20, search: circleSearch });
+      
+      const fetched = res?.members || [];
+      setCircleMembers(fetched);
+      setCirclePage(1);
+      setHasMoreCircles(fetched.length >= 20);
+
+      if (typeof res?.total === "number") {
+        setCircleTotalCount(res.total);
+      } else if (!circleSearch) {
+        setCircleTotalCount(Math.max(fetched.length, initialCircleCount));
+      }
+    } catch (e) {
+      console.warn("[CreatorFollowers] loadCirclesInitial error:", e);
+      setError("Couldn't load circle members. Pull to retry.");
+    } finally {
+      setCirclesLoading(false);
+      setCirclesRefreshing(false);
+    }
+  }, [creatorId, isOwnProfile, circleSearch, initialCircleCount]);
+
+  const loadMoreCircles = useCallback(async () => {
+    if (!hasMoreCircles || circlesLoadingMore) return;
+    setCirclesLoadingMore(true);
+    try {
+      const nextPage = circlePage + 1;
+      const res = isOwnProfile
+        ? await getCircleMembers({ page: nextPage, limit: 20, search: circleSearch })
+        : await getPublicCircleMembers(creatorId, { page: nextPage, limit: 20, search: circleSearch });
+      
+      const fetched = res?.members || [];
+      setCircleMembers((prev) => [...prev, ...fetched]);
+      setCirclePage(nextPage);
+      setHasMoreCircles(fetched.length >= 20);
+    } catch (e) {
+      console.warn("[CreatorFollowers] loadMoreCircles error:", e);
+    } finally {
+      setCirclesLoadingMore(false);
+    }
+  }, [hasMoreCircles, circlePage, creatorId, isOwnProfile, circleSearch, circlesLoadingMore]);
+
+  const onCirclesRefresh = useCallback(async () => {
+    setCirclesRefreshing(true);
+    await loadCirclesInitial();
+  }, [loadCirclesInitial]);
+
+  useEffect(() => {
+    if (activeTab === "circles") {
+      loadCirclesInitial();
+    }
+  }, [activeTab]);
+
+  const handleCircleSearchChange = (text) => {
+    setCircleSearch(text);
+    clearTimeout(circleSearchTimer.current);
+    circleSearchTimer.current = setTimeout(() => {
+      loadCirclesInitial();
+    }, 350);
+  };
 
   // ── Add to Circle handler ─────────────────────────────────────────────────
 
@@ -235,17 +402,61 @@ export default function CreatorFollowersScreen({ route, navigation }) {
     }
   }, []);
 
+  // ── Remove from Circle handler ────────────────────────────────────────────
+
+  const handleRemoveFromCircle = useCallback((member) => {
+    hapticsService.triggerImpactLight();
+    setAlertConfig({
+      visible: true,
+      title: "Remove from Circle?",
+      message: `${member.name || "This person"} will be removed from your circle. They can still message you and find your profile.`,
+      icon: UserMinus,
+      iconColor: "#E53935",
+      secondaryAction: {
+        text: "Cancel",
+        onPress: () => setAlertConfig({ visible: false }),
+      },
+      primaryAction: {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          setAlertConfig({ visible: false });
+          try {
+            await removeFromCircle(member.member_id || member.id);
+            setCircleMembers((prev) => prev.filter((m) => (m.member_id || m.id) !== (member.member_id || member.id)));
+            setCircleTotalCount((c) => Math.max(0, c - 1));
+            hapticsService.triggerImpactLight();
+          } catch (err) {
+            setAlertConfig({
+              visible: true,
+              title: "Error",
+              message: err?.message || "Failed to remove. Please try again.",
+              icon: TriangleAlert,
+              iconColor: "#E53935",
+              primaryAction: {
+                text: "OK",
+                onPress: () => setAlertConfig({ visible: false }),
+              },
+            });
+          }
+        },
+      },
+    });
+  }, []);
+
   // ── Navigation helpers ────────────────────────────────────────────────────
 
   const navigateToProfile = useCallback((follower) => {
-    if (follower.follower_type === "member") {
-      navigation.navigate("MemberPublicProfile", { memberId: follower.id });
-    } else if (follower.follower_type === "community") {
-      navigation.navigate("CommunityPublicProfile", { communityId: follower.id });
+    const memberId = follower.member_id || follower.id;
+    if (follower.follower_type === "community") {
+      navigation.navigate("CommunityPublicProfile", { communityId: memberId });
+    } else {
+      // Default to member profile
+      navigation.navigate("MemberPublicProfile", { memberId });
     }
   }, [navigation]);
 
-  // ── Section data ──────────────────────────────────────────────────────────
+  // ── Section data (Followers Tab) ──────────────────────────────────────────
 
   const sections = [];
 
@@ -262,6 +473,27 @@ export default function CreatorFollowersScreen({ route, navigation }) {
     title: `All Followers${total > 0 ? `  ${total.toLocaleString("en-IN")}` : ""}`,
     data: followers.length > 0 ? followers : [{ key: "empty" }],
   });
+
+  const renderCircleEmptyState = () => {
+    if (circlesLoading) return null;
+    return (
+      <View style={styles.emptyState}>
+        <View style={styles.emptyIcon}>
+          <Users size={32} color={COLORS.textSecondary} strokeWidth={1.5} />
+        </View>
+        <Text style={styles.emptyTitle}>
+          {circleSearch ? "No results found" : (isOwnProfile ? "Your circle is empty" : "No connections yet")}
+        </Text>
+        <Text style={styles.emptyBody}>
+          {circleSearch
+            ? "Try a different name or username."
+            : (isOwnProfile
+              ? "When you connect with people, they'll appear here."
+              : "This member hasn't connected with anyone yet.")}
+        </Text>
+      </View>
+    );
+  };
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -280,95 +512,220 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         <View style={{ width: 38 }} />
       </View>
 
+      {/* Tabs */}
+      <View style={tabStyles.tabBar}>
+        <TouchableOpacity
+          style={[tabStyles.tab, activeTab === "followers" && tabStyles.tabActive]}
+          onPress={() => {
+            hapticsService.triggerImpactLight();
+            setActiveTab("followers");
+          }}
+        >
+          <Text style={[tabStyles.tabText, activeTab === "followers" && tabStyles.tabTextActive]}>
+            Followers • {total || 0}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[tabStyles.tab, activeTab === "circles" && tabStyles.tabActive]}
+          onPress={() => {
+            hapticsService.triggerImpactLight();
+            setActiveTab("circles");
+          }}
+        >
+          <Text style={[tabStyles.tabText, activeTab === "circles" && tabStyles.tabTextActive]}>
+            Circle • {circleTotalCount || 0}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Content */}
-      {loading ? (
-        <View style={styles.loaderCenter}>
-          <ActivityIndicator size="large" color="#2962FF" />
-        </View>
-      ) : error ? (
-        <View style={styles.loaderCenter}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={loadInitial}>
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
+      {activeTab === "followers" ? (
+        <View style={{ flex: 1 }}>
+          {/* Search bar for Followers */}
+          <View style={tabStyles.searchRow}>
+            <View style={tabStyles.searchBox}>
+              <Search size={16} color={COLORS.textSecondary} strokeWidth={2} style={{ marginRight: 8 }} />
+              <TextInput
+                style={tabStyles.searchInput}
+                placeholder={isOwnProfile ? "Search your followers…" : "Search followers…"}
+                placeholderTextColor={COLORS.textSecondary}
+                value={followersSearch}
+                onChangeText={handleFollowersSearchChange}
+                returnKeyType="search"
+              />
+              {followersSearch.length > 0 && (
+                <TouchableOpacity onPress={() => handleFollowersSearchChange("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <X size={16} color={COLORS.textSecondary} strokeWidth={2} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {loading && followers.length === 0 ? (
+            <View style={styles.loaderCenter}>
+              <ActivityIndicator size="large" color="#2962FF" />
+            </View>
+          ) : error ? (
+            <View style={styles.loaderCenter}>
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity style={styles.retryBtn} onPress={() => loadInitial(followersSearch)}>
+                <Text style={styles.retryText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <SectionList
+              sections={sections}
+              keyExtractor={(item, idx) => item?.id ? String(item.id) : `${item?.key}-${idx}`}
+              contentContainerStyle={styles.listContent}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor="#2962FF"
+                  colors={["#2962FF"]}
+                />
+              }
+              onEndReached={loadMore}
+              onEndReachedThreshold={0.3}
+              stickySectionHeadersEnabled={false}
+              renderSectionHeader={({ section }) => (
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>{section.title}</Text>
+                </View>
+              )}
+              renderItem={({ item, section }) => {
+                // Notable section: render horizontal scroll
+                if (section.type === "notable") {
+                  return (
+                    <FlatList
+                      horizontal
+                      data={notableFollowers}
+                      keyExtractor={(f) => String(f.id)}
+                      contentContainerStyle={styles.notableList}
+                      showsHorizontalScrollIndicator={false}
+                      renderItem={({ item: follower }) => (
+                        <NotableCard
+                          follower={follower}
+                          onPress={() => navigateToProfile(follower)}
+                        />
+                      )}
+                    />
+                  );
+                }
+
+                // Empty state
+                if (item?.key === "empty") {
+                  return (
+                    <View style={styles.emptyState}>
+                      <View style={styles.emptyIcon}>
+                        <Users size={32} color={COLORS.textSecondary} strokeWidth={1.5} />
+                      </View>
+                      <Text style={styles.emptyTitle}>
+                        {followersSearch ? "No results found" : "No followers yet"}
+                      </Text>
+                      <Text style={styles.emptyBody}>
+                        {followersSearch
+                          ? "Try a different name or username."
+                          : "Share your profile to grow your audience."}
+                      </Text>
+                    </View>
+                  );
+                }
+
+                // Regular follower row
+                return (
+                  <FollowerRow
+                    follower={item}
+                    isOwnProfile={isOwnProfile}
+                    circleState={circleStates[item.id] || "none"}
+                    circleLoading={!!circleLoading[item.id]}
+                    onAddToCircle={handleAddToCircle}
+                    onPress={() => navigateToProfile(item)}
+                  />
+                );
+              }}
+              ListFooterComponent={
+                loadingMore ? (
+                  <View style={styles.loadMoreIndicator}>
+                    <ActivityIndicator size="small" color="#2962FF" />
+                  </View>
+                ) : null
+              }
+            />
+          )}
         </View>
       ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(item, idx) => item?.id ? String(item.id) : `${item?.key}-${idx}`}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#2962FF"
-              colors={["#2962FF"]}
-            />
-          }
-          onEndReached={loadMore}
-          onEndReachedThreshold={0.3}
-          stickySectionHeadersEnabled={false}
-          renderSectionHeader={({ section }) => (
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-            </View>
-          )}
-          renderItem={({ item, section }) => {
-            // Notable section: render horizontal scroll
-            if (section.type === "notable") {
-              return (
-                <FlatList
-                  horizontal
-                  data={notableFollowers}
-                  keyExtractor={(f) => String(f.id)}
-                  contentContainerStyle={styles.notableList}
-                  showsHorizontalScrollIndicator={false}
-                  renderItem={({ item: follower }) => (
-                    <NotableCard
-                      follower={follower}
-                      onPress={() => navigateToProfile(follower)}
-                    />
-                  )}
-                />
-              );
-            }
-
-            // Empty state
-            if (item?.key === "empty") {
-              return (
-                <View style={styles.emptyState}>
-                  <View style={styles.emptyIcon}>
-                    <Users size={32} color={COLORS.textSecondary} strokeWidth={1.5} />
-                  </View>
-                  <Text style={styles.emptyTitle}>No followers yet</Text>
-                  <Text style={styles.emptyBody}>
-                    Share your profile to grow your audience.
-                  </Text>
-                </View>
-              );
-            }
-
-            // Regular follower row
-            return (
-              <FollowerRow
-                follower={item}
-                isOwnProfile={isOwnProfile}
-                circleState={circleStates[item.id] || "none"}
-                circleLoading={!!circleLoading[item.id]}
-                onAddToCircle={handleAddToCircle}
-                onPress={() => navigateToProfile(item)}
+        /* Circles tab */
+        <View style={{ flex: 1 }}>
+          <View style={tabStyles.searchRow}>
+            <View style={tabStyles.searchBox}>
+              <Search size={16} color={COLORS.textSecondary} strokeWidth={2} style={{ marginRight: 8 }} />
+              <TextInput
+                style={tabStyles.searchInput}
+                placeholder={isOwnProfile ? "Search your circle…" : "Search circle…"}
+                placeholderTextColor={COLORS.textSecondary}
+                value={circleSearch}
+                onChangeText={handleCircleSearchChange}
+                returnKeyType="search"
               />
-            );
-          }}
-          ListFooterComponent={
-            loadingMore ? (
-              <View style={styles.loadMoreIndicator}>
-                <ActivityIndicator size="small" color="#2962FF" />
-              </View>
-            ) : null
-          }
-        />
+              {circleSearch.length > 0 && (
+                <TouchableOpacity onPress={() => handleCircleSearchChange("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                  <X size={16} color={COLORS.textSecondary} strokeWidth={2} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {circlesLoading && circleMembers.length === 0 ? (
+            <View style={styles.loaderCenter}>
+              <ActivityIndicator size="large" color="#2962FF" />
+            </View>
+          ) : (
+            <FlatList
+              data={circleMembers}
+              keyExtractor={(item) => String(item.member_id || item.id)}
+              contentContainerStyle={styles.listContent}
+              renderItem={({ item }) => (
+                <CircleRow
+                  member={item}
+                  isOwnProfile={isOwnProfile}
+                  onRemove={() => handleRemoveFromCircle(item)}
+                  onPress={() => navigateToProfile(item)}
+                />
+              )}
+              ListEmptyComponent={renderCircleEmptyState}
+              onEndReached={loadMoreCircles}
+              onEndReachedThreshold={0.3}
+              refreshControl={
+                <RefreshControl
+                  refreshing={circlesRefreshing}
+                  onRefresh={onCirclesRefresh}
+                  tintColor="#2962FF"
+                  colors={["#2962FF"]}
+                />
+              }
+              ListFooterComponent={
+                circlesLoadingMore ? (
+                  <View style={styles.loadMoreIndicator}>
+                    <ActivityIndicator size="small" color="#2962FF" />
+                  </View>
+                ) : null
+              }
+            />
+          )}
+        </View>
       )}
+
+      <CustomAlertModal
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        icon={alertConfig.icon}
+        iconColor={alertConfig.iconColor}
+        primaryAction={alertConfig.primaryAction}
+        secondaryAction={alertConfig.secondaryAction}
+        onClose={() => setAlertConfig({ visible: false })}
+      />
     </SafeAreaView>
   );
 }
@@ -386,8 +743,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border || "#E5E7EB",
     backgroundColor: "#fff",
   },
   backBtn: {
@@ -613,5 +968,64 @@ const rowStyles = StyleSheet.create({
     fontFamily: FONTS.medium || FONTS.regular,
     fontSize: 12,
     color: COLORS.textSecondary,
+  },
+});
+
+const tabStyles = StyleSheet.create({
+  tabBar: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    backgroundColor: "#fff",
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  tabActive: {
+    borderBottomColor: "#2962FF",
+  },
+  tabText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.textSecondary || "#6B7280",
+  },
+  tabTextActive: {
+    color: "#2962FF",
+  },
+  searchRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#fff",
+  },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F2F2F7",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontFamily: FONTS.regular,
+    fontSize: 15,
+    color: COLORS.textPrimary || "#1a2d4a",
+    padding: 0,
+  },
+});
+
+const circleRowStyles = StyleSheet.create({
+  removeBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F2F2F7",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

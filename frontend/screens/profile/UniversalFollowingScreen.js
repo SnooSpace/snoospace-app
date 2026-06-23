@@ -41,14 +41,14 @@ export default function UniversalFollowingScreen({ route, navigation }) {
   const title = route?.params?.title || "Following";
 
   const fetchFollowingPage = useCallback(
-    async ({ offset, limit }) => {
+    async ({ offset, limit, search }) => {
       const fetchFn = API_MAP[userType];
       if (!fetchFn) {
         console.error(`No API function for userType: ${userType}`);
         return { items: [], hasMore: false };
       }
 
-      const data = await fetchFn(userId, { limit, offset });
+      const data = await fetchFn(userId, { limit, offset, search });
       const raw = data?.results || data?.following || data?.items || data || [];
       console.log("[UniversalFollowing] Raw data count:", raw.length);
 
