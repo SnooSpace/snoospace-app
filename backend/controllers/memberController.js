@@ -461,9 +461,9 @@ async function getPublicMember(req, res) {
               instagram_username, is_creator_mode_enabled,
               follower_count AS followers_count, following_count, circle_count,
               (SELECT COUNT(*) FROM creator_follows
-               WHERE creator_id = $1 AND is_dormant = false)::int AS creator_follower_count,
+               WHERE creator_id = $1 AND is_dormant = false AND is_superseded_by_circle = false)::int AS creator_follower_count,
               (SELECT COUNT(*) FROM creator_follows
-               WHERE follower_id = $1 AND is_dormant = false)::int AS creator_following_count,
+               WHERE follower_id = $1 AND is_dormant = false AND is_superseded_by_circle = false)::int AS creator_following_count,
               (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member')::int AS posts_count,
               (
                 (SELECT COUNT(*) FROM event_registrations WHERE member_id = $1
@@ -1725,16 +1725,20 @@ async function toggleCreatorMode(req, res) {
     }
 
     // Sync creator_follows dormancy state with the mode toggle
-    // ON disable: mark all follower rows as dormant (count drops to 0 via trigger)
-    // ON re-enable: restore all dormant rows (count restores via trigger)
+    // ON disable: mark active non-superseded follower rows as dormant (count drops to 0 via trigger)
+    // ON re-enable: restore dormant non-superseded rows (superseded rows stay superseded)
     if (enabled) {
       await client.query(
-        `UPDATE creator_follows SET is_dormant = false WHERE creator_id = $1 AND is_dormant = true`,
+        `UPDATE creator_follows
+         SET is_dormant = false
+         WHERE creator_id = $1 AND is_dormant = true AND is_superseded_by_circle = false`,
         [memberId]
       );
     } else {
       await client.query(
-        `UPDATE creator_follows SET is_dormant = true WHERE creator_id = $1 AND is_dormant = false`,
+        `UPDATE creator_follows
+         SET is_dormant = true
+         WHERE creator_id = $1 AND is_dormant = false AND is_superseded_by_circle = false`,
         [memberId]
       );
     }

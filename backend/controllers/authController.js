@@ -456,11 +456,11 @@ async function getUserProfile(req, res) {
             // Live counts to avoid stale denormalized values
             const [cfCountR, cfFollowingR] = await Promise.all([
               pool.query(
-                `SELECT COUNT(*) FROM creator_follows WHERE creator_id = $1 AND is_dormant = false`,
+                `SELECT COUNT(*) FROM creator_follows WHERE creator_id = $1 AND is_dormant = false AND is_superseded_by_circle = false`,
                 [row.id]
               ),
               pool.query(
-                `SELECT COUNT(*) FROM creator_follows WHERE follower_id = $1 AND is_dormant = false`,
+                `SELECT COUNT(*) FROM creator_follows WHERE follower_id = $1 AND is_dormant = false AND is_superseded_by_circle = false`,
                 [row.id]
               ),
             ]);
@@ -508,11 +508,11 @@ async function getUserProfile(req, res) {
           // Live counts to avoid stale denormalized values
           const [cfCountR, cfFollowingR] = await Promise.all([
             pool.query(
-              `SELECT COUNT(*) FROM creator_follows WHERE creator_id = $1 AND is_dormant = false`,
+              `SELECT COUNT(*) FROM creator_follows WHERE creator_id = $1 AND is_dormant = false AND is_superseded_by_circle = false`,
               [row.id]
             ),
             pool.query(
-              `SELECT COUNT(*) FROM creator_follows WHERE follower_id = $1 AND is_dormant = false`,
+              `SELECT COUNT(*) FROM creator_follows WHERE follower_id = $1 AND is_dormant = false AND is_superseded_by_circle = false`,
               [row.id]
             ),
           ]);

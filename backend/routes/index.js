@@ -501,6 +501,7 @@ router.get(
 // Must be before /members/:id/* and other wildcard routes.
 router.post("/creators/:creatorId/follow", authMiddleware, CreatorFollowController.followCreator);
 router.delete("/creators/:creatorId/follow", authMiddleware, CreatorFollowController.unfollowCreator);
+router.delete("/creators/me/followers/:followerId", authMiddleware, CreatorFollowController.removeFollower);
 router.get("/creators/:creatorId/followers", authMiddleware, CreatorFollowController.getCreatorFollowers);
 router.get("/creators/:creatorId/follow-status", authMiddleware, CreatorFollowController.getFollowStatus);
 

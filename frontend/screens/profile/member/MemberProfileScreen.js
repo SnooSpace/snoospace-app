@@ -828,9 +828,99 @@ export default function MemberProfileScreen({ navigation }) {
         creator_follower_count: polledCounts.creatorFollowers || 0,
       });
     });
-    return () => {
-      if (unsub) unsub();
-    };
+    return () => { if (unsub) unsub(); };
+  }, [polledCounts, initializeCounts]);
+
+  // I followed a creator → my following count goes up
+  useEffect(() => {
+    const unsub = EventBus.on("creator:followed", () => {
+      initializeCounts({
+        follower_count: polledCounts.followers,
+        following_count: (polledCounts.following || 0) + 1,
+        post_count: polledCounts.posts,
+        circle_count: polledCounts.circles || 0,
+        creator_follower_count: polledCounts.creatorFollowers || 0,
+      });
+    });
+    return () => { if (unsub) unsub(); };
+  }, [polledCounts, initializeCounts]);
+
+  // I unfollowed a creator → my following count goes down
+  useEffect(() => {
+    const unsub = EventBus.on("creator:unfollowed", () => {
+      initializeCounts({
+        follower_count: polledCounts.followers,
+        following_count: Math.max(0, (polledCounts.following || 0) - 1),
+        post_count: polledCounts.posts,
+        circle_count: polledCounts.circles || 0,
+        creator_follower_count: polledCounts.creatorFollowers || 0,
+      });
+    });
+    return () => { if (unsub) unsub(); };
+  }, [polledCounts, initializeCounts]);
+
+  // I left a creator's circle → my circle count goes down
+  // (follow row restored so following_count stays the same — it was excluded while in circle)
+  useEffect(() => {
+    const unsub = EventBus.on("circle:left", ({ alsoUnfollow } = {}) => {
+      initializeCounts({
+        follower_count: polledCounts.followers,
+        following_count: polledCounts.following || 0,
+        post_count: polledCounts.posts,
+        circle_count: Math.max(0, (polledCounts.circles || 0) - 1),
+        creator_follower_count: polledCounts.creatorFollowers || 0,
+      });
+    });
+    return () => { if (unsub) unsub(); };
+  }, [polledCounts, initializeCounts]);
+
+  // As creator: I removed a follower → my creator_follower_count goes down
+  useEffect(() => {
+    const unsub = EventBus.on("creator:follower-removed", ({ creatorId } = {}) => {
+      if (String(creatorId) !== String(profile?.id)) return;
+      initializeCounts({
+        follower_count: polledCounts.followers,
+        following_count: polledCounts.following || 0,
+        post_count: polledCounts.posts,
+        circle_count: polledCounts.circles || 0,
+        creator_follower_count: Math.max(0, (polledCounts.creatorFollowers || 0) - 1),
+      });
+    });
+    return () => { if (unsub) unsub(); };
+  }, [polledCounts, initializeCounts, profile?.id]);
+
+  // As creator: I removed someone from my circle → circle_count--
+  // If alsoUnfollow=true → creator_follower_count-- as well
+  useEffect(() => {
+    const unsub = EventBus.on("circle:member-removed", ({ creatorId, alsoUnfollow } = {}) => {
+      if (String(creatorId) !== String(profile?.id)) return;
+      initializeCounts({
+        follower_count: polledCounts.followers,
+        following_count: polledCounts.following || 0,
+        post_count: polledCounts.posts,
+        circle_count: Math.max(0, (polledCounts.circles || 0) - 1),
+        creator_follower_count: alsoUnfollow
+          ? Math.max(0, (polledCounts.creatorFollowers || 0) - 1)
+          : (polledCounts.creatorFollowers || 0),
+      });
+    });
+    return () => { if (unsub) unsub(); };
+  }, [polledCounts, initializeCounts, profile?.id]);
+
+  // CircleListScreen removed someone from MY circle (no creatorId filter — always own circle)
+  useEffect(() => {
+    const unsub = EventBus.on("my:circle-member-removed", ({ alsoUnfollow } = {}) => {
+      initializeCounts({
+        follower_count: polledCounts.followers,
+        following_count: polledCounts.following || 0,
+        post_count: polledCounts.posts,
+        circle_count: Math.max(0, (polledCounts.circles || 0) - 1),
+        creator_follower_count: alsoUnfollow
+          ? Math.max(0, (polledCounts.creatorFollowers || 0) - 1)
+          : (polledCounts.creatorFollowers || 0),
+      });
+    });
+    return () => { if (unsub) unsub(); };
   }, [polledCounts, initializeCounts]);
 
   // Real-time sync: view, share, save counts from EventBus

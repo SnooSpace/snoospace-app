@@ -1004,6 +1004,53 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           }}
         >
           <View style={styles.profileSection}>
+            {circleStatus === 'pending_incoming' && (
+              <View style={styles.topRequestContainer}>
+                <Text style={styles.topRequestTitle}>Sent you a Circle Request</Text>
+                <View style={styles.topRequestButtonsRow}>
+                  <GHPressable
+                    style={({ pressed }) => [styles.topAcceptBtn, pressed && { opacity: 0.7 }]}
+                    disabled={circleActionLoading}
+                    onPress={async () => {
+                      setCircleActionLoading(true);
+                      try {
+                        await respondToCircleRequest(circleRequestId, 'accepted');
+                        if (profile?.is_creator_mode_enabled) {
+                          setCircleStatus('in_circle');
+                          setIsInCircleWithCreator(true);
+                        } else {
+                          setCircleStatus('in_circle');
+                        }
+                        setCircleCount((c) => c + 1);
+                        HapticsService.triggerAddToCircle();
+                      } catch (e) { loadCircleStatus(); }
+                      finally { setCircleActionLoading(false); }
+                    }}
+                  >
+                    <UserCheck size={16} color="#fff" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                    <Text style={styles.topAcceptText}>Accept</Text>
+                  </GHPressable>
+                  <GHPressable
+                    style={({ pressed }) => [styles.topDeclineBtn, pressed && { opacity: 0.7 }]}
+                    disabled={circleActionLoading}
+                    onPress={async () => {
+                      setCircleActionLoading(true);
+                      try {
+                        await respondToCircleRequest(circleRequestId, 'declined');
+                        setCircleStatus('none');
+                        setCircleRequestId(null);
+                        HapticsService.triggerClose();
+                      } catch (e) { loadCircleStatus(); }
+                      finally { setCircleActionLoading(false); }
+                    }}
+                  >
+                    <UserX size={16} color={COLORS.textSecondary} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                    <Text style={styles.topDeclineText}>Decline</Text>
+                  </GHPressable>
+                </View>
+              </View>
+            )}
+
             <View style={styles.profileImageContainer}>
               <Image
                 source={{
@@ -1240,81 +1287,62 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               {profile?.is_creator_mode_enabled ? (
                 // ── CREATOR PROFILE CTA ──────────────────────────────────────
                 isInCircleWithCreator ? (
-                  // Already in circle — read-only chip, no follow button needed
+                  // In circle with creator — tappable: offers Remove or Remove+Unfollow
                   <GHPressable
-                    style={({ pressed }) => [circleCTAStyles.inCircleBtn, pressed && { opacity: 0.7 }]}
-                    disabled
+                    style={({ pressed }) => [circleCTAStyles.inCircleBtn, { flex: 1 }, pressed && { opacity: 0.7 }]}
+                    disabled={circleActionLoading}
+                    onPress={() => {
+                      showAlert({
+                        title: 'Leave Circle?',
+                        message: `You'll be removed from ${profile?.full_name || 'this creator'}'s circle. By default you'll continue following their content.`,
+                        icon: UserMinus,
+                        iconColor: '#E53935',
+                        secondaryAction: { text: 'Keep', onPress: hideAlert },
+                        primaryAction: {
+                          text: 'Leave Circle',
+                          style: 'destructive',
+                          onPress: async () => {
+                            hideAlert();
+                            setCircleActionLoading(true);
+                            try {
+                              await removeFromCircle(memberId, false); // restore follow
+                              setIsInCircleWithCreator(false);
+                              setCircleStatus('none');
+                              setCircleCount((c) => Math.max(0, c - 1));
+                              // Follow is restored — update follow state
+                              setIsFollowingCreator(true);
+                              EventBus.emit('circle:left', { creatorId: memberId, alsoUnfollow: false });
+                              HapticsService.triggerImpactLight();
+                            } catch (e) { loadCircleStatus(); }
+                            finally { setCircleActionLoading(false); }
+                          },
+                        },
+                        tertiaryAction: {
+                          text: 'Leave & Unfollow',
+                          style: 'destructive',
+                          onPress: async () => {
+                            hideAlert();
+                            setCircleActionLoading(true);
+                            try {
+                              await removeFromCircle(memberId, true); // also delete follow
+                              setIsInCircleWithCreator(false);
+                              setCircleStatus('none');
+                              setCircleCount((c) => Math.max(0, c - 1));
+                              setIsFollowingCreator(false);
+                              EventBus.emit('circle:left', { creatorId: memberId, alsoUnfollow: true });
+                              HapticsService.triggerImpactLight();
+                            } catch (e) { loadCircleStatus(); }
+                            finally { setCircleActionLoading(false); }
+                          },
+                        },
+                      });
+                    }}
                   >
                     <UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} />
                     <Text style={circleCTAStyles.inCircleText}>In Circle</Text>
                   </GHPressable>
-                ) : circleStatus === 'pending_incoming' ? (
-                  // Creator sent you a circle request — show Accept + Follow row
-                  <View style={{ flex: 1, gap: 8 }}>
-                    <View style={circleCTAStyles.incomingRow}>
-                      <GHPressable
-                        style={({ pressed }) => [circleCTAStyles.acceptBtn, pressed && { opacity: 0.7 }]}
-                        disabled={circleActionLoading}
-                        onPress={async () => {
-                          setCircleActionLoading(true);
-                          try {
-                            await respondToCircleRequest(circleRequestId, 'accepted');
-                            setCircleStatus('in_circle');
-                            setIsInCircleWithCreator(true);
-                            setCircleCount((c) => c + 1);
-                            HapticsService.triggerAddToCircle();
-                          } catch (e) { loadCircleStatus(); }
-                          finally { setCircleActionLoading(false); }
-                        }}
-                      >
-                        <UserCheck size={16} color="#fff" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                        <Text style={circleCTAStyles.acceptText}>Accept</Text>
-                      </GHPressable>
-                      <GHPressable
-                        style={({ pressed }) => [circleCTAStyles.declineBtn, pressed && { opacity: 0.7 }]}
-                        disabled={circleActionLoading}
-                        onPress={async () => {
-                          setCircleActionLoading(true);
-                          try {
-                            await respondToCircleRequest(circleRequestId, 'declined');
-                            setCircleStatus('none');
-                            setCircleRequestId(null);
-                            HapticsService.triggerClose();
-                          } catch (e) { loadCircleStatus(); }
-                          finally { setCircleActionLoading(false); }
-                        }}
-                      >
-                        <UserX size={16} color={COLORS.textSecondary} strokeWidth={2.5} style={{ marginRight: 6 }} />
-                        <Text style={circleCTAStyles.declineText}>Decline</Text>
-                      </GHPressable>
-                    </View>
-                    {/* Separate Follow button when there's a pending incoming circle request */}
-                    <GHPressable
-                      style={({ pressed }) => [
-                        isFollowingCreator ? circleCTAStyles.inCircleBtn : circleCTAStyles.requestedBtn,
-                        pressed && { opacity: 0.7 },
-                      ]}
-                      disabled={followActionLoading}
-                      onPress={async () => {
-                        if (isFollowingCreator) return; // Following — tap does nothing in this state
-                        setFollowActionLoading(true);
-                        try {
-                          const res = await followCreator(memberId);
-                          setIsFollowingCreator(true);
-                          setCreatorFollowerCount(res?.follower_count ?? creatorFollowerCount + 1);
-                          HapticsService.triggerImpactLight();
-                        } catch (e) { console.warn('[Profile] followCreator error:', e); }
-                        finally { setFollowActionLoading(false); }
-                      }}
-                    >
-                      <UserPlus size={16} color={isFollowingCreator ? '#2962FF' : '#FF9500'} strokeWidth={2.5} style={{ marginRight: 6 }} />
-                      <Text style={isFollowingCreator ? circleCTAStyles.inCircleText : circleCTAStyles.requestedText}>
-                        {isFollowingCreator ? 'Following' : 'Follow'}
-                      </Text>
-                    </GHPressable>
-                  </View>
                 ) : (
-                  // Default: not in circle, no pending request → plain Follow/Following button
+                  // Creator is not in circle -> plain Follow/Following button (even if pending_incoming)
                   <GHPressable
                     style={({ pressed }) => [
                       isFollowingCreator
@@ -1342,6 +1370,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                                   const res = await unfollowCreator(memberId);
                                   setIsFollowingCreator(false);
                                   setCreatorFollowerCount(res?.follower_count ?? Math.max(0, creatorFollowerCount - 1));
+                                  EventBus.emit('creator:unfollowed', { creatorId: memberId });
                                   HapticsService.triggerImpactLight();
                                 } catch (e) { console.warn('[Profile] unfollowCreator error:', e); }
                                 finally { setFollowActionLoading(false); }
@@ -1354,6 +1383,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                         const res = await followCreator(memberId);
                         setIsFollowingCreator(true);
                         setCreatorFollowerCount(res?.follower_count ?? creatorFollowerCount + 1);
+                        EventBus.emit('creator:followed', { creatorId: memberId });
                         HapticsService.triggerImpactLight();
                       } catch (e) { console.warn('[Profile] followCreator error:', e); }
                       finally { setFollowActionLoading(false); }
@@ -1431,42 +1461,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     <Text style={circleCTAStyles.requestedText}>Requested</Text>
                   </GHPressable>
                 ) : circleStatus === 'pending_incoming' ? (
-                  <View style={circleCTAStyles.incomingRow}>
-                    <GHPressable
-                      style={({ pressed }) => [circleCTAStyles.acceptBtn, pressed && { opacity: 0.7 }]}
-                      disabled={circleActionLoading}
-                      onPress={async () => {
-                        setCircleActionLoading(true);
-                        try {
-                          await respondToCircleRequest(circleRequestId, 'accepted');
-                          setCircleStatus('in_circle');
-                          setCircleCount((c) => c + 1);
-                          HapticsService.triggerAddToCircle();
-                        } catch (e) { loadCircleStatus(); }
-                        finally { setCircleActionLoading(false); }
-                      }}
-                    >
-                      <UserCheck size={16} color="#fff" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                      <Text style={circleCTAStyles.acceptText}>Accept</Text>
-                    </GHPressable>
-                    <GHPressable
-                      style={({ pressed }) => [circleCTAStyles.declineBtn, pressed && { opacity: 0.7 }]}
-                      disabled={circleActionLoading}
-                      onPress={async () => {
-                        setCircleActionLoading(true);
-                        try {
-                          await respondToCircleRequest(circleRequestId, 'declined');
-                          setCircleStatus('none');
-                          setCircleRequestId(null);
-                          HapticsService.triggerClose();
-                        } catch (e) { loadCircleStatus(); }
-                        finally { setCircleActionLoading(false); }
-                      }}
-                    >
-                      <UserX size={16} color={COLORS.textSecondary} strokeWidth={2.5} style={{ marginRight: 6 }} />
-                      <Text style={circleCTAStyles.declineText}>Decline</Text>
-                    </GHPressable>
-                  </View>
+                  null // Moved Accept & Decline to the top!
                 ) : (
                   <GradientButton
                     title="Add to Circle"
@@ -2274,6 +2269,57 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 14,
     color: "#6B7280",
+  },
+  topRequestContainer: {
+    width: '100%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 16,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  topRequestTitle: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: '#475569',
+    marginBottom: 12,
+  },
+  topRequestButtonsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  topAcceptBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#2962FF',
+    paddingVertical: 10,
+  },
+  topAcceptText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: '#fff',
+  },
+  topDeclineBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+  },
+  topDeclineText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: '#475569',
   },
 });
 

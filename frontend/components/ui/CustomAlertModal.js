@@ -22,6 +22,7 @@ const CustomAlertModal = ({
   onClose,
   primaryAction,
   secondaryAction,
+  tertiaryAction,
   icon: Icon,
   iconColor = "#FF3B30",
   // Optional: mute duration picker
@@ -138,6 +139,20 @@ const CustomAlertModal = ({
                       </TouchableOpacity>
                     )}
                   </View>
+                )}
+
+                {/* Tertiary action — full-width destructive text button (e.g. "Leave & Unfollow") */}
+                {!durationOptions && tertiaryAction && (
+                  <TouchableOpacity
+                    style={styles.tertiaryBtn}
+                    onPress={() => {
+                      tertiaryAction.onPress?.();
+                      onClose();
+                    }}
+                    activeOpacity={0.6}
+                  >
+                    <Text style={styles.tertiaryBtnText}>{tertiaryAction.text}</Text>
+                  </TouchableOpacity>
                 )}
 
                 {/* Cancel button for duration picker */}
@@ -288,6 +303,18 @@ const styles = StyleSheet.create({
   },
   destructiveButtonText: {
     color: "#DC2626",
+  },
+  tertiaryBtn: {
+    width: '100%',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingBottom: 18,
+    alignItems: 'center',
+  },
+  tertiaryBtnText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: '#DC2626',
   },
 });
 

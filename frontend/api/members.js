@@ -110,9 +110,9 @@ export async function getCircleStatus(userId) {
 }
 
 /** Remove a user from your circle (mutual removal). */
-export async function removeFromCircle(userId) {
+export async function removeFromCircle(userId, alsoUnfollow = false) {
   const token = await getAuthToken();
-  return apiDelete(`/circles/${userId}`, null, 15000, token);
+  return apiDelete(`/circles/${userId}`, alsoUnfollow ? { also_unfollow: true } : null, 15000, token);
 }
 
 /** Get another member's circle list (public/read-only view). */
@@ -341,6 +341,12 @@ export async function followCreator(creatorId) {
 export async function unfollowCreator(creatorId) {
   const token = await getAuthToken();
   return apiDelete(`/creators/${creatorId}/follow`, null, 8000, token);
+}
+
+/** DELETE /creators/me/followers/:followerId — creator removes a follower from their list */
+export async function removeCreatorFollower(followerId) {
+  const token = await getAuthToken();
+  return apiDelete(`/creators/me/followers/${followerId}`, null, 8000, token);
 }
 
 /**

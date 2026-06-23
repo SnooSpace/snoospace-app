@@ -158,7 +158,7 @@ export default function CircleListScreen({ route, navigation }) {
     HapticsService.triggerImpactLight();
     showAlert({
       title: 'Remove from Circle?',
-      message: `${item.name || 'This person'} will be removed from your circle. They can still message you and find your profile.`,
+      message: `${item.name || 'This person'} will be removed from your circle. By default they'll continue following your content.`,
       icon: UserMinus,
       iconColor: '#E53935',
       secondaryAction: { text: 'Cancel', onPress: hideAlert },
@@ -168,8 +168,30 @@ export default function CircleListScreen({ route, navigation }) {
         onPress: async () => {
           hideAlert();
           try {
-            await removeFromCircle(item.member_id);
+            await removeFromCircle(item.member_id, false); // follow restored
             setMembers((prev) => prev.filter((m) => m.member_id !== item.member_id));
+            EventBus.emit('my:circle-member-removed', { alsoUnfollow: false });
+            HapticsService.triggerImpactLight();
+          } catch (err) {
+            showAlert({
+              title: 'Error',
+              message: err?.message || 'Failed to remove. Please try again.',
+              icon: TriangleAlert,
+              iconColor: '#E53935',
+              primaryAction: { text: 'OK', onPress: hideAlert },
+            });
+          }
+        },
+      },
+      tertiaryAction: {
+        text: 'Remove from Circle & Followers',
+        style: 'destructive',
+        onPress: async () => {
+          hideAlert();
+          try {
+            await removeFromCircle(item.member_id, true); // also delete follow
+            setMembers((prev) => prev.filter((m) => m.member_id !== item.member_id));
+            EventBus.emit('my:circle-member-removed', { alsoUnfollow: true });
             HapticsService.triggerImpactLight();
           } catch (err) {
             showAlert({
@@ -277,16 +299,7 @@ export default function CircleListScreen({ route, navigation }) {
         />
       )}
 
-      <CustomAlertModal
-        visible={alertConfig.visible}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        icon={alertConfig.icon}
-        iconColor={alertConfig.iconColor}
-        primaryAction={alertConfig.primaryAction}
-        secondaryAction={alertConfig.secondaryAction}
-        onClose={hideAlert}
-      />
+      <CustomAlertModal onClose={hideAlert} {...alertConfig} />
     </SafeAreaView>
     </GestureHandlerRootView>
   );

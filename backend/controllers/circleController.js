@@ -189,15 +189,16 @@ const sendCircleRequest = async (req, res) => {
         `INSERT INTO circles (user_a_id, user_b_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
         [ua, ub]
       );
-      // Dormant any creator_follows between these two members (both directions)
-      // Circle members already receive creator content — no separate follow needed
+      // Supersede any active creator_follows between these two members (both directions).
+      // Circle members already receive creator content — no separate follow needed.
+      // We use is_superseded_by_circle (not is_dormant) so it can be cleanly restored on circle removal.
       await pool.query(
         `UPDATE creator_follows
-         SET is_dormant = true
+         SET is_superseded_by_circle = true
          WHERE (follower_id = $1 AND creator_id = $2)
             OR (follower_id = $2 AND creator_id = $1)`,
         [senderId, receiver_id]
-      ).catch((e) => console.warn('[circleController] creator_follows dormant (auto-accept):', e?.message));
+      ).catch((e) => console.warn('[circleController] creator_follows supersede (auto-accept):', e?.message));
       // Notify both parties
       await notifyRequestAccepted(senderId, receiver_id);
       return res.json({ success: true, auto_accepted: true, message: 'Mutual request — you are now in each other\'s circle.' });
@@ -278,15 +279,15 @@ const respondToCircleRequest = async (req, res) => {
         `INSERT INTO circles (user_a_id, user_b_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
         [ua, ub]
       );
-      // Dormant any creator_follows between these two members (both directions)
-      // Circle members already receive creator content — no separate follow needed
+      // Supersede any active creator_follows between these two members (both directions).
+      // We use is_superseded_by_circle (not is_dormant) so it can be cleanly restored on circle removal.
       await pool.query(
         `UPDATE creator_follows
-         SET is_dormant = true
+         SET is_superseded_by_circle = true
          WHERE (follower_id = $1 AND creator_id = $2)
             OR (follower_id = $2 AND creator_id = $1)`,
         [request.sender_id, request.receiver_id]
-      ).catch((e) => console.warn('[circleController] creator_follows dormant (accept):', e?.message));
+      ).catch((e) => console.warn('[circleController] creator_follows supersede (accept):', e?.message));
       // Notify sender their request was accepted
       await notifyRequestAccepted(userId, request.sender_id);
     }
@@ -517,15 +518,28 @@ const removeFromCircle = async (req, res) => {
         AND status = 'accepted'
     `, [myId, userId]);
 
-    // Re-activate any dormant creator_follows between these two members.
-    // When they joined the circle, the follow was set to dormant. Restore it now.
-    await pool.query(
-      `UPDATE creator_follows
-       SET is_dormant = false
-       WHERE (follower_id = $1 AND creator_id = $2)
-          OR (follower_id = $2 AND creator_id = $1)`,
-      [myId, userId]
-    ).catch((e) => console.warn('[circleController] creator_follows un-dormant (remove):', e?.message));
+    // Re-activate any superseded creator_follows between these two members.
+    // When they joined the circle, the follow was superseded. By default, restore it.
+    // If also_unfollow=true was requested, permanently delete the row instead.
+    const alsoUnfollow = req.body?.also_unfollow === true;
+    if (alsoUnfollow) {
+      // Permanent removal of the follow relationship (opt-in clean break)
+      await pool.query(
+        `DELETE FROM creator_follows
+         WHERE (follower_id = $1 AND creator_id = $2)
+            OR (follower_id = $2 AND creator_id = $1)`,
+        [myId, userId]
+      ).catch((e) => console.warn('[circleController] creator_follows delete (remove+unfollow):', e?.message));
+    } else {
+      // Default: restore the follow (is_superseded_by_circle → false)
+      await pool.query(
+        `UPDATE creator_follows
+         SET is_superseded_by_circle = false
+         WHERE (follower_id = $1 AND creator_id = $2)
+            OR (follower_id = $2 AND creator_id = $1)`,
+        [myId, userId]
+      ).catch((e) => console.warn('[circleController] creator_follows restore (remove):', e?.message));
+    }
 
     return res.json({ success: true });
   } catch (err) {

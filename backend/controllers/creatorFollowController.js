@@ -156,7 +156,7 @@ async function getCreatorFollowers(req, res) {
     const search = req.query.search || "";
     const offset = (page - 1) * limit;
 
-    let whereClause = `cf.creator_id = $1 AND cf.is_dormant = false`;
+    let whereClause = `cf.creator_id = $1 AND cf.is_dormant = false AND cf.is_superseded_by_circle = false`;
     if (type === "notable") {
       whereClause += ` AND cf.follower_type IN ('community', 'page')`;
     }
@@ -167,7 +167,7 @@ async function getCreatorFollowers(req, res) {
       params.push(`%${search}%`);
     }
 
-    let countWhereClause = `cf.creator_id = $1 AND cf.is_dormant = false`;
+    let countWhereClause = `cf.creator_id = $1 AND cf.is_dormant = false AND cf.is_superseded_by_circle = false`;
     if (type === "notable") {
       countWhereClause += ` AND cf.follower_type IN ('community', 'page')`;
     }
@@ -275,7 +275,7 @@ async function getFollowStatus(req, res) {
     const [followResult, circleResult] = await Promise.all([
       pool.query(
         `SELECT 1 FROM creator_follows
-         WHERE follower_id = $1 AND creator_id = $2 AND is_dormant = false
+         WHERE follower_id = $1 AND creator_id = $2 AND is_dormant = false AND is_superseded_by_circle = false
          LIMIT 1`,
         [followerId, creatorId]
       ),
@@ -300,9 +300,53 @@ async function getFollowStatus(req, res) {
   }
 }
 
+// ─── DELETE /creators/me/followers/:followerId ────────────────────────────────
+// Creator removes a specific follower (permanent row deletion, follower can re-follow).
+
+async function removeFollower(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const creatorId = req.user?.id;
+    const { followerId } = req.params;
+
+    if (!creatorId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Only the creator themselves can remove followers from their own list
+    const creatorCheck = await pool.query(
+      `SELECT is_creator_mode_enabled FROM members WHERE id = $1`,
+      [creatorId]
+    );
+    if (!creatorCheck.rows[0]?.is_creator_mode_enabled) {
+      return res.status(403).json({ error: "Creator Mode required" });
+    }
+
+    // Permanent delete of the follow row
+    await pool.query(
+      `DELETE FROM creator_follows WHERE follower_id = $1 AND creator_id = $2`,
+      [followerId, creatorId]
+    );
+
+    // Return live follower count
+    const countResult = await pool.query(
+      `SELECT COUNT(*) FROM creator_follows
+       WHERE creator_id = $1 AND is_dormant = false AND is_superseded_by_circle = false`,
+      [creatorId]
+    );
+    const followerCount = parseInt(countResult.rows[0]?.count || 0, 10);
+
+    return res.json({ success: true, follower_count: followerCount });
+  } catch (err) {
+    console.error("[CreatorFollowController] removeFollower error:", err.message);
+    return res.status(500).json({ error: "Failed to remove follower" });
+  }
+}
+
 module.exports = {
   followCreator,
   unfollowCreator,
+  removeFollower,
   getCreatorFollowers,
   getFollowStatus,
 };

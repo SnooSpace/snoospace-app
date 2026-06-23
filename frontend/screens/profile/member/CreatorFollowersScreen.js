@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -27,12 +28,23 @@ import {
   ArrowLeft,
   Users,
   UserPlus,
+  UserMinus,
   Clock,
   Search,
+  X,
+  TriangleAlert,
 } from "lucide-react-native";
 import { COLORS, FONTS } from "../../../constants/theme";
-import { getCreatorFollowers, getPublicCircleMembers, sendCircleRequest } from "../../../api/members";
+import {
+  getCreatorFollowers,
+  getPublicCircleMembers,
+  sendCircleRequest,
+  removeCreatorFollower,
+  removeFromCircle,
+} from "../../../api/members";
 import hapticsService from "../../../services/HapticsService";
+import CustomAlertModal from "../../../components/ui/CustomAlertModal";
+import EventBus from "../../../utils/EventBus";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -67,37 +79,72 @@ function Avatar({ uri, name, size = 44 }) {
 
 // ── Person Row ────────────────────────────────────────────────────────────────
 
-function PersonRow({ item, isOwnProfile, circleState, circleLoading, onAddToCircle, onPress }) {
+function PersonRow({ item, isOwnProfile, circleState, circleLoading, onAddToCircle, onRemoveFromCircle, onRemoveFollower, onPress }) {
   return (
-    <TouchableOpacity style={styles.row} onPress={onPress} activeOpacity={0.78}>
-      <Avatar uri={item.avatar_url} name={item.name} />
-      <View style={styles.rowBody}>
-        <Text style={styles.rowName} numberOfLines={1}>{item.name || "Unknown"}</Text>
-        {item.username ? (
-          <Text style={styles.rowUsername} numberOfLines={1}>@{item.username}</Text>
-        ) : null}
-        <Text style={styles.rowTime}>{relativeTime(item.created_at)}</Text>
-      </View>
+    <View style={styles.row}>
+      <TouchableOpacity
+        style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+        onPress={onPress}
+        activeOpacity={0.78}
+      >
+        <Avatar uri={item.avatar_url} name={item.name} />
+        <View style={styles.rowBody}>
+          <Text style={styles.rowName} numberOfLines={1}>{item.name || "Unknown"}</Text>
+          {item.username ? (
+            <Text style={styles.rowUsername} numberOfLines={1}>@{item.username}</Text>
+          ) : null}
+          <Text style={styles.rowTime}>{relativeTime(item.created_at)}</Text>
+        </View>
+      </TouchableOpacity>
 
-      {/* Add to Circle CTA — only on own profile, for member followers, when not in circle */}
-      {isOwnProfile && item.follower_type === "member" && circleState !== "in_circle" && (
-        <TouchableOpacity
-          style={[styles.ctaBtn, circleState === "requested" ? styles.ctaBtnRequested : styles.ctaBtnDefault]}
-          onPress={() => onAddToCircle(item.id)}
-          disabled={circleLoading || circleState === "requested"}
-          activeOpacity={0.75}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          {circleLoading ? (
-            <ActivityIndicator size="small" color={COLORS.textSecondary} style={{ width: 60 }} />
-          ) : circleState === "requested" ? (
-            <Text style={styles.ctaTextRequested}>Requested</Text>
-          ) : (
-            <Text style={styles.ctaTextDefault}>Add</Text>
-          )}
-        </TouchableOpacity>
-      )}
-    </TouchableOpacity>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {/* Add/Remove Circle CTA — only on own profile, for member followers */}
+        {isOwnProfile && item.follower_type === "member" && (
+          <TouchableOpacity
+            style={[
+              styles.ctaBtn,
+              circleState === "in_circle"
+                ? styles.ctaBtnRemove
+                : circleState === "requested"
+                ? styles.ctaBtnRequested
+                : styles.ctaBtnDefault
+            ]}
+            onPress={() => {
+              if (circleState === "in_circle") {
+                onRemoveFromCircle(item);
+              } else {
+                onAddToCircle(item.id);
+              }
+            }}
+            disabled={circleLoading || circleState === "requested"}
+            activeOpacity={0.75}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            {circleLoading ? (
+              <ActivityIndicator size="small" color={COLORS.textSecondary} style={{ width: 60 }} />
+            ) : circleState === "in_circle" ? (
+              <Text style={styles.ctaTextRemove}>Remove</Text>
+            ) : circleState === "requested" ? (
+              <Text style={styles.ctaTextRequested}>Requested</Text>
+            ) : (
+              <Text style={styles.ctaTextDefault}>Add</Text>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {/* Remove follower button — only on own profile */}
+        {isOwnProfile && item.follower_type === "member" && (
+          <TouchableOpacity
+            style={styles.removeBtn}
+            onPress={() => onRemoveFollower(item)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.7}
+          >
+            <X size={15} color={COLORS.textSecondary} strokeWidth={2} />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
   );
 }
 
@@ -137,6 +184,15 @@ export default function CreatorFollowersScreen({ route, navigation }) {
   // Per-follower Add-to-Circle state
   const [circleStates, setCircleStates] = useState({});
   const [circleActionLoading, setCircleActionLoading] = useState({});
+
+  // Alert modal state
+  const [alertConfig, setAlertConfig] = useState({ visible: false });
+  const showAlert = useCallback((cfg) => setAlertConfig({ ...cfg, visible: true }), []);
+  const hideAlert = useCallback(() => setAlertConfig((p) => ({ ...p, visible: false })), []);
+
+  // Optimistic hide sets for removed items
+  const [hiddenFollowerIds, setHiddenFollowerIds] = useState(new Set());
+  const [hiddenCircleMemberIds, setHiddenCircleMemberIds] = useState(new Set());
 
   const followerLoadingMoreRef = useRef(false);
   const circleLoadingMoreRef = useRef(false);
@@ -211,6 +267,39 @@ export default function CreatorFollowersScreen({ route, navigation }) {
       loadFollowers(1, "").finally(() => setFollowerLoading(false));
     }
   }, [loadFollowers]);
+
+  // Reload on screen re-focus (e.g. returning from PublicProfile after follow/unfollow)
+  const hasMountedRef = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasMountedRef.current) {
+        hasMountedRef.current = true;
+        return; // skip initial mount — already handled by the useEffect above
+      }
+      // Clear stale hidden sets so removed items that were re-followed appear again
+      setHiddenFollowerIds(new Set());
+      setHiddenCircleMemberIds(new Set());
+      setCircleStates({});
+      // Reload current tab page 1
+      setFollowerLoading(true);
+      if (isOwnProfile) {
+        getPublicCircleMembers(creatorId, { page: 1, limit: 200 })
+          .then((circleRes) => {
+            const members = circleRes?.members || [];
+            const idSet = new Set(members.map((m) => String(m.member_id || m.id)));
+            return loadFollowers(1, followerSearch, idSet);
+          })
+          .catch(() => loadFollowers(1, followerSearch, null))
+          .finally(() => setFollowerLoading(false));
+      } else {
+        loadFollowers(1, followerSearch).finally(() => setFollowerLoading(false));
+      }
+      // Reload circle tab if it was ever opened
+      if (circleFetchedRef.current) {
+        loadCircle(1, circleSearch);
+      }
+    }, [loadFollowers, loadCircle, followerSearch, circleSearch, isOwnProfile, creatorId])
+  );
 
   // Lazy load circle tab on first open
   const handleTabPress = useCallback((tab) => {
@@ -301,6 +390,114 @@ export default function CreatorFollowersScreen({ route, navigation }) {
     }
   }, []);
 
+  // ── Remove Follower ────────────────────────────────────────────────────────
+  const handleRemoveFollower = useCallback((item) => {
+    hapticsService.triggerImpactLight();
+    showAlert({
+      title: 'Remove Follower?',
+      message: `${item.name || 'This person'} will be removed from your followers. They can follow you again anytime.`,
+      icon: UserMinus,
+      iconColor: '#E53935',
+      secondaryAction: { text: 'Cancel', onPress: hideAlert },
+      primaryAction: {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          hideAlert();
+          // Optimistic hide
+          setHiddenFollowerIds((prev) => new Set([...prev, String(item.id)]));
+          hapticsService.triggerImpactLight();
+          try {
+            await removeCreatorFollower(item.id);
+            EventBus.emit('creator:follower-removed', { creatorId, followerId: String(item.id) });
+          } catch (e) {
+            console.warn('[CreatorFollowers] removeCreatorFollower failed:', e);
+            // Revert on failure
+            setHiddenFollowerIds((prev) => {
+              const s = new Set(prev); s.delete(String(item.id)); return s;
+            });
+          }
+        },
+      },
+    });
+  }, [showAlert, hideAlert]);
+
+  // ── Remove Circle Member ───────────────────────────────────────────────────
+  const handleRemoveCircleMember = useCallback((item) => {
+    hapticsService.triggerImpactLight();
+    const memberId = String(item.member_id || item.id);
+    showAlert({
+      title: 'Remove from Circle?',
+      message: `${item.name || 'This person'} will be removed from your circle. By default they'll continue following your content.`,
+      icon: UserMinus,
+      iconColor: '#E53935',
+      secondaryAction: { text: 'Cancel', onPress: hideAlert },
+      primaryAction: {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          hideAlert();
+          setHiddenCircleMemberIds((prev) => {
+            const next = new Set(prev);
+            next.add(memberId);
+            return next;
+          });
+          setCircleStates((prev) => ({ ...prev, [memberId]: "none" }));
+          setCircleTotal((t) => Math.max(0, t - 1));
+          hapticsService.triggerImpactLight();
+          try {
+            await removeFromCircle(memberId, false); // follow restored
+            EventBus.emit('circle:member-removed', { creatorId, memberId, alsoUnfollow: false });
+          } catch (e) {
+            console.warn('[CreatorFollowers] removeFromCircle failed:', e);
+            setHiddenCircleMemberIds((prev) => {
+              const s = new Set(prev); s.delete(memberId); return s;
+            });
+            setCircleStates((prev) => ({ ...prev, [memberId]: "in_circle" }));
+            setCircleTotal((t) => t + 1);
+          }
+        },
+      },
+      tertiaryAction: {
+        text: 'Remove from Circle & Followers',
+        style: 'destructive',
+        onPress: async () => {
+          hideAlert();
+          setHiddenCircleMemberIds((prev) => {
+            const next = new Set(prev);
+            next.add(memberId);
+            return next;
+          });
+          setHiddenFollowerIds((prev) => {
+            const next = new Set(prev);
+            next.add(memberId);
+            return next;
+          });
+          setCircleStates((prev) => ({ ...prev, [memberId]: "none" }));
+          setCircleTotal((t) => Math.max(0, t - 1));
+          setFollowersTotal((t) => Math.max(0, t - 1));
+          hapticsService.triggerImpactLight();
+          try {
+            await removeFromCircle(memberId, true); // also delete follow
+            EventBus.emit('circle:member-removed', { creatorId, memberId, alsoUnfollow: true });
+          } catch (e) {
+            console.warn('[CreatorFollowers] removeFromCircle (also_unfollow) failed:', e);
+            setHiddenCircleMemberIds((prev) => {
+              const s = new Set(prev); s.delete(memberId); return s;
+            });
+            setHiddenFollowerIds((prev) => {
+              const s = new Set(prev); s.delete(memberId); return s;
+            });
+            setCircleStates((prev) => ({ ...prev, [memberId]: "in_circle" }));
+            setCircleTotal((t) => t + 1);
+            setFollowersTotal((t) => t + 1);
+          }
+        },
+      },
+    });
+  }, [showAlert, hideAlert]);
+
+
   // ── Navigation ────────────────────────────────────────────────────────────
 
   const navigateTo = useCallback((item) => {
@@ -314,32 +511,54 @@ export default function CreatorFollowersScreen({ route, navigation }) {
 
   // ── Render helpers ────────────────────────────────────────────────────────
 
-  const renderFollowerItem = useCallback(({ item }) => (
-    <PersonRow
-      item={item}
-      isOwnProfile={isOwnProfile}
-      circleState={circleStates[item.id] || "none"}
-      circleLoading={!!circleActionLoading[item.id]}
-      onAddToCircle={handleAddToCircle}
-      onPress={() => navigateTo(item)}
-    />
-  ), [isOwnProfile, circleStates, circleActionLoading, handleAddToCircle, navigateTo]);
+  const renderFollowerItem = useCallback(({ item }) => {
+    if (hiddenFollowerIds.has(String(item.id))) return null;
+    return (
+      <PersonRow
+        item={item}
+        isOwnProfile={isOwnProfile}
+        circleState={circleStates[item.id] || "none"}
+        circleLoading={!!circleActionLoading[item.id]}
+        onAddToCircle={handleAddToCircle}
+        onRemoveFromCircle={handleRemoveCircleMember}
+        onRemoveFollower={handleRemoveFollower}
+        onPress={() => navigateTo(item)}
+      />
+    );
+  }, [isOwnProfile, circleStates, circleActionLoading, handleAddToCircle, handleRemoveCircleMember, handleRemoveFollower, navigateTo, hiddenFollowerIds]);
 
-  const renderCircleItem = useCallback(({ item }) => (
-    <TouchableOpacity
-      style={styles.row}
-      onPress={() => navigation.navigate("MemberPublicProfile", { memberId: item.member_id || item.id })}
-      activeOpacity={0.78}
-    >
-      <Avatar uri={item.profile_photo_url || item.avatar_url} name={item.name} />
-      <View style={styles.rowBody}>
-        <Text style={styles.rowName} numberOfLines={1}>{item.name || item.full_name || "Member"}</Text>
-        {(item.username) ? (
-          <Text style={styles.rowUsername} numberOfLines={1}>@{item.username}</Text>
-        ) : null}
+  const renderCircleItem = useCallback(({ item }) => {
+    const memberId = String(item.member_id || item.id);
+    if (hiddenCircleMemberIds.has(memberId)) return null;
+    return (
+      <View style={styles.row}>
+        <TouchableOpacity
+          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}
+          onPress={() => navigation.navigate("MemberPublicProfile", { memberId })}
+          activeOpacity={0.78}
+        >
+          <Avatar uri={item.profile_photo_url || item.avatar_url} name={item.name} />
+          <View style={styles.rowBody}>
+            <Text style={styles.rowName} numberOfLines={1}>{item.name || item.full_name || "Member"}</Text>
+            {(item.username) ? (
+              <Text style={styles.rowUsername} numberOfLines={1}>@{item.username}</Text>
+            ) : null}
+          </View>
+        </TouchableOpacity>
+        {/* Remove from Circle button — only on own profile */}
+        {isOwnProfile && (
+          <TouchableOpacity
+            style={styles.removeBtn}
+            onPress={() => handleRemoveCircleMember(item)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.7}
+          >
+            <UserMinus size={16} color={COLORS.textSecondary} strokeWidth={2} />
+          </TouchableOpacity>
+        )}
       </View>
-    </TouchableOpacity>
-  ), [navigation]);
+    );
+  }, [navigation, isOwnProfile, handleRemoveCircleMember, hiddenCircleMemberIds]);
 
   const renderEmpty = (label) => (
     <View style={styles.emptyState}>
@@ -360,7 +579,8 @@ export default function CreatorFollowersScreen({ route, navigation }) {
   const isFollowersTab = activeTab === "followers";
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <>
+      <SafeAreaView style={styles.safe} edges={["top"]}>
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -470,6 +690,8 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         )
       )}
     </SafeAreaView>
+    <CustomAlertModal onClose={hideAlert} {...alertConfig} />
+    </>
   );
 }
 
@@ -625,6 +847,10 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border || "#E5E7EB",
     backgroundColor: "rgba(0,0,0,0.03)",
   },
+  ctaBtnRemove: {
+    borderColor: "#FF3B30",
+    backgroundColor: "rgba(255, 59, 48, 0.04)",
+  },
   ctaTextDefault: {
     fontFamily: FONTS.semiBold,
     fontSize: 12,
@@ -634,6 +860,19 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     fontSize: 12,
     color: COLORS.textSecondary,
+  },
+  ctaTextRemove: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: "#FF3B30",
+  },
+  removeBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#F2F2F7",
+    alignItems: "center",
+    justifyContent: "center",
   },
   // ── States
   loaderCenter: {
@@ -665,5 +904,14 @@ const styles = StyleSheet.create({
   loadMoreWrap: {
     paddingVertical: 20,
     alignItems: "center",
+  },
+  removeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(0,0,0,0.04)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
   },
 });
