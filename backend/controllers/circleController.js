@@ -189,6 +189,15 @@ const sendCircleRequest = async (req, res) => {
         `INSERT INTO circles (user_a_id, user_b_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
         [ua, ub]
       );
+      // Dormant any creator_follows between these two members (both directions)
+      // Circle members already receive creator content — no separate follow needed
+      await pool.query(
+        `UPDATE creator_follows
+         SET is_dormant = true
+         WHERE (follower_id = $1 AND creator_id = $2)
+            OR (follower_id = $2 AND creator_id = $1)`,
+        [senderId, receiver_id]
+      ).catch((e) => console.warn('[circleController] creator_follows dormant (auto-accept):', e?.message));
       // Notify both parties
       await notifyRequestAccepted(senderId, receiver_id);
       return res.json({ success: true, auto_accepted: true, message: 'Mutual request — you are now in each other\'s circle.' });
@@ -269,6 +278,15 @@ const respondToCircleRequest = async (req, res) => {
         `INSERT INTO circles (user_a_id, user_b_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
         [ua, ub]
       );
+      // Dormant any creator_follows between these two members (both directions)
+      // Circle members already receive creator content — no separate follow needed
+      await pool.query(
+        `UPDATE creator_follows
+         SET is_dormant = true
+         WHERE (follower_id = $1 AND creator_id = $2)
+            OR (follower_id = $2 AND creator_id = $1)`,
+        [request.sender_id, request.receiver_id]
+      ).catch((e) => console.warn('[circleController] creator_follows dormant (accept):', e?.message));
       // Notify sender their request was accepted
       await notifyRequestAccepted(userId, request.sender_id);
     }
@@ -498,6 +516,16 @@ const removeFromCircle = async (req, res) => {
           OR (sender_id = $2 AND receiver_id = $1))
         AND status = 'accepted'
     `, [myId, userId]);
+
+    // Re-activate any dormant creator_follows between these two members.
+    // When they joined the circle, the follow was set to dormant. Restore it now.
+    await pool.query(
+      `UPDATE creator_follows
+       SET is_dormant = false
+       WHERE (follower_id = $1 AND creator_id = $2)
+          OR (follower_id = $2 AND creator_id = $1)`,
+      [myId, userId]
+    ).catch((e) => console.warn('[circleController] creator_follows un-dormant (remove):', e?.message));
 
     return res.json({ success: true });
   } catch (err) {

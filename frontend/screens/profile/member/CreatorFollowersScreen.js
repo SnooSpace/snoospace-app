@@ -143,7 +143,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
 
   // ── Data fetching ─────────────────────────────────────────────────────────
 
-  const loadFollowers = useCallback(async (page = 1, search = "") => {
+  const loadFollowers = useCallback(async (page = 1, search = "", circleIdSet = null) => {
     try {
       const res = await getCreatorFollowers(creatorId, { page, limit: 20, type: "all", search });
       const rows = res?.followers || [];
@@ -155,6 +155,19 @@ export default function CreatorFollowersScreen({ route, navigation }) {
       setFollowersTotal(res?.total ?? (page === 1 ? rows.length : followersTotal));
       setFollowerPage(page);
       setFollowerHasMore(!!res?.hasMore);
+
+      // Pre-seed circleStates for followers already in circle
+      if (circleIdSet) {
+        const preSeeded = {};
+        rows.forEach((f) => {
+          if (f.follower_type === 'member' && circleIdSet.has(String(f.id))) {
+            preSeeded[f.id] = 'in_circle';
+          }
+        });
+        if (Object.keys(preSeeded).length > 0) {
+          setCircleStates((prev) => ({ ...prev, ...preSeeded }));
+        }
+      }
     } catch (e) {
       console.warn("[CreatorFollowers] loadFollowers error:", e);
     }
@@ -180,10 +193,23 @@ export default function CreatorFollowersScreen({ route, navigation }) {
     }
   }, [creatorId]);
 
-  // Initial followers load
+  // Initial load: fetch followers + circle members in parallel (on own profile)
+  // so we can pre-seed circleStates for followers already in circle
   useEffect(() => {
     setFollowerLoading(true);
-    loadFollowers(1, "").finally(() => setFollowerLoading(false));
+    if (isOwnProfile) {
+      // Fetch up to 200 circle member IDs to cross-reference against followers
+      getPublicCircleMembers(creatorId, { page: 1, limit: 200 })
+        .then((circleRes) => {
+          const members = circleRes?.members || [];
+          const idSet = new Set(members.map((m) => String(m.member_id || m.id)));
+          return loadFollowers(1, "", idSet);
+        })
+        .catch(() => loadFollowers(1, "", null))
+        .finally(() => setFollowerLoading(false));
+    } else {
+      loadFollowers(1, "").finally(() => setFollowerLoading(false));
+    }
   }, [loadFollowers]);
 
   // Lazy load circle tab on first open
@@ -197,18 +223,29 @@ export default function CreatorFollowersScreen({ route, navigation }) {
     }
   }, [loadCircle]);
 
-  // Pull-to-refresh
+  // Pull-to-refresh — re-fetch circle IDs on own profile to re-seed states
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     setCircleStates({});
     const activeSearch = activeTab === "followers" ? followerSearch : circleSearch;
     if (activeTab === "followers") {
-      await loadFollowers(1, activeSearch);
+      if (isOwnProfile) {
+        try {
+          const circleRes = await getPublicCircleMembers(creatorId, { page: 1, limit: 200 });
+          const members = circleRes?.members || [];
+          const idSet = new Set(members.map((m) => String(m.member_id || m.id)));
+          await loadFollowers(1, activeSearch, idSet);
+        } catch {
+          await loadFollowers(1, activeSearch, null);
+        }
+      } else {
+        await loadFollowers(1, activeSearch);
+      }
     } else {
       await loadCircle(1, activeSearch);
     }
     setRefreshing(false);
-  }, [activeTab, followerSearch, circleSearch, loadFollowers, loadCircle]);
+  }, [activeTab, followerSearch, circleSearch, loadFollowers, loadCircle, isOwnProfile, creatorId]);
 
   // Load more followers
   const loadMoreFollowers = useCallback(async () => {
