@@ -340,7 +340,7 @@ export async function followCreator(creatorId) {
  */
 export async function unfollowCreator(creatorId) {
   const token = await getAuthToken();
-  return apiDelete(`/creators/${creatorId}/follow`, 8000, token);
+  return apiDelete(`/creators/${creatorId}/follow`, null, 8000, token);
 }
 
 /**
