@@ -158,7 +158,7 @@ export default function CircleListScreen({ route, navigation }) {
     HapticsService.triggerImpactLight();
     showAlert({
       title: 'Remove from Circle?',
-      message: `${item.name || 'This person'} will be removed from your circle. By default they'll continue following your content.`,
+      message: `${item.name || 'This person'} will be removed from your circle.`,
       icon: UserMinus,
       iconColor: '#E53935',
       secondaryAction: { text: 'Cancel', onPress: hideAlert },
@@ -184,7 +184,7 @@ export default function CircleListScreen({ route, navigation }) {
         },
       },
       tertiaryAction: {
-        text: 'Remove from Circle & Followers',
+        text: 'Remove from Circle & Unfollow',
         style: 'destructive',
         onPress: async () => {
           hideAlert();

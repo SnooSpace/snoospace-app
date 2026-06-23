@@ -32,6 +32,7 @@ import {
 import { resolveConversation } from "../../../api/messages";
 import { SafeAreaView } from "react-native-safe-area-context";
 import EventBus from "../../../utils/EventBus";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getAuthToken, getAuthEmail } from "../../../api/auth";
 import { blockUser, unblockUser, likePlan, unlikePlan } from "../../../api/plans";
 import { apiGet, apiPost, apiDelete } from "../../../api/client";
@@ -271,6 +272,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [circleRequestId, setCircleRequestId] = useState(null);
   const [circleActionLoading, setCircleActionLoading] = useState(false);
   const [circleCount, setCircleCount] = useState(0);
+  const [isViewerCreator, setIsViewerCreator] = useState(false);
 
   // Creator follow state (only active when profile.is_creator_mode_enabled = true)
   const [isFollowingCreator, setIsFollowingCreator] = useState(false);
@@ -347,6 +349,20 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       tabUnderlineScale.value = withTiming(tabWidths[activeProfileTab], { duration: 200 });
     }
   }, [activeProfileTab]);
+
+  useEffect(() => {
+    async function checkViewerMode() {
+      try {
+        const val = await AsyncStorage.getItem("creator_mode_enabled");
+        if (val === "true") {
+          setIsViewerCreator(true);
+        }
+      } catch (e) {
+        console.warn("[MemberPublicProfile] Error reading creator_mode_enabled:", e);
+      }
+    }
+    checkViewerMode();
+  }, []);
 
   const handleTabLayout = (tab, event) => {
     const { x, width } = event.nativeEvent.layout;
@@ -1293,13 +1309,13 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     disabled={circleActionLoading}
                     onPress={() => {
                       showAlert({
-                        title: 'Leave Circle?',
-                        message: `You'll be removed from ${profile?.full_name || 'this creator'}'s circle. By default you'll continue following their content.`,
+                        title: 'Remove from Circle?',
+                        message: `${profile?.full_name || 'This creator'} will be removed from your circle.`,
                         icon: UserMinus,
                         iconColor: '#E53935',
-                        secondaryAction: { text: 'Keep', onPress: hideAlert },
+                        secondaryAction: { text: 'Cancel', onPress: hideAlert },
                         primaryAction: {
-                          text: 'Leave Circle',
+                          text: 'Remove',
                           style: 'destructive',
                           onPress: async () => {
                             hideAlert();
@@ -1318,7 +1334,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                           },
                         },
                         tertiaryAction: {
-                          text: 'Leave & Unfollow',
+                          text: 'Remove from Circle & Unfollow',
                           style: 'destructive',
                           onPress: async () => {
                             hideAlert();
@@ -1401,28 +1417,70 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     style={({ pressed }) => [circleCTAStyles.inCircleBtn, pressed && { opacity: 0.7 }]}
                     disabled={circleActionLoading}
                     onPress={() => {
-                      showAlert({
-                        title: 'Remove from Circle?',
-                        message: `${profile?.full_name || 'This person'} will be removed from your circle. They can still find your profile and message you.`,
-                        icon: UserMinus,
-                        iconColor: '#E53935',
-                        secondaryAction: { text: 'Keep', onPress: hideAlert },
-                        primaryAction: {
-                          text: 'Remove',
-                          style: 'destructive',
-                          onPress: async () => {
-                            hideAlert();
-                            setCircleActionLoading(true);
-                            try {
-                              await removeFromCircle(memberId);
-                              setCircleStatus('none');
-                              setCircleCount((c) => Math.max(0, c - 1));
-                              HapticsService.triggerImpactLight();
-                            } catch (e) { loadCircleStatus(); }
-                            finally { setCircleActionLoading(false); }
+                      if (isViewerCreator) {
+                        showAlert({
+                          title: 'Remove from Circle?',
+                          message: `${profile?.full_name || 'This person'} will be removed from your circle.`,
+                          icon: UserMinus,
+                          iconColor: '#E53935',
+                          secondaryAction: { text: 'Cancel', onPress: hideAlert },
+                          primaryAction: {
+                            text: 'Remove',
+                            style: 'destructive',
+                            onPress: async () => {
+                              hideAlert();
+                              setCircleActionLoading(true);
+                              try {
+                                await removeFromCircle(memberId, false);
+                                setCircleStatus('none');
+                                setCircleCount((c) => Math.max(0, c - 1));
+                                EventBus.emit('my:circle-member-removed', { alsoUnfollow: false });
+                                HapticsService.triggerImpactLight();
+                              } catch (e) { loadCircleStatus(); }
+                              finally { setCircleActionLoading(false); }
+                            },
                           },
-                        },
-                      });
+                          tertiaryAction: {
+                            text: 'Remove from Circle & Unfollow',
+                            style: 'destructive',
+                            onPress: async () => {
+                              hideAlert();
+                              setCircleActionLoading(true);
+                              try {
+                                await removeFromCircle(memberId, true);
+                                setCircleStatus('none');
+                                setCircleCount((c) => Math.max(0, c - 1));
+                                EventBus.emit('my:circle-member-removed', { alsoUnfollow: true });
+                                HapticsService.triggerImpactLight();
+                              } catch (e) { loadCircleStatus(); }
+                              finally { setCircleActionLoading(false); }
+                            },
+                          },
+                        });
+                      } else {
+                        showAlert({
+                          title: 'Remove from Circle?',
+                          message: `${profile?.full_name || 'This person'} will be removed from your circle.`,
+                          icon: UserMinus,
+                          iconColor: '#E53935',
+                          secondaryAction: { text: 'Cancel', onPress: hideAlert },
+                          primaryAction: {
+                            text: 'Remove',
+                            style: 'destructive',
+                            onPress: async () => {
+                              hideAlert();
+                              setCircleActionLoading(true);
+                              try {
+                                await removeFromCircle(memberId);
+                                setCircleStatus('none');
+                                setCircleCount((c) => Math.max(0, c - 1));
+                                HapticsService.triggerImpactLight();
+                              } catch (e) { loadCircleStatus(); }
+                              finally { setCircleActionLoading(false); }
+                            },
+                          },
+                        });
+                      }
                     }}
                   >
                     <UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} />
