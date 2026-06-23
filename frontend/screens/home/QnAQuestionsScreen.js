@@ -1,6 +1,6 @@
-﻿import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Alert, Dimensions } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, TextInput, KeyboardAvoidingView, Platform, Alert, Dimensions, InteractionManager } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { ArrowLeft, MessageSquare, TrendingUp, Clock, Send, ArrowUp, User, Pin, CircleCheck, Lock, ChevronDown, ChevronUp, Star, MoreVertical, X, EyeOff } from "lucide-react-native";
@@ -89,7 +89,10 @@ const QnAQuestionsScreen = ({ route, navigation }) => {
   );
 
   useEffect(() => {
-    fetchQuestions();
+    const task = InteractionManager.runAfterInteractions(() => {
+      fetchQuestions();
+    });
+    return () => task.cancel();
   }, [fetchQuestions]);
 
   // Fetch current user info

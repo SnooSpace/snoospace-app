@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Alert } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Alert, InteractionManager } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BarChart3, User, Calendar, Users, Clock, MapPin } from "lucide-react-native";
@@ -135,8 +135,11 @@ export default function DiscoverScreen({ navigation }) {
 
   useFocusEffect(
     useCallback(() => {
-      loadData();
-      checkProfileCompletion();
+      const task = InteractionManager.runAfterInteractions(() => {
+        loadData();
+        checkProfileCompletion();
+      });
+      return () => task.cancel();
     }, [loadData, checkProfileCompletion]),
   );
 

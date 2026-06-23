@@ -5,7 +5,7 @@ import { useFocusEffect, useIsFocused } from "@react-navigation/native";
  */
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image, RefreshControl, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, InteractionManager } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -398,15 +398,21 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
 
   // Fetch participants on mount so the count badge is shown immediately even on submissions tab
   useEffect(() => {
-    fetchParticipants();
+    const task = InteractionManager.runAfterInteractions(() => {
+      fetchParticipants();
+    });
+    return () => task.cancel();
   }, [fetchParticipants]);
 
   useEffect(() => {
-    if (activeTab === "submissions") {
-      fetchSubmissions();
-    } else {
-      fetchParticipants();
-    }
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (activeTab === "submissions") {
+        fetchSubmissions();
+      } else {
+        fetchParticipants();
+      }
+    });
+    return () => task.cancel();
   }, [activeTab, fetchSubmissions, fetchParticipants]);
 
   const handleRefresh = () => {

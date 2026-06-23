@@ -10,6 +10,7 @@ import {
   Modal,
   FlatList,
   TextInput,
+  InteractionManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -61,7 +62,10 @@ export default function VenueProfileScreen({ navigation }) {
   const [activeEmail, setActiveEmail] = useState("");
 
   useEffect(() => {
-    loadProfile();
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadProfile();
+    });
+    return () => task.cancel();
   }, []);
 
   const loadProfile = async () => {

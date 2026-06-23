@@ -228,24 +228,22 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
   };
 
   // Parse video_thumbnail - might be stored as JSON array string '["url"]' in database
-  let parsedVideoThumbnail = null;
-  if (postData.video_thumbnail) {
+  const parsedVideoThumbnail = useMemo(() => {
+    if (!postData?.video_thumbnail) return null;
     try {
       if (
         typeof postData.video_thumbnail === "string" &&
         postData.video_thumbnail.startsWith("[")
       ) {
         const parsed = JSON.parse(postData.video_thumbnail);
-        parsedVideoThumbnail = Array.isArray(parsed)
-          ? parsed[0]
-          : postData.video_thumbnail;
+        return Array.isArray(parsed) ? parsed[0] : postData.video_thumbnail;
       } else {
-        parsedVideoThumbnail = postData.video_thumbnail;
+        return postData.video_thumbnail;
       }
     } catch (e) {
-      parsedVideoThumbnail = postData.video_thumbnail;
+      return postData.video_thumbnail;
     }
-  }
+  }, [postData?.video_thumbnail]);
 
   // Get video thumbnail for single-image path
   const thumbnailUrl = isVideo

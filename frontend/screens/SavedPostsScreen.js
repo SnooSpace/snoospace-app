@@ -10,6 +10,7 @@ import {
   StatusBar,
   Animated,
   Dimensions,
+  InteractionManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -99,7 +100,12 @@ const SavedPostsScreen = ({ navigation }) => {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => { loadSavedPosts(); }, []);
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadSavedPosts();
+    });
+    return () => task.cancel();
+  }, []);
 
   // Real-time EventBus sync
   useEffect(() => {

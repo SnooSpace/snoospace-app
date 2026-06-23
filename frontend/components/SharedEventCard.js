@@ -209,7 +209,12 @@ const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
     return 0;
   };
 
-  const lowestPrice = getLowestPrice();
+  const lowestPrice = useMemo(() => getLowestPrice(), [
+    event?.ticket_types,
+    event?.ticket_price,
+    event?.min_price,
+    event?.base_price,
+  ]);
   const isFree = lowestPrice <= 0;
   const displayPrice = isFree ? "Free" : `₹${lowestPrice.toLocaleString("en-IN")} onwards`;
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Keyboard, Animated } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Keyboard, Animated, InteractionManager } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -143,7 +143,10 @@ export default function ProfileFeedScreen({ route, navigation }) {
   }, [initialEvent, eventData]);
 
   useEffect(() => {
-    checkAndLoadAttendees();
+    const task = InteractionManager.runAfterInteractions(() => {
+      checkAndLoadAttendees();
+    });
+    return () => task.cancel();
   }, [checkAndLoadAttendees]);
 
   useEffect(() => {

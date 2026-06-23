@@ -1,4 +1,4 @@
-﻿import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
 /**
  * ChallengeSubmitScreen
  * Allows users to submit proof for a challenge (image or video)
@@ -22,6 +22,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  InteractionManager,
 } from "react-native";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -103,7 +104,10 @@ const ChallengeSubmitScreen = ({ route, navigation }) => {
         setStatusLoading(false);
       }
     };
-    fetchStatus();
+    const task = InteractionManager.runAfterInteractions(() => {
+      fetchStatus();
+    });
+    return () => task.cancel();
   }, [post.id]);
 
   const canSubmitMore = submissionStatus?.can_submit !== false;

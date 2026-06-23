@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, Animated, Pressable, Platform } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, Animated, Pressable, Platform, InteractionManager } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Calendar, Heart, Bookmark } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -526,8 +526,10 @@ export default function YourEventsScreen({ navigation }) {
   }, []);
 
   useEffect(() => {
-    loadEvents();
-    loadInterestedEvents();
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadEvents();
+      loadInterestedEvents();
+    });
 
     // Listen for interest updates from EventDetailsScreen
     const unsubscribe = EventBus.on("event-interest-updated", (payload) => {
@@ -543,6 +545,7 @@ export default function YourEventsScreen({ navigation }) {
     });
 
     return () => {
+      task.cancel();
       if (unsubscribe) unsubscribe();
     };
   }, [loadEvents, loadInterestedEvents]);

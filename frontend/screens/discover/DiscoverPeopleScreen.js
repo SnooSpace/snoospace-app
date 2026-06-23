@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, Platform } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, Platform, InteractionManager } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Users, ChevronRight, Lock } from "lucide-react-native";
@@ -57,7 +57,10 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
   }, [event?.id]);
 
   useEffect(() => {
-    loadAttendees();
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadAttendees();
+    });
+    return () => task.cancel();
   }, [loadAttendees]);
 
   const handlePersonPress = useCallback((attendee) => {

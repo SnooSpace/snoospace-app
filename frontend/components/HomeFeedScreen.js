@@ -376,33 +376,65 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // Refs for scroll handling
   const flatListRef = useRef(null);
   const isInitialLoadRef = useRef(true);
+  // Tracks whether a scroll-to-top is pending (survives across layout passes)
+  const pendingScrollResetRef = useRef(false);
 
-  // Reset initial load ref when user ID changes
-  useEffect(() => {
-    isInitialLoadRef.current = true;
-  }, [currentUserId]);
+  // Helper: force scroll to top using a multi-frame rAF chain to outlast
+  // Android RecyclerView's internal layout/restore passes.
+  const forceScrollToTop = useCallback((ref) => {
+    const target = ref || flatListRef.current;
+    if (!target) return;
+    target.scrollToOffset({ offset: 0, animated: false });
+    requestAnimationFrame(() => {
+      target.scrollToOffset({ offset: 0, animated: false });
+      requestAnimationFrame(() => {
+        target.scrollToOffset({ offset: 0, animated: false });
+      });
+    });
+  }, []);
 
-  // Ensure scroll is at 0 after feed items load and layout completes
+  // Ensure scroll is at 0 after feed items load and layout completes.
+  // Uses a 200ms timeout (instead of 50ms) to outlast Android RecyclerView
+  // internal scroll-state restoration that fires after the layout pass.
   useEffect(() => {
     if (feedItems.length > 0 && !loading && isInitialLoadRef.current) {
       isInitialLoadRef.current = false;
+      pendingScrollResetRef.current = true;
       const timeout = setTimeout(() => {
-        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
-      }, 50);
+        pendingScrollResetRef.current = false;
+        forceScrollToTop();
+      }, 200);
       return () => clearTimeout(timeout);
     }
-  }, [feedItems.length, loading]);
+  }, [feedItems.length, loading, forceScrollToTop]);
 
-  // Callback ref to override Android fragment state scroll restoration immediately on mount
+  // Callback ref: fires whenever the FlashList mounts or remounts (e.g. when
+  // key changes after currentUserId resolves). Resets isInitialLoadRef and
+  // immediately scrolls to top with a multi-frame chain to beat RecyclerView.
   const listRefCallback = useCallback((ref) => {
     flatListRef.current = ref;
     if (ref) {
-      ref.scrollToOffset({ offset: 0, animated: false });
-      requestAnimationFrame(() => {
-        ref.scrollToOffset({ offset: 0, animated: false });
+      // Always reset the guard on (re)mount so the feedItems effect can re-arm
+      isInitialLoadRef.current = true;
+      pendingScrollResetRef.current = true;
+      forceScrollToTop(ref);
+      // Fire again after interactions settle (after RecyclerView layout)
+      const task = InteractionManager.runAfterInteractions(() => {
+        pendingScrollResetRef.current = false;
+        forceScrollToTop(ref);
       });
+      // Also fire after a longer delay as a safety net
+      const timeout = setTimeout(() => {
+        if (flatListRef.current) {
+          forceScrollToTop(flatListRef.current);
+        }
+      }, 300);
+      // Note: we can't easily clean up here since this is a ref callback,
+      // but the timeouts are short-lived and harmless.
+      void task;
+      void timeout;
     }
-  }, []);
+  }, [forceScrollToTop]);
 
   // Reanimated shared value for premium scroll-reactive header
   const scrollY = useSharedValue(0);
@@ -541,12 +573,20 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }
   };
 
-  // Merge posts, events, and opportunities
-  // \u2500\u2500 PERF: Wrapped in InteractionManager so this expensive merge never runs
-  //    while the user is actively scrolling. It defers until the touch gesture
-  //    completes, then rebuilds feedItems in one atomic setState call.
+  // Merge posts, events, and opportunities into a single flat list.
+  // ── PERF RATIONALE: We intentionally do NOT wrap this in InteractionManager
+  //    for the initial load / account-switch path. InteractionManager treats the
+  //    account-switch overlay animation as an "active interaction", which means
+  //    setFeedItems would fire the moment the animation ends — i.e., when the
+  //    new screen is fully visible and the RecyclerView has already positioned
+  //    itself at a cached offset (the opportunity card). Running the merge
+  //    synchronously ensures feedItems populates in the same render cycle as
+  //    posts/events/opportunities, so FlashList never sees a stale layout pass.
+  //
+  //    For polling updates (every 30 s), the user may be actively scrolling, so
+  //    we defer via InteractionManager only in that case by checking isScrollingRef.
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
+    const runMerge = () => {
       if (
         posts.length === 0 &&
         events.length === 0 &&
@@ -619,8 +659,17 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       }
 
       setFeedItems(merged);
-    });
-    return () => task.cancel();
+    };
+
+    // If the user is actively scrolling, defer until they stop to avoid
+    // triggering a re-render mid-scroll. Otherwise run immediately so the
+    // FlashList gets data in the same render cycle and never jumps.
+    if (isScrollingRef.current) {
+      const task = InteractionManager.runAfterInteractions(runMerge);
+      return () => task.cancel();
+    } else {
+      runMerge();
+    }
   }, [posts, events, opportunities]);
 
   useEffect(() => {
@@ -1496,17 +1545,18 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       ) : null}
 
       <AnimatedFlashList
-        key={`feed-list-${currentUserId}`}
+        key={loading ? "feed-list-loading" : "feed-list-loaded"}
+        initialScrollIndex={0}
         ref={listRefCallback}
         nestedScrollEnabled={true}
-        data={loading && feedItems.length === 0 ? [1, 2, 3] : feedItems}
+        data={loading ? [1, 2, 3] : feedItems}
         renderItem={
-          loading && feedItems.length === 0
+          loading
             ? () => <SkeletonCard />
             : renderFeedItem
         }
         keyExtractor={(item) =>
-          loading && feedItems.length === 0
+          loading
             ? `skeleton-${item}`
             : `${item.itemType || "post"}-${item.id}`
         }

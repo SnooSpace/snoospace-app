@@ -42,7 +42,7 @@ const MentionTextRenderer = ({
   if (!text && !prefix) return null;
 
   const segments = text ? text.split(mentionRegex) : [];
-  const entityMap = buildEntityMap(taggedEntities);
+  const entityMap = React.useMemo(() => buildEntityMap(taggedEntities), [taggedEntities]);
 
   const renderSegment = (segment, index) => {
     if (!segment) {
