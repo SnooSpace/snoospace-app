@@ -979,6 +979,7 @@ const EditorialPostCard = ({
                   // horizontal swipe inside the carousel, this prevents the
                   // parent pager from also interpreting the gesture.
                   directionalLockEnabled={true}
+                  focusable={false}
                 >
                   {imageUrls.map((url, index) => {
                     // Handle both array and single number formats for aspect_ratios

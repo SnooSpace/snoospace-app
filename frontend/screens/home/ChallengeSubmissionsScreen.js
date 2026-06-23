@@ -1,4 +1,4 @@
-﻿import { useFocusEffect, useIsFocused } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused } from "@react-navigation/native";
 /**
  * ChallengeSubmissionsScreen
  * Gallery view of all submissions for a challenge

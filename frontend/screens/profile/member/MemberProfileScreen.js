@@ -296,43 +296,46 @@ const MemberPostGridCell = React.memo(
           .find((u) => typeof u === "string" && u.startsWith("http"))
       : undefined;
 
-    const isVideo =
+    const isVideo = item.isVideo !== undefined ? item.isVideo : (
       !!item.video_url ||
       (firstImageUrl &&
         (firstImageUrl.toLowerCase().includes(".mp4") ||
           firstImageUrl.toLowerCase().includes(".mov") ||
-          firstImageUrl.toLowerCase().includes(".webm")));
+          firstImageUrl.toLowerCase().includes(".webm")))
+    );
 
-    let mediaUrl = null;
-    if (item.video_thumbnail) {
-      try {
-        if (
-          typeof item.video_thumbnail === "string" &&
-          item.video_thumbnail.startsWith("[")
-        ) {
-          const parsed = JSON.parse(item.video_thumbnail);
-          mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
-        } else {
+    let mediaUrl = item.resolvedVideoThumbnail;
+    if (mediaUrl === undefined) {
+      if (item.video_thumbnail) {
+        try {
+          if (
+            typeof item.video_thumbnail === "string" &&
+            item.video_thumbnail.startsWith("[")
+          ) {
+            const parsed = JSON.parse(item.video_thumbnail);
+            mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
+          } else {
+            mediaUrl = item.video_thumbnail;
+          }
+        } catch (e) {
           mediaUrl = item.video_thumbnail;
         }
-      } catch (e) {
-        mediaUrl = item.video_thumbnail;
       }
-    }
-    const videoSourceUrl = firstImageUrl || item.video_url;
+      const videoSourceUrl = firstImageUrl || item.video_url;
 
-    if (
-      !mediaUrl &&
-      isVideo &&
-      videoSourceUrl &&
-      videoSourceUrl.includes("cloudinary.com")
-    ) {
-      mediaUrl = videoSourceUrl
-        .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
-        .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
-    }
-    if (!mediaUrl) {
-      mediaUrl = videoSourceUrl;
+      if (
+        !mediaUrl &&
+        isVideo &&
+        videoSourceUrl &&
+        videoSourceUrl.includes("cloudinary.com")
+      ) {
+        mediaUrl = videoSourceUrl
+          .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+          .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+      }
+      if (!mediaUrl) {
+        mediaUrl = videoSourceUrl;
+      }
     }
 
     return (
@@ -435,6 +438,61 @@ const MemberPostGridCell = React.memo(
     );
   },
 );
+
+const normalizePosts = (postsArray) => {
+  if (!Array.isArray(postsArray)) return [];
+  return postsArray.map((post) => {
+    if (!post) return post;
+    const firstImageUrl = Array.isArray(post.image_urls)
+      ? post.image_urls.flat().find((u) => typeof u === "string" && u.startsWith("http"))
+      : undefined;
+
+    const isVideo =
+      !!post.video_url ||
+      (firstImageUrl &&
+        (firstImageUrl.toLowerCase().includes(".mp4") ||
+          firstImageUrl.toLowerCase().includes(".mov") ||
+          firstImageUrl.toLowerCase().includes(".webm")));
+
+    let mediaUrl = null;
+    if (post.video_thumbnail) {
+      try {
+        if (
+          typeof post.video_thumbnail === "string" &&
+          post.video_thumbnail.startsWith("[")
+        ) {
+          const parsed = JSON.parse(post.video_thumbnail);
+          mediaUrl = Array.isArray(parsed) ? parsed[0] : post.video_thumbnail;
+        } else {
+          mediaUrl = post.video_thumbnail;
+        }
+      } catch (e) {
+        mediaUrl = post.video_thumbnail;
+      }
+    }
+    const videoSourceUrl = firstImageUrl || post.video_url;
+    if (
+      !mediaUrl &&
+      isVideo &&
+      videoSourceUrl &&
+      videoSourceUrl.includes("cloudinary.com")
+    ) {
+      mediaUrl = videoSourceUrl
+        .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+        .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+    }
+    if (!mediaUrl) {
+      mediaUrl = videoSourceUrl;
+    }
+
+    return {
+      ...post,
+      isLiked: !!post.is_liked,
+      resolvedVideoThumbnail: mediaUrl,
+      isVideo,
+    };
+  });
+};
 
 export default function MemberProfileScreen({ navigation }) {
   const route = useRoute();
@@ -993,12 +1051,7 @@ export default function MemberProfileScreen({ navigation }) {
         );
       }
 
-      setPosts(
-        userPosts.map((post) => ({
-          ...post,
-          isLiked: !!post.is_liked,
-        })),
-      );
+      setPosts(normalizePosts(userPosts));
       // Update pagination state from initial load
       setPostCursor(postsResponse?.next_cursor || null);
       setHasMorePosts(postsResponse?.has_more === true);
@@ -1138,7 +1191,9 @@ export default function MemberProfileScreen({ navigation }) {
   useEffect(() => {
     // Always load profile once on mount
     console.log("[Profile] useEffect: initial mount loadProfile call");
-    loadProfile();
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadProfile();
+    });
     const off = EventBus.on("follow-updated", (payload) => {
       // Optimistically adjust following_count for current user when they follow/unfollow someone
       setProfile((prev) => {
@@ -1158,6 +1213,7 @@ export default function MemberProfileScreen({ navigation }) {
 
     return () => {
       console.log("[Profile] useEffect cleanup (unsubscribing)");
+      task.cancel();
       off();
       if (offPostCreated) offPostCreated();
     };
@@ -1460,12 +1516,9 @@ export default function MemberProfileScreen({ navigation }) {
       // Append new posts, deduplicating by ID
       setPosts((prevPosts) => {
         const existingIds = new Set(prevPosts.map((p) => p.id));
-        const uniqueNew = newPosts
-          .filter((p) => !existingIds.has(p.id))
-          .map((post) => ({
-            ...post,
-            isLiked: !!post.is_liked,
-          }));
+        const uniqueNew = normalizePosts(
+          newPosts.filter((p) => !existingIds.has(p.id))
+        );
         return [...prevPosts, ...uniqueNew];
       });
 

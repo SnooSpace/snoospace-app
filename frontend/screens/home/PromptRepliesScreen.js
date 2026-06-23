@@ -10,7 +10,7 @@ import React, {
   useRef,
   useMemo,
 } from "react";
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, RefreshControl, TextInput, Platform } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, ScrollView, RefreshControl, TextInput, Platform, InteractionManager } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   SafeAreaView,
@@ -261,7 +261,10 @@ const PromptRepliesScreen = ({ route, navigation }) => {
   }, [submission.id]);
 
   useEffect(() => {
-    fetchReplies();
+    const task = InteractionManager.runAfterInteractions(() => {
+      fetchReplies();
+    });
+    return () => task.cancel();
   }, [fetchReplies]);
 
   const handleRefresh = () => {

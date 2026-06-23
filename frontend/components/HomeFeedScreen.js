@@ -375,6 +375,34 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
   // Refs for scroll handling
   const flatListRef = useRef(null);
+  const isInitialLoadRef = useRef(true);
+
+  // Reset initial load ref when user ID changes
+  useEffect(() => {
+    isInitialLoadRef.current = true;
+  }, [currentUserId]);
+
+  // Ensure scroll is at 0 after feed items load and layout completes
+  useEffect(() => {
+    if (feedItems.length > 0 && !loading && isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+      const timeout = setTimeout(() => {
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+      }, 50);
+      return () => clearTimeout(timeout);
+    }
+  }, [feedItems.length, loading]);
+
+  // Callback ref to override Android fragment state scroll restoration immediately on mount
+  const listRefCallback = useCallback((ref) => {
+    flatListRef.current = ref;
+    if (ref) {
+      ref.scrollToOffset({ offset: 0, animated: false });
+      requestAnimationFrame(() => {
+        ref.scrollToOffset({ offset: 0, animated: false });
+      });
+    }
+  }, []);
 
   // Reanimated shared value for premium scroll-reactive header
   const scrollY = useSharedValue(0);
@@ -596,11 +624,23 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   }, [posts, events, opportunities]);
 
   useEffect(() => {
-    loadFeed();
-    loadEvents();
-    loadOpportunities();
-    loadGreetingName();
-    loadMessageUnreadCount();
+    const loadInitialData = async () => {
+      setLoading(true);
+      try {
+        await Promise.all([
+          loadFeed(true, true), // reset=true, skipSetLoading=true
+          loadEvents(),
+          loadOpportunities(),
+          loadGreetingName(),
+          loadMessageUnreadCount(),
+        ]);
+      } catch (error) {
+        console.error("[HomeFeed] Error loading initial data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadInitialData();
 
     // Check for account switch tutorial flag
     const checkTutorialFlag = async () => {
@@ -816,14 +856,14 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }
   };
 
-  const loadFeed = async (reset = true) => {
+  const loadFeed = async (reset = true, skipSetLoading = false) => {
     // Prevent duplicate calls while loading
     if (loadingMore) return;
     if (!hasMore && !reset) return;
 
     try {
       if (reset) {
-        setLoading(true);
+        if (!skipSetLoading) setLoading(true);
         setCursor(null);
         setHasMore(true);
       } else {
@@ -881,7 +921,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       console.error("Error loading feed:", error);
       setErrorMsg(error?.message || "Failed to load posts");
     } finally {
-      setLoading(false);
+      if (!skipSetLoading) setLoading(false);
       setLoadingMore(false);
     }
   };
@@ -1397,6 +1437,21 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
   return (
     <SafeAreaView style={styles.container} edges={["left", "right", "bottom"]}>
+      {/* Android Focus Anchor: Prevents OS focus manager from stealing focus and scrolling the feed on modal dismiss */}
+      <View
+        focusable={true}
+        accessible={false}
+        importantForAccessibility="no"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: 1,
+          height: 1,
+          opacity: 0.01,
+        }}
+      />
+
       {/* Dynamic Status Bar */}
       <DynamicStatusBar style="light-content" />
 
@@ -1441,7 +1496,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       ) : null}
 
       <AnimatedFlashList
-        ref={flatListRef}
+        key={`feed-list-${currentUserId}`}
+        ref={listRefCallback}
         nestedScrollEnabled={true}
         data={loading && feedItems.length === 0 ? [1, 2, 3] : feedItems}
         renderItem={

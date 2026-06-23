@@ -492,7 +492,7 @@ const CommunityPostGridCell = React.memo(
 
     const gap = 2;
     let firstImageUrl = null;
-    if (item?.image_urls) {
+    if (item?.image_urls && item.resolvedVideoThumbnail === undefined) {
       if (Array.isArray(item.image_urls)) {
         const flatUrls = item.image_urls.flat();
         firstImageUrl = flatUrls.find(
@@ -506,42 +506,45 @@ const CommunityPostGridCell = React.memo(
       }
     }
 
-    const isVideo =
+    const isVideo = item.isVideo !== undefined ? item.isVideo : (
       !!item.video_url ||
       (firstImageUrl &&
         (firstImageUrl.toLowerCase().includes(".mp4") ||
           firstImageUrl.toLowerCase().includes(".mov") ||
-          firstImageUrl.toLowerCase().includes(".webm")));
+          firstImageUrl.toLowerCase().includes(".webm")))
+    );
 
-    let mediaUrl = null;
-    if (item.video_thumbnail) {
-      try {
-        if (
-          typeof item.video_thumbnail === "string" &&
-          item.video_thumbnail.startsWith("[")
-        ) {
-          const parsed = JSON.parse(item.video_thumbnail);
-          mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
-        } else {
+    let mediaUrl = item.resolvedVideoThumbnail;
+    if (mediaUrl === undefined) {
+      if (item.video_thumbnail) {
+        try {
+          if (
+            typeof item.video_thumbnail === "string" &&
+            item.video_thumbnail.startsWith("[")
+          ) {
+            const parsed = JSON.parse(item.video_thumbnail);
+            mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
+          } else {
+            mediaUrl = item.video_thumbnail;
+          }
+        } catch (e) {
           mediaUrl = item.video_thumbnail;
         }
-      } catch (e) {
-        mediaUrl = item.video_thumbnail;
       }
-    }
-    const videoSourceUrl = firstImageUrl || item.video_url;
-    if (
-      !mediaUrl &&
-      isVideo &&
-      videoSourceUrl &&
-      videoSourceUrl.includes("cloudinary.com")
-    ) {
-      mediaUrl = videoSourceUrl
-        .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
-        .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
-    }
-    if (!mediaUrl) {
-      mediaUrl = videoSourceUrl;
+      const videoSourceUrl = firstImageUrl || item.video_url;
+      if (
+        !mediaUrl &&
+        isVideo &&
+        videoSourceUrl &&
+        videoSourceUrl.includes("cloudinary.com")
+      ) {
+        mediaUrl = videoSourceUrl
+          .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+          .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+      }
+      if (!mediaUrl) {
+        mediaUrl = videoSourceUrl;
+      }
     }
 
     return (
@@ -652,6 +655,72 @@ const CommunityPostGridCell = React.memo(
     );
   },
 );
+
+const normalizePosts = (postsArray) => {
+  if (!Array.isArray(postsArray)) return [];
+  return postsArray.map((post) => {
+    if (!post) return post;
+    let firstImageUrl = null;
+    if (post.image_urls) {
+      if (Array.isArray(post.image_urls)) {
+        const flatUrls = post.image_urls.flat();
+        firstImageUrl = flatUrls.find(
+          (u) => typeof u === "string" && u.startsWith("http"),
+        );
+      } else if (
+        typeof post.image_urls === "string" &&
+        post.image_urls.startsWith("http")
+      ) {
+        firstImageUrl = post.image_urls;
+      }
+    }
+
+    const isVideo =
+      !!post.video_url ||
+      (firstImageUrl &&
+        (firstImageUrl.toLowerCase().includes(".mp4") ||
+          firstImageUrl.toLowerCase().includes(".mov") ||
+          firstImageUrl.toLowerCase().includes(".webm")));
+
+    let mediaUrl = null;
+    if (post.video_thumbnail) {
+      try {
+        if (
+          typeof post.video_thumbnail === "string" &&
+          post.video_thumbnail.startsWith("[")
+        ) {
+          const parsed = JSON.parse(post.video_thumbnail);
+          mediaUrl = Array.isArray(parsed) ? parsed[0] : post.video_thumbnail;
+        } else {
+          mediaUrl = post.video_thumbnail;
+        }
+      } catch (e) {
+        mediaUrl = post.video_thumbnail;
+      }
+    }
+    const videoSourceUrl = firstImageUrl || post.video_url;
+    if (
+      !mediaUrl &&
+      isVideo &&
+      videoSourceUrl &&
+      videoSourceUrl.includes("cloudinary.com")
+    ) {
+      mediaUrl = videoSourceUrl
+        .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+        .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+    }
+    if (!mediaUrl) {
+      mediaUrl = videoSourceUrl;
+    }
+
+    return {
+      ...post,
+      isLiked: !!post.is_liked,
+      resolvedVideoThumbnail: mediaUrl,
+      isVideo,
+    };
+  });
+};
 
 export default function CommunityProfileScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
@@ -1117,14 +1186,17 @@ export default function CommunityProfileScreen({ navigation, route }) {
 
   useEffect(() => {
     let isMounted = true;
-    (async () => {
-      await loadProfile();
-      if (isMounted) {
-        hasInitialLoadRef.current = true;
-      }
-    })();
+    const task = InteractionManager.runAfterInteractions(() => {
+      (async () => {
+        await loadProfile();
+        if (isMounted) {
+          hasInitialLoadRef.current = true;
+        }
+      })();
+    });
     return () => {
       isMounted = false;
+      task.cancel();
     };
   }, [loadProfile]);
 
@@ -1560,7 +1632,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
       mappedProfile.category = mappedProfile.categories[0] || "";
 
       setProfile(mappedProfile);
-      setPosts(userPosts);
+      setPosts(normalizePosts(userPosts));
 
       // Fetch community events
       try {

@@ -9,6 +9,7 @@ import {
   Pressable,
   Dimensions,
   Animated as RNAnimated,
+  ScrollView,
 } from "react-native";
 import { Pressable as GHPressable } from "react-native-gesture-handler";
 import { GradientHeart } from "./ui/GradientHeart";
@@ -78,66 +79,29 @@ const formatCount = (count) => {
   return `${(count / 1000000).toFixed(1)}m`;
 };
 
-// ── Auto-scrolling Marquee Chips Component using Reanimated ───────────────────
-const MarqueeChips = React.memo(({ chips, chipType, styles }) => {
-  const [contentWidth, setContentWidth] = useState(0);
-  const [containerWidth, setContainerWidth] = useState(0);
-  const translateX = useSharedValue(0);
-
-  // Use a stable string key so the effect only re-runs when chip content changes
-  const chipsKey = chips.join(",");
-
-  useEffect(() => {
-    // Only start animation once both widths have been measured
-    if (contentWidth === 0 || containerWidth === 0) return;
-
-    const maxScroll = contentWidth - containerWidth;
-    if (maxScroll > 10) {
-      translateX.value = 0;
-      translateX.value = withRepeat(
-        withSequence(
-          withDelay(1200, withTiming(-maxScroll, { duration: maxScroll * 40 })),
-          withDelay(1500, withTiming(0, { duration: maxScroll * 40 }))
-        ),
-        -1,
-        false
-      );
-    } else {
-      cancelAnimation(translateX);
-      translateX.value = 0;
-    }
-    return () => {
-      cancelAnimation(translateX);
-    };
-  }, [contentWidth, containerWidth, chipsKey]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
-
+// ── Horizontal Scrollable Chips Row Component ───────────────────
+const ChipsRow = React.memo(({ chips, chipType, styles }) => {
   return (
-    <View
-      style={[styles.chipsRow, { overflow: "hidden" }]}
-      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.chipsRow}
+      contentContainerStyle={styles.chipsContent}
+      focusable={false}
     >
-      <Animated.View
-        style={[{ flexDirection: "row", gap: 8 }, animatedStyle]}
-        onLayout={(e) => setContentWidth(e.nativeEvent.layout.width)}
-      >
-        {chips.map((item, index) => (
-          <View
-            key={`${chipType}-${index}`}
-            style={chipType === "role" ? styles.roleChip : styles.skillChip}
+      {chips.map((item, index) => (
+        <View
+          key={`${chipType}-${index}`}
+          style={chipType === "role" ? styles.roleChip : styles.skillChip}
+        >
+          <Text
+            style={chipType === "role" ? styles.roleChipText : styles.skillChipText}
           >
-            <Text
-              style={chipType === "role" ? styles.roleChipText : styles.skillChipText}
-            >
-              {item}
-            </Text>
-          </View>
-        ))}
-      </Animated.View>
-    </View>
+            {item}
+          </Text>
+        </View>
+      ))}
+    </ScrollView>
   );
 });
 
@@ -639,14 +603,14 @@ const OpportunityFeedCard = React.memo(({
             {opportunity.title}
           </Text>
  
-          {/* ── Role Chips (auto scroll, no heading) ─────────────────── */}
+          {/* ── Role Chips (scrollable, no heading) ─────────────────── */}
           {roleChips.length > 0 && (
-            <MarqueeChips chips={roleChips} chipType="role" styles={styles} />
+            <ChipsRow chips={roleChips} chipType="role" styles={styles} />
           )}
  
-          {/* ── Skill Chips (auto scroll, no heading) ─────────────────── */}
+          {/* ── Skill Chips (scrollable, no heading) ─────────────────── */}
           {skillChips.length > 0 && (
-            <MarqueeChips chips={skillChips} chipType="skill" styles={styles} />
+            <ChipsRow chips={skillChips} chipType="skill" styles={styles} />
           )}
  
           {/* ── Details Row ───────────────────────────────────────────────── */}

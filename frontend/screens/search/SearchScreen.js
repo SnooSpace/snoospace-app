@@ -1,11 +1,11 @@
-﻿import React, {
+import React, {
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { View, TextInput, FlatList, Text, TouchableOpacity, StyleSheet, Keyboard, ScrollView } from "react-native";
+import { View, TextInput, FlatList, Text, TouchableOpacity, StyleSheet, Keyboard, ScrollView, InteractionManager } from "react-native";
 import { Image } from "expo-image"; // ── PERF: memory-disk cache for search avatars
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -283,8 +283,11 @@ export default function SearchScreen({ navigation }) {
 
   // Load discover feed and suggestions on mount
   useEffect(() => {
-    loadDiscoverFeed(true);
-    loadSuggestions();
+    const task = InteractionManager.runAfterInteractions(() => {
+      loadDiscoverFeed(true);
+      loadSuggestions();
+    });
+    return () => task.cancel();
   }, []);
 
   useEffect(() => {

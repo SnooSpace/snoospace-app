@@ -678,6 +678,7 @@ export default function EventCard({
                     disallowInterruption={true}
                     style={StyleSheet.absoluteFill}
                     contentContainerStyle={{ minWidth: "100%" }}
+                    focusable={false}
                   >
                     {banners.map((banner, index) => (
                       <Image

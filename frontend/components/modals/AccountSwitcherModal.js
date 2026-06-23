@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -220,7 +220,14 @@ export default function AccountSwitcherModal({
         account.authToken?.length,
       );
 
-      // Navigate to correct screen
+      // Close modal first to let native focus/layout settle before stack reset
+      console.log("[AccountSwitcher] Closing switcher modal...");
+      onClose();
+
+      // Wait for modal dismiss animation to complete (250ms animation + 50ms buffer)
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      // Navigate to correct screen (triggers stack reset)
       if (onAccountSwitch) {
         console.log("[AccountSwitcher] Calling onAccountSwitch...");
         onAccountSwitch(account);
@@ -232,13 +239,6 @@ export default function AccountSwitcherModal({
         username: account.username || "",
         photoUrl: account.profilePicture || null,
       });
-
-      // Small delay to ensure navigation completes
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Close modal
-      console.log("[AccountSwitcher] Closing modal after successful switch");
-      onClose();
     } catch (error) {
       console.error("[AccountSwitcher] Error switching account:", error);
 

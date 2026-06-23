@@ -92,42 +92,45 @@ const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPre
         .find((u) => typeof u === "string" && u.startsWith("http"))
     : undefined;
 
-  const isVideo =
+  const isVideo = item.isVideo !== undefined ? item.isVideo : (
     !!item.video_url ||
     (firstImageUrl &&
       (firstImageUrl.toLowerCase().includes(".mp4") ||
         firstImageUrl.toLowerCase().includes(".mov") ||
-        firstImageUrl.toLowerCase().includes(".webm")));
+        firstImageUrl.toLowerCase().includes(".webm")))
+  );
 
-  let mediaUrl = null;
-  if (item.video_thumbnail) {
-    try {
-      if (
-        typeof item.video_thumbnail === "string" &&
-        item.video_thumbnail.startsWith("[")
-      ) {
-        const parsed = JSON.parse(item.video_thumbnail);
-        mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
-      } else {
+  let mediaUrl = item.resolvedVideoThumbnail;
+  if (mediaUrl === undefined) {
+    if (item.video_thumbnail) {
+      try {
+        if (
+          typeof item.video_thumbnail === "string" &&
+          item.video_thumbnail.startsWith("[")
+        ) {
+          const parsed = JSON.parse(item.video_thumbnail);
+          mediaUrl = Array.isArray(parsed) ? parsed[0] : item.video_thumbnail;
+        } else {
+          mediaUrl = item.video_thumbnail;
+        }
+      } catch (e) {
         mediaUrl = item.video_thumbnail;
       }
-    } catch (e) {
-      mediaUrl = item.video_thumbnail;
     }
-  }
-  const videoSourceUrl = firstImageUrl || item.video_url;
-  if (
-    !mediaUrl &&
-    isVideo &&
-    videoSourceUrl &&
-    videoSourceUrl.includes("cloudinary.com")
-  ) {
-    mediaUrl = videoSourceUrl
-      .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
-      .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
-  }
-  if (!mediaUrl) {
-    mediaUrl = videoSourceUrl;
+    const videoSourceUrl = firstImageUrl || item.video_url;
+    if (
+      !mediaUrl &&
+      isVideo &&
+      videoSourceUrl &&
+      videoSourceUrl.includes("cloudinary.com")
+    ) {
+      mediaUrl = videoSourceUrl
+        .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+        .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+    }
+    if (!mediaUrl) {
+      mediaUrl = videoSourceUrl;
+    }
   }
 
   return (
@@ -193,6 +196,62 @@ const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPre
 });
 import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
 import InstagramRow from "../../../components/InstagramRow";
+
+const normalizePosts = (postsArray) => {
+  if (!Array.isArray(postsArray)) return [];
+  return postsArray.map((post) => {
+    if (!post) return post;
+    const firstImageUrl = Array.isArray(post.image_urls)
+      ? post.image_urls.flat().find((u) => typeof u === "string" && u.startsWith("http"))
+      : undefined;
+
+    const isVideo =
+      !!post.video_url ||
+      (firstImageUrl &&
+        (firstImageUrl.toLowerCase().includes(".mp4") ||
+          firstImageUrl.toLowerCase().includes(".mov") ||
+          firstImageUrl.toLowerCase().includes(".webm")));
+
+    let mediaUrl = null;
+    if (post.video_thumbnail) {
+      try {
+        if (
+          typeof post.video_thumbnail === "string" &&
+          post.video_thumbnail.startsWith("[")
+        ) {
+          const parsed = JSON.parse(post.video_thumbnail);
+          mediaUrl = Array.isArray(parsed) ? parsed[0] : post.video_thumbnail;
+        } else {
+          mediaUrl = post.video_thumbnail;
+        }
+      } catch (e) {
+        mediaUrl = post.video_thumbnail;
+      }
+    }
+    const videoSourceUrl = firstImageUrl || post.video_url;
+    if (
+      !mediaUrl &&
+      isVideo &&
+      videoSourceUrl &&
+      videoSourceUrl.includes("cloudinary.com")
+    ) {
+      mediaUrl = videoSourceUrl
+        .replace("/upload/", "/upload/so_0,f_jpg,q_auto,w_800/")
+        .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
+    }
+    if (!mediaUrl) {
+      mediaUrl = videoSourceUrl;
+    }
+
+    return {
+      ...post,
+      is_liked: post.is_liked === true,
+      isLiked: post.is_liked === true,
+      resolvedVideoThumbnail: mediaUrl,
+      isVideo,
+    };
+  });
+};
 
 export default function MemberPublicProfileScreen({ route, navigation }) {
   const memberId = route?.params?.memberId;
@@ -546,11 +605,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           ? data?.posts || data || []
           : [...posts, ...(data?.posts || data || [])];
         // Normalize is_liked field for all posts - ensure it's explicitly true or false
-        const normalizedPosts = rawPosts.map((post) => ({
-          ...post,
-          is_liked: post.is_liked === true,
-          isLiked: post.is_liked === true,
-        }));
+        const normalizedPosts = normalizePosts(rawPosts);
 
         // Merge with cached like states to fix backend returning stale is_liked data
         const mergedPosts =
@@ -583,29 +638,33 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   useEffect(() => {
     let mounted = true;
     setPreResolvedConversationId(null);
-    (async () => {
-      setLoading(true);
-      const [profileResult] = await Promise.all([loadProfile(), loadPosts(true), loadCircleStatus()]);
-      if (mounted && profileResult?.is_creator_mode_enabled) {
-        await Promise.all([
-          loadCreatorFollowStatus(profileResult),
-          loadCommunityVoicePosts(),
-        ]);
-      }
-      if (mounted) setLoading(false);
-    })();
-    
-    // Background resolve conversation to warm cache
-    resolveConversation(memberId, 'member')
-      .then((res) => {
-        if (mounted && res?.conversationId) {
-          setPreResolvedConversationId(res.conversationId);
+    const task = InteractionManager.runAfterInteractions(() => {
+      (async () => {
+        if (!mounted) return;
+        setLoading(true);
+        const [profileResult] = await Promise.all([loadProfile(), loadPosts(true), loadCircleStatus()]);
+        if (mounted && profileResult?.is_creator_mode_enabled) {
+          await Promise.all([
+            loadCreatorFollowStatus(profileResult),
+            loadCommunityVoicePosts(),
+          ]);
         }
-      })
-      .catch((err) => console.log('[PERF] Background resolveConversation error:', err));
+        if (mounted) setLoading(false);
+      })();
+      
+      // Background resolve conversation to warm cache
+      resolveConversation(memberId, 'member')
+        .then((res) => {
+          if (mounted && res?.conversationId) {
+            setPreResolvedConversationId(res.conversationId);
+          }
+        })
+        .catch((err) => console.log('[PERF] Background resolveConversation error:', err));
+    });
 
     return () => {
       mounted = false;
+      task.cancel();
     };
   }, [memberId]);
 

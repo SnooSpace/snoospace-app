@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useCallback, useState, useMemo } from "react";
+import React, { useEffect, useCallback, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  InteractionManager,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
@@ -803,16 +804,19 @@ export default function NotificationsScreen({ navigation }) {
       }
     };
     if (items.length > 0) {
-      loadFollowStatuses();
+      const task = InteractionManager.runAfterInteractions(() => {
+        loadFollowStatuses();
+      });
+      return () => task.cancel();
     }
   }, [items, followedUserIds]);
 
   // Mark all read on mount
   useEffect(() => {
-    const t = setTimeout(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
       markAllRead();
-    }, 500);
-    return () => clearTimeout(t);
+    });
+    return () => task.cancel();
   }, [markAllRead]);
 
   const navigateToProfile = useCallback((actorId, actorType) => {

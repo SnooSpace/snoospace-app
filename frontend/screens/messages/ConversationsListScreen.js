@@ -1,9 +1,9 @@
-﻿import React, {
+import React, {
   useState, useEffect, useCallback, useRef, useMemo,
 } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  TextInput, RefreshControl, Animated, Pressable, Alert,
+  TextInput, RefreshControl, Animated, Pressable, Alert, InteractionManager,
 } from "react-native";
 import { Image } from "expo-image"; // ── PERF: expo-image provides memory+disk caching for avatars
 import { useFocusEffect } from "@react-navigation/native";
@@ -440,12 +440,15 @@ export default function ConversationsListScreen({ navigation }) {
   }, [loadAccountInfo]);
 
   useFocusEffect(useCallback(() => {
-    if (isInitialLoad.current) {
-      loadData(false);
-      isInitialLoad.current = false;
-    } else {
-      loadData(true);
-    }
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (isInitialLoad.current) {
+        loadData(false);
+        isInitialLoad.current = false;
+      } else {
+        loadData(true);
+      }
+    });
+    return () => task.cancel();
   }, [loadData]));
 
   // ── EventBus listeners ────────────────────────────────────────────────────────
