@@ -781,7 +781,14 @@ export default function CommunityProfileScreen({ navigation, route }) {
       scrollToPostIdRef.current = route.params.postId;
     }
     if (route?.params?.initialTab === "community") {
+      setRenderedPostsLimit(12);
+      setRenderedEventsLimit(3);
+      setRenderedCommunityLimit(2);
+      setRenderedTab(null);
       setActiveTab("community");
+      InteractionManager.runAfterInteractions(() => {
+        setRenderedTab("community");
+      });
       if (!communityVoiceFetchedRef.current) {
         communityVoiceFetchedRef.current = true;
         loadCommunityVoicePosts();
@@ -794,16 +801,6 @@ export default function CommunityProfileScreen({ navigation, route }) {
     loadCommunityVoicePosts,
     navigation,
   ]);
-
-  useEffect(() => {
-    setRenderedPostsLimit(12);
-    setRenderedEventsLimit(5);
-    setRenderedCommunityLimit(5);
-    setRenderedTab(null);
-    InteractionManager.runAfterInteractions(() => {
-      setRenderedTab(activeTab);
-    });
-  }, [activeTab]);
   const [commentsModalState, setCommentsModalState] = useState({
     visible: false,
     postId: null,
@@ -2243,7 +2240,14 @@ export default function CommunityProfileScreen({ navigation, route }) {
                 style={styles.tabItem}
                 onPress={() => {
                   HapticsService.triggerImpactLight();
+                  setRenderedPostsLimit(12);
+                  setRenderedEventsLimit(3);
+                  setRenderedCommunityLimit(2);
+                  setRenderedTab(null);
                   setActiveTab(tab);
+                  InteractionManager.runAfterInteractions(() => {
+                    setRenderedTab(tab);
+                  });
                   // Lazy-load voice posts on first Community tab open
                   if (
                     tab === "community" &&
@@ -2318,31 +2322,38 @@ export default function CommunityProfileScreen({ navigation, route }) {
                       : 0;
 
                   return mediaPosts.length > 0 ? (
-                    <View style={[styles.postsGrid, { height: gridHeight }]}>
-                      <FlatList
-                        data={visiblePosts}
-                        keyExtractor={(item) => String(item.id)}
-                        numColumns={3}
-                        scrollEnabled={false}
-                        columnWrapperStyle={{
-                          justifyContent: "flex-start",
-                          marginBottom: gap,
-                          gap: gap,
-                        }}
-                        renderItem={renderGridItem}
-                        initialNumToRender={12}
-                        maxToRenderPerBatch={6}
-                        windowSize={5}
-                        removeClippedSubviews={false}
-                        updateCellsBatchingPeriod={50}
-                        getItemLayout={(data, index) => ({
-                          length: itemSize * 1.35,
-                          offset:
-                            (itemSize * 1.35 + gap) * Math.floor(index / 3),
-                          index,
-                        })}
-                      />
-                    </View>
+                    <>
+                      <View style={[styles.postsGrid, { height: gridHeight }]}>
+                        <FlatList
+                          data={visiblePosts}
+                          keyExtractor={(item) => String(item.id)}
+                          numColumns={3}
+                          scrollEnabled={false}
+                          columnWrapperStyle={{
+                            justifyContent: "flex-start",
+                            marginBottom: gap,
+                            gap: gap,
+                          }}
+                          renderItem={renderGridItem}
+                          initialNumToRender={12}
+                          maxToRenderPerBatch={6}
+                          windowSize={5}
+                          removeClippedSubviews={false}
+                          updateCellsBatchingPeriod={50}
+                          getItemLayout={(data, index) => ({
+                            length: itemSize * 1.35,
+                            offset:
+                              (itemSize * 1.35 + gap) * Math.floor(index / 3),
+                            index,
+                          })}
+                        />
+                      </View>
+                      {renderedPostsLimit < mediaPosts.length && (
+                        <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                          <SnooLoader size="small" color={PRIMARY_COLOR} />
+                        </View>
+                      )}
+                    </>
                   ) : (
                     <EmptyPostsState
                       isOwnProfile={true}
@@ -2633,6 +2644,11 @@ export default function CommunityProfileScreen({ navigation, route }) {
                             }}
                           />
                         )}
+                      {renderedCommunityLimit < allItems.length && (
+                        <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                          <SnooLoader size="small" color={PRIMARY_COLOR} />
+                        </View>
+                      )}
                     </View>
                   );
                 })()}
@@ -2667,6 +2683,11 @@ export default function CommunityProfileScreen({ navigation, route }) {
                           onComment={(id) => openCommentsModal(id, "event")}
                         />
                       ))}
+                      {renderedEventsLimit < communityEvents.length && (
+                        <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                          <SnooLoader size="small" color={PRIMARY_COLOR} />
+                        </View>
+                      )}
                     </View>
                   );
                 })()}

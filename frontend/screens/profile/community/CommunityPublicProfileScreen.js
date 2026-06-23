@@ -802,7 +802,14 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       scrollToPostIdRef.current = route.params.postId;
     }
     if (route?.params?.initialTab === "community") {
+      setRenderedPostsLimit(12);
+      setRenderedEventsLimit(3);
+      setRenderedCommunityLimit(2);
+      setRenderedTab(null);
       setActiveTab("community");
+      InteractionManager.runAfterInteractions(() => {
+        setRenderedTab("community");
+      });
       if (!communityVoiceFetchedRef.current) {
         communityVoiceFetchedRef.current = true;
         loadCommunityVoicePosts();
@@ -810,16 +817,6 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       navigation.setParams({ initialTab: undefined, postId: undefined });
     }
   }, [route?.params?.initialTab, route?.params?.postId, loadCommunityVoicePosts, navigation]);
-
-  useEffect(() => {
-    setRenderedPostsLimit(12);
-    setRenderedEventsLimit(5);
-    setRenderedCommunityLimit(5);
-    setRenderedTab(null);
-    InteractionManager.runAfterInteractions(() => {
-      setRenderedTab(activeTab);
-    });
-  }, [activeTab]);
 
   const [tabLayouts, setTabLayouts] = useState({});
   // Tab underline animation (Reanimated)
@@ -1871,7 +1868,14 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               style={styles.tabItem}
               onPress={() => {
                 HapticsService.triggerImpactLight();
+                setRenderedPostsLimit(12);
+                setRenderedEventsLimit(3);
+                setRenderedCommunityLimit(2);
+                setRenderedTab(null);
                 setActiveTab(tab);
+                InteractionManager.runAfterInteractions(() => {
+                  setRenderedTab(tab);
+                });
                 // Lazy-load voice posts when Community tab first opened
                 if (tab === 'community' && !communityVoiceFetchedRef.current) {
                   communityVoiceFetchedRef.current = true;
@@ -1933,30 +1937,37 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 const gridHeight = numRows > 0 ? numRows * (ITEM_SIZE * 1.35) + (numRows - 1) * GAP : 0;
 
                 return mediaPosts.length > 0 ? (
-                  <View style={{ height: gridHeight }}>
-                    <FlatList
-                      data={visiblePosts}
-                      keyExtractor={(item) => String(item.id)}
-                      numColumns={3}
-                      columnWrapperStyle={{
-                        justifyContent: "flex-start",
-                        marginBottom: GAP,
-                        gap: GAP,
-                      }}
-                      scrollEnabled={false}
-                      renderItem={renderGridItem}
-                      initialNumToRender={12}
-                      maxToRenderPerBatch={6}
-                      windowSize={5}
-                      removeClippedSubviews={false}
-                      updateCellsBatchingPeriod={50}
-                      getItemLayout={(data, index) => ({
-                        length: ITEM_SIZE * 1.35,
-                        offset: (ITEM_SIZE * 1.35 + GAP) * Math.floor(index / 3),
-                        index,
-                      })}
-                    />
-                  </View>
+                  <>
+                    <View style={{ height: gridHeight }}>
+                      <FlatList
+                        data={visiblePosts}
+                        keyExtractor={(item) => String(item.id)}
+                        numColumns={3}
+                        columnWrapperStyle={{
+                          justifyContent: "flex-start",
+                          marginBottom: GAP,
+                          gap: GAP,
+                        }}
+                        scrollEnabled={false}
+                        renderItem={renderGridItem}
+                        initialNumToRender={12}
+                        maxToRenderPerBatch={6}
+                        windowSize={5}
+                        removeClippedSubviews={false}
+                        updateCellsBatchingPeriod={50}
+                        getItemLayout={(data, index) => ({
+                          length: ITEM_SIZE * 1.35,
+                          offset: (ITEM_SIZE * 1.35 + GAP) * Math.floor(index / 3),
+                          index,
+                        })}
+                      />
+                    </View>
+                    {renderedPostsLimit < mediaPosts.length && (
+                      <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                        <SnooLoader size="small" color={PRIMARY_COLOR} />
+                      </View>
+                    )}
+                  </>
                 ) : (
                   <EmptyPostsState isOwnProfile={false} />
                 );
@@ -2152,6 +2163,11 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                     {sortedPosts.length === 0 && voicePosts.length === 0 && !loadingVoicePosts && (
                       <EmptyCommunityState isOwnProfile={false} />
                     )}
+                    {renderedCommunityLimit < allItems.length && (
+                      <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                        <SnooLoader size="small" color={PRIMARY_COLOR} />
+                      </View>
+                    )}
                   </View>
                 );
               })()}
@@ -2181,6 +2197,11 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                         onComment={(id) => openCommentsModal(id, "event")}
                       />
                     ))}
+                    {renderedEventsLimit < communityEvents.length && (
+                      <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                        <SnooLoader size="small" color={PRIMARY_COLOR} />
+                      </View>
+                    )}
                   </View>
                 );
               })()}

@@ -235,15 +235,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [activeProfileTab, setActiveProfileTab] = useState('posts');
   const [renderedProfileTab, setRenderedProfileTab] = useState('posts');
 
-  useEffect(() => {
-    setRenderedPostsLimit(12);
-    setRenderedEventsLimit(5);
-    setRenderedCommunityLimit(5);
-    setRenderedProfileTab(null);
-    InteractionManager.runAfterInteractions(() => {
-      setRenderedProfileTab(activeProfileTab);
-    });
-  }, [activeProfileTab]);
+
   const [profileEvents, setProfileEvents] = useState([]);
   const [profilePlans, setProfilePlans] = useState({ hosted: [], attending: [] });
   const [planRequestSheet, setPlanRequestSheet] = useState(null);
@@ -502,7 +494,14 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       scrollToPostIdRef.current = route.params.postId;
     }
     if (route?.params?.initialTab === "community") {
+      setRenderedPostsLimit(12);
+      setRenderedEventsLimit(3);
+      setRenderedCommunityLimit(2);
+      setRenderedProfileTab(null);
       setActiveProfileTab("community");
+      InteractionManager.runAfterInteractions(() => {
+        setRenderedProfileTab("community");
+      });
       if (!communityPostsFetchedRef.current) {
         communityPostsFetchedRef.current = true;
         loadCommunityVoicePosts();
@@ -1045,7 +1044,14 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 style={styles.statItem}
                 onPress={() => {
                   HapticsService.triggerStatsTap();
+                  setRenderedPostsLimit(12);
+                  setRenderedEventsLimit(3);
+                  setRenderedCommunityLimit(2);
+                  setRenderedProfileTab(null);
                   setActiveProfileTab('events');
+                  InteractionManager.runAfterInteractions(() => {
+                    setRenderedProfileTab('events');
+                  });
                   if (!eventsFetchedRef.current) {
                     eventsFetchedRef.current = true;
                     loadPublicMemberEvents();
@@ -1469,7 +1475,14 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 onLayout={(e) => handleTabLayout(tab, e)}
                 onPress={() => {
                   HapticsService.triggerImpactLight();
+                  setRenderedPostsLimit(12);
+                  setRenderedEventsLimit(3);
+                  setRenderedCommunityLimit(2);
+                  setRenderedProfileTab(null);
                   setActiveProfileTab(tab);
+                  InteractionManager.runAfterInteractions(() => {
+                    setRenderedProfileTab(tab);
+                  });
                   if (tab === 'events' && !eventsFetchedRef.current) {
                     eventsFetchedRef.current = true;
                     InteractionManager.runAfterInteractions(() => {
@@ -1514,26 +1527,33 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 const numRows = Math.ceil(visiblePosts.length / 3);
                 const gridHeight = numRows > 0 ? numRows * (ITEM_SIZE * 1.35) + (numRows - 1) * GAP : 0;
                 return visiblePosts.length > 0 ? (
-                  <View style={{ height: gridHeight, marginTop: 10 }}>
-                    <FlatList
-                      data={visiblePosts}
-                      keyExtractor={(item) => String(item.id)}
-                      numColumns={3}
-                      columnWrapperStyle={{ justifyContent: "flex-start", marginBottom: GAP, gap: GAP }}
-                      scrollEnabled={false}
-                      renderItem={renderGridItem}
-                      initialNumToRender={12}
-                      maxToRenderPerBatch={6}
-                      windowSize={5}
-                      removeClippedSubviews={Platform.OS === 'android'}
-                      updateCellsBatchingPeriod={50}
-                      getItemLayout={(data, index) => ({
-                        length: ITEM_SIZE * 1.35,
-                        offset: (ITEM_SIZE * 1.35 + GAP) * Math.floor(index / 3),
-                        index,
-                      })}
-                    />
-                  </View>
+                  <>
+                    <View style={{ height: gridHeight, marginTop: 10 }}>
+                      <FlatList
+                        data={visiblePosts}
+                        keyExtractor={(item) => String(item.id)}
+                        numColumns={3}
+                        columnWrapperStyle={{ justifyContent: "flex-start", marginBottom: GAP, gap: GAP }}
+                        scrollEnabled={false}
+                        renderItem={renderGridItem}
+                        initialNumToRender={12}
+                        maxToRenderPerBatch={6}
+                        windowSize={5}
+                        removeClippedSubviews={Platform.OS === 'android'}
+                        updateCellsBatchingPeriod={50}
+                        getItemLayout={(data, index) => ({
+                          length: ITEM_SIZE * 1.35,
+                          offset: (ITEM_SIZE * 1.35 + GAP) * Math.floor(index / 3),
+                          index,
+                        })}
+                      />
+                    </View>
+                    {renderedPostsLimit < posts.length && (
+                      <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                        <SnooLoader size="small" color={PRIMARY_COLOR} />
+                      </View>
+                    )}
+                  </>
                 ) : (
                   <EmptyPostsState isOwnProfile={false} />
                 );
@@ -1679,6 +1699,11 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                           <SnooLoader size="small" color={COLORS.primary} />
                         </View>
                       )}
+                      {renderedCommunityLimit < allCommunityItems.length && (
+                        <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                          <SnooLoader size="small" color={PRIMARY_COLOR} />
+                        </View>
+                      )}
                     </>
                   );
                 })()}
@@ -1741,6 +1766,11 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                             );
                           }
                         })}
+                        {renderedEventsLimit < allEventsAndPlans.length && (
+                          <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                            <SnooLoader size="small" color={PRIMARY_COLOR} />
+                          </View>
+                        )}
                       </>
                     );
                   })()}
