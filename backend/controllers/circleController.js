@@ -425,7 +425,8 @@ const getCircleMembers = async (req, res) => {
         m.id AS member_id,
         m.name,
         m.username,
-        m.profile_photo_url
+        m.profile_photo_url,
+        m.is_creator_mode_enabled
       FROM circles c
       JOIN members m ON m.id = CASE
         WHEN c.user_a_id = $1 THEN c.user_b_id
@@ -570,7 +571,8 @@ const getPublicCircleMembers = async (req, res) => {
         m.id AS member_id,
         m.name,
         m.username,
-        m.profile_photo_url
+        m.profile_photo_url,
+        m.is_creator_mode_enabled
       FROM circles c
       JOIN members m ON m.id = CASE
         WHEN c.user_a_id = $1 THEN c.user_b_id

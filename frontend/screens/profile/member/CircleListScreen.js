@@ -13,6 +13,7 @@ import { getCircleMembers, removeFromCircle, getIncomingCircleRequestCount, getP
 import CustomAlertModal from '../../../components/ui/CustomAlertModal';
 import HapticsService from '../../../services/HapticsService';
 import EventBus from '../../../utils/EventBus';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─────────────────────────────────────────────────────────
 // Single circle member row
@@ -69,7 +70,22 @@ export default function CircleListScreen({ route, navigation }) {
   const [search, setSearch] = useState('');
   const [pendingCount, setPendingCount] = useState(0);
   const [alertConfig, setAlertConfig] = useState({ visible: false });
+  const [isViewerCreator, setIsViewerCreator] = useState(false);
   const searchTimer = useRef(null);
+
+  useEffect(() => {
+    async function checkViewerMode() {
+      try {
+        const val = await AsyncStorage.getItem("creator_mode_enabled");
+        if (val === "true") {
+          setIsViewerCreator(true);
+        }
+      } catch (e) {
+        console.warn("[CircleList] Error reading creator_mode_enabled:", e);
+      }
+    }
+    checkViewerMode();
+  }, []);
 
   const showAlert = useCallback((config) => setAlertConfig({ ...config, visible: true }), []);
   const hideAlert = useCallback(() => setAlertConfig((p) => ({ ...p, visible: false })), []);
@@ -156,6 +172,10 @@ export default function CircleListScreen({ route, navigation }) {
 
   const handleRemove = useCallback((item) => {
     HapticsService.triggerImpactLight();
+    const isTargetCreator = !!item.is_creator_mode_enabled;
+    const showTertiary = isTargetCreator || isViewerCreator;
+    const tertiaryText = isTargetCreator ? 'Remove from Circle & Unfollow' : 'Remove from Circle & as Follower';
+
     showAlert({
       title: 'Remove from Circle?',
       message: `${item.name || 'This person'} will be removed from your circle.`,
@@ -183,8 +203,8 @@ export default function CircleListScreen({ route, navigation }) {
           }
         },
       },
-      tertiaryAction: {
-        text: 'Remove from Circle & Unfollow',
+      tertiaryAction: showTertiary ? {
+        text: tertiaryText,
         style: 'destructive',
         onPress: async () => {
           hideAlert();
@@ -203,9 +223,9 @@ export default function CircleListScreen({ route, navigation }) {
             });
           }
         },
-      },
+      } : undefined,
     });
-  }, [showAlert, hideAlert]);
+  }, [showAlert, hideAlert, isViewerCreator]);
 
   const renderItem = useCallback(({ item }) => (
     <CircleMemberRow item={item} onPress={handlePress} onRemove={handleRemove} readOnly={readOnly} />

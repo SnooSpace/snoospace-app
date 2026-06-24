@@ -459,7 +459,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         },
       },
       tertiaryAction: {
-        text: 'Remove from Circle & Unfollow',
+        text: 'Remove from Circle & as Follower',
         style: 'destructive',
         onPress: async () => {
           hideAlert();
