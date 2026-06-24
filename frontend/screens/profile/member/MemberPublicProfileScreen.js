@@ -875,6 +875,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
             <View style={{ flex: 1 }} />
           )}
           {/* 3-dot menu — only for other users, not self */}
+          {circleStatus !== 'self' && (
           <GHPressable
             style={styles.menuBtn}
             onPress={() => setMenuVisible(true)}
@@ -882,6 +883,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           >
             <MoreVertical size={22} color={COLORS.textSecondary} strokeWidth={2} />
           </GHPressable>
+          )}
       </View>
 
       {/* Block / Options Bottom Sheet */}
@@ -1300,7 +1302,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               }}
             >
               {/* ── CTA Block: Creator profile → Follow; Regular → Circle ── */}
-              {profile?.is_creator_mode_enabled ? (
+              {circleStatus !== 'self' && (profile?.is_creator_mode_enabled ? (
                 // ── CREATOR PROFILE CTA ──────────────────────────────────────
                 isInCircleWithCreator ? (
                   // In circle with creator — tappable: offers Remove or Remove+Unfollow
@@ -1548,7 +1550,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     <UserPlus size={16} color="#fff" strokeWidth={2.5} />
                   </GradientButton>
                 )
-              )}
+              ))}
+              {circleStatus !== 'self' && (
               <GradientButton
                 title="Message"
                 style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
@@ -1572,6 +1575,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   }, 50);
                 }}
               />
+              )}
             </View>
           </View>
 
