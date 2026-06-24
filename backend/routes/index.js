@@ -12,6 +12,7 @@ const PostController = require("../controllers/postController");
 const CommentController = require("../controllers/commentController");
 const FollowController = require("../controllers/followController");
 const CircleController = require("../controllers/circleController");
+const CommunityCircleController = require("../controllers/communityCircleController");
 const NotificationController = require("../controllers/notificationController");
 const AccountController = require("../controllers/accountController");
 const EventController = require("../controllers/eventController");
@@ -1407,6 +1408,17 @@ router.get("/circles/:userId/members", authMiddleware, CircleController.getPubli
 router.get("/circles/:userId/status", authMiddleware, CircleController.getCircleStatus);
 router.get("/circles", authMiddleware, CircleController.getCircleMembers);
 router.delete("/circles/:userId", authMiddleware, CircleController.removeFromCircle);
+
+// ============================================================
+// COMMUNITY-MEMBER CIRCLES — Community → Member Circle System
+// ============================================================
+// Fixed paths must come before wildcards.
+router.post("/community-circles/invites", authMiddleware, CommunityCircleController.sendInvite);
+router.delete("/community-circles/invites/:inviteId", authMiddleware, CommunityCircleController.cancelInvite);
+router.patch("/community-circles/invites/:inviteId", authMiddleware, CommunityCircleController.respondToInvite);
+router.get("/community-circles/status/:memberId", authMiddleware, CommunityCircleController.getStatusForCommunity);
+router.get("/community-circles/member-status/:communityId", authMiddleware, CommunityCircleController.getStatusForMember);
+router.delete("/community-circles/:memberId", authMiddleware, CommunityCircleController.removeFromCircle);
 
 // ============================================
 // PRIVACY & CONSENT (DPDP Act Compliance)

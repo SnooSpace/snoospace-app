@@ -68,6 +68,10 @@ import {
   blockCommunity,
   unblockCommunity,
 } from "../../../api/communities";
+import {
+  getMemberCommunityCircleStatus,
+  respondToCommunityCircleInvite,
+} from "../../../api/members";
 import { resolveConversation } from "../../../api/messages";
 import { getCommunityPublicEvents } from "../../../api/events";
 import {
@@ -809,6 +813,12 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [theyFollowYou, setTheyFollowYou] = useState(false);
+
+  // Member viewer: community circle invite status
+  const [memberCommCircleStatus, setMemberCommCircleStatus] = useState('none'); // 'none' | 'pending_invite' | 'in_circle'
+  const [memberCommCircleInviteId, setMemberCommCircleInviteId] = useState(null);
+  const [memberCommCircleLoading, setMemberCommCircleLoading] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
   const [postModalVisible, setPostModalVisible] = useState(false);
   const [commentsModalState, setCommentsModalState] = useState({
@@ -928,11 +938,24 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
         category: normalizedCategories[0] || p?.category || null,
       });
       setIsFollowing(!!p?.is_following);
+      setTheyFollowYou(!!p?.they_follow_you);
       setYouHaveBlocked(!!p?.you_have_blocked);
     } catch (e) {
       setError(e?.message || "Failed to load profile");
     }
   }, [communityId]);
+
+  const loadMemberCommCircleStatus = useCallback(async () => {
+    // Only relevant for member viewers
+    if (currentUserRole && currentUserRole !== 'member') return;
+    try {
+      const res = await getMemberCommunityCircleStatus(communityId);
+      setMemberCommCircleStatus(res?.status || 'none');
+      setMemberCommCircleInviteId(res?.invite_id || null);
+    } catch (e) {
+      console.warn('[CommunityPublicProfile] loadMemberCommCircleStatus error:', e);
+    }
+  }, [communityId, currentUserRole]);
 
   const loadEvents = useCallback(async () => {
     console.log(
@@ -1037,7 +1060,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   useFocusEffect(
     React.useCallback(() => {
       loadProfile();
-    }, [loadProfile]),
+      loadMemberCommCircleStatus();
+    }, [loadProfile, loadMemberCommCircleStatus]),
   );
 
   useEffect(() => {
@@ -1765,7 +1789,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               </GHPressable>
             ) : (
               <GradientButton
-                title="Follow"
+                title={theyFollowYou ? "Follow Back" : "Follow"}
                 colors={["#448AFF", "#2962FF"]}
                 textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
                 style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
@@ -1834,6 +1858,90 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               }}
             />
           </View>
+
+          {/* Circle invite banner: shown when member has a pending circle invite from this community */}
+          {memberCommCircleStatus === 'pending_invite' && (
+            <View style={{
+              marginTop: 10,
+              backgroundColor: 'rgba(68,138,255,0.10)',
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: 'rgba(68,138,255,0.22)',
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 10,
+            }}>
+              <Text style={{ fontFamily: FONTS.medium, color: '#90CAF9', fontSize: 13, flex: 1 }}>
+                This community invited you to their circle
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <GHPressable
+                  onPress={async () => {
+                    setMemberCommCircleLoading(true);
+                    try {
+                      await respondToCommunityCircleInvite(memberCommCircleInviteId, 'declined');
+                      setMemberCommCircleStatus('none');
+                      setMemberCommCircleInviteId(null);
+                      HapticsService.triggerImpactLight();
+                    } catch (e) { console.warn('[CommProfile] decline circle invite error:', e); }
+                    finally { setMemberCommCircleLoading(false); }
+                  }}
+                  disabled={memberCommCircleLoading}
+                  style={({ pressed }) => ({
+                    backgroundColor: 'rgba(229,57,53,0.12)',
+                    borderRadius: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <Text style={{ fontFamily: FONTS.semiBold, color: '#EF9A9A', fontSize: 13 }}>Decline</Text>
+                </GHPressable>
+                <GHPressable
+                  onPress={async () => {
+                    setMemberCommCircleLoading(true);
+                    try {
+                      await respondToCommunityCircleInvite(memberCommCircleInviteId, 'accepted');
+                      setMemberCommCircleStatus('in_circle');
+                      setMemberCommCircleInviteId(null);
+                      HapticsService.triggerAddToCircle();
+                    } catch (e) { console.warn('[CommProfile] accept circle invite error:', e); }
+                    finally { setMemberCommCircleLoading(false); }
+                  }}
+                  disabled={memberCommCircleLoading}
+                  style={({ pressed }) => ({
+                    backgroundColor: 'rgba(68,138,255,0.22)',
+                    borderRadius: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    opacity: pressed ? 0.7 : 1,
+                  })}
+                >
+                  <Text style={{ fontFamily: FONTS.semiBold, color: '#90CAF9', fontSize: 13 }}>Accept</Text>
+                </GHPressable>
+              </View>
+            </View>
+          )}
+          {memberCommCircleStatus === 'in_circle' && (
+            <View style={{
+              marginTop: 10,
+              backgroundColor: 'rgba(46,213,115,0.08)',
+              borderRadius: 14,
+              borderWidth: 1,
+              borderColor: 'rgba(46,213,115,0.20)',
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+            }}>
+              <CircleCheck size={15} color="#69F0AE" strokeWidth={2} />
+              <Text style={{ fontFamily: FONTS.medium, color: '#69F0AE', fontSize: 13 }}>You're in this community's circle</Text>
+            </View>
+          )}
 
           {profile?.show_heads !== false && (
           <View style={styles.sectionCard}>

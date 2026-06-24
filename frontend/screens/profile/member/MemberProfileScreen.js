@@ -1850,14 +1850,15 @@ export default function MemberProfileScreen({ navigation }) {
                     navigation.navigate("CreatorFollowers", {
                       creatorId: profile.id,
                       isOwnProfile: true,
-                      initialFollowersCount: crFollowersVal,
+                      initialFollowersCount: crFollowersVal + (polledCounts.followers || 0),
                       initialCircleCount: circlesVal,
                     });
                   }}
                 >
                   <Text style={styles.statNumber}>
                     {Math.max(polledCounts.circles, profile.circle_count || 0) +
-                     Math.max(polledCounts.creatorFollowers, profile.creator_follower_count || 0)}
+                     Math.max(polledCounts.creatorFollowers, profile.creator_follower_count || 0) +
+                     (polledCounts.followers || 0)}
                   </Text>
                   <Text style={styles.statLabel}>Followers</Text>
                 </GHPressable>

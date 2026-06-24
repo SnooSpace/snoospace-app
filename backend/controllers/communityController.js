@@ -887,6 +887,30 @@ async function getPublicCommunity(req, res) {
       isFollowing = isFollowingR.rows.length > 0;
     }
 
+    // Check if the viewed community already follows the viewer back
+    let theyFollowYou = false;
+    if (userType === 'community') {
+      // Community viewer: does targetCommunity follow them in general follows?
+      const tfyR = await pool.query(
+        `SELECT 1 FROM follows
+         WHERE follower_id = $1 AND follower_type = 'community'
+           AND following_id = $2 AND following_type = 'community'
+         LIMIT 1`,
+        [targetId, authUserId]
+      );
+      theyFollowYou = tfyR.rows.length > 0;
+    } else if (userType === 'member') {
+      // Member/creator viewer: does the community follow them via creator_follows?
+      const tfyR = await pool.query(
+        `SELECT 1 FROM creator_follows
+         WHERE follower_id = $1 AND follower_type = 'community'
+           AND creator_id = $2 AND is_dormant = false
+         LIMIT 1`,
+        [targetId, authUserId]
+      );
+      theyFollowYou = tfyR.rows.length > 0;
+    }
+
     // Check if user has blocked this community
     let youHaveBlocked = false;
     if (authUserId) {
@@ -1013,6 +1037,7 @@ async function getPublicCommunity(req, res) {
       events_hosted_count: parseInt(counts.events_hosted_count || 0, 10),
       events_scheduled_count: parseInt(counts.events_scheduled_count || 0, 10),
       is_following: isFollowing,
+      they_follow_you: theyFollowYou,
       sponsor_types:
         typeof profile.sponsor_types === "string"
           ? JSON.parse(profile.sponsor_types)

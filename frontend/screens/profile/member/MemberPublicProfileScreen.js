@@ -25,15 +25,21 @@ import {
   cancelCircleRequest,
   respondToCircleRequest,
   removeFromCircle,
+  followMember,
+  unfollowMember,
   followCreator,
   unfollowCreator,
   getCreatorFollowStatus,
+  sendCommunityCircleInvite,
+  cancelCommunityCircleInvite,
+  getCommunityCircleStatus,
+  removeMemberFromCommunityCircle,
 } from "../../../api/members";
 import { resolveConversation } from "../../../api/messages";
 import { SafeAreaView } from "react-native-safe-area-context";
 import EventBus from "../../../utils/EventBus";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getAuthToken, getAuthEmail } from "../../../api/auth";
+import { getAuthToken, getAuthEmail, getActiveAccount } from "../../../api/auth";
 import { blockUser, unblockUser, likePlan, unlikePlan } from "../../../api/plans";
 import { apiGet, apiPost, apiDelete } from "../../../api/client";
 import CommentsModal from "../../../components/CommentsModal";
@@ -276,9 +282,22 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 
   // Creator follow state (only active when profile.is_creator_mode_enabled = true)
   const [isFollowingCreator, setIsFollowingCreator] = useState(false);
+  const [theyFollowYou, setTheyFollowYou] = useState(false); // profile already follows the viewer
   const [isInCircleWithCreator, setIsInCircleWithCreator] = useState(false);
   const [followActionLoading, setFollowActionLoading] = useState(false);
-  const [creatorFollowerCount, setCreatorFollowerCount] = useState(0);
+  const [creatorFollowerCount, setCreatorFollowerCount] = useState(0); // creator_follows count
+  const [followersCount, setFollowersCount] = useState(0); // general follows (communities, sponsors etc)
+
+  // Viewer account type — determines which CTA block to render
+  const [viewerAccountType, setViewerAccountType] = useState('member'); // 'member' | 'community' | ...
+
+  // Community→Member circle state (only used when viewerAccountType === 'community')
+  const [commCircleStatus, setCommCircleStatus] = useState('none'); // 'none' | 'pending_outgoing' | 'in_circle'
+  const [commCircleInviteId, setCommCircleInviteId] = useState(null);
+  const [commCircleLoading, setCommCircleLoading] = useState(false);
+  // Used when community views a creator profile — tracks if community already follows the creator
+  const [communityIsFollowingCreator, setCommunityIsFollowingCreator] = useState(false);
+  const [communityFollowLoading, setCommunityFollowLoading] = useState(false);
   const [showAllInterests, setShowAllInterests] = useState(false);
   const [showAllPronouns, setShowAllPronouns] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
@@ -353,12 +372,16 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   useEffect(() => {
     async function checkViewerMode() {
       try {
-        const val = await AsyncStorage.getItem("creator_mode_enabled");
-        if (val === "true") {
-          setIsViewerCreator(true);
+        // Detect community viewer for community-circle CTA
+        const account = await getActiveAccount();
+        const accountType = account?.type?.toLowerCase() || 'member';
+        setViewerAccountType(accountType);
+        if (accountType !== 'community') {
+          const val = await AsyncStorage.getItem("creator_mode_enabled");
+          if (val === "true") setIsViewerCreator(true);
         }
       } catch (e) {
-        console.warn("[MemberPublicProfile] Error reading creator_mode_enabled:", e);
+        console.warn("[MemberPublicProfile] Error reading account type:", e);
       }
     }
     checkViewerMode();
@@ -490,8 +513,11 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       setProfile(normalized);
       setCircleCount(p?.circle_count || 0);
       setCreatorFollowerCount(p?.creator_follower_count || 0);
+      setFollowersCount(p?.followers_count || 0); // general follows (communities/sponsors/venues via /follow)
+      setTheyFollowYou(!!p?.they_follow_you);
       setYouHaveBlocked(!!p?.you_have_blocked);
-      return normalized; // ← callers use this to conditionally fetch follow status
+      setCommunityIsFollowingCreator(!!p?.community_is_following_creator);
+      return normalized;
     } catch (e) {
       console.error('[MemberPublicProfile] loadProfile error:', e?.status, e?.message, e?.data);
       if (e?.status === 403 && e?.data?.error === 'user_unavailable') {
@@ -509,6 +535,16 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       setCircleRequestId(res?.request_id || null);
     } catch (e) {
       console.warn('[MemberPublicProfile] loadCircleStatus error:', e);
+    }
+  }, [memberId]);
+
+  const loadCommunityCircleStatus = useCallback(async () => {
+    try {
+      const res = await getCommunityCircleStatus(memberId);
+      setCommCircleStatus(res?.status || 'none');
+      setCommCircleInviteId(res?.invite_id || null);
+    } catch (e) {
+      console.warn('[MemberPublicProfile] loadCommunityCircleStatus error:', e);
     }
   }, [memberId]);
 
@@ -648,8 +684,12 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       loadProfile().then((p) => {
         if (p?.is_creator_mode_enabled) loadCreatorFollowStatus(p);
       });
-      loadCircleStatus();
-    }, [loadProfile, loadCircleStatus, loadCreatorFollowStatus]),
+      if (viewerAccountType === 'community') {
+        loadCommunityCircleStatus();
+      } else {
+        loadCircleStatus();
+      }
+    }, [loadProfile, loadCircleStatus, loadCommunityCircleStatus, loadCreatorFollowStatus, viewerAccountType]),
   );
 
   useEffect(() => {
@@ -659,7 +699,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       (async () => {
         if (!mounted) return;
         setLoading(true);
-        const [profileResult] = await Promise.all([loadProfile(), loadPosts(true), loadCircleStatus()]);
+        const statusLoader = viewerAccountType === 'community' ? loadCommunityCircleStatus() : loadCircleStatus();
+        const [profileResult] = await Promise.all([loadProfile(), loadPosts(true), statusLoader]);
         if (mounted && profileResult?.is_creator_mode_enabled) {
           await Promise.all([
             loadCreatorFollowStatus(profileResult),
@@ -1214,13 +1255,13 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     navigation.navigate('CreatorFollowers', {
                       creatorId: profile?.id,
                       isOwnProfile: false,
-                      initialFollowersCount: creatorFollowerCount,
+                      initialFollowersCount: creatorFollowerCount + followersCount,
                       initialCircleCount: circleCount,
                     });
                   }}
                 >
                   <Text style={styles.statNumber}>
-                    {circleCount + creatorFollowerCount}
+                    {circleCount + creatorFollowerCount + followersCount}
                   </Text>
                   <Text style={styles.statLabel}>Followers</Text>
                 </GHPressable>
@@ -1301,8 +1342,162 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 width: "100%",
               }}
             >
-              {/* ── CTA Block: Creator profile → Follow; Regular → Circle ── */}
-              {circleStatus !== 'self' && (profile?.is_creator_mode_enabled ? (
+              {/* ── CTA Block: Community viewer → Community Circle; Creator → Follow; Regular → Circle ── */}
+              {circleStatus !== 'self' && (viewerAccountType === 'community' ? (
+                // ── COMMUNITY VIEWER ─────────────────────────────────────────────────────
+                profile?.is_creator_mode_enabled ? (
+                  // ── Community viewing a Creator → Follow / Follow Back / Following CTA ─
+                  communityIsFollowingCreator ? (
+                    // Already following — show Following (tappable: unfollow)
+                    <GHPressable
+                      style={({ pressed }) => [circleCTAStyles.inCircleBtn, { flex: 1 }, pressed && { opacity: 0.7 }]}
+                      disabled={communityFollowLoading}
+                      onPress={() => {
+                        showAlert({
+                          title: 'Unfollow Creator?',
+                          message: `Stop following ${profile?.full_name || 'this creator'}?`,
+                          icon: UserMinus,
+                          iconColor: '#E53935',
+                          secondaryAction: { text: 'Keep Following', onPress: hideAlert },
+                          primaryAction: {
+                            text: 'Unfollow',
+                            style: 'destructive',
+                            onPress: async () => {
+                              hideAlert();
+                              setCommunityFollowLoading(true);
+                              try {
+                                // Use general follows API — same reason as follow
+                                await unfollowMember(memberId);
+                                setCommunityIsFollowingCreator(false);
+                                setFollowersCount((c) => Math.max(0, c - 1));
+                                HapticsService.triggerImpactLight();
+                              } catch (e) { loadProfile(); }
+                              finally { setCommunityFollowLoading(false); }
+                            },
+                          },
+                        });
+                      }}
+                    >
+                      <UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                      <Text style={circleCTAStyles.inCircleText}>Following</Text>
+                    </GHPressable>
+                  ) : (
+                    // Not following yet — show Follow or Follow Back
+                    <GradientButton
+                      title={theyFollowYou ? 'Follow Back' : 'Follow'}
+                      colors={theyFollowYou ? ['#1565C0', '#0D47A1'] : ['#448AFF', '#2962FF']}
+                      textStyle={{ fontFamily: FONTS.semiBold, color: '#FFFFFF' }}
+                      style={{ flex: 1, borderRadius: 16, overflow: 'hidden' }}
+                      gradientStyle={{ borderRadius: 16 }}
+                      disabled={communityFollowLoading}
+                      useGHPressable={true}
+                      onPress={async () => {
+                        setCommunityFollowLoading(true);
+                        try {
+                          // Use general follows API — creator_follows.follower_id has a members FK
+                          // that rejects community IDs. followMember routes to the general /follow endpoint.
+                          await followMember(memberId);
+                          setCommunityIsFollowingCreator(true);
+                          setFollowersCount((c) => c + 1); // increments members.follower_count via DB trigger
+                          HapticsService.triggerAddToCircle();
+                        } catch (e) { loadProfile(); }
+                        finally { setCommunityFollowLoading(false); }
+                      }}
+                    >
+                      <UserPlus size={16} color="#fff" strokeWidth={2.5} />
+                    </GradientButton>
+                  )
+                ) : (
+                  // ── Community viewing a regular Member → Community Circle CTA ─────────
+                  commCircleStatus === 'in_circle' ? (
+                    <GHPressable
+                      style={({ pressed }) => [circleCTAStyles.inCircleBtn, { flex: 1 }, pressed && { opacity: 0.7 }]}
+                      disabled={commCircleLoading}
+                      onPress={() => {
+                        showAlert({
+                          title: 'Remove from Circle?',
+                          message: `${profile?.full_name || 'This person'} will be removed from your circle.`,
+                          icon: UserMinus,
+                          iconColor: '#E53935',
+                          secondaryAction: { text: 'Cancel', onPress: hideAlert },
+                          primaryAction: {
+                            text: 'Remove',
+                            style: 'destructive',
+                            onPress: async () => {
+                              hideAlert();
+                              setCommCircleLoading(true);
+                              try {
+                                await removeMemberFromCommunityCircle(memberId);
+                                setCommCircleStatus('none');
+                                setCommCircleInviteId(null);
+                                HapticsService.triggerImpactLight();
+                              } catch (e) { loadCommunityCircleStatus(); }
+                              finally { setCommCircleLoading(false); }
+                            },
+                          },
+                        });
+                      }}
+                    >
+                      <UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                      <Text style={circleCTAStyles.inCircleText}>In Circle</Text>
+                    </GHPressable>
+                  ) : commCircleStatus === 'pending_outgoing' ? (
+                    <GHPressable
+                      style={({ pressed }) => [circleCTAStyles.requestedBtn, { flex: 1 }, pressed && { opacity: 0.7 }]}
+                      disabled={commCircleLoading}
+                      onPress={() => {
+                        showAlert({
+                          title: 'Cancel Invite?',
+                          message: 'Withdraw your circle invite to this member?',
+                          icon: Clock,
+                          iconColor: '#FF9500',
+                          secondaryAction: { text: 'Keep', onPress: hideAlert },
+                          primaryAction: {
+                            text: 'Cancel Invite',
+                            style: 'destructive',
+                            onPress: async () => {
+                              hideAlert();
+                              setCommCircleLoading(true);
+                              try {
+                                await cancelCommunityCircleInvite(commCircleInviteId);
+                                setCommCircleStatus('none');
+                                setCommCircleInviteId(null);
+                                HapticsService.triggerImpactLight();
+                              } catch (e) { loadCommunityCircleStatus(); }
+                              finally { setCommCircleLoading(false); }
+                            },
+                          },
+                        });
+                      }}
+                    >
+                      <Clock size={16} color="#FF9500" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                      <Text style={circleCTAStyles.requestedText}>Invited</Text>
+                    </GHPressable>
+                  ) : (
+                    <GradientButton
+                      title="Add to Circle"
+                      colors={['#448AFF', '#2962FF']}
+                      textStyle={{ fontFamily: FONTS.semiBold, color: '#FFFFFF' }}
+                      style={{ flex: 1, borderRadius: 16, overflow: 'hidden' }}
+                      gradientStyle={{ borderRadius: 16 }}
+                      disabled={commCircleLoading}
+                      useGHPressable={true}
+                      onPress={async () => {
+                        setCommCircleLoading(true);
+                        try {
+                          const res = await sendCommunityCircleInvite(memberId);
+                          setCommCircleStatus('pending_outgoing');
+                          setCommCircleInviteId(res?.invite_id || null);
+                          HapticsService.triggerAddToCircle();
+                        } catch (e) { loadCommunityCircleStatus(); }
+                        finally { setCommCircleLoading(false); }
+                      }}
+                    >
+                      <UserPlus size={16} color="#fff" strokeWidth={2.5} />
+                    </GradientButton>
+                  )
+                )
+              ) : profile?.is_creator_mode_enabled ? (
                 // ── CREATOR PROFILE CTA ──────────────────────────────────────
                 isInCircleWithCreator ? (
                   // In circle with creator — tappable: offers Remove or Remove+Unfollow
@@ -1409,7 +1604,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   >
                     {isFollowingCreator
                       ? <><UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} /><Text style={circleCTAStyles.inCircleText}>Following</Text></>
-                      : <><UserPlus size={16} color="#fff" strokeWidth={2.5} style={{ marginRight: 6 }} /><Text style={{ fontFamily: FONTS.semiBold, color: '#fff', fontSize: 15 }}>Follow</Text></>}
+                      : <><UserPlus size={16} color="#fff" strokeWidth={2.5} style={{ marginRight: 6 }} /><Text style={{ fontFamily: FONTS.semiBold, color: '#fff', fontSize: 15 }}>{theyFollowYou ? 'Follow Back' : 'Follow'}</Text></>}
                   </GHPressable>
                 )
               ) : (

@@ -123,6 +123,44 @@ export async function getPublicCircleMembers(userId, { page = 1, limit = 20, sea
   return apiGet(`/circles/${userId}/members?${params.toString()}`, 15000, token);
 }
 
+// ─── Community→Member Circle API ─────────────────────────────────────────────
+
+/** Community sends a circle invite to a member. */
+export async function sendCommunityCircleInvite(memberId) {
+  const token = await getAuthToken();
+  return apiPost("/community-circles/invites", { member_id: memberId }, 15000, token);
+}
+
+/** Community cancels a pending circle invite. */
+export async function cancelCommunityCircleInvite(inviteId) {
+  const token = await getAuthToken();
+  return apiDelete(`/community-circles/invites/${inviteId}`, null, 15000, token);
+}
+
+/** Member accepts or declines a community circle invite. */
+export async function respondToCommunityCircleInvite(inviteId, status) {
+  const token = await getAuthToken();
+  return apiPatch(`/community-circles/invites/${inviteId}`, { status }, 15000, token);
+}
+
+/** Get community→member circle status (call as community). Returns: none | pending_outgoing | in_circle */
+export async function getCommunityCircleStatus(memberId) {
+  const token = await getAuthToken();
+  return apiGet(`/community-circles/status/${memberId}`, 10000, token);
+}
+
+/** Get community→member circle status (call as member). Returns: none | pending_invite | in_circle */
+export async function getMemberCommunityCircleStatus(communityId) {
+  const token = await getAuthToken();
+  return apiGet(`/community-circles/member-status/${communityId}`, 10000, token);
+}
+
+/** Community removes a member from its circle. */
+export async function removeMemberFromCommunityCircle(memberId) {
+  const token = await getAuthToken();
+  return apiDelete(`/community-circles/${memberId}`, null, 15000, token);
+}
+
 export async function updateMemberProfile(updates, token) {
   if (!token) token = await getAuthToken();
   return apiPatch("/members/profile", updates, 15000, token);

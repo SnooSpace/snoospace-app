@@ -526,6 +526,33 @@ async function getPublicMember(req, res) {
       isFollowing = isFollowingR.rows.length > 0;
     }
 
+    // Check if the target member/creator already follows the viewer back
+    // AND if the viewing community already follows this creator
+    let theyFollowYou = false;
+    let communityIsFollowingCreator = false;
+    if (userType === 'community') {
+      // theyFollowYou: does the member/creator follow this community? (via follows table)
+      const tfyR = await pool.query(
+        `SELECT 1 FROM follows
+         WHERE follower_id = $1 AND follower_type = 'member'
+           AND following_id = $2 AND following_type = 'community'
+         LIMIT 1`,
+        [targetId, authUserId]
+      );
+      theyFollowYou = tfyR.rows.length > 0;
+
+      // communityIsFollowingCreator: does the viewing community follow this member via the general follows table?
+      // (community→member follows go through the follows table since creator_follows.follower_id is a members FK)
+      const cfR = await pool.query(
+        `SELECT 1 FROM follows
+         WHERE follower_id = $1 AND follower_type = 'community'
+           AND following_id = $2 AND following_type = 'member'
+         LIMIT 1`,
+        [authUserId, targetId]
+      );
+      communityIsFollowingCreator = cfR.rows.length > 0;
+    }
+
 
     let responseData = {
       id: profile.id,
@@ -542,6 +569,8 @@ async function getPublicMember(req, res) {
       circle_count: parseInt(profile.circle_count || 0, 10),
       creator_follower_count: parseInt(profile.creator_follower_count || 0, 10),
       is_following: isFollowing,
+      they_follow_you: theyFollowYou,
+      community_is_following_creator: communityIsFollowingCreator,
       you_have_blocked: youHaveBlocked,
       is_creator_mode_enabled: !!profile.is_creator_mode_enabled,
       interests:

@@ -156,84 +156,103 @@ async function getCreatorFollowers(req, res) {
     const search = req.query.search || "";
     const offset = (page - 1) * limit;
 
-    let whereClause = `cf.creator_id = $1 AND cf.is_dormant = false AND cf.is_superseded_by_circle = false`;
-    if (type === "notable") {
-      whereClause += ` AND cf.follower_type IN ('community', 'page')`;
-    }
+    // ── Source A: creator_follows (members who used the creator-follow flow) ──
+    let cfWhere = `cf.creator_id = $1 AND cf.is_dormant = false AND cf.is_superseded_by_circle = false`;
+    if (type === "notable") cfWhere += ` AND cf.follower_type IN ('community', 'page')`;
 
-    const params = [creatorId, limit, offset];
-    if (search) {
-      whereClause += ` AND (m.name ILIKE $4 OR m.username ILIKE $4 OR c.name ILIKE $4)`;
-      params.push(`%${search}%`);
-    }
+    // ── Source B: follows table (communities/sponsors/venues via POST /follow) ──
+    // Exclude member-type since members use creator_follows, not this path.
+    let fWhere = `f.following_id = $1 AND f.following_type = 'member' AND f.follower_type != 'member'`;
+    if (type === "notable") fWhere += ` AND f.follower_type IN ('community', 'page', 'sponsor', 'venue')`;
 
-    let countWhereClause = `cf.creator_id = $1 AND cf.is_dormant = false AND cf.is_superseded_by_circle = false`;
-    if (type === "notable") {
-      countWhereClause += ` AND cf.follower_type IN ('community', 'page')`;
-    }
+    const searchParam = search ? `%${search}%` : null;
+    const searchClauseA = search ? ` AND (m.name ILIKE $2 OR m.username ILIKE $2 OR cm.name ILIKE $2)` : "";
+    const searchClauseB = search ? ` AND (cm2.name ILIKE $2 OR sp.brand_name ILIKE $2 OR v.name ILIKE $2)` : "";
 
-    const countParams = [creatorId];
-    if (search) {
-      countWhereClause += ` AND (m.name ILIKE $2 OR m.username ILIKE $2 OR c.name ILIKE $2)`;
-      countParams.push(`%${search}%`);
-    }
+    const baseParams = searchParam ? [creatorId, searchParam] : [creatorId];
 
-    // Order: notable followers first, then members by most recent
-    const orderClause =
-      type === "notable"
-        ? `cf.created_at DESC`
-        : `(cf.follower_type != 'member') DESC, cf.created_at DESC`;
+    const unionQuery = `
+      WITH combined AS (
+        -- Branch A: creator_follows rows (members + legacy community rows)
+        SELECT
+          cf.follower_id,
+          cf.follower_type,
+          cf.created_at,
+          CASE
+            WHEN cf.follower_type = 'member'    THEN m.name
+            WHEN cf.follower_type = 'community' THEN cm.name
+            ELSE NULL
+          END AS name,
+          CASE
+            WHEN cf.follower_type = 'member'    THEN m.username
+            WHEN cf.follower_type = 'community' THEN cm.username
+            ELSE NULL
+          END AS username,
+          CASE
+            WHEN cf.follower_type = 'member'    THEN m.profile_photo_url
+            WHEN cf.follower_type = 'community' THEN cm.logo_url
+            ELSE NULL
+          END AS avatar_url
+        FROM creator_follows cf
+        LEFT JOIN members      m  ON m.id  = cf.follower_id AND cf.follower_type = 'member'
+        LEFT JOIN communities cm  ON cm.id = cf.follower_id AND cf.follower_type = 'community'
+        WHERE ${cfWhere}${searchClauseA}
 
-    // Join members for member-type followers, communities for community-type followers
-    // We use a union-style query via CASE to get the right name/avatar
-    const query = `
-      SELECT
-        cf.follower_id,
-        cf.follower_type,
-        cf.created_at,
-        CASE
-          WHEN cf.follower_type = 'member'
-            THEN m.name
-          WHEN cf.follower_type = 'community'
-            THEN c.name
-          ELSE NULL
-        END AS name,
-        CASE
-          WHEN cf.follower_type = 'member'
-            THEN m.username
-          ELSE NULL
-        END AS username,
-        CASE
-          WHEN cf.follower_type = 'member'
-            THEN m.profile_photo_url
-          WHEN cf.follower_type = 'community'
-            THEN c.logo_url
-          ELSE NULL
-        END AS avatar_url
-      FROM creator_follows cf
-      LEFT JOIN members m
-        ON m.id = cf.follower_id AND cf.follower_type = 'member'
-      LEFT JOIN communities c
-        ON c.id = cf.follower_id AND cf.follower_type = 'community'
-      WHERE ${whereClause}
-      ORDER BY ${orderClause}
-      LIMIT $2 OFFSET $3
+        UNION ALL
+
+        -- Branch B: general follows rows (community/sponsor/venue via POST /follow)
+        SELECT
+          f.follower_id,
+          f.follower_type,
+          f.created_at,
+          CASE
+            WHEN f.follower_type = 'community' THEN cm2.name
+            WHEN f.follower_type = 'sponsor'   THEN sp.brand_name
+            WHEN f.follower_type = 'venue'     THEN v.name
+            ELSE NULL
+          END AS name,
+          CASE
+            WHEN f.follower_type = 'community' THEN cm2.username
+            WHEN f.follower_type = 'sponsor'   THEN sp.username
+            ELSE NULL
+          END AS username,
+          CASE
+            WHEN f.follower_type = 'community' THEN cm2.logo_url
+            WHEN f.follower_type = 'sponsor'   THEN sp.logo_url
+            WHEN f.follower_type = 'venue'     THEN v.logo_url
+            ELSE NULL
+          END AS avatar_url
+        FROM follows f
+        LEFT JOIN communities cm2 ON cm2.id = f.follower_id AND f.follower_type = 'community'
+        LEFT JOIN sponsors    sp   ON sp.id  = f.follower_id AND f.follower_type = 'sponsor'
+        LEFT JOIN venues      v    ON v.id   = f.follower_id AND f.follower_type = 'venue'
+        WHERE ${fWhere}${searchClauseB}
+      )
+      SELECT * FROM combined
+      ORDER BY (follower_type != 'member') DESC, created_at DESC
+      LIMIT $${baseParams.length + 1} OFFSET $${baseParams.length + 2}
     `;
 
     const countQuery = `
-      SELECT COUNT(*) AS total
-      FROM creator_follows cf
-      LEFT JOIN members m
-        ON m.id = cf.follower_id AND cf.follower_type = 'member'
-      LEFT JOIN communities c
-        ON c.id = cf.follower_id AND cf.follower_type = 'community'
-      WHERE ${countWhereClause}
+      SELECT (
+        SELECT COUNT(*) FROM creator_follows cf
+        LEFT JOIN members      m  ON m.id  = cf.follower_id AND cf.follower_type = 'member'
+        LEFT JOIN communities cm  ON cm.id = cf.follower_id AND cf.follower_type = 'community'
+        WHERE ${cfWhere}${searchClauseA}
+      ) + (
+        SELECT COUNT(*) FROM follows f
+        LEFT JOIN communities cm2 ON cm2.id = f.follower_id AND f.follower_type = 'community'
+        LEFT JOIN sponsors    sp   ON sp.id  = f.follower_id AND f.follower_type = 'sponsor'
+        LEFT JOIN venues      v    ON v.id   = f.follower_id AND f.follower_type = 'venue'
+        WHERE ${fWhere}${searchClauseB}
+      ) AS total
     `;
 
+    const queryParams = [...baseParams, limit, offset];
 
     const [followersResult, countResult] = await Promise.all([
-      pool.query(query, params),
-      pool.query(countQuery, countParams),
+      pool.query(unionQuery, queryParams),
+      pool.query(countQuery, baseParams),
     ]);
 
     const total = parseInt(countResult.rows[0]?.total || 0, 10);
