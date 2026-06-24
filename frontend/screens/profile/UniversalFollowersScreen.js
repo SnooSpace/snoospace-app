@@ -1,9 +1,10 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   getMemberFollowers,
   followMember,
   unfollowMember,
   getFollowStatusForMember,
+  getCircleMembers,
 } from "../../api/members";
 import {
   getCommunityFollowers,
@@ -48,6 +49,33 @@ export default function UniversalFollowersScreen({ route, navigation }) {
   const userType = route?.params?.userType || "member";
   const title = route?.params?.title || "Followers";
 
+  // Viewer info — used to suppress Follow button when community views member followers
+  const [viewerType, setViewerType] = useState(null);
+
+  // Circle ID set — pre-seeded when viewer is a member so we can mark 'In Circle' items
+  const circleIdSetRef = useRef(new Set());
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getActiveAccount } = await import("../../api/auth");
+        const acc = await getActiveAccount();
+        if (acc?.type) {
+          setViewerType(acc.type);
+          // Pre-load circle IDs so the follower list can show 'In Circle' instead of 'Follow'
+          if (acc.type === 'member') {
+            try {
+              const circleRes = await getCircleMembers({ page: 1, limit: 200 });
+              const members = circleRes?.members || circleRes?.circle || [];
+              const ids = new Set(members.map((m) => String(m.id || m.member_id)));
+              circleIdSetRef.current = ids;
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    })();
+  }, []);
+
   const fetchFollowersPage = useCallback(
     async ({ offset, limit, search }) => {
       const fetchFn = API_MAP[userType];
@@ -82,14 +110,20 @@ export default function UniversalFollowersScreen({ route, navigation }) {
         },
       );
 
-      // Filter out duplicates based on ID
+      // Filter out duplicates and mark items already in viewer's circle
       const seen = new Set();
-      const unique = normalizedList.filter((item) => {
-        const id = String(item.id);
-        if (seen.has(id)) return false;
-        seen.add(id);
-        return true;
-      });
+      const unique = normalizedList
+        .filter((item) => {
+          const id = String(item.id);
+          if (seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        })
+        .map((item) => ({
+          ...item,
+          // Mark members already in the viewer's circle to show 'In Circle' badge
+          inCircle: item.type === 'member' && circleIdSetRef.current.has(String(item.id)),
+        }));
 
       return {
         items: unique,
@@ -133,32 +167,10 @@ export default function UniversalFollowersScreen({ route, navigation }) {
   );
 
   const handleItemPress = useCallback(
-    (item, myId) => {
+    (item) => {
       const entityType = (item.type || "member").toLowerCase();
-
-      // Check if it's the current user's own profile
-      const currentId =
-        typeof myId === "object" ? String(myId?.id) : String(myId);
-      const currentType =
-        (typeof myId === "object" ? myId?.type : "member")?.toLowerCase() ||
-        "member";
-      const itemId = String(item.id);
-
-      if (itemId === currentId && entityType === currentType) {
-        const root = navigation.getParent()?.getParent();
-        if (entityType === "community") {
-          if (root) {
-            root.navigate("Profile");
-          }
-        } else {
-          if (root) {
-            root.navigate("MemberHome", { screen: "Profile" });
-          }
-        }
-        return;
-      }
-
-      // Navigate based on entity type
+      // Always navigate to the public profile screen — it handles own-profile correctly
+      // via circleStatus='self'. Avoid getParent().getParent() which breaks from deep contexts.
       if (entityType === "community") {
         navigation.navigate("CommunityPublicProfile", { communityId: item.id });
       } else {
@@ -178,6 +190,7 @@ export default function UniversalFollowersScreen({ route, navigation }) {
       resolveMyId={resolveMyId}
       onToggleFollow={handleToggleFollow}
       onItemPress={handleItemPress}
+      viewerType={viewerType}
       emptyMessage="If someone follows you, you'll be able to see them here"
       primaryColor={primaryColor}
     />

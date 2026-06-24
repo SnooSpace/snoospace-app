@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   getMemberFollowing,
   followMember,
@@ -39,6 +39,18 @@ export default function UniversalFollowingScreen({ route, navigation }) {
     route?.params?.communityId;
   const userType = route?.params?.userType || "member";
   const title = route?.params?.title || "Following";
+
+  // Viewer info — used to suppress Follow button when community views member following entries
+  const [viewerType, setViewerType] = useState(null);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { getActiveAccount } = await import("../../api/auth");
+        const acc = await getActiveAccount();
+        if (acc?.type) setViewerType(acc.type);
+      } catch (_) {}
+    })();
+  }, []);
 
   const fetchFollowingPage = useCallback(
     async ({ offset, limit, search }) => {
@@ -133,32 +145,9 @@ export default function UniversalFollowingScreen({ route, navigation }) {
   );
 
   const handleItemPress = useCallback(
-    (item, myId) => {
+    (item) => {
       const entityType = (item.type || "member").toLowerCase();
-
-      // Check if it's the current user's own profile
-      const currentId =
-        typeof myId === "object" ? String(myId?.id) : String(myId);
-      const currentType =
-        (typeof myId === "object" ? myId?.type : "member")?.toLowerCase() ||
-        "member";
-      const itemId = String(item.id);
-
-      if (itemId === currentId && entityType === currentType) {
-        const root = navigation.getParent()?.getParent();
-        if (entityType === "community") {
-          if (root) {
-            root.navigate("Profile");
-          }
-        } else {
-          if (root) {
-            root.navigate("MemberHome", { screen: "Profile" });
-          }
-        }
-        return;
-      }
-
-      // Navigate based on entity type
+      // Always navigate to public profile — it handles own-profile correctly.
       if (entityType === "community") {
         navigation.navigate("CommunityPublicProfile", { communityId: item.id });
       } else {
@@ -178,8 +167,9 @@ export default function UniversalFollowingScreen({ route, navigation }) {
       resolveMyId={resolveMyId}
       onToggleFollow={handleToggleFollow}
       onItemPress={handleItemPress}
+      viewerType={viewerType}
       emptyMessage="You're not following anyone yet"
-      removeOnUnfollow={true} // For following list, remove items when unfollowed
+      removeOnUnfollow={true}
       primaryColor={primaryColor}
     />
   );

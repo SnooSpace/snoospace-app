@@ -42,6 +42,11 @@ import {
   removeCreatorFollower,
   removeFromCircle,
 } from "../../../api/members";
+import {
+  followCommunity,
+  unfollowCommunity,
+  getFollowStatusForCommunity,
+} from "../../../api/communities";
 import hapticsService from "../../../services/HapticsService";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import EventBus from "../../../utils/EventBus";
@@ -79,7 +84,7 @@ function Avatar({ uri, name, size = 44 }) {
 
 // ── Person Row ────────────────────────────────────────────────────────────────
 
-function PersonRow({ item, isOwnProfile, circleState, circleLoading, onAddToCircle, onRemoveFromCircle, onRemoveFollower, onPress }) {
+function PersonRow({ item, isOwnProfile, circleState, circleLoading, onAddToCircle, onRemoveFromCircle, onRemoveFollower, onPress, followBackState, followBackLoading: fbLoading, onFollowBack }) {
   return (
     <View style={styles.row}>
       <TouchableOpacity
@@ -98,6 +103,33 @@ function PersonRow({ item, isOwnProfile, circleState, circleLoading, onAddToCirc
       </TouchableOpacity>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {/* Follow Back action — only for community followers on own profile */}
+        {isOwnProfile && item.follower_type === "community" && (
+          <TouchableOpacity
+            style={[
+              styles.ctaBtn,
+              followBackState === true
+                ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+            ]}
+            onPress={() => onFollowBack && onFollowBack(item)}
+            disabled={fbLoading || followBackState === null}
+            activeOpacity={0.75}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            {fbLoading ? (
+              <ActivityIndicator size="small" color={followBackState === true ? '#2962FF' : '#fff'} style={{ width: 60 }} />
+            ) : (
+              <Text style={[
+                styles.ctaTextDefault,
+                followBackState === true && { color: '#2962FF' },
+              ]}>
+                {followBackState === true ? 'Following' : 'Follow Back'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
+
         {/* Add/Remove Circle CTA — only on own profile, for member followers */}
         {isOwnProfile && item.follower_type === "member" && (
           <TouchableOpacity
@@ -185,6 +217,10 @@ export default function CreatorFollowersScreen({ route, navigation }) {
   const [circleStates, setCircleStates] = useState({});
   const [circleActionLoading, setCircleActionLoading] = useState({});
 
+  // Per-follower Follow Back state (for community-type followers)
+  const [followBackStates, setFollowBackStates] = useState({});
+  const [followBackLoadingMap, setFollowBackLoadingMap] = useState({});
+
   // Alert modal state
   const [alertConfig, setAlertConfig] = useState({ visible: false });
   const showAlert = useCallback((cfg) => setAlertConfig({ ...cfg, visible: true }), []);
@@ -222,6 +258,26 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         });
         if (Object.keys(preSeeded).length > 0) {
           setCircleStates((prev) => ({ ...prev, ...preSeeded }));
+        }
+      }
+
+      // Pre-seed Follow Back states for community-type followers
+      const communityRows = rows.filter((f) => f.follower_type === 'community');
+      if (communityRows.length > 0 && page === 1) {
+        const checks = await Promise.allSettled(
+          communityRows.map(async (f) => {
+            const status = await getFollowStatusForCommunity(f.id);
+            return { id: f.id, isFollowing: !!status?.isFollowing };
+          })
+        );
+        const states = {};
+        checks.forEach((r) => {
+          if (r.status === 'fulfilled') {
+            states[r.value.id] = r.value.isFollowing;
+          }
+        });
+        if (Object.keys(states).length > 0) {
+          setFollowBackStates((prev) => ({ ...prev, ...states }));
         }
       }
     } catch (e) {
@@ -509,6 +565,30 @@ export default function CreatorFollowersScreen({ route, navigation }) {
     }
   }, [navigation]);
 
+  // ── Follow Back (community followers) ────────────────────────────────────
+
+  const handleFollowBack = useCallback(async (item) => {
+    const communityId = item.id;
+    const isFollowing = followBackStates[communityId];
+    hapticsService.triggerImpactMedium();
+    setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: true }));
+    // Optimistic update
+    setFollowBackStates((prev) => ({ ...prev, [communityId]: !isFollowing }));
+    try {
+      if (isFollowing) {
+        await unfollowCommunity(communityId);
+      } else {
+        await followCommunity(communityId);
+      }
+    } catch (e) {
+      console.warn('[CreatorFollowers] handleFollowBack error:', e);
+      // Revert on failure
+      setFollowBackStates((prev) => ({ ...prev, [communityId]: isFollowing }));
+    } finally {
+      setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: false }));
+    }
+  }, [followBackStates]);
+
   // ── Render helpers ────────────────────────────────────────────────────────
 
   const renderFollowerItem = useCallback(({ item }) => {
@@ -523,9 +603,12 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         onRemoveFromCircle={handleRemoveCircleMember}
         onRemoveFollower={handleRemoveFollower}
         onPress={() => navigateTo(item)}
+        followBackState={followBackStates[item.id]}
+        followBackLoading={!!followBackLoadingMap[item.id]}
+        onFollowBack={handleFollowBack}
       />
     );
-  }, [isOwnProfile, circleStates, circleActionLoading, handleAddToCircle, handleRemoveCircleMember, handleRemoveFollower, navigateTo, hiddenFollowerIds]);
+  }, [isOwnProfile, circleStates, circleActionLoading, handleAddToCircle, handleRemoveCircleMember, handleRemoveFollower, navigateTo, hiddenFollowerIds, followBackStates, followBackLoadingMap, handleFollowBack]);
 
   const renderCircleItem = useCallback(({ item }) => {
     const memberId = String(item.member_id || item.id);

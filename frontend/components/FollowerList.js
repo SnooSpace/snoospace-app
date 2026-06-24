@@ -34,7 +34,8 @@ export default function FollowerList({
   onToggleFollow,
   onItemPress,
   emptyMessage,
-  removeOnUnfollow = false, // New prop to remove items from list when unfollowed
+  removeOnUnfollow = false,
+  viewerType = null,        // e.g. 'community' — used to suppress Follow for member items
   primaryColor = DEFAULT_PRIMARY,
   placeholderImage = "https://via.placeholder.com/64",
 }) {
@@ -204,37 +205,54 @@ export default function FollowerList({
   );
 
   const renderItem = useCallback(
-    ({ item }) => (
-      <View style={styles.row}>
-        <GHPressable
-          style={styles.userInfo}
-          onPress={() => onItemPress && onItemPress(item, myId?.id)}
-        >
-          <Image
-            source={{ uri: item.avatarUrl || placeholderImage }}
-            style={styles.avatar}
-            cachePolicy="memory-disk"
-            contentFit="cover"
-          />
-          <View style={styles.meta}>
-            <Text style={styles.name} numberOfLines={1}>
-              {item.name || "Member"}
-            </Text>
-            {!!item.username && (
-              <Text style={styles.username} numberOfLines={1}>
-                @{item.username}
+    ({ item }) => {
+      // Community viewers cannot follow member-type items (they add to circle instead)
+      const canFollow =
+        onToggleFollow &&
+        !(viewerType === 'community' && (item.type || 'member') === 'member');
+
+      // Items already in the viewer's circle show an 'In Circle' badge instead of Follow
+      const inCircle = !!item.inCircle;
+
+      const isSelf =
+        myId &&
+        String(myId.id) === String(item.id) &&
+        (myId.type || "member").toLowerCase() ===
+          (item.type || "member").toLowerCase();
+
+      return (
+        <View style={styles.row}>
+          <GHPressable
+            style={styles.userInfo}
+            onPress={() => onItemPress && onItemPress(item, myId?.id)}
+          >
+            <Image
+              source={{ uri: item.avatarUrl || placeholderImage }}
+              style={styles.avatar}
+              cachePolicy="memory-disk"
+              contentFit="cover"
+            />
+            <View style={styles.meta}>
+              <Text style={styles.name} numberOfLines={1}>
+                {item.name || "Member"}
               </Text>
-            )}
-          </View>
-        </GHPressable>
-        {/* Hide follow button if this item is the current user (comparing both ID and type) */}
-        {!(
-          myId &&
-          String(myId.id) === String(item.id) &&
-          (myId.type || "member").toLowerCase() ===
-            (item.type || "member").toLowerCase()
-        ) &&
-          onToggleFollow && (
+              {!!item.username && (
+                <Text style={styles.username} numberOfLines={1}>
+                  @{item.username}
+                </Text>
+              )}
+            </View>
+          </GHPressable>
+
+          {/* In Circle badge — member is already in viewer's circle */}
+          {inCircle && (
+            <View style={[styles.followBtn, styles.inCircleBtn]}>
+              <Text style={[styles.followText, { color: '#5856D6' }]}>In Circle</Text>
+            </View>
+          )}
+
+          {/* Follow / Following chip — hidden for self, circle members, and community→member */}
+          {!isSelf && !inCircle && canFollow && (
             <GHPressable
               style={[
                 styles.followBtn,
@@ -268,8 +286,9 @@ export default function FollowerList({
               </Text>
             </GHPressable>
           )}
-      </View>
-    ),
+        </View>
+      );
+    },
     [
       handleToggleFollow,
       myId,
@@ -277,6 +296,7 @@ export default function FollowerList({
       onToggleFollow,
       placeholderImage,
       primaryColor,
+      viewerType,
     ],
   );
 
@@ -379,6 +399,7 @@ FollowerList.propTypes = {
   onToggleFollow: PropTypes.func,
   onItemPress: PropTypes.func,
   emptyMessage: PropTypes.string,
+  viewerType: PropTypes.string,
   primaryColor: PropTypes.string,
   placeholderImage: PropTypes.string,
 };
@@ -454,6 +475,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E5EA",
   },
+  inCircleBtn: {
+    backgroundColor: 'rgba(88, 86, 214, 0.08)',
+    borderColor: 'rgba(88, 86, 214, 0.2)',
+  },
   followText: {
     fontSize: 12,
     fontWeight: "500",
@@ -510,6 +535,7 @@ FollowerList.propTypes = {
   onToggleFollow: PropTypes.func,
   onItemPress: PropTypes.func,
   emptyMessage: PropTypes.string,
+  viewerType: PropTypes.string,
   primaryColor: PropTypes.string,
   placeholderImage: PropTypes.string,
 };

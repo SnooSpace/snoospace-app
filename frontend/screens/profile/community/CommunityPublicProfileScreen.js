@@ -1372,24 +1372,10 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     HapticsService.triggerImpactLight();
 
     const navigateToProfile = (memberId) => {
-      const isOwnProfile = currentUserId && memberId === currentUserId;
-      if (isOwnProfile) {
-        const root = navigation.getParent()?.getParent();
-        if (root) {
-          root.navigate("MemberHome", {
-            screen: "Profile",
-            params: {
-              screen: "MemberProfile",
-            },
-          });
-        } else {
-          navigation.navigate("MemberProfile");
-        }
-      } else {
-        navigation.navigate("MemberPublicProfile", {
-          memberId: memberId,
-        });
-      }
+      // Always navigate to MemberPublicProfile — it shows the correct self-view
+      // (circleStatus = 'self') when the viewer is the profile owner.
+      // Using getParent().getParent() is fragile and breaks from deep navigation contexts.
+      navigation.navigate("MemberPublicProfile", { memberId });
     };
 
     // If ONLY profile is available and no other details, directly navigate
@@ -2549,24 +2535,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   onPress={() => {
                     setContactModalVisible(false);
                     const memberId = selectedHeadForContact.member_id;
-                    const isOwnProfile = currentUserId && memberId === currentUserId;
-                    if (isOwnProfile) {
-                      const root = navigation.getParent()?.getParent();
-                      if (root) {
-                        root.navigate("MemberHome", {
-                          screen: "Profile",
-                          params: {
-                            screen: "MemberProfile",
-                          },
-                        });
-                      } else {
-                        navigation.navigate("MemberProfile");
-                      }
-                    } else {
-                      navigation.navigate("MemberPublicProfile", {
-                        memberId: memberId,
-                      });
-                    }
+                    // Always use MemberPublicProfile (handles self-view via circleStatus='self')
+                    navigation.navigate("MemberPublicProfile", { memberId });
                   }}
                 >
                   <View style={[styles.contactIconWrapper, { backgroundColor: "rgba(41, 98, 255, 0.08)" }]}>
