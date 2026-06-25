@@ -843,6 +843,14 @@ export default function CommunityFollowersScreen({ route, navigation }) {
   );
 
   const isFollowersTab = activeTab === "followers";
+  
+  const displayedFollowersTotal = followerSearch.trim() !== ""
+    ? followers.filter((f) => circleStates[f.id] !== "in_circle").length
+    : Math.max(0, followersTotal - circleTotal);
+
+  const displayedCircleTotal = circleSearch.trim() !== ""
+    ? circleMembers.length
+    : circleTotal;
 
   return (
     <>
@@ -867,7 +875,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
             onPress={() => handleTabPress("followers")}
           >
             <Text style={[styles.tabText, isFollowersTab && styles.tabTextActive]}>
-              Followers{followersTotal > 0 ? ` • ${followersTotal}` : ""}
+              Followers{displayedFollowersTotal > 0 ? ` • ${displayedFollowersTotal}` : ""}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -875,7 +883,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
             onPress={() => handleTabPress("circle")}
           >
             <Text style={[styles.tabText, !isFollowersTab && styles.tabTextActive]}>
-              Circle{circleTotal > 0 ? ` • ${circleTotal}` : ""}
+              Circle{displayedCircleTotal > 0 ? ` • ${displayedCircleTotal}` : ""}
             </Text>
           </TouchableOpacity>
         </View>
