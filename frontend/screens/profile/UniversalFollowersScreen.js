@@ -104,20 +104,25 @@ export default function UniversalFollowersScreen({ route, navigation }) {
       ]);
 
       const raw = data?.results || data?.followers || data?.items || data || [];
-      const baseList = raw.map((entry) => ({
-        id: entry.follower_id || entry.id,
-        name: entry.follower_name || entry.full_name || entry.name,
-        username: entry.follower_username || entry.username,
-        avatarUrl: entry.follower_photo_url || entry.profile_photo_url,
-        type: entry.follower_type || "member",
-        isFollowing:
-          typeof entry.is_following === "boolean"
-            ? entry.is_following
-            : entry.you_follow_them,
-        isCreator: !!entry.is_creator || !!entry.is_creator_mode_enabled,
-        is_creator: !!entry.is_creator || !!entry.is_creator_mode_enabled,
-        is_creator_mode_enabled: !!entry.is_creator || !!entry.is_creator_mode_enabled,
-      }));
+      const baseList = raw.map((entry) => {
+        let isFollowing = false;
+        if (entry.is_following !== undefined && entry.is_following !== null) {
+          isFollowing = !!entry.is_following;
+        } else if (entry.you_follow_them !== undefined && entry.you_follow_them !== null) {
+          isFollowing = !!entry.you_follow_them;
+        }
+        return {
+          id: entry.follower_id || entry.id,
+          name: entry.follower_name || entry.full_name || entry.name,
+          username: entry.follower_username || entry.username,
+          avatarUrl: entry.follower_photo_url || entry.profile_photo_url,
+          type: entry.follower_type || "member",
+          isFollowing,
+          isCreator: !!entry.is_creator || !!entry.is_creator_mode_enabled,
+          is_creator: !!entry.is_creator || !!entry.is_creator_mode_enabled,
+          is_creator_mode_enabled: !!entry.is_creator || !!entry.is_creator_mode_enabled,
+        };
+      });
 
       // Check follow status based on entity type
       const normalizedList = await ensureFollowStatus(

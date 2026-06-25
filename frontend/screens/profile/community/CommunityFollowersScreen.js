@@ -225,6 +225,33 @@ function PersonRow({
             )}
           </TouchableOpacity>
         )}
+
+        {/* 2b. VIEWING PUBLIC COMMUNITY PROFILE AS A MEMBER OR COMMUNITY -> FOLLOW BUTTON FOR CREATORS/COMMUNITIES */}
+        {!isOwnProfile && (viewerType === "member" || viewerType === "community") && String(item.id) !== String(myId) && (itemType === "community" || item.isCreator || item.is_creator || item.is_creator_mode_enabled) && (
+          <TouchableOpacity
+            style={[
+              styles.ctaBtn,
+              followBackState === true
+                ? styles.ctaBtnInCircle
+                : styles.ctaBtnDefault
+            ]}
+            onPress={() => onFollowBack && onFollowBack(item)}
+            disabled={followBackLoading || followBackState === null}
+            activeOpacity={0.75}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            {followBackLoading ? (
+              <ActivityIndicator size="small" color={followBackState === true ? "#2962FF" : "#fff"} style={{ width: 60 }} />
+            ) : (
+              <Text style={[
+                styles.ctaTextDefault,
+                followBackState === true && { color: "#2962FF" },
+              ]}>
+                {followBackState === true ? 'Following' : 'Follow'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -386,19 +413,32 @@ export default function CommunityFollowersScreen({ route, navigation }) {
           setCircleStates((prev) => ({ ...prev, ...preSeededCircle }));
         }
 
-        if (vt === "member") {
-          // Pre-seed member-to-member circle status for member rows
-          const preSeededMemberCircle = {};
-          await Promise.all(
-            normalizedRows.map(async (row) => {
-              if (row.type === "member" && String(row.id) !== String(mid)) {
+        // Fetch follow status for creators/communities and circle status for member rows
+        const preSeededFollowBack = {};
+        const preSeededMemberCircle = {};
+
+        await Promise.all(
+          normalizedRows.map(async (row) => {
+            const isCreator = row.isCreator || row.is_creator || row.is_creator_mode_enabled;
+            if (row.type === "community") {
+              const status = await getFollowStatusForCommunity(row.id).catch(() => null);
+              preSeededFollowBack[row.id] = !!status?.isFollowing;
+            } else if (row.type === "member") {
+              if (isCreator) {
+                const status = await getFollowStatusForMember(row.id).catch(() => null);
+                preSeededFollowBack[row.id] = !!status?.isFollowing;
+              } else if (vt === "member" && String(row.id) !== String(mid)) {
                 const status = await getCircleStatus(row.id).catch(() => null);
                 if (status?.status) {
                   preSeededMemberCircle[row.id] = status.status;
                 }
               }
-            })
-          );
+            }
+          })
+        );
+
+        setFollowBackStates((prev) => ({ ...prev, ...preSeededFollowBack }));
+        if (vt === "member") {
           setMemberCircleStates((prev) => ({ ...prev, ...preSeededMemberCircle }));
         }
       }
@@ -419,6 +459,9 @@ export default function CommunityFollowersScreen({ route, navigation }) {
         avatar_url: r.avatar_url || r.profile_photo_url,
         type: "member",
         created_at: r.connected_since,
+        isCreator: !!r.is_creator_mode_enabled || !!r.is_creator || !!r.isCreator,
+        is_creator: !!r.is_creator_mode_enabled || !!r.is_creator || !!r.isCreator,
+        is_creator_mode_enabled: !!r.is_creator_mode_enabled || !!r.is_creator || !!r.isCreator,
       }));
 
       if (page === 1) {
@@ -430,12 +473,18 @@ export default function CommunityFollowersScreen({ route, navigation }) {
       setCirclePage(page);
       setCircleHasMore(normalizedRows.length === 20);
 
-      // Pre-seed member-to-member circle status for Circle tab members
-      if (!isOwnProfile && vt === "member") {
+      // Pre-seed follow states for creators and circle status for regular members
+      if (!isOwnProfile) {
+        const preSeededFollowBack = {};
         const preSeededMemberCircle = {};
+
         await Promise.all(
           normalizedRows.map(async (row) => {
-            if (String(row.id) !== String(mid)) {
+            const isCreator = row.isCreator || row.is_creator || row.is_creator_mode_enabled;
+            if (isCreator) {
+              const status = await getFollowStatusForMember(row.id).catch(() => null);
+              preSeededFollowBack[row.id] = !!status?.isFollowing;
+            } else if (vt === "member" && String(row.id) !== String(mid)) {
               const status = await getCircleStatus(row.id).catch(() => null);
               if (status?.status) {
                 preSeededMemberCircle[row.id] = status.status;
@@ -443,7 +492,11 @@ export default function CommunityFollowersScreen({ route, navigation }) {
             }
           })
         );
-        setMemberCircleStates((prev) => ({ ...prev, ...preSeededMemberCircle }));
+
+        setFollowBackStates((prev) => ({ ...prev, ...preSeededFollowBack }));
+        if (vt === "member") {
+          setMemberCircleStates((prev) => ({ ...prev, ...preSeededMemberCircle }));
+        }
       }
     } catch (e) {
       console.warn("[CommunityFollowers] loadCircle error:", e);

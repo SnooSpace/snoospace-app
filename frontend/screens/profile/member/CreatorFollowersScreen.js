@@ -41,12 +41,17 @@ import {
   sendCircleRequest,
   removeCreatorFollower,
   removeFromCircle,
+  getFollowStatusForMember,
+  getCircleStatus,
+  followMember,
+  unfollowMember,
 } from "../../../api/members";
 import {
   followCommunity,
   unfollowCommunity,
   getFollowStatusForCommunity,
 } from "../../../api/communities";
+import { getActiveAccount } from "../../../api/auth";
 import hapticsService from "../../../services/HapticsService";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import EventBus from "../../../utils/EventBus";
@@ -84,7 +89,26 @@ function Avatar({ uri, name, size = 44 }) {
 
 // ── Person Row ────────────────────────────────────────────────────────────────
 
-function PersonRow({ item, isOwnProfile, circleState, circleLoading, onAddToCircle, onRemoveFromCircle, onRemoveFollower, onPress, followBackState, followBackLoading: fbLoading, onFollowBack }) {
+function PersonRow({
+  item,
+  isOwnProfile,
+  viewerType,
+  myId,
+  circleState,
+  circleLoading,
+  onAddToCircle,
+  onRemoveFromCircle,
+  onRemoveFollower,
+  onPress,
+  followBackState,
+  followBackLoading: fbLoading,
+  onFollowBack,
+  memberToMemberCircleState,
+  onMemberCircleRequest,
+}) {
+  const itemType = item.type || item.follower_type || "member";
+  const isMemberRow = itemType === "member";
+
   return (
     <View style={styles.row}>
       <TouchableOpacity
@@ -103,14 +127,124 @@ function PersonRow({ item, isOwnProfile, circleState, circleLoading, onAddToCirc
       </TouchableOpacity>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        {/* Follow Back action — only for community followers on own profile */}
-        {isOwnProfile && item.follower_type === "community" && (
+        {/* 1. VIEWING OWN CREATOR PROFILE */}
+        {isOwnProfile && (
+          <>
+            {/* Follow Back action — only for community followers on own profile */}
+            {itemType === "community" && (
+              <TouchableOpacity
+                style={[
+                  styles.ctaBtn,
+                  followBackState === true
+                    ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                    : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+                ]}
+                onPress={() => onFollowBack && onFollowBack(item)}
+                disabled={fbLoading || followBackState === null}
+                activeOpacity={0.75}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                {fbLoading ? (
+                  <ActivityIndicator size="small" color={followBackState === true ? '#2962FF' : '#fff'} style={{ width: 60 }} />
+                ) : (
+                  <Text style={[
+                    styles.ctaTextDefault,
+                    followBackState === true && { color: '#2962FF' },
+                  ]}>
+                    {followBackState === true ? 'Following' : 'Follow Back'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            )}
+
+            {/* Add/Remove Circle CTA — only on own profile, for member followers */}
+            {isMemberRow && (
+              <TouchableOpacity
+                style={[
+                  styles.ctaBtn,
+                  circleState === "in_circle"
+                    ? styles.ctaBtnRemove
+                    : circleState === "requested"
+                    ? styles.ctaBtnRequested
+                    : styles.ctaBtnDefault
+                ]}
+                onPress={() => {
+                  if (circleState === "in_circle") {
+                    onRemoveFromCircle(item);
+                  } else {
+                    onAddToCircle(item.id);
+                  }
+                }}
+                disabled={circleLoading || circleState === "requested"}
+                activeOpacity={0.75}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                {circleLoading ? (
+                  <ActivityIndicator size="small" color={COLORS.textSecondary} style={{ width: 60 }} />
+                ) : circleState === "in_circle" ? (
+                  <Text style={styles.ctaTextRemove}>Remove</Text>
+                ) : circleState === "requested" ? (
+                  <Text style={styles.ctaTextRequested}>Requested</Text>
+                ) : (
+                  <Text style={styles.ctaTextDefault}>Add</Text>
+                )}
+              </TouchableOpacity>
+            )}
+
+            {/* Remove follower button — only on own profile and when not in circle */}
+            {isMemberRow && onRemoveFollower && circleState !== "in_circle" && (
+              <TouchableOpacity
+                style={styles.removeBtn}
+                onPress={() => onRemoveFollower(item)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                activeOpacity={0.7}
+              >
+                <X size={15} color={COLORS.textSecondary} strokeWidth={2} />
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+
+        {/* 2. VIEWING PUBLIC CREATOR PROFILE AS A MEMBER -> CIRCLE BUTTON FOR REGULAR MEMBERS */}
+        {!isOwnProfile && viewerType === "member" && isMemberRow && String(item.id) !== String(myId) && !item.is_creator && !item.isCreator && !item.is_creator_mode_enabled && (
+          <TouchableOpacity
+            style={[
+              styles.ctaBtn,
+              memberToMemberCircleState === "in_circle"
+                ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                : memberToMemberCircleState === "pending_outgoing"
+                ? { backgroundColor: 'rgba(255,149,0,0.1)', borderColor: 'rgba(255,149,0,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+            ]}
+            onPress={() => {
+              if (memberToMemberCircleState === "none") {
+                onMemberCircleRequest(item.id);
+              }
+            }}
+            disabled={circleLoading || memberToMemberCircleState !== "none"}
+            activeOpacity={0.75}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            {circleLoading ? (
+              <ActivityIndicator size="small" color={memberToMemberCircleState === "in_circle" ? "#2962FF" : memberToMemberCircleState === "pending_outgoing" ? "#FF9500" : "#fff"} style={{ width: 60 }} />
+            ) : memberToMemberCircleState === "in_circle" ? (
+              <Text style={[styles.ctaTextInCircle, { color: '#2962FF' }]}>In Circle</Text>
+            ) : memberToMemberCircleState === "pending_outgoing" ? (
+              <Text style={[styles.ctaTextRequested, { color: '#FF9500' }]}>Requested</Text>
+            ) : (
+              <Text style={[styles.ctaTextDefault, { color: '#fff' }]}>Add</Text>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {/* 2b. VIEWING PUBLIC CREATOR PROFILE AS A MEMBER OR COMMUNITY -> FOLLOW BUTTON FOR CREATORS/COMMUNITIES */}
+        {!isOwnProfile && (viewerType === "member" || viewerType === "community") && String(item.id) !== String(myId) && (itemType === "community" || item.isCreator || item.is_creator || item.is_creator_mode_enabled) && (
           <TouchableOpacity
             style={[
               styles.ctaBtn,
               followBackState === true
                 ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
-                : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+                : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
             ]}
             onPress={() => onFollowBack && onFollowBack(item)}
             disabled={fbLoading || followBackState === null}
@@ -118,61 +252,15 @@ function PersonRow({ item, isOwnProfile, circleState, circleLoading, onAddToCirc
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             {fbLoading ? (
-              <ActivityIndicator size="small" color={followBackState === true ? '#2962FF' : '#fff'} style={{ width: 60 }} />
+              <ActivityIndicator size="small" color={followBackState === true ? "#2962FF" : "#fff"} style={{ width: 60 }} />
             ) : (
               <Text style={[
                 styles.ctaTextDefault,
-                followBackState === true && { color: '#2962FF' },
+                followBackState === true ? { color: "#2962FF" } : { color: "#fff" },
               ]}>
-                {followBackState === true ? 'Following' : 'Follow Back'}
+                {followBackState === true ? 'Following' : 'Follow'}
               </Text>
             )}
-          </TouchableOpacity>
-        )}
-
-        {/* Add/Remove Circle CTA — only on own profile, for member followers */}
-        {isOwnProfile && item.follower_type === "member" && (
-          <TouchableOpacity
-            style={[
-              styles.ctaBtn,
-              circleState === "in_circle"
-                ? styles.ctaBtnRemove
-                : circleState === "requested"
-                ? styles.ctaBtnRequested
-                : styles.ctaBtnDefault
-            ]}
-            onPress={() => {
-              if (circleState === "in_circle") {
-                onRemoveFromCircle(item);
-              } else {
-                onAddToCircle(item.id);
-              }
-            }}
-            disabled={circleLoading || circleState === "requested"}
-            activeOpacity={0.75}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            {circleLoading ? (
-              <ActivityIndicator size="small" color={COLORS.textSecondary} style={{ width: 60 }} />
-            ) : circleState === "in_circle" ? (
-              <Text style={styles.ctaTextRemove}>Remove</Text>
-            ) : circleState === "requested" ? (
-              <Text style={styles.ctaTextRequested}>Requested</Text>
-            ) : (
-              <Text style={styles.ctaTextDefault}>Add</Text>
-            )}
-          </TouchableOpacity>
-        )}
-
-        {/* Remove follower button — only on own profile */}
-        {isOwnProfile && item.follower_type === "member" && (
-          <TouchableOpacity
-            style={styles.removeBtn}
-            onPress={() => onRemoveFollower(item)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            activeOpacity={0.7}
-          >
-            <X size={15} color={COLORS.textSecondary} strokeWidth={2} />
           </TouchableOpacity>
         )}
       </View>
@@ -221,6 +309,12 @@ export default function CreatorFollowersScreen({ route, navigation }) {
   const [followBackStates, setFollowBackStates] = useState({});
   const [followBackLoadingMap, setFollowBackLoadingMap] = useState({});
 
+  // Current viewer details and public profile relationship states
+  const [viewerType, setViewerType] = useState(null);
+  const [myId, setMyId] = useState(null);
+  const [memberCircleStates, setMemberCircleStates] = useState({});
+  const [memberCircleLoadingMap, setMemberCircleLoadingMap] = useState({});
+
   // Alert modal state
   const [alertConfig, setAlertConfig] = useState({ visible: false });
   const showAlert = useCallback((cfg) => setAlertConfig({ ...cfg, visible: true }), []);
@@ -235,94 +329,199 @@ export default function CreatorFollowersScreen({ route, navigation }) {
 
   // ── Data fetching ─────────────────────────────────────────────────────────
 
-  const loadFollowers = useCallback(async (page = 1, search = "", circleIdSet = null) => {
+  const loadFollowers = useCallback(async (page = 1, search = "", circleIdSet = null, vt = viewerType, mid = myId) => {
     try {
       const res = await getCreatorFollowers(creatorId, { page, limit: 20, type: "all", search });
       const rows = res?.followers || [];
+      const normalizedRows = rows.map((f) => ({
+        id: f.id,
+        name: f.name || "Unknown",
+        username: f.username,
+        avatar_url: f.avatar_url,
+        type: f.follower_type || "member",
+        created_at: f.created_at,
+        isCreator: !!f.is_creator,
+        is_creator: !!f.is_creator,
+        is_creator_mode_enabled: !!f.is_creator,
+      }));
+
       if (page === 1) {
-        setFollowers(rows);
+        setFollowers(normalizedRows);
       } else {
-        setFollowers((prev) => [...prev, ...rows]);
+        setFollowers((prev) => [...prev, ...normalizedRows]);
       }
-      setFollowersTotal(res?.total ?? (page === 1 ? rows.length : followersTotal));
+      setFollowersTotal(res?.total ?? (page === 1 ? normalizedRows.length : followersTotal));
       setFollowerPage(page);
       setFollowerHasMore(!!res?.hasMore);
 
       // Pre-seed circleStates for followers already in circle
+      const preSeededCircle = {};
       if (circleIdSet) {
-        const preSeeded = {};
-        rows.forEach((f) => {
-          if (f.follower_type === 'member' && circleIdSet.has(String(f.id))) {
-            preSeeded[f.id] = 'in_circle';
+        normalizedRows.forEach((f) => {
+          if (f.type === 'member' && circleIdSet.has(String(f.id))) {
+            preSeededCircle[f.id] = 'in_circle';
           }
         });
-        if (Object.keys(preSeeded).length > 0) {
-          setCircleStates((prev) => ({ ...prev, ...preSeeded }));
-        }
       }
 
-      // Pre-seed Follow Back states for community-type followers
-      const communityRows = rows.filter((f) => f.follower_type === 'community');
-      if (communityRows.length > 0 && page === 1) {
-        const checks = await Promise.allSettled(
-          communityRows.map(async (f) => {
-            const status = await getFollowStatusForCommunity(f.id);
-            return { id: f.id, isFollowing: !!status?.isFollowing };
+      if (isOwnProfile) {
+        // Pre-seed Follow Back states for community-type followers on own profile
+        const communityRows = normalizedRows.filter((f) => f.type === 'community');
+        const preSeededFollowBack = {};
+        if (communityRows.length > 0) {
+          const checks = await Promise.allSettled(
+            communityRows.map(async (f) => {
+              const status = await getFollowStatusForCommunity(f.id);
+              return { id: f.id, isFollowing: !!status?.isFollowing };
+            })
+          );
+          checks.forEach((r) => {
+            if (r.status === 'fulfilled') {
+              preSeededFollowBack[r.value.id] = r.value.isFollowing;
+            }
+          });
+        }
+        
+        if (Object.keys(preSeededCircle).length > 0) {
+          setCircleStates((prev) => ({ ...prev, ...preSeededCircle }));
+        }
+        if (Object.keys(preSeededFollowBack).length > 0) {
+          setFollowBackStates((prev) => ({ ...prev, ...preSeededFollowBack }));
+        }
+      } else {
+        // Viewing public profile
+        if (Object.keys(preSeededCircle).length > 0) {
+          setCircleStates((prev) => ({ ...prev, ...preSeededCircle }));
+        }
+
+        const preSeededFollowBack = {};
+        const preSeededMemberCircle = {};
+
+        await Promise.all(
+          normalizedRows.map(async (row) => {
+            const isCreator = row.isCreator || row.is_creator || row.is_creator_mode_enabled;
+            if (row.type === "community") {
+              const status = await getFollowStatusForCommunity(row.id).catch(() => null);
+              preSeededFollowBack[row.id] = !!status?.isFollowing;
+            } else if (row.type === "member") {
+              if (isCreator) {
+                const status = await getFollowStatusForMember(row.id).catch(() => null);
+                preSeededFollowBack[row.id] = !!status?.isFollowing;
+              } else if (vt === "member" && String(row.id) !== String(mid)) {
+                const status = await getCircleStatus(row.id).catch(() => null);
+                if (status?.status) {
+                  preSeededMemberCircle[row.id] = status.status;
+                }
+              }
+            }
           })
         );
-        const states = {};
-        checks.forEach((r) => {
-          if (r.status === 'fulfilled') {
-            states[r.value.id] = r.value.isFollowing;
-          }
-        });
-        if (Object.keys(states).length > 0) {
-          setFollowBackStates((prev) => ({ ...prev, ...states }));
+
+        if (Object.keys(preSeededFollowBack).length > 0) {
+          setFollowBackStates((prev) => ({ ...prev, ...preSeededFollowBack }));
+        }
+        if (vt === "member" && Object.keys(preSeededMemberCircle).length > 0) {
+          setMemberCircleStates((prev) => ({ ...prev, ...preSeededMemberCircle }));
         }
       }
     } catch (e) {
       console.warn("[CreatorFollowers] loadFollowers error:", e);
     }
-  }, [creatorId]);
+  }, [creatorId, isOwnProfile, viewerType, myId, followersTotal]);
 
-  const loadCircle = useCallback(async (page = 1, search = "") => {
+  const loadCircle = useCallback(async (page = 1, search = "", vt = viewerType, mid = myId) => {
     try {
       // Read-only circle members for a given member (works for own + public profiles)
       const res = await getPublicCircleMembers(creatorId, { page, limit: 20, search });
       const rows = res?.members || [];
+      const normalizedRows = rows.map((r) => ({
+        id: r.member_id || r.id,
+        name: r.name,
+        username: r.username,
+        avatar_url: r.profile_photo_url || r.avatar_url,
+        type: "member",
+        created_at: r.connected_since,
+        isCreator: !!r.is_creator_mode_enabled || !!r.is_creator || !!r.isCreator,
+        is_creator: !!r.is_creator_mode_enabled || !!r.is_creator || !!r.isCreator,
+        is_creator_mode_enabled: !!r.is_creator_mode_enabled || !!r.is_creator || !!r.isCreator,
+      }));
+
       if (page === 1) {
-        setCircleMembers(rows);
+        setCircleMembers(normalizedRows);
       } else {
-        setCircleMembers((prev) => [...prev, ...rows]);
+        setCircleMembers((prev) => [...prev, ...normalizedRows]);
       }
-      // endpoint returns no total — use rows.length for page 1, accumulate for subsequent pages
-      if (page === 1) setCircleTotal(rows.length);
+      if (page === 1) setCircleTotal(normalizedRows.length);
       setCirclePage(page);
-      // no hasMore from this endpoint — stop after first empty page
-      setCircleHasMore(rows.length === 20);
+      setCircleHasMore(normalizedRows.length === 20);
+
+      // Pre-seed follow states for creators and circle status for regular members in circle tab
+      if (!isOwnProfile) {
+        const preSeededFollowBack = {};
+        const preSeededMemberCircle = {};
+
+        await Promise.all(
+          normalizedRows.map(async (row) => {
+            const isCreator = row.isCreator || row.is_creator || row.is_creator_mode_enabled;
+            if (isCreator) {
+              const status = await getFollowStatusForMember(row.id).catch(() => null);
+              preSeededFollowBack[row.id] = !!status?.isFollowing;
+            } else if (vt === "member" && String(row.id) !== String(mid)) {
+              const status = await getCircleStatus(row.id).catch(() => null);
+              if (status?.status) {
+                preSeededMemberCircle[row.id] = status.status;
+              }
+            }
+          })
+        );
+
+        if (Object.keys(preSeededFollowBack).length > 0) {
+          setFollowBackStates((prev) => ({ ...prev, ...preSeededFollowBack }));
+        }
+        if (vt === "member" && Object.keys(preSeededMemberCircle).length > 0) {
+          setMemberCircleStates((prev) => ({ ...prev, ...preSeededMemberCircle }));
+        }
+      }
     } catch (e) {
       console.warn("[CreatorFollowers] loadCircle error:", e);
     }
-  }, [creatorId]);
+  }, [creatorId, isOwnProfile, viewerType, myId]);
 
-  // Initial load: fetch followers + circle members in parallel (on own profile)
+  // Initial load: resolve viewer, then fetch followers + circle members in parallel (on own profile)
   // so we can pre-seed circleStates for followers already in circle
   useEffect(() => {
-    setFollowerLoading(true);
-    if (isOwnProfile) {
-      // Fetch up to 200 circle member IDs to cross-reference against followers
-      getPublicCircleMembers(creatorId, { page: 1, limit: 200 })
-        .then((circleRes) => {
+    (async () => {
+      let resolvedViewerType = null;
+      let resolvedMyId = null;
+      try {
+        const { getActiveAccount } = await import("../../../api/auth");
+        const acc = await getActiveAccount();
+        if (acc) {
+          resolvedViewerType = acc.type?.toLowerCase();
+          resolvedMyId = acc.id;
+          setViewerType(resolvedViewerType);
+          setMyId(resolvedMyId);
+        }
+      } catch (_) {}
+
+      setFollowerLoading(true);
+      if (isOwnProfile) {
+        // Fetch up to 200 circle member IDs to cross-reference against followers
+        try {
+          const circleRes = await getPublicCircleMembers(creatorId, { page: 1, limit: 200 });
           const members = circleRes?.members || [];
           const idSet = new Set(members.map((m) => String(m.member_id || m.id)));
-          return loadFollowers(1, "", idSet);
-        })
-        .catch(() => loadFollowers(1, "", null))
-        .finally(() => setFollowerLoading(false));
-    } else {
-      loadFollowers(1, "").finally(() => setFollowerLoading(false));
-    }
-  }, [loadFollowers]);
+          await loadFollowers(1, "", idSet, resolvedViewerType, resolvedMyId);
+        } catch (_) {
+          await loadFollowers(1, "", null, resolvedViewerType, resolvedMyId);
+        } finally {
+          setFollowerLoading(false);
+        }
+      } else {
+        await loadFollowers(1, "", null, resolvedViewerType, resolvedMyId).finally(() => setFollowerLoading(false));
+      }
+    })();
+  }, [loadFollowers, creatorId, isOwnProfile]);
 
   // Reload on screen re-focus (e.g. returning from PublicProfile after follow/unfollow)
   const hasMountedRef = useRef(false);
@@ -343,18 +542,18 @@ export default function CreatorFollowersScreen({ route, navigation }) {
           .then((circleRes) => {
             const members = circleRes?.members || [];
             const idSet = new Set(members.map((m) => String(m.member_id || m.id)));
-            return loadFollowers(1, followerSearch, idSet);
+            return loadFollowers(1, followerSearch, idSet, viewerType, myId);
           })
-          .catch(() => loadFollowers(1, followerSearch, null))
+          .catch(() => loadFollowers(1, followerSearch, null, viewerType, myId))
           .finally(() => setFollowerLoading(false));
       } else {
-        loadFollowers(1, followerSearch).finally(() => setFollowerLoading(false));
+        loadFollowers(1, followerSearch, null, viewerType, myId).finally(() => setFollowerLoading(false));
       }
       // Reload circle tab if it was ever opened
       if (circleFetchedRef.current) {
-        loadCircle(1, circleSearch);
+        loadCircle(1, circleSearch, viewerType, myId);
       }
-    }, [loadFollowers, loadCircle, followerSearch, circleSearch, isOwnProfile, creatorId])
+    }, [loadFollowers, loadCircle, followerSearch, circleSearch, isOwnProfile, creatorId, viewerType, myId])
   );
 
   // Lazy load circle tab on first open
@@ -364,9 +563,9 @@ export default function CreatorFollowersScreen({ route, navigation }) {
     if (tab === "circle" && !circleFetchedRef.current) {
       circleFetchedRef.current = true;
       setCircleLoading(true);
-      loadCircle(1, "").finally(() => setCircleLoading(false));
+      loadCircle(1, "", viewerType, myId).finally(() => setCircleLoading(false));
     }
-  }, [loadCircle]);
+  }, [loadCircle, viewerType, myId]);
 
   // Pull-to-refresh — re-fetch circle IDs on own profile to re-seed states
   const onRefresh = useCallback(async () => {
@@ -379,56 +578,56 @@ export default function CreatorFollowersScreen({ route, navigation }) {
           const circleRes = await getPublicCircleMembers(creatorId, { page: 1, limit: 200 });
           const members = circleRes?.members || [];
           const idSet = new Set(members.map((m) => String(m.member_id || m.id)));
-          await loadFollowers(1, activeSearch, idSet);
+          await loadFollowers(1, activeSearch, idSet, viewerType, myId);
         } catch {
-          await loadFollowers(1, activeSearch, null);
+          await loadFollowers(1, activeSearch, null, viewerType, myId);
         }
       } else {
-        await loadFollowers(1, activeSearch);
+        await loadFollowers(1, activeSearch, null, viewerType, myId);
       }
     } else {
-      await loadCircle(1, activeSearch);
+      await loadCircle(1, activeSearch, viewerType, myId);
     }
     setRefreshing(false);
-  }, [activeTab, followerSearch, circleSearch, loadFollowers, loadCircle, isOwnProfile, creatorId]);
+  }, [activeTab, followerSearch, circleSearch, loadFollowers, loadCircle, isOwnProfile, creatorId, viewerType, myId]);
 
   // Load more followers
   const loadMoreFollowers = useCallback(async () => {
     if (!followerHasMore || followerLoadingMoreRef.current) return;
     followerLoadingMoreRef.current = true;
     setFollowerLoadingMore(true);
-    await loadFollowers(followerPage + 1, followerSearch);
+    await loadFollowers(followerPage + 1, followerSearch, null, viewerType, myId);
     followerLoadingMoreRef.current = false;
     setFollowerLoadingMore(false);
-  }, [followerHasMore, followerPage, followerSearch, loadFollowers]);
+  }, [followerHasMore, followerPage, followerSearch, loadFollowers, viewerType, myId]);
 
   // Load more circle
   const loadMoreCircle = useCallback(async () => {
     if (!circleHasMore || circleLoadingMoreRef.current) return;
     circleLoadingMoreRef.current = true;
     setCircleLoadingMore(true);
-    await loadCircle(circlePage + 1, circleSearch);
+    await loadCircle(circlePage + 1, circleSearch, viewerType, myId);
     circleLoadingMoreRef.current = false;
     setCircleLoadingMore(false);
-  }, [circleHasMore, circlePage, circleSearch, loadCircle]);
+  }, [circleHasMore, circlePage, circleSearch, loadCircle, viewerType, myId]);
 
   // Search handlers (debounced via useEffect)
   useEffect(() => {
     const t = setTimeout(() => {
       setFollowerLoading(true);
-      loadFollowers(1, followerSearch).finally(() => setFollowerLoading(false));
+      loadFollowers(1, followerSearch, null, viewerType, myId).finally(() => setFollowerLoading(false));
     }, 350);
     return () => clearTimeout(t);
-  }, [followerSearch]); // eslint-disable-line
+  }, [followerSearch, viewerType, myId]); // eslint-disable-line
 
   useEffect(() => {
     if (!circleFetchedRef.current) return;
     const t = setTimeout(() => {
       setCircleLoading(true);
-      loadCircle(1, circleSearch).finally(() => setCircleLoading(false));
+      loadCircle(1, circleSearch, viewerType, myId).finally(() => setCircleLoading(false));
     }, 350);
     return () => clearTimeout(t);
-  }, [circleSearch]); // eslint-disable-line
+  }, [circleSearch, viewerType, myId]); // eslint-disable-line
 
   // ── Add to Circle ─────────────────────────────────────────────────────────
 
@@ -606,16 +805,34 @@ export default function CreatorFollowersScreen({ route, navigation }) {
     }
   }, [followBackStates]);
 
+  // Member-to-Member circle connection from public view
+  const handleMemberCircleRequest = useCallback(async (targetId) => {
+    hapticsService.triggerImpactMedium();
+    setMemberCircleLoadingMap((prev) => ({ ...prev, [targetId]: true }));
+    setMemberCircleStates((prev) => ({ ...prev, [targetId]: "pending_outgoing" }));
+    try {
+      await sendCircleRequest(targetId);
+    } catch (e) {
+      console.warn('[CreatorFollowers] sendCircleRequest failed:', e);
+      setMemberCircleStates((prev) => ({ ...prev, [targetId]: "none" }));
+    } finally {
+      setMemberCircleLoadingMap((prev) => ({ ...prev, [targetId]: false }));
+    }
+  }, []);
+
   // ── Render helpers ────────────────────────────────────────────────────────
 
   const renderFollowerItem = useCallback(({ item }) => {
     if (hiddenFollowerIds.has(String(item.id))) return null;
+    const circleLoading = !!circleActionLoading[item.id] || !!memberCircleLoadingMap[item.id];
     return (
       <PersonRow
         item={item}
         isOwnProfile={isOwnProfile}
+        viewerType={viewerType}
+        myId={myId}
         circleState={circleStates[item.id] || "none"}
-        circleLoading={!!circleActionLoading[item.id]}
+        circleLoading={circleLoading}
         onAddToCircle={handleAddToCircle}
         onRemoveFromCircle={handleRemoveCircleMember}
         onRemoveFollower={handleRemoveFollower}
@@ -623,42 +840,34 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         followBackState={followBackStates[item.id]}
         followBackLoading={!!followBackLoadingMap[item.id]}
         onFollowBack={handleFollowBack}
+        memberToMemberCircleState={memberCircleStates[item.id] || "none"}
+        onMemberCircleRequest={handleMemberCircleRequest}
       />
     );
-  }, [isOwnProfile, circleStates, circleActionLoading, handleAddToCircle, handleRemoveCircleMember, handleRemoveFollower, navigateTo, hiddenFollowerIds, followBackStates, followBackLoadingMap, handleFollowBack]);
+  }, [isOwnProfile, viewerType, myId, circleStates, circleActionLoading, memberCircleLoadingMap, handleAddToCircle, handleRemoveCircleMember, handleRemoveFollower, navigateTo, hiddenFollowerIds, followBackStates, followBackLoadingMap, handleFollowBack, memberCircleStates, handleMemberCircleRequest]);
 
   const renderCircleItem = useCallback(({ item }) => {
     const memberId = String(item.member_id || item.id);
     if (hiddenCircleMemberIds.has(memberId)) return null;
+    const circleLoading = !!circleActionLoading[item.id] || !!memberCircleLoadingMap[item.id];
     return (
-      <View style={styles.row}>
-        <TouchableOpacity
-          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}
-          onPress={() => navigation.push("MemberPublicProfile", { memberId })}
-          activeOpacity={0.78}
-        >
-          <Avatar uri={item.profile_photo_url || item.avatar_url} name={item.name} />
-          <View style={styles.rowBody}>
-            <Text style={styles.rowName} numberOfLines={1}>{item.name || item.full_name || "Member"}</Text>
-            {(item.username) ? (
-              <Text style={styles.rowUsername} numberOfLines={1}>@{item.username}</Text>
-            ) : null}
-          </View>
-        </TouchableOpacity>
-        {/* Remove from Circle button — only on own profile */}
-        {isOwnProfile && (
-          <TouchableOpacity
-            style={styles.removeBtn}
-            onPress={() => handleRemoveCircleMember(item)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            activeOpacity={0.7}
-          >
-            <UserMinus size={16} color={COLORS.textSecondary} strokeWidth={2} />
-          </TouchableOpacity>
-        )}
-      </View>
+      <PersonRow
+        item={item}
+        isOwnProfile={isOwnProfile}
+        viewerType={viewerType}
+        myId={myId}
+        circleState="in_circle"
+        circleLoading={circleLoading}
+        onRemoveFromCircle={handleRemoveCircleMember}
+        onPress={() => navigateTo(item)}
+        followBackState={followBackStates[item.id]}
+        followBackLoading={!!followBackLoadingMap[item.id]}
+        onFollowBack={handleFollowBack}
+        memberToMemberCircleState={memberCircleStates[item.id] || "none"}
+        onMemberCircleRequest={handleMemberCircleRequest}
+      />
     );
-  }, [navigation, isOwnProfile, handleRemoveCircleMember, hiddenCircleMemberIds]);
+  }, [isOwnProfile, viewerType, myId, circleActionLoading, memberCircleLoadingMap, handleRemoveCircleMember, navigateTo, hiddenCircleMemberIds, followBackStates, followBackLoadingMap, handleFollowBack, memberCircleStates, handleMemberCircleRequest]);
 
   const renderEmpty = (label) => (
     <View style={styles.emptyState}>

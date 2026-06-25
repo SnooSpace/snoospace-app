@@ -210,13 +210,13 @@ export default function FollowerList({
 
   const renderItem = useCallback(
     ({ item }) => {
-      // Community viewers cannot follow member-type items (they add to circle instead)
-      // Member viewers also cannot Follow other members — they Add to Circle
       const itemType = item.type || 'member';
+      // A viewer (member or community) can follow communities, sponsors, venues, or creators.
+      // They can only follow regular members if they are already following them (legacy/compatibility).
+      const isTargetCreator = !!(item.isCreator || item.is_creator || item.is_creator_mode_enabled);
       const canFollow =
         onToggleFollow &&
-        (!(viewerType === 'community' && itemType === 'member') || item.isFollowing) &&
-        (!(viewerType === 'member' && itemType === 'member') || item.isFollowing);
+        (itemType !== 'member' || isTargetCreator || item.isFollowing);
 
       // Member viewer can Add a member-type non-circle item to their circle
       const canAdd =

@@ -192,7 +192,11 @@ async function getCreatorFollowers(req, res) {
             WHEN cf.follower_type = 'member'    THEN m.profile_photo_url
             WHEN cf.follower_type = 'community' THEN cm.logo_url
             ELSE NULL
-          END AS avatar_url
+          END AS avatar_url,
+          CASE
+            WHEN cf.follower_type = 'member' THEN m.is_creator_mode_enabled
+            ELSE false
+          END AS is_creator
         FROM creator_follows cf
         LEFT JOIN members      m  ON m.id  = cf.follower_id AND cf.follower_type = 'member'
         LEFT JOIN communities cm  ON cm.id = cf.follower_id AND cf.follower_type = 'community'
@@ -221,7 +225,8 @@ async function getCreatorFollowers(req, res) {
             WHEN f.follower_type = 'sponsor'   THEN sp.logo_url
             WHEN f.follower_type = 'venue'     THEN v.logo_url
             ELSE NULL
-          END AS avatar_url
+          END AS avatar_url,
+          false AS is_creator
         FROM follows f
         LEFT JOIN communities cm2 ON cm2.id = f.follower_id AND f.follower_type = 'community'
         LEFT JOIN sponsors    sp   ON sp.id  = f.follower_id AND f.follower_type = 'sponsor'
@@ -264,6 +269,7 @@ async function getCreatorFollowers(req, res) {
       avatar_url: row.avatar_url || null,
       created_at: row.created_at,
       is_notable: row.follower_type !== "member",
+      is_creator: !!row.is_creator,
     }));
 
     return res.json({

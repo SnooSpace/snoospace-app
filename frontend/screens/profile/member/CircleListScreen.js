@@ -9,7 +9,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Search, Users, Bell, X, UserMinus, TriangleAlert, CircleCheck } from 'lucide-react-native';
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, FadeInDown } from 'react-native-reanimated';
 import { COLORS, FONTS, BORDER_RADIUS, SPACING } from '../../../constants/theme';
-import { getCircleMembers, removeFromCircle, getIncomingCircleRequestCount, getPublicCircleMembers } from '../../../api/members';
+import { 
+  getCircleMembers, 
+  removeFromCircle, 
+  getIncomingCircleRequestCount, 
+  getPublicCircleMembers,
+  getFollowStatusForMember,
+  getCircleStatus,
+  sendCircleRequest,
+  followMember,
+  unfollowMember
+} from '../../../api/members';
 import CustomAlertModal from '../../../components/ui/CustomAlertModal';
 import HapticsService from '../../../services/HapticsService';
 import EventBus from '../../../utils/EventBus';
@@ -18,9 +28,25 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ─────────────────────────────────────────────────────────
 // Single circle member row
 // ─────────────────────────────────────────────────────────
-const CircleMemberRow = React.memo(({ item, onPress, onRemove, readOnly }) => {
+const CircleMemberRow = React.memo(({ 
+  item, 
+  onPress, 
+  onRemove, 
+  readOnly,
+  viewerType,
+  myId,
+  followState,
+  followLoading,
+  onFollow,
+  circleState,
+  circleLoading,
+  onCircleRequest,
+}) => {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  const isCreator = !!(item.isCreator || item.is_creator || item.is_creator_mode_enabled);
+  const isSelf = myId && String(myId) === String(item.member_id || item.id);
 
   return (
     <Reanimated.View entering={FadeInDown.duration(280)} style={animStyle}>
@@ -40,6 +66,8 @@ const CircleMemberRow = React.memo(({ item, onPress, onRemove, readOnly }) => {
             <Text style={styles.rowUsername} numberOfLines={1}>@{item.username}</Text>
           ) : null}
         </View>
+
+        {/* Own circle list: show remove button */}
         {!readOnly && (
           <GHPressable
             style={styles.removeBtn}
@@ -48,6 +76,66 @@ const CircleMemberRow = React.memo(({ item, onPress, onRemove, readOnly }) => {
           >
             <UserMinus size={18} color={COLORS.textSecondary} strokeWidth={2} />
           </GHPressable>
+        )}
+
+        {/* Public circle list: show relationship chips */}
+        {readOnly && !isSelf && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {/* Creator Row: Follow / Following */}
+            {isCreator && (viewerType === "member" || viewerType === "community") && (
+              <GHPressable
+                style={[
+                  styles.ctaBtn,
+                  followState === true
+                    ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                    : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                ]}
+                onPress={() => onFollow && onFollow(item)}
+                disabled={followLoading || followState === null}
+              >
+                {followLoading ? (
+                  <ActivityIndicator size="small" color={followState === true ? "#2962FF" : "#fff"} style={{ width: 60 }} />
+                ) : (
+                  <Text style={[
+                    styles.ctaTextDefault,
+                    followState === true ? { color: "#2962FF" } : { color: "#fff" },
+                  ]}>
+                    {followState === true ? 'Following' : 'Follow'}
+                  </Text>
+                )}
+              </GHPressable>
+            )}
+
+            {/* Regular Member Row: Add / Requested / In Circle */}
+            {!isCreator && viewerType === "member" && (
+              <GHPressable
+                style={[
+                  styles.ctaBtn,
+                  circleState === "in_circle"
+                    ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                    : circleState === "pending_outgoing"
+                    ? { backgroundColor: 'rgba(255,149,0,0.1)', borderColor: 'rgba(255,149,0,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                    : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                ]}
+                onPress={() => {
+                  if (circleState === "none" || !circleState) {
+                    onCircleRequest && onCircleRequest(item.member_id || item.id);
+                  }
+                }}
+                disabled={circleLoading || (circleState !== "none" && !!circleState)}
+              >
+                {circleLoading ? (
+                  <ActivityIndicator size="small" color={circleState === "in_circle" ? "#2962FF" : circleState === "pending_outgoing" ? "#FF9500" : "#fff"} style={{ width: 60 }} />
+                ) : circleState === "in_circle" ? (
+                  <Text style={[styles.ctaTextDefault, { color: '#2962FF' }]}>In Circle</Text>
+                ) : circleState === "pending_outgoing" ? (
+                  <Text style={[styles.ctaTextDefault, { color: '#FF9500' }]}>Requested</Text>
+                ) : (
+                  <Text style={[styles.ctaTextDefault, { color: '#fff' }]}>Add</Text>
+                )}
+              </GHPressable>
+            )}
+          </View>
         )}
       </GHPressable>
     </Reanimated.View>
@@ -73,6 +161,15 @@ export default function CircleListScreen({ route, navigation }) {
   const [isViewerCreator, setIsViewerCreator] = useState(false);
   const searchTimer = useRef(null);
 
+  const [viewerType, setViewerType] = useState(null);
+  const [myId, setMyId] = useState(null);
+
+  // Public view relationship states
+  const [memberCircleStates, setMemberCircleStates] = useState({});
+  const [memberCircleLoadingMap, setMemberCircleLoadingMap] = useState({});
+  const [followStates, setFollowStates] = useState({});
+  const [followLoadingMap, setFollowLoadingMap] = useState({});
+
   useEffect(() => {
     async function checkViewerMode() {
       try {
@@ -90,7 +187,7 @@ export default function CircleListScreen({ route, navigation }) {
   const showAlert = useCallback((config) => setAlertConfig({ ...config, visible: true }), []);
   const hideAlert = useCallback(() => setAlertConfig((p) => ({ ...p, visible: false })), []);
 
-  const fetchMembers = useCallback(async (pageNum = 1, searchQuery = '', reset = false) => {
+  const fetchMembers = useCallback(async (pageNum = 1, searchQuery = '', reset = false, vt = viewerType, mid = myId) => {
     try {
       if (pageNum === 1) setLoading(true); else setLoadingMore(true);
       let fetched;
@@ -101,16 +198,56 @@ export default function CircleListScreen({ route, navigation }) {
         const data = await getCircleMembers({ page: pageNum, limit: 20, search: searchQuery });
         fetched = data?.members || [];
       }
-      setMembers((prev) => reset || pageNum === 1 ? fetched : [...prev, ...fetched]);
-      setHasMore(fetched.length >= 20);
+
+      const normalizedRows = fetched.map((r) => ({
+        member_id: r.member_id || r.id,
+        id: r.member_id || r.id,
+        name: r.name,
+        username: r.username,
+        profile_photo_url: r.profile_photo_url || r.avatar_url,
+        isCreator: !!r.is_creator_mode_enabled || !!r.is_creator || !!r.isCreator,
+        is_creator: !!r.is_creator_mode_enabled || !!r.is_creator || !!r.isCreator,
+        is_creator_mode_enabled: !!r.is_creator_mode_enabled || !!r.is_creator || !!r.isCreator,
+      }));
+
+      setMembers((prev) => reset || pageNum === 1 ? normalizedRows : [...prev, ...normalizedRows]);
+      setHasMore(normalizedRows.length >= 20);
       setPage(pageNum);
+
+      // Fetch relationship statuses in readOnly mode
+      if (readOnly) {
+        const preSeededFollow = {};
+        const preSeededMemberCircle = {};
+
+        await Promise.all(
+          normalizedRows.map(async (row) => {
+            const isCreator = row.isCreator || row.is_creator || row.is_creator_mode_enabled;
+            if (isCreator) {
+              const status = await getFollowStatusForMember(row.id).catch(() => null);
+              preSeededFollow[row.id] = !!status?.isFollowing;
+            } else if (vt === "member" && String(row.id) !== String(mid)) {
+              const status = await getCircleStatus(row.id).catch(() => null);
+              if (status?.status) {
+                preSeededMemberCircle[row.id] = status.status;
+              }
+            }
+          })
+        );
+
+        if (Object.keys(preSeededFollow).length > 0) {
+          setFollowStates((prev) => ({ ...prev, ...preSeededFollow }));
+        }
+        if (vt === "member" && Object.keys(preSeededMemberCircle).length > 0) {
+          setMemberCircleStates((prev) => ({ ...prev, ...preSeededMemberCircle }));
+        }
+      }
     } catch (err) {
       console.error('[CircleListScreen] fetch error:', err);
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [readOnly, targetMemberId]);
+  }, [readOnly, targetMemberId, viewerType, myId]);
 
   const fetchPendingCount = useCallback(async () => {
     try {
@@ -120,9 +257,24 @@ export default function CircleListScreen({ route, navigation }) {
   }, []);
 
   useEffect(() => {
-    fetchMembers(1, '', true);
+    (async () => {
+      let resolvedViewerType = null;
+      let resolvedMyId = null;
+      try {
+        const { getActiveAccount } = await import('../../../api/auth');
+        const acc = await getActiveAccount();
+        if (acc) {
+          resolvedViewerType = acc.type?.toLowerCase();
+          resolvedMyId = acc.id;
+          setViewerType(resolvedViewerType);
+          setMyId(resolvedMyId);
+        }
+      } catch (_) {}
+      
+      await fetchMembers(1, '', true, resolvedViewerType, resolvedMyId);
+    })();
     fetchPendingCount();
-  }, []);
+  }, [fetchMembers, fetchPendingCount]);
 
   // Refresh circle list when screen comes back into focus (e.g. returning from CircleRequests)
   useFocusEffect(
@@ -157,18 +309,54 @@ export default function CircleListScreen({ route, navigation }) {
     setSearch(text);
     clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
-      fetchMembers(1, text, true);
+      fetchMembers(1, text, true, viewerType, myId);
     }, 350);
   };
 
   const handleLoadMore = () => {
     if (loadingMore || !hasMore) return;
-    fetchMembers(page + 1, search);
+    fetchMembers(page + 1, search, false, viewerType, myId);
   };
 
   const handlePress = (item) => {
     navigation.push('MemberPublicProfile', { memberId: item.member_id });
   };
+
+  // Follow/Unfollow toggle for creators in public views
+  const handleFollowToggle = useCallback(async (item) => {
+    const memberId = item.id || item.member_id;
+    const isFollowing = followStates[memberId];
+    HapticsService.triggerImpactMedium();
+    setFollowLoadingMap((prev) => ({ ...prev, [memberId]: true }));
+    setFollowStates((prev) => ({ ...prev, [memberId]: !isFollowing }));
+    try {
+      if (isFollowing) {
+        await unfollowMember(memberId);
+      } else {
+        await followMember(memberId);
+      }
+    } catch (e) {
+      console.warn('[CircleList] handleFollowToggle error:', e);
+      setFollowStates((prev) => ({ ...prev, [memberId]: isFollowing }));
+    } finally {
+      setFollowLoadingMap((prev) => ({ ...prev, [memberId]: false }));
+    }
+  }, [followStates]);
+
+  // Circle request for regular members in public views
+  const handleMemberCircleRequest = useCallback(async (targetId) => {
+    HapticsService.triggerImpactMedium();
+    setMemberCircleLoadingMap((prev) => ({ ...prev, [targetId]: true }));
+    setMemberCircleStates((prev) => ({ ...prev, [targetId]: "pending_outgoing" }));
+    try {
+      await sendCircleRequest(targetId);
+    } catch (e) {
+      console.warn('[CircleList] sendCircleRequest failed:', e);
+      setMemberCircleStates((prev) => ({ ...prev, [targetId]: "none" }));
+    } finally {
+      setMemberCircleLoadingMap((prev) => ({ ...prev, [targetId]: false }));
+    }
+  }, []);
 
   const handleRemove = useCallback((item) => {
     HapticsService.triggerImpactLight();
@@ -227,11 +415,27 @@ export default function CircleListScreen({ route, navigation }) {
     });
   }, [showAlert, hideAlert, isViewerCreator]);
 
-  const renderItem = useCallback(({ item }) => (
-    <CircleMemberRow item={item} onPress={handlePress} onRemove={handleRemove} readOnly={readOnly} />
-  ), [handlePress, handleRemove, readOnly]);
+  const renderItem = useCallback(({ item }) => {
+    const circleLoading = !!memberCircleLoadingMap[item.member_id || item.id];
+    return (
+      <CircleMemberRow 
+        item={item} 
+        onPress={handlePress} 
+        onRemove={handleRemove} 
+        readOnly={readOnly}
+        viewerType={viewerType}
+        myId={myId}
+        followState={followStates[item.member_id || item.id]}
+        followLoading={!!followLoadingMap[item.member_id || item.id]}
+        onFollow={handleFollowToggle}
+        circleState={memberCircleStates[item.member_id || item.id] || "none"}
+        circleLoading={circleLoading}
+        onCircleRequest={handleMemberCircleRequest}
+      />
+    );
+  }, [handlePress, handleRemove, readOnly, viewerType, myId, followStates, followLoadingMap, handleFollowToggle, memberCircleStates, handleMemberCircleRequest, memberCircleLoadingMap]);
 
-  const keyExtractor = useCallback((item) => item.member_id, []);
+  const keyExtractor = useCallback((item) => item.member_id || item.id, []);
 
   const ListEmptyComponent = !loading ? (
     <View style={styles.emptyState}>
@@ -369,6 +573,19 @@ const styles = StyleSheet.create({
   removeBtn: {
     width: 36, height: 36, borderRadius: 18, backgroundColor: '#F2F2F7',
     alignItems: 'center', justifyContent: 'center',
+  },
+  ctaBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    minWidth: 62,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ctaTextDefault: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
   },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, paddingTop: 60 },
