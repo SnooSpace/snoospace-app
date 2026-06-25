@@ -161,6 +161,14 @@ export async function removeMemberFromCommunityCircle(memberId) {
   return apiDelete(`/community-circles/${memberId}`, null, 15000, token);
 }
 
+/** Get a community's circle list. */
+export async function getCommunityCircleMembers(communityId, { page = 1, limit = 20, search = "" } = {}) {
+  const token = await getAuthToken();
+  const params = new URLSearchParams({ page, limit });
+  if (search) params.set("search", search);
+  return apiGet(`/community-circles/${communityId}/members?${params.toString()}`, 15000, token);
+}
+
 export async function updateMemberProfile(updates, token) {
   if (!token) token = await getAuthToken();
   return apiPatch("/members/profile", updates, 15000, token);

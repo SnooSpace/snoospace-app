@@ -167,7 +167,7 @@ export default function CircleListScreen({ route, navigation }) {
   };
 
   const handlePress = (item) => {
-    navigation.navigate('MemberPublicProfile', { memberId: item.member_id });
+    navigation.push('MemberPublicProfile', { memberId: item.member_id });
   };
 
   const handleRemove = useCallback((item) => {

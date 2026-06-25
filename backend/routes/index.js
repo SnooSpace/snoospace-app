@@ -1419,6 +1419,7 @@ router.patch("/community-circles/invites/:inviteId", authMiddleware, CommunityCi
 router.get("/community-circles/status/:memberId", authMiddleware, CommunityCircleController.getStatusForCommunity);
 router.get("/community-circles/member-status/:communityId", authMiddleware, CommunityCircleController.getStatusForMember);
 router.delete("/community-circles/:memberId", authMiddleware, CommunityCircleController.removeFromCircle);
+router.get("/community-circles/:communityId/members", authMiddleware, CommunityCircleController.getCircleMembers);
 
 // ============================================
 // PRIVACY & CONSENT (DPDP Act Compliance)

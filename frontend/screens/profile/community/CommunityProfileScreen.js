@@ -2220,9 +2220,11 @@ export default function CommunityProfileScreen({ navigation, route }) {
                 style={styles.statItem}
                 onPress={() => {
                   HapticsService.triggerStatsTap();
-                  navigation.navigate("CommunityFollowersList", {
+                  navigation.push("CommunityFollowers", {
                     communityId: profile.id,
-                    title: "Followers",
+                    isOwnProfile: true,
+                    initialFollowersCount: followersCount,
+                    initialCircleCount: profile.circle_count || 0,
                   });
                 }}
               >

@@ -576,9 +576,9 @@ export default function CreatorFollowersScreen({ route, navigation }) {
   const navigateTo = useCallback((item) => {
     const type = item.follower_type || item.type || "member";
     if (type === "member") {
-      navigation.navigate("MemberPublicProfile", { memberId: item.id });
+      navigation.push("MemberPublicProfile", { memberId: item.id });
     } else if (type === "community") {
-      navigation.navigate("CommunityPublicProfile", { communityId: item.id });
+      navigation.push("CommunityPublicProfile", { communityId: item.id });
     }
   }, [navigation]);
 
@@ -634,7 +634,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
       <View style={styles.row}>
         <TouchableOpacity
           style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}
-          onPress={() => navigation.navigate("MemberPublicProfile", { memberId })}
+          onPress={() => navigation.push("MemberPublicProfile", { memberId })}
           activeOpacity={0.78}
         >
           <Avatar uri={item.profile_photo_url || item.avatar_url} name={item.name} />

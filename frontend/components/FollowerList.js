@@ -215,8 +215,8 @@ export default function FollowerList({
       const itemType = item.type || 'member';
       const canFollow =
         onToggleFollow &&
-        !(viewerType === 'community' && itemType === 'member') &&
-        !(viewerType === 'member' && itemType === 'member');
+        (!(viewerType === 'community' && itemType === 'member') || item.isFollowing) &&
+        (!(viewerType === 'member' && itemType === 'member') || item.isFollowing);
 
       // Member viewer can Add a member-type non-circle item to their circle
       const canAdd =
@@ -485,9 +485,10 @@ const styles = StyleSheet.create({
   headerTitle: {
     flex: 1,
     textAlign: "center",
-    fontSize: 16,
+    fontSize: 17,
     fontFamily: "BasicCommercial-Bold", // Updated to Bold
     color: "#1D1D1F",
+    letterSpacing: -0.3,
   },
   headerSpacer: {
     width: 40,

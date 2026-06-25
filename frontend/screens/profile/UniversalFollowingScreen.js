@@ -186,9 +186,9 @@ export default function UniversalFollowingScreen({ route, navigation }) {
       const entityType = (item.type || "member").toLowerCase();
       // Always navigate to public profile — it handles own-profile correctly.
       if (entityType === "community") {
-        navigation.navigate("CommunityPublicProfile", { communityId: item.id });
+        navigation.push("CommunityPublicProfile", { communityId: item.id });
       } else {
-        navigation.navigate("MemberPublicProfile", { memberId: item.id });
+        navigation.push("MemberPublicProfile", { memberId: item.id });
       }
     },
     [navigation],

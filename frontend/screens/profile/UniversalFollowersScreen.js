@@ -200,9 +200,9 @@ export default function UniversalFollowersScreen({ route, navigation }) {
       // Always navigate to the public profile screen — it handles own-profile correctly
       // via circleStatus='self'. Avoid getParent().getParent() which breaks from deep contexts.
       if (entityType === "community") {
-        navigation.navigate("CommunityPublicProfile", { communityId: item.id });
+        navigation.push("CommunityPublicProfile", { communityId: item.id });
       } else {
-        navigation.navigate("MemberPublicProfile", { memberId: item.id });
+        navigation.push("MemberPublicProfile", { memberId: item.id });
       }
     },
     [navigation],

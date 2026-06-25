@@ -1722,10 +1722,11 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               style={styles.statItem}
               onPress={() => {
                 HapticsService.triggerStatsTap();
-                navigation.navigate("UniversalFollowersList", {
-                  userId: communityId,
-                  userType: "community",
-                  title: "Followers",
+                navigation.push("CommunityFollowers", {
+                  communityId: communityId,
+                  isOwnProfile: false,
+                  initialFollowersCount: profile.followers_count || 0,
+                  initialCircleCount: profile.circle_count || 0,
                 });
               }}
             >

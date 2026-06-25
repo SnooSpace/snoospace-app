@@ -337,6 +337,45 @@ const removeFromCircle = async (req, res) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// GET /community-circles/:communityId/members — List community's circle members
+// ---------------------------------------------------------------------------
+const getCircleMembers = async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { communityId } = req.params;
+    const { page = 1, limit = 20, search = '' } = req.query;
+    const offset = (page - 1) * limit;
+
+    const searchClause = search ? `AND (m.name ILIKE $4 OR m.username ILIKE $4)` : '';
+    const params = [communityId, limit, offset];
+    if (search) params.push(`%${search}%`);
+
+    const result = await pool.query(`
+      SELECT
+        m.id AS member_id,
+        m.id AS id,
+        m.name,
+        m.username,
+        m.profile_photo_url,
+        m.profile_photo_url AS avatar_url,
+        m.is_creator_mode_enabled,
+        cc.created_at AS connected_since
+      FROM community_member_circles cc
+      JOIN members m ON m.id = cc.member_id
+      WHERE cc.community_id = $1
+        ${searchClause}
+      ORDER BY cc.created_at DESC
+      LIMIT $2 OFFSET $3
+    `, params);
+
+    return res.json({ members: result.rows });
+  } catch (err) {
+    console.error('[communityCircleController.getCircleMembers]', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   sendInvite,
   cancelInvite,
@@ -344,4 +383,5 @@ module.exports = {
   getStatusForCommunity,
   getStatusForMember,
   removeFromCircle,
+  getCircleMembers,
 };
