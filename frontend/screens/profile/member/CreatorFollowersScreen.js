@@ -149,9 +149,9 @@ function PersonRow({
                 ) : (
                   <Text style={[
                     styles.ctaTextDefault,
-                    followBackState === true && { color: '#2962FF' },
+                    followBackState === true ? { color: '#2962FF' } : { color: '#fff' },
                   ]}>
-                    {followBackState === true ? 'Following' : 'Follow Back'}
+                    {followBackState === true ? 'Following' : 'Follow'}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -523,6 +523,55 @@ export default function CreatorFollowersScreen({ route, navigation }) {
     })();
   }, [loadFollowers, creatorId, isOwnProfile]);
 
+  // Sync relationship status instantly across screens using EventBus
+  useEffect(() => {
+    const handleFollow = ({ id, isFollowing }) => {
+      if (id) {
+        setFollowBackStates((prev) => ({ ...prev, [id]: isFollowing }));
+      }
+    };
+
+    const handleCircleMemberRemoved = ({ memberId }) => {
+      if (!memberId) return;
+      const targetId = String(memberId);
+      setCircleStates((prev) => ({ ...prev, [targetId]: "none" }));
+      setCircleMembers((prev) => prev.filter((m) => String(m.id || m.member_id) !== targetId));
+      setCircleTotal((t) => Math.max(0, t - 1));
+    };
+
+    const handleCircleRequestResponded = ({ action, memberId, memberName, memberUsername, memberAvatar }) => {
+      if (action === "accepted" && memberId) {
+        const targetId = String(memberId);
+        setCircleStates((prev) => ({ ...prev, [targetId]: "in_circle" }));
+        setCircleTotal((t) => t + 1);
+        setCircleMembers((prev) => {
+          if (prev.some((m) => String(m.id || m.member_id) === targetId)) return prev;
+          return [
+            {
+              id: memberId,
+              name: memberName,
+              username: memberUsername,
+              avatar_url: memberAvatar,
+              type: "member",
+              created_at: new Date().toISOString(),
+            },
+            ...prev,
+          ];
+        });
+      }
+    };
+
+    EventBus.on("follow-updated", handleFollow);
+    EventBus.on("my:circle-member-removed", handleCircleMemberRemoved);
+    EventBus.on("circle-request-responded", handleCircleRequestResponded);
+
+    return () => {
+      EventBus.off("follow-updated", handleFollow);
+      EventBus.off("my:circle-member-removed", handleCircleMemberRemoved);
+      EventBus.off("circle-request-responded", handleCircleRequestResponded);
+    };
+  }, []);
+
   // Reload on screen re-focus (e.g. returning from PublicProfile after follow/unfollow)
   const hasMountedRef = useRef(false);
   useFocusEffect(
@@ -636,14 +685,32 @@ export default function CreatorFollowersScreen({ route, navigation }) {
     setCircleActionLoading((prev) => ({ ...prev, [followerId]: true }));
     setCircleStates((prev) => ({ ...prev, [followerId]: "requested" })); // optimistic
     try {
-      await sendCircleRequest(followerId);
+      const res = await sendCircleRequest(followerId);
+      const isAuto = !!(res?.auto_accepted || res?.status === "in_circle");
+      setCircleStates((prev) => ({ ...prev, [followerId]: isAuto ? "in_circle" : "requested" }));
+      if (isAuto) {
+        setCircleTotal((t) => t + 1);
+        setCircleMembers((prevList) => {
+          const followerItem = followers.find((f) => String(f.id) === String(followerId));
+          if (followerItem && !prevList.some((m) => String(m.id) === String(followerId))) {
+            return [
+              {
+                ...followerItem,
+                circleState: "in_circle",
+              },
+              ...prevList,
+            ];
+          }
+          return prevList;
+        });
+      }
     } catch (e) {
       console.warn("[CreatorFollowers] sendCircleRequest failed:", e);
       setCircleStates((prev) => ({ ...prev, [followerId]: "none" })); // revert
     } finally {
       setCircleActionLoading((prev) => ({ ...prev, [followerId]: false }));
     }
-  }, []);
+  }, [followers]);
 
   // ── Remove Follower ────────────────────────────────────────────────────────
   const handleRemoveFollower = useCallback((item) => {
@@ -703,6 +770,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
           try {
             await removeFromCircle(memberId, false); // follow restored
             EventBus.emit('circle:member-removed', { creatorId, memberId, alsoUnfollow: false });
+            EventBus.emit('my:circle-member-removed', { memberId, alsoUnfollow: false });
             // Follow is restored — add member to Followers tab and update count
             setFollowersTotal((t) => t + 1);
             setFollowers((prev) => {
@@ -752,6 +820,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
           try {
             await removeFromCircle(memberId, true); // also delete follow
             EventBus.emit('circle:member-removed', { creatorId, memberId, alsoUnfollow: true });
+            EventBus.emit('my:circle-member-removed', { memberId, alsoUnfollow: true });
           } catch (e) {
             console.warn('[CreatorFollowers] removeFromCircle (also_unfollow) failed:', e);
             setHiddenCircleMemberIds((prev) => {
@@ -811,7 +880,9 @@ export default function CreatorFollowersScreen({ route, navigation }) {
     setMemberCircleLoadingMap((prev) => ({ ...prev, [targetId]: true }));
     setMemberCircleStates((prev) => ({ ...prev, [targetId]: "pending_outgoing" }));
     try {
-      await sendCircleRequest(targetId);
+      const res = await sendCircleRequest(targetId);
+      const isAuto = !!(res?.auto_accepted || res?.status === "in_circle");
+      setMemberCircleStates((prev) => ({ ...prev, [targetId]: isAuto ? "in_circle" : "pending_outgoing" }));
     } catch (e) {
       console.warn('[CreatorFollowers] sendCircleRequest failed:', e);
       setMemberCircleStates((prev) => ({ ...prev, [targetId]: "none" }));

@@ -283,11 +283,14 @@ export default function FollowerList({
                 if (isRequested || isCircleLoading) return;
                 setCircleRequestLoading((prev) => ({ ...prev, [item.id]: true }));
                 try {
-                  await onCircleRequest(item.id);
-                  // Mark item as requested in local list state
+                  const res = await onCircleRequest(item.id);
+                  const isAuto = !!(res?.auto_accepted || res?.status === "in_circle");
+                  // Mark item as requested or in circle in local list state
                   setItems((prev) =>
                     prev.map((i) =>
-                      String(i.id) === String(item.id) ? { ...i, circleRequested: true } : i,
+                      String(i.id) === String(item.id)
+                        ? { ...i, circleRequested: !isAuto, inCircle: isAuto }
+                        : i,
                     )
                   );
                 } catch (_) {}

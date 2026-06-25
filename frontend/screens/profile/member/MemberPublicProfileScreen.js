@@ -1634,7 +1634,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                                 await removeFromCircle(memberId, false);
                                 setCircleStatus('none');
                                 setCircleCount((c) => Math.max(0, c - 1));
-                                EventBus.emit('my:circle-member-removed', { alsoUnfollow: false });
+                                EventBus.emit('my:circle-member-removed', { memberId, alsoUnfollow: false });
                                 HapticsService.triggerImpactLight();
                               } catch (e) { loadCircleStatus(); }
                               finally { setCircleActionLoading(false); }
@@ -1650,7 +1650,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                                 await removeFromCircle(memberId, true);
                                 setCircleStatus('none');
                                 setCircleCount((c) => Math.max(0, c - 1));
-                                EventBus.emit('my:circle-member-removed', { alsoUnfollow: true });
+                                EventBus.emit('my:circle-member-removed', { memberId, alsoUnfollow: true });
                                 HapticsService.triggerImpactLight();
                               } catch (e) { loadCircleStatus(); }
                               finally { setCircleActionLoading(false); }
@@ -1674,6 +1674,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                                 await removeFromCircle(memberId);
                                 setCircleStatus('none');
                                 setCircleCount((c) => Math.max(0, c - 1));
+                                EventBus.emit('my:circle-member-removed', { memberId });
                                 HapticsService.triggerImpactLight();
                               } catch (e) { loadCircleStatus(); }
                               finally { setCircleActionLoading(false); }
@@ -1736,6 +1737,13 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                         if (res?.auto_accepted) {
                           setCircleStatus('in_circle');
                           setCircleCount((c) => c + 1);
+                          EventBus.emit('circle-request-responded', {
+                            action: 'accepted',
+                            memberId,
+                            memberName: profile?.full_name || profile?.name,
+                            memberUsername: profile?.username,
+                            memberAvatar: profile?.profile_photo_url,
+                          });
                         } else {
                           setCircleStatus('pending_outgoing');
                           setCircleRequestId(res?.request_id || null);

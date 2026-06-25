@@ -200,6 +200,7 @@ export default function UniversalFollowersScreen({ route, navigation }) {
     if (res?.auto_accepted) {
       circleIdSetRef.current = new Set([...circleIdSetRef.current, String(memberId)]);
     }
+    return res;
   }, []);
 
   const handleItemPress = useCallback(

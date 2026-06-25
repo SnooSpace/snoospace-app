@@ -283,7 +283,7 @@ export default function CircleListScreen({ route, navigation }) {
     }, [fetchPendingCount]),
   );
 
-  // Listen for instant accept events from CircleRequestsScreen
+  // Listen for instant accept/remove events
   useEffect(() => {
     const unsub = EventBus.on('circle-request-responded', ({ action, memberId, memberName, memberUsername, memberAvatar }) => {
       if (action !== 'accepted') return;
@@ -302,7 +302,14 @@ export default function CircleListScreen({ route, navigation }) {
       // Decrement pending badge
       setPendingCount((c) => Math.max(0, c - 1));
     });
-    return () => { if (unsub) unsub(); };
+    const unsubRemove = EventBus.on('my:circle-member-removed', ({ memberId }) => {
+      if (!memberId) return;
+      setMembers((prev) => prev.filter((m) => String(m.member_id || m.id) !== String(memberId)));
+    });
+    return () => {
+      if (unsub) unsub();
+      if (unsubRemove) unsubRemove();
+    };
   }, []);
 
   const handleSearchChange = (text) => {
@@ -349,7 +356,9 @@ export default function CircleListScreen({ route, navigation }) {
     setMemberCircleLoadingMap((prev) => ({ ...prev, [targetId]: true }));
     setMemberCircleStates((prev) => ({ ...prev, [targetId]: "pending_outgoing" }));
     try {
-      await sendCircleRequest(targetId);
+      const res = await sendCircleRequest(targetId);
+      const isAuto = !!(res?.auto_accepted || res?.status === "in_circle");
+      setMemberCircleStates((prev) => ({ ...prev, [targetId]: isAuto ? "in_circle" : "pending_outgoing" }));
     } catch (e) {
       console.warn('[CircleList] sendCircleRequest failed:', e);
       setMemberCircleStates((prev) => ({ ...prev, [targetId]: "none" }));
