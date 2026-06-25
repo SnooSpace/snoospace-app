@@ -890,7 +890,8 @@ export default function MemberProfileScreen({ navigation }) {
   }, [polledCounts, initializeCounts, profile?.id]);
 
   // As creator: I removed someone from my circle → circle_count--
-  // If alsoUnfollow=true → creator_follower_count-- as well
+  // If alsoUnfollow=false → follow is restored → creator_follower_count++
+  // If alsoUnfollow=true → follow is also deleted → creator_follower_count--
   useEffect(() => {
     const unsub = EventBus.on("circle:member-removed", ({ creatorId, alsoUnfollow } = {}) => {
       if (String(creatorId) !== String(profile?.id)) return;
@@ -900,8 +901,10 @@ export default function MemberProfileScreen({ navigation }) {
         post_count: polledCounts.posts,
         circle_count: Math.max(0, (polledCounts.circles || 0) - 1),
         creator_follower_count: alsoUnfollow
+          // Follow also deleted — decrement
           ? Math.max(0, (polledCounts.creatorFollowers || 0) - 1)
-          : (polledCounts.creatorFollowers || 0),
+          // Follow restored — increment (DB trigger restores the creator_follows row)
+          : (polledCounts.creatorFollowers || 0) + 1,
       });
     });
     return () => { if (unsub) unsub(); };

@@ -5,6 +5,7 @@ import {
   unfollowMember,
   getFollowStatusForMember,
   getCircleMembers,
+  sendCircleRequest,
 } from "../../api/members";
 import {
   getCommunityFollowers,
@@ -54,15 +55,24 @@ export default function UniversalFollowersScreen({ route, navigation }) {
 
   // Circle ID set — pre-seeded when viewer is a member so we can mark 'In Circle' items
   const circleIdSetRef = useRef(new Set());
+  // Promise that resolves once circle IDs are loaded (or immediately if not needed)
+  const circleReadyRef = useRef(Promise.resolve());
 
   useEffect(() => {
+    // Build a promise that resolves once we know viewer type AND circle IDs are loaded.
+    // fetchFollowersPage awaits this before marking 'inCircle' on items, eliminating
+    // the race condition where items load before getCircleMembers completes.
+    let resolve;
+    const readyPromise = new Promise((res) => { resolve = res; });
+    circleReadyRef.current = readyPromise;
+
     (async () => {
       try {
         const { getActiveAccount } = await import("../../api/auth");
         const acc = await getActiveAccount();
         if (acc?.type) {
           setViewerType(acc.type);
-          // Pre-load circle IDs so the follower list can show 'In Circle' instead of 'Follow'
+          // Pre-load circle IDs so the follower list can show 'In Circle' instead of 'Add'
           if (acc.type === 'member') {
             try {
               const circleRes = await getCircleMembers({ page: 1, limit: 200 });
@@ -73,6 +83,8 @@ export default function UniversalFollowersScreen({ route, navigation }) {
           }
         }
       } catch (_) {}
+      // Always resolve — even if fetches failed, unblock the item list
+      resolve();
     })();
   }, []);
 
@@ -84,7 +96,13 @@ export default function UniversalFollowersScreen({ route, navigation }) {
         return { items: [], hasMore: false };
       }
 
-      const data = await fetchFn(userId, { limit, offset, search });
+      // Run items fetch and circle-ready gate concurrently — circle IDs must be ready
+      // before we mark inCircle on each item (avoids the "In Circle badge missing" race).
+      const [data] = await Promise.all([
+        fetchFn(userId, { limit, offset, search }),
+        circleReadyRef.current,
+      ]);
+
       const raw = data?.results || data?.followers || data?.items || data || [];
       const baseList = raw.map((entry) => ({
         id: entry.follower_id || entry.id,
@@ -133,6 +151,7 @@ export default function UniversalFollowersScreen({ route, navigation }) {
     [userId, userType],
   );
 
+
   const resolveMyId = useCallback(async () => {
     const { getActiveAccount } = await import("../../api/auth");
     const activeAccount = await getActiveAccount();
@@ -166,6 +185,15 @@ export default function UniversalFollowersScreen({ route, navigation }) {
     [],
   );
 
+  const handleCircleRequest = useCallback(async (memberId) => {
+    // Send circle request — throws on error so FollowerList can catch and revert UI
+    const res = await sendCircleRequest(memberId);
+    // If auto-accepted, update circle ID set so future renders mark them inCircle
+    if (res?.auto_accepted) {
+      circleIdSetRef.current = new Set([...circleIdSetRef.current, String(memberId)]);
+    }
+  }, []);
+
   const handleItemPress = useCallback(
     (item) => {
       const entityType = (item.type || "member").toLowerCase();
@@ -191,6 +219,7 @@ export default function UniversalFollowersScreen({ route, navigation }) {
       onToggleFollow={handleToggleFollow}
       onItemPress={handleItemPress}
       viewerType={viewerType}
+      onCircleRequest={viewerType === 'member' ? handleCircleRequest : null}
       emptyMessage="If someone follows you, you'll be able to see them here"
       primaryColor={primaryColor}
     />

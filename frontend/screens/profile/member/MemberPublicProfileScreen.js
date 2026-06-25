@@ -1237,7 +1237,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     navigation.navigate('CircleList', {
                       memberId: profile?.id,
                       memberName: profile?.full_name,
-                      readOnly: true,
+                      // Read-only when viewing someone else's circle;
+                      // editable when viewing your own profile (circleStatus === 'self')
+                      readOnly: circleStatus !== 'self',
                     });
                   }}
                 >
@@ -1254,7 +1256,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     HapticsService.triggerStatsTap();
                     navigation.navigate('CreatorFollowers', {
                       creatorId: profile?.id,
-                      isOwnProfile: false,
+                      // isOwnProfile enables action chips (Follow Back, Add to Circle, Remove)
+                      isOwnProfile: circleStatus === 'self',
                       initialFollowersCount: creatorFollowerCount + followersCount,
                       initialCircleCount: circleCount,
                     });
@@ -1385,7 +1388,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                     // Not following yet — show Follow or Follow Back
                     <GradientButton
                       title={theyFollowYou ? 'Follow Back' : 'Follow'}
-                      colors={theyFollowYou ? ['#1565C0', '#0D47A1'] : ['#448AFF', '#2962FF']}
+                      colors={['#448AFF', '#2962FF']}
                       textStyle={{ fontFamily: FONTS.semiBold, color: '#FFFFFF' }}
                       style={{ flex: 1, borderRadius: 16, overflow: 'hidden' }}
                       gradientStyle={{ borderRadius: 16 }}

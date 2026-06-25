@@ -987,7 +987,7 @@ const styles = StyleSheet.create({
   followBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: "#E5E5EA",
   },

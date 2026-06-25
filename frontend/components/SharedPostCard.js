@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
 import { Image } from "expo-image"; // ── PERF: off-thread decode + memory-disk cache eliminates scroll jank
 import { ScrollView, Pressable } from "react-native-gesture-handler";
@@ -68,6 +68,24 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
 
     fetchPostDetails();
   }, [postId]);
+
+  // Parse video_thumbnail - might be stored as JSON array string '["url"]' in database
+  const parsedVideoThumbnail = useMemo(() => {
+    if (!postData?.video_thumbnail) return null;
+    try {
+      if (
+        typeof postData.video_thumbnail === "string" &&
+        postData.video_thumbnail.startsWith("[")
+      ) {
+        const parsed = JSON.parse(postData.video_thumbnail);
+        return Array.isArray(parsed) ? parsed[0] : postData.video_thumbnail;
+      } else {
+        return postData.video_thumbnail;
+      }
+    } catch (e) {
+      return postData.video_thumbnail;
+    }
+  }, [postData?.video_thumbnail]);
 
   // Loading state
   if (loading) {
@@ -227,23 +245,6 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
       .replace(/\.(mp4|mov|webm|avi|mkv|m3u8)$/i, ".jpg");
   };
 
-  // Parse video_thumbnail - might be stored as JSON array string '["url"]' in database
-  const parsedVideoThumbnail = useMemo(() => {
-    if (!postData?.video_thumbnail) return null;
-    try {
-      if (
-        typeof postData.video_thumbnail === "string" &&
-        postData.video_thumbnail.startsWith("[")
-      ) {
-        const parsed = JSON.parse(postData.video_thumbnail);
-        return Array.isArray(parsed) ? parsed[0] : postData.video_thumbnail;
-      } else {
-        return postData.video_thumbnail;
-      }
-    } catch (e) {
-      return postData.video_thumbnail;
-    }
-  }, [postData?.video_thumbnail]);
 
   // Get video thumbnail for single-image path
   const thumbnailUrl = isVideo

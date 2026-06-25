@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   getMemberFollowing,
   followMember,
   unfollowMember,
+  getCircleMembers,
+  sendCircleRequest,
 } from "../../api/members";
 import {
   getCommunityFollowing,
@@ -42,13 +44,34 @@ export default function UniversalFollowingScreen({ route, navigation }) {
 
   // Viewer info — used to suppress Follow button when community views member following entries
   const [viewerType, setViewerType] = useState(null);
+
+  // Circle ID set — pre-seeded when viewer is a member so we can mark 'In Circle' items
+  const circleIdSetRef = useRef(new Set());
+  // Promise that resolves once circle IDs are loaded (or immediately if not needed)
+  const circleReadyRef = useRef(Promise.resolve());
+
   useEffect(() => {
+    let resolve;
+    const readyPromise = new Promise((res) => { resolve = res; });
+    circleReadyRef.current = readyPromise;
+
     (async () => {
       try {
         const { getActiveAccount } = await import("../../api/auth");
         const acc = await getActiveAccount();
-        if (acc?.type) setViewerType(acc.type);
+        if (acc?.type) {
+          setViewerType(acc.type);
+          if (acc.type === 'member') {
+            try {
+              const circleRes = await getCircleMembers({ page: 1, limit: 200 });
+              const members = circleRes?.members || circleRes?.circle || [];
+              const ids = new Set(members.map((m) => String(m.id || m.member_id)));
+              circleIdSetRef.current = ids;
+            } catch (_) {}
+          }
+        }
       } catch (_) {}
+      resolve();
     })();
   }, []);
 
@@ -60,7 +83,11 @@ export default function UniversalFollowingScreen({ route, navigation }) {
         return { items: [], hasMore: false };
       }
 
-      const data = await fetchFn(userId, { limit, offset, search });
+      // Run items fetch and circle-ready gate concurrently
+      const [data] = await Promise.all([
+        fetchFn(userId, { limit, offset, search }),
+        circleReadyRef.current,
+      ]);
       const raw = data?.results || data?.following || data?.items || data || [];
       console.log("[UniversalFollowing] Raw data count:", raw.length);
 
@@ -90,17 +117,20 @@ export default function UniversalFollowingScreen({ route, navigation }) {
         };
       });
 
-      // Filter out duplicates AND items that are not followed
+      // Filter out duplicates AND items that are not followed, then mark inCircle
       const seen = new Set();
-      const unique = normalized.filter((item) => {
-        // If the API returns someone we don't follow, filter them out
-        if (!item.isFollowing) return false;
-
-        const id = String(item.id);
-        if (seen.has(id)) return false;
-        seen.add(id);
-        return true;
-      });
+      const unique = normalized
+        .filter((item) => {
+          if (!item.isFollowing) return false;
+          const id = String(item.id);
+          if (seen.has(id)) return false;
+          seen.add(id);
+          return true;
+        })
+        .map((item) => ({
+          ...item,
+          inCircle: item.type === 'member' && circleIdSetRef.current.has(String(item.id)),
+        }));
 
       console.log(`[UniversalFollowing] Final list count: ${unique.length}`);
       return {
@@ -144,6 +174,13 @@ export default function UniversalFollowingScreen({ route, navigation }) {
     [],
   );
 
+  const handleCircleRequest = useCallback(async (memberId) => {
+    const res = await sendCircleRequest(memberId);
+    if (res?.auto_accepted) {
+      circleIdSetRef.current = new Set([...circleIdSetRef.current, String(memberId)]);
+    }
+  }, []);
+
   const handleItemPress = useCallback(
     (item) => {
       const entityType = (item.type || "member").toLowerCase();
@@ -168,6 +205,7 @@ export default function UniversalFollowingScreen({ route, navigation }) {
       onToggleFollow={handleToggleFollow}
       onItemPress={handleItemPress}
       viewerType={viewerType}
+      onCircleRequest={viewerType === 'member' ? handleCircleRequest : null}
       emptyMessage="You're not following anyone yet"
       removeOnUnfollow={true}
       primaryColor={primaryColor}

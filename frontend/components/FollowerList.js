@@ -14,6 +14,7 @@ import SnooLoader from "./ui/SnooLoader";
 
 const PAGE_SIZE = 30;
 const DEFAULT_PRIMARY = COLORS.primary;
+const CIRCLE_COLOR = "#448AFF"; // Distinct shade of blue for circle-related chips (Add, In Circle, Requested)
 
 // Helper to create rgba from hex
 const hexToRgba = (hex, alpha) => {
@@ -36,6 +37,7 @@ export default function FollowerList({
   emptyMessage,
   removeOnUnfollow = false,
   viewerType = null,        // e.g. 'community' — used to suppress Follow for member items
+  onCircleRequest = null,   // Called when viewer (member) wants to Add a member to circle
   primaryColor = DEFAULT_PRIMARY,
   placeholderImage = "https://via.placeholder.com/64",
 }) {
@@ -48,6 +50,8 @@ export default function FollowerList({
   const [hasMore, setHasMore] = useState(true);
   const [myId, setMyId] = useState(null);
   const [search, setSearch] = useState("");
+  // Per-item circle request loading map (for Add button spinner)
+  const [circleRequestLoading, setCircleRequestLoading] = useState({});
   const searchTimer = useRef(null);
 
   useEffect(() => {
@@ -207,9 +211,18 @@ export default function FollowerList({
   const renderItem = useCallback(
     ({ item }) => {
       // Community viewers cannot follow member-type items (they add to circle instead)
+      // Member viewers also cannot Follow other members — they Add to Circle
+      const itemType = item.type || 'member';
       const canFollow =
         onToggleFollow &&
-        !(viewerType === 'community' && (item.type || 'member') === 'member');
+        !(viewerType === 'community' && itemType === 'member') &&
+        !(viewerType === 'member' && itemType === 'member');
+
+      // Member viewer can Add a member-type non-circle item to their circle
+      const canAdd =
+        onCircleRequest &&
+        viewerType === 'member' &&
+        itemType === 'member';
 
       // Items already in the viewer's circle show an 'In Circle' badge instead of Follow
       const inCircle = !!item.inCircle;
@@ -219,6 +232,9 @@ export default function FollowerList({
         String(myId.id) === String(item.id) &&
         (myId.type || "member").toLowerCase() ===
           (item.type || "member").toLowerCase();
+
+      const isCircleLoading = !!circleRequestLoading[item.id];
+      const isRequested = !!item.circleRequested;
 
       return (
         <View style={styles.row}>
@@ -247,11 +263,42 @@ export default function FollowerList({
           {/* In Circle badge — member is already in viewer's circle */}
           {inCircle && (
             <View style={[styles.followBtn, styles.inCircleBtn]}>
-              <Text style={[styles.followText, { color: '#5856D6' }]}>In Circle</Text>
+              <Text style={[styles.followText, { color: CIRCLE_COLOR }]}>In Circle</Text>
             </View>
           )}
 
-          {/* Follow / Following chip — hidden for self, circle members, and community→member */}
+          {/* Add / Requested button — member viewer adding a member to circle */}
+          {!isSelf && !inCircle && canAdd && (
+            <GHPressable
+              style={[
+                styles.followBtn,
+                isRequested
+                  ? { backgroundColor: hexToRgba(CIRCLE_COLOR, 0.1), borderColor: hexToRgba(CIRCLE_COLOR, 0.2) }
+                  : { backgroundColor: CIRCLE_COLOR, borderColor: CIRCLE_COLOR },
+              ]}
+              onPress={async () => {
+                if (isRequested || isCircleLoading) return;
+                setCircleRequestLoading((prev) => ({ ...prev, [item.id]: true }));
+                try {
+                  await onCircleRequest(item.id);
+                  // Mark item as requested in local list state
+                  setItems((prev) =>
+                    prev.map((i) =>
+                      String(i.id) === String(item.id) ? { ...i, circleRequested: true } : i,
+                    )
+                  );
+                } catch (_) {}
+                setCircleRequestLoading((prev) => ({ ...prev, [item.id]: false }));
+              }}
+              disabled={isRequested || isCircleLoading}
+            >
+              <Text style={[styles.followText, isRequested ? { color: CIRCLE_COLOR } : { color: '#fff' }]}>
+                {isCircleLoading ? '…' : isRequested ? 'Requested' : 'Add'}
+              </Text>
+            </GHPressable>
+          )}
+
+          {/* Follow / Following chip — hidden for self, circle members, and community→member or member→member */}
           {!isSelf && !inCircle && canFollow && (
             <GHPressable
               style={[
@@ -294,10 +341,19 @@ export default function FollowerList({
       myId,
       onItemPress,
       onToggleFollow,
+      onCircleRequest,
       placeholderImage,
       primaryColor,
       viewerType,
+      circleRequestLoading,
     ],
+  );
+
+  // Memoized extraData — forces FlatList item re-renders when async state resolves.
+  // Must be declared here (top level) to satisfy React's Rules of Hooks.
+  const flatListExtraData = useMemo(
+    () => ({ viewerType, onCircleRequest, myId, circleRequestLoading, primaryColor }),
+    [viewerType, onCircleRequest, myId, circleRequestLoading, primaryColor],
   );
 
   const listEmptyComponent = useMemo(() => {
@@ -358,10 +414,11 @@ export default function FollowerList({
           ))}
         </View>
       ) : (
-        <FlatList
+      <FlatList
           data={items}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
+          extraData={flatListExtraData}
           onEndReachedThreshold={0.6}
           onEndReached={() => load({ reset: false, searchQuery: search })}
           refreshControl={
@@ -471,13 +528,13 @@ const styles = StyleSheet.create({
   followBtn: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: "#E5E5EA",
   },
   inCircleBtn: {
-    backgroundColor: 'rgba(88, 86, 214, 0.08)',
-    borderColor: 'rgba(88, 86, 214, 0.2)',
+    backgroundColor: hexToRgba(CIRCLE_COLOR, 0.08),
+    borderColor: hexToRgba(CIRCLE_COLOR, 0.2),
   },
   followText: {
     fontSize: 12,

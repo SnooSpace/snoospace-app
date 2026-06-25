@@ -504,6 +504,23 @@ export default function CreatorFollowersScreen({ route, navigation }) {
           try {
             await removeFromCircle(memberId, false); // follow restored
             EventBus.emit('circle:member-removed', { creatorId, memberId, alsoUnfollow: false });
+            // Follow is restored — add member to Followers tab and update count
+            setFollowersTotal((t) => t + 1);
+            setFollowers((prev) => {
+              // Avoid duplicate
+              if (prev.some((f) => String(f.id) === memberId)) return prev;
+              return [
+                {
+                  id: item.member_id || item.id,
+                  name: item.name,
+                  username: item.username,
+                  avatar_url: item.profile_photo_url || item.avatar_url,
+                  follower_type: 'member',
+                  created_at: new Date().toISOString(),
+                },
+                ...prev,
+              ];
+            });
           } catch (e) {
             console.warn('[CreatorFollowers] removeFromCircle failed:', e);
             setHiddenCircleMemberIds((prev) => {

@@ -49,6 +49,7 @@ import {
   ShieldOff,
   CalendarDays,
   UserX,
+  UserCheck,
   TriangleAlert,
   CircleCheck,
 } from "lucide-react-native";
@@ -463,6 +464,57 @@ const styles = StyleSheet.create({
   },
   communityPostItem: {
     marginBottom: 8,
+  },
+  topRequestContainer: {
+    width: '100%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 16,
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  topRequestTitle: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: '#475569',
+    marginBottom: 12,
+  },
+  topRequestButtonsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  topAcceptBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#2962FF',
+    paddingVertical: 10,
+  },
+  topAcceptText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: '#fff',
+  },
+  topDeclineBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+  },
+  topDeclineText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: '#475569',
   },
 });
 
@@ -1847,46 +1899,12 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
           {/* Circle invite banner: shown when member has a pending circle invite from this community */}
           {memberCommCircleStatus === 'pending_invite' && (
-            <View style={{
-              marginTop: 10,
-              backgroundColor: 'rgba(68,138,255,0.10)',
-              borderRadius: 14,
-              borderWidth: 1,
-              borderColor: 'rgba(68,138,255,0.22)',
-              paddingHorizontal: 14,
-              paddingVertical: 10,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 10,
-            }}>
-              <Text style={{ fontFamily: FONTS.medium, color: '#90CAF9', fontSize: 13, flex: 1 }}>
-                This community invited you to their circle
-              </Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
+            <View style={styles.topRequestContainer}>
+              <Text style={styles.topRequestTitle}>This community invited you to their circle</Text>
+              <View style={styles.topRequestButtonsRow}>
                 <GHPressable
-                  onPress={async () => {
-                    setMemberCommCircleLoading(true);
-                    try {
-                      await respondToCommunityCircleInvite(memberCommCircleInviteId, 'declined');
-                      setMemberCommCircleStatus('none');
-                      setMemberCommCircleInviteId(null);
-                      HapticsService.triggerImpactLight();
-                    } catch (e) { console.warn('[CommProfile] decline circle invite error:', e); }
-                    finally { setMemberCommCircleLoading(false); }
-                  }}
+                  style={({ pressed }) => [styles.topAcceptBtn, pressed && { opacity: 0.7 }]}
                   disabled={memberCommCircleLoading}
-                  style={({ pressed }) => ({
-                    backgroundColor: 'rgba(229,57,53,0.12)',
-                    borderRadius: 10,
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    opacity: pressed ? 0.7 : 1,
-                  })}
-                >
-                  <Text style={{ fontFamily: FONTS.semiBold, color: '#EF9A9A', fontSize: 13 }}>Decline</Text>
-                </GHPressable>
-                <GHPressable
                   onPress={async () => {
                     setMemberCommCircleLoading(true);
                     try {
@@ -1897,16 +1915,26 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                     } catch (e) { console.warn('[CommProfile] accept circle invite error:', e); }
                     finally { setMemberCommCircleLoading(false); }
                   }}
-                  disabled={memberCommCircleLoading}
-                  style={({ pressed }) => ({
-                    backgroundColor: 'rgba(68,138,255,0.22)',
-                    borderRadius: 10,
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    opacity: pressed ? 0.7 : 1,
-                  })}
                 >
-                  <Text style={{ fontFamily: FONTS.semiBold, color: '#90CAF9', fontSize: 13 }}>Accept</Text>
+                  <UserCheck size={16} color="#fff" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                  <Text style={styles.topAcceptText}>Accept</Text>
+                </GHPressable>
+                <GHPressable
+                  style={({ pressed }) => [styles.topDeclineBtn, pressed && { opacity: 0.7 }]}
+                  disabled={memberCommCircleLoading}
+                  onPress={async () => {
+                    setMemberCommCircleLoading(true);
+                    try {
+                      await respondToCommunityCircleInvite(memberCommCircleInviteId, 'declined');
+                      setMemberCommCircleStatus('none');
+                      setMemberCommCircleInviteId(null);
+                      HapticsService.triggerImpactLight();
+                    } catch (e) { console.warn('[CommProfile] decline circle invite error:', e); }
+                    finally { setMemberCommCircleLoading(false); }
+                  }}
+                >
+                  <UserX size={16} color={COLORS.textSecondary} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                  <Text style={styles.topDeclineText}>Decline</Text>
                 </GHPressable>
               </View>
             </View>
