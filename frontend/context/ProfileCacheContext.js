@@ -45,7 +45,7 @@ export function ProfileCacheProvider({ children }) {
           const userType = "member";
 
           const [countsResponse, postsResponse, eventsResponse] = await Promise.all([
-            apiGet(`/follow/counts/${userId}/${userType}`, 15000, token).catch(() => ({})),
+            apiGet(`/profile/counts/${userId}/${userType}`, 15000, token).catch(() => ({})),
             apiGet(`/posts/user/${userId}/${userType}?limit=20`, 15000, token).catch(() => ({})),
             apiGet("/events/my-events", 15000, token).catch(() => ({ events: [], total_events: 0 }))
           ]);
@@ -58,6 +58,8 @@ export function ProfileCacheProvider({ children }) {
             typeof countsResponse?.following_count === "number"
               ? countsResponse.following_count
               : parseInt(countsResponse?.following_count || 0, 10);
+          const circleCount = parseInt(countsResponse?.circle_count || 0, 10);
+          const creatorFollowerCount = parseInt(countsResponse?.creator_follower_count || 0, 10);
 
           const userPosts = Array.isArray(postsResponse?.posts) ? postsResponse.posts : [];
 
@@ -93,12 +95,14 @@ export function ProfileCacheProvider({ children }) {
             show_college: fullProfile.show_college !== false,
             college_info: fullProfile.college_info || null,
             instagram_username: fullProfile.instagram_username || null,
-            circle_count: fullProfile.circle_count || 0,
-            following_count: fullProfile.following_count || 0,
+            circle_count: circleCount,
+            following_count: followingCount,
+            follower_count: followerCount,
             events_attended_count:
               eventsResponse?.total_events ?? eventsResponse?.events?.length ?? 0,
             is_creator_mode_enabled: fullProfile.is_creator_mode_enabled === true,
             creator_mode_enabled_at: fullProfile.creator_mode_enabled_at || null,
+            creator_follower_count: creatorFollowerCount,
           };
 
           setMemberProfile(mappedProfile);
@@ -126,12 +130,14 @@ export function ProfileCacheProvider({ children }) {
 
           let followerCount = 0;
           let followingCount = 0;
+          let circleCount = 0;
           try {
-            const counts = await apiGet(`/follow/counts/${userId}/${userType}`, 15000, token);
+            const counts = await apiGet(`/profile/counts/${userId}/${userType}`, 15000, token);
             const followersRaw = counts?.followers_count ?? counts?.followers;
             const followingRaw = counts?.following_count ?? counts?.following;
             followerCount = typeof followersRaw === "number" ? followersRaw : parseInt(followersRaw || "0", 10) || 0;
             followingCount = typeof followingRaw === "number" ? followingRaw : parseInt(followingRaw || "0", 10) || 0;
+            circleCount = parseInt(counts?.circle_count || 0, 10);
           } catch {}
 
           let userPosts = [];
@@ -194,6 +200,7 @@ export function ProfileCacheProvider({ children }) {
             show_heads: fullProfile?.show_heads !== false,
             follower_count: followerCount,
             following_count: followingCount,
+            circle_count: circleCount,
             post_count: userPosts.length,
             events_scheduled_count: fullProfile?.events_scheduled_count || 0,
             events_hosted_count: fullProfile?.events_hosted_count || 0,

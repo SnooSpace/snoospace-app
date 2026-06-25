@@ -18,21 +18,25 @@ export function useProfileCountsPolling(options = {}) {
     interval = 5000, // 5 seconds
     enabled = true,
     paused = false, // For pausing when modal is open
+    initialCounts, // Option to seed counts before first API poll finishes
   } = options;
   
   const intervalRef = useRef(null);
   const appStateRef = useRef(AppState.currentState);
+
+  const initialValues = initialCounts ? {
+    followers: initialCounts.follower_count || initialCounts.followers || 0,
+    following: initialCounts.following_count || initialCounts.following || 0,
+    posts: initialCounts.post_count || initialCounts.posts || 0,
+    circles: initialCounts.circle_count || initialCounts.circles || 0,
+    creatorFollowers: initialCounts.creator_follower_count || initialCounts.creatorFollowers || 0,
+  } : { followers: 0, following: 0, posts: 0, circles: 0, creatorFollowers: 0 };
+
   // Use a ref for previous counts comparison to avoid fetchCounts recreating
   // every time counts state changes (which caused the main useEffect to restart
   // the interval on every single poll tick)
-  const countsRef = useRef({ followers: 0, following: 0, posts: 0, circles: 0, creatorFollowers: 0 });
-  const [counts, setCounts] = useState({
-    followers: 0,
-    following: 0,
-    posts: 0,
-    circles: 0,
-    creatorFollowers: 0,
-  });
+  const countsRef = useRef(initialValues);
+  const [counts, setCounts] = useState(initialValues);
   const [isPolling, setIsPolling] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
 

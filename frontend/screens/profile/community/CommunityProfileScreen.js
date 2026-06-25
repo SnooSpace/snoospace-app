@@ -935,6 +935,13 @@ export default function CommunityProfileScreen({ navigation, route }) {
     interval: 5000, // 5 seconds
     enabled: !loading && !!profile?.id,
     paused: isAnyModalOpen,
+    initialCounts: profile ? {
+      follower_count: profile.follower_count || 0,
+      following_count: profile.following_count || 0,
+      post_count: posts ? posts.length : 0,
+      circle_count: profile.circle_count || 0,
+      creator_follower_count: profile.creator_follower_count || 0,
+    } : null,
   });
 
 
@@ -1471,9 +1478,10 @@ export default function CommunityProfileScreen({ navigation, route }) {
       // Fetch follow counts
       let followerCount = 0;
       let followingCount = 0;
+      let circleCount = 0;
       try {
         const counts = await apiGet(
-          `/follow/counts/${userId}/${userType}`,
+          `/profile/counts/${userId}/${userType}`,
           15000,
           token,
         );
@@ -1487,6 +1495,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
           typeof followingRaw === "number"
             ? followingRaw
             : parseInt(followingRaw || "0", 10) || 0;
+        circleCount = parseInt(counts?.circle_count || 0, 10);
       } catch {}
 
       // Fetch posts by this user
@@ -1604,6 +1613,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
         show_heads: fullProfile?.show_heads !== false, // default true
         follower_count: followerCount,
         following_count: followingCount,
+        circle_count: circleCount,
         post_count: userPosts.length,
         events_scheduled_count: fullProfile?.events_scheduled_count || 0,
         events_hosted_count: fullProfile?.events_hosted_count || 0,
@@ -1925,14 +1935,9 @@ export default function CommunityProfileScreen({ navigation, route }) {
     [navigation],
   );
 
-  const postsCount =
-    polledCounts.posts || (profile?.posts_count ?? profile?.post_count ?? 0);
-  const followersCount =
-    polledCounts.followers ||
-    (profile?.followers_count ?? profile?.follower_count ?? 0);
-  const followingCount =
-    polledCounts.following ||
-    (profile?.following_count ?? profile?.following ?? 0);
+  const postsCount = polledCounts.posts;
+  const followersCount = polledCounts.followers;
+  const followingCount = polledCounts.following;
 
   const openPostModal = useCallback((post) => {
     // Normalize is_liked field - only use is_liked, ignore isLiked completely

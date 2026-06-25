@@ -677,6 +677,13 @@ export default function MemberProfileScreen({ navigation }) {
     interval: 5000, // 5 seconds
     enabled: !loading && !!profile?.id,
     paused: isAnyModalOpen,
+    initialCounts: profile ? {
+      follower_count: profile.follower_count || 0,
+      following_count: profile.following_count || 0,
+      post_count: posts ? posts.length : 0,
+      circle_count: profile.circle_count || 0,
+      creator_follower_count: profile.creator_follower_count || 0,
+    } : null,
   });
 
 
@@ -1131,6 +1138,7 @@ export default function MemberProfileScreen({ navigation }) {
         instagram_username: fullProfile.instagram_username || null,
         circle_count: circleCount,
         following_count: followingCount,
+        follower_count: followerCount,
         events_attended_count:
           eventsResponse?.total_events ?? eventsResponse?.events?.length ?? 0,
         // Creator Mode
@@ -1848,8 +1856,8 @@ export default function MemberProfileScreen({ navigation }) {
                   style={styles.statItem}
                   onPress={() => {
                     HapticsService.triggerStatsTap();
-                    const circlesVal = Math.max(polledCounts.circles, profile.circle_count || 0);
-                    const crFollowersVal = Math.max(polledCounts.creatorFollowers, profile.creator_follower_count || 0);
+                    const circlesVal = polledCounts.circles;
+                    const crFollowersVal = polledCounts.creatorFollowers;
                     navigation.navigate("CreatorFollowers", {
                       creatorId: profile.id,
                       isOwnProfile: true,
@@ -1859,8 +1867,8 @@ export default function MemberProfileScreen({ navigation }) {
                   }}
                 >
                   <Text style={styles.statNumber}>
-                    {Math.max(polledCounts.circles, profile.circle_count || 0) +
-                     Math.max(polledCounts.creatorFollowers, profile.creator_follower_count || 0) +
+                    {polledCounts.circles +
+                     polledCounts.creatorFollowers +
                      (polledCounts.followers || 0)}
                   </Text>
                   <Text style={styles.statLabel}>Followers</Text>
@@ -1874,7 +1882,7 @@ export default function MemberProfileScreen({ navigation }) {
                   }}
                 >
                   <Text style={styles.statNumber}>
-                    {polledCounts.circles || profile.circle_count || 0}
+                    {polledCounts.circles}
                   </Text>
                   <Text style={styles.statLabel}>Circle</Text>
                 </GHPressable>
@@ -1890,7 +1898,7 @@ export default function MemberProfileScreen({ navigation }) {
                 }}
               >
                 <Text style={styles.statNumber}>
-                  {polledCounts.following || profile.following_count || 0}
+                  {polledCounts.following}
                 </Text>
                 <Text style={styles.statLabel}>Following</Text>
               </GHPressable>
