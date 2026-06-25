@@ -222,7 +222,10 @@ export default function FollowerList({
       const canAdd =
         onCircleRequest &&
         viewerType === 'member' &&
-        itemType === 'member';
+        itemType === 'member' &&
+        !item.isCreator &&
+        !item.is_creator &&
+        !item.is_creator_mode_enabled;
 
       // Items already in the viewer's circle show an 'In Circle' badge instead of Follow
       const inCircle = !!item.inCircle;

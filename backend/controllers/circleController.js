@@ -146,9 +146,12 @@ const sendCircleRequest = async (req, res) => {
     if (!receiver_id) return res.status(400).json({ error: 'receiver_id is required' });
     if (senderId === receiver_id) return res.status(400).json({ error: 'Cannot send a request to yourself' });
 
-    // Verify receiver exists and is a member
-    const memberCheck = await pool.query(`SELECT id FROM members WHERE id = $1`, [receiver_id]);
+    // Verify receiver exists and is a member and is NOT a creator
+    const memberCheck = await pool.query(`SELECT id, is_creator_mode_enabled FROM members WHERE id = $1`, [receiver_id]);
     if (memberCheck.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    if (memberCheck.rows[0].is_creator_mode_enabled) {
+      return res.status(400).json({ error: 'invalid_recipient', message: 'Cannot send circle requests to creator accounts.' });
+    }
 
     // Block guard — check in both directions
     const blockCheck = await pool.query(`

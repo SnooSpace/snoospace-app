@@ -114,6 +114,9 @@ export default function UniversalFollowersScreen({ route, navigation }) {
           typeof entry.is_following === "boolean"
             ? entry.is_following
             : entry.you_follow_them,
+        isCreator: !!entry.is_creator || !!entry.is_creator_mode_enabled,
+        is_creator: !!entry.is_creator || !!entry.is_creator_mode_enabled,
+        is_creator_mode_enabled: !!entry.is_creator || !!entry.is_creator_mode_enabled,
       }));
 
       // Check follow status based on entity type

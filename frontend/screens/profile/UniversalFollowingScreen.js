@@ -114,6 +114,9 @@ export default function UniversalFollowingScreen({ route, navigation }) {
           avatarUrl: entry.following_photo_url || entry.profile_photo_url,
           type: entry.following_type || "member",
           isFollowing,
+          isCreator: !!entry.is_creator || !!entry.is_creator_mode_enabled,
+          is_creator: !!entry.is_creator || !!entry.is_creator_mode_enabled,
+          is_creator_mode_enabled: !!entry.is_creator || !!entry.is_creator_mode_enabled,
         };
       });
 

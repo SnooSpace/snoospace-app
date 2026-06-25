@@ -10,7 +10,7 @@
  * Params: { communityId, isOwnProfile, initialFollowersCount, initialCircleCount }
  */
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
@@ -90,6 +90,7 @@ function PersonRow({
   item,
   isOwnProfile,
   viewerType,
+  myId,
   circleState, // 'none' | 'pending_outgoing' | 'in_circle'
   circleLoading,
   onAddToCircle,
@@ -194,7 +195,7 @@ function PersonRow({
         )}
 
         {/* 2. VIEWING PUBLIC COMMUNITY PROFILE AS A MEMBER */}
-        {!isOwnProfile && viewerType === "member" && isMemberRow && item.id !== item.myId && (
+        {!isOwnProfile && viewerType === "member" && isMemberRow && String(item.id) !== String(myId) && !item.is_creator && !item.isCreator && !item.is_creator_mode_enabled && (
           <TouchableOpacity
             style={[
               styles.ctaBtn,
@@ -282,22 +283,42 @@ export default function CommunityFollowersScreen({ route, navigation }) {
   const followerLoadingMoreRef = useRef(false);
   const circleLoadingMoreRef = useRef(false);
 
-  // Detect viewer account and load ID
+  // Detect viewer account, load ID, and perform initial followers load
   useEffect(() => {
     (async () => {
+      let resolvedViewerType = null;
+      let resolvedMyId = null;
       try {
         const { getActiveAccount } = await import("../../../api/auth");
         const acc = await getActiveAccount();
         if (acc) {
-          setViewerType(acc.type?.toLowerCase());
-          setMyId(acc.id);
+          resolvedViewerType = acc.type?.toLowerCase();
+          resolvedMyId = acc.id;
+          setViewerType(resolvedViewerType);
+          setMyId(resolvedMyId);
         }
       } catch (_) {}
+
+      // Pre-fetch community circle member IDs to seed circleStates
+      let circleMemberIdSet = new Set();
+      try {
+        const circleRes = await getCommunityCircleMembers(communityId, { page: 1, limit: 200 });
+        const members = circleRes?.members || [];
+        members.forEach((m) => {
+          circleMemberIdSet.add(String(m.member_id || m.id));
+        });
+        setCircleTotal(members.length);
+      } catch (e) {
+        console.warn("[CommunityFollowers] failed to pre-fetch circle members:", e);
+      }
+
+      setFollowerLoading(true);
+      loadFollowers(1, "", resolvedViewerType, resolvedMyId, circleMemberIdSet).finally(() => setFollowerLoading(false));
     })();
-  }, []);
+  }, [loadFollowers, communityId]);
 
   // Fetch Followers Page
-  const loadFollowers = useCallback(async (page = 1, search = "") => {
+  const loadFollowers = useCallback(async (page = 1, search = "", vt = viewerType, mid = myId, circleIdSet = null) => {
     try {
       const res = await getCommunityFollowers(communityId, { page, limit: 20, search });
       const rows = res?.followers || res?.results || res || [];
@@ -308,6 +329,9 @@ export default function CommunityFollowersScreen({ route, navigation }) {
         avatar_url: r.follower_photo_url || r.profile_photo_url,
         type: r.follower_type || "member",
         created_at: r.created_at,
+        is_creator: !!r.is_creator || !!r.is_creator_mode_enabled || !!r.isCreator,
+        isCreator: !!r.is_creator || !!r.is_creator_mode_enabled || !!r.isCreator,
+        is_creator_mode_enabled: !!r.is_creator || !!r.is_creator_mode_enabled || !!r.isCreator,
       }));
 
       if (page === 1) {
@@ -319,20 +343,32 @@ export default function CommunityFollowersScreen({ route, navigation }) {
       setFollowerPage(page);
       setFollowerHasMore(normalizedRows.length === 20);
 
-      // Pre-seed community circle states if viewing own profile
+      // Pre-seed circle states from pre-fetched circleIdSet (both own and public profiles)
+      const preSeededCircle = {};
+      if (circleIdSet) {
+        normalizedRows.forEach((row) => {
+          if (row.type === "member" && circleIdSet.has(String(row.id))) {
+            preSeededCircle[row.id] = "in_circle";
+          }
+        });
+      }
+
+      // Pre-seed community circle states / follow backs if viewing own profile
       if (isOwnProfile) {
-        const preSeededCircle = {};
         const preSeededFollowBack = {};
 
         await Promise.all(
           normalizedRows.map(async (row) => {
             if (row.type === "member") {
-              const status = await getCommunityCircleStatus(row.id).catch(() => null);
-              if (status?.status) {
-                preSeededCircle[row.id] = status.status;
-                // If invite exists, track its invite_id in list status helper if needed
-                if (status.invite_id) {
-                  row.invite_id = status.invite_id;
+              // Only query if not already marked 'in_circle'
+              if (preSeededCircle[row.id] !== "in_circle") {
+                const status = await getCommunityCircleStatus(row.id).catch(() => null);
+                if (status?.status) {
+                  preSeededCircle[row.id] = status.status;
+                  // If invite exists, track its invite_id in list status helper if needed
+                  if (status.invite_id) {
+                    row.invite_id = status.invite_id;
+                  }
                 }
               }
             } else if (row.type === "community") {
@@ -344,20 +380,27 @@ export default function CommunityFollowersScreen({ route, navigation }) {
 
         setCircleStates((prev) => ({ ...prev, ...preSeededCircle }));
         setFollowBackStates((prev) => ({ ...prev, ...preSeededFollowBack }));
-      } else if (viewerType === "member") {
-        // Pre-seed member-to-member circle status for member rows
-        const preSeededMemberCircle = {};
-        await Promise.all(
-          normalizedRows.map(async (row) => {
-            if (row.type === "member" && String(row.id) !== String(myId)) {
-              const status = await getCircleStatus(row.id).catch(() => null);
-              if (status?.status) {
-                preSeededMemberCircle[row.id] = status.status;
+      } else {
+        // Viewing public profile
+        if (Object.keys(preSeededCircle).length > 0) {
+          setCircleStates((prev) => ({ ...prev, ...preSeededCircle }));
+        }
+
+        if (vt === "member") {
+          // Pre-seed member-to-member circle status for member rows
+          const preSeededMemberCircle = {};
+          await Promise.all(
+            normalizedRows.map(async (row) => {
+              if (row.type === "member" && String(row.id) !== String(mid)) {
+                const status = await getCircleStatus(row.id).catch(() => null);
+                if (status?.status) {
+                  preSeededMemberCircle[row.id] = status.status;
+                }
               }
-            }
-          })
-        );
-        setMemberCircleStates((prev) => ({ ...prev, ...preSeededMemberCircle }));
+            })
+          );
+          setMemberCircleStates((prev) => ({ ...prev, ...preSeededMemberCircle }));
+        }
       }
     } catch (e) {
       console.warn("[CommunityFollowers] loadFollowers error:", e);
@@ -365,7 +408,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
   }, [communityId, isOwnProfile, viewerType, myId, followersTotal]);
 
   // Fetch Circle Members Page
-  const loadCircle = useCallback(async (page = 1, search = "") => {
+  const loadCircle = useCallback(async (page = 1, search = "", vt = viewerType, mid = myId) => {
     try {
       const res = await getCommunityCircleMembers(communityId, { page, limit: 20, search });
       const rows = res?.members || [];
@@ -386,16 +429,26 @@ export default function CommunityFollowersScreen({ route, navigation }) {
       if (page === 1) setCircleTotal(normalizedRows.length);
       setCirclePage(page);
       setCircleHasMore(normalizedRows.length === 20);
+
+      // Pre-seed member-to-member circle status for Circle tab members
+      if (!isOwnProfile && vt === "member") {
+        const preSeededMemberCircle = {};
+        await Promise.all(
+          normalizedRows.map(async (row) => {
+            if (String(row.id) !== String(mid)) {
+              const status = await getCircleStatus(row.id).catch(() => null);
+              if (status?.status) {
+                preSeededMemberCircle[row.id] = status.status;
+              }
+            }
+          })
+        );
+        setMemberCircleStates((prev) => ({ ...prev, ...preSeededMemberCircle }));
+      }
     } catch (e) {
       console.warn("[CommunityFollowers] loadCircle error:", e);
     }
-  }, [communityId]);
-
-  // Initial load
-  useEffect(() => {
-    setFollowerLoading(true);
-    loadFollowers(1, "").finally(() => setFollowerLoading(false));
-  }, [loadFollowers]);
+  }, [communityId, isOwnProfile, viewerType, myId]);
 
   // Reload on focus
   const hasMountedRef = useRef(false);
@@ -406,11 +459,23 @@ export default function CommunityFollowersScreen({ route, navigation }) {
         return;
       }
       setFollowerLoading(true);
-      loadFollowers(1, followerSearch).finally(() => setFollowerLoading(false));
-      if (circleFetchedRef.current) {
-        loadCircle(1, circleSearch);
-      }
-    }, [loadFollowers, loadCircle, followerSearch, circleSearch])
+      (async () => {
+        let circleMemberIdSet = new Set();
+        try {
+          const circleRes = await getCommunityCircleMembers(communityId, { page: 1, limit: 200 });
+          const members = circleRes?.members || [];
+          members.forEach((m) => {
+            circleMemberIdSet.add(String(m.member_id || m.id));
+          });
+          setCircleTotal(members.length);
+        } catch (_) {}
+
+        await loadFollowers(1, followerSearch, viewerType, myId, circleMemberIdSet);
+        if (circleFetchedRef.current) {
+          await loadCircle(1, circleSearch);
+        }
+      })().finally(() => setFollowerLoading(false));
+    }, [loadFollowers, loadCircle, followerSearch, circleSearch, communityId, viewerType, myId])
   );
 
   // Tab press handler
@@ -428,12 +493,20 @@ export default function CommunityFollowersScreen({ route, navigation }) {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     if (activeTab === "followers") {
-      await loadFollowers(1, followerSearch);
+      let circleMemberIdSet = new Set();
+      try {
+        const circleRes = await getCommunityCircleMembers(communityId, { page: 1, limit: 200 });
+        const members = circleRes?.members || [];
+        members.forEach((m) => {
+          circleMemberIdSet.add(String(m.member_id || m.id));
+        });
+      } catch (_) {}
+      await loadFollowers(1, followerSearch, viewerType, myId, circleMemberIdSet);
     } else {
       await loadCircle(1, circleSearch);
     }
     setRefreshing(false);
-  }, [activeTab, followerSearch, circleSearch, loadFollowers, loadCircle]);
+  }, [activeTab, followerSearch, circleSearch, loadFollowers, loadCircle, communityId, viewerType, myId]);
 
   // Infinite scroll
   const loadMoreFollowers = useCallback(async () => {
@@ -621,11 +694,18 @@ export default function CommunityFollowersScreen({ route, navigation }) {
   // Render lists
   const renderFollowerItem = useCallback(({ item }) => {
     const circleLoading = !!circleActionLoading[item.id] || !!memberCircleLoadingMap[item.id];
+
+    // If a user is there in circles, then remove them from the followers list as we are giving more priority to circle
+    if (circleStates[item.id] === "in_circle") {
+      return null;
+    }
+
     return (
       <PersonRow
         item={item}
         isOwnProfile={isOwnProfile}
         viewerType={viewerType}
+        myId={myId}
         circleState={circleStates[item.id] || "none"}
         circleLoading={circleLoading}
         onAddToCircle={handleAddToCircle}
@@ -639,22 +719,25 @@ export default function CommunityFollowersScreen({ route, navigation }) {
         onMemberCircleRequest={handleMemberCircleRequest}
       />
     );
-  }, [isOwnProfile, viewerType, circleStates, circleActionLoading, handleAddToCircle, handleCancelCircleInvite, handleRemoveFromCircle, navigateTo, followBackStates, followBackLoadingMap, handleFollowBack, memberCircleStates, memberCircleLoadingMap, handleMemberCircleRequest]);
+  }, [isOwnProfile, viewerType, myId, circleStates, circleActionLoading, handleAddToCircle, handleCancelCircleInvite, handleRemoveFromCircle, navigateTo, followBackStates, followBackLoadingMap, handleFollowBack, memberCircleStates, memberCircleLoadingMap, handleMemberCircleRequest]);
 
   const renderCircleItem = useCallback(({ item }) => {
-    const circleLoading = !!circleActionLoading[item.id];
+    const circleLoading = !!circleActionLoading[item.id] || !!memberCircleLoadingMap[item.id];
     return (
       <PersonRow
         item={item}
         isOwnProfile={isOwnProfile}
         viewerType={viewerType}
+        myId={myId}
         circleState="in_circle"
         circleLoading={circleLoading}
         onRemoveFromCircle={handleRemoveFromCircle}
         onPress={() => navigateTo(item)}
+        memberToMemberCircleState={memberCircleStates[item.id] || "none"}
+        onMemberCircleRequest={handleMemberCircleRequest}
       />
     );
-  }, [isOwnProfile, viewerType, circleActionLoading, handleRemoveFromCircle, navigateTo]);
+  }, [isOwnProfile, viewerType, myId, circleActionLoading, memberCircleLoadingMap, handleRemoveFromCircle, navigateTo, memberCircleStates, handleMemberCircleRequest]);
 
   const renderEmpty = (label) => (
     <View style={styles.emptyState}>
@@ -671,6 +754,40 @@ export default function CommunityFollowersScreen({ route, navigation }) {
         <ActivityIndicator size="small" color="#2962FF" />
       </View>
     ) : null;
+
+  const followersExtraData = useMemo(
+    () => ({
+      myId,
+      viewerType,
+      circleStates,
+      circleActionLoading,
+      memberCircleStates,
+      memberCircleLoadingMap,
+      followBackStates,
+      followBackLoadingMap,
+    }),
+    [
+      myId,
+      viewerType,
+      circleStates,
+      circleActionLoading,
+      memberCircleStates,
+      memberCircleLoadingMap,
+      followBackStates,
+      followBackLoadingMap,
+    ]
+  );
+
+  const circleExtraData = useMemo(
+    () => ({
+      myId,
+      viewerType,
+      circleActionLoading,
+      memberCircleStates,
+      memberCircleLoadingMap,
+    }),
+    [myId, viewerType, circleActionLoading, memberCircleStates, memberCircleLoadingMap]
+  );
 
   const isFollowersTab = activeTab === "followers";
 
@@ -736,6 +853,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
               data={followers}
               keyExtractor={(item, i) => `f-${item.id ?? i}`}
               renderItem={renderFollowerItem}
+              extraData={followersExtraData}
               ListEmptyComponent={renderEmpty("followers")}
               ListFooterComponent={renderFooter(followerLoadingMore)}
               onEndReached={loadMoreFollowers}
@@ -756,6 +874,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
               data={circleMembers}
               keyExtractor={(item, i) => `c-${item.id ?? i}`}
               renderItem={renderCircleItem}
+              extraData={circleExtraData}
               ListEmptyComponent={renderEmpty("circle members")}
               ListFooterComponent={renderFooter(circleLoadingMore)}
               onEndReached={loadMoreCircle}

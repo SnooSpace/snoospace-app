@@ -233,7 +233,11 @@ const getFollowers = async (req, res) => {
           WHEN f.follower_type = 'community' THEN c.logo_url
           WHEN f.follower_type = 'sponsor' THEN s.logo_url
           WHEN f.follower_type = 'venue' THEN NULL
-        END as follower_photo_url
+        END as follower_photo_url,
+        CASE
+          WHEN f.follower_type = 'member' THEN m.is_creator_mode_enabled
+          ELSE false
+        END as is_creator
       FROM follows f
       LEFT JOIN members m ON f.follower_type = 'member' AND f.follower_id = m.id
       LEFT JOIN communities c ON f.follower_type = 'community' AND f.follower_id = c.id
@@ -281,7 +285,7 @@ const getFollowing = async (req, res) => {
       const query = `
         SELECT
           following_id, following_type, following_name, following_username,
-          following_photo_url, created_at, true AS is_following
+          following_photo_url, created_at, true AS is_following, is_creator
         FROM (
           -- Old-style follows (communities, venues, sponsors, old member follows)
           SELECT
@@ -305,7 +309,11 @@ const getFollowing = async (req, res) => {
               WHEN f.following_type = 'sponsor'   THEN s.logo_url
               WHEN f.following_type = 'venue'     THEN NULL
             END AS following_photo_url,
-            f.created_at
+            f.created_at,
+            CASE
+              WHEN f.following_type = 'member' THEN m.is_creator_mode_enabled
+              ELSE false
+            END as is_creator
           FROM follows f
           LEFT JOIN members     m ON f.following_type = 'member'    AND f.following_id = m.id
           LEFT JOIN communities c ON f.following_type = 'community' AND f.following_id = c.id
@@ -323,7 +331,8 @@ const getFollowing = async (req, res) => {
             cr.name        AS following_name,
             cr.username    AS following_username,
             cr.profile_photo_url AS following_photo_url,
-            cf.created_at
+            cf.created_at,
+            true           AS is_creator
           FROM creator_follows cf
           JOIN members cr ON cr.id = cf.creator_id
           WHERE cf.follower_id = $1 AND cf.is_dormant = false AND cf.is_superseded_by_circle = false
@@ -370,7 +379,11 @@ const getFollowing = async (req, res) => {
           WHEN f.following_type = 'community' THEN c.logo_url
           WHEN f.following_type = 'sponsor'   THEN s.logo_url
           WHEN f.following_type = 'venue'     THEN NULL
-        END as following_photo_url
+        END as following_photo_url,
+        CASE
+          WHEN f.following_type = 'member' THEN m.is_creator_mode_enabled
+          ELSE false
+        END as is_creator
       FROM follows f
       LEFT JOIN members     m ON f.following_type = 'member'    AND f.following_id = m.id
       LEFT JOIN communities c ON f.following_type = 'community' AND f.following_id = c.id
@@ -504,6 +517,7 @@ const getProfileCounts = async (req, res) => {
     } else if (userType === 'community') {
       const r = await pool.query(
         `SELECT follower_count, following_count,
+                (SELECT COUNT(*) FROM community_member_circles WHERE community_id = $1)::int AS circle_count,
                 (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'community')::int
                 + (SELECT COUNT(*) FROM opportunities WHERE creator_id = $1::text AND creator_type = 'community' AND status != 'closed')::int AS post_count
          FROM communities WHERE id = $1`,
@@ -513,6 +527,7 @@ const getProfileCounts = async (req, res) => {
       followers_count = parseInt(row?.follower_count  ?? 0, 10);
       following_count = parseInt(row?.following_count ?? 0, 10);
       post_count      = parseInt(row?.post_count      ?? 0, 10);
+      circle_count    = parseInt(row?.circle_count    ?? 0, 10);
     } else {
       // sponsor / venue: live COUNT(*)
       const result = await pool.query(
