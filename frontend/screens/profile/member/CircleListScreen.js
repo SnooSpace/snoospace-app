@@ -326,7 +326,11 @@ export default function CircleListScreen({ route, navigation }) {
   };
 
   const handlePress = (item) => {
-    navigation.push('MemberPublicProfile', { memberId: item.member_id });
+    if (item.is_community) {
+      navigation.push('CommunityPublicProfile', { communityId: item.member_id || item.id, viewerRole: 'member' });
+    } else {
+      navigation.push('MemberPublicProfile', { memberId: item.member_id || item.id });
+    }
   };
 
   // Follow/Unfollow toggle for creators in public views
@@ -370,12 +374,14 @@ export default function CircleListScreen({ route, navigation }) {
   const handleRemove = useCallback((item) => {
     HapticsService.triggerImpactLight();
     const isTargetCreator = !!item.is_creator_mode_enabled;
-    const showTertiary = isTargetCreator || isViewerCreator;
-    const tertiaryText = isTargetCreator ? 'Remove from Circle & Unfollow' : 'Remove from Circle & as Follower';
+    const showTertiary = isTargetCreator || isViewerCreator || item.is_community;
+    const tertiaryText = item.is_community
+      ? 'Remove from Circle & Unfollow'
+      : (isTargetCreator ? 'Remove from Circle & Unfollow' : 'Remove from Circle & as Follower');
 
     showAlert({
       title: 'Remove from Circle?',
-      message: `${item.name || 'This person'} will be removed from your circle.`,
+      message: `${item.name || (item.is_community ? 'This community' : 'This person')} will be removed from your circle.`,
       icon: UserMinus,
       iconColor: '#E53935',
       secondaryAction: { text: 'Cancel', onPress: hideAlert },
@@ -385,7 +391,11 @@ export default function CircleListScreen({ route, navigation }) {
         onPress: async () => {
           hideAlert();
           try {
-            await removeFromCircle(item.member_id, false); // follow restored
+            if (item.is_community) {
+              await removeMemberFromCommunityCircle(item.member_id, false);
+            } else {
+              await removeFromCircle(item.member_id, false); // follow restored
+            }
             setMembers((prev) => prev.filter((m) => m.member_id !== item.member_id));
             EventBus.emit('my:circle-member-removed', { alsoUnfollow: false });
             HapticsService.triggerImpactLight();
@@ -406,7 +416,11 @@ export default function CircleListScreen({ route, navigation }) {
         onPress: async () => {
           hideAlert();
           try {
-            await removeFromCircle(item.member_id, true); // also delete follow
+            if (item.is_community) {
+              await removeMemberFromCommunityCircle(item.member_id, true);
+            } else {
+              await removeFromCircle(item.member_id, true); // also delete follow
+            }
             setMembers((prev) => prev.filter((m) => m.member_id !== item.member_id));
             EventBus.emit('my:circle-member-removed', { alsoUnfollow: true });
             HapticsService.triggerImpactLight();

@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
 import { Image } from "expo-image"; // ── PERF: off-thread decode + memory-disk cache eliminates scroll jank
-import { ScrollView, Pressable } from "react-native-gesture-handler";
+import { ScrollView, Pressable, Gesture, GestureDetector } from "react-native-gesture-handler";
+import AnimatedReanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  runOnJS,
+} from "react-native-reanimated";
 import { COLORS } from "../constants/theme";
 import { getPostById } from "../api/posts";
 import LikeStateManager from "../utils/LikeStateManager";
@@ -29,6 +35,75 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+
+  const allImageUrls = postData?.image_urls ? postData.image_urls.flat() : [];
+
+  const translateX = useSharedValue(0);
+  const startX = useSharedValue(0);
+  const currentIndexShared = useSharedValue(0);
+
+  const syncActiveIndex = (index) => {
+    setActiveIndex(index);
+  };
+
+  const carouselGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([-15, 15])
+        .failOffsetY([-8, 8])
+        .onStart(() => {
+          "worklet";
+          startX.value = translateX.value;
+        })
+        .onUpdate((e) => {
+          "worklet";
+          const proposed = startX.value + e.translationX;
+          const minX = -(allImageUrls.length - 1) * CARD_WIDTH;
+          const maxX = 0;
+          if (proposed > maxX) {
+            translateX.value = maxX;
+          } else if (proposed < minX) {
+            translateX.value = minX;
+          } else {
+            translateX.value = proposed;
+          }
+        })
+        .onEnd((e) => {
+          "worklet";
+          const SWIPE_DISTANCE_THRESHOLD = CARD_WIDTH * 0.25;
+          const VELOCITY_THRESHOLD = 500;
+          const current = currentIndexShared.value;
+          let target = current;
+
+          if (
+            e.translationX < -SWIPE_DISTANCE_THRESHOLD ||
+            e.velocityX < -VELOCITY_THRESHOLD
+          ) {
+            target = Math.min(current + 1, allImageUrls.length - 1);
+          } else if (
+            e.translationX > SWIPE_DISTANCE_THRESHOLD ||
+            e.velocityX > VELOCITY_THRESHOLD
+          ) {
+            target = Math.max(current - 1, 0);
+          }
+
+          translateX.value = withSpring(-target * CARD_WIDTH, {
+            damping: 25,
+            stiffness: 200,
+            mass: 0.8,
+            velocity: e.velocityX,
+          });
+          currentIndexShared.value = target;
+          runOnJS(syncActiveIndex)(target);
+        }),
+    [allImageUrls.length, CARD_WIDTH],
+  );
+
+  const carouselRowStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: translateX.value }],
+    };
+  });
 
   // Extract metadata from message
   const { postId, authorId, authorType, imageUrl, caption, authorUsername, author_username, authorName, author_name } = metadata || {};
@@ -219,8 +294,7 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
 
   // ── Default: render media post ────────────────────────────────────────────
 
-  // Collect all images for carousel support
-  const allImageUrls = postData.image_urls ? postData.image_urls.flat() : [];
+  // Collect all images for carousel support (computed at top)
   const hasMedia = allImageUrls.length > 0;
   const isCarousel = allImageUrls.length > 1;
   const primaryMediaUrl = hasMedia ? allImageUrls[0] : imageUrl || null;
@@ -296,62 +370,66 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
             {isCarousel ? (
               // ── Carousel (multiple images) ─────────────────────────────────
               <>
-                <ScrollView
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  onMomentumScrollEnd={handleCarouselScroll}
-                  scrollEventThrottle={16}
-                  style={{ width: CARD_WIDTH }}
-                  nestedScrollEnabled
-                >
-                  {allImageUrls.map((url, idx) => {
-                    const itemIsVideo = checkIsVideo(url, idx);
-                    const itemThumbnail = itemIsVideo
-                      ? generateCloudinaryThumbnail(url)
-                      : url;
-                    return (
-                      <View
-                        key={idx}
-                        style={[
-                          styles.mediaContainer,
-                          { height: mediaHeight, width: CARD_WIDTH },
-                          isWideImage && styles.wideMediaContainer,
-                        ]}
-                      >
-                        {itemIsVideo && !itemThumbnail ? (
-                          <View style={styles.videoPlaceholder}>
-                            <View style={styles.playIcon}>
-                              <Text style={styles.playIconText}>▶</Text>
-                            </View>
-                          </View>
-                        ) : itemThumbnail ? (
-                          <>
-                            <Image
-                              source={{ uri: itemThumbnail }}
-                              style={[
-                                styles.mediaImage,
-                                isWideImage && { resizeMode: "contain" },
-                              ]}
-                              contentFit={isWideImage ? "contain" : "cover"}
-                              cachePolicy="memory-disk"
-                            />
-                            {itemIsVideo && (
-                              <View style={styles.videoIndicator}>
+                <GestureDetector gesture={carouselGesture}>
+                  <View style={{ width: CARD_WIDTH, overflow: 'hidden' }}>
+                    <AnimatedReanimated.View
+                      style={[
+                        {
+                          flexDirection: "row",
+                          width: allImageUrls.length * CARD_WIDTH,
+                        },
+                        carouselRowStyle,
+                      ]}
+                    >
+                      {allImageUrls.map((url, idx) => {
+                        const itemIsVideo = checkIsVideo(url, idx);
+                        const itemThumbnail = itemIsVideo
+                          ? generateCloudinaryThumbnail(url)
+                          : url;
+                        return (
+                          <View
+                            key={idx}
+                            style={[
+                              styles.mediaContainer,
+                              { height: mediaHeight, width: CARD_WIDTH },
+                              isWideImage && styles.wideMediaContainer,
+                            ]}
+                          >
+                            {itemIsVideo && !itemThumbnail ? (
+                              <View style={styles.videoPlaceholder}>
                                 <View style={styles.playIcon}>
                                   <Text style={styles.playIconText}>▶</Text>
                                 </View>
                               </View>
-                            )}
-                          </>
-                        ) : null}
-                      </View>
-                    );
-                  })}
-                </ScrollView>
+                            ) : itemThumbnail ? (
+                              <>
+                                <Image
+                                  source={{ uri: itemThumbnail }}
+                                  style={[
+                                    styles.mediaImage,
+                                    isWideImage && { resizeMode: "contain" },
+                                  ]}
+                                  contentFit={isWideImage ? "contain" : "cover"}
+                                  cachePolicy="memory-disk"
+                                />
+                                {itemIsVideo && (
+                                  <View style={styles.videoIndicator}>
+                                    <View style={styles.playIcon}>
+                                      <Text style={styles.playIconText}>▶</Text>
+                                    </View>
+                                  </View>
+                                )}
+                              </>
+                            ) : null}
+                          </View>
+                        );
+                      })}
+                    </AnimatedReanimated.View>
+                  </View>
+                </GestureDetector>
 
                 {/* Counter badge (top-right) */}
-                <View style={styles.carouselBadge}>
+                <View style={styles.carouselBadge} pointerEvents="none">
                   <Text style={styles.carouselBadgeText}>
                     {activeIndex + 1}/{allImageUrls.length}
                   </Text>

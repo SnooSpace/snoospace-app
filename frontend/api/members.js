@@ -156,9 +156,9 @@ export async function getMemberCommunityCircleStatus(communityId) {
 }
 
 /** Community removes a member from its circle. */
-export async function removeMemberFromCommunityCircle(memberId) {
+export async function removeMemberFromCommunityCircle(memberId, alsoUnfollow = false) {
   const token = await getAuthToken();
-  return apiDelete(`/community-circles/${memberId}`, null, 15000, token);
+  return apiDelete(`/community-circles/${memberId}`, alsoUnfollow ? { also_unfollow: true } : null, 15000, token);
 }
 
 /** Get a community's circle list. */

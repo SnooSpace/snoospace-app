@@ -520,6 +520,7 @@ async function getPublicMember(req, res) {
         `SELECT 1 FROM follows 
          WHERE follower_id = $1 AND follower_type = $2
            AND following_id = $3 AND following_type = 'member'
+           AND is_superseded_by_circle = false
          LIMIT 1`,
         [authUserId, userType, targetId]
       );
@@ -536,6 +537,7 @@ async function getPublicMember(req, res) {
         `SELECT 1 FROM follows
          WHERE follower_id = $1 AND follower_type = 'member'
            AND following_id = $2 AND following_type = 'community'
+           AND is_superseded_by_circle = false
          LIMIT 1`,
         [targetId, authUserId]
       );
@@ -547,6 +549,7 @@ async function getPublicMember(req, res) {
         `SELECT 1 FROM follows
          WHERE follower_id = $1 AND follower_type = 'community'
            AND following_id = $2 AND following_type = 'member'
+           AND is_superseded_by_circle = false
          LIMIT 1`,
         [authUserId, targetId]
       );

@@ -1348,157 +1348,92 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               {/* ── CTA Block: Community viewer → Community Circle; Creator → Follow; Regular → Circle ── */}
               {circleStatus !== 'self' && (viewerAccountType === 'community' ? (
                 // ── COMMUNITY VIEWER ─────────────────────────────────────────────────────
-                profile?.is_creator_mode_enabled ? (
-                  // ── Community viewing a Creator → Follow / Follow Back / Following CTA ─
-                  communityIsFollowingCreator ? (
-                    // Already following — show Following (tappable: unfollow)
-                    <GHPressable
-                      style={({ pressed }) => [circleCTAStyles.inCircleBtn, { flex: 1 }, pressed && { opacity: 0.7 }]}
-                      disabled={communityFollowLoading}
-                      onPress={() => {
-                        showAlert({
-                          title: 'Unfollow Creator?',
-                          message: `Stop following ${profile?.full_name || 'this creator'}?`,
-                          icon: UserMinus,
-                          iconColor: '#E53935',
-                          secondaryAction: { text: 'Keep Following', onPress: hideAlert },
-                          primaryAction: {
-                            text: 'Unfollow',
-                            style: 'destructive',
-                            onPress: async () => {
-                              hideAlert();
-                              setCommunityFollowLoading(true);
-                              try {
-                                // Use general follows API — same reason as follow
-                                await unfollowMember(memberId);
-                                setCommunityIsFollowingCreator(false);
-                                setFollowersCount((c) => Math.max(0, c - 1));
-                                HapticsService.triggerImpactLight();
-                              } catch (e) { loadProfile(); }
-                              finally { setCommunityFollowLoading(false); }
-                            },
+                commCircleStatus === 'in_circle' ? (
+                  <GHPressable
+                    style={({ pressed }) => [circleCTAStyles.inCircleBtn, { flex: 1 }, pressed && { opacity: 0.7 }]}
+                    disabled={commCircleLoading}
+                    onPress={() => {
+                      showAlert({
+                        title: 'Remove from Circle?',
+                        message: `${profile?.full_name || 'This person'} will be removed from your circle.`,
+                        icon: UserMinus,
+                        iconColor: '#E53935',
+                        secondaryAction: { text: 'Cancel', onPress: hideAlert },
+                        primaryAction: {
+                          text: 'Remove',
+                          style: 'destructive',
+                          onPress: async () => {
+                            hideAlert();
+                            setCommCircleLoading(true);
+                            try {
+                              await removeMemberFromCommunityCircle(memberId);
+                              setCommCircleStatus('none');
+                              setCommCircleInviteId(null);
+                              HapticsService.triggerImpactLight();
+                            } catch (e) { loadCommunityCircleStatus(); }
+                            finally { setCommCircleLoading(false); }
                           },
-                        });
-                      }}
-                    >
-                      <UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                      <Text style={circleCTAStyles.inCircleText}>Following</Text>
-                    </GHPressable>
-                  ) : (
-                    // Not following yet — show Follow or Follow Back
-                    <GradientButton
-                      title={theyFollowYou ? 'Follow Back' : 'Follow'}
-                      colors={['#448AFF', '#2962FF']}
-                      textStyle={{ fontFamily: FONTS.semiBold, color: '#FFFFFF' }}
-                      style={{ flex: 1, borderRadius: 16, overflow: 'hidden' }}
-                      gradientStyle={{ borderRadius: 16 }}
-                      disabled={communityFollowLoading}
-                      useGHPressable={true}
-                      onPress={async () => {
-                        setCommunityFollowLoading(true);
-                        try {
-                          // Use general follows API — creator_follows.follower_id has a members FK
-                          // that rejects community IDs. followMember routes to the general /follow endpoint.
-                          await followMember(memberId);
-                          setCommunityIsFollowingCreator(true);
-                          setFollowersCount((c) => c + 1); // increments members.follower_count via DB trigger
-                          HapticsService.triggerAddToCircle();
-                        } catch (e) { loadProfile(); }
-                        finally { setCommunityFollowLoading(false); }
-                      }}
-                    >
-                      <UserPlus size={16} color="#fff" strokeWidth={2.5} />
-                    </GradientButton>
-                  )
+                        },
+                      });
+                    }}
+                  >
+                    <UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                    <Text style={circleCTAStyles.inCircleText}>In Circle</Text>
+                  </GHPressable>
+                ) : commCircleStatus === 'pending_outgoing' ? (
+                  <GHPressable
+                    style={({ pressed }) => [circleCTAStyles.requestedBtn, { flex: 1 }, pressed && { opacity: 0.7 }]}
+                    disabled={commCircleLoading}
+                    onPress={() => {
+                      showAlert({
+                        title: 'Cancel Invite?',
+                        message: 'Withdraw your circle invite to this member?',
+                        icon: Clock,
+                        iconColor: '#FF9500',
+                        secondaryAction: { text: 'Keep', onPress: hideAlert },
+                        primaryAction: {
+                          text: 'Cancel Invite',
+                          style: 'destructive',
+                          onPress: async () => {
+                            hideAlert();
+                            setCommCircleLoading(true);
+                            try {
+                              await cancelCommunityCircleInvite(commCircleInviteId);
+                              setCommCircleStatus('none');
+                              setCommCircleInviteId(null);
+                              HapticsService.triggerImpactLight();
+                            } catch (e) { loadCommunityCircleStatus(); }
+                            finally { setCommCircleLoading(false); }
+                          },
+                        },
+                      });
+                    }}
+                  >
+                    <Clock size={16} color="#FF9500" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                    <Text style={circleCTAStyles.requestedText}>Invited</Text>
+                  </GHPressable>
                 ) : (
-                  // ── Community viewing a regular Member → Community Circle CTA ─────────
-                  commCircleStatus === 'in_circle' ? (
-                    <GHPressable
-                      style={({ pressed }) => [circleCTAStyles.inCircleBtn, { flex: 1 }, pressed && { opacity: 0.7 }]}
-                      disabled={commCircleLoading}
-                      onPress={() => {
-                        showAlert({
-                          title: 'Remove from Circle?',
-                          message: `${profile?.full_name || 'This person'} will be removed from your circle.`,
-                          icon: UserMinus,
-                          iconColor: '#E53935',
-                          secondaryAction: { text: 'Cancel', onPress: hideAlert },
-                          primaryAction: {
-                            text: 'Remove',
-                            style: 'destructive',
-                            onPress: async () => {
-                              hideAlert();
-                              setCommCircleLoading(true);
-                              try {
-                                await removeMemberFromCommunityCircle(memberId);
-                                setCommCircleStatus('none');
-                                setCommCircleInviteId(null);
-                                HapticsService.triggerImpactLight();
-                              } catch (e) { loadCommunityCircleStatus(); }
-                              finally { setCommCircleLoading(false); }
-                            },
-                          },
-                        });
-                      }}
-                    >
-                      <UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                      <Text style={circleCTAStyles.inCircleText}>In Circle</Text>
-                    </GHPressable>
-                  ) : commCircleStatus === 'pending_outgoing' ? (
-                    <GHPressable
-                      style={({ pressed }) => [circleCTAStyles.requestedBtn, { flex: 1 }, pressed && { opacity: 0.7 }]}
-                      disabled={commCircleLoading}
-                      onPress={() => {
-                        showAlert({
-                          title: 'Cancel Invite?',
-                          message: 'Withdraw your circle invite to this member?',
-                          icon: Clock,
-                          iconColor: '#FF9500',
-                          secondaryAction: { text: 'Keep', onPress: hideAlert },
-                          primaryAction: {
-                            text: 'Cancel Invite',
-                            style: 'destructive',
-                            onPress: async () => {
-                              hideAlert();
-                              setCommCircleLoading(true);
-                              try {
-                                await cancelCommunityCircleInvite(commCircleInviteId);
-                                setCommCircleStatus('none');
-                                setCommCircleInviteId(null);
-                                HapticsService.triggerImpactLight();
-                              } catch (e) { loadCommunityCircleStatus(); }
-                              finally { setCommCircleLoading(false); }
-                            },
-                          },
-                        });
-                      }}
-                    >
-                      <Clock size={16} color="#FF9500" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                      <Text style={circleCTAStyles.requestedText}>Invited</Text>
-                    </GHPressable>
-                  ) : (
-                    <GradientButton
-                      title="Add to Circle"
-                      colors={['#448AFF', '#2962FF']}
-                      textStyle={{ fontFamily: FONTS.semiBold, color: '#FFFFFF' }}
-                      style={{ flex: 1, borderRadius: 16, overflow: 'hidden' }}
-                      gradientStyle={{ borderRadius: 16 }}
-                      disabled={commCircleLoading}
-                      useGHPressable={true}
-                      onPress={async () => {
-                        setCommCircleLoading(true);
-                        try {
-                          const res = await sendCommunityCircleInvite(memberId);
-                          setCommCircleStatus('pending_outgoing');
-                          setCommCircleInviteId(res?.invite_id || null);
-                          HapticsService.triggerAddToCircle();
-                        } catch (e) { loadCommunityCircleStatus(); }
-                        finally { setCommCircleLoading(false); }
-                      }}
-                    >
-                      <UserPlus size={16} color="#fff" strokeWidth={2.5} />
-                    </GradientButton>
-                  )
+                  <GradientButton
+                    title="Add to Circle"
+                    colors={['#448AFF', '#2962FF']}
+                    textStyle={{ fontFamily: FONTS.semiBold, color: '#FFFFFF' }}
+                    style={{ flex: 1, borderRadius: 16, overflow: 'hidden' }}
+                    gradientStyle={{ borderRadius: 16 }}
+                    disabled={commCircleLoading}
+                    useGHPressable={true}
+                    onPress={async () => {
+                      setCommCircleLoading(true);
+                      try {
+                        const res = await sendCommunityCircleInvite(memberId);
+                        setCommCircleStatus('pending_outgoing');
+                        setCommCircleInviteId(res?.invite_id || null);
+                        HapticsService.triggerAddToCircle();
+                      } catch (e) { loadCommunityCircleStatus(); }
+                      finally { setCommCircleLoading(false); }
+                    }}
+                  >
+                    <UserPlus size={16} color="#fff" strokeWidth={2.5} />
+                  </GradientButton>
                 )
               ) : profile?.is_creator_mode_enabled ? (
                 // ── CREATOR PROFILE CTA ──────────────────────────────────────

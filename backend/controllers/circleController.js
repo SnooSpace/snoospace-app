@@ -415,32 +415,54 @@ const getCircleMembers = async (req, res) => {
     const { page = 1, limit = 20, search = '' } = req.query;
     const offset = (page - 1) * limit;
 
-    const searchClause = search ? `AND (m.name ILIKE $4 OR m.username ILIKE $4)` : '';
-    const params = [userId, userId, limit, ...(search ? [`%${search}%`] : []), offset];
+    const searchClauseMembers = search ? `AND (m.name ILIKE $4 OR m.username ILIKE $4)` : '';
+    const searchClauseCommunities = search ? `AND (com.name ILIKE $4 OR com.username ILIKE $4)` : '';
 
-    // Re-index offset param position based on whether search is present
-    const offsetParam = search ? 5 : 4;
+    const params = [userId, userId, limit];
+    if (search) params.push(`%${search}%`);
+    const offsetParamIndex = params.length + 1;
+    params.push(offset);
 
-    const result = await pool.query(`
-      SELECT
-        c.id AS circle_id,
-        c.created_at AS connected_since,
-        m.id AS member_id,
-        m.name,
-        m.username,
-        m.profile_photo_url,
-        m.is_creator_mode_enabled
-      FROM circles c
-      JOIN members m ON m.id = CASE
-        WHEN c.user_a_id = $1 THEN c.user_b_id
-        ELSE c.user_a_id
-      END
-      WHERE (c.user_a_id = $1 OR c.user_b_id = $2)
-        ${searchClause}
-      ORDER BY c.created_at DESC
-      LIMIT $3 OFFSET $${offsetParam}
-    `, params);
+    const query = `
+      SELECT * FROM (
+        SELECT
+          c.id AS circle_id,
+          c.created_at AS connected_since,
+          m.id AS member_id,
+          m.name,
+          m.username,
+          m.profile_photo_url,
+          m.is_creator_mode_enabled,
+          false AS is_community
+        FROM circles c
+        JOIN members m ON m.id = CASE
+          WHEN c.user_a_id = $1 THEN c.user_b_id
+          ELSE c.user_a_id
+        END
+        WHERE (c.user_a_id = $1 OR c.user_b_id = $2)
+          ${searchClauseMembers}
 
+        UNION ALL
+
+        SELECT
+          cc.id AS circle_id,
+          cc.created_at AS connected_since,
+          com.id AS member_id,
+          com.name,
+          com.username,
+          com.logo_url AS profile_photo_url,
+          false AS is_creator_mode_enabled,
+          true AS is_community
+        FROM community_member_circles cc
+        JOIN communities com ON com.id = cc.community_id
+        WHERE cc.member_id = $1
+          ${searchClauseCommunities}
+      ) combined
+      ORDER BY connected_since DESC
+      LIMIT $3 OFFSET $${offsetParamIndex}
+    `;
+
+    const result = await pool.query(query, params);
     return res.json({ members: result.rows });
   } catch (err) {
     console.error('[circleController.getCircleMembers]', err);
@@ -565,28 +587,54 @@ const getPublicCircleMembers = async (req, res) => {
     const { page = 1, limit = 20, search = '' } = req.query;
     const offset = (page - 1) * limit;
 
-    const searchClause = search ? `AND (m.name ILIKE $4 OR m.username ILIKE $4)` : '';
-    const params = [userId, limit, offset];
+    const searchClauseMembers = search ? `AND (m.name ILIKE $4 OR m.username ILIKE $4)` : '';
+    const searchClauseCommunities = search ? `AND (com.name ILIKE $4 OR com.username ILIKE $4)` : '';
+
+    const params = [userId, userId, limit];
     if (search) params.push(`%${search}%`);
+    const offsetParamIndex = params.length + 1;
+    params.push(offset);
 
-    const result = await pool.query(`
-      SELECT
-        m.id AS member_id,
-        m.name,
-        m.username,
-        m.profile_photo_url,
-        m.is_creator_mode_enabled
-      FROM circles c
-      JOIN members m ON m.id = CASE
-        WHEN c.user_a_id = $1 THEN c.user_b_id
-        ELSE c.user_a_id
-      END
-      WHERE (c.user_a_id = $1 OR c.user_b_id = $1)
-        ${searchClause}
-      ORDER BY c.created_at DESC
-      LIMIT $2 OFFSET $3
-    `, params);
+    const query = `
+      SELECT * FROM (
+        SELECT
+          c.id AS circle_id,
+          c.created_at AS connected_since,
+          m.id AS member_id,
+          m.name,
+          m.username,
+          m.profile_photo_url,
+          m.is_creator_mode_enabled,
+          false AS is_community
+        FROM circles c
+        JOIN members m ON m.id = CASE
+          WHEN c.user_a_id = $1 THEN c.user_b_id
+          ELSE c.user_a_id
+        END
+        WHERE (c.user_a_id = $1 OR c.user_b_id = $2)
+          ${searchClauseMembers}
 
+        UNION ALL
+
+        SELECT
+          cc.id AS circle_id,
+          cc.created_at AS connected_since,
+          com.id AS member_id,
+          com.name,
+          com.username,
+          com.logo_url AS profile_photo_url,
+          false AS is_creator_mode_enabled,
+          true AS is_community
+        FROM community_member_circles cc
+        JOIN communities com ON com.id = cc.community_id
+        WHERE cc.member_id = $1
+          ${searchClauseCommunities}
+      ) combined
+      ORDER BY connected_since DESC
+      LIMIT $3 OFFSET $${offsetParamIndex}
+    `;
+
+    const result = await pool.query(query, params);
     return res.json({ members: result.rows });
   } catch (err) {
     console.error('[circleController.getPublicCircleMembers]', err);

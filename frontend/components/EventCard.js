@@ -10,7 +10,12 @@ import {
   Animated,
 } from "react-native";
 import { ScrollView, Gesture, GestureDetector, Pressable as GHPressable } from "react-native-gesture-handler";
-import { runOnJS } from "react-native-reanimated";
+import AnimatedReanimated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  runOnJS,
+} from "react-native-reanimated";
 import { GradientHeart } from "./ui/GradientHeart";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -130,7 +135,21 @@ export default function EventCard({
   const [interestLoading, setInterestLoading] = useState(false);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [containerWidth, setContainerWidth] = useState(CARD_WIDTH);
-  const navigation = useNavigation();
+  const translateX = useSharedValue(0);
+  const startX = useSharedValue(0);
+  const currentIndexShared = useSharedValue(0);
+
+  const banners = useMemo(() => {
+    const banner_carousel = event?.banner_carousel;
+    const banner_url = event?.banner_url;
+    return banner_carousel?.length > 0
+      ? banner_carousel
+      : event?.banners?.length > 0
+        ? event.banners
+        : banner_url
+          ? [{ image_url: banner_url }]
+          : [];
+  }, [event?.banner_carousel, event?.banner_url, event?.banners]);
 
   const disableSwipe = () => {
     EventBus.emit("disable-tab-swipe");
@@ -139,20 +158,75 @@ export default function EventCard({
     EventBus.emit("enable-tab-swipe");
   };
 
-  const manualGesture = useMemo(
+  const syncActiveIndex = (index) => {
+    setCurrentBannerIndex(index);
+  };
+
+  const carouselGesture = useMemo(
     () =>
-      Gesture.Manual()
-        .onTouchesDown(() => {
+      Gesture.Pan()
+        .activeOffsetX([-15, 15])
+        .failOffsetY([-8, 8])
+        .onStart(() => {
+          "worklet";
+          startX.value = translateX.value;
           runOnJS(disableSwipe)();
         })
-        .onTouchesUp(() => {
-          runOnJS(enableSwipe)();
+        .onUpdate((e) => {
+          "worklet";
+          const proposed = startX.value + e.translationX;
+          const minX = -(banners.length - 1) * (containerWidth || CARD_WIDTH);
+          const maxX = 0;
+          if (proposed > maxX) {
+            translateX.value = maxX;
+          } else if (proposed < minX) {
+            translateX.value = minX;
+          } else {
+            translateX.value = proposed;
+          }
         })
-        .onTouchesCancelled(() => {
+        .onEnd((e) => {
+          "worklet";
+          const width = containerWidth || CARD_WIDTH;
+          const SWIPE_DISTANCE_THRESHOLD = width * 0.25;
+          const VELOCITY_THRESHOLD = 500;
+          const current = currentIndexShared.value;
+          let target = current;
+
+          if (
+            e.translationX < -SWIPE_DISTANCE_THRESHOLD ||
+            e.velocityX < -VELOCITY_THRESHOLD
+          ) {
+            target = Math.min(current + 1, banners.length - 1);
+          } else if (
+            e.translationX > SWIPE_DISTANCE_THRESHOLD ||
+            e.velocityX > VELOCITY_THRESHOLD
+          ) {
+            target = Math.max(current - 1, 0);
+          }
+
+          translateX.value = withSpring(-target * width, {
+            damping: 25,
+            stiffness: 200,
+            mass: 0.8,
+            velocity: e.velocityX,
+          });
+          currentIndexShared.value = target;
+          runOnJS(syncActiveIndex)(target);
+        })
+        .onFinalize(() => {
+          "worklet";
           runOnJS(enableSwipe)();
         }),
-    [],
+    [banners.length, containerWidth],
   );
+
+  const carouselRowStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: translateX.value }],
+    };
+  });
+  const navigation = useNavigation();
 
   // Engagement state
   const [isLiked, setIsLiked] = useState(Boolean(event?.is_liked));
@@ -404,15 +478,7 @@ export default function EventCard({
     !is_invited &&
     !isRegistered;
 
-  // Get banners array - prioritize carousel, then banner_url
-  const banners =
-    banner_carousel?.length > 0
-      ? banner_carousel
-      : event?.banners?.length > 0
-        ? event.banners
-        : banner_url
-          ? [{ image_url: banner_url }]
-          : [];
+
 
   // Format date if not pre-formatted
   const displayDate =
@@ -665,25 +731,17 @@ export default function EventCard({
         >
           {banners.length > 0 ? (
             banners.length > 1 && containerWidth > 0 ? (
-              <GestureDetector gesture={manualGesture}>
+              <GestureDetector gesture={carouselGesture}>
                 <View style={StyleSheet.absoluteFill}>
-                  <ScrollView
-                    horizontal
-                    pagingEnabled
-                    scrollEnabled={true}
-                    showsHorizontalScrollIndicator={false}
-                    onMomentumScrollEnd={(e) => {
-                      const index = Math.round(
-                        e.nativeEvent.contentOffset.x /
-                          (containerWidth || CARD_WIDTH),
-                      );
-                      setCurrentBannerIndex(index);
-                    }}
-                    nestedScrollEnabled={true}
-                    disallowInterruption={true}
-                    style={StyleSheet.absoluteFill}
-                    contentContainerStyle={{ minWidth: "100%" }}
-                    focusable={false}
+                  <AnimatedReanimated.View
+                    style={[
+                      {
+                        flexDirection: "row",
+                        width: banners.length * (containerWidth || CARD_WIDTH),
+                        height: "100%",
+                      },
+                      carouselRowStyle,
+                    ]}
                   >
                     {banners.map((banner, index) => (
                       <Image
@@ -696,7 +754,7 @@ export default function EventCard({
                         resizeMode="cover"
                       />
                     ))}
-                  </ScrollView>
+                  </AnimatedReanimated.View>
                   {/* Banner Indicator Dots */}
                   <View style={styles.bannerDotsContainer} pointerEvents="none">
                     {banners.map((_, index) => (

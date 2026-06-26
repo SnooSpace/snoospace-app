@@ -243,7 +243,7 @@ const getFollowers = async (req, res) => {
       LEFT JOIN communities c ON f.follower_type = 'community' AND f.follower_id = c.id
       LEFT JOIN sponsors s ON f.follower_type = 'sponsor' AND f.follower_id = s.id
       LEFT JOIN venues v ON f.follower_type = 'venue' AND f.follower_id = v.id
-      WHERE f.following_id = $1 AND f.following_type = $2
+      WHERE f.following_id = $1 AND f.following_type = $2 AND f.is_superseded_by_circle = false
         ${searchClause}
       ORDER BY f.created_at DESC
       LIMIT $3 OFFSET $4
@@ -319,7 +319,7 @@ const getFollowing = async (req, res) => {
           LEFT JOIN communities c ON f.following_type = 'community' AND f.following_id = c.id
           LEFT JOIN sponsors    s ON f.following_type = 'sponsor'   AND f.following_id = s.id
           LEFT JOIN venues      v ON f.following_type = 'venue'     AND f.following_id = v.id
-          WHERE f.follower_id = $1 AND f.follower_type = 'member'
+          WHERE f.follower_id = $1 AND f.follower_type = 'member' AND f.is_superseded_by_circle = false
             ${searchOldClause}
 
           UNION ALL
@@ -389,7 +389,7 @@ const getFollowing = async (req, res) => {
       LEFT JOIN communities c ON f.following_type = 'community' AND f.following_id = c.id
       LEFT JOIN sponsors    s ON f.following_type = 'sponsor'   AND f.following_id = s.id
       LEFT JOIN venues      v ON f.following_type = 'venue'     AND f.following_id = v.id
-      WHERE f.follower_id = $1 AND f.follower_type = $2
+      WHERE f.follower_id = $1 AND f.follower_type = $2 AND f.is_superseded_by_circle = false
         ${searchClause}
       ORDER BY f.created_at DESC
       LIMIT $3 OFFSET $4
@@ -421,7 +421,7 @@ const getFollowStatus = async (req, res) => {
     }
 
     const result = await pool.query(
-      "SELECT id FROM follows WHERE follower_id = $1 AND follower_type = $2 AND following_id = $3 AND following_type = $4",
+      "SELECT id FROM follows WHERE follower_id = $1 AND follower_type = $2 AND following_id = $3 AND following_type = $4 AND is_superseded_by_circle = false",
       [followerId, followerType, followingId, followingType]
     );
 

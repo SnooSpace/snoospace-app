@@ -619,10 +619,37 @@ const getFeed = async (req, res) => {
           ELSE false
         END AS is_liked,
         CASE 
-          WHEN $4::int IS NOT NULL AND $5::text IS NOT NULL THEN EXISTS (
-            SELECT 1 FROM follows f2
-            WHERE f2.follower_id = $4 AND f2.follower_type = $5 
-            AND f2.following_id = p.author_id AND f2.following_type = p.author_type
+          WHEN $4::int IS NOT NULL AND $5::text IS NOT NULL THEN (
+            EXISTS (
+              SELECT 1 FROM follows f2
+              WHERE f2.follower_id = $4 AND f2.follower_type = $5 
+                AND f2.following_id = p.author_id AND f2.following_type = p.author_type
+                AND f2.is_superseded_by_circle = false
+            )
+            OR
+            (p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM creator_follows cf2
+              WHERE cf2.follower_id = $4 AND cf2.follower_type = $5
+                AND cf2.creator_id = p.author_id
+                AND cf2.is_dormant = false
+                AND cf2.is_superseded_by_circle = false
+            ))
+            OR
+            ($5 = 'member' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM circles ci
+              WHERE (ci.user_a_id = $4 AND ci.user_b_id = p.author_id)
+                 OR (ci.user_b_id = $4 AND ci.user_a_id = p.author_id)
+            ))
+            OR
+            ($5 = 'community' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc
+              WHERE cc.community_id = $4 AND cc.member_id = p.author_id
+            ))
+            OR
+            ($5 = 'member' AND p.author_type = 'community' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc
+              WHERE cc.community_id = p.author_id AND cc.member_id = $4
+            ))
           )
           ELSE false
         END AS is_following,
@@ -638,9 +665,46 @@ const getFeed = async (req, res) => {
       LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
       LEFT JOIN sponsors s ON p.author_type = 'sponsor' AND p.author_id = s.id
       LEFT JOIN venues v ON p.author_type = 'venue' AND p.author_id = v.id
-      LEFT JOIN follows f ON f.following_id = p.author_id AND f.following_type = p.author_type
-        AND f.follower_id = $1 AND f.follower_type = $2
-      WHERE (f.id IS NOT NULL OR (p.author_id = $1 AND p.author_type = $2))
+      WHERE (
+        -- Own posts
+        (p.author_id = $1 AND p.author_type = $2)
+        
+        -- Standard active follows (not superseded)
+        OR EXISTS (
+          SELECT 1 FROM follows f
+          WHERE f.follower_id = $1 AND f.follower_type = $2
+            AND f.following_id = p.author_id AND f.following_type = p.author_type
+            AND f.is_superseded_by_circle = false
+        )
+        
+        -- Creator follows (member/community follower -> creator member)
+        OR (p.author_type = 'member' AND EXISTS (
+          SELECT 1 FROM creator_follows cf
+          WHERE cf.follower_id = $1 AND cf.follower_type = $2
+            AND cf.creator_id = p.author_id
+            AND cf.is_dormant = false
+            AND cf.is_superseded_by_circle = false
+        ))
+        
+        -- Mutual member-member circles
+        OR ($2 = 'member' AND p.author_type = 'member' AND EXISTS (
+          SELECT 1 FROM circles ci
+          WHERE (ci.user_a_id = $1 AND ci.user_b_id = p.author_id)
+             OR (ci.user_b_id = $1 AND ci.user_a_id = p.author_id)
+        ))
+        
+        -- Community-Member circles (viewer is community, author is member)
+        OR ($2 = 'community' AND p.author_type = 'member' AND EXISTS (
+          SELECT 1 FROM community_member_circles cc
+          WHERE cc.community_id = $1 AND cc.member_id = p.author_id
+        ))
+        
+        -- Community-Member circles (viewer is member, author is community)
+        OR ($2 = 'member' AND p.author_type = 'community' AND EXISTS (
+          SELECT 1 FROM community_member_circles cc
+          WHERE cc.community_id = p.author_id AND cc.member_id = $1
+        ))
+      )
       ${cursorCondition}
       ORDER BY p.created_at DESC
       LIMIT $3

@@ -209,6 +209,14 @@ const respondToInvite = async (req, res) => {
         `INSERT INTO community_member_circles (community_id, member_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
         [invite.community_id, memberId]
       );
+      // Supersede standard follows between the community and member in either direction
+      await pool.query(
+        `UPDATE follows
+         SET is_superseded_by_circle = true
+         WHERE (follower_id = $1 AND follower_type = 'community' AND following_id = $2 AND following_type = 'member')
+            OR (follower_id = $2 AND follower_type = 'member' AND following_id = $1 AND following_type = 'community')`,
+        [invite.community_id, memberId]
+      ).catch((e) => console.warn('[communityCircleController] follows supersede (accept):', e?.message));
     }
 
     return res.json({ success: true, status });
@@ -304,14 +312,24 @@ const getStatusForMember = async (req, res) => {
 const removeFromCircle = async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    const communityId = req.user?.id;
+    const userId = req.user?.id;
     const userType = req.user?.type;
 
-    if (!communityId || userType !== 'community') {
-      return res.status(401).json({ error: 'Community authentication required' });
+    if (!userId || !userType) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const { memberId } = req.params;
+    let communityId, memberId;
+
+    if (userType === 'community') {
+      communityId = userId;
+      memberId = req.params.memberId;
+    } else if (userType === 'member') {
+      memberId = userId;
+      communityId = req.params.memberId;
+    } else {
+      return res.status(403).json({ error: 'Unauthorized user type' });
+    }
 
     const deleteResult = await pool.query(
       `DELETE FROM community_member_circles WHERE community_id = $1 AND member_id = $2`,
@@ -319,7 +337,7 @@ const removeFromCircle = async (req, res) => {
     );
 
     if (deleteResult.rowCount === 0) {
-      return res.status(404).json({ error: 'This member is not in your circle' });
+      return res.status(404).json({ error: 'This member/community is not in the circle' });
     }
 
     // Also clean up the accepted invite row so re-invites work cleanly
@@ -329,6 +347,25 @@ const removeFromCircle = async (req, res) => {
        WHERE community_id = $1 AND member_id = $2 AND status = 'accepted'`,
       [communityId, memberId]
     );
+
+    // Re-activate or permanently delete standard follows
+    const alsoUnfollow = req.body?.also_unfollow === true;
+    if (alsoUnfollow) {
+      await pool.query(
+        `DELETE FROM follows
+         WHERE (follower_id = $1 AND follower_type = 'community' AND following_id = $2 AND following_type = 'member')
+            OR (follower_id = $2 AND follower_type = 'member' AND following_id = $1 AND following_type = 'community')`,
+        [communityId, memberId]
+      ).catch((e) => console.warn('[communityCircleController] follows delete:', e?.message));
+    } else {
+      await pool.query(
+        `UPDATE follows
+         SET is_superseded_by_circle = false
+         WHERE (follower_id = $1 AND follower_type = 'community' AND following_id = $2 AND following_type = 'member')
+            OR (follower_id = $2 AND follower_type = 'member' AND following_id = $1 AND following_type = 'community')`,
+        [communityId, memberId]
+      ).catch((e) => console.warn('[communityCircleController] follows restore:', e?.message));
+    }
 
     return res.json({ success: true });
   } catch (err) {

@@ -50,6 +50,7 @@ import {
   CalendarDays,
   UserX,
   UserCheck,
+  UserMinus,
   TriangleAlert,
   CircleCheck,
 } from "lucide-react-native";
@@ -72,6 +73,7 @@ import {
 import {
   getMemberCommunityCircleStatus,
   respondToCommunityCircleInvite,
+  removeMemberFromCommunityCircle,
 } from "../../../api/members";
 import { resolveConversation } from "../../../api/messages";
 import { getCommunityPublicEvents } from "../../../api/events";
@@ -1764,7 +1766,64 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               marginBottom: 25,
             }}
           >
-            {isFollowing ? (
+            {memberCommCircleStatus === 'in_circle' ? (
+              <GHPressable
+                style={({ pressed }) => [circleCTAStyles.inCircleBtn, pressed && { opacity: 0.7 }]}
+                disabled={memberCommCircleLoading}
+                onPress={() => {
+                  showAlert({
+                    title: 'Leave Circle?',
+                    message: `You will leave ${profile?.name || 'this community'}'s circle.`,
+                    icon: UserMinus,
+                    iconColor: '#E53935',
+                    secondaryAction: { text: 'Cancel', onPress: hideAlert },
+                    primaryAction: {
+                      text: 'Leave Circle',
+                      style: 'destructive',
+                      onPress: async () => {
+                        hideAlert();
+                        setMemberCommCircleLoading(true);
+                        try {
+                          await removeMemberFromCommunityCircle(communityId, false);
+                          setMemberCommCircleStatus('none');
+                          setMemberCommCircleInviteId(null);
+                          setIsFollowing(true); // Restored follow
+                          HapticsService.triggerImpactLight();
+                        } catch (e) { loadMemberCommCircleStatus(); }
+                        finally { setMemberCommCircleLoading(false); }
+                      },
+                    },
+                    tertiaryAction: {
+                      text: 'Leave & Unfollow',
+                      style: 'destructive',
+                      onPress: async () => {
+                        hideAlert();
+                        setMemberCommCircleLoading(true);
+                        try {
+                          await removeMemberFromCommunityCircle(communityId, true);
+                          setMemberCommCircleStatus('none');
+                          setMemberCommCircleInviteId(null);
+                          setIsFollowing(false); // Also unfollowed
+                          setProfile((prev) =>
+                            prev
+                              ? {
+                                  ...prev,
+                                  followers_count: Math.max(0, (prev.followers_count || 0) - 1),
+                                }
+                              : prev
+                          );
+                          HapticsService.triggerImpactLight();
+                        } catch (e) { loadMemberCommCircleStatus(); }
+                        finally { setMemberCommCircleLoading(false); }
+                      },
+                    },
+                  });
+                }}
+              >
+                <UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                <Text style={circleCTAStyles.inCircleText}>In Circle</Text>
+              </GHPressable>
+            ) : isFollowing ? (
               <GHPressable
                 style={({ pressed }) => [
                   {
@@ -2764,5 +2823,24 @@ const blockBannerStyles = StyleSheet.create({
     fontFamily: 'Manrope-SemiBold',
     fontSize: 13,
     color: '#FFFFFF',
+  },
+});
+
+const circleCTAStyles = StyleSheet.create({
+  inCircleBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(41, 98, 255, 0.35)',
+    backgroundColor: 'rgba(41, 98, 255, 0.08)',
+    paddingVertical: 12,
+  },
+  inCircleText: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 15,
+    color: '#2962FF',
   },
 });

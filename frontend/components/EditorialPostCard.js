@@ -360,7 +360,9 @@ const EditorialPostCard = ({
 
   // Carousel state
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
-  const scrollViewRef = useRef(null);
+  const translateX = useSharedValue(0);
+  const startX = useSharedValue(0);
+  const currentIndexShared = useSharedValue(0);
 
   const disableSwipe = () => {
     EventBus.emit("disable-tab-swipe");
@@ -369,20 +371,73 @@ const EditorialPostCard = ({
     EventBus.emit("enable-tab-swipe");
   };
 
-  const manualGesture = useMemo(
+  const syncActiveIndex = (index) => {
+    setCurrentMediaIndex(index);
+  };
+
+  const carouselGesture = useMemo(
     () =>
-      Gesture.Manual()
-        .onTouchesDown(() => {
+      Gesture.Pan()
+        .activeOffsetX([-15, 15])
+        .failOffsetY([-8, 8])
+        .onStart(() => {
+          "worklet";
+          startX.value = translateX.value;
           runOnJS(disableSwipe)();
         })
-        .onTouchesUp(() => {
-          runOnJS(enableSwipe)();
+        .onUpdate((e) => {
+          "worklet";
+          const proposed = startX.value + e.translationX;
+          const minX = -(imageUrls.length - 1) * CONTENT_WIDTH;
+          const maxX = 0;
+          if (proposed > maxX) {
+            translateX.value = maxX;
+          } else if (proposed < minX) {
+            translateX.value = minX;
+          } else {
+            translateX.value = proposed;
+          }
         })
-        .onTouchesCancelled(() => {
+        .onEnd((e) => {
+          "worklet";
+          const SWIPE_DISTANCE_THRESHOLD = CONTENT_WIDTH * 0.25;
+          const VELOCITY_THRESHOLD = 500;
+          const current = currentIndexShared.value;
+          let target = current;
+
+          if (
+            e.translationX < -SWIPE_DISTANCE_THRESHOLD ||
+            e.velocityX < -VELOCITY_THRESHOLD
+          ) {
+            target = Math.min(current + 1, imageUrls.length - 1);
+          } else if (
+            e.translationX > SWIPE_DISTANCE_THRESHOLD ||
+            e.velocityX > VELOCITY_THRESHOLD
+          ) {
+            target = Math.max(current - 1, 0);
+          }
+
+          translateX.value = withSpring(-target * CONTENT_WIDTH, {
+            damping: 25,
+            stiffness: 200,
+            mass: 0.8,
+            velocity: e.velocityX,
+          });
+          currentIndexShared.value = target;
+          runOnJS(syncActiveIndex)(target);
+        })
+        .onFinalize(() => {
+          "worklet";
           runOnJS(enableSwipe)();
         }),
-    [],
+    [imageUrls.length, CONTENT_WIDTH],
   );
+
+  const carouselRowStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: translateX.value }],
+    };
+  });
 
   // Image/text dwell time tracking - starts timer when component mounts
   const imageDwellStartRef = React.useRef(null);
@@ -949,7 +1004,7 @@ const EditorialPostCard = ({
             </View>
           ) : hasMultipleMedia ? (
             // Carousel for multiple images
-            <GestureDetector gesture={manualGesture}>
+            <GestureDetector gesture={carouselGesture}>
               <View style={{ width: CONTENT_WIDTH, overflow: 'hidden' }}>
                 {/* Counter badge */}
                 <View style={styles.carouselBadge} pointerEvents="none">
@@ -958,28 +1013,14 @@ const EditorialPostCard = ({
                   </Text>
                 </View>
 
-                <ScrollView
-                  ref={scrollViewRef}
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  onMomentumScrollEnd={(event) => {
-                    const offsetX = event.nativeEvent.contentOffset.x;
-                    const index = Math.round(offsetX / CONTENT_WIDTH);
-                    setCurrentMediaIndex(index);
-                  }}
-                  scrollEventThrottle={16}
-                  style={{ width: CONTENT_WIDTH }}
-                  decelerationRate="fast"
-                  // nestedScrollEnabled: Android — tells the OS this inner
-                  // ScrollView should receive horizontal touches before the
-                  // parent pager ScrollView does.
-                  nestedScrollEnabled={true}
-                  // directionalLockEnabled: iOS — once the user commits to a
-                  // horizontal swipe inside the carousel, this prevents the
-                  // parent pager from also interpreting the gesture.
-                  directionalLockEnabled={true}
-                  focusable={false}
+                <AnimatedReanimated.View
+                  style={[
+                    {
+                      flexDirection: "row",
+                      width: imageUrls.length * CONTENT_WIDTH,
+                    },
+                    carouselRowStyle,
+                  ]}
                 >
                   {imageUrls.map((url, index) => {
                     // Handle both array and single number formats for aspect_ratios
@@ -1002,7 +1043,7 @@ const EditorialPostCard = ({
                       </View>
                     );
                   })}
-                </ScrollView>
+                </AnimatedReanimated.View>
 
                 {/* Pagination Dots */}
                 <View style={styles.paginationContainer} pointerEvents="none">
