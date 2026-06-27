@@ -162,36 +162,44 @@ function PersonRow({
 
             {/* Add/Remove Circle CTA — only on own profile, for member/community circle connections */}
             {(isMemberRow || circleState === "in_circle") && (
-              <TouchableOpacity
-                style={[
-                  styles.ctaBtn,
-                  circleState === "in_circle"
-                    ? styles.ctaBtnRemove
-                    : circleState === "requested"
-                    ? styles.ctaBtnRequested
-                    : styles.ctaBtnDefault
-                ]}
-                onPress={() => {
-                  if (circleState === "in_circle") {
-                    onRemoveFromCircle(item);
-                  } else {
-                    onAddToCircle(item.id);
-                  }
-                }}
-                disabled={circleLoading || circleState === "requested"}
-                activeOpacity={0.75}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                {circleLoading ? (
-                  <ActivityIndicator size="small" color={COLORS.textSecondary} style={{ width: 60 }} />
-                ) : circleState === "in_circle" ? (
-                  <Text style={styles.ctaTextRemove}>Remove</Text>
-                ) : circleState === "requested" ? (
-                  <Text style={styles.ctaTextRequested}>Requested</Text>
+              <>
+                {circleState === "in_circle" ? (
+                  <TouchableOpacity
+                    style={styles.circleRemoveBtn}
+                    onPress={() => onRemoveFromCircle(item)}
+                    disabled={circleLoading}
+                    activeOpacity={0.75}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    {circleLoading ? (
+                      <ActivityIndicator size="small" color={COLORS.textSecondary} />
+                    ) : (
+                      <UserMinus size={18} color={COLORS.textSecondary} strokeWidth={2} />
+                    )}
+                  </TouchableOpacity>
                 ) : (
-                  <Text style={styles.ctaTextDefault}>Add</Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.ctaBtn,
+                      circleState === "requested"
+                        ? styles.ctaBtnRequested
+                        : styles.ctaBtnDefault
+                    ]}
+                    onPress={() => onAddToCircle(item.id)}
+                    disabled={circleLoading || circleState === "requested"}
+                    activeOpacity={0.75}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    {circleLoading ? (
+                      <ActivityIndicator size="small" color={COLORS.textSecondary} style={{ width: 60 }} />
+                    ) : circleState === "requested" ? (
+                      <Text style={styles.ctaTextRequested}>Requested</Text>
+                    ) : (
+                      <Text style={styles.ctaTextDefault}>Add</Text>
+                    )}
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
+              </>
             )}
 
             {/* Remove follower button — only on own profile and when not in circle */}
@@ -1408,5 +1416,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 8,
+  },
+  circleRemoveBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F2F2F7",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
