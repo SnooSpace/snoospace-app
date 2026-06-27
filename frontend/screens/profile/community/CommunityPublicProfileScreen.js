@@ -888,7 +888,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
   const postsCount = profile?.posts_count ?? profile?.post_count ?? 0;
   const followersCount =
-    profile?.followers_count ?? profile?.follower_count ?? 0;
+    (profile?.followers_count ?? profile?.follower_count ?? 0) +
+    (profile?.circle_count ?? 0);
   const followingCount = profile?.following_count ?? profile?.following ?? 0;
 
   // Scroll Animation state
@@ -1733,7 +1734,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
               }}
             >
               <Text style={styles.statNumber}>
-                {profile.followers_count || 0}
+                {followersCount}
               </Text>
               <Text style={styles.statLabel}>Followers</Text>
             </GHPressable>

@@ -130,8 +130,8 @@ function PersonRow({
         {/* 1. VIEWING OWN CREATOR PROFILE */}
         {isOwnProfile && (
           <>
-            {/* Follow Back action — only for community followers on own profile */}
-            {itemType === "community" && (
+            {/* Follow Back action — only for community followers on own profile who are not in the circle */}
+            {itemType === "community" && circleState !== "in_circle" && (
               <TouchableOpacity
                 style={[
                   styles.ctaBtn,
@@ -157,8 +157,8 @@ function PersonRow({
               </TouchableOpacity>
             )}
 
-            {/* Add/Remove Circle CTA — only on own profile, for member followers */}
-            {isMemberRow && (
+            {/* Add/Remove Circle CTA — only on own profile, for member/community circle connections */}
+            {(isMemberRow || circleState === "in_circle") && (
               <TouchableOpacity
                 style={[
                   styles.ctaBtn,
@@ -439,7 +439,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         name: r.name,
         username: r.username,
         avatar_url: r.profile_photo_url || r.avatar_url,
-        type: "member",
+        type: r.is_community ? "community" : "member",
         created_at: r.connected_since,
         isCreator: !!r.is_creator_mode_enabled || !!r.is_creator || !!r.isCreator,
         is_creator: !!r.is_creator_mode_enabled || !!r.is_creator || !!r.isCreator,
@@ -958,6 +958,14 @@ export default function CreatorFollowersScreen({ route, navigation }) {
 
   const isFollowersTab = activeTab === "followers";
 
+  const displayedFollowersTotal = followerSearch.trim() !== ""
+    ? followers.length
+    : followersTotal;
+
+  const displayedCircleTotal = circleSearch.trim() !== ""
+    ? circleMembers.length
+    : circleTotal;
+
   return (
     <>
       <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -981,7 +989,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
           onPress={() => handleTabPress("followers")}
         >
           <Text style={[styles.tabText, isFollowersTab && styles.tabTextActive]}>
-            Followers{followersTotal > 0 ? ` • ${followersTotal}` : ""}
+            Followers • {displayedFollowersTotal}
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -989,7 +997,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
           onPress={() => handleTabPress("circle")}
         >
           <Text style={[styles.tabText, !isFollowersTab && styles.tabTextActive]}>
-            Circle{circleTotal > 0 ? ` • ${circleTotal}` : ""}
+            Circle • {displayedCircleTotal}
           </Text>
         </TouchableOpacity>
       </View>

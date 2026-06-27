@@ -148,7 +148,7 @@ export default function UniversalFollowersScreen({ route, navigation }) {
         .map((item) => ({
           ...item,
           // Mark members already in the viewer's circle to show 'In Circle' badge
-          inCircle: item.type === 'member' && circleIdSetRef.current.has(String(item.id)),
+          inCircle: (item.type === 'member' || item.type === 'community') && circleIdSetRef.current.has(String(item.id)),
         }));
 
       return {

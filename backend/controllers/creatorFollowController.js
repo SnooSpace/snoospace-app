@@ -162,7 +162,7 @@ async function getCreatorFollowers(req, res) {
 
     // ── Source B: follows table (communities/sponsors/venues via POST /follow) ──
     // Exclude member-type since members use creator_follows, not this path.
-    let fWhere = `f.following_id = $1 AND f.following_type = 'member' AND f.follower_type != 'member'`;
+    let fWhere = `f.following_id = $1 AND f.following_type = 'member' AND f.follower_type != 'member' AND f.is_superseded_by_circle = false`;
     if (type === "notable") fWhere += ` AND f.follower_type IN ('community', 'page', 'sponsor', 'venue')`;
 
     const searchParam = search ? `%${search}%` : null;

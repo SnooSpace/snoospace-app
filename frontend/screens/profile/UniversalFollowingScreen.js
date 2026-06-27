@@ -132,7 +132,7 @@ export default function UniversalFollowingScreen({ route, navigation }) {
         })
         .map((item) => ({
           ...item,
-          inCircle: item.type === 'member' && circleIdSetRef.current.has(String(item.id)),
+          inCircle: (item.type === 'member' || item.type === 'community') && circleIdSetRef.current.has(String(item.id)),
         }));
 
       console.log(`[UniversalFollowing] Final list count: ${unique.length}`);

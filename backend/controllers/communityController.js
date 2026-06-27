@@ -865,8 +865,8 @@ async function getPublicCommunity(req, res) {
 
     const countsR = await pool.query(
       `SELECT 
-         (SELECT COUNT(*) FROM follows WHERE following_id = $1 AND following_type = 'community') AS followers_count,
-         (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = 'community') AS following_count,
+         (SELECT COUNT(*) FROM follows WHERE following_id = $1 AND following_type = 'community' AND is_superseded_by_circle = false) AS followers_count,
+         (SELECT COUNT(*) FROM follows WHERE follower_id = $1 AND follower_type = 'community' AND is_superseded_by_circle = false) AS following_count,
          (SELECT COUNT(*) FROM community_member_circles WHERE community_id = $1)::int AS circle_count,
          (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'community')
             + (SELECT COUNT(*) FROM opportunities WHERE creator_id = $1::text AND creator_type = 'community' AND status != 'closed') AS posts_count,

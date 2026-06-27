@@ -1936,7 +1936,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
   );
 
   const postsCount = polledCounts.posts;
-  const followersCount = polledCounts.followers;
+  const followersCount = polledCounts.followers + (polledCounts.circles || 0);
   const followingCount = polledCounts.following;
 
   const openPostModal = useCallback((post) => {
@@ -2228,8 +2228,8 @@ export default function CommunityProfileScreen({ navigation, route }) {
                   navigation.push("CommunityFollowers", {
                     communityId: profile.id,
                     isOwnProfile: true,
-                    initialFollowersCount: followersCount,
-                    initialCircleCount: profile.circle_count || 0,
+                    initialFollowersCount: polledCounts.followers,
+                    initialCircleCount: polledCounts.circles,
                   });
                 }}
               >

@@ -18,7 +18,10 @@ import {
   getCircleStatus,
   sendCircleRequest,
   followMember,
-  unfollowMember
+  unfollowMember,
+  getMemberCommunityCircleStatus,
+  getCommunityCircleStatus,
+  removeMemberFromCommunityCircle
 } from '../../../api/members';
 import CustomAlertModal from '../../../components/ui/CustomAlertModal';
 import HapticsService from '../../../services/HapticsService';
@@ -86,15 +89,21 @@ const CircleMemberRow = React.memo(({
               <GHPressable
                 style={[
                   styles.ctaBtn,
-                  followState === true
+                  circleState === "in_circle" || followState === true
                     ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
                     : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
                 ]}
-                onPress={() => onFollow && onFollow(item)}
-                disabled={followLoading || followState === null}
+                onPress={() => {
+                  if (circleState !== "in_circle") {
+                    onFollow && onFollow(item);
+                  }
+                }}
+                disabled={followLoading || followState === null || circleState === "in_circle"}
               >
                 {followLoading ? (
-                  <ActivityIndicator size="small" color={followState === true ? "#2962FF" : "#fff"} style={{ width: 60 }} />
+                  <ActivityIndicator size="small" color={circleState === "in_circle" || followState === true ? "#2962FF" : "#fff"} style={{ width: 60 }} />
+                ) : circleState === "in_circle" ? (
+                  <Text style={[styles.ctaTextDefault, { color: '#2962FF' }]}>In Circle</Text>
                 ) : (
                   <Text style={[
                     styles.ctaTextDefault,
@@ -208,6 +217,7 @@ export default function CircleListScreen({ route, navigation }) {
         isCreator: !!r.is_creator_mode_enabled || !!r.is_creator || !!r.isCreator,
         is_creator: !!r.is_creator_mode_enabled || !!r.is_creator || !!r.isCreator,
         is_creator_mode_enabled: !!r.is_creator_mode_enabled || !!r.is_creator || !!r.isCreator,
+        is_community: !!r.is_community,
       }));
 
       setMembers((prev) => reset || pageNum === 1 ? normalizedRows : [...prev, ...normalizedRows]);
@@ -222,14 +232,34 @@ export default function CircleListScreen({ route, navigation }) {
         await Promise.all(
           normalizedRows.map(async (row) => {
             const isCreator = row.isCreator || row.is_creator || row.is_creator_mode_enabled;
+            
+            // 1. Circle Status Check
+            if (row.is_community) {
+              if (vt === "member") {
+                const status = await getMemberCommunityCircleStatus(row.id).catch(() => null);
+                if (status?.status) {
+                  preSeededMemberCircle[row.id] = status.status;
+                }
+              }
+            } else {
+              // Row is Member/Creator
+              if (vt === "member" && String(row.id) !== String(mid)) {
+                const status = await getCircleStatus(row.id).catch(() => null);
+                if (status?.status) {
+                  preSeededMemberCircle[row.id] = status.status;
+                }
+              } else if (vt === "community") {
+                const status = await getCommunityCircleStatus(row.id).catch(() => null);
+                if (status?.status) {
+                  preSeededMemberCircle[row.id] = status.status;
+                }
+              }
+            }
+
+            // 2. Follow Status Check
             if (isCreator) {
               const status = await getFollowStatusForMember(row.id).catch(() => null);
               preSeededFollow[row.id] = !!status?.isFollowing;
-            } else if (vt === "member" && String(row.id) !== String(mid)) {
-              const status = await getCircleStatus(row.id).catch(() => null);
-              if (status?.status) {
-                preSeededMemberCircle[row.id] = status.status;
-              }
             }
           })
         );
@@ -237,7 +267,7 @@ export default function CircleListScreen({ route, navigation }) {
         if (Object.keys(preSeededFollow).length > 0) {
           setFollowStates((prev) => ({ ...prev, ...preSeededFollow }));
         }
-        if (vt === "member" && Object.keys(preSeededMemberCircle).length > 0) {
+        if (Object.keys(preSeededMemberCircle).length > 0) {
           setMemberCircleStates((prev) => ({ ...prev, ...preSeededMemberCircle }));
         }
       }
