@@ -1676,6 +1676,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
         follower_count: followerCount,
         following_count: followingCount,
         post_count: userPosts.length,
+        circle_count: circleCount,
       });
     } catch (error) {
       console.error("[CommunityProfile] error loading profile:", error);

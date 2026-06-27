@@ -1261,6 +1261,112 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       }
     };
 
+    // Listen for follow, circle, and request updates from other screens to keep counts and states updated instantly
+    const onFollowUpdated = (payload) => {
+      const targetId = String(payload?.id || payload?.communityId || '');
+      if (targetId === String(communityId)) {
+        setIsFollowing(payload.isFollowing);
+        setProfile((prev) => {
+          if (!prev) return prev;
+          const diff = payload.isFollowing ? 1 : -1;
+          return {
+            ...prev,
+            followers_count: Math.max(0, (prev.followers_count || 0) + diff),
+          };
+        });
+      }
+    };
+
+    const onCommunityFollowed = (payload) => {
+      if (String(payload?.communityId) === String(communityId)) {
+        setIsFollowing(true);
+        setProfile((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            followers_count: (prev.followers_count || 0) + 1,
+          };
+        });
+      }
+    };
+
+    const onCircleMemberRemoved = (payload) => {
+      const involvesThisProfile = String(payload?.creatorId) === String(communityId) || String(payload?.communityId) === String(communityId) || (payload?.memberId && String(payload.memberId) === String(currentUserId));
+      if (!involvesThisProfile) return;
+
+      setMemberCommCircleStatus("none");
+      setProfile((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          circle_count: Math.max(0, (prev.circle_count || 0) - 1),
+          followers_count: payload?.alsoUnfollow ? Math.max(0, (prev.followers_count || 0) - 1) : (prev.followers_count || 0),
+        };
+      });
+      if (payload?.alsoUnfollow) {
+        setIsFollowing(false);
+      }
+    };
+
+    const onMyCircleMemberRemoved = (payload) => {
+      const involvesThisProfile = String(payload?.communityId) === String(communityId) || (payload?.memberId && String(payload.memberId) === String(currentUserId));
+      if (!involvesThisProfile) return;
+
+      setMemberCommCircleStatus("none");
+      setProfile((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          circle_count: Math.max(0, (prev.circle_count || 0) - 1),
+          followers_count: payload?.alsoUnfollow ? Math.max(0, (prev.followers_count || 0) - 1) : (prev.followers_count || 0),
+        };
+      });
+      if (payload?.alsoUnfollow) {
+        setIsFollowing(false);
+      }
+    };
+
+    const onCircleLeft = (payload) => {
+      if (String(payload?.creatorId) === String(communityId) || String(payload?.communityId) === String(communityId)) {
+        setMemberCommCircleStatus("none");
+        setProfile((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            circle_count: Math.max(0, (prev.circle_count || 0) - 1),
+            followers_count: payload?.alsoUnfollow ? Math.max(0, (prev.followers_count || 0) - 1) : (prev.followers_count || 0),
+          };
+        });
+        if (payload?.alsoUnfollow) {
+          setIsFollowing(false);
+        }
+      }
+    };
+
+    const onCircleRequestResponded = (payload) => {
+      if (String(payload?.communityId) === String(communityId)) {
+        if (payload.action === "accepted") {
+          setMemberCommCircleStatus("in_circle");
+          setProfile((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              circle_count: (prev.circle_count || 0) + 1,
+            };
+          });
+        } else {
+          setMemberCommCircleStatus("none");
+        }
+      }
+    };
+
+    const subFollow = EventBus.on("follow-updated", onFollowUpdated);
+    const subCommFollow = EventBus.on("community-followed", onCommunityFollowed);
+    const subCircleRem = EventBus.on("circle:member-removed", onCircleMemberRemoved);
+    const subMyCircleRem = EventBus.on("my:circle-member-removed", onMyCircleMemberRemoved);
+    const subCircleLeft = EventBus.on("circle:left", onCircleLeft);
+    const subCircleResp = EventBus.on("circle-request-responded", onCircleRequestResponded);
+
     const unsubscribeLike = EventBus.on(
       "post-like-updated",
       handlePostLikeUpdate,
@@ -1327,6 +1433,12 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     const unsubscribeSave = EventBus.on("post-save-updated", handlePostSaveUpdate);
 
     return () => {
+      subFollow();
+      subCommFollow();
+      subCircleRem();
+      subMyCircleRem();
+      subCircleLeft();
+      subCircleResp();
       if (unsubscribeLike) unsubscribeLike();
       if (unsubscribeComment) unsubscribeComment();
       if (unsubscribeDeleted) unsubscribeDeleted();
@@ -1334,7 +1446,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       if (unsubscribeShare) unsubscribeShare();
       if (unsubscribeSave) unsubscribeSave();
     };
-  }, [selectedPost]); // Added selectedPost dependency
+  }, [selectedPost, communityId, currentUserId]);
 
   const openPostModal = useCallback((postId) => {
     console.log(
@@ -1791,6 +1903,15 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                             setMemberCommCircleStatus('none');
                             setMemberCommCircleInviteId(null);
                             setIsFollowing(true); // Restored follow
+                            setProfile((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    circle_count: Math.max(0, (prev.circle_count || 0) - 1),
+                                  }
+                                : prev
+                            );
+                            EventBus.emit('my:circle-member-removed', { memberId: currentUserId, communityId, alsoUnfollow: false });
                             HapticsService.triggerImpactLight();
                           } catch (e) { loadMemberCommCircleStatus(); }
                           finally { setMemberCommCircleLoading(false); }
@@ -1811,10 +1932,12 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                               prev
                                 ? {
                                     ...prev,
+                                    circle_count: Math.max(0, (prev.circle_count || 0) - 1),
                                     followers_count: Math.max(0, (prev.followers_count || 0) - 1),
                                   }
                                 : prev
                             );
+                            EventBus.emit('my:circle-member-removed', { memberId: currentUserId, communityId, alsoUnfollow: true });
                             HapticsService.triggerImpactLight();
                           } catch (e) { loadMemberCommCircleStatus(); }
                           finally { setMemberCommCircleLoading(false); }

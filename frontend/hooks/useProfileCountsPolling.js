@@ -2,26 +2,22 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { AppState } from 'react-native';
 import { apiGet } from '../api/client';
 import { getAuthToken } from '../api/auth';
+import EventBus from '../utils/EventBus';
 
 /**
- * Lightweight polling hook for profile counts (followers, following, posts)
- * Features:
- * - 5-second interval for real-time feel
- * - Pauses when modal is open
- * - Stops when app is in background
- * - Minimal API load (counts only)
+ * Hook for profile counts (followers, following, posts, circles).
+ * Dynamically keeps counts in sync using EventBus (no polling needed).
+ * Performs a single check when the app returns from background.
  */
 export function useProfileCountsPolling(options = {}) {
   const {
     userId,
     userType = 'member',
-    interval = 5000, // 5 seconds
     enabled = true,
-    paused = false, // For pausing when modal is open
+    paused = false, // For pausing foreground fetch when modal is open
     initialCounts, // Option to seed counts before first API poll finishes
   } = options;
   
-  const intervalRef = useRef(null);
   const appStateRef = useRef(AppState.currentState);
 
   const initialValues = initialCounts ? {
@@ -32,9 +28,6 @@ export function useProfileCountsPolling(options = {}) {
     creatorFollowers: initialCounts.creator_follower_count || initialCounts.creatorFollowers || 0,
   } : { followers: 0, following: 0, posts: 0, circles: 0, creatorFollowers: 0 };
 
-  // Use a ref for previous counts comparison to avoid fetchCounts recreating
-  // every time counts state changes (which caused the main useEffect to restart
-  // the interval on every single poll tick)
   const countsRef = useRef(initialValues);
   const [counts, setCounts] = useState(initialValues);
   const [isPolling, setIsPolling] = useState(false);
@@ -43,17 +36,14 @@ export function useProfileCountsPolling(options = {}) {
   // Fetch counts from API
   const fetchCounts = useCallback(async () => {
     if (!userId || !userType) {
-      console.log('[CountsPolling] Missing userId or userType');
       return null;
     }
 
     if (appStateRef.current !== 'active') {
-      console.log('[CountsPolling] App not active, skipping poll');
       return null;
     }
 
     if (paused) {
-      console.log('[CountsPolling] Polling paused (modal open)');
       return null;
     }
 
@@ -61,12 +51,10 @@ export function useProfileCountsPolling(options = {}) {
     try {
       const token = await getAuthToken();
       if (!token) {
-        console.log('[CountsPolling] No auth token, skipping poll');
         setIsPolling(false);
         return null;
       }
 
-      // Single API call returns followers + following + post_count in one round-trip
       const countsResponse = await apiGet(
         `/profile/counts/${userId}/${userType}`,
         10000,
@@ -91,7 +79,6 @@ export function useProfileCountsPolling(options = {}) {
           : parseInt(countsResponse?.creator_follower_count || 0, 10),
       };
 
-      // Compare against ref (not state) to avoid recreating fetchCounts on every tick
       const prev = countsRef.current;
       const hasChanged =
         newCounts.followers !== prev.followers ||
@@ -101,10 +88,7 @@ export function useProfileCountsPolling(options = {}) {
         newCounts.creatorFollowers !== prev.creatorFollowers;
 
       if (hasChanged) {
-        console.log('[CountsPolling] Counts changed:', {
-          old: prev,
-          new: newCounts,
-        });
+        console.log('[Counts] Fetch updated counts:', newCounts);
         countsRef.current = newCounts;
         setCounts(newCounts);
         setLastUpdated(new Date());
@@ -113,17 +97,15 @@ export function useProfileCountsPolling(options = {}) {
       setIsPolling(false);
       return newCounts;
     } catch (error) {
-      console.error('[CountsPolling] Error fetching counts:', error);
+      console.error('[Counts] Error fetching counts:', error);
       setIsPolling(false);
       return null;
     }
-  // Remove `counts` from deps — use countsRef.current for comparison instead
   }, [userId, userType, paused]);
 
   // Initialize counts
   const initializeCounts = useCallback((initialCounts) => {
     if (initialCounts) {
-      console.log('[CountsPolling] Initializing counts:', initialCounts);
       const init = {
         followers: initialCounts.follower_count || initialCounts.followers || 0,
         following: initialCounts.following_count || initialCounts.following || 0,
@@ -136,31 +118,240 @@ export function useProfileCountsPolling(options = {}) {
     }
   }, []);
 
-  // Main polling effect
+  // EventBus subscription for instant local count synchronization (NO polling)
+  useEffect(() => {
+    if (!userId) return;
+    const isMe = String(userId);
+
+    const onFollowUpdated = (payload) => {
+      // payload: { id, communityId, isFollowing }
+      const targetId = String(payload?.id || payload?.communityId || '');
+      if (!targetId) return;
+
+      if (targetId === isMe) {
+        // Someone followed/unfollowed us (Community/Creator)
+        setCounts((prev) => {
+          const key = userType === 'community' ? 'followers' : 'creatorFollowers';
+          const nextVal = Math.max(0, prev[key] + (payload.isFollowing ? 1 : -1));
+          const updated = { ...prev, [key]: nextVal };
+          countsRef.current = updated;
+          return updated;
+        });
+      } else {
+        // We followed/unfollowed someone else (adjusts our own private profile following count)
+        setCounts((prev) => {
+          const nextVal = Math.max(0, prev.following + (payload.isFollowing ? 1 : -1));
+          const updated = { ...prev, following: nextVal };
+          countsRef.current = updated;
+          return updated;
+        });
+      }
+    };
+
+    const onCreatorFollowed = (payload) => {
+      if (String(payload?.creatorId) === isMe) {
+        setCounts((prev) => {
+          const updated = { ...prev, creatorFollowers: prev.creatorFollowers + 1 };
+          countsRef.current = updated;
+          return updated;
+        });
+      } else {
+        setCounts((prev) => {
+          const updated = { ...prev, following: prev.following + 1 };
+          countsRef.current = updated;
+          return updated;
+        });
+      }
+    };
+
+    const onCreatorUnfollowed = (payload) => {
+      if (String(payload?.creatorId) === isMe) {
+        setCounts((prev) => {
+          const updated = { ...prev, creatorFollowers: Math.max(0, prev.creatorFollowers - 1) };
+          countsRef.current = updated;
+          return updated;
+        });
+      } else {
+        setCounts((prev) => {
+          const updated = { ...prev, following: Math.max(0, prev.following - 1) };
+          countsRef.current = updated;
+          return updated;
+        });
+      }
+    };
+
+    const onCreatorFollowerRemoved = (payload) => {
+      if (String(payload?.creatorId) === isMe) {
+        setCounts((prev) => {
+          const updated = { ...prev, creatorFollowers: Math.max(0, prev.creatorFollowers - 1) };
+          countsRef.current = updated;
+          return updated;
+        });
+      }
+    };
+
+    const onCircleMemberRemoved = (payload) => {
+      const involvesMe = String(payload?.creatorId) === isMe || String(payload?.memberId) === isMe || String(payload?.communityId) === isMe;
+      if (!involvesMe) return;
+
+      setCounts((prev) => {
+        const nextCircles = Math.max(0, prev.circles - 1);
+        let nextFollowing = prev.following;
+        let nextCreatorFollowers = prev.creatorFollowers;
+        let nextFollowers = prev.followers;
+        if (payload?.alsoUnfollow) {
+          if (String(payload?.creatorId) === isMe || String(payload?.communityId) === isMe) {
+            nextCreatorFollowers = Math.max(0, prev.creatorFollowers - 1);
+            nextFollowers = Math.max(0, prev.followers - 1);
+          } else {
+            nextFollowing = Math.max(0, prev.following - 1);
+          }
+        }
+        const updated = {
+          ...prev,
+          circles: nextCircles,
+          following: nextFollowing,
+          creatorFollowers: nextCreatorFollowers,
+          followers: nextFollowers,
+        };
+        countsRef.current = updated;
+        return updated;
+      });
+    };
+
+    const onMyCircleMemberRemoved = (payload) => {
+      // payload: { memberId, communityId, alsoUnfollow }
+      const targetId = String(payload?.memberId || payload?.communityId || '');
+      if (!targetId) return;
+
+      if (targetId === isMe) {
+        setCounts((prev) => {
+          const nextCircles = Math.max(0, prev.circles - 1);
+          let nextCreatorFollowers = prev.creatorFollowers;
+          let nextFollowers = prev.followers;
+          if (payload?.alsoUnfollow) {
+            nextCreatorFollowers = Math.max(0, prev.creatorFollowers - 1);
+            nextFollowers = Math.max(0, prev.followers - 1);
+          }
+          const updated = {
+            ...prev,
+            circles: nextCircles,
+            creatorFollowers: nextCreatorFollowers,
+            followers: nextFollowers,
+          };
+          countsRef.current = updated;
+          return updated;
+        });
+      } else {
+        setCounts((prev) => {
+          const nextCircles = Math.max(0, prev.circles - 1);
+          let nextFollowing = prev.following;
+          if (payload?.alsoUnfollow) {
+            nextFollowing = Math.max(0, prev.following - 1);
+          }
+          const updated = {
+            ...prev,
+            circles: nextCircles,
+            following: nextFollowing,
+          };
+          countsRef.current = updated;
+          return updated;
+        });
+      }
+    };
+
+    const onCircleLeft = (payload) => {
+      if (String(payload?.creatorId) === isMe) {
+        setCounts((prev) => {
+          const nextCircles = Math.max(0, prev.circles - 1);
+          let nextCreatorFollowers = prev.creatorFollowers;
+          let nextFollowers = prev.followers;
+          if (payload?.alsoUnfollow) {
+            nextCreatorFollowers = Math.max(0, prev.creatorFollowers - 1);
+            nextFollowers = Math.max(0, prev.followers - 1);
+          }
+          const updated = {
+            ...prev,
+            circles: nextCircles,
+            creatorFollowers: nextCreatorFollowers,
+            followers: nextFollowers,
+          };
+          countsRef.current = updated;
+          return updated;
+        });
+      } else {
+        setCounts((prev) => {
+          const nextCircles = Math.max(0, prev.circles - 1);
+          let nextFollowing = prev.following;
+          if (payload?.alsoUnfollow) {
+            nextFollowing = Math.max(0, prev.following - 1);
+          }
+          const updated = {
+            ...prev,
+            circles: nextCircles,
+            following: nextFollowing,
+          };
+          countsRef.current = updated;
+          return updated;
+        });
+      }
+    };
+
+    const onCircleRequestResponded = (payload) => {
+      if (payload?.action === 'accepted') {
+        const involvesMe = String(payload?.memberId) === isMe || String(payload?.creatorId) === isMe || String(payload?.communityId) === isMe;
+        if (involvesMe) {
+          setCounts((prev) => {
+            const updated = { ...prev, circles: prev.circles + 1 };
+            countsRef.current = updated;
+            return updated;
+          });
+        }
+      }
+    };
+
+    const onPostDeleted = () => {
+      setCounts((prev) => {
+        const updated = { ...prev, posts: Math.max(0, prev.posts - 1) };
+        countsRef.current = updated;
+        return updated;
+      });
+    };
+
+    const sub1 = EventBus.on("follow-updated", onFollowUpdated);
+    const sub2 = EventBus.on("creator:followed", onCreatorFollowed);
+    const sub3 = EventBus.on("creator:unfollowed", onCreatorUnfollowed);
+    const sub4 = EventBus.on("creator:follower-removed", onCreatorFollowerRemoved);
+    const sub5 = EventBus.on("circle:member-removed", onCircleMemberRemoved);
+    const sub6 = EventBus.on("my:circle-member-removed", onMyCircleMemberRemoved);
+    const sub7 = EventBus.on("circle:left", onCircleLeft);
+    const sub8 = EventBus.on("circle-request-responded", onCircleRequestResponded);
+    const sub9 = EventBus.on("post-deleted", onPostDeleted);
+
+    return () => {
+      sub1();
+      sub2();
+      sub3();
+      sub4();
+      sub5();
+      sub6();
+      sub7();
+      sub8();
+      sub9();
+    };
+  }, [userId, userType]);
+
+  // Foreground recovery sync effect
   useEffect(() => {
     if (!enabled || !userId) {
-      console.log('[CountsPolling] Polling disabled or no userId');
       return;
     }
 
-    console.log(`[CountsPolling] Starting with ${interval / 1000}s interval for ${userType}:${userId}`);
-
-    // Don't poll immediately - wait for first interval
-    // This avoids duplicate requests on mount when loadProfile already fetches
-    intervalRef.current = setInterval(() => {
-      if (!paused) {
-        fetchCounts();
-      }
-    }, interval);
-
-    // Handle app state changes
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (
         appStateRef.current.match(/inactive|background/) &&
         nextAppState === 'active'
       ) {
-        // App came to foreground - poll immediately
-        console.log('[CountsPolling] App came to foreground, polling...');
         if (!paused) {
           fetchCounts();
         }
@@ -169,30 +360,11 @@ export function useProfileCountsPolling(options = {}) {
     });
 
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
       subscription.remove();
     };
-  }, [enabled, userId, userType, interval, fetchCounts, paused]);
+  }, [enabled, userId, userType, fetchCounts, paused]);
 
-  // Handle pause state changes
-  useEffect(() => {
-    if (paused) {
-      console.log('[CountsPolling] Pausing polling');
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    } else if (enabled && userId && !intervalRef.current) {
-      console.log('[CountsPolling] Resuming polling');
-      intervalRef.current = setInterval(fetchCounts, interval);
-    }
-  }, [paused, enabled, userId, interval, fetchCounts]);
-
-  // Force refresh function
   const forceRefresh = useCallback(async () => {
-    console.log('[CountsPolling] Force refresh triggered');
     return await fetchCounts();
   }, [fetchCounts]);
 

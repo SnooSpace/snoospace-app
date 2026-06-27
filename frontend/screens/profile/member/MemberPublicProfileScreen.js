@@ -290,6 +290,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 
   // Viewer account type — determines which CTA block to render
   const [viewerAccountType, setViewerAccountType] = useState('member'); // 'member' | 'community' | ...
+  const [viewerId, setViewerId] = useState(null);
 
   // Community→Member circle state (only used when viewerAccountType === 'community')
   const [commCircleStatus, setCommCircleStatus] = useState('none'); // 'none' | 'pending_outgoing' | 'in_circle'
@@ -376,6 +377,9 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         const account = await getActiveAccount();
         const accountType = account?.type?.toLowerCase() || 'member';
         setViewerAccountType(accountType);
+        if (account?.id) {
+          setViewerId(String(account.id));
+        }
         if (accountType !== 'community') {
           const val = await AsyncStorage.getItem("creator_mode_enabled");
           if (val === "true") setIsViewerCreator(true);
@@ -725,6 +729,145 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       task.cancel();
     };
   }, [memberId]);
+
+  // Listen for follow, circle, and request updates from other screens to keep counts and states updated instantly
+  useEffect(() => {
+    if (!memberId) return;
+
+    const onFollowUpdated = (payload) => {
+      // payload: { id, communityId, isFollowing }
+      const targetId = String(payload?.id || payload?.communityId || '');
+      if (targetId === String(memberId)) {
+        if (viewerAccountType === 'community') {
+          setCommunityIsFollowingCreator(payload.isFollowing);
+        } else {
+          setIsFollowingCreator(payload.isFollowing);
+        }
+        setCreatorFollowerCount((c) => Math.max(0, payload.isFollowing ? c + 1 : c - 1));
+      }
+    };
+
+    const onCreatorFollowed = (payload) => {
+      if (String(payload?.creatorId) === String(memberId)) {
+        if (viewerAccountType === 'community') {
+          setCommunityIsFollowingCreator(true);
+        } else {
+          setIsFollowingCreator(true);
+        }
+        setCreatorFollowerCount((c) => c + 1);
+      }
+    };
+
+    const onCreatorUnfollowed = (payload) => {
+      if (String(payload?.creatorId) === String(memberId)) {
+        if (viewerAccountType === 'community') {
+          setCommunityIsFollowingCreator(false);
+        } else {
+          setIsFollowingCreator(false);
+        }
+        setCreatorFollowerCount((c) => Math.max(0, c - 1));
+      }
+    };
+
+    const onCreatorFollowerRemoved = (payload) => {
+      if (String(payload?.creatorId) === String(memberId)) {
+        if (viewerAccountType === 'community') {
+          setCommunityIsFollowingCreator(false);
+        } else {
+          setIsFollowingCreator(false);
+        }
+        setCreatorFollowerCount((c) => Math.max(0, c - 1));
+      }
+    };
+
+    const onCircleMemberRemoved = (payload) => {
+      const involvesThisProfile = String(payload?.creatorId) === String(memberId) || String(payload?.memberId) === String(memberId) || String(payload?.communityId) === String(memberId);
+      if (!involvesThisProfile) return;
+
+      setIsInCircleWithCreator(false);
+      setCircleStatus("none");
+      setCommCircleStatus("none");
+      setCircleCount((c) => Math.max(0, c - 1));
+      if (payload?.alsoUnfollow) {
+        if (viewerAccountType === 'community') {
+          setCommunityIsFollowingCreator(false);
+        } else {
+          setIsFollowingCreator(false);
+        }
+        setCreatorFollowerCount((c) => Math.max(0, c - 1));
+      }
+    };
+
+    const onMyCircleMemberRemoved = (payload) => {
+      const targetId = String(payload?.memberId || payload?.communityId || '');
+      if (targetId === String(memberId) || (viewerId && targetId === String(viewerId))) {
+        setIsInCircleWithCreator(false);
+        setCircleStatus("none");
+        setCommCircleStatus("none");
+        setCircleCount((c) => Math.max(0, c - 1));
+        if (payload?.alsoUnfollow) {
+          if (viewerAccountType === 'community') {
+            setCommunityIsFollowingCreator(false);
+          } else {
+            setIsFollowingCreator(false);
+          }
+          setCreatorFollowerCount((c) => Math.max(0, c - 1));
+        }
+      }
+    };
+
+    const onCircleLeft = (payload) => {
+      if (String(payload?.creatorId) === String(memberId)) {
+        setIsInCircleWithCreator(false);
+        setCircleStatus("none");
+        setCommCircleStatus("none");
+        setCircleCount((c) => Math.max(0, c - 1));
+        if (payload?.alsoUnfollow) {
+          if (viewerAccountType === 'community') {
+            setCommunityIsFollowingCreator(false);
+          } else {
+            setIsFollowingCreator(false);
+          }
+          setCreatorFollowerCount((c) => Math.max(0, c - 1));
+        }
+      }
+    };
+
+    const onCircleRequestResponded = (payload) => {
+      const involvesThisProfile = String(payload?.memberId) === String(memberId) || String(payload?.creatorId) === String(memberId) || String(payload?.communityId) === String(memberId);
+      if (involvesThisProfile) {
+        if (payload.action === "accepted") {
+          setIsInCircleWithCreator(true);
+          setCircleStatus("in_circle");
+          setCommCircleStatus("in_circle");
+          setCircleCount((c) => c + 1);
+        } else {
+          setCircleStatus("none");
+          setCommCircleStatus("none");
+        }
+      }
+    };
+
+    const sub1 = EventBus.on("follow-updated", onFollowUpdated);
+    const sub2 = EventBus.on("creator:followed", onCreatorFollowed);
+    const sub3 = EventBus.on("creator:unfollowed", onCreatorUnfollowed);
+    const sub4 = EventBus.on("creator:follower-removed", onCreatorFollowerRemoved);
+    const sub5 = EventBus.on("circle:member-removed", onCircleMemberRemoved);
+    const sub6 = EventBus.on("my:circle-member-removed", onMyCircleMemberRemoved);
+    const sub7 = EventBus.on("circle:left", onCircleLeft);
+    const sub8 = EventBus.on("circle-request-responded", onCircleRequestResponded);
+
+    return () => {
+      sub1();
+      sub2();
+      sub3();
+      sub4();
+      sub5();
+      sub6();
+      sub7();
+      sub8();
+    };
+  }, [memberId, viewerAccountType, viewerId]);
 
   // Listen for like updates from other screens (e.g., home feed)
   useEffect(() => {
