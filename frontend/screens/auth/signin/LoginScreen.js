@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, Alert, Platform, StatusBar, Pressable, ImageBackground } from "react-native";
 import { BlurView } from "expo-blur";
 import { Mail, Check } from "lucide-react-native";
-import { setPendingOtp } from "../../../api/auth";
+import { setPendingOtp, clearPendingOtp } from "../../../api/auth";
 import { apiPost } from "../../../api/client";
 import * as Haptics from "expo-haptics";
 import Animated, { ZoomIn } from "react-native-reanimated";
@@ -130,11 +130,33 @@ const LoginScreen = ({ navigation, route }) => {
     >
       <SafeAreaView style={styles.container}>
         <SignupHeader
-          onBack={() => {
+          onBack={async () => {
+            // Clear pending OTP so AuthGate doesn't force user back into OTP flow on next reload
+            await clearPendingOtp();
+
             if (navigation.canGoBack()) {
               navigation.goBack();
             } else {
-              navigation.navigate("Landing", isAddingAccount ? { fromSwitcher: true } : undefined);
+              // Fallback for app restore: check if user is already logged into an account
+              const { getActiveAccount } = require("../../../api/auth");
+              const activeAccount = await getActiveAccount();
+              if (activeAccount && activeAccount.isLoggedIn !== false) {
+                // Return to the previous active account's home screen
+                const userType = activeAccount.type;
+                const homeRoute =
+                  userType === "member"
+                    ? "MemberHome"
+                    : userType === "community"
+                    ? "CommunityHome"
+                    : userType === "sponsor"
+                    ? "SponsorHome"
+                    : userType === "venue"
+                    ? "VenueHome"
+                    : "MemberHome";
+                navigation.reset({ index: 0, routes: [{ name: homeRoute }] });
+              } else {
+                navigation.navigate("Landing", isAddingAccount ? { fromSwitcher: true } : undefined);
+              }
             }
           }}
         />
