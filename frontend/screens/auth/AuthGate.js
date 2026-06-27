@@ -65,8 +65,11 @@ export default function AuthGate({ navigation }) {
       if (pending && pending.email) {
         if (pending.flow === "login") {
           navigation.reset({
-            index: 0,
-            routes: [{ name: "LoginOtp", params: { email: pending.email } }],
+            index: 1,
+            routes: [
+              { name: "Login", params: { email: pending.email } },
+              { name: "LoginOtp", params: { email: pending.email } },
+            ],
           });
           return;
         }
@@ -97,8 +100,11 @@ export default function AuthGate({ navigation }) {
         console.log('[AuthGate] Pending account selection found, redirecting to OTP screen for picker restore');
         if (pendingSelection.flow === 'login') {
           navigation.reset({
-            index: 0,
-            routes: [{ name: 'LoginOtp', params: { email: pendingSelection.email } }],
+            index: 1,
+            routes: [
+              { name: 'Login', params: { email: pendingSelection.email } },
+              { name: 'LoginOtp', params: { email: pendingSelection.email } },
+            ],
           });
           return;
         }

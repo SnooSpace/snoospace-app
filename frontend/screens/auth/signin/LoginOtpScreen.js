@@ -367,7 +367,13 @@ const LoginOtpScreen = ({ navigation, route }) => {
             [
               {
                 text: "Switch to one of them",
-                onPress: () => navigation.goBack(),
+                onPress: () => {
+                  if (navigation.canGoBack()) {
+                    navigation.goBack();
+                  } else {
+                    navigation.navigate("Login", { email: email, isAddingAccount: isAddingAccount });
+                  }
+                },
               },
               {
                 text: "Create new account",
@@ -610,7 +616,11 @@ const LoginOtpScreen = ({ navigation, route }) => {
                         style={styles.modalPrimaryButton}
                         onPress={() => {
                           setShowGoBackModal(false);
-                          navigation.goBack();
+                          if (navigation.canGoBack()) {
+                            navigation.goBack();
+                          } else {
+                            navigation.navigate("Login", { email: email, isAddingAccount: isAddingAccount });
+                          }
                         }}
                       >
                         <GradientText style={styles.modalPrimaryButtonText}>
