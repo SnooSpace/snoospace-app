@@ -37,6 +37,7 @@ import {
 } from "../../../api/members";
 import { resolveConversation } from "../../../api/messages";
 import { SafeAreaView } from "react-native-safe-area-context";
+import useRealtimeSubscription from "../../../hooks/useRealtimeSubscription";
 import EventBus from "../../../utils/EventBus";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getAuthToken, getAuthEmail, getActiveAccount } from "../../../api/auth";
@@ -695,6 +696,36 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       }
     }, [loadProfile, loadCircleStatus, loadCommunityCircleStatus, loadCreatorFollowStatus, viewerAccountType]),
   );
+
+  // Subscribe to real-time general follows count updates
+  useRealtimeSubscription({
+    table: 'follows',
+    event: '*',
+    filter: memberId ? `following_id=eq.${memberId}` : null,
+    onData: (payload) => {
+      console.log("[MemberPublicProfile] follows change:", payload.eventType);
+      if (payload.eventType === 'INSERT') {
+        setFollowersCount(c => c + 1);
+      } else if (payload.eventType === 'DELETE') {
+        setFollowersCount(c => Math.max(0, c - 1));
+      }
+    }
+  });
+
+  // Subscribe to real-time creator follows count updates
+  useRealtimeSubscription({
+    table: 'creator_follows',
+    event: '*',
+    filter: memberId ? `creator_id=eq.${memberId}` : null,
+    onData: (payload) => {
+      console.log("[MemberPublicProfile] creator_follows change:", payload.eventType);
+      if (payload.eventType === 'INSERT') {
+        setCreatorFollowerCount(c => c + 1);
+      } else if (payload.eventType === 'DELETE') {
+        setCreatorFollowerCount(c => Math.max(0, c - 1));
+      }
+    }
+  });
 
   useEffect(() => {
     let mounted = true;

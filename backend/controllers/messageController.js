@@ -639,6 +639,86 @@ const sendMessage = async (req, res) => {
       : "SELECT name, username, logo_url AS profile_photo_url FROM communities WHERE id = $1";
     const senderInfo = await pool.query(senderQ, [userId]);
 
+    // Trigger push notification to recipient(s) if not hidden and they're not active in the room
+    if (!isHidden) {
+      try {
+        const convInfo = await pool.query(
+          `SELECT is_group, participant1_id, participant1_type, participant2_id, participant2_type, group_name
+           FROM conversations WHERE id = $1`,
+          [convId]
+        );
+        const convRow = convInfo.rows[0];
+        if (convRow) {
+          const isGroup = convRow.is_group || false;
+          const io = req.app.locals.io;
+          const roomName = `chat_${convId}`;
+          const room = io?.sockets.adapter.rooms.get(roomName);
+
+          const pushService = require("../services/pushService");
+          const senderName = senderInfo.rows[0]?.name || "Someone";
+          const bodyText = messageType === "text" 
+            ? (finalText.length > 80 ? finalText.substring(0, 80) + '...' : finalText)
+            : `Sent a ${messageType === 'multi_media' ? 'media attachment' : messageType}`;
+
+          if (!isGroup) {
+            const otherId = String(convRow.participant1_id) === String(userId) && convRow.participant1_type === userType
+              ? convRow.participant2_id
+              : convRow.participant1_id;
+            const otherType = String(convRow.participant1_id) === String(userId) && convRow.participant1_type === userType
+              ? convRow.participant2_type
+              : convRow.participant1_type;
+
+            let isRecipientActive = false;
+            if (io && room) {
+              const socketsInChat = await io.in(roomName).fetchSockets();
+              isRecipientActive = socketsInChat.some(s => String(s.userId) === String(otherId));
+            }
+
+            if (!isRecipientActive) {
+              await pushService.sendPushNotification(
+                pool,
+                otherId,
+                otherType,
+                senderName,
+                bodyText,
+                { screen: "Chat", chatId: String(convId) }
+              );
+            }
+          } else {
+            const participantsResult = await pool.query(
+              `SELECT participant_id, participant_type FROM conversation_participants
+               WHERE conversation_id = $1 AND (participant_id != $2 OR participant_type != $3)`,
+              [convId, userId, userType]
+            );
+
+            const activeUserIds = new Set();
+            if (io && room) {
+              const socketsInChat = await io.in(roomName).fetchSockets();
+              socketsInChat.forEach(s => {
+                if (s.userId) activeUserIds.add(String(s.userId));
+              });
+            }
+
+            for (const participant of participantsResult.rows) {
+              const partIdStr = String(participant.participant_id);
+              if (!activeUserIds.has(partIdStr)) {
+                await pushService.sendPushNotification(
+                  pool,
+                  participant.participant_id,
+                  participant.participant_type,
+                  `${convRow.group_name || 'Group Chat'} 👥`,
+                  `${senderName}: ${bodyText}`,
+                  { screen: "Chat", chatId: String(convId) }
+                );
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error triggering message push notification:", err);
+      }
+    }
+
     res.status(201).json({
       success: true,
       message: {

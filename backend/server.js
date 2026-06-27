@@ -49,10 +49,62 @@ app.locals.pool = pool;
 // Ensure required tables exist
 ensureTables(pool);
 
+const http = require("http");
+const { Server } = require("socket.io");
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
+// Save io on app.locals to make it accessible to controllers without circular dependencies
+app.locals.io = io;
+
+io.on("connection", (socket) => {
+  console.log("[Socket.io] Client connected:", socket.id);
+
+  // User joins their personal room on login
+  socket.on("register_user", (userId) => {
+    socket.join(`user_${userId}`);
+    socket.userId = userId;
+    console.log(`[Socket.io] User ${userId} registered on socket ${socket.id}`);
+  });
+
+  // User joins a chat room
+  socket.on("join_chat", (chatId) => {
+    socket.join(`chat_${chatId}`);
+    console.log(`[Socket.io] Socket ${socket.id} joined chat_${chatId}`);
+  });
+
+  // User leaves a chat room
+  socket.on("leave_chat", (chatId) => {
+    socket.leave(`chat_${chatId}`);
+    console.log(`[Socket.io] Socket ${socket.id} left chat_${chatId}`);
+  });
+
+  // Typing indicator — broadcast to everyone in room except sender
+  socket.on("typing_start", ({ chatId, userId, userName }) => {
+    socket.to(`chat_${chatId}`).emit("user_typing", { userId, userName });
+  });
+
+  socket.on("typing_stop", ({ chatId, userId }) => {
+    socket.to(`chat_${chatId}`).emit("user_stopped_typing", { userId });
+  });
+
+  socket.on("disconnect", () => {
+    console.log("[Socket.io] Client disconnected:", socket.id);
+  });
+});
+
 // Load routes
 app.use("/", routes);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
+
+module.exports = { io };

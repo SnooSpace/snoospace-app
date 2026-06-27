@@ -33,8 +33,22 @@ import { VideoProvider } from "./context/VideoContext";
 import AnimatedSplashScreen from "./components/ui/AnimatedSplashScreen";
 import { initSessionTracker, trackScreenVisit } from "./utils/sessionTracker";
 
+import * as Notifications from "expo-notifications";
+import { registerPushTokenWithBackend } from "./services/pushNotificationService";
+import { connectSocket, disconnectSocket } from "./services/socketService";
+import { useAuthState } from "./contexts/AuthStateContext";
+
 import { ToastProvider } from "./context/ToastContext";
 import AccountSwitchOverlay from "./components/ui/AccountSwitchOverlay";
+
+// Configure how push notifications are displayed when the app is in the foreground
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 const SnooTheme = {
   ...DefaultTheme,
@@ -48,6 +62,39 @@ function AppContent() {
   const { currentBanner, setCurrentBanner } = useNotifications();
   const navigationRef = React.useRef(null);
   const removeAppStateListenerRef = React.useRef(null);
+  const { activeAccountEmail } = useAuthState();
+
+  // ── Socket.io & Push Notifications Sync ────────────────────────────────────
+  useEffect(() => {
+    if (activeAccountEmail) {
+      console.log("[App] User session active, connecting socket and registering push token...");
+      connectSocket();
+      registerPushTokenWithBackend();
+    } else {
+      console.log("[App] No active user session, disconnecting socket...");
+      disconnectSocket();
+    }
+
+    // Set up click listener for notification interaction (deep linking)
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      console.log("[App] User tapped notification. Data payload:", data);
+      
+      if (data && data.screen === "Chat" && data.chatId) {
+        console.log(`[App] Deep linking to Chat screen with chatId: ${data.chatId}`);
+        navigationRef.current?.dispatch(
+          CommonActions.navigate({
+            name: "Chat",
+            params: { conversationId: data.chatId },
+          })
+        );
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [activeAccountEmail]);
 
   // ── Session Tracking ─────────────────────────────────────────────────────
   // initSessionTracker subscribes to AppState (foreground/background) and

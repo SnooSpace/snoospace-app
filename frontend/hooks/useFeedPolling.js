@@ -135,48 +135,26 @@ export function useFeedPolling(options = {}) {
     }
   }, []);
 
-  // Single stable polling effect — never restarts due to internal state changes
+  // Polling loop disabled in favor of manual/event-driven refresh.
+  // We keep the AppState listener to refresh when app returns to foreground.
   useEffect(() => {
-    if (!enabled) {
-      console.log('[FeedPolling] Polling disabled');
-      return;
-    }
+    if (!enabled) return;
 
-    currentIntervalRef.current = baseInterval;
-    console.log(`[FeedPolling] Starting with ${baseInterval / 1000}s interval`);
-
-    const poll = async () => {
-      const result = await checkForNewPosts(poll);
-      if (result?.hasNew && onNewPostsLoaded) {
-        onNewPostsLoaded(result.posts);
-      }
-    };
-
-    // Initial poll after one interval
-    const initialTimer = setTimeout(poll, baseInterval);
-    intervalRef.current = setInterval(poll, baseInterval);
-
-    // Handle app state changes
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (
         appStateRef.current.match(/inactive|background/) &&
         nextAppState === 'active'
       ) {
-        console.log('[FeedPolling] App came to foreground, polling...');
-        lastChangeTimeRef.current = Date.now();
-        restartInterval(baseInterval, poll);
-        poll();
+        console.log('[FeedPolling] App came to foreground, refreshing...');
+        forceRefresh();
       }
       appStateRef.current = nextAppState;
     });
 
     return () => {
-      clearTimeout(initialTimer);
-      if (intervalRef.current) clearInterval(intervalRef.current);
       subscription.remove();
     };
-  // Only restart when enabled/baseInterval/callbacks change — NOT on currentInterval
-  }, [enabled, baseInterval, checkForNewPosts, onNewPostsLoaded, restartInterval]);
+  }, [enabled, forceRefresh]);
 
   // Force refresh function for manual trigger
   const forceRefresh = useCallback(async () => {

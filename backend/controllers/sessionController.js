@@ -44,7 +44,9 @@ const trackSession = async (req, res) => {
 
   // Process asynchronously after the response has been sent
   try {
-    if (!userId) return; // Middleware should catch this, but be safe
+    // Only track session activity and AQI signals for members.
+    // Business accounts (communities, sponsors, venues) do not have member records or AQI profiles.
+    if (!userId || req.user?.type !== "member") return;
 
     if (eventType === 'session_start') {
       // Update last_active_at so dormancy decay sees the user as active

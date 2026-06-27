@@ -52,7 +52,7 @@ import AttendanceConfirmationModal from "./AttendanceConfirmationModal";
 import DeletePostModal from "./DeletePostModal";
 import EventBus from "../utils/EventBus";
 import LikeStateManager from "../utils/LikeStateManager";
-import { useMessagePolling } from "../hooks/useMessagePolling";
+import useRealtimeSubscription from "../hooks/useRealtimeSubscription";
 import { useFeedPolling } from "../hooks/useFeedPolling";
 import { useScrollState } from "../hooks/useScrollState";
 import SkeletonCard from "./SkeletonCard";
@@ -413,16 +413,36 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // ── Scroll state tracking — lets network callbacks know whether to defer setState
   const { isScrollingRef, onScrollBeginDrag, onScrollEndDrag, onMomentumScrollEnd } = useScrollState();
 
-  // Auto-poll for message count updates (Instagram-like)
-  useMessagePolling(
-    (count) => {
-      setMessageUnread(count);
-    },
-    {
-      baseInterval: 3000,
-      enabled: true,
-    },
-  );
+  // Debounce ref and handler for reloading unread message counts
+  const messageDebounceTimeoutRef = useRef(null);
+  const debouncedLoadMessageUnreadCount = useCallback(() => {
+    if (messageDebounceTimeoutRef.current) {
+      clearTimeout(messageDebounceTimeoutRef.current);
+    }
+    messageDebounceTimeoutRef.current = setTimeout(() => {
+      loadMessageUnreadCount();
+    }, 500);
+  }, []);
+
+  // Cleanup message debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (messageDebounceTimeoutRef.current) {
+        clearTimeout(messageDebounceTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Subscribe to real-time message changes to update the inbox unread count (restricted by RLS)
+  useRealtimeSubscription({
+    table: 'messages',
+    event: '*',
+    filter: null,
+    onData: (payload) => {
+      console.log(`[HomeFeedScreen] Realtime message event '${payload.eventType}' received.`);
+      debouncedLoadMessageUnreadCount();
+    }
+  });
 
   // Auto-poll for new posts
   const { isPolling: isFeedPolling, initializeTimestamp } = useFeedPolling({

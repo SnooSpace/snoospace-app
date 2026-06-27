@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchNotifications, fetchUnreadCount, markAllNotificationsRead } from '../api/notifications';
-import { getAuthToken } from '../api/auth';
+import { getAuthToken, getActiveAccount } from '../api/auth';
 import { BACKEND_BASE_URL } from '../api/client';
+import useRealtimeSubscription from '../hooks/useRealtimeSubscription';
 
 const NotificationsContext = createContext(null);
 
@@ -11,8 +12,53 @@ export function NotificationsProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [currentBanner, setCurrentBanner] = useState(null);
   const offsetRef = useRef(0);
-  const subRef = useRef(null);
   const userRef = useRef({ id: null, type: 'member' });
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  // Load active account details on mount/session check
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const activeAccount = await getActiveAccount();
+        if (activeAccount?.id) {
+          setCurrentUserId(activeAccount.id);
+          userRef.current = { id: activeAccount.id, type: activeAccount.type || 'member' };
+        }
+      } catch (err) {
+        console.warn("[NotificationsContext] Error loading active account:", err);
+      }
+    };
+    loadUser();
+  }, []);
+
+  // Subscribe to real-time notification events
+  useRealtimeSubscription({
+    table: 'notifications',
+    event: '*',
+    filter: currentUserId ? `recipient_id=eq.${currentUserId}` : null,
+    onData: (payload) => {
+      if (payload.eventType === 'INSERT') {
+        const row = payload.new;
+        if (!row) return;
+        console.log("[NotificationsContext] New notification received via Realtime:", row);
+        setItems(prev => [row, ...prev]);
+        setUnread(prev => prev + 1);
+        setCurrentBanner(row);
+      } else if (payload.eventType === 'UPDATE') {
+        const row = payload.new;
+        if (!row) return;
+        console.log("[NotificationsContext] Notification updated via Realtime:", row);
+        setItems(prev => prev.map(n => n.id === row.id ? row : n));
+        
+        // If marked read, refresh the unread count from database
+        if (row.is_read) {
+          fetchUnreadCount().then(r => {
+            if (typeof r?.unread === 'number') setUnread(r.unread);
+          }).catch(err => console.warn("[NotificationsContext] Error refreshing unread count:", err));
+        }
+      }
+    }
+  });
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
@@ -47,68 +93,9 @@ export function NotificationsProvider({ children }) {
     } catch {}
   }, []);
 
-  // Optional realtime: dynamically import Supabase only if available
-  const supabaseRef = useRef(null);
-  const [realtimeReady, setRealtimeReady] = useState(false);
-
-  useEffect(() => {
-    const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) return; // No envs → skip
-    (async () => {
-      try {
-        const mod = await import('@supabase/supabase-js');
-        if (mod && mod.createClient) {
-          supabaseRef.current = mod.createClient(url, key);
-          setRealtimeReady(true);
-        }
-      } catch {
-        // Module not installed; skip realtime
-      }
-    })();
-  }, []);
-
   useEffect(() => {
     loadInitial();
   }, [loadInitial]);
-
-  useEffect(() => {
-    const supabase = supabaseRef.current;
-    if (!realtimeReady || !supabase) return;
-    let channel;
-    (async () => {
-      try {
-        // We rely on RLS or server-side if present; otherwise client-side filter is fine
-        // Since we don't have user id here from a central auth store, we subscribe broadly and filter
-        channel = supabase.channel('notifications_inserts')
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
-            const row = payload?.new;
-            if (!row) return;
-            // Client-side filter: recipient only
-            if (userRef.current.id && row.recipient_id !== userRef.current.id) return;
-            setItems(prev => [row, ...prev]);
-            setUnread(prev => prev + 1);
-            // Show banner for new notification
-            setCurrentBanner(row);
-          })
-          .subscribe();
-      } catch {}
-    })();
-    return () => {
-      try { channel && supabase.removeChannel(channel); } catch {}
-    };
-  }, [realtimeReady]);
-
-  // Fallback: lightweight polling to keep unread badge fresh if realtime is unavailable
-  useEffect(() => {
-    const id = setInterval(async () => {
-      try {
-        const r = await fetchUnreadCount();
-        if (typeof r?.unread === 'number') setUnread(r.unread);
-      } catch {}
-    }, 30000);
-    return () => clearInterval(id);
-  }, []);
 
   const value = useMemo(() => ({ items, unread, loading, loadInitial, loadMore, markAllRead, currentBanner, setCurrentBanner }), [items, unread, loading, loadInitial, loadMore, markAllRead, currentBanner]);
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;

@@ -98,9 +98,11 @@ import TicketMessageCard from "../../components/TicketMessageCard";
 import SharedPostCard from "../../components/SharedPostCard";
 import SharedOpportunityCard from "../../components/SharedOpportunityCard";
 import SharedEventCard from "../../components/SharedEventCard";
-import ProfilePostFeed from "../../components/ProfilePostFeed";
 import SnooLoader from "../../components/ui/SnooLoader";
+import ProfilePostFeed from "../../components/ProfilePostFeed";
 import EmptyChatState from "../../components/EmptyChatState";
+import useRealtimeSubscription from "../../hooks/useRealtimeSubscription";
+import { getSocket } from "../../services/socketService";
 
 // ΓöÇΓöÇ Palette ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 const PRIMARY_COLOR = "#3565F2";
@@ -1626,6 +1628,68 @@ export default function ChatScreen({ route, navigation }) {
   const [viewerIndex, setViewerIndex] = useState(0);
   const [inputHeight, setInputHeight] = useState(100);
 
+  const [typingUsers, setTypingUsers] = useState({}); // { [userId]: userName }
+  const typingTimeoutRef = useRef(null);
+  const isTypingRef = useRef(false);
+
+  const handleTextChange = useCallback((text) => {
+    setMessageText(text);
+
+    const socket = getSocket();
+    if (!socket || !currentConversationId || !currentUser) return;
+
+    if (!isTypingRef.current && text.length > 0) {
+      isTypingRef.current = true;
+      socket.emit("typing_start", {
+        chatId: currentConversationId,
+        userId: currentUser.id,
+        userName: currentUser.name || "Someone",
+      });
+    }
+
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      if (isTypingRef.current) {
+        isTypingRef.current = false;
+        socket.emit("typing_stop", {
+          chatId: currentConversationId,
+          userId: currentUser.id,
+        });
+      }
+    }, 2000);
+  }, [currentConversationId, currentUser]);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const renderTypingIndicator = () => {
+    const typingList = Object.values(typingUsers).filter(Boolean);
+    if (typingList.length === 0) return null;
+
+    let text;
+    if (typingList.length === 1) {
+      text = `${typingList[0]} is typing...`;
+    } else if (typingList.length === 2) {
+      text = `${typingList[0]} and ${typingList[1]} are typing...`;
+    } else {
+      text = "Several people are typing...";
+    }
+
+    return (
+      <View style={typingStyles.container}>
+        <Text style={typingStyles.text}>{text}</Text>
+      </View>
+    );
+  };
+
   // highlight state lives in Reanimated (see highlightedIdSV below renderItem)
 
   const showAlert = (config) => setAlertConfig({ ...config, visible: true });
@@ -2117,98 +2181,88 @@ export default function ChatScreen({ route, navigation }) {
     })();
   }, [isGroup, currentConversationId]);
 
-  // ——— Supabase init ————————————————————————————————————————————————————————————————
-  useEffect(() => {
-    const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) return;
-    (async () => {
-      try {
-        const mod = await import("@supabase/supabase-js");
-        if (mod?.createClient) supabaseRef.current = mod.createClient(url, key);
-      } catch {
-        console.log("Supabase not available");
+  // ——— Supabase Realtime Subscription ————————————————————————————————————————————————
+  useRealtimeSubscription({
+    table: 'messages',
+    event: '*',
+    filter: currentConversationId ? `conversation_id=eq.${currentConversationId}` : null,
+    onData: (payload) => {
+      if (payload.eventType === "INSERT") {
+        const m = payload.new;
+        // Don't duplicate self-sent messages (already inserted locally)
+        if (currentUser?.id && String(m.sender_id) === String(currentUser.id)) {
+          return;
+        }
+        console.log("[ChatScreen] Realtime new message received:", m.id);
+        addNewMessage({
+          id: m.id,
+          senderId: m.sender_id,
+          senderType: m.sender_type,
+          messageText: m.message_text,
+          messageType: m.message_type,
+          metadata: m.metadata,
+          isDeleted: m.is_deleted,
+          deletedByType: m.deleted_by_type,
+          replyToMessageId: m.reply_to_message_id,
+          isRead: m.is_read,
+          createdAt: m.created_at,
+        });
+      } else if (payload.eventType === "UPDATE") {
+        console.log("[ChatScreen] Realtime message update received:", payload.new.id);
+        updateMessageById(payload.new.id, {
+          isDeleted: payload.new.is_deleted,
+          deletedByType: payload.new.deleted_by_type,
+          messageText: payload.new.is_deleted ? null : payload.new.message_text,
+        });
       }
-    })();
-  }, []);
+    }
+  });
 
-  // ——— Realtime / polling ———————————————————————————————————————————————————————————
+  // ——— Socket.io Room Joins & Leaves —————————————————————————————————──────────────
   useEffect(() => {
     if (!currentConversationId) return;
-    if (supabaseRef.current) {
-      const ch = supabaseRef.current
-        .channel(`messages:${currentConversationId}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "messages",
-            filter: `conversation_id=eq.${currentConversationId}`,
-          },
-          (payload) => {
-            if (payload.eventType === "INSERT") {
-              const m = payload.new;
-              addNewMessage({
-                id: m.id,
-                senderId: m.sender_id,
-                senderType: m.sender_type,
-                messageText: m.message_text,
-                messageType: m.message_type,
-                metadata: m.metadata,
-                isDeleted: m.is_deleted,
-                deletedByType: m.deleted_by_type,
-                replyToMessageId: m.reply_to_message_id,
-                isRead: m.is_read,
-                createdAt: m.created_at,
-              });
-            }
-            if (payload.eventType === "UPDATE") {
-              updateMessageById(payload.new.id, {
-                isDeleted: payload.new.is_deleted,
-                deletedByType: payload.new.deleted_by_type,
-                messageText: payload.new.is_deleted
-                  ? null
-                  : payload.new.message_text,
-              });
-            }
-          },
-        )
-        .subscribe();
-      subscriptionRef.current = ch;
-      return () => {
-        if (supabaseRef.current) supabaseRef.current.removeChannel(ch);
-      };
-    } else {
-      // Polling fallback (no Supabase realtime available).
-      // We use a forward cursor: each tick only fetches messages that arrived
-      // AFTER the newest message we already have, so we never re-download the
-      // full recent history on every interval.
-      const poll = async () => {
-        try {
-          // Build params: pass `after` when we have a baseline, otherwise fall
-          // back to a small initial load (handles the very first poll tick).
-          const after = newestAtRef.current;
-          const params = after ? { after, limit: 50 } : { limit: 50 };
-          const res = await getMessages(currentConversationId, params);
-          const incoming = res.messages || [];
-          if (incoming.length === 0) return;
-          // ── PERF: Defer state update until user is not actively scrolling.
-          // InteractionManager resolves immediately when idle; queues when a touch
-          // gesture is in progress. This prevents setMessages from firing mid-scroll.
-          InteractionManager.runAfterInteractions(() => {
-            addNewMessages(incoming);
-          });
-        } catch {}
-      };
-      poll();
-      pollingIntervalRef.current = setInterval(poll, 3000);
-      return () => {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      };
+
+    const socket = getSocket();
+    if (socket) {
+      console.log(`[ChatScreen] Joining socket chat room: chat_${currentConversationId}`);
+      socket.emit("join_chat", currentConversationId);
     }
+
+    return () => {
+      if (socket) {
+        console.log(`[ChatScreen] Leaving socket chat room: chat_${currentConversationId}`);
+        socket.emit("leave_chat", currentConversationId);
+      }
+    };
   }, [currentConversationId]);
+
+  // ——— Socket.io Typing Listeners —————————————————————————————————─────────────────
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const handleUserTyping = ({ userId, userName }) => {
+      console.log("[ChatScreen] User is typing:", userId, userName);
+      setTypingUsers(prev => ({ ...prev, [userId]: userName }));
+    };
+
+    const handleUserStoppedTyping = ({ userId }) => {
+      console.log("[ChatScreen] User stopped typing:", userId);
+      setTypingUsers(prev => {
+        const copy = { ...prev };
+        delete copy[userId];
+        return copy;
+      });
+    };
+
+    socket.on("user_typing", handleUserTyping);
+    socket.on("user_stopped_typing", handleUserStoppedTyping);
+
+    return () => {
+      socket.off("user_typing", handleUserTyping);
+      socket.off("user_stopped_typing", handleUserStoppedTyping);
+    };
+  }, []);
 
   const handleSend = async () => {
     const hasText = messageText.trim().length > 0;
@@ -3071,6 +3125,8 @@ export default function ChatScreen({ route, navigation }) {
               onClose={() => setSelectedReply(null)}
             />
 
+            {renderTypingIndicator()}
+
             {/* ΓöÇΓöÇ Locked bar: shown to non-admins when messaging is restricted ΓöÇΓöÇ */}
             {isGroup && messagingRestricted && myGroupRole !== "admin" ? (
               <View style={styles.lockedBar}>
@@ -3138,7 +3194,7 @@ export default function ChatScreen({ route, navigation }) {
                         placeholder={`Add a caption`}
                         placeholderTextColor="#B0BEC5"
                         value={messageText}
-                        onChangeText={setMessageText}
+                        onChangeText={handleTextChange}
                         multiline
                         maxLength={500}
                       />
@@ -3176,7 +3232,7 @@ export default function ChatScreen({ route, navigation }) {
                         cursorColor="#8FA1B8"
                         underlineColorAndroid="transparent"
                         value={messageText}
-                        onChangeText={setMessageText}
+                        onChangeText={handleTextChange}
                         multiline
                         maxLength={1000}
                       />
@@ -3650,5 +3706,19 @@ const blockBannerStyles = StyleSheet.create({
     fontFamily: "Manrope-SemiBold",
     fontSize: 13,
     color: "#FFFFFF",
+  },
+});
+
+const typingStyles = StyleSheet.create({
+  container: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    backgroundColor: "transparent",
+  },
+  text: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#8FA1B8",
+    fontStyle: "italic",
   },
 });

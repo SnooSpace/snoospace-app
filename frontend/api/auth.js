@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as accountManager from "../utils/accountManager";
+import { setSupabaseAuth, clearSupabaseAuth } from '../services/supabaseClient';
 
 const KEY_TOKEN = "auth_token";
 const KEY_EMAIL = "auth_email";
@@ -19,6 +20,9 @@ export async function setAuthSession(token, email, refreshToken) {
     ];
     if (refreshToken) pairs.push([KEY_REFRESH, refreshToken || ""]);
     await AsyncStorage.multiSet(pairs);
+    if (token) {
+      setSupabaseAuth(token);
+    }
   } catch {}
 }
 
@@ -138,6 +142,7 @@ export async function clearAuthSession() {
 
     // Also clear old storage
     await AsyncStorage.multiRemove([KEY_TOKEN, KEY_EMAIL, KEY_REFRESH]);
+    clearSupabaseAuth();
   } catch (error) {
     console.error("[clearAuthSession] Error:", error);
   }
@@ -171,6 +176,7 @@ export async function setAccessToken(token) {
 
     // Also set old storage for backward compatibility
     await AsyncStorage.setItem(KEY_TOKEN, token || "");
+    setSupabaseAuth(token);
   } catch (error) {
     console.error("[setAccessToken] Error updating token:", error);
   }
@@ -247,6 +253,7 @@ export async function updateAccountTokens(
     // Also update legacy storage for backward compatibility
     if (accessToken) {
       await AsyncStorage.setItem(KEY_TOKEN, accessToken);
+      setSupabaseAuth(accessToken);
     }
     if (refreshToken) {
       await AsyncStorage.setItem(KEY_REFRESH, refreshToken);
@@ -484,6 +491,7 @@ export async function removeAccountAndAutoSwitch(accountId) {
 export async function clearAllAccounts() {
   await accountManager.clearAllAccounts();
   await AsyncStorage.multiRemove([KEY_TOKEN, KEY_EMAIL, KEY_REFRESH]);
+  clearSupabaseAuth();
 }
 
 /**

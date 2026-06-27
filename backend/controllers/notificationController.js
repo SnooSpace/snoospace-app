@@ -130,4 +130,35 @@ const markAllRead = async (req, res) => {
   }
 };
 
-module.exports = { listNotifications, unreadCount, markRead, markAllRead };
+// Register push token for user
+const registerPushToken = async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { token, deviceId } = req.body;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    if (!token) {
+      return res.status(400).json({ error: "Token is required" });
+    }
+
+    // Upsert push token for user+device
+    await pool.query(
+      `INSERT INTO push_tokens (user_id, user_type, expo_push_token, device_id, is_active, updated_at)
+       VALUES ($1, $2, $3, $4, true, now())
+       ON CONFLICT (user_id, user_type, device_id)
+       DO UPDATE SET expo_push_token = EXCLUDED.expo_push_token, is_active = true, updated_at = now()`,
+      [userId, userType, token, deviceId || 'default']
+    );
+
+    res.json({ success: true });
+  } catch (e) {
+    console.error("registerPushToken error", e);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+module.exports = { listNotifications, unreadCount, markRead, markAllRead, registerPushToken };

@@ -22,6 +22,7 @@ function generateRefreshToken() {
 function generateAccessToken(userId, userType, email) {
   return jwt.sign(
     {
+      role: "authenticated", // Required by Supabase Realtime to authorize database access
       sub: `${userType}_${userId}`,
       userId: userId,
       userType: userType,

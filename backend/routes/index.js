@@ -1545,6 +1545,11 @@ router.patch(
   authMiddleware,
   NotificationController.markAllRead,
 );
+router.post(
+  "/notifications/push-token",
+  authMiddleware,
+  NotificationController.registerPushToken,
+);
 
 // Account
 router.delete("/account", authMiddleware, AccountController.deleteAccount);
