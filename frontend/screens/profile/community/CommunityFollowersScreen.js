@@ -754,7 +754,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
 
   // Remove Member from Community Circle
   const handleRemoveFromCircle = useCallback((item) => {
-    const memberId = item.id;
+    const memberId = String(item.id);
     hapticsService.triggerImpactLight();
     showAlert({
       title: 'Remove from Circle?',
@@ -771,9 +771,28 @@ export default function CommunityFollowersScreen({ route, navigation }) {
           setCircleStates((prev) => ({ ...prev, [memberId]: "none" }));
           setCircleTotal((t) => Math.max(0, t - 1));
           // Optimistically remove from circles list
-          setCircleMembers((prev) => prev.filter((m) => String(m.id) !== String(memberId)));
+          setCircleMembers((prev) => prev.filter((m) => String(m.id) !== memberId));
+          hapticsService.triggerImpactLight();
           try {
-            await removeMemberFromCommunityCircle(memberId);
+            await removeMemberFromCommunityCircle(memberId, false); // keep follow (follow restored)
+            EventBus.emit('circle:member-removed', { creatorId: communityId, memberId, alsoUnfollow: false });
+            EventBus.emit('my:circle-member-removed', { memberId, alsoUnfollow: false });
+            // Follow is restored — add member to Followers tab and update count
+            setFollowersTotal((t) => t + 1);
+            setFollowers((prev) => {
+              if (prev.some((f) => String(f.id) === memberId)) return prev;
+              return [
+                {
+                  id: item.id,
+                  name: item.name,
+                  username: item.username,
+                  avatar_url: item.avatar_url,
+                  type: 'member',
+                  created_at: new Date().toISOString(),
+                },
+                ...prev,
+              ];
+            });
           } catch (e) {
             console.warn('[CommunityFollowers] removeMemberFromCommunityCircle failed:', e);
             // Revert state
@@ -785,8 +804,37 @@ export default function CommunityFollowersScreen({ route, navigation }) {
           }
         },
       },
+      tertiaryAction: {
+        text: 'Remove from Circle & as Follower',
+        style: 'destructive',
+        onPress: async () => {
+          hideAlert();
+          setCircleActionLoading((prev) => ({ ...prev, [memberId]: true }));
+          setCircleStates((prev) => ({ ...prev, [memberId]: "none" }));
+          setCircleTotal((t) => Math.max(0, t - 1));
+          setFollowersTotal((t) => Math.max(0, t - 1));
+          // Optimistically remove from circles and followers list
+          setCircleMembers((prev) => prev.filter((m) => String(m.id) !== memberId));
+          setFollowers((prev) => prev.filter((f) => String(f.id) !== memberId));
+          hapticsService.triggerImpactLight();
+          try {
+            await removeMemberFromCommunityCircle(memberId, true); // also unfollow
+            EventBus.emit('circle:member-removed', { creatorId: communityId, memberId, alsoUnfollow: true });
+            EventBus.emit('my:circle-member-removed', { memberId, alsoUnfollow: true });
+          } catch (e) {
+            console.warn('[CommunityFollowers] removeMemberFromCommunityCircle failed:', e);
+            // Revert state
+            setCircleStates((prev) => ({ ...prev, [memberId]: "in_circle" }));
+            setCircleTotal((t) => t + 1);
+            setFollowersTotal((t) => t + 1);
+            loadCircle(1, circleSearch);
+          } finally {
+            setCircleActionLoading((prev) => ({ ...prev, [memberId]: false }));
+          }
+        },
+      },
     });
-  }, [showAlert, hideAlert, circleSearch, loadCircle]);
+  }, [showAlert, hideAlert, circleSearch, loadCircle, communityId]);
 
   // Follow back community followers
   const handleFollowBack = useCallback(async (item) => {

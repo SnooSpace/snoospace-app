@@ -863,6 +863,9 @@ export default function CreatorFollowersScreen({ route, navigation }) {
   const handleRemoveCircleMember = useCallback((item) => {
     hapticsService.triggerImpactLight();
     const memberId = String(item.member_id || item.id);
+    const itemType = item.follower_type || item.type || "member";
+    const isCommunity = itemType === "community";
+
     showAlert({
       title: 'Remove from Circle?',
       message: `${item.name || 'This person'} will be removed from your circle.`,
@@ -883,7 +886,11 @@ export default function CreatorFollowersScreen({ route, navigation }) {
           setCircleTotal((t) => Math.max(0, t - 1));
           hapticsService.triggerImpactLight();
           try {
-            await removeFromCircle(memberId, false); // follow restored
+            if (isCommunity) {
+              await removeMemberFromCommunityCircle(memberId, false);
+            } else {
+              await removeFromCircle(memberId, false); // follow restored
+            }
             EventBus.emit('circle:member-removed', { creatorId, memberId, alsoUnfollow: false });
             EventBus.emit('my:circle-member-removed', { memberId, alsoUnfollow: false });
             // Follow is restored — add member to Followers tab and update count
@@ -897,7 +904,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
                   name: item.name,
                   username: item.username,
                   avatar_url: item.profile_photo_url || item.avatar_url,
-                  follower_type: 'member',
+                  follower_type: itemType,
                   created_at: new Date().toISOString(),
                 },
                 ...prev,
@@ -933,7 +940,11 @@ export default function CreatorFollowersScreen({ route, navigation }) {
           setFollowersTotal((t) => Math.max(0, t - 1));
           hapticsService.triggerImpactLight();
           try {
-            await removeFromCircle(memberId, true); // also delete follow
+            if (isCommunity) {
+              await removeMemberFromCommunityCircle(memberId, true);
+            } else {
+              await removeFromCircle(memberId, true); // also delete follow
+            }
             EventBus.emit('circle:member-removed', { creatorId, memberId, alsoUnfollow: true });
             EventBus.emit('my:circle-member-removed', { memberId, alsoUnfollow: true });
           } catch (e) {
