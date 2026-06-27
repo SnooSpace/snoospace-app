@@ -44,23 +44,27 @@ export default function UniversalFollowingScreen({ route, navigation }) {
 
   // Viewer info — used to suppress Follow button when community views member following entries
   const [viewerType, setViewerType] = useState(null);
+  const [myId, setMyId] = useState(null);
 
   // Circle ID set — pre-seeded when viewer is a member so we can mark 'In Circle' items
   const circleIdSetRef = useRef(new Set());
   // Promise that resolves once circle IDs are loaded (or immediately if not needed)
-  const circleReadyRef = useRef(Promise.resolve());
+  const circleResolveRef = useRef(null);
+  const circleReadyRef = useRef(null);
+  if (!circleReadyRef.current) {
+    circleReadyRef.current = new Promise((resolve) => {
+      circleResolveRef.current = resolve;
+    });
+  }
 
   useEffect(() => {
-    let resolve;
-    const readyPromise = new Promise((res) => { resolve = res; });
-    circleReadyRef.current = readyPromise;
-
     (async () => {
       try {
         const { getActiveAccount } = await import("../../api/auth");
         const acc = await getActiveAccount();
         if (acc?.type) {
           setViewerType(acc.type);
+          setMyId(acc.id);
           if (acc.type === 'member') {
             try {
               const circleRes = await getCircleMembers({ page: 1, limit: 200 });
@@ -71,7 +75,9 @@ export default function UniversalFollowingScreen({ route, navigation }) {
           }
         }
       } catch (_) {}
-      resolve();
+      if (circleResolveRef.current) {
+        circleResolveRef.current();
+      }
     })();
   }, []);
 

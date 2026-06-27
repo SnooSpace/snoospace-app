@@ -854,8 +854,9 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     async function checkUserRole() {
       try {
         const account = await getActiveAccount();
-        if (account?.type) {
-          setCurrentUserRole(account.type.toLowerCase());
+        if (account) {
+          setCurrentUserRole(account.type?.toLowerCase() || null);
+          setCurrentUserId(account.id || null);
         }
       } catch (e) {
         console.warn("[CommunityPublicProfile] Error getting active account:", e);
@@ -1758,165 +1759,91 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             </View>
           </View>
 
-          <View
-            style={{
-              marginTop: 12,
-              flexDirection: "row",
-              gap: 10,
-              width: "100%",
-              marginBottom: 25,
-            }}
-          >
-            {memberCommCircleStatus === 'in_circle' ? (
-              <GHPressable
-                style={({ pressed }) => [circleCTAStyles.inCircleBtn, pressed && { opacity: 0.7 }]}
-                disabled={memberCommCircleLoading}
-                onPress={() => {
-                  showAlert({
-                    title: 'Leave Circle?',
-                    message: `You will leave ${profile?.name || 'this community'}'s circle.`,
-                    icon: UserMinus,
-                    iconColor: '#E53935',
-                    secondaryAction: { text: 'Cancel', onPress: hideAlert },
-                    primaryAction: {
-                      text: 'Leave Circle',
-                      style: 'destructive',
-                      onPress: async () => {
-                        hideAlert();
-                        setMemberCommCircleLoading(true);
-                        try {
-                          await removeMemberFromCommunityCircle(communityId, false);
-                          setMemberCommCircleStatus('none');
-                          setMemberCommCircleInviteId(null);
-                          setIsFollowing(true); // Restored follow
-                          HapticsService.triggerImpactLight();
-                        } catch (e) { loadMemberCommCircleStatus(); }
-                        finally { setMemberCommCircleLoading(false); }
+          {!(currentUserRole === "community" && String(profile?.id) === String(currentUserId)) && (
+            <View
+              style={{
+                marginTop: 12,
+                flexDirection: "row",
+                gap: 10,
+                width: "100%",
+                marginBottom: 25,
+              }}
+            >
+              {memberCommCircleStatus === 'in_circle' ? (
+                <GHPressable
+                  style={({ pressed }) => [circleCTAStyles.inCircleBtn, pressed && { opacity: 0.7 }]}
+                  disabled={memberCommCircleLoading}
+                  onPress={() => {
+                    showAlert({
+                      title: 'Leave Circle?',
+                      message: `You will leave ${profile?.name || 'this community'}'s circle.`,
+                      icon: UserMinus,
+                      iconColor: '#E53935',
+                      secondaryAction: { text: 'Cancel', onPress: hideAlert },
+                      primaryAction: {
+                        text: 'Leave Circle',
+                        style: 'destructive',
+                        onPress: async () => {
+                          hideAlert();
+                          setMemberCommCircleLoading(true);
+                          try {
+                            await removeMemberFromCommunityCircle(communityId, false);
+                            setMemberCommCircleStatus('none');
+                            setMemberCommCircleInviteId(null);
+                            setIsFollowing(true); // Restored follow
+                            HapticsService.triggerImpactLight();
+                          } catch (e) { loadMemberCommCircleStatus(); }
+                          finally { setMemberCommCircleLoading(false); }
+                        },
                       },
-                    },
-                    tertiaryAction: {
-                      text: 'Leave & Unfollow',
-                      style: 'destructive',
-                      onPress: async () => {
-                        hideAlert();
-                        setMemberCommCircleLoading(true);
-                        try {
-                          await removeMemberFromCommunityCircle(communityId, true);
-                          setMemberCommCircleStatus('none');
-                          setMemberCommCircleInviteId(null);
-                          setIsFollowing(false); // Also unfollowed
-                          setProfile((prev) =>
-                            prev
-                              ? {
-                                  ...prev,
-                                  followers_count: Math.max(0, (prev.followers_count || 0) - 1),
-                                }
-                              : prev
-                          );
-                          HapticsService.triggerImpactLight();
-                        } catch (e) { loadMemberCommCircleStatus(); }
-                        finally { setMemberCommCircleLoading(false); }
+                      tertiaryAction: {
+                        text: 'Leave & Unfollow',
+                        style: 'destructive',
+                        onPress: async () => {
+                          hideAlert();
+                          setMemberCommCircleLoading(true);
+                          try {
+                            await removeMemberFromCommunityCircle(communityId, true);
+                            setMemberCommCircleStatus('none');
+                            setMemberCommCircleInviteId(null);
+                            setIsFollowing(false); // Also unfollowed
+                            setProfile((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    followers_count: Math.max(0, (prev.followers_count || 0) - 1),
+                                  }
+                                : prev
+                            );
+                            HapticsService.triggerImpactLight();
+                          } catch (e) { loadMemberCommCircleStatus(); }
+                          finally { setMemberCommCircleLoading(false); }
+                        },
                       },
-                    },
-                  });
-                }}
-              >
-                <UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                <Text style={circleCTAStyles.inCircleText}>In Circle</Text>
-              </GHPressable>
-            ) : isFollowing ? (
-              <GHPressable
-                style={({ pressed }) => [
-                  {
-                    flex: 1,
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: "rgba(68, 138, 255, 0.2)",
-                    backgroundColor: "rgba(68, 138, 255, 0.12)",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    paddingVertical: 12,
-                  },
-                  pressed && { opacity: 0.8 },
-                ]}
-                onPress={async () => {
-                  HapticsService.triggerClose();
-                  // Optimistic update
-                  setIsFollowing(false);
-                  setProfile((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          followers_count: Math.max(
-                            0,
-                            (prev.followers_count || 0) - 1,
-                          ),
-                        }
-                      : prev,
-                  );
-                  EventBus.emit("follow-updated", {
-                    communityId,
-                    isFollowing: false,
-                  });
-                  try {
-                    await unfollowCommunity(communityId);
-                  } catch (e) {
-                    console.error("Unfollow failed", e);
-                    // Revert on failure
-                    setIsFollowing(true);
-                    setProfile((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            followers_count: (prev.followers_count || 0) + 1,
-                          }
-                        : prev,
-                    );
-                  }
-                }}
-              >
-                <Text
-                  style={{
-                    fontFamily: FONTS.medium,
-                    color: "#2962FF",
-                    fontSize: 16,
-                    fontWeight: "600",
+                    });
                   }}
                 >
-                  Following
-                </Text>
-              </GHPressable>
-            ) : (
-              <GradientButton
-                title={theyFollowYou ? "Follow Back" : "Follow"}
-                colors={["#448AFF", "#2962FF"]}
-                textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
-                style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
-                gradientStyle={{ borderRadius: 16 }}
-                useGHPressable={true}
-                onPress={async () => {
-                  HapticsService.triggerFollow();
-                  // Optimistic update
-                  setIsFollowing(true);
-                  setProfile((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          followers_count: (prev.followers_count || 0) + 1,
-                        }
-                      : prev,
-                  );
-                  EventBus.emit("follow-updated", {
-                    communityId,
-                    isFollowing: true,
-                  });
-                  // Trigger group-chat join prompt if community has autoJoin enabled
-                  EventBus.emit("community-followed", { communityId });
-                  try {
-                    await followCommunity(communityId);
-                  } catch (e) {
-                    console.error("Follow failed", e);
-                    // Revert on failure
+                  <UserCheck size={16} color="#2962FF" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                  <Text style={circleCTAStyles.inCircleText}>In Circle</Text>
+                </GHPressable>
+              ) : isFollowing ? (
+                <GHPressable
+                  style={({ pressed }) => [
+                    {
+                      flex: 1,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: "rgba(68, 138, 255, 0.2)",
+                      backgroundColor: "rgba(68, 138, 255, 0.12)",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      paddingVertical: 12,
+                    },
+                    pressed && { opacity: 0.8 },
+                  ]}
+                  onPress={async () => {
+                    HapticsService.triggerClose();
+                    // Optimistic update
                     setIsFollowing(false);
                     setProfile((prev) =>
                       prev
@@ -1929,34 +1856,110 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                           }
                         : prev,
                     );
-                  }
+                    EventBus.emit("follow-updated", {
+                      communityId,
+                      isFollowing: false,
+                    });
+                    try {
+                      await unfollowCommunity(communityId);
+                    } catch (e) {
+                      console.error("Unfollow failed", e);
+                      // Revert on failure
+                      setIsFollowing(true);
+                      setProfile((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              followers_count: (prev.followers_count || 0) + 1,
+                            }
+                          : prev,
+                      );
+                    }
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: FONTS.medium,
+                      color: "#2962FF",
+                      fontSize: 16,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Following
+                  </Text>
+                </GHPressable>
+              ) : (
+                <GradientButton
+                  title={theyFollowYou ? "Follow Back" : "Follow"}
+                  colors={["#448AFF", "#2962FF"]}
+                  textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
+                  style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
+                  gradientStyle={{ borderRadius: 16 }}
+                  useGHPressable={true}
+                  onPress={async () => {
+                    HapticsService.triggerFollow();
+                    // Optimistic update
+                    setIsFollowing(true);
+                    setProfile((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            followers_count: (prev.followers_count || 0) + 1,
+                          }
+                        : prev,
+                    );
+                    EventBus.emit("follow-updated", {
+                      communityId,
+                      isFollowing: true,
+                    });
+                    // Trigger group-chat join prompt if community has autoJoin enabled
+                    EventBus.emit("community-followed", { communityId });
+                    try {
+                      await followCommunity(communityId);
+                    } catch (e) {
+                      console.error("Follow failed", e);
+                      // Revert on failure
+                      setIsFollowing(false);
+                      setProfile((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              followers_count: Math.max(
+                                0,
+                                (prev.followers_count || 0) - 1,
+                              ),
+                            }
+                          : prev,
+                      );
+                    }
+                  }}
+                />
+              )}
+              <GradientButton
+                title="Message"
+                colors={["#111827", "#111827"]} // Charcoal Black
+                style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
+                gradientStyle={{ borderRadius: 16 }}
+                textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
+                useGHPressable={true}
+                onPress={() => {
+                  HapticsService.triggerMessageSend();
+                  const tappedAt = global.performance ? global.performance.now() : Date.now();
+                  setTimeout(() => {
+                    navigation.navigate("Chat", {
+                      conversationId: preResolvedConversationId,
+                      recipientId: communityId,
+                      recipientType: "community",
+                      recipientName: profile?.name,
+                      recipientUsername: profile?.username,
+                      recipientAvatar: profile?.logo_url,
+                      tappedAt,
+                    });
+                  }, 50);
                 }}
               />
-            )}
-            <GradientButton
-              title="Message"
-              colors={["#111827", "#111827"]} // Charcoal Black
-              style={{ flex: 1, borderRadius: 16, overflow: "hidden" }}
-              gradientStyle={{ borderRadius: 16 }}
-              textStyle={{ fontFamily: FONTS.semiBold, color: "#FFFFFF" }}
-              useGHPressable={true}
-              onPress={() => {
-                HapticsService.triggerMessageSend();
-                const tappedAt = global.performance ? global.performance.now() : Date.now();
-                setTimeout(() => {
-                  navigation.navigate("Chat", {
-                    conversationId: preResolvedConversationId,
-                    recipientId: communityId,
-                    recipientType: "community",
-                    recipientName: profile?.name,
-                    recipientUsername: profile?.username,
-                    recipientAvatar: profile?.logo_url,
-                    tappedAt,
-                  });
-                }, 50);
-              }}
-            />
-          </View>
+            </View>
+          )}
 
           {/* Circle invite banner: shown when member has a pending circle invite from this community */}
           {memberCommCircleStatus === 'pending_invite' && (

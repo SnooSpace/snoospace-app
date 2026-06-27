@@ -260,9 +260,13 @@ function PersonRow({
             {/* If community viewer, check community circle relation */}
             {viewerType === "community" && (
               <>
-                {circleState === "in_circle" ? (
+                {(isOwnProfile ? circleState === "in_circle" : memberToMemberCircleState === "in_circle") ? (
                   <View style={[styles.ctaBtn, styles.ctaBtnInCircle]}>
                     <Text style={styles.ctaTextInCircle}>In Circle</Text>
+                  </View>
+                ) : (isOwnProfile ? circleState === "requested" : memberToMemberCircleState === "pending_outgoing") ? (
+                  <View style={[styles.ctaBtn, styles.ctaBtnRequested]}>
+                    <Text style={styles.ctaTextRequested}>Requested</Text>
                   </View>
                 ) : (
                   <>
@@ -514,7 +518,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
         );
 
         setFollowBackStates((prev) => ({ ...prev, ...preSeededFollowBack }));
-        if (vt === "member") {
+        if (Object.keys(preSeededMemberCircle).length > 0) {
           setMemberCircleStates((prev) => ({ ...prev, ...preSeededMemberCircle }));
         }
       }
@@ -580,7 +584,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
         );
 
         setFollowBackStates((prev) => ({ ...prev, ...preSeededFollowBack }));
-        if (vt === "member") {
+        if (Object.keys(preSeededMemberCircle).length > 0) {
           setMemberCircleStates((prev) => ({ ...prev, ...preSeededMemberCircle }));
         }
       }
@@ -868,7 +872,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
         isOwnProfile={isOwnProfile}
         viewerType={viewerType}
         myId={myId}
-        circleState="in_circle"
+        circleState={isOwnProfile ? "in_circle" : (circleStates[item.id] || "none")}
         circleLoading={circleLoading}
         onRemoveFromCircle={handleRemoveFromCircle}
         onPress={() => navigateTo(item)}
@@ -876,7 +880,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
         onMemberCircleRequest={handleMemberCircleRequest}
       />
     );
-  }, [isOwnProfile, viewerType, myId, circleActionLoading, memberCircleLoadingMap, handleRemoveFromCircle, navigateTo, memberCircleStates, handleMemberCircleRequest]);
+  }, [isOwnProfile, viewerType, myId, circleStates, circleActionLoading, memberCircleLoadingMap, handleRemoveFromCircle, navigateTo, memberCircleStates, handleMemberCircleRequest]);
 
   const renderEmpty = (label) => (
     <View style={styles.emptyState}>

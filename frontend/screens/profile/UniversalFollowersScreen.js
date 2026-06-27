@@ -52,26 +52,30 @@ export default function UniversalFollowersScreen({ route, navigation }) {
 
   // Viewer info — used to suppress Follow button when community views member followers
   const [viewerType, setViewerType] = useState(null);
+  const [myId, setMyId] = useState(null);
 
   // Circle ID set — pre-seeded when viewer is a member so we can mark 'In Circle' items
   const circleIdSetRef = useRef(new Set());
   // Promise that resolves once circle IDs are loaded (or immediately if not needed)
-  const circleReadyRef = useRef(Promise.resolve());
+  const circleResolveRef = useRef(null);
+  const circleReadyRef = useRef(null);
+  if (!circleReadyRef.current) {
+    circleReadyRef.current = new Promise((resolve) => {
+      circleResolveRef.current = resolve;
+    });
+  }
 
   useEffect(() => {
     // Build a promise that resolves once we know viewer type AND circle IDs are loaded.
     // fetchFollowersPage awaits this before marking 'inCircle' on items, eliminating
     // the race condition where items load before getCircleMembers completes.
-    let resolve;
-    const readyPromise = new Promise((res) => { resolve = res; });
-    circleReadyRef.current = readyPromise;
-
     (async () => {
       try {
         const { getActiveAccount } = await import("../../api/auth");
         const acc = await getActiveAccount();
         if (acc?.type) {
           setViewerType(acc.type);
+          setMyId(acc.id);
           // Pre-load circle IDs so the follower list can show 'In Circle' instead of 'Add'
           if (acc.type === 'member') {
             try {
@@ -84,7 +88,9 @@ export default function UniversalFollowersScreen({ route, navigation }) {
         }
       } catch (_) {}
       // Always resolve — even if fetches failed, unblock the item list
-      resolve();
+      if (circleResolveRef.current) {
+        circleResolveRef.current();
+      }
     })();
   }, []);
 

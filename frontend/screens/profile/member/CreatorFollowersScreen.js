@@ -45,6 +45,9 @@ import {
   getCircleStatus,
   followMember,
   unfollowMember,
+  getMemberCommunityCircleStatus,
+  getCommunityCircleStatus,
+  removeMemberFromCommunityCircle,
 } from "../../../api/members";
 import {
   followCommunity,
@@ -205,63 +208,128 @@ function PersonRow({
           </>
         )}
 
-        {/* 2. VIEWING PUBLIC CREATOR PROFILE AS A MEMBER -> CIRCLE BUTTON FOR REGULAR MEMBERS */}
-        {!isOwnProfile && viewerType === "member" && isMemberRow && String(item.id) !== String(myId) && !item.is_creator && !item.isCreator && !item.is_creator_mode_enabled && (
-          <TouchableOpacity
-            style={[
-              styles.ctaBtn,
-              memberToMemberCircleState === "in_circle"
-                ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
-                : memberToMemberCircleState === "pending_outgoing"
-                ? { backgroundColor: 'rgba(255,149,0,0.1)', borderColor: 'rgba(255,149,0,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
-                : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
-            ]}
-            onPress={() => {
-              if (memberToMemberCircleState === "none") {
-                onMemberCircleRequest(item.id);
-              }
-            }}
-            disabled={circleLoading || memberToMemberCircleState !== "none"}
-            activeOpacity={0.75}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            {circleLoading ? (
-              <ActivityIndicator size="small" color={memberToMemberCircleState === "in_circle" ? "#2962FF" : memberToMemberCircleState === "pending_outgoing" ? "#FF9500" : "#fff"} style={{ width: 60 }} />
-            ) : memberToMemberCircleState === "in_circle" ? (
-              <Text style={[styles.ctaTextInCircle, { color: '#2962FF' }]}>In Circle</Text>
-            ) : memberToMemberCircleState === "pending_outgoing" ? (
-              <Text style={[styles.ctaTextRequested, { color: '#FF9500' }]}>Requested</Text>
-            ) : (
-              <Text style={[styles.ctaTextDefault, { color: '#fff' }]}>Add</Text>
+        {/* 2. VIEWING PUBLIC PROFILE */}
+        {!isOwnProfile && String(item.id) !== String(myId) && (
+          <>
+            {/* If member viewer, check circle/follow statuses */}
+            {viewerType === "member" && (
+              <>
+                {/* 2a. Circle relations (takes precedence) */}
+                {memberToMemberCircleState === "in_circle" ? (
+                  <View style={[styles.ctaBtn, { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }]}>
+                    <Text style={[styles.ctaTextInCircle, { color: '#2962FF' }]}>In Circle</Text>
+                  </View>
+                ) : memberToMemberCircleState === "pending_outgoing" ? (
+                  <View style={[styles.ctaBtn, { backgroundColor: 'rgba(255,149,0,0.1)', borderColor: 'rgba(255,149,0,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }]}>
+                    <Text style={[styles.ctaTextRequested, { color: '#FF9500' }]}>Requested</Text>
+                  </View>
+                ) : (
+                  <>
+                    {/* 2b. Creators or Communities show follow/following */}
+                    {itemType === "community" || item.isCreator || item.is_creator || item.is_creator_mode_enabled ? (
+                      <TouchableOpacity
+                        style={[
+                          styles.ctaBtn,
+                          followBackState === true
+                            ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                            : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                        ]}
+                        onPress={() => onFollowBack && onFollowBack(item)}
+                        disabled={fbLoading || followBackState === null}
+                        activeOpacity={0.75}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        {fbLoading ? (
+                          <ActivityIndicator size="small" color={followBackState === true ? "#2962FF" : "#fff"} style={{ width: 60 }} />
+                        ) : (
+                          <Text style={[
+                            styles.ctaTextDefault,
+                            followBackState === true ? { color: "#2962FF" } : { color: "#fff" },
+                          ]}>
+                            {followBackState === true ? 'Following' : 'Follow'}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    ) : (
+                      /* 2c. Regular members show Add button */
+                      <TouchableOpacity
+                        style={[styles.ctaBtn, { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }]}
+                        onPress={() => onMemberCircleRequest(item.id)}
+                        disabled={circleLoading}
+                        activeOpacity={0.75}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        {circleLoading ? (
+                          <ActivityIndicator size="small" color="#fff" style={{ width: 60 }} />
+                        ) : (
+                          <Text style={[styles.ctaTextDefault, { color: '#fff' }]}>Add</Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </>
             )}
-          </TouchableOpacity>
-        )}
 
-        {/* 2b. VIEWING PUBLIC CREATOR PROFILE AS A MEMBER OR COMMUNITY -> FOLLOW BUTTON FOR CREATORS/COMMUNITIES */}
-        {!isOwnProfile && (viewerType === "member" || viewerType === "community") && String(item.id) !== String(myId) && (itemType === "community" || item.isCreator || item.is_creator || item.is_creator_mode_enabled) && (
-          <TouchableOpacity
-            style={[
-              styles.ctaBtn,
-              followBackState === true
-                ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
-                : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
-            ]}
-            onPress={() => onFollowBack && onFollowBack(item)}
-            disabled={fbLoading || followBackState === null}
-            activeOpacity={0.75}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            {fbLoading ? (
-              <ActivityIndicator size="small" color={followBackState === true ? "#2962FF" : "#fff"} style={{ width: 60 }} />
-            ) : (
-              <Text style={[
-                styles.ctaTextDefault,
-                followBackState === true ? { color: "#2962FF" } : { color: "#fff" },
-              ]}>
-                {followBackState === true ? 'Following' : 'Follow'}
-              </Text>
+            {/* If community viewer, check community circle relation */}
+            {viewerType === "community" && (
+              <>
+                {(isOwnProfile ? circleState === "in_circle" : memberToMemberCircleState === "in_circle") ? (
+                  <View style={[styles.ctaBtn, { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }]}>
+                    <Text style={[styles.ctaTextInCircle, { color: '#2962FF' }]}>In Circle</Text>
+                  </View>
+                ) : (isOwnProfile ? circleState === "requested" : memberToMemberCircleState === "pending_outgoing") ? (
+                  <View style={[styles.ctaBtn, { backgroundColor: 'rgba(255,149,0,0.1)', borderColor: 'rgba(255,149,0,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }]}>
+                    <Text style={[styles.ctaTextRequested, { color: '#FF9500' }]}>Requested</Text>
+                  </View>
+                ) : (
+                  <>
+                    {/* Creators/communities show follow/following */}
+                    {itemType === "community" || item.isCreator || item.is_creator || item.is_creator_mode_enabled ? (
+                      <TouchableOpacity
+                        style={[
+                          styles.ctaBtn,
+                          followBackState === true
+                            ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                            : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                        ]}
+                        onPress={() => onFollowBack && onFollowBack(item)}
+                        disabled={fbLoading || followBackState === null}
+                        activeOpacity={0.75}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        {fbLoading ? (
+                          <ActivityIndicator size="small" color={followBackState === true ? "#2962FF" : "#fff"} style={{ width: 60 }} />
+                        ) : (
+                          <Text style={[
+                            styles.ctaTextDefault,
+                            followBackState === true ? { color: "#2962FF" } : { color: "#fff" },
+                          ]}>
+                            {followBackState === true ? 'Following' : 'Follow'}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    ) : (
+                      /* Regular members show Add button */
+                      <TouchableOpacity
+                        style={[styles.ctaBtn, { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }]}
+                        onPress={() => onMemberCircleRequest(item.id)}
+                        disabled={circleLoading}
+                        activeOpacity={0.75}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        {circleLoading ? (
+                          <ActivityIndicator size="small" color="#fff" style={{ width: 60 }} />
+                        ) : (
+                          <Text style={[styles.ctaTextDefault, { color: '#fff' }]}>Add</Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </>
             )}
-          </TouchableOpacity>
+          </>
         )}
       </View>
     </View>
@@ -400,19 +468,36 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         await Promise.all(
           normalizedRows.map(async (row) => {
             const isCreator = row.isCreator || row.is_creator || row.is_creator_mode_enabled;
+            
+            // 1. Circle Status Check
             if (row.type === "community") {
-              const status = await getFollowStatusForCommunity(row.id).catch(() => null);
-              preSeededFollowBack[row.id] = !!status?.isFollowing;
-            } else if (row.type === "member") {
-              if (isCreator) {
-                const status = await getFollowStatusForMember(row.id).catch(() => null);
-                preSeededFollowBack[row.id] = !!status?.isFollowing;
-              } else if (vt === "member" && String(row.id) !== String(mid)) {
-                const status = await getCircleStatus(row.id).catch(() => null);
+              if (vt === "member") {
+                const status = await getMemberCommunityCircleStatus(row.id).catch(() => null);
                 if (status?.status) {
                   preSeededMemberCircle[row.id] = status.status;
                 }
               }
+            } else if (row.type === "member") {
+              if (vt === "member" && String(row.id) !== String(mid)) {
+                const status = await getCircleStatus(row.id).catch(() => null);
+                if (status?.status) {
+                  preSeededMemberCircle[row.id] = status.status;
+                }
+              } else if (vt === "community") {
+                const status = await getCommunityCircleStatus(row.id).catch(() => null);
+                if (status?.status) {
+                  preSeededMemberCircle[row.id] = status.status;
+                }
+              }
+            }
+
+            // 2. Follow Status Check
+            if (row.type === "community") {
+              const status = await getFollowStatusForCommunity(row.id).catch(() => null);
+              preSeededFollowBack[row.id] = !!status?.isFollowing;
+            } else if (row.type === "member" && isCreator) {
+              const status = await getFollowStatusForMember(row.id).catch(() => null);
+              preSeededFollowBack[row.id] = !!status?.isFollowing;
             }
           })
         );
@@ -420,7 +505,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         if (Object.keys(preSeededFollowBack).length > 0) {
           setFollowBackStates((prev) => ({ ...prev, ...preSeededFollowBack }));
         }
-        if (vt === "member" && Object.keys(preSeededMemberCircle).length > 0) {
+        if (Object.keys(preSeededMemberCircle).length > 0) {
           setMemberCircleStates((prev) => ({ ...prev, ...preSeededMemberCircle }));
         }
       }
@@ -463,14 +548,36 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         await Promise.all(
           normalizedRows.map(async (row) => {
             const isCreator = row.isCreator || row.is_creator || row.is_creator_mode_enabled;
-            if (isCreator) {
+            
+            // 1. Circle Status Check
+            if (row.type === "community") {
+              if (vt === "member") {
+                const status = await getMemberCommunityCircleStatus(row.id).catch(() => null);
+                if (status?.status) {
+                  preSeededMemberCircle[row.id] = status.status;
+                }
+              }
+            } else if (row.type === "member") {
+              if (vt === "member" && String(row.id) !== String(mid)) {
+                const status = await getCircleStatus(row.id).catch(() => null);
+                if (status?.status) {
+                  preSeededMemberCircle[row.id] = status.status;
+                }
+              } else if (vt === "community") {
+                const status = await getCommunityCircleStatus(row.id).catch(() => null);
+                if (status?.status) {
+                  preSeededMemberCircle[row.id] = status.status;
+                }
+              }
+            }
+
+            // 2. Follow Status Check
+            if (row.type === "community") {
+              const status = await getFollowStatusForCommunity(row.id).catch(() => null);
+              preSeededFollowBack[row.id] = !!status?.isFollowing;
+            } else if (row.type === "member" && isCreator) {
               const status = await getFollowStatusForMember(row.id).catch(() => null);
               preSeededFollowBack[row.id] = !!status?.isFollowing;
-            } else if (vt === "member" && String(row.id) !== String(mid)) {
-              const status = await getCircleStatus(row.id).catch(() => null);
-              if (status?.status) {
-                preSeededMemberCircle[row.id] = status.status;
-              }
             }
           })
         );
@@ -478,7 +585,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         if (Object.keys(preSeededFollowBack).length > 0) {
           setFollowBackStates((prev) => ({ ...prev, ...preSeededFollowBack }));
         }
-        if (vt === "member" && Object.keys(preSeededMemberCircle).length > 0) {
+        if (Object.keys(preSeededMemberCircle).length > 0) {
           setMemberCircleStates((prev) => ({ ...prev, ...preSeededMemberCircle }));
         }
       }
@@ -927,7 +1034,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         isOwnProfile={isOwnProfile}
         viewerType={viewerType}
         myId={myId}
-        circleState="in_circle"
+        circleState={isOwnProfile ? "in_circle" : (circleStates[item.id] || "none")}
         circleLoading={circleLoading}
         onRemoveFromCircle={handleRemoveCircleMember}
         onPress={() => navigateTo(item)}
@@ -938,7 +1045,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         onMemberCircleRequest={handleMemberCircleRequest}
       />
     );
-  }, [isOwnProfile, viewerType, myId, circleActionLoading, memberCircleLoadingMap, handleRemoveCircleMember, navigateTo, hiddenCircleMemberIds, followBackStates, followBackLoadingMap, handleFollowBack, memberCircleStates, handleMemberCircleRequest]);
+  }, [isOwnProfile, viewerType, myId, circleStates, circleActionLoading, memberCircleLoadingMap, handleRemoveCircleMember, navigateTo, hiddenCircleMemberIds, followBackStates, followBackLoadingMap, handleFollowBack, memberCircleStates, handleMemberCircleRequest]);
 
   const renderEmpty = (label) => (
     <View style={styles.emptyState}>
