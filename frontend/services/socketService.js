@@ -1,6 +1,7 @@
 import { io } from 'socket.io-client';
 import { BACKEND_BASE_URL } from '../api/client';
 import { getActiveAccount } from '../api/auth';
+import EventBus from '../utils/EventBus';
 
 let socket = null;
 
@@ -26,9 +27,26 @@ export const getSocket = () => {
     socket.on('connect_error', (error) => {
       console.error('[SocketService] Socket connection error:', error.message);
     });
+
+    // On reconnect: re-join user personal room and notify listeners.
+    // Without re-registering, the server doesn't know which user_${id} room
+    // this socket belongs to, so `new_message` emits won't be delivered.
+    socket.on('reconnect', async () => {
+      console.log('[SocketService] Socket reconnected — re-registering user room');
+      try {
+        const activeAccount = await getActiveAccount();
+        if (activeAccount?.id) {
+          socket.emit('register_user', activeAccount.id);
+        }
+      } catch (err) {
+        console.error('[SocketService] Failed to re-register after reconnect:', err);
+      }
+      EventBus.emit('socket:reconnected');
+    });
   }
   return socket;
 };
+
 
 /**
  * Connect the socket and register the user's ID to join their personal room.

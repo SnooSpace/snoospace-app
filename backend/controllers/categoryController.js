@@ -2778,6 +2778,218 @@ const deleteCommunityCategory = async (req, res) => {
   }
 };
 
+// ============================================================
+// ADMIN CREATOR INSIGHTS
+// ============================================================
+const getCreatorAudienceSummaryAdmin = async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { creatorId } = req.params;
+
+    // 1. Audience score — member's personal AQI
+    const aqiResult = await pool.query(
+      `SELECT aqi_score FROM user_aqi_signals WHERE user_id = $1`,
+      [creatorId]
+    );
+    const audienceScore = Math.round(parseFloat(aqiResult.rows[0]?.aqi_score ?? 0));
+
+    // 2. Total followers — read denormalized count for O(1) lookup
+    const followersResult = await pool.query(
+      `SELECT creator_follower_count AS total FROM members WHERE id = $1`,
+      [creatorId]
+    );
+    const totalFollowers = parseInt(followersResult.rows[0]?.total ?? 0);
+
+    // 3. Net new creator followers in last 7 days
+    const deltaResult = await pool.query(
+      `SELECT COUNT(*) AS new_follows
+       FROM creator_follows
+       WHERE creator_id = $1
+         AND is_dormant = false
+         AND created_at >= NOW() - INTERVAL '7 days'`,
+      [creatorId]
+    );
+    const followersDelta7d = parseInt(deltaResult.rows[0]?.new_follows ?? 0);
+
+    // 4. Circle count (mutual connections)
+    let circleCount = 0;
+    try {
+      const circleResult = await pool.query(
+        `SELECT COUNT(*) AS cnt
+         FROM circles
+         WHERE user_a_id = $1 OR user_b_id = $1`,
+        [creatorId]
+      );
+      circleCount = parseInt(circleResult.rows[0]?.cnt ?? 0);
+    } catch (_) {}
+
+    // 5. Follow quality breakdown via follow_source proxy
+    let highIntent = 0, interested = 0, casual = 0, followQualityScore = 0;
+    try {
+      const intentResult = await pool.query(
+        `SELECT
+           COUNT(*) FILTER (
+             WHERE follow_source IN ('content_post', 'content_video')
+           ) AS high_intent,
+           COUNT(*) FILTER (
+             WHERE follow_source IN ('event_attendance', 'event_recap')
+           ) AS interested,
+           COUNT(*) FILTER (
+             WHERE follow_source NOT IN (
+               'content_post', 'content_video', 'event_attendance', 'event_recap'
+             ) OR follow_source IS NULL
+           ) AS casual,
+           COUNT(*) AS total_follow_events
+         FROM follow_events
+         WHERE creator_id = $1`,
+        [creatorId]
+      );
+
+      const intentRow = intentResult.rows[0] || {};
+      highIntent = parseInt(intentRow.high_intent ?? 0);
+      interested = parseInt(intentRow.interested ?? 0);
+      casual     = parseInt(intentRow.casual     ?? 0);
+      const totalIntentEvents = parseInt(intentRow.total_follow_events ?? 0);
+
+      const followQualityLabel = (score) => {
+        if (score >= 80) return "Strong";
+        if (score >= 65) return "Good";
+        if (score >= 40) return "Fair";
+        return "Low";
+      };
+
+      if (totalIntentEvents > 0) {
+        const rawWeighted =
+          (highIntent * 1.0 + interested * 0.6 + casual * 0.2) / totalIntentEvents;
+        followQualityScore = Math.min(100, Math.round(rawWeighted * 100));
+      }
+    } catch (followEventsErr) {
+      console.warn("follow_events query failed:", followEventsErr.message);
+    }
+
+    res.json({
+      success: true,
+      audience_score: audienceScore,
+      follow_quality: {
+        score: followQualityScore,
+        label: followQualityScore >= 80 ? "Strong" : followQualityScore >= 65 ? "Good" : followQualityScore >= 40 ? "Fair" : "Low",
+        breakdown: {
+          high_intent: highIntent,
+          interested,
+          casual,
+        },
+      },
+      total_followers: totalFollowers,
+      followers_delta_7d: followersDelta7d,
+      circle_count: circleCount,
+    });
+  } catch (error) {
+    console.error("Error in getCreatorAudienceSummaryAdmin:", error);
+    res.status(500).json({ error: "Failed to fetch creator audience summary" });
+  }
+};
+
+const getCreatorReachStatsAdmin = async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { creatorId } = req.params;
+    const rawPeriod = req.query.period || "30d";
+    const validPeriods = ["7d", "30d", "90d"];
+    const period = validPeriods.includes(rawPeriod) ? rawPeriod : "30d";
+    
+    let interval = "30 days";
+    if (period === "7d") interval = "7 days";
+    else if (period === "90d") interval = "90 days";
+
+    const postsResult = await pool.query(
+      `SELECT id, image_urls, created_at
+       FROM posts
+       WHERE author_id = $1
+         AND author_type = 'member'
+         AND created_at >= NOW() - INTERVAL '${interval}'
+       ORDER BY created_at DESC
+       LIMIT 3`,
+      [creatorId]
+    );
+
+    const topContent = postsResult.rows.map((row) => ({
+      post_id: row.id,
+      thumbnail_url: Array.isArray(row.image_urls) && row.image_urls.length > 0
+        ? row.image_urls[0]
+        : null,
+      views: null,
+      watch_pct: null,
+    }));
+
+    res.json({
+      success: true,
+      period,
+      total_views: null,
+      total_impressions: null,
+      avg_watch_pct: null,
+      top_content: topContent.length > 0 ? topContent : null,
+    });
+  } catch (error) {
+    console.error("Error in getCreatorReachStatsAdmin:", error);
+    res.status(500).json({ error: "Failed to fetch creator reach stats" });
+  }
+};
+
+const getCreatorFollowerTrendAdmin = async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const { creatorId } = req.params;
+
+    const totalResult = await pool.query(
+      `SELECT creator_follower_count AS total FROM members WHERE id = $1`,
+      [creatorId]
+    );
+    const totalFollowers = parseInt(totalResult.rows[0]?.total ?? 0);
+
+    const dailyResult = await pool.query(
+      `SELECT
+         DATE(created_at AT TIME ZONE 'UTC') AS day,
+         COUNT(*) AS new_follows
+       FROM creator_follows
+       WHERE creator_id = $1
+         AND is_dormant = false
+         AND created_at >= NOW() - INTERVAL '30 days'
+       GROUP BY DATE(created_at AT TIME ZONE 'UTC')
+       ORDER BY day ASC`,
+      [creatorId]
+    );
+
+    const dailyMap = {};
+    let sumLast30 = 0;
+    for (const row of dailyResult.rows) {
+      const dayStr = row.day instanceof Date
+        ? row.day.toISOString().slice(0, 10)
+        : String(row.day);
+      const count = parseInt(row.new_follows ?? 0);
+      dailyMap[dayStr] = count;
+      sumLast30 += count;
+    }
+
+    const anchor = Math.max(0, totalFollowers - sumLast30);
+    const trend = [];
+    let running = anchor;
+    const now = new Date();
+
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now);
+      d.setUTCDate(d.getUTCDate() - i);
+      const dateStr = d.toISOString().slice(0, 10);
+      running += dailyMap[dateStr] ?? 0;
+      trend.push({ date: dateStr, count: running });
+    }
+
+    res.json({ success: true, trend });
+  } catch (error) {
+    console.error("Error in getCreatorFollowerTrendAdmin:", error);
+    res.status(500).json({ error: "Failed to fetch follower trend" });
+  }
+};
+
 module.exports = {
   // Admin authentication
   adminLogin,
@@ -2812,6 +3024,9 @@ module.exports = {
   updateUser,
   deleteUser,
   getUserCirclesAdmin,
+  getCreatorAudienceSummaryAdmin,
+  getCreatorReachStatsAdmin,
+  getCreatorFollowerTrendAdmin,
 
   // Post management endpoints
   getAllPosts,

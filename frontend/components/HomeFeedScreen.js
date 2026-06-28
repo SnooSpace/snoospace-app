@@ -53,6 +53,7 @@ import DeletePostModal from "./DeletePostModal";
 import EventBus from "../utils/EventBus";
 import LikeStateManager from "../utils/LikeStateManager";
 import useRealtimeSubscription from "../hooks/useRealtimeSubscription";
+import { getSocket } from "../services/socketService";
 import { useFeedPolling } from "../hooks/useFeedPolling";
 import { useScrollState } from "../hooks/useScrollState";
 import SkeletonCard from "./SkeletonCard";
@@ -433,16 +434,33 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     };
   }, []);
 
-  // Subscribe to real-time message changes to update the inbox unread count (restricted by RLS)
-  useRealtimeSubscription({
-    table: 'messages',
-    event: '*',
-    filter: null,
-    onData: (payload) => {
-      console.log(`[HomeFeedScreen] Realtime message event '${payload.eventType}' received.`);
+  // Subscribe to socket 'new_message' events to update the inbox unread badge.
+  // Replaces the Supabase Realtime subscription on the messages table, which
+  // was unreliable due to the RLS policy using complex JOINs that Supabase
+  // Realtime cannot evaluate reliably for change-data-capture filtering.
+  useEffect(() => {
+    const handleNewMessage = () => {
+      console.log('[HomeFeedScreen] new_message socket event → refreshing unread count');
       debouncedLoadMessageUnreadCount();
+    };
+
+    const socket = getSocket();
+    if (socket) {
+      socket.on('new_message', handleNewMessage);
     }
-  });
+
+    // Re-subscribe if socket reconnects
+    const reconnectSub = EventBus.on('socket:reconnected', () => {
+      const s = getSocket();
+      if (s) s.on('new_message', handleNewMessage);
+    });
+
+    return () => {
+      const s = getSocket();
+      if (s) s.off('new_message', handleNewMessage);
+      reconnectSub?.();
+    };
+  }, [debouncedLoadMessageUnreadCount]);
 
   // Auto-poll for new posts
   const { isPolling: isFeedPolling, initializeTimestamp } = useFeedPolling({

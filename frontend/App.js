@@ -41,14 +41,8 @@ import { useAuthState } from "./contexts/AuthStateContext";
 import { ToastProvider } from "./context/ToastContext";
 import AccountSwitchOverlay from "./components/ui/AccountSwitchOverlay";
 
-// Configure how push notifications are displayed when the app is in the foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+// NOTE: Notifications.setNotificationHandler is configured at module level
+// in services/pushNotificationService.js. No duplicate call needed here.
 
 const SnooTheme = {
   ...DefaultTheme,

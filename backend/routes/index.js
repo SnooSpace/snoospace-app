@@ -297,6 +297,22 @@ router.get(
 );
 
 router.get(
+  "/admin/creators/:creatorId/insights/summary",
+  adminAuthMiddleware,
+  CategoryController.getCreatorAudienceSummaryAdmin,
+);
+router.get(
+  "/admin/creators/:creatorId/insights/reach",
+  adminAuthMiddleware,
+  CategoryController.getCreatorReachStatsAdmin,
+);
+router.get(
+  "/admin/creators/:creatorId/insights/follower-trend",
+  adminAuthMiddleware,
+  CategoryController.getCreatorFollowerTrendAdmin,
+);
+
+router.get(
   "/admin/events/:eventId/attendees",
   adminAuthMiddleware,
   CategoryController.getEventAttendeesAdmin,

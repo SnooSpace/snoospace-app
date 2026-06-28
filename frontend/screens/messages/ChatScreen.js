@@ -75,6 +75,7 @@ import { BlurView } from "expo-blur";
 import {
   getMessages,
   sendMessage,
+  markMessageRead,
   unsendMessage,
   getConversations,
   resolveConversation,
@@ -1700,7 +1701,8 @@ export default function ChatScreen({ route, navigation }) {
   const inputRef = useRef(null);
   const subscriptionRef = useRef(null);
   const supabaseRef = useRef(null);
-  const pollingIntervalRef = useRef(null);
+
+
   const groupParticipantsRef = useRef([]);
   const visibleItemIdsRef = useRef(new Set());
   const viewabilityConfigRef = useRef({ itemVisiblePercentThreshold: 50 });
@@ -2207,6 +2209,9 @@ export default function ChatScreen({ route, navigation }) {
           isRead: m.is_read,
           createdAt: m.created_at,
         });
+        // B is actively viewing this chat — mark as read immediately so the
+        // ConversationsListScreen doesn't show a false unread badge on return.
+        markMessageRead(m.id).catch(() => {});
       } else if (payload.eventType === "UPDATE") {
         console.log("[ChatScreen] Realtime message update received:", payload.new.id);
         updateMessageById(payload.new.id, {

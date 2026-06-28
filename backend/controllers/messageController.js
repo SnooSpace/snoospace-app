@@ -718,8 +718,47 @@ const sendMessage = async (req, res) => {
         console.error("Error triggering message push notification:", err);
       }
     }
+    // Notify recipient(s) via their personal socket rooms so the inbox list
+    // and unread badge update instantly without a full Supabase Realtime query.
+    if (!isHidden) {
+      try {
+        const io = req.app.locals.io;
+        if (io) {
+          const convInfoForSocket = await pool.query(
+            `SELECT is_group, participant1_id, participant1_type, participant2_id, participant2_type
+             FROM conversations WHERE id = $1`,
+            [convId]
+          );
+          const convRowSocket = convInfoForSocket.rows[0];
+          if (convRowSocket) {
+            const socketPayload = { conversationId: convId };
+            if (!convRowSocket.is_group) {
+              // DM: emit to the other participant's personal room
+              const otherId = String(convRowSocket.participant1_id) === String(userId) && convRowSocket.participant1_type === userType
+                ? convRowSocket.participant2_id
+                : convRowSocket.participant1_id;
+              io.to(`user_${otherId}`).emit('new_message', socketPayload);
+            } else {
+              // Group: emit to every participant except the sender
+              const groupParticipants = await pool.query(
+                `SELECT participant_id FROM conversation_participants
+                 WHERE conversation_id = $1 AND (participant_id != $2 OR participant_type != $3)`,
+                [convId, userId, userType]
+              );
+              for (const row of groupParticipants.rows) {
+                io.to(`user_${row.participant_id}`).emit('new_message', socketPayload);
+              }
+            }
+          }
+        }
+      } catch (socketErr) {
+        // Non-fatal — push notification already handles offline delivery
+        console.error('[MessageController] Socket emit for inbox refresh failed:', socketErr.message);
+      }
+    }
 
     res.status(201).json({
+
       success: true,
       message: {
         id:             message.id,

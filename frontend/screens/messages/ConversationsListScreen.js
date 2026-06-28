@@ -28,6 +28,7 @@ import { getAllAccounts, getActiveAccount } from "../../api/auth";
 
 
 import EventBus from "../../utils/EventBus";
+import { getSocket } from "../../services/socketService";
 import SnooLoader from "../../components/ui/SnooLoader";
 import AccountSwitcherModal from "../../components/modals/AccountSwitcherModal";
 import AddAccountModal from "../../components/modals/AddAccountModal";
@@ -469,6 +470,41 @@ export default function ConversationsListScreen({ navigation }) {
     });
     return () => unsub?.();
   }, []);
+
+  // ── Socket: listen for new_message events from the server ────────────────────
+  // When another user sends us a message, the backend emits 'new_message' to
+  // our personal socket room. We debounce a full conversation refresh so the
+  // inbox and unread badges stay in sync without polling.
+  useEffect(() => {
+    const refreshDebounce = { current: null };
+
+    const handleNewMessage = ({ conversationId } = {}) => {
+      console.log('[ConversationsListScreen] new_message received for conv:', conversationId);
+      if (refreshDebounce.current) clearTimeout(refreshDebounce.current);
+      refreshDebounce.current = setTimeout(() => {
+        loadData(true);
+      }, 300);
+    };
+
+    const socket = getSocket();
+    if (socket) {
+      socket.on('new_message', handleNewMessage);
+    }
+
+    // Also re-subscribe when the socket reconnects (e.g. after network drop)
+    const reconnectHandler = () => {
+      const s = getSocket();
+      if (s) s.on('new_message', handleNewMessage);
+    };
+    const reconnectSub = EventBus.on('socket:reconnected', reconnectHandler);
+
+    return () => {
+      if (refreshDebounce.current) clearTimeout(refreshDebounce.current);
+      const s = getSocket();
+      if (s) s.off('new_message', handleNewMessage);
+      reconnectSub?.();
+    };
+  }, [loadData]);
 
   // ── Search ────────────────────────────────────────────────────────────────────
   useEffect(() => {

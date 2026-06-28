@@ -347,6 +347,7 @@ export interface User {
   phone: string | null;
   secondary_phone?: string | null;
   profile_photo_url: string | null;
+  banner_url?: string | null;
   location: string | null;
   pronouns: string[] | null;
   bio: string | null;
@@ -409,6 +410,22 @@ export interface User {
     ticket_price?: string | null;
     is_paid?: boolean;
     attendance_inference_reason?: string | null;
+  }>;
+  events_hosted?: Array<{
+    id: number;
+    title: string;
+    banner_url: string | null;
+    start_datetime: string;
+    end_datetime: string;
+    city: string | null;
+    description?: string | null;
+    venue_name?: string | null;
+    address_line1?: string | null;
+    state?: string | null;
+    postal_code?: string | null;
+    location_name?: string | null;
+    ticket_price?: string | null;
+    is_paid?: boolean;
   }>;
   plans_hosted?: Array<{
     id: number;
@@ -1495,4 +1512,54 @@ export interface PlanMembersResponse {
 
 export async function getPlanMembers(planId: number): Promise<PlanMembersResponse> {
   return apiRequest<PlanMembersResponse>(`/admin/plans/${planId}/members`);
+}
+
+export interface CreatorAudienceSummary {
+  audience_score: number;
+  follow_quality: {
+    score: number;
+    label: string;
+    breakdown: {
+      high_intent: number;
+      interested: number;
+      casual: number;
+    };
+  };
+  total_followers: number;
+  followers_delta_7d: number;
+  circle_count: number;
+}
+
+export interface CreatorReachStats {
+  period: string;
+  total_views: number | null;
+  total_impressions: number | null;
+  avg_watch_pct: number | null;
+  top_content: Array<{
+    post_id: number;
+    thumbnail_url: string | null;
+    views: number | null;
+    watch_pct: number | null;
+  }> | null;
+}
+
+export interface CreatorFollowerTrendPoint {
+  date: string;
+  count: number;
+}
+
+export interface CreatorFollowerTrend {
+  trend: CreatorFollowerTrendPoint[];
+}
+
+export async function getCreatorAudienceSummary(creatorId: number): Promise<CreatorAudienceSummary> {
+  return apiRequest<CreatorAudienceSummary>(`/admin/creators/${creatorId}/insights/summary`);
+}
+
+export async function getCreatorReachStats(creatorId: number, period: string = "30d"): Promise<CreatorReachStats> {
+  return apiRequest<CreatorReachStats>(`/admin/creators/${creatorId}/insights/reach?period=${period}`);
+}
+
+export async function getCreatorFollowerTrend(creatorId: number): Promise<CreatorFollowerTrend> {
+  return apiRequest<CreatorFollowerTrend>(`/admin/creators/${creatorId}/insights/follower-trend`);
 }
