@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, LayoutAnimation, UIManager, Platform, Image, Keyboard, TouchableWithoutFeedback } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -478,6 +478,21 @@ export default function EditProfileScreen({ route, navigation }) {
 
       if (finalPhotoUrl) {
         setPhotoUrl(finalPhotoUrl);
+      }
+
+      try {
+        const { updateAccount } = require("../../../utils/accountManager");
+        const accountCompositeId = `member_${profile?.id}`;
+        const localUpdates = {
+          username: username.trim(),
+          name: name.trim(),
+        };
+        if (finalPhotoUrl) {
+          localUpdates.profilePicture = finalPhotoUrl;
+        }
+        await updateAccount(accountCompositeId, localUpdates);
+      } catch (err) {
+        console.error("Failed to sync profile changes to account manager:", err);
       }
 
       HapticsService.triggerNotificationSuccess();

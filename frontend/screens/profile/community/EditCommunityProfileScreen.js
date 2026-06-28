@@ -368,6 +368,13 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         token,
       );
       setLogoUrl(secureUrl);
+      try {
+        const { updateAccount } = require("../../../utils/accountManager");
+        const accountCompositeId = `community_${profile?.id}`;
+        await updateAccount(accountCompositeId, { profilePicture: secureUrl });
+      } catch (err) {
+        console.error("Failed to sync logo changes to account manager:", err);
+      }
       HapticsService.triggerNotificationSuccess();
     } catch (e) {
       Alert.alert("Update failed", e?.message || "Could not update logo");
@@ -454,6 +461,17 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
       if (username !== (profileRef.current?.username || profile?.username)) {
         await changeUsername(username, token);
+      }
+
+      try {
+        const { updateAccount } = require("../../../utils/accountManager");
+        const accountCompositeId = `community_${profile?.id}`;
+        await updateAccount(accountCompositeId, {
+          username: username.trim(),
+          name: name.trim(),
+        });
+      } catch (err) {
+        console.error("Failed to sync profile changes to account manager:", err);
       }
 
       HapticsService.triggerNotificationSuccess();

@@ -12,6 +12,7 @@ import {
   Platform,
 } from "react-native";
 import SwipeableModal from "./SwipeableModal";
+import RemoveAccountModal from "./RemoveAccountModal";
 import {
   GestureHandlerRootView,
   Pressable as GHPressable,
@@ -44,6 +45,7 @@ export default function AccountSwitcherModal({
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [switchingTo, setSwitchingTo] = useState(null);
+  const [accountToRemove, setAccountToRemove] = useState(null);
   const [showCurrentAccountSubtitle, setShowCurrentAccountSubtitle] =
     useState(false);
   const shakeAnimation = useRef(new Animated.Value(0)).current;
@@ -271,27 +273,20 @@ export default function AccountSwitcherModal({
   }
 
   async function handleRemoveAccount(account) {
-    Alert.alert(
-      "Remove Account",
-      `Remove @${account.username} from your accounts?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              // Use composite key for removal
-              const accountCompositeId = `${account.type}_${account.id}`;
-              await accountManager.removeAccount(accountCompositeId);
-              loadAccounts(); // Refresh the list
-            } catch (error) {
-              Alert.alert("Error", error.message || "Failed to remove account");
-            }
-          },
-        },
-      ],
-    );
+    setAccountToRemove(account);
+  }
+
+  async function confirmRemoveAccount() {
+    if (!accountToRemove) return;
+    try {
+      // Use composite key for removal
+      const accountCompositeId = `${accountToRemove.type}_${accountToRemove.id}`;
+      await accountManager.removeAccount(accountCompositeId);
+      setAccountToRemove(null);
+      loadAccounts(); // Refresh the list
+    } catch (error) {
+      Alert.alert("Error", error.message || "Failed to remove account");
+    }
   }
 
   function renderAccountItem({ item }) {
@@ -377,59 +372,68 @@ export default function AccountSwitcherModal({
   const canAddMore = accounts.length < 5;
 
   return (
-    <SwipeableModal
-      visible={visible}
-      onClose={onClose}
-      sheetStyle={styles.modalContent}
-      useBlur={true}
-      blurIntensity={20}
-      blurTint="dark"
-      statusBarTranslucent={true}
-    >
-      {/* Handle bar */}
-      <View style={styles.handleBar} />
-
-      {/* Account List */}
-      <FlatList
-        data={accounts}
-        keyExtractor={(item) => `${item.type}_${item.id}`}
-        renderItem={renderAccountItem}
-        style={styles.accountList}
-        contentContainerStyle={styles.listContent}
-      />
-
-      {/* Add Account Button */}
-      <GHPressable
-        style={({ pressed }) => [
-          styles.addAccountButton,
-          !canAddMore && styles.addAccountButtonDisabled,
-          { opacity: pressed ? 0.6 : 1 },
-        ]}
-        onPress={() => {
-          onClose();
-          onAddAccount();
-        }}
-        disabled={!canAddMore}
+    <>
+      <SwipeableModal
+        visible={visible}
+        onClose={onClose}
+        sheetStyle={styles.modalContent}
+        useBlur={true}
+        blurIntensity={20}
+        blurTint="dark"
+        statusBarTranslucent={true}
       >
-        <PlusCircle size={20} color={canAddMore ? "#1D1D1F" : "#8E8E93"} />
-        <Text
-          style={[
-            styles.addAccountText,
-            !canAddMore && styles.addAccountTextDisabled,
-          ]}
-        >
-          Add account
-        </Text>
-        {!canAddMore && (
-          <Text style={styles.maxReachedText}>(Max reached)</Text>
-        )}
-      </GHPressable>
+        {/* Handle bar */}
+        <View style={styles.handleBar} />
 
-      {/* SnooSpace Branding */}
-      <View style={styles.footer}>
-        <Text style={styles.metaText}>SnooSpace</Text>
-      </View>
-    </SwipeableModal>
+        {/* Account List */}
+        <FlatList
+          data={accounts}
+          keyExtractor={(item) => `${item.type}_${item.id}`}
+          renderItem={renderAccountItem}
+          style={styles.accountList}
+          contentContainerStyle={styles.listContent}
+        />
+
+        {/* Add Account Button */}
+        <GHPressable
+          style={({ pressed }) => [
+            styles.addAccountButton,
+            !canAddMore && styles.addAccountButtonDisabled,
+            { opacity: pressed ? 0.6 : 1 },
+          ]}
+          onPress={() => {
+            onClose();
+            onAddAccount();
+          }}
+          disabled={!canAddMore}
+        >
+          <PlusCircle size={20} color={canAddMore ? "#1D1D1F" : "#8E8E93"} />
+          <Text
+            style={[
+              styles.addAccountText,
+              !canAddMore && styles.addAccountTextDisabled,
+            ]}
+          >
+            Add account
+          </Text>
+          {!canAddMore && (
+            <Text style={styles.maxReachedText}>(Max reached)</Text>
+          )}
+        </GHPressable>
+
+        {/* SnooSpace Branding */}
+        <View style={styles.footer}>
+          <Text style={styles.metaText}>SnooSpace</Text>
+        </View>
+      </SwipeableModal>
+
+      <RemoveAccountModal
+        visible={accountToRemove !== null}
+        onClose={() => setAccountToRemove(null)}
+        onConfirm={confirmRemoveAccount}
+        username={accountToRemove?.username || ""}
+      />
+    </>
   );
 }
 

@@ -82,7 +82,7 @@ CREATE INDEX IF NOT EXISTS idx_admins_email ON admins(email);
 CREATE TABLE IF NOT EXISTS admin_audit_log (
   id BIGSERIAL PRIMARY KEY,
   admin_id BIGINT REFERENCES admins(id),
-  action_type TEXT NOT NULL,           -- 'user_ban', 'category_create', 'event_feature'
+  action TEXT NOT NULL,           -- 'user_ban', 'category_create', 'event_feature'
   target_type TEXT,                    -- 'member', 'community', 'event', 'category'
   target_id BIGINT,
   details JSONB,                       -- Additional context
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_audit_log_admin ON admin_audit_log(admin_id);
-CREATE INDEX IF NOT EXISTS idx_audit_log_action ON admin_audit_log(action_type);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON admin_audit_log(action);
 CREATE INDEX IF NOT EXISTS idx_audit_log_target ON admin_audit_log(target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_created ON admin_audit_log(created_at DESC);
 
@@ -167,10 +167,10 @@ CREATE TABLE IF NOT EXISTS reports (
   reviewed_by BIGINT REFERENCES admins(id),
   reviewed_at TIMESTAMPTZ,
   action_taken TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
-CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(reported_type, reported_id);
 CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at DESC);
 
 -- ============================================

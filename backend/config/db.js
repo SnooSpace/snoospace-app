@@ -7,6 +7,9 @@ function createPool() {
     database: process.env.DB_NAME,
     password: process.env.DB_PASS,
     port: process.env.DB_PORT,
+    ssl: process.env.DB_SSL === 'true'
+      ? { rejectUnauthorized: false }
+      : false,
   });
 }
 
@@ -33,6 +36,7 @@ async function ensureTables(pool) {
       -- Communities table
       CREATE TABLE IF NOT EXISTS communities (
         id BIGSERIAL PRIMARY KEY,
+        user_id BIGINT,
         name TEXT NOT NULL,
         logo_url TEXT,
         bio TEXT,
@@ -144,7 +148,7 @@ async function ensureTables(pool) {
         ('Networking', 15, true, 'all')
       ON CONFLICT (label) DO NOTHING;
 
-      -- Pronouns table
+       -- Pronouns table
       CREATE TABLE IF NOT EXISTS pronouns (
         id BIGSERIAL PRIMARY KEY,
         label TEXT UNIQUE NOT NULL,
@@ -153,6 +157,14 @@ async function ensureTables(pool) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_pronouns_active ON pronouns(is_active, display_order);
+
+      -- Seed default pronouns
+      INSERT INTO pronouns (label, display_order) VALUES
+        ('He/Him', 1),
+        ('She/Her', 2),
+        ('They/Them', 3),
+        ('Other', 4)
+      ON CONFLICT (label) DO NOTHING;
       
       
       -- Posts table
@@ -381,20 +393,6 @@ async function ensureTables(pool) {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_event_registrations_qr 
         ON event_registrations(qr_code_hash) WHERE qr_code_hash IS NOT NULL;
       
-      -- Registration tickets table (for multi-ticket orders)
-      CREATE TABLE IF NOT EXISTS registration_tickets (
-        id BIGSERIAL PRIMARY KEY,
-        registration_id BIGINT REFERENCES event_registrations(id) ON DELETE CASCADE,
-        ticket_type_id BIGINT REFERENCES ticket_types(id) ON DELETE SET NULL,
-        ticket_name TEXT NOT NULL,
-        quantity INTEGER NOT NULL DEFAULT 1,
-        unit_price DECIMAL(10,2) NOT NULL,
-        total_price DECIMAL(10,2) NOT NULL,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-      CREATE INDEX IF NOT EXISTS idx_registration_tickets_registration ON registration_tickets(registration_id);
-
-      
       -- Ticket types for events (multi-tier pricing)
       CREATE TABLE IF NOT EXISTS ticket_types (
         id BIGSERIAL PRIMARY KEY,
@@ -439,6 +437,19 @@ async function ensureTables(pool) {
       CREATE INDEX IF NOT EXISTS idx_ticket_types_event ON ticket_types(event_id);
       CREATE INDEX IF NOT EXISTS idx_ticket_types_visibility ON ticket_types(visibility);
       CREATE INDEX IF NOT EXISTS idx_ticket_types_active ON ticket_types(is_active, event_id);
+
+      -- Registration tickets table (for multi-ticket orders)
+      CREATE TABLE IF NOT EXISTS registration_tickets (
+        id BIGSERIAL PRIMARY KEY,
+        registration_id BIGINT REFERENCES event_registrations(id) ON DELETE CASCADE,
+        ticket_type_id BIGINT REFERENCES ticket_types(id) ON DELETE SET NULL,
+        ticket_name TEXT NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        unit_price DECIMAL(10,2) NOT NULL,
+        total_price DECIMAL(10,2) NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_registration_tickets_registration ON registration_tickets(registration_id);
 
       -- Discount codes for events (promo codes)
       CREATE TABLE IF NOT EXISTS discount_codes (
@@ -795,6 +806,12 @@ async function ensureTables(pool) {
       DO $$ BEGIN
         ALTER TABLE sessions ADD COLUMN IF NOT EXISTS device_model TEXT;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE sessions ADD COLUMN IF NOT EXISTS device_brand TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+      DO $$ BEGIN
+        ALTER TABLE sessions ADD COLUMN IF NOT EXISTS device_tier TEXT;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       
       -- Indexes for sessions
       CREATE INDEX IF NOT EXISTS idx_sessions_device ON sessions(device_id);
@@ -984,7 +1001,7 @@ async function ensureTables(pool) {
 
       -- Constraints for communities
       DO $$ BEGIN
-        ALTER TABLE communities ADD CONSTRAINT phone_10_digits_comm CHECK (phone ~ '^\d{10}$');
+        ALTER TABLE communities ADD CONSTRAINT phone_10_digits_comm CHECK (phone ~ '^\\d{10}$');
       EXCEPTION WHEN duplicate_object THEN NULL; END $$;
       DO $$ BEGIN
         ALTER TABLE communities ADD CONSTRAINT communities_categories_length CHECK (
