@@ -92,9 +92,6 @@ export async function registerPushTokenWithBackend() {
       authToken
     );
     console.log('[PushService] Push token registered with backend successfully.');
-    if (__DEV__) {
-      Alert.alert('Push Service', 'Push token registered with backend successfully!');
-    }
   } catch (err) {
     console.error('[PushService] Failed to register push token with backend:', err);
     Alert.alert('Push Service Error', 'Failed to register push token with backend: ' + err.message);
