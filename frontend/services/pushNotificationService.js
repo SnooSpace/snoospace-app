@@ -4,6 +4,16 @@ import { Platform } from 'react-native';
 import { apiPost } from '../api/client';
 import { getAuthToken } from '../api/auth';
 
+// Configure how push notifications appear when the app is in the foreground
+// This must be called once at module level (not inside a component).
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 /**
  * Request notification permissions and retrieve the Expo Push Token.
  */
@@ -27,8 +37,11 @@ export async function registerForPushNotificationsAsync() {
       return null;
     }
 
-    // Retrieve Expo push token
-    const tokenData = await Notifications.getExpoPushTokenAsync();
+    // projectId is required on SDK 49+ for managed workflow
+    const projectId = process.env.EXPO_PUBLIC_PROJECT_ID;
+    const tokenData = await Notifications.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined
+    );
     const token = tokenData.data;
     console.log('[PushService] Expo push token retrieved:', token);
 
@@ -47,6 +60,7 @@ export async function registerForPushNotificationsAsync() {
     return null;
   }
 }
+
 
 /**
  * Fetch Expo Push Token and post it to our backend Express endpoint.

@@ -367,6 +367,103 @@ export interface User {
   follower_count: number;
   following_count?: number;
   post_count?: number;
+  instagram_username?: string | null;
+  is_creator_mode_enabled?: boolean;
+  creator_follower_count?: number;
+  creator_mode_enabled_at?: string | null;
+  is_verified?: boolean;
+  verified_at?: string | null;
+  gender?: string | null;
+  dob?: string | null;
+  occupation?: string | null;
+  education?: string | null;
+  college_id?: string | null;
+  campus_id?: string | null;
+  passout_year?: number | null;
+  college_name?: string | null;
+  campus_name?: string | null;
+  circle_count?: number;
+  auto_join_group_chat?: boolean;
+  is_sponsor_visible?: boolean;
+  show_heads?: boolean;
+  verification_status?: string | null;
+  club_type?: string | null;
+  college_subtype?: string | null;
+  community_theme?: string | null;
+  community_type?: string | null;
+  events_attended?: Array<{
+    id: number;
+    title: string;
+    banner_url: string | null;
+    start_datetime: string;
+    end_datetime: string;
+    city: string | null;
+    attendance_status: string;
+    registration_status?: string | null;
+    description?: string | null;
+    venue_name?: string | null;
+    address_line1?: string | null;
+    state?: string | null;
+    postal_code?: string | null;
+    location_name?: string | null;
+    ticket_price?: string | null;
+    is_paid?: boolean;
+    attendance_inference_reason?: string | null;
+  }>;
+  plans_hosted?: Array<{
+    id: number;
+    title: string;
+    activity_type: string;
+    scheduled_at: string;
+    status: string;
+    visibility: string;
+    max_accepted: number;
+    custom_activity_label?: string | null;
+    cost_type?: string | null;
+    cost_amount_paise?: number | null;
+    location_public?: string | null;
+    location_private?: string | null;
+    gender_preference?: string | null;
+    is_recurring?: boolean;
+    recurrence_interval?: string | null;
+  }>;
+  plans_attended?: Array<{
+    id: number;
+    title: string;
+    activity_type: string;
+    scheduled_at: string;
+    status: string;
+    visibility: string;
+    max_accepted: number;
+    custom_activity_label?: string | null;
+    cost_type?: string | null;
+    cost_amount_paise?: number | null;
+    location_public?: string | null;
+    location_private?: string | null;
+    gender_preference?: string | null;
+    is_recurring?: boolean;
+    recurrence_interval?: string | null;
+  }>;
+  aqi?: {
+    aqi_score?: string;
+    aqi_tier?: number;
+    aqi_trajectory?: string;
+    total_behavior_events?: number;
+    total_rsvps?: number;
+    total_attended?: number;
+    rsvp_to_attend_ratio?: string;
+    paid_events_attended?: number;
+    free_events_attended?: number;
+    events_hosted?: number;
+    content_depth_score?: string;
+    search_sophistication_score?: string;
+    network_quality_avg?: string;
+    professional_hours_ratio?: string;
+    fraud_flag?: boolean;
+    fraud_reason?: string | null;
+    last_active_at?: string;
+    last_calculated_at?: string;
+  } | null;
 }
 
 export interface UsersResponse {
@@ -440,6 +537,28 @@ export async function deleteUser(
 }
 
 // ============================================
+// CIRCLES API
+// ============================================
+
+export interface CircleMember {
+  circle_id: number;
+  connected_since: string;
+  member_id: number;
+  name: string;
+  username: string;
+  profile_photo_url: string | null;
+  is_creator_mode_enabled: boolean;
+  is_community: boolean;
+}
+
+export async function getUserCircles(userId: number): Promise<CircleMember[]> {
+  const data = await apiRequest<{ success: boolean; circles: CircleMember[] }>(
+    `/admin/users/${userId}/circles`,
+  );
+  return data.circles;
+}
+
+// ============================================
 // FOLLOWERS/FOLLOWING API
 // ============================================
 
@@ -490,6 +609,9 @@ export interface Post {
   author_name: string | null;
   author_username: string | null;
   author_photo_url: string | null;
+  video_thumbnail?: string | null;
+  post_type?: string | null;
+  type_data?: any;
 }
 
 export interface PostsResponse {
@@ -1337,4 +1459,40 @@ export async function uploadCollegeLogo(
     method: "POST",
     body: JSON.stringify({ image: base64Image }),
   });
+}
+
+export interface EventAttendee {
+  id: number;
+  name: string;
+  username: string;
+  profile_photo_url: string | null;
+  attendance_status: string;
+  registration_status: string;
+  registered_at?: string;
+}
+
+export async function getEventAttendees(eventId: number): Promise<EventAttendee[]> {
+  const data = await apiRequest<{ success: boolean; attendees: EventAttendee[] }>(
+    `/admin/events/${eventId}/attendees`,
+  );
+  return data.attendees;
+}
+
+export interface PlanMember {
+  id: number;
+  name: string;
+  username: string;
+  profile_photo_url: string | null;
+  status?: string;
+  requested_at?: string;
+}
+
+export interface PlanMembersResponse {
+  success: boolean;
+  host: PlanMember | null;
+  attendees: PlanMember[];
+}
+
+export async function getPlanMembers(planId: number): Promise<PlanMembersResponse> {
+  return apiRequest<PlanMembersResponse>(`/admin/plans/${planId}/members`);
 }

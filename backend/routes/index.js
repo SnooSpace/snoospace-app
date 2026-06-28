@@ -290,6 +290,23 @@ router.delete(
   adminAuthMiddleware,
   CategoryController.deleteUser,
 );
+router.get(
+  "/admin/users/:userId/circles",
+  adminAuthMiddleware,
+  CategoryController.getUserCirclesAdmin,
+);
+
+router.get(
+  "/admin/events/:eventId/attendees",
+  adminAuthMiddleware,
+  CategoryController.getEventAttendeesAdmin,
+);
+
+router.get(
+  "/admin/plans/:planId/members",
+  adminAuthMiddleware,
+  CategoryController.getPlanMembersAdmin,
+);
 
 // ============================================
 // ADMIN POST MANAGEMENT (Protected)

@@ -962,14 +962,35 @@ const getAllUsers = async (req, res) => {
     if (type === "all" || type === "member") {
       try {
         let memberQuery = `
-          SELECT 
-            m.id, 'member' as type, m.name, m.username, m.email, m.phone,
-            m.profile_photo_url, m.location, m.pronouns, m.bio, m.interests,
-            true as is_active, m.created_at,
-            (SELECT COUNT(*) FROM follows WHERE following_id = m.id AND following_type = 'member') as follower_count,
-            (SELECT COUNT(*) FROM follows WHERE follower_id = m.id AND follower_type = 'member') as following_count,
-            (SELECT COUNT(*) FROM posts WHERE author_id = m.id AND author_type = 'member') as post_count
-          FROM members m
+          WITH member_list AS (
+            SELECT 
+              m.id, 'member' as type, m.name, m.username, m.email, m.phone,
+              m.profile_photo_url, m.location, m.pronouns, m.bio, m.interests,
+              m.created_at, m.instagram_username, m.is_creator_mode_enabled,
+              m.creator_follower_count, m.creator_mode_enabled_at,
+              m.is_verified, m.verified_at, m.gender, m.dob,
+              m.occupation, m.education, m.passout_year, m.show_college_on_profile,
+              m.circle_count,
+              col.name as college_name,
+              cam.campus_name as campus_name,
+              (SELECT COUNT(*) FROM follows WHERE following_id = m.id AND following_type = 'member') as follower_count,
+              (SELECT COUNT(*) FROM follows WHERE follower_id = m.id AND follower_type = 'member') as following_count,
+              (SELECT COUNT(*) FROM posts WHERE author_id = m.id AND author_type = 'member') as post_count,
+              COALESCE(
+                NOT EXISTS (
+                  SELECT 1 FROM user_restrictions 
+                  WHERE user_id = m.id AND user_type = 'member'
+                    AND revoked_at IS NULL 
+                    AND (expires_at IS NULL OR expires_at > NOW())
+                    AND restriction_type IN ('ban', 'suspend')
+                ), 
+                true
+              ) as is_active
+            FROM members m
+            LEFT JOIN colleges col ON m.college_id = col.id
+            LEFT JOIN campuses cam ON m.campus_id = cam.id
+          )
+          SELECT * FROM member_list
         `;
         const params = [];
         const conditions = [];
@@ -977,10 +998,15 @@ const getAllUsers = async (req, res) => {
         if (search && search.trim()) {
           params.push(searchPattern);
           conditions.push(
-            `(m.name ILIKE $${params.length} OR m.username ILIKE $${params.length} OR m.email ILIKE $${params.length})`,
+            `(name ILIKE $${params.length} OR username ILIKE $${params.length} OR email ILIKE $${params.length})`,
           );
         }
-        // Note: is_active column doesn't exist in members table, so status filtering is skipped
+
+        if (status === "active") {
+          conditions.push("is_active = true");
+        } else if (status === "banned") {
+          conditions.push("is_active = false");
+        }
 
         if (conditions.length > 0) {
           memberQuery += " WHERE " + conditions.join(" AND ");
@@ -1004,16 +1030,36 @@ const getAllUsers = async (req, res) => {
     if (type === "all" || type === "community") {
       try {
         let communityQuery = `
-          SELECT 
-            c.id, 'community' as type, c.name, c.username, c.email, c.phone,
-            c.secondary_phone,
-            c.logo_url as profile_photo_url, c.location, NULL as pronouns, c.bio,
-            c.sponsor_types as interests, c.category,
-            true as is_active, c.created_at,
-            (SELECT COUNT(*) FROM follows WHERE following_id = c.id AND following_type = 'community') as follower_count,
-            (SELECT COUNT(*) FROM follows WHERE follower_id = c.id AND follower_type = 'community') as following_count,
-            (SELECT COUNT(*) FROM posts WHERE author_id = c.id AND author_type = 'community') as post_count
-          FROM communities c
+          WITH community_list AS (
+            SELECT 
+              c.id, 'community' as type, c.name, c.username, c.email, c.phone,
+              c.secondary_phone,
+              c.logo_url as profile_photo_url, c.location, NULL as pronouns, c.bio,
+              c.sponsor_types as interests, c.category,
+              c.created_at,
+              c.auto_join_group_chat, c.is_sponsor_visible, c.show_heads,
+              c.verification_status, c.club_type, c.college_subtype,
+              c.community_theme, c.community_type,
+              col.name as college_name,
+              cam.campus_name as campus_name,
+              (SELECT COUNT(*) FROM follows WHERE following_id = c.id AND following_type = 'community') as follower_count,
+              (SELECT COUNT(*) FROM follows WHERE follower_id = c.id AND follower_type = 'community') as following_count,
+              (SELECT COUNT(*) FROM posts WHERE author_id = c.id AND author_type = 'community') as post_count,
+              COALESCE(
+                NOT EXISTS (
+                  SELECT 1 FROM user_restrictions 
+                  WHERE user_id = c.id AND user_type = 'community'
+                    AND revoked_at IS NULL 
+                    AND (expires_at IS NULL OR expires_at > NOW())
+                    AND restriction_type IN ('ban', 'suspend')
+                ), 
+                true
+              ) as is_active
+            FROM communities c
+            LEFT JOIN colleges col ON c.college_id = col.id
+            LEFT JOIN campuses cam ON c.campus_id = cam.id
+          )
+          SELECT * FROM community_list
         `;
         const params = [];
         const conditions = [];
@@ -1021,10 +1067,15 @@ const getAllUsers = async (req, res) => {
         if (search && search.trim()) {
           params.push(searchPattern);
           conditions.push(
-            `(c.name ILIKE $${params.length} OR c.username ILIKE $${params.length} OR c.email ILIKE $${params.length})`,
+            `(name ILIKE $${params.length} OR username ILIKE $${params.length} OR email ILIKE $${params.length})`,
           );
         }
-        // Note: is_active column doesn't exist in communities table, so status filtering is skipped
+
+        if (status === "active") {
+          conditions.push("is_active = true");
+        } else if (status === "banned") {
+          conditions.push("is_active = false");
+        }
 
         if (conditions.length > 0) {
           communityQuery += " WHERE " + conditions.join(" AND ");
@@ -1106,30 +1157,127 @@ const getUserById = async (req, res) => {
     if (type === "member") {
       const result = await pool.query(
         `SELECT 
-          id, 'member' as type, name, username, email, phone,
-          profile_photo_url, location, pronouns, bio, interests, gender, dob,
-          is_active, created_at,
-          (SELECT COUNT(*) FROM follows WHERE followed_id = members.id AND followed_type = 'member') as follower_count,
-          (SELECT COUNT(*) FROM follows WHERE follower_id = members.id AND follower_type = 'member') as following_count,
-          (SELECT COUNT(*) FROM posts WHERE author_id = members.id AND author_type = 'member') as post_count
-        FROM members WHERE id = $1`,
+          m.id, 'member' as type, m.name, m.username, m.email, m.phone,
+          m.profile_photo_url, m.location, m.pronouns, m.bio, m.interests, m.gender, m.dob,
+          m.created_at, m.instagram_username, m.is_creator_mode_enabled,
+          m.creator_follower_count, m.creator_mode_enabled_at,
+          m.is_verified, m.verified_at, m.occupation, m.education, m.passout_year, m.show_college_on_profile,
+          m.circle_count,
+          col.name as college_name,
+          cam.campus_name as campus_name,
+          (SELECT COUNT(*) FROM follows WHERE following_id = m.id AND following_type = 'member') as follower_count,
+          (SELECT COUNT(*) FROM follows WHERE follower_id = m.id AND follower_type = 'member') as following_count,
+          (SELECT COUNT(*) FROM posts WHERE author_id = m.id AND author_type = 'member') as post_count,
+          COALESCE(
+            NOT EXISTS (
+              SELECT 1 FROM user_restrictions 
+              WHERE user_id = m.id AND user_type = 'member'
+                AND revoked_at IS NULL 
+                AND (expires_at IS NULL OR expires_at > NOW())
+                AND restriction_type IN ('ban', 'suspend')
+            ), 
+            true
+          ) as is_active
+        FROM members m
+        LEFT JOIN colleges col ON m.college_id = col.id
+        LEFT JOIN campuses cam ON m.campus_id = cam.id
+        WHERE m.id = $1`,
         [userId],
       );
       user = result.rows[0];
+
+      if (user) {
+        // Fetch AQI signals
+        const aqiRes = await pool.query(
+          `SELECT * FROM user_aqi_signals WHERE user_id = $1`,
+          [userId]
+        );
+        user.aqi = aqiRes.rows[0] || null;
+
+        // Fetch events attended/registered
+        const eventsAttendedRes = await pool.query(
+          `SELECT e.id, e.title, e.banner_url, e.start_datetime, e.end_datetime, e.city, er.attendance_status, er.registration_status,
+                  e.description, e.venue_name, e.address_line1, e.state, e.postal_code, e.location_name, e.ticket_price, e.is_paid, er.attendance_inference_reason
+           FROM event_registrations er
+           JOIN events e ON er.event_id = e.id
+           WHERE er.member_id = $1 
+             AND (er.registration_status = 'registered' 
+                  OR er.attendance_status IN ('confirmed_attended', 'inferred_attended', 'manually_confirmed'))
+           ORDER BY e.start_datetime DESC`,
+          [userId]
+        );
+        user.events_attended = eventsAttendedRes.rows;
+
+        // Fetch open plans hosted
+        const plansHostedRes = await pool.query(
+          `SELECT id, title, activity_type, scheduled_at, status, visibility, max_accepted,
+                  custom_activity_label, cost_type, cost_amount_paise, location_public, location_private, gender_preference, is_recurring, recurrence_interval
+           FROM open_plans
+           WHERE created_by = $1 AND status IN ('active', 'closed', 'completed')
+           ORDER BY scheduled_at DESC`,
+          [userId]
+        );
+        user.plans_hosted = plansHostedRes.rows;
+
+        // Fetch open plans attended
+        const plansAttendedRes = await pool.query(
+          `SELECT op.id, op.title, op.activity_type, op.scheduled_at, op.status, op.visibility, op.max_accepted,
+                  op.custom_activity_label, op.cost_type, op.cost_amount_paise, op.location_public, op.location_private, op.gender_preference, op.is_recurring, op.recurrence_interval
+           FROM open_plans op
+           JOIN open_plan_requests opr ON op.id = opr.plan_id
+           WHERE opr.requester_id = $1 AND opr.status = 'approved' AND op.status IN ('active', 'closed', 'completed')
+           ORDER BY op.scheduled_at DESC`,
+          [userId]
+        );
+        user.plans_attended = plansAttendedRes.rows;
+      }
     } else {
       const result = await pool.query(
         `SELECT 
-          id, 'community' as type, name, username, email, phone,
-          logo_url as profile_photo_url, banner_url, location, bio,
-          sponsor_interests as interests, category,
-          head1_name, head1_phone, head2_name, head2_phone,
-          is_active, created_at,
-          (SELECT COUNT(*) FROM follows WHERE followed_id = communities.id AND followed_type = 'community') as follower_count,
-          (SELECT COUNT(*) FROM posts WHERE author_id = communities.id AND author_type = 'community') as post_count
-        FROM communities WHERE id = $1`,
+          c.id, 'community' as type, c.name, c.username, c.email, c.phone,
+          c.logo_url as profile_photo_url, c.banner_url, c.location, c.bio,
+          c.sponsor_types as interests, c.category,
+          c.secondary_phone,
+          c.auto_join_group_chat, c.is_sponsor_visible, c.show_heads,
+          c.verification_status, c.club_type, c.college_subtype,
+          c.community_theme, c.community_type,
+          col.name as college_name,
+          cam.campus_name as campus_name,
+          (SELECT COUNT(*) FROM follows WHERE following_id = c.id AND following_type = 'community') as follower_count,
+          (SELECT COUNT(*) FROM follows WHERE follower_id = c.id AND follower_type = 'community') as following_count,
+          (SELECT COUNT(*) FROM posts WHERE author_id = c.id AND author_type = 'community') as post_count,
+          COALESCE(
+            NOT EXISTS (
+              SELECT 1 FROM user_restrictions 
+              WHERE user_id = c.id AND user_type = 'community'
+                AND revoked_at IS NULL 
+                AND (expires_at IS NULL OR expires_at > NOW())
+                AND restriction_type IN ('ban', 'suspend')
+            ), 
+            true
+          ) as is_active
+        FROM communities c
+        LEFT JOIN colleges col ON c.college_id = col.id
+        LEFT JOIN campuses cam ON c.campus_id = cam.id
+        WHERE c.id = $1`,
         [userId],
       );
       user = result.rows[0];
+
+      // Fetch community heads for this community
+      if (user) {
+        try {
+          const headsResult = await pool.query(
+            `SELECT name, phone, profile_pic_url, is_primary FROM community_heads 
+             WHERE community_id = $1 ORDER BY is_primary DESC`,
+            [user.id],
+          );
+          user.heads = headsResult.rows;
+        } catch (headErr) {
+          console.error("Error fetching community heads:", headErr);
+          user.heads = [];
+        }
+      }
     }
 
     if (!user) {
@@ -1151,6 +1299,7 @@ const updateUser = async (req, res) => {
     const { userId } = req.params;
     const { type } = req.query; // 'member' or 'community'
     const { is_active } = req.body;
+    const adminId = req.admin?.id;
 
     if (!type || !["member", "community"].includes(type)) {
       return res
@@ -1158,23 +1307,53 @@ const updateUser = async (req, res) => {
         .json({ error: "Type must be 'member' or 'community'" });
     }
 
+    if (is_active === undefined) {
+      return res.status(400).json({ error: "is_active field is required" });
+    }
+
+    // Verify user exists
     const table = type === "member" ? "members" : "communities";
-
-    const result = await pool.query(
-      `UPDATE ${table} SET is_active = $1 WHERE id = $2 RETURNING id, is_active`,
-      [is_active, userId],
-    );
-
-    if (result.rows.length === 0) {
+    const userCheck = await pool.query(`SELECT id FROM ${table} WHERE id = $1`, [userId]);
+    if (userCheck.rows.length === 0) {
       return res.status(404).json({ error: "User not found" });
+    }
+
+    if (is_active === false) {
+      // BAN user: Check if already banned
+      const banCheck = await pool.query(
+        `SELECT id FROM user_restrictions 
+         WHERE user_id = $1 AND user_type = $2 
+           AND revoked_at IS NULL 
+           AND (expires_at IS NULL OR expires_at > NOW())
+           AND restriction_type = 'ban'
+         LIMIT 1`,
+        [userId, type]
+      );
+      
+      if (banCheck.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO user_restrictions (user_id, user_type, restriction_type, reason, created_by)
+           VALUES ($1, $2, 'ban', 'Banned by admin', $3)`,
+          [userId, type, adminId]
+        );
+      }
+    } else {
+      // UNBAN user: Revoke all active bans / suspensions
+      await pool.query(
+        `UPDATE user_restrictions 
+         SET revoked_at = NOW(), revoked_by = $1
+         WHERE user_id = $2 AND user_type = $3 
+           AND revoked_at IS NULL 
+           AND (expires_at IS NULL OR expires_at > NOW())
+           AND restriction_type IN ('ban', 'suspend')`,
+        [adminId, userId, type]
+      );
     }
 
     res.json({
       success: true,
-      message: is_active
-        ? "User unbanned successfully"
-        : "User banned successfully",
-      user: result.rows[0],
+      message: is_active ? "User unbanned successfully" : "User banned successfully",
+      user: { id: userId, type, is_active }
     });
   } catch (error) {
     console.error("Error updating user:", error);
@@ -1189,6 +1368,7 @@ const deleteUser = async (req, res) => {
   try {
     const { userId } = req.params;
     const { type, hard = false } = req.query; // 'member' or 'community'
+    const adminId = req.admin?.id;
 
     if (!type || !["member", "community"].includes(type)) {
       return res
@@ -1245,6 +1425,33 @@ const deleteUser = async (req, res) => {
         [userId, type],
       );
 
+      // 6.b Delete circles (both directions) for member
+      if (type === "member") {
+        await pool.query(
+          `DELETE FROM circles WHERE user_a_id = $1 OR user_b_id = $1`,
+          [userId]
+        );
+        await pool.query(
+          `DELETE FROM circle_requests WHERE sender_id = $1 OR receiver_id = $1`,
+          [userId]
+        );
+        await pool.query(
+          `DELETE FROM community_member_circles WHERE member_id = $1`,
+          [userId]
+        );
+      } else {
+        await pool.query(
+          `DELETE FROM community_member_circles WHERE community_id = $1`,
+          [userId]
+        );
+      }
+
+      // 6.c Delete restrictions/bans
+      await pool.query(
+        `DELETE FROM user_restrictions WHERE user_id = $1 AND user_type = $2`,
+        [userId, type]
+      );
+
       // 7. Finally delete the user
       const result = await pool.query(
         `DELETE FROM ${table} WHERE id = $1 RETURNING id`,
@@ -1261,14 +1468,28 @@ const deleteUser = async (req, res) => {
         deletedPosts: postsResult.rowCount,
       });
     } else {
-      // Soft delete - just ban the user
-      const result = await pool.query(
-        `UPDATE ${table} SET is_active = false WHERE id = $1 RETURNING id`,
-        [userId],
-      );
-
-      if (result.rows.length === 0) {
+      // Soft delete - just ban the user by inserting a restriction
+      const userCheck = await pool.query(`SELECT id FROM ${table} WHERE id = $1`, [userId]);
+      if (userCheck.rows.length === 0) {
         return res.status(404).json({ error: "User not found" });
+      }
+
+      const banCheck = await pool.query(
+        `SELECT id FROM user_restrictions 
+         WHERE user_id = $1 AND user_type = $2 
+           AND revoked_at IS NULL 
+           AND (expires_at IS NULL OR expires_at > NOW())
+           AND restriction_type = 'ban'
+         LIMIT 1`,
+        [userId, type]
+      );
+      
+      if (banCheck.rows.length === 0) {
+        await pool.query(
+          `INSERT INTO user_restrictions (user_id, user_type, restriction_type, reason, created_by)
+           VALUES ($1, $2, 'ban', 'Banned (soft deleted) by admin', $3)`,
+          [userId, type, adminId]
+        );
       }
 
       res.json({
@@ -1279,6 +1500,129 @@ const deleteUser = async (req, res) => {
   } catch (error) {
     console.error("Error deleting user:", error);
     res.status(500).json({ error: "Failed to delete user" });
+  }
+};
+
+/**
+ * Get all attendees/registrants for an event (Admin view)
+ */
+const getEventAttendeesAdmin = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const result = await pool.query(
+      `SELECT 
+        m.id,
+        m.name,
+        m.username,
+        m.profile_photo_url,
+        er.attendance_status,
+        er.registration_status,
+        er.created_at as registered_at
+       FROM event_registrations er
+       JOIN members m ON er.member_id = m.id
+       WHERE er.event_id = $1
+       ORDER BY er.created_at DESC`,
+      [eventId]
+    );
+
+    res.json({
+      success: true,
+      attendees: result.rows,
+    });
+  } catch (error) {
+    console.error("Error getting event attendees for admin:", error);
+    res.status(500).json({ error: "Failed to get event attendees" });
+  }
+};
+
+/**
+ * Get host and attendees for a plan (Admin view)
+ */
+const getPlanMembersAdmin = async (req, res) => {
+  try {
+    const { planId } = req.params;
+
+    // 1. Get Host details
+    const hostRes = await pool.query(
+      `SELECT m.id, m.name, m.username, m.profile_photo_url
+       FROM open_plans op
+       JOIN members m ON op.created_by = m.id
+       WHERE op.id = $1`,
+      [planId]
+    );
+
+    // 2. Get Attendees details
+    const attendeesRes = await pool.query(
+      `SELECT m.id, m.name, m.username, m.profile_photo_url, opr.status, opr.created_at as requested_at
+       FROM open_plan_requests opr
+       JOIN members m ON opr.requester_id = m.id
+       WHERE opr.plan_id = $1 AND opr.status = 'approved'
+       ORDER BY opr.created_at ASC`,
+      [planId]
+    );
+
+    res.json({
+      success: true,
+      host: hostRes.rows[0] || null,
+      attendees: attendeesRes.rows,
+    });
+  } catch (error) {
+    console.error("Error getting plan members for admin:", error);
+    res.status(500).json({ error: "Failed to get plan members" });
+  }
+};
+
+/**
+ * Get circles for a user (Admin view)
+ */
+const getUserCirclesAdmin = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { page = 1, limit = 50 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    const query = `
+      SELECT * FROM (
+        SELECT
+          c.id AS circle_id,
+          c.created_at AS connected_since,
+          m.id AS member_id,
+          m.name,
+          m.username,
+          m.profile_photo_url,
+          m.is_creator_mode_enabled,
+          false AS is_community
+        FROM circles c
+        JOIN members m ON m.id = CASE
+          WHEN c.user_a_id = $1 THEN c.user_b_id
+          ELSE c.user_a_id
+        END
+        WHERE (c.user_a_id = $1 OR c.user_b_id = $1)
+
+        UNION ALL
+
+        SELECT
+          cc.id AS circle_id,
+          cc.created_at AS connected_since,
+          com.id AS member_id,
+          com.name,
+          com.username,
+          com.logo_url AS profile_photo_url,
+          false AS is_creator_mode_enabled,
+          true AS is_community
+        FROM community_member_circles cc
+        JOIN communities com ON com.id = cc.community_id
+        WHERE cc.member_id = $1
+      ) combined
+      ORDER BY connected_since DESC
+      LIMIT $2 OFFSET $3
+    `;
+
+    const result = await pool.query(query, [userId, parseInt(limit), offset]);
+    res.json({ success: true, circles: result.rows });
+  } catch (error) {
+    console.error("Error getting user circles admin:", error);
+    res.status(500).json({ error: "Failed to get user circles" });
   }
 };
 
@@ -1404,7 +1748,7 @@ const getUserPostsAdmin = async (req, res) => {
     const query = `
       SELECT 
         p.id, p.author_id, p.author_type, p.caption, p.image_urls,
-        p.like_count, p.comment_count, p.created_at,
+        p.like_count, p.comment_count, p.created_at, p.post_type, p.type_data, p.video_thumbnail,
         CASE 
           WHEN p.author_type = 'member' THEN m.name
           WHEN p.author_type = 'community' THEN c.name
@@ -2467,6 +2811,7 @@ module.exports = {
   getUserById,
   updateUser,
   deleteUser,
+  getUserCirclesAdmin,
 
   // Post management endpoints
   getAllPosts,
@@ -2488,6 +2833,8 @@ module.exports = {
   getEventStatsAdmin,
   getAllEventsAdmin,
   getEventByIdAdmin,
+  getEventAttendeesAdmin,
+  getPlanMembersAdmin,
   deleteEventAdmin,
   cancelEventAdmin,
 

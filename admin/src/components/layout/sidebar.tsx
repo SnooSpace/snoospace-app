@@ -110,10 +110,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex h-16 items-center border-b px-6">
         <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <span className="text-lg font-bold">S</span>
-          </div>
-          <span className="text-lg font-semibold">SnooSpace</span>
+          <img src="/logo.svg" alt="SnooSpace Logo" className="h-7 w-auto object-contain" />
         </Link>
       </div>
 

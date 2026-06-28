@@ -18,6 +18,10 @@ import {
   ChevronRight,
   Heart,
   MessageCircle,
+  Instagram,
+  CheckCircle2,
+  Award,
+  Network,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -70,13 +74,28 @@ import {
   getPostLikes,
   getPostComments,
   deleteComment,
+  getUserCircles,
+  getUserById,
+  getEventAttendees,
+  getPlanMembers,
   type User,
   type GetUsersParams,
   type FollowUser,
   type Post,
   type PostLike,
   type PostComment,
+  type CircleMember,
+  type EventAttendee,
+  type PlanMember,
 } from "@/lib/api";
+
+const isVideoUrl = (url: string | null | undefined): boolean => {
+  if (!url) return false;
+  return url.toLowerCase().endsWith(".mp4") || 
+         url.toLowerCase().endsWith(".mov") || 
+         url.toLowerCase().endsWith(".webm") || 
+         url.includes("/video/upload/");
+};
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -85,6 +104,11 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [expandedLocation, setExpandedLocation] = useState(false);
+
+  // Circles Modal
+  const [circlesModalOpen, setCirclesModalOpen] = useState(false);
+  const [circlesList, setCirclesList] = useState<CircleMember[]>([]);
+  const [circlesLoading, setCirclesLoading] = useState(false);
 
   // Followers/Following Modal
   const [followModalOpen, setFollowModalOpen] = useState(false);
@@ -102,11 +126,23 @@ export default function UsersPage() {
   // Post Detail Modal (for viewing likes/comments)
   const [postDetailOpen, setPostDetailOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [likes, setLikes] = useState<PostLike[]>([]);
   const [comments, setComments] = useState<PostComment[]>([]);
   const [likesLoading, setLikesLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
+
+  // Event & open Plans details Modals
+  const [eventDetailOpen, setEventDetailOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [planDetailOpen, setPlanDetailOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<any>(null);
+  const [eventAttendees, setEventAttendees] = useState<EventAttendee[]>([]);
+  const [eventAttendeesLoading, setEventAttendeesLoading] = useState(false);
+  const [planHost, setPlanHost] = useState<PlanMember | null>(null);
+  const [planAttendees, setPlanAttendees] = useState<PlanMember[]>([]);
+  const [planMembersLoading, setPlanMembersLoading] = useState(false);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -158,10 +194,43 @@ export default function UsersPage() {
     }
   };
 
-  const handleViewUser = (user: User) => {
-    setSelectedUser(user);
-    setExpandedLocation(false);
-    setIsSheetOpen(true);
+  const handleViewUser = async (user: User) => {
+    setLoading(true);
+    try {
+      const fullUser = await getUserById(user.id, user.type);
+      setSelectedUser(fullUser);
+      setExpandedLocation(false);
+      setIsSheetOpen(true);
+    } catch (err) {
+      console.error("Error fetching full user details:", err);
+      setSelectedUser(user);
+      setExpandedLocation(false);
+      setIsSheetOpen(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNavigateToUserProfile = async (id: number | undefined, type: string | undefined) => {
+    if (!id || !type) return;
+
+    // Close open modals
+    setFollowModalOpen(false);
+    setCirclesModalOpen(false);
+    setPostsModalOpen(false);
+    setPostDetailOpen(false);
+
+    setLoading(true);
+    try {
+      const user = await getUserById(id, type as "member" | "community");
+      setSelectedUser(user);
+      setExpandedLocation(false);
+      setIsSheetOpen(true);
+    } catch (err) {
+      console.error("Error navigating to user profile:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleShowFollowList = async (type: "followers" | "following") => {
@@ -184,6 +253,23 @@ export default function UsersPage() {
       console.error(`Error fetching ${type}:`, err);
     } finally {
       setFollowLoading(false);
+    }
+  };
+
+  const handleShowCirclesList = async () => {
+    if (!selectedUser) return;
+
+    setCirclesModalOpen(true);
+    setCirclesLoading(true);
+    setCirclesList([]);
+
+    try {
+      const data = await getUserCircles(selectedUser.id);
+      setCirclesList(data);
+    } catch (err) {
+      console.error("Error fetching circles:", err);
+    } finally {
+      setCirclesLoading(false);
     }
   };
 
@@ -224,10 +310,43 @@ export default function UsersPage() {
 
   const handleViewPostDetail = (post: Post) => {
     setSelectedPost(post);
+    setCurrentImageIndex(0);
     setActiveTab("details");
     setLikes([]);
     setComments([]);
     setPostDetailOpen(true);
+  };
+
+  const handleViewEventDetail = async (event: any) => {
+    setSelectedEvent(event);
+    setEventDetailOpen(true);
+    setEventAttendees([]);
+    setEventAttendeesLoading(true);
+    try {
+      const attendees = await getEventAttendees(event.id);
+      setEventAttendees(attendees || []);
+    } catch (err) {
+      console.error("Failed to load event attendees:", err);
+    } finally {
+      setEventAttendeesLoading(false);
+    }
+  };
+
+  const handleViewPlanDetail = async (plan: any) => {
+    setSelectedPlan(plan);
+    setPlanDetailOpen(true);
+    setPlanHost(null);
+    setPlanAttendees([]);
+    setPlanMembersLoading(true);
+    try {
+      const data = await getPlanMembers(plan.id);
+      setPlanHost(data.host);
+      setPlanAttendees(data.attendees || []);
+    } catch (err) {
+      console.error("Failed to load plan members:", err);
+    } finally {
+      setPlanMembersLoading(false);
+    }
   };
 
   const loadLikes = async (postId: number) => {
@@ -332,8 +451,11 @@ export default function UsersPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "N/A";
+    return date.toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -485,7 +607,11 @@ export default function UsersPage() {
               </TableHeader>
               <TableBody>
                 {users.map((user) => (
-                  <TableRow key={`${user.type}-${user.id}`}>
+                  <TableRow 
+                    key={`${user.type}-${user.id}`}
+                    onClick={() => handleViewUser(user)}
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  >
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">
@@ -497,7 +623,22 @@ export default function UsersPage() {
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="font-medium">{user.name}</div>
+                          <div className="flex items-center gap-1.5 font-medium">
+                            <span>{user.name}</span>
+                            {user.type === "member" && user.is_verified && (
+                              <span title="Verified Member">
+                                <CheckCircle2 className="h-4 w-4 text-blue-500 fill-blue-500/10" />
+                              </span>
+                            )}
+                            {user.type === "community" && user.verification_status === "approved" && (
+                              <span title="Approved Community">
+                                <CheckCircle2 className="h-4 w-4 text-green-500 fill-green-500/10" />
+                              </span>
+                            )}
+                            {user.type === "community" && user.verification_status === "pending" && (
+                              <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" title="Verification Pending" />
+                            )}
+                          </div>
                           <div className="text-sm text-muted-foreground">
                             @{user.username}
                           </div>
@@ -505,18 +646,26 @@ export default function UsersPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant={
-                          user.type === "member" ? "default" : "secondary"
-                        }
-                      >
-                        {user.type === "member" ? (
-                          <UserIcon className="mr-1 h-3 w-3" />
-                        ) : (
-                          <Building2 className="mr-1 h-3 w-3" />
+                      <div className="flex flex-col gap-1 items-start">
+                        <Badge
+                          variant={
+                            user.type === "member" ? "default" : "secondary"
+                          }
+                        >
+                          {user.type === "member" ? (
+                            <UserIcon className="mr-1 h-3 w-3" />
+                          ) : (
+                            <Building2 className="mr-1 h-3 w-3" />
+                          )}
+                          {user.type === "member" ? "Member" : "Community"}
+                        </Badge>
+                        {user.type === "member" && user.is_creator_mode_enabled && (
+                          <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">
+                            <Award className="mr-1 h-3 w-3" />
+                            Creator
+                          </Badge>
                         )}
-                        {user.type === "member" ? "Member" : "Community"}
-                      </Badge>
+                      </div>
                     </TableCell>
                     <TableCell>
                       {user.location ? (
@@ -550,7 +699,10 @@ export default function UsersPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleToggleBan(user)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleBan(user);
+                          }}
                           title={user.is_active ? "Ban User" : "Unban User"}
                           className={
                             user.is_active
@@ -563,7 +715,10 @@ export default function UsersPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(user)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(user);
+                          }}
                           className="text-destructive hover:text-destructive"
                           title="Delete User"
                         >
@@ -624,7 +779,19 @@ export default function UsersPage() {
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <SheetTitle>{selectedUser.name}</SheetTitle>
+                    <div className="flex items-center gap-1.5">
+                      <SheetTitle>{selectedUser.name}</SheetTitle>
+                      {selectedUser.type === "member" && selectedUser.is_verified && (
+                        <span title="Verified Member">
+                          <CheckCircle2 className="h-5 w-5 text-blue-500 fill-blue-500/10" />
+                        </span>
+                      )}
+                      {selectedUser.type === "community" && selectedUser.verification_status === "approved" && (
+                        <span title="Approved Community">
+                          <CheckCircle2 className="h-5 w-5 text-green-500 fill-green-500/10" />
+                        </span>
+                      )}
+                    </div>
                     <SheetDescription>
                       @{selectedUser.username}
                     </SheetDescription>
@@ -634,7 +801,7 @@ export default function UsersPage() {
 
               <div className="mt-8 space-y-8">
                 {/* Status & Type */}
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Badge
                     variant={
                       selectedUser.type === "member" ? "default" : "secondary"
@@ -642,11 +809,31 @@ export default function UsersPage() {
                   >
                     {selectedUser.type === "member" ? "Member" : "Community"}
                   </Badge>
+                  {selectedUser.type === "member" && selectedUser.is_creator_mode_enabled && (
+                    <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">
+                      <Award className="mr-1 h-3 w-3" />
+                      Creator Mode Enabled
+                    </Badge>
+                  )}
                   <Badge
                     variant={selectedUser.is_active ? "default" : "destructive"}
                   >
                     {selectedUser.is_active ? "Active" : "Banned"}
                   </Badge>
+                  {selectedUser.type === "community" && (
+                    <Badge
+                      variant={
+                        selectedUser.verification_status === "approved" ? "default" :
+                        selectedUser.verification_status === "pending" ? "secondary" : "destructive"
+                      }
+                      className={
+                        selectedUser.verification_status === "approved" ? "bg-green-600 hover:bg-green-600 text-white" :
+                        selectedUser.verification_status === "pending" ? "bg-amber-500 hover:bg-amber-500 text-white animate-pulse" : ""
+                      }
+                    >
+                      Verification: {selectedUser.verification_status || "Not Requested"}
+                    </Badge>
+                  )}
                 </div>
 
                 {/* Contact Info */}
@@ -671,6 +858,19 @@ export default function UsersPage() {
                         <Phone className="h-4 w-4" />
                         <span>{selectedUser.secondary_phone}</span>
                         <span className="text-xs">Secondary</span>
+                      </div>
+                    )}
+                    {selectedUser.instagram_username && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Instagram className="h-4 w-4 text-pink-600" />
+                        <a
+                          href={`https://instagram.com/${selectedUser.instagram_username}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline font-medium"
+                        >
+                          @{selectedUser.instagram_username}
+                        </a>
                       </div>
                     )}
                     {selectedUser.location && (
@@ -702,6 +902,12 @@ export default function UsersPage() {
                       <Calendar className="h-4 w-4" />
                       Joined {formatDate(selectedUser.created_at)}
                     </div>
+                    {selectedUser.is_verified && selectedUser.verified_at && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <CheckCircle2 className="h-4 w-4 text-blue-500" />
+                        Verified on {formatDate(selectedUser.verified_at)}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -732,11 +938,144 @@ export default function UsersPage() {
                   </div>
                 )}
 
+                {/* Demographics (Members only) */}
+                {selectedUser.type === "member" && (selectedUser.gender || selectedUser.dob) && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold">Demographics</h4>
+                    <div className="space-y-2 text-sm">
+                      {selectedUser.gender && (
+                        <div>
+                          <span className="text-muted-foreground">Gender: </span>
+                          <span className="font-medium">{selectedUser.gender}</span>
+                        </div>
+                      )}
+                      {selectedUser.dob && (
+                        <div>
+                          <span className="text-muted-foreground">Date of Birth: </span>
+                          <span className="font-medium">
+                            {formatDate(selectedUser.dob)}
+                            {(() => {
+                              const age = Math.floor(
+                                (new Date().getTime() - new Date(selectedUser.dob).getTime()) /
+                                (365.25 * 24 * 60 * 60 * 1000)
+                              );
+                              return age > 0 ? ` (${age} years old)` : "";
+                            })()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Professional & Educational Info (Members Only) */}
+                {selectedUser.type === "member" && (selectedUser.occupation || selectedUser.education || selectedUser.college_name) && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold">Affiliation & Occupation</h4>
+                    <div className="space-y-2 text-sm">
+                      {selectedUser.occupation && (
+                        <div>
+                          <span className="text-muted-foreground">Occupation: </span>
+                          <span className="font-medium">{selectedUser.occupation}</span>
+                        </div>
+                      )}
+                      {selectedUser.education && (
+                        <div>
+                          <span className="text-muted-foreground">Education: </span>
+                          <span className="font-medium">{selectedUser.education}</span>
+                        </div>
+                      )}
+                      {selectedUser.college_name && (
+                        <div>
+                          <span className="text-muted-foreground">College: </span>
+                          <span className="font-medium">{selectedUser.college_name}</span>
+                          {selectedUser.campus_name && (
+                            <span className="text-xs text-muted-foreground"> ({selectedUser.campus_name} Campus)</span>
+                          )}
+                          {selectedUser.passout_year && (
+                            <span className="text-xs text-muted-foreground"> • Class of {selectedUser.passout_year}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Creator Details (Members Only) */}
+                {selectedUser.type === "member" && selectedUser.is_creator_mode_enabled && selectedUser.creator_mode_enabled_at && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold">Creator Mode Details</h4>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Enabled: </span>
+                        <span className="font-medium">{formatDate(selectedUser.creator_mode_enabled_at)}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Creator Followers: </span>
+                        <span className="font-medium">{selectedUser.creator_follower_count || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Category (Communities only) */}
                 {selectedUser.type === "community" && selectedUser.category && (
                   <div className="space-y-2">
                     <h4 className="font-semibold">Category</h4>
                     <Badge variant="secondary">{selectedUser.category}</Badge>
+                  </div>
+                )}
+
+                {/* Community Type & Settings (Communities Only) */}
+                {selectedUser.type === "community" && (
+                  <div className="space-y-3">
+                    <h4 className="font-semibold">Community Settings & Subtypes</h4>
+                    <div className="space-y-2 text-sm">
+                      {selectedUser.community_type && (
+                        <div>
+                          <span className="text-muted-foreground">Community Type: </span>
+                          <span className="font-medium capitalize">{selectedUser.community_type.replace(/_/g, ' ')}</span>
+                        </div>
+                      )}
+                      {selectedUser.college_subtype && (
+                        <div>
+                          <span className="text-muted-foreground">College Subtype: </span>
+                          <span className="font-medium capitalize">{selectedUser.college_subtype}</span>
+                        </div>
+                      )}
+                      {selectedUser.club_type && (
+                        <div>
+                          <span className="text-muted-foreground">Club Type: </span>
+                          <span className="font-medium capitalize">{selectedUser.club_type.replace(/_/g, ' ')}</span>
+                        </div>
+                      )}
+                      {selectedUser.community_theme && (
+                        <div>
+                          <span className="text-muted-foreground">Theme: </span>
+                          <span className="font-medium">{selectedUser.community_theme}</span>
+                        </div>
+                      )}
+                      {selectedUser.college_name && (
+                        <div>
+                          <span className="text-muted-foreground">Affiliated College: </span>
+                          <span className="font-medium">{selectedUser.college_name}</span>
+                          {selectedUser.campus_name && (
+                            <span className="text-xs text-muted-foreground"> ({selectedUser.campus_name} Campus)</span>
+                          )}
+                        </div>
+                      )}
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        <Badge variant="outline" className={selectedUser.auto_join_group_chat ? "text-green-600 bg-green-50" : "text-muted-foreground"}>
+                          Auto-Join Group Chat: {selectedUser.auto_join_group_chat ? "Yes" : "No"}
+                        </Badge>
+                        <Badge variant="outline" className={selectedUser.is_sponsor_visible ? "text-green-600 bg-green-50" : "text-muted-foreground"}>
+                          Sponsor Visible: {selectedUser.is_sponsor_visible ? "Yes" : "No"}
+                        </Badge>
+                        <Badge variant="outline" className={selectedUser.show_heads ? "text-green-600 bg-green-50" : "text-muted-foreground"}>
+                          Show Heads: {selectedUser.show_heads ? "Yes" : "No"}
+                        </Badge>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -810,35 +1149,289 @@ export default function UsersPage() {
                     </div>
                   )}
 
+                {/* AQI Signals (Members only) */}
+                {selectedUser.type === "member" && selectedUser.aqi && (
+                  <div className="space-y-4 pt-4 border-t">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-sm flex items-center gap-1.5">
+                        <span>Audience Quality Index (AQI)</span>
+                        {selectedUser.aqi.fraud_flag && (
+                          <Badge variant="destructive" className="animate-pulse">⚠️ FRAUD FLAGGED</Badge>
+                        )}
+                      </h4>
+                      <Badge variant="outline" className="font-mono text-xs">
+                        Tier {selectedUser.aqi.aqi_tier || "N/A"}
+                      </Badge>
+                    </div>
+
+                    {/* Score Highlight Box */}
+                    <div className="grid grid-cols-3 gap-2 p-3 bg-muted/40 rounded-lg border text-center">
+                      <div className="space-y-0.5">
+                        <div className="text-[10px] text-muted-foreground uppercase font-semibold">AQI Score</div>
+                        <div className="text-xl font-bold font-mono text-primary">
+                          {selectedUser.aqi.aqi_score ? parseFloat(selectedUser.aqi.aqi_score).toFixed(2) : "0.00"}
+                        </div>
+                      </div>
+                      <div className="space-y-0.5 border-x">
+                        <div className="text-[10px] text-muted-foreground uppercase font-semibold">Trajectory</div>
+                        <div className="text-sm font-semibold capitalize flex items-center justify-center gap-1">
+                          {selectedUser.aqi.aqi_trajectory === 'rising' ? '📈' : 
+                           selectedUser.aqi.aqi_trajectory === 'falling' ? '📉' : '➡️'}
+                          <span className="font-mono">{selectedUser.aqi.aqi_trajectory || "stable"}</span>
+                        </div>
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="text-[10px] text-muted-foreground uppercase font-semibold">App Actions</div>
+                        <div className="text-sm font-bold font-mono">
+                          {selectedUser.aqi.total_behavior_events || 0}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Fraud Details if flagged */}
+                    {selectedUser.aqi.fraud_flag && selectedUser.aqi.fraud_reason && (
+                      <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs space-y-1">
+                        <div className="font-bold flex items-center gap-1">🛑 Fraud Reason:</div>
+                        <p>{selectedUser.aqi.fraud_reason}</p>
+                      </div>
+                    )}
+
+                    {/* Grid of Sub-signals */}
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      {/* Left Column */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between border-b pb-1">
+                          <span className="text-muted-foreground">RSVPs:</span>
+                          <span className="font-mono font-medium">{selectedUser.aqi.total_rsvps || 0}</span>
+                        </div>
+                        <div className="flex justify-between border-b pb-1">
+                          <span className="text-muted-foreground">Attended:</span>
+                          <span className="font-mono font-medium">{selectedUser.aqi.total_attended || 0}</span>
+                        </div>
+                        <div className="flex justify-between border-b pb-1">
+                          <span className="text-muted-foreground">RSVP/Attend Ratio:</span>
+                          <span className="font-mono font-medium">
+                            {selectedUser.aqi.rsvp_to_attend_ratio 
+                              ? `${(parseFloat(selectedUser.aqi.rsvp_to_attend_ratio) * 100).toFixed(0)}%` 
+                              : "0%"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between border-b pb-1">
+                          <span className="text-muted-foreground">Paid Attended:</span>
+                          <span className="font-mono font-medium">{selectedUser.aqi.paid_events_attended || 0}</span>
+                        </div>
+                        <div className="flex justify-between border-b pb-1">
+                          <span className="text-muted-foreground">Free Attended:</span>
+                          <span className="font-mono font-medium">{selectedUser.aqi.free_events_attended || 0}</span>
+                        </div>
+                      </div>
+
+                      {/* Right Column */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between border-b pb-1">
+                          <span className="text-muted-foreground">Events Hosted:</span>
+                          <span className="font-mono font-medium">{selectedUser.aqi.events_hosted || 0}</span>
+                        </div>
+                        <div className="flex justify-between border-b pb-1">
+                          <span className="text-muted-foreground">Content Depth:</span>
+                          <span className="font-mono font-medium">
+                            {selectedUser.aqi.content_depth_score ? parseFloat(selectedUser.aqi.content_depth_score).toFixed(1) : "0.0"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between border-b pb-1">
+                          <span className="text-muted-foreground">Search Sophist.:</span>
+                          <span className="font-mono font-medium">
+                            {selectedUser.aqi.search_sophistication_score ? parseFloat(selectedUser.aqi.search_sophistication_score).toFixed(1) : "0.0"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between border-b pb-1">
+                          <span className="text-muted-foreground">Network Avg:</span>
+                          <span className="font-mono font-medium">
+                            {selectedUser.aqi.network_quality_avg ? parseFloat(selectedUser.aqi.network_quality_avg).toFixed(1) : "0.0"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between border-b pb-1">
+                          <span className="text-muted-foreground">Professional Hrs:</span>
+                          <span className="font-mono font-medium">
+                            {selectedUser.aqi.professional_hours_ratio 
+                              ? `${(parseFloat(selectedUser.aqi.professional_hours_ratio) * 100).toFixed(0)}%` 
+                              : "0%"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between text-[10px] text-muted-foreground pt-1">
+                      <span>Last active: {formatDate(selectedUser.aqi.last_active_at)}</span>
+                      <span>Updated: {formatDate(selectedUser.aqi.last_calculated_at)}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Events & Plans (Members only) */}
+                {selectedUser.type === "member" && (
+                  <div className="space-y-6 pt-4 border-t">
+                    {/* Events Attended */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold flex items-center justify-between">
+                        <span>Events Attended & RSVPs</span>
+                        <Badge variant="outline">{selectedUser.events_attended?.length || 0}</Badge>
+                      </h4>
+                      {selectedUser.events_attended && selectedUser.events_attended.length > 0 ? (
+                        <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                          {selectedUser.events_attended.map((event) => {
+                            const statusLabel = event.attendance_status === 'registered' ? 'Registered' : 
+                                                event.attendance_status ? event.attendance_status.replace(/_/g, ' ') :
+                                                event.registration_status ? event.registration_status.replace(/_/g, ' ') : 
+                                                'Registered';
+                            return (
+                              <div 
+                                key={event.id} 
+                                className="flex gap-3 p-2 rounded-lg bg-muted/30 border items-center cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => handleViewEventDetail(event)}
+                              >
+                                {event.banner_url ? (
+                                  <img src={event.banner_url} alt={event.title} className="h-10 w-16 object-cover rounded" />
+                                ) : (
+                                  <div className="h-10 w-16 bg-muted flex items-center justify-center text-xs text-muted-foreground rounded">No cover</div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-xs truncate">{event.title}</div>
+                                  <div className="text-[10px] text-muted-foreground truncate">
+                                    {formatDate(event.start_datetime)} {event.city ? `• ${event.city}` : ''}
+                                  </div>
+                                </div>
+                                <Badge variant="secondary" className="text-[10px] capitalize">{statusLabel}</Badge>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">No events registered or attended yet</p>
+                      )}
+                    </div>
+
+                    {/* Open Plans Hosted */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold flex items-center justify-between">
+                        <span>Open Plans Hosted</span>
+                        <Badge variant="outline">{selectedUser.plans_hosted?.length || 0}</Badge>
+                      </h4>
+                      {selectedUser.plans_hosted && selectedUser.plans_hosted.length > 0 ? (
+                        <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                          {selectedUser.plans_hosted.map((plan) => {
+                            const statusBadgeColor = plan.status === 'active' ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-50' :
+                                                     plan.status === 'completed' ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50' :
+                                                     'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-50';
+                            return (
+                              <div 
+                                key={plan.id} 
+                                className="p-2.5 rounded-lg bg-muted/30 border text-xs space-y-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => handleViewPlanDetail(plan)}
+                              >
+                                <div className="flex justify-between items-start gap-2">
+                                  <span className="font-semibold truncate">{plan.title}</span>
+                                  <Badge variant="secondary" className="capitalize text-[10px]">{plan.activity_type.replace(/_/g, ' ')}</Badge>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px] text-muted-foreground">
+                                  <span>{formatDate(plan.scheduled_at)}</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="capitalize">{plan.visibility.replace(/_/g, ' ')} • Max {plan.max_accepted}</span>
+                                    <Badge variant="outline" className={`text-[9px] uppercase font-semibold px-1 py-0 ${statusBadgeColor}`}>{plan.status}</Badge>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">No open plans hosted yet</p>
+                      )}
+                    </div>
+
+                    {/* Open Plans Attended */}
+                    <div className="space-y-3">
+                      <h4 className="font-semibold flex items-center justify-between">
+                        <span>Open Plans Attended</span>
+                        <Badge variant="outline">{selectedUser.plans_attended?.length || 0}</Badge>
+                      </h4>
+                      {selectedUser.plans_attended && selectedUser.plans_attended.length > 0 ? (
+                        <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                          {selectedUser.plans_attended.map((plan) => {
+                            const statusBadgeColor = plan.status === 'active' ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-50' :
+                                                     plan.status === 'completed' ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-50' :
+                                                     'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-50';
+                            return (
+                              <div 
+                                key={plan.id} 
+                                className="p-2.5 rounded-lg bg-muted/30 border text-xs space-y-1.5 cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => handleViewPlanDetail(plan)}
+                              >
+                                <div className="flex justify-between items-start gap-2">
+                                  <span className="font-semibold truncate">{plan.title}</span>
+                                  <Badge variant="secondary" className="capitalize text-[10px]">{plan.activity_type.replace(/_/g, ' ')}</Badge>
+                                </div>
+                                <div className="flex justify-between items-center text-[10px] text-muted-foreground">
+                                  <span>{formatDate(plan.scheduled_at)}</span>
+                                  <Badge variant="outline" className={`text-[9px] uppercase font-semibold px-1 py-0 ${statusBadgeColor}`}>{plan.status}</Badge>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">No open plans attended yet</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Stats */}
                 <div className="space-y-2">
                   <h4 className="font-semibold">Stats</h4>
-                  <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className={`grid ${selectedUser.type === "member" ? "grid-cols-4" : "grid-cols-2"} gap-2 text-center`}>
+                    {selectedUser.type === "member" && (
+                      <button
+                        onClick={handleShowCirclesList}
+                        className="hover:bg-muted/50 rounded-lg p-2 transition-colors cursor-pointer border bg-card"
+                      >
+                        <div className="text-2xl font-bold">
+                          {selectedUser.circle_count || 0}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Circles
+                        </div>
+                      </button>
+                    )}
                     <button
                       onClick={() => handleShowFollowList("followers")}
-                      className="hover:bg-muted/50 rounded-lg p-2 transition-colors cursor-pointer"
+                      className="hover:bg-muted/50 rounded-lg p-2 transition-colors cursor-pointer border bg-card"
                     >
                       <div className="text-2xl font-bold">
-                        {selectedUser.follower_count || 0}
+                        {selectedUser.type === "member" && selectedUser.is_creator_mode_enabled
+                          ? selectedUser.creator_follower_count || 0
+                          : selectedUser.follower_count || 0}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         Followers
                       </div>
                     </button>
-                    <button
-                      onClick={() => handleShowFollowList("following")}
-                      className="hover:bg-muted/50 rounded-lg p-2 transition-colors cursor-pointer"
-                    >
-                      <div className="text-2xl font-bold">
-                        {selectedUser.following_count || 0}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Following
-                      </div>
-                    </button>
+                    {selectedUser.type === "member" && (
+                      <button
+                        onClick={() => handleShowFollowList("following")}
+                        className="hover:bg-muted/50 rounded-lg p-2 transition-colors cursor-pointer border bg-card"
+                      >
+                        <div className="text-2xl font-bold">
+                          {selectedUser.following_count || 0}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Following
+                        </div>
+                      </button>
+                    )}
                     <button
                       onClick={handleShowUserPosts}
-                      className="hover:bg-muted/50 rounded-lg p-2 transition-colors cursor-pointer"
+                      className="hover:bg-muted/50 rounded-lg p-2 transition-colors cursor-pointer border bg-card"
                     >
                       <div className="text-2xl font-bold">
                         {selectedUser.post_count || 0}
@@ -912,8 +1505,9 @@ export default function UsersPage() {
 
                   return (
                     <div
-                      key={item.id}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50"
+                      key={item.id || `${item.follower_id || item.following_id}-${item.follower_type || item.following_type}`}
+                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer"
+                      onClick={() => handleNavigateToUserProfile(item.follower_id || item.following_id, item.follower_type || item.following_type)}
                     >
                       <Avatar className="h-10 w-10">
                         <AvatarImage src={photoUrl || undefined} />
@@ -952,6 +1546,66 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Circles Modal */}
+      <Dialog open={circlesModalOpen} onOpenChange={setCirclesModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Circles</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[400px] overflow-y-auto">
+            {circlesLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : circlesList.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No connections in circle yet
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {circlesList.map((item) => (
+                  <div
+                    key={`${item.is_community ? "com" : "mem"}-${item.member_id}`}
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 cursor-pointer"
+                    onClick={() => handleNavigateToUserProfile(item.member_id, item.is_community ? 'community' : 'member')}
+                  >
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={item.profile_photo_url || undefined} />
+                      <AvatarFallback>
+                        {item.name
+                          ?.split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()
+                          .slice(0, 2) || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate flex items-center gap-1">
+                        <span>{item.name || "Unknown"}</span>
+                        {item.is_creator_mode_enabled && (
+                          <span title="Creator">
+                            <Award className="h-3.5 w-3.5 text-purple-600" />
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        @{item.username || "unknown"}
+                      </div>
+                    </div>
+                    <Badge
+                      variant={item.is_community ? "secondary" : "default"}
+                    >
+                      {item.is_community ? "Community" : "Member"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* User Posts Modal */}
       <Dialog open={postsModalOpen} onOpenChange={setPostsModalOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -976,14 +1630,40 @@ export default function UsersPage() {
                     onClick={() => handleViewPostDetail(post)}
                   >
                     {post.image_urls && post.image_urls.length > 0 ? (
-                      <img
-                        src={post.image_urls[0]}
-                        alt={post.caption || "Post"}
-                        className="w-full h-full object-cover"
-                      />
+                      isVideoUrl(post.image_urls[0]) ? (
+                        <div className="w-full h-full relative bg-black">
+                          {post.video_thumbnail ? (
+                            <img src={post.video_thumbnail} alt="Video thumbnail" className="w-full h-full object-cover" />
+                          ) : (
+                            <video src={post.image_urls[0]} className="w-full h-full object-cover" muted />
+                          )}
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                            <span className="text-white text-lg">▶️</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <img
+                          src={post.image_urls[0]}
+                          alt={post.caption || "Post"}
+                          className="w-full h-full object-cover"
+                        />
+                      )
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                        No image
+                      <div className="w-full h-full flex flex-col justify-between p-3 bg-muted text-card-foreground text-xs text-center font-medium overflow-hidden border">
+                        <div className="text-[9px] uppercase tracking-wider text-muted-foreground text-left font-semibold">
+                          {post.post_type ? post.post_type.replace(/_/g, ' ') : 'Post'}
+                        </div>
+                        <div className="line-clamp-4 text-center my-auto px-1 leading-snug font-normal text-muted-foreground">
+                          {post.post_type === 'poll' && post.type_data?.question ? post.type_data.question :
+                           post.post_type === 'prompt' && post.type_data?.prompt_text ? post.type_data.prompt_text :
+                           post.post_type === 'challenge' && post.type_data?.title ? post.type_data.title :
+                           post.post_type === 'qna' && post.type_data?.title ? post.type_data.title :
+                           post.post_type === 'opportunity' && post.type_data?.title ? post.type_data.title :
+                           post.caption || "No text content"}
+                        </div>
+                        <div className="text-[9px] text-muted-foreground text-right font-normal">
+                          {post.like_count || 0} ❤️ • {post.comment_count || 0} 💬
+                        </div>
                       </div>
                     )}
                     {/* Hover overlay with stats */}
@@ -1049,23 +1729,178 @@ export default function UsersPage() {
 
               {/* Details Tab */}
               <TabsContent value="details" className="space-y-4">
+                {/* Community Voice Box Anonymous Badge */}
+                {selectedPost.post_type === 'community_voice' && (
+                  <div className="flex justify-between items-center bg-rose-50 border border-rose-100 rounded-lg p-3">
+                    <span className="text-xs font-semibold text-rose-700 uppercase tracking-wider">🗣️ Community Voice Box</span>
+                    <Badge variant="outline" className="text-rose-600 border-rose-200 bg-white text-[10px]">
+                      {selectedPost.type_data?.is_anonymous ? "Anonymous Submission" : "Public Submission"}
+                    </Badge>
+                  </div>
+                )}
+
+                {/* Media rendering (Video or Image) */}
                 {selectedPost.image_urls &&
                   selectedPost.image_urls.length > 0 && (
-                    <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
-                      <img
-                        src={selectedPost.image_urls[0]}
-                        alt={selectedPost.caption || "Post"}
-                        className="w-full h-full object-cover"
-                      />
+                    <div className="relative aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center border group">
+                      {isVideoUrl(selectedPost.image_urls[currentImageIndex]) ? (
+                        <video
+                          src={selectedPost.image_urls[currentImageIndex]}
+                          controls
+                          className="w-full h-full object-contain max-h-[400px]"
+                          poster={selectedPost.video_thumbnail || undefined}
+                          key={currentImageIndex}
+                        />
+                      ) : (
+                        <img
+                          src={selectedPost.image_urls[currentImageIndex]}
+                          alt={selectedPost.caption || "Post"}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+
+                      {/* Navigation buttons */}
                       {selectedPost.image_urls.length > 1 && (
-                        <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
-                          1 / {selectedPost.image_urls.length}
-                        </div>
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : selectedPost.image_urls.length - 1));
+                            }}
+                            className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1.5 transition-colors cursor-pointer"
+                          >
+                            <ChevronLeft className="h-5 w-5" strokeWidth={2.5} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCurrentImageIndex((prev) => (prev < selectedPost.image_urls.length - 1 ? prev + 1 : 0));
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1.5 transition-colors cursor-pointer"
+                          >
+                            <ChevronRight className="h-5 w-5" strokeWidth={2.5} />
+                          </button>
+                          <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded font-medium">
+                            {currentImageIndex + 1} / {selectedPost.image_urls.length}
+                          </div>
+                        </>
                       )}
                     </div>
                   )}
+                
                 {selectedPost.caption && (
-                  <p className="text-sm">{selectedPost.caption}</p>
+                  <div className="p-3 rounded-lg bg-muted/35 border text-sm leading-relaxed whitespace-pre-wrap">
+                    {selectedPost.caption}
+                  </div>
+                )}
+
+                {/* Poll Details */}
+                {selectedPost.post_type === 'poll' && selectedPost.type_data && (
+                  <div className="space-y-3 p-4 rounded-lg border bg-muted/20">
+                    <div className="font-semibold text-sm flex items-center gap-1.5">
+                      <span>📊 Poll:</span>
+                      <span>{selectedPost.type_data.question}</span>
+                    </div>
+                    <div className="space-y-2.5">
+                      {(selectedPost.type_data.options || []).map((opt: any, i: number) => {
+                        const totalVotes = selectedPost.type_data.total_votes || 0;
+                        const percentage = totalVotes > 0 
+                          ? Math.round((opt.vote_count || 0) / totalVotes * 100) 
+                          : 0;
+                        return (
+                          <div key={i} className="space-y-1">
+                            <div className="flex justify-between text-xs font-medium">
+                              <span>{opt.text}</span>
+                              <span className="text-muted-foreground">{opt.vote_count || 0} votes ({percentage}%)</span>
+                            </div>
+                            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                              <div className="h-full bg-primary transition-all duration-500" style={{ width: `${percentage}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="text-xs text-muted-foreground pt-1 border-t">
+                      Total votes: {selectedPost.type_data.total_votes || 0}
+                    </div>
+                  </div>
+                )}
+
+                {/* Prompt Details */}
+                {selectedPost.post_type === 'prompt' && selectedPost.type_data && (
+                  <div className="space-y-3 p-4 rounded-lg border bg-muted/20">
+                    <div className="font-semibold text-sm flex items-center gap-1.5">
+                      <span>📝 Prompt:</span>
+                      <span>{selectedPost.type_data.prompt_text}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="secondary">Submission: {selectedPost.type_data.submission_type}</Badge>
+                      <Badge variant="outline">{selectedPost.type_data.submission_count || 0} submissions</Badge>
+                      {selectedPost.type_data.max_length && (
+                        <Badge variant="outline">Max length: {selectedPost.type_data.max_length} chars</Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Challenge Details */}
+                {selectedPost.post_type === 'challenge' && selectedPost.type_data && (
+                  <div className="space-y-3 p-4 rounded-lg border bg-muted/20">
+                    <div className="font-semibold text-sm flex items-center gap-1.5">
+                      <span>🏆 Challenge:</span>
+                      <span>{selectedPost.type_data.title}</span>
+                    </div>
+                    {selectedPost.type_data.description && (
+                      <p className="text-xs text-muted-foreground leading-relaxed">{selectedPost.type_data.description}</p>
+                    )}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Badge variant="secondary">Goal: {selectedPost.type_data.target_count || 1} {selectedPost.type_data.submission_type || 'proof'}s</Badge>
+                      <Badge variant="outline">{selectedPost.type_data.participant_count || 0} participants</Badge>
+                      <Badge variant="outline">{selectedPost.type_data.submission_count || 0} submissions</Badge>
+                    </div>
+                  </div>
+                )}
+
+                {/* Q&A Details */}
+                {selectedPost.post_type === 'qna' && selectedPost.type_data && (
+                  <div className="space-y-3 p-4 rounded-lg border bg-muted/20">
+                    <div className="font-semibold text-sm flex items-center gap-1.5">
+                      <span>💬 Q&A:</span>
+                      <span>{selectedPost.type_data.title}</span>
+                    </div>
+                    {selectedPost.type_data.description && (
+                      <p className="text-xs text-muted-foreground leading-relaxed">{selectedPost.type_data.description}</p>
+                    )}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Badge variant="secondary">{selectedPost.type_data.question_count || 0} questions</Badge>
+                      <Badge variant="outline">{selectedPost.type_data.answered_count || 0} answered</Badge>
+                      <Badge variant="outline">{selectedPost.type_data.allow_anonymous ? "Anonymous Allowed" : "Public Only"}</Badge>
+                    </div>
+                  </div>
+                )}
+
+                {/* Opportunity Details */}
+                {selectedPost.post_type === 'opportunity' && selectedPost.type_data && (
+                  <div className="space-y-3 p-4 rounded-lg border bg-muted/20">
+                    <div className="font-semibold text-sm flex items-center gap-1.5 text-primary">
+                      <span>💼 Opportunity:</span>
+                      <span>{selectedPost.type_data.title}</span>
+                    </div>
+                    {selectedPost.type_data.description && (
+                      <p className="text-xs text-muted-foreground leading-relaxed">{selectedPost.type_data.description}</p>
+                    )}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <Badge variant="secondary">Type: {selectedPost.type_data.work_mode || 'Remote'}</Badge>
+                      {selectedPost.type_data.budget_range && (
+                        <Badge variant="outline">Budget: {selectedPost.type_data.budget_range}</Badge>
+                      )}
+                      {selectedPost.type_data.experience_level && (
+                        <Badge variant="outline">Exp: {selectedPost.type_data.experience_level}</Badge>
+                      )}
+                    </div>
+                  </div>
                 )}
                 <div className="flex gap-4 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1">
@@ -1186,6 +2021,237 @@ export default function UsersPage() {
                 )}
               </TabsContent>
             </Tabs>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Event Detail Modal */}
+      <Dialog open={eventDetailOpen} onOpenChange={setEventDetailOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Event Details</DialogTitle>
+          </DialogHeader>
+          {selectedEvent && (
+            <div className="space-y-4">
+              {selectedEvent.banner_url && (
+                <div className="relative aspect-video rounded-lg overflow-hidden bg-muted border">
+                  <img src={selectedEvent.banner_url} alt={selectedEvent.title} className="w-full h-full object-cover" />
+                </div>
+              )}
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-primary">{selectedEvent.title}</h3>
+                {selectedEvent.description && (
+                  <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap bg-muted/30 p-3 rounded-lg border">{selectedEvent.description}</p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs border-t pt-3">
+                <div className="space-y-1">
+                  <div className="text-muted-foreground font-medium">Date & Time</div>
+                  <div className="font-semibold">{formatDate(selectedEvent.start_datetime)}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-muted-foreground font-medium">Location</div>
+                  <div className="font-semibold">{selectedEvent.venue_name || selectedEvent.location_name || "N/A"}</div>
+                  {selectedEvent.address_line1 && <div className="text-[10px] text-muted-foreground">{selectedEvent.address_line1}, {selectedEvent.city || ""}</div>}
+                </div>
+                <div className="space-y-1">
+                  <div className="text-muted-foreground font-medium">Ticket Price</div>
+                  <div className="font-semibold">
+                    {selectedEvent.is_paid ? `₹${parseFloat(selectedEvent.ticket_price || "0").toFixed(2)}` : "Free"}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-muted-foreground font-medium">Attendance Status</div>
+                  <Badge variant="secondary" className="capitalize text-[10px] mt-0.5">
+                    {selectedEvent.attendance_status?.replace(/_/g, ' ') || selectedEvent.registration_status?.replace(/_/g, ' ') || 'Registered'}
+                  </Badge>
+                </div>
+              </div>
+              {selectedEvent.attendance_inference_reason && (
+                <div className="p-2.5 bg-yellow-50/50 border border-yellow-200/50 text-yellow-800 text-[10px] rounded-lg">
+                  <span className="font-bold">Attendance Resolution:</span> {selectedEvent.attendance_inference_reason}
+                </div>
+              )}
+
+              {/* Event Attendees List */}
+              <div className="border-t pt-3 space-y-2">
+                <div className="flex justify-between items-center text-xs font-semibold text-muted-foreground">
+                  <span>Other Attendees & RSVPs</span>
+                  <Badge variant="outline" className="font-mono text-[10px]">{eventAttendees.length}</Badge>
+                </div>
+                {eventAttendeesLoading ? (
+                  <div className="flex justify-center py-4">
+                    <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : eventAttendees.length === 0 ? (
+                  <div className="text-center py-4 text-xs text-muted-foreground italic">No other attendees found</div>
+                ) : (
+                  <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                    {eventAttendees.map((attendee) => (
+                      <div 
+                        key={attendee.id} 
+                        className="flex items-center justify-between p-1.5 rounded bg-muted/40 border border-muted-foreground/10 text-xs cursor-pointer hover:bg-muted/65 transition-colors"
+                        onClick={() => {
+                          setEventDetailOpen(false);
+                          handleNavigateToUserProfile(attendee.id, "member");
+                        }}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Avatar className="h-6 w-6">
+                            <AvatarImage src={attendee.profile_photo_url || undefined} />
+                            <AvatarFallback className="text-[9px]">{attendee.name.split(' ').map(n => n[0]).join('').slice(0, 2)}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">{attendee.name}</div>
+                            <div className="text-[10px] text-muted-foreground truncate">@{attendee.username}</div>
+                          </div>
+                        </div>
+                        <Badge variant="secondary" className="text-[9px] px-1 py-0 capitalize">
+                          {attendee.attendance_status?.replace(/_/g, ' ') || attendee.registration_status?.replace(/_/g, ' ') || 'Registered'}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Plan Detail Modal */}
+      <Dialog open={planDetailOpen} onOpenChange={setPlanDetailOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Open Plan Details</DialogTitle>
+          </DialogHeader>
+          {selectedPlan && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between items-start gap-2">
+                  <h3 className="text-lg font-bold text-primary">{selectedPlan.title}</h3>
+                  <Badge variant="secondary" className="capitalize">
+                    {selectedPlan.activity_type?.replace(/_/g, ' ')}
+                  </Badge>
+                </div>
+                {selectedPlan.custom_activity_label && (
+                  <div className="text-xs text-muted-foreground">Custom Activity: {selectedPlan.custom_activity_label}</div>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-xs border-t pt-3">
+                <div className="space-y-1">
+                  <div className="text-muted-foreground font-medium">Scheduled At</div>
+                  <div className="font-semibold">{formatDate(selectedPlan.scheduled_at)}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-muted-foreground font-medium">Visibility</div>
+                  <div className="font-semibold capitalize">{selectedPlan.visibility?.replace(/_/g, ' ')}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-muted-foreground font-medium">Public Area (shown to all)</div>
+                  <div className="font-semibold">{selectedPlan.location_public || "N/A"}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-muted-foreground font-medium">Private Address (attendees only)</div>
+                  <div className="font-semibold text-rose-600 font-mono">{selectedPlan.location_private || "N/A"}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-muted-foreground font-medium">Cost Type</div>
+                  <div className="font-semibold capitalize">{selectedPlan.cost_type?.replace(/_/g, ' ')}</div>
+                  {selectedPlan.cost_amount_paise && (
+                    <div className="text-[10px] text-muted-foreground">Amount: ₹{(selectedPlan.cost_amount_paise / 100).toFixed(2)}</div>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <div className="text-muted-foreground font-medium">Preferences & Capacity</div>
+                  <div className="font-semibold">Gender Pref: {selectedPlan.gender_preference}</div>
+                  <div className="text-[10px] text-muted-foreground">Max attendees: {selectedPlan.max_accepted}</div>
+                </div>
+                {selectedPlan.is_recurring && (
+                  <div className="col-span-2 p-2 bg-blue-50/50 border border-blue-200/50 text-blue-800 text-[10px] rounded-lg">
+                    🔁 <span className="font-bold">Recurring Plan:</span> Every {selectedPlan.recurrence_interval || "week"}
+                  </div>
+                )}
+                <div className="space-y-1 col-span-2">
+                  <div className="text-muted-foreground font-medium">Plan Status</div>
+                  <Badge variant="outline" className="capitalize text-[10px] mt-0.5">
+                    {selectedPlan.status}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Host & Attendees List */}
+              <div className="border-t pt-3 space-y-3">
+                {planMembersLoading ? (
+                  <div className="flex justify-center py-4">
+                    <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <>
+                    {/* Host */}
+                    {planHost && (
+                      <div className="space-y-1.5">
+                        <div className="text-xs font-semibold text-muted-foreground">Host</div>
+                        <div 
+                          className="flex items-center gap-2 p-1.5 rounded bg-muted/40 border border-muted-foreground/10 text-xs cursor-pointer hover:bg-muted/65 transition-colors"
+                          onClick={() => {
+                            setPlanDetailOpen(false);
+                            handleNavigateToUserProfile(planHost.id, "member");
+                          }}
+                        >
+                          <Avatar className="h-6 w-6">
+                            <AvatarImage src={planHost.profile_photo_url || undefined} />
+                            <AvatarFallback className="text-[9px]">{planHost.name.split(' ').map(n => n[0]).join('').slice(0, 2)}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="font-medium">{planHost.name}</div>
+                            <div className="text-[10px] text-muted-foreground">@{planHost.username}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Attendees */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center text-xs font-semibold text-muted-foreground">
+                        <span>Approved Attendees</span>
+                        <Badge variant="outline" className="font-mono text-[10px]">{planAttendees.length}</Badge>
+                      </div>
+                      {planAttendees.length === 0 ? (
+                        <div className="text-center py-2 text-xs text-muted-foreground italic bg-muted/20 rounded border border-dashed">No other approved attendees</div>
+                      ) : (
+                        <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
+                          {planAttendees.map((attendee) => (
+                            <div 
+                              key={attendee.id} 
+                              className="flex items-center justify-between p-1.5 rounded bg-muted/40 border border-muted-foreground/10 text-xs cursor-pointer hover:bg-muted/65 transition-colors"
+                              onClick={() => {
+                                setPlanDetailOpen(false);
+                                handleNavigateToUserProfile(attendee.id, "member");
+                              }}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <Avatar className="h-6 w-6">
+                                  <AvatarImage src={attendee.profile_photo_url || undefined} />
+                                  <AvatarFallback className="text-[9px]">{attendee.name.split(' ').map(n => n[0]).join('').slice(0, 2)}</AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0">
+                                  <div className="font-medium truncate">{attendee.name}</div>
+                                  <div className="text-[10px] text-muted-foreground truncate">@{attendee.username}</div>
+                                </div>
+                              </div>
+                              <Badge variant="secondary" className="text-[9px] px-1 py-0 capitalize bg-green-50 text-green-700 border-green-200">
+                                Approved
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           )}
         </DialogContent>
       </Dialog>

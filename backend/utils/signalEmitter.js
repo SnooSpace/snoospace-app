@@ -119,6 +119,7 @@ function buildSubSignalUpdate(eventType, metadata) {
       // Free attendance still counts as physically showing up
       return {
         sql: `
+          free_events_attended = COALESCE(free_events_attended, 0) + 1,
           total_attended = COALESCE(total_attended, 0) + 1,
           rsvp_to_attend_ratio = ROUND(
             (COALESCE(total_attended, 0) + 1)::numeric
