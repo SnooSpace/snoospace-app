@@ -145,6 +145,9 @@ const registerPushToken = async (req, res) => {
       return res.status(400).json({ error: "Token is required" });
     }
 
+    console.log(`[PushToken] Registering token for user ${userType}_${userId}: ${token.substring(0, 25)}... (Device: ${deviceId})`);
+
+
     // Upsert push token for user+device
     await pool.query(
       `INSERT INTO push_tokens (user_id, user_type, expo_push_token, device_id, is_active, updated_at)

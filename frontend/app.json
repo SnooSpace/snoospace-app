@@ -19,7 +19,7 @@
         "NSLocationWhenInUseUsageDescription": "SnooSpace uses your location to personalize events near you and improve recommendations while the app is open.",
         "ITSAppUsesNonExemptEncryption": false
       },
-      "bundleIdentifier": "com.anonymous.snoospace"
+      "bundleIdentifier": "com.snoospace.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -41,7 +41,8 @@
         "android.permission.ACCESS_MEDIA_LOCATION",
         "android.permission.READ_MEDIA_AUDIO"
       ],
-      "package": "com.anonymous.snoospace"
+      "package": "com.snoospace.app",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"

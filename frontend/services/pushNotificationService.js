@@ -1,8 +1,10 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import { apiPost } from '../api/client';
 import { getAuthToken } from '../api/auth';
+
+import appJson from '../app.json';
 
 // Configure how push notifications appear when the app is in the foreground
 // This must be called once at module level (not inside a component).
@@ -34,11 +36,12 @@ export async function registerForPushNotificationsAsync() {
 
     if (finalStatus !== 'granted') {
       console.log('[PushService] Permission not granted to get push token!');
+      Alert.alert('Push Permission Denied', 'Notification permissions are required for push notifications to work. Please enable them in system settings.');
       return null;
     }
 
-    // projectId is required on SDK 49+ for managed workflow
-    const projectId = process.env.EXPO_PUBLIC_PROJECT_ID;
+    // Read projectId directly from app.json to avoid Expo .env caching issues
+    const projectId = appJson?.expo?.extra?.eas?.projectId;
     const tokenData = await Notifications.getExpoPushTokenAsync(
       projectId ? { projectId } : undefined
     );
@@ -57,6 +60,7 @@ export async function registerForPushNotificationsAsync() {
     return token;
   } catch (error) {
     console.error('[PushService] Error getting push token:', error);
+    Alert.alert('Push Registration Error', 'Error getting push token: ' + error.message);
     return null;
   }
 }
@@ -88,7 +92,12 @@ export async function registerPushTokenWithBackend() {
       authToken
     );
     console.log('[PushService] Push token registered with backend successfully.');
+    if (__DEV__) {
+      Alert.alert('Push Service', 'Push token registered with backend successfully!');
+    }
   } catch (err) {
     console.error('[PushService] Failed to register push token with backend:', err);
+    Alert.alert('Push Service Error', 'Failed to register push token with backend: ' + err.message);
   }
 }
+

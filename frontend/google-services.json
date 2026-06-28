@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "656632111328",
+    "project_id": "snoospace",
+    "storage_bucket": "snoospace.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:656632111328:android:00da32382bcdbf74933085",
+        "android_client_info": {
+          "package_name": "com.snoospace.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAg3RZytbAmuOTx3_r5fXKNV8esnxyWP1I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
