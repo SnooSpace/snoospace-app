@@ -1,7 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -98,6 +100,15 @@ const secondaryNavItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const { logout } = useAuth();
+  const { theme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isLight = mounted && (resolvedTheme || theme) === "light";
+  const logoSrc = isLight ? "/logo-light.svg" : "/logo.svg";
 
   const handleLogout = () => {
     if (confirm("Are you sure you want to logout?")) {
@@ -110,7 +121,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex h-16 items-center border-b px-6">
         <Link href="/" className="flex items-center gap-2">
-          <img src="/logo.svg" alt="SnooSpace Logo" className="h-7 w-auto object-contain" />
+          <img src={logoSrc} alt="SnooSpace Logo" className="h-7 w-auto object-contain" />
         </Link>
       </div>
 
