@@ -28,9 +28,11 @@ import {
   CircleCheck,
   AlertCircle,
   ChevronRight,
+  Music,
 } from "lucide-react-native";
 import { INTEREST_CATEGORIES } from "../profile/member/EditProfileConstants";
 import SnooLoader from "../../components/ui/SnooLoader";
+import SpotifyConnectorWidget from "../../components/SpotifyConnectorWidget";
 
 // STRICT CONSTANTS - ITERATION 2
 const CONSTANTS_COLORS = {
@@ -91,6 +93,8 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   const [appearInDiscover, setAppearInDiscover] = useState(true);
   const [customGoal, setCustomGoal] = useState("");
   const [showCustomGoalInput, setShowCustomGoalInput] = useState(false);
+  const [spotifyConnected, setSpotifyConnected] = useState(false);
+  const [spotifyTopArtists, setSpotifyTopArtists] = useState([]);
 
   // Initial state for change detection
   const [initialState, setInitialState] = useState(null);
@@ -177,6 +181,8 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           goalBadges: profile.intent_badges || [],
           openers: profile.openers || [],
           appearInDiscover: profile.appear_in_discover !== false,
+          spotifyConnected: !!profile.spotify_connected,
+          spotifyTopArtists: profile.spotify_top_artists || [],
         };
 
         setName(loadedState.name);
@@ -189,6 +195,8 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         setGoalBadges(loadedState.goalBadges);
         setOpeners(loadedState.openers);
         setAppearInDiscover(loadedState.appearInDiscover);
+        setSpotifyConnected(loadedState.spotifyConnected);
+        setSpotifyTopArtists(loadedState.spotifyTopArtists);
         setInitialState(loadedState);
       }
     } catch (error) {
@@ -215,9 +223,11 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       showPronouns !== initialState.showPronouns ||
       appearInDiscover !== initialState.appearInDiscover ||
       JSON.stringify(pronouns) !== JSON.stringify(initialState.pronouns) ||
-      nickname !== initialState.nickname
+      nickname !== initialState.nickname ||
+      spotifyConnected !== initialState.spotifyConnected ||
+      JSON.stringify(spotifyTopArtists) !== JSON.stringify(initialState.spotifyTopArtists)
     );
-  }, [photos, goalBadges, openers, showPronouns, appearInDiscover, pronouns, nickname, initialState]);
+  }, [photos, goalBadges, openers, showPronouns, appearInDiscover, pronouns, nickname, spotifyConnected, spotifyTopArtists, initialState]);
 
   // Handle back button with unsaved changes confirmation
   const handleBackPress = useCallback(() => {
@@ -290,6 +300,8 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         appear_in_discover: appearInDiscover,
         pronouns: pronouns.length > 0 ? pronouns : null,
         nickname: nickname.trim() || null,
+        spotify_connected: spotifyConnected,
+        spotify_top_artists: spotifyTopArtists,
       });
       HapticsService.triggerNotificationSuccess();
 
@@ -307,6 +319,8 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         goalBadges,
         openers,
         appearInDiscover,
+        spotifyConnected,
+        spotifyTopArtists,
       });
 
       if (autoExit) {
@@ -790,6 +804,35 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                   ? "Pronouns visible on your profile"
                   : "Pronouns hidden from your profile"}
               </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* SECTION 2.5: Connections (Spotify) */}
+        <View style={styles.section}>
+          <View style={styles.sectionCardRounded}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderLeft}>
+                <View
+                  style={[
+                    styles.sectionIconContainer,
+                    { backgroundColor: "#E8FBF0" },
+                  ]}
+                >
+                  <Music size={18} color="#1DB954" />
+                </View>
+                <Text style={styles.cardTitle}>Connections</Text>
+              </View>
+            </View>
+            <View style={styles.cardContent}>
+              <SpotifyConnectorWidget
+                connected={spotifyConnected}
+                onConnectedChange={setSpotifyConnected}
+                topArtists={spotifyTopArtists}
+                onArtistsChange={setSpotifyTopArtists}
+                accentColor={PRIMARY_COLOR}
+                onRefreshProfile={loadProfile}
+              />
             </View>
           </View>
         </View>

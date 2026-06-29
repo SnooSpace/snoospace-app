@@ -758,7 +758,7 @@ const getEventAttendees = async (req, res) => {
     const userType = req.user?.type;
 
     // Filter parameters
-    const { badges, interests, ageMin, ageMax } = req.query;
+    const { badges, interests, ageMin, ageMax, genders } = req.query;
 
     if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
@@ -813,6 +813,19 @@ const getEventAttendees = async (req, res) => {
       paramIndex++;
     }
 
+    // Genders filter
+    if (genders) {
+      const genderArray = genders.split(",").map((g) => {
+        const trimmed = g.trim();
+        if (trimmed === "Men") return "Male";
+        if (trimmed === "Women") return "Female";
+        return trimmed;
+      });
+      filterConditions.push(`m.gender = ANY($${paramIndex}::text[])`);
+      filterParams.push(genderArray);
+      paramIndex++;
+    }
+
     const filterClause =
       filterConditions.length > 0
         ? `AND ${filterConditions.join(" AND ")}`
@@ -835,6 +848,8 @@ const getEventAttendees = async (req, res) => {
         m.show_pronouns,
         m.discover_photos,
         m.openers,
+        m.spotify_connected,
+        m.spotify_top_artists,
         COALESCE(
           json_agg(
             json_build_object(

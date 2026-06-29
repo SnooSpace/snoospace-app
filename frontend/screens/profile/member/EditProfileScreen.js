@@ -40,7 +40,9 @@ import {
   Briefcase,
   Check,
   Trash2,
+  Music,
 } from "lucide-react-native";
+import SpotifyConnectorWidget from "../../../components/SpotifyConnectorWidget";
 
 import { getAuthToken } from "../../../api/auth";
 import {
@@ -177,6 +179,8 @@ export default function EditProfileScreen({ route, navigation }) {
       : [],
   );
   const [interests, setInterests] = useState(profile?.interests || []);
+  const [spotifyConnected, setSpotifyConnected] = useState(!!profile?.spotify_connected);
+  const [spotifyTopArtists, setSpotifyTopArtists] = useState(profile?.spotify_top_artists || []);
 
   // Occupation state
   const initialOccupation = profile?.occupation || null;
@@ -247,7 +251,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     checkForChanges();
-  }, [name, nickname, bio, username, phone, pronouns, interests, email, educationDegree, educationYear, selectedOccupation, customOccupation, occupationDetails, occupationCategory, portfolioLink, campusId, showCollege, pendingPhotoUri]);
+  }, [name, nickname, bio, username, phone, pronouns, interests, email, educationDegree, educationYear, selectedOccupation, customOccupation, occupationDetails, occupationCategory, portfolioLink, campusId, showCollege, pendingPhotoUri, spotifyConnected, spotifyTopArtists]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -344,7 +348,9 @@ export default function EditProfileScreen({ route, navigation }) {
       showCollege !== (profile?.show_college !== false) ||
       educationDegree !== originalEducationDegree ||
       educationYear !== originalEducationYear ||
-      !!pendingPhotoUri;
+      !!pendingPhotoUri ||
+      spotifyConnected !== (!!profile?.spotify_connected) ||
+      JSON.stringify(spotifyTopArtists) !== JSON.stringify(profile?.spotify_top_artists || []);
 
     setHasChanges(!!changed);
   };
@@ -472,6 +478,8 @@ export default function EditProfileScreen({ route, navigation }) {
         interests: interests.length > 0 ? interests : [],
         campus_id: campusId,
         show_college: showCollege,
+        spotify_connected: spotifyConnected,
+        spotify_top_artists: spotifyTopArtists,
       };
 
       await updateMemberProfile(updates, token);
@@ -1358,6 +1366,20 @@ export default function EditProfileScreen({ route, navigation }) {
                   })
               )}
             </View>
+          </View>
+        </View>
+
+        {/* Spotify Card */}
+        <View style={styles.card}>
+          {renderSectionHeader("CONNECTIONS", Music)}
+          <View style={styles.inputGroupLast}>
+            <SpotifyConnectorWidget
+              connected={spotifyConnected}
+              onConnectedChange={setSpotifyConnected}
+              topArtists={spotifyTopArtists}
+              onArtistsChange={setSpotifyTopArtists}
+              accentColor={ACCENT_COLOR}
+            />
           </View>
         </View>
 

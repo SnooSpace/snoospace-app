@@ -27,6 +27,7 @@ import ThemeChip from "../../components/ThemeChip";
 import SnooLoader from "../../components/ui/SnooLoader";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Svg, { Path, Circle, Rect, G, Defs, LinearGradient as SvgLinearGradient, Stop } from "react-native-svg";
+import { SpotifyArtistsCard } from "../../components/profile/SpotifyArtistsCard";
 
 const { width } = Dimensions.get("window");
 const CARD_RADIUS = 24;
@@ -127,10 +128,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
 
       // 2. Load attendees (backend already filters incomplete profiles)
       if (currentEvent) {
-        console.log("[ProfileFeedScreen] Fetching attendees for event ID:", currentEvent.id);
-        const response = await apiGet(`/events/${currentEvent.id}/attendees`, 15000, token);
-        console.log("[ProfileFeedScreen] Fetch success. Count:", response?.attendees?.length);
-        setAttendees(response.attendees || []);
+        await loadAttendees(activeFilters, currentEvent.id);
       } else {
         console.warn("[ProfileFeedScreen] Mounted without an event object in route params!");
       }
@@ -140,7 +138,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
     } finally {
       setLoading(false);
     }
-  }, [initialEvent, eventData]);
+  }, [initialEvent, eventData, activeFilters]);
 
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
@@ -162,14 +160,37 @@ export default function ProfileFeedScreen({ route, navigation }) {
   }, []);
 
   // Reload when filters change (only if not gated)
-  const loadAttendees = useCallback(async (filters = activeFilters) => {
+  const loadAttendees = useCallback(async (filters = activeFilters, targetEventId = eventData?.id) => {
     if (profileGated) return;
     try {
       setLoading(true);
       const token = await getAuthToken();
-      if (token && eventData) {
-        const response = await apiGet(`/events/${eventData.id}/attendees`, 15000, token);
+      if (token && targetEventId) {
+        // Build query string based on filters
+        const params = [];
+        if (filters.badges && filters.badges.length > 0) {
+          params.push(`badges=${encodeURIComponent(filters.badges.join(","))}`);
+        }
+        if (filters.interests && filters.interests.length > 0) {
+          params.push(`interests=${encodeURIComponent(filters.interests.join(","))}`);
+        }
+        if (filters.genders && filters.genders.length > 0) {
+          params.push(`genders=${encodeURIComponent(filters.genders.join(","))}`);
+        }
+        if (filters.ageMin !== undefined) {
+          params.push(`ageMin=${filters.ageMin}`);
+        }
+        if (filters.ageMax !== undefined) {
+          params.push(`ageMax=${filters.ageMax}`);
+        }
+
+        const queryString = params.length > 0 ? `?${params.join("&")}` : "";
+        const url = `/events/${targetEventId}/attendees${queryString}`;
+        console.log("[ProfileFeedScreen] Fetching attendees url:", url);
+
+        const response = await apiGet(url, 15000, token);
         setAttendees(response.attendees || []);
+        setCurrentIndex(0); // Reset index to first attendee when filters change
       }
     } catch (error) {
       console.error("[ProfileFeedScreen] Error loading attendees:", error);
@@ -177,7 +198,13 @@ export default function ProfileFeedScreen({ route, navigation }) {
     } finally {
       setLoading(false);
     }
-  }, [eventData, activeFilters, profileGated]);
+  }, [eventData, profileGated]);
+
+  useEffect(() => {
+    if (eventData && !profileGated) {
+      loadAttendees(activeFilters);
+    }
+  }, [activeFilters]);
 
   const currentAttendee = attendees[currentIndex];
 
@@ -648,9 +675,70 @@ export default function ProfileFeedScreen({ route, navigation }) {
           </SafeAreaView>
         </LinearGradient>
       );
-    }
+    }    const hasFilters = (activeFilters.badges?.length > 0) || 
+                       (activeFilters.interests?.length > 0) || 
+                       (activeFilters.genders?.length > 0) || 
+                       (activeFilters.ageMin !== undefined && activeFilters.ageMin !== 18) || 
+                       (activeFilters.ageMax !== undefined && activeFilters.ageMax !== 30);
 
     if (!currentAttendee) {
+      if (hasFilters) {
+        return (
+          <LinearGradient
+            colors={["#DCEFFE", "#F0F7FF", "#FFFFFF"]}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={styles.gradientContainer}
+          >
+            <SafeAreaView style={styles.container} edges={EDGES}>
+              {/* Header */}
+              <View style={styles.header}>
+                <TouchableOpacity onPress={handleBack} activeOpacity={0.8}>
+                  <View style={styles.glassButton}>
+                    <ArrowLeft size={20} color="#1a2d4a" strokeWidth={2.5} />
+                  </View>
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Discover</Text>
+                <TouchableOpacity onPress={handleOpenFilters} activeOpacity={0.8}>
+                  <View style={styles.glassButton}>
+                    <SlidersHorizontal size={20} color="#1a2d4a" strokeWidth={2.5} />
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.endOfFeedContainer}>
+                <View style={styles.endOfFeedCard}>
+                  {/* Premium red/coral icon with tinted container */}
+                  <View style={styles.emptyFiltersIconContainer}>
+                    <SlidersHorizontal size={36} color="#EF4444" strokeWidth={2} />
+                  </View>
+
+                  {/* Bold Title */}
+                  <Text style={styles.endOfFeedTitle}>No matches found</Text>
+
+                  {/* Description */}
+                  <Text style={styles.endOfFeedBody}>
+                    Try widening your search criteria or clearing your filters to see more people at this event.
+                  </Text>
+
+                  {/* Clear Filters Button */}
+                  <TouchableOpacity
+                    style={styles.clearFiltersButton}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      HapticsService.triggerImpactLight();
+                      setActiveFilters({});
+                    }}
+                  >
+                    <Text style={styles.clearFiltersButtonText}>Clear All Filters</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </SafeAreaView>
+          </LinearGradient>
+        );
+      }
+
       return (
         <SafeAreaView style={styles.container}>
           <View style={styles.header}>
@@ -761,6 +849,15 @@ export default function ProfileFeedScreen({ route, navigation }) {
               )}
             </View>
           ))}
+
+          {currentAttendee?.spotify_connected && (
+            <View style={{ marginBottom: 24 }}>
+              <SpotifyArtistsCard
+                artists={currentAttendee.spotify_top_artists}
+                targetUsername={name}
+              />
+            </View>
+          )}
 
           {/* Interests Group (Bottom of Profile) */}
           {interests.length > 0 && (
@@ -2227,6 +2324,201 @@ const styles = StyleSheet.create({
   toastIconBg: {
     width: 22,
     height: 22,
+  },
+  modalCancelButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  modalCancelButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: "#64748B",
+  },
+  modalSendButton: {
+    backgroundColor: "#2962FF",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: "#2962FF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  modalSendButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: "#FFFFFF",
+  },
+  modalChipPreviewContainer: {
+    gap: 8,
+    backgroundColor: "rgba(241, 245, 249, 0.6)",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 20,
+    alignItems: "flex-start",
+  },
+  modalChipPreviewLabel: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: "#64748B",
+  },
+  skipInfoCard: {
+    width: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 32, // Matches rx="32" from the reference HTML!
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  skipIllustrationContainer: {
+    width: 270,
+    height: 180,
+    position: "relative",
+    marginBottom: 24,
+  },
+  skipInfoTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 24,
+    color: "#0F172A",
+    marginBottom: 10,
+    textAlign: "center",
+    letterSpacing: -0.5,
+  },
+  skipInfoBody: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: "#64748B",
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: 24,
+    paddingHorizontal: 12,
+  },
+  skipInfoButtonContainer: {
+    width: "100%",
+    height: 48,
+    borderRadius: 24,
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  skipInfoButtonGradient: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  skipInfoButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
+  },
+  endOfFeedContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
+  endOfFeedCard: {
+    width: 320,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 32,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  coffeeIllustrationContainer: {
+    width: 270,
+    height: 180,
+    position: "relative",
+    marginBottom: 24,
+  },
+  endOfFeedTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 24,
+    color: "#0F172A",
+    marginBottom: 10,
+    textAlign: "center",
+    letterSpacing: -0.5,
+  },
+  endOfFeedBody: {
+    fontFamily: FONTS.regular, // Manrope-Regular
+    fontSize: 14,
+    color: "#64748B",
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: 24,
+    paddingHorizontal: 12,
+  },
+  revisitButtonContainer: {
+    width: "100%",
+    height: 48,
+    borderRadius: 24,
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  revisitButtonGradient: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 24,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  revisitButtonText: {
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
+    fontSize: 16,
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
+  },
+  toastContainer: {
+    position: "absolute",
+    top: 90, // Just below the header
+    left: 20,
+    right: 20,
+    alignItems: "center",
+    zIndex: 999, // Ensure it's on top of everything
+  },
+  toastInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+    gap: 10,
+  },
+  toastIconBg: {
+    width: 22,
+    height: 22,
     borderRadius: 11,
     backgroundColor: "#10B981", // Growth green circle
     justifyContent: "center",
@@ -2236,5 +2528,35 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium, // Manrope-Medium
     fontSize: 14,
     color: "#0F172A",
+  },
+  emptyFiltersIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#FEE2E2",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  clearFiltersButton: {
+    backgroundColor: "#EF4444",
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    marginTop: 8,
+    width: "100%",
+    shadowColor: "#EF4444",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  clearFiltersButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
   },
 });

@@ -13,7 +13,7 @@ import SwipeableModal from "../../../components/modals/SwipeableModal";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { Image as ExpoImage } from "expo-image";
-import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, TriangleAlert, CircleCheck, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock } from "lucide-react-native";
+import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, TriangleAlert, CircleCheck, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock, Music } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import {
   getPublicMemberProfile,
@@ -514,6 +514,10 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
               p.pronouns !== "Prefer not to say"
             ? [String(p.pronouns).trim()]
             : [],
+        spotify_connected: p?.spotify_connected === true,
+        spotify_top_artists: Array.isArray(p?.spotify_top_artists)
+          ? p.spotify_top_artists
+          : [],
       };
       setProfile(normalized);
       setCircleCount(p?.circle_count || 0);
@@ -1372,6 +1376,23 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 )}
               </View>
             ) : null}
+
+            {/* Spotify Top Artists Card */}
+            {profile?.spotify_connected && Array.isArray(profile?.spotify_top_artists) && profile.spotify_top_artists.length > 0 && (
+              <View style={styles.spotifyCard}>
+                <View style={styles.spotifyHeader}>
+                  <Music size={16} color="#1DB954" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                  <Text style={styles.spotifyTitle}>Spotify Top Artists</Text>
+                </View>
+                <View style={styles.spotifyArtistsContainer}>
+                  {profile.spotify_top_artists.map((artist, idx) => (
+                    <View key={idx} style={styles.spotifyArtistBadge}>
+                      <Text style={styles.spotifyArtistText}>{artist}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
 
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
@@ -2502,6 +2523,43 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  spotifyCard: {
+    backgroundColor: "#181818",
+    borderRadius: 16,
+    padding: 16,
+    width: "100%",
+    marginTop: 15,
+    borderWidth: 1,
+    borderColor: "#282828",
+  },
+  spotifyHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  spotifyTitle: {
+    fontSize: 14,
+    fontFamily: FONTS.semiBold,
+    color: "#FFFFFF",
+  },
+  spotifyArtistsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  spotifyArtistBadge: {
+    backgroundColor: "#282828",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#3E3E3E",
+  },
+  spotifyArtistText: {
+    fontSize: 12,
+    fontFamily: FONTS.medium,
+    color: "#FFFFFF",
   },
   header: {
     flexDirection: 'row',
