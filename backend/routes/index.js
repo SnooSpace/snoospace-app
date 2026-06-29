@@ -57,11 +57,16 @@ const blocksRouter       = require('./blocks');
 const verificationsRouter = require('./verifications');
 const BlocksController = require('../controllers/blocksController');
 const spotifyRouter = require('./spotify');
+const locationRouter = require('./location');
 
 const router = express.Router();
 
 // Health
 router.get("/health", (req, res) => res.json({ status: "ok" }));
+
+// ── Location proxy (Mappls credentials stay server-side) ──────────────────────
+router.use('/', locationRouter);
+
 router.get("/db/health", async (req, res) => {
   try {
     const pool = req.app.locals.pool;

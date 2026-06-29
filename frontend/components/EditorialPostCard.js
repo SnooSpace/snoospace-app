@@ -309,6 +309,7 @@ const EditorialPostCard = ({
   const [viewStats, setViewStats] = useState(null); // { unique_views, total_views }
   const [viewStatsLoading, setViewStatsLoading] = useState(false);
   const viewSheetAnim = useRef(new Animated.Value(0)).current;
+  const cardRef = useRef(null);
 
   // ── Double Tap to Like state ───────────────────────────────────────────────
   const heartX = useSharedValue(0);
@@ -608,6 +609,7 @@ const EditorialPostCard = ({
   };
 
   const handleUserPress = () => {
+    if (isAnon) return;
     if (onUserPress) {
       onUserPress(post.author_id, post.author_type);
     }
@@ -791,7 +793,7 @@ const EditorialPostCard = ({
   });
 
   // ── Double Tap to Like gesture ─────────────────────────────────────────────
-  const onDoubleTap = (e) => {
+  const onDoubleTap = (pageX, pageY) => {
     // Only like, don't unlike on double tap
     if (!isLiked && !isLiking) {
       handleLike();
@@ -799,28 +801,48 @@ const EditorialPostCard = ({
       HapticsService.triggerImpactLight();
     }
 
-    // trigger animation
-    heartX.value = e.x;
-    heartY.value = e.y;
-    heartScale.value = 0;
-    heartRotation.value = Math.random() * 30 - 15; // Randomize rotation slightly (-15 to 15 deg)
+    cardRef.current?.measure((x, y, width, height, cardPageX, cardPageY) => {
+      const relativeX = pageX - cardPageX;
+      const relativeY = pageY - cardPageY;
 
-    heartScale.value = withSequence(
-      withTiming(1.2, { duration: 250 }), // Pop in
-      withTiming(0.9, { duration: 150 }), // Jiggle down
-      withTiming(1.05, { duration: 150 }), // Jiggle up
-      withTiming(1, { duration: 150 }), // Settle
-      withTiming(1, { duration: 800 }), // Hold state
-      withTiming(0, { duration: 500 }) // Fade out
-    );
+      // trigger animation
+      heartX.value = relativeX;
+      heartY.value = relativeY;
+      heartScale.value = 0;
+      heartRotation.value = Math.random() * 30 - 15; // Randomize rotation slightly (-15 to 15 deg)
+
+      heartScale.value = withSequence(
+        withTiming(1.2, { duration: 250 }), // Pop in
+        withTiming(0.9, { duration: 150 }), // Jiggle down
+        withTiming(1.05, { duration: 150 }), // Jiggle up
+        withTiming(1, { duration: 150 }), // Settle
+        withTiming(1, { duration: 800 }), // Hold state
+        withTiming(0, { duration: 500 }) // Fade out
+      );
+    });
   };
 
-  const doubleTap = Gesture.Tap()
+  const bodyDoubleTap = Gesture.Tap()
     .numberOfTaps(2)
     .maxDelay(250)
     .onStart((e) => {
-      runOnJS(onDoubleTap)(e);
+      runOnJS(onDoubleTap)(e.absoluteX, e.absoluteY);
     });
+
+  const authorDoubleTap = Gesture.Tap()
+    .numberOfTaps(2)
+    .maxDelay(250)
+    .onStart((e) => {
+      runOnJS(onDoubleTap)(e.absoluteX, e.absoluteY);
+    });
+
+  const authorSingleTap = Gesture.Tap()
+    .numberOfTaps(1)
+    .onStart(() => {
+      runOnJS(handleUserPress)();
+    });
+
+  const authorGesture = Gesture.Exclusive(authorDoubleTap, authorSingleTap);
 
   const heartStyle = useAnimatedStyle(() => ({
     position: 'absolute',
@@ -835,14 +857,11 @@ const EditorialPostCard = ({
   }));
 
   return (
-    <View style={styles.container}>
+    <View ref={cardRef} style={styles.container}>
       {/* Author Row */}
       <View style={styles.authorRow}>
-        <TouchableOpacity
-          style={styles.authorInfo}
-          onPress={handleUserPress}
-          activeOpacity={0.7}
-        >
+        <GestureDetector gesture={authorGesture}>
+          <View style={styles.authorInfo}>
           {!isAnon && post.author_photo_url ? (
             <Image
               source={{ uri: post.author_photo_url }}
@@ -887,7 +906,8 @@ const EditorialPostCard = ({
               </Text>
             </View>
           </View>
-        </TouchableOpacity>
+        </View>
+      </GestureDetector>
 
         {/* Follow Button */}
         {showFollowButton && !isOwnPost && !isAnon && (
@@ -945,26 +965,28 @@ const EditorialPostCard = ({
         */}
       </View>
 
-      {/* Post Text */}
-      {post.caption && (
-        <View style={styles.textContainer}>
-          <MentionTextRenderer
-            text={post.caption}
-            taggedEntities={taggedEntities}
-            textStyle={styles.postText}
-            mentionStyle={styles.mentionText}
-            onMentionPress={(entity) => {
-              if (!entity?.id || !onUserPress) return;
-              onUserPress(entity.id, entity.type || "member");
-            }}
-          />
-        </View>
-      )}
+      {/* Card Content & Media (double-tap area) */}
+      <GestureDetector gesture={bodyDoubleTap}>
+        <View style={{ flexGrow: 1, backgroundColor: 'transparent' }}>
+          {/* Post Text */}
+          {post.caption && (
+            <View style={styles.textContainer}>
+              <MentionTextRenderer
+                text={post.caption}
+                taggedEntities={taggedEntities}
+                textStyle={styles.postText}
+                mentionStyle={styles.mentionText}
+                onMentionPress={(entity) => {
+                  if (!entity?.id || !onUserPress) return;
+                  onUserPress(entity.id, entity.type || "member");
+                }}
+              />
+            </View>
+          )}
 
-      {/* Media Container */}
-      {hasMedia && firstMediaUrl && (
-        <GestureDetector gesture={doubleTap}>
-          <View style={styles.mediaContainer}>
+          {/* Media Container */}
+          {hasMedia && firstMediaUrl && (
+            <View style={styles.mediaContainer}>
           {isVideo ? (
             <View
               style={[
@@ -1078,13 +1100,10 @@ const EditorialPostCard = ({
             </View>
           )}
 
-          {/* Double Tap Heart Overlay */}
-          <AnimatedReanimated.View style={heartStyle} pointerEvents="none">
-            <GradientHeart />
-          </AnimatedReanimated.View>
         </View>
-        </GestureDetector>
       )}
+        </View>
+      </GestureDetector>
 
       {/* Engagement Row */}
       <View style={styles.engagementRow}>
@@ -1246,6 +1265,10 @@ const EditorialPostCard = ({
         icon={alertConfig.icon}
         iconColor={alertConfig.iconColor}
       />
+      {/* Double Tap Heart Overlay */}
+      <AnimatedReanimated.View style={heartStyle} pointerEvents="none">
+        <GradientHeart />
+      </AnimatedReanimated.View>
     </View>
   );
 };
@@ -1255,6 +1278,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.editorial.background,
     paddingVertical: EDITORIAL_SPACING.cardPadding,
     marginBottom: SPACING.m,
+    position: 'relative',
   },
 
   // Author Row

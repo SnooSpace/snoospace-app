@@ -121,46 +121,148 @@ export default function MapLocationPicker({
   // ── Chip fade animation ────────────────────────────────────────────────────
   const chipOpacity = useRef(new Animated.Value(0)).current;
 
+  // ── Map readiness (PROVIDER_GOOGLE on Android needs up to 2s to init) ─────────
+  // We queue the target region here and fire animateToRegion only inside
+  // onMapReady, guaranteeing the SDK is ready to accept it.
+  const mapReadyRef = useRef(false);
+  const pendingAnimRef = useRef(null);
+
+  /** Fire a camera animation immediately if map is ready, otherwise queue it. */
+  const animateWhenReady = useCallback((lat, lng) => {
+    const region = { latitude: lat, longitude: lng, latitudeDelta: 0.008, longitudeDelta: 0.008 };
+    if (mapReadyRef.current && mapRef.current) {
+      mapRef.current.animateToRegion(region, 700);
+    } else {
+      pendingAnimRef.current = region;
+    }
+  }, []);
+
+  /** Called by MapView once the native map SDK has fully loaded. */
+  const handleMapReady = useCallback(() => {
+    mapReadyRef.current = true;
+    if (pendingAnimRef.current && mapRef.current) {
+      mapRef.current.animateToRegion(pendingAnimRef.current, 700);
+      pendingAnimRef.current = null;
+    }
+  }, []);
+
   // ─── Initialise from initialPlace ──────────────────────────────────────────
   useEffect(() => {
     if (!visible) return;
+
+    // Reset map-ready state each time the modal (re)opens so we always wait
+    // for onMapReady before firing camera animations.
+    mapReadyRef.current = false;
+    pendingAnimRef.current = null;
+
     const place = initialPlace;
-    const lat = place?.lat ?? userLocation?.lat ?? 12.9716;
-    const lng = place?.lng ?? userLocation?.lng ?? 77.5946;
 
-    const coord = { latitude: lat, longitude: lng };
-    setMarkerCoord(coord);
-    setCameraCenter(coord);
-    originalCoordRef.current = coord;
-    setManuallyAdjusted(false);
-    setShowSearchArea(false);
-    setShowAreaResults(false);
-    setAreaResults([]);
+    // ── DROP PIN MANUALLY (no place selected) ────────────────────────────────
+    // Priority: GPS (already-granted permission) → userLocation prop → Bengaluru
+    if (!place) {
+      setIsLoadingAddress(true);
 
-    // Populate address from place if available
-    if (place) {
+      (async () => {
+        let lat = userLocation?.lat;
+        let lng = userLocation?.lng;
+
+        // Only use GPS if permission is already granted — no prompt here.
+        // ("Use My Current Location" row is the right entry point for prompts.)
+        if (!lat || !lng) {
+          try {
+            const { status } = await ExpoLocation.getForegroundPermissionsAsync();
+            if (status === 'granted') {
+              const loc = await ExpoLocation.getCurrentPositionAsync({
+                accuracy: ExpoLocation.Accuracy.Balanced,
+              });
+              lat = loc.coords.latitude;
+              lng = loc.coords.longitude;
+            }
+          } catch {
+            // unavailable — fall through to default
+          }
+        }
+
+        // Final fallback
+        lat = lat ?? 12.9716;
+        lng = lng ?? 77.5946;
+
+        const coord = { latitude: lat, longitude: lng };
+        setMarkerCoord(coord);
+        setCameraCenter(coord);
+        originalCoordRef.current = coord;
+        setManuallyAdjusted(false);
+        setShowSearchArea(false);
+        setShowAreaResults(false);
+        setAreaResults([]);
+        setVenueName('');
+        setVenueAddress('');
+        setVenueShortAddress('');
+        setIsLoadingAddress(false);
+        triggerReverseGeocode(lat, lng, true);
+        animateWhenReady(lat, lng);
+      })();
+
+      return;
+    }
+
+    // ── PLACE SELECTED FROM SEARCH ───────────────────────────────────────────
+    // Mappls autosuggest often returns empty lat/lng for POI types —
+    // call getPlaceDetails(eLoc) to resolve real coordinates in that case.
+    const hasCoords = place.lat && place.lng &&
+      !(Math.abs(place.lat) < 0.001 && Math.abs(place.lng) < 0.001);
+
+    const initWithCoords = (lat, lng) => {
+      const coord = { latitude: lat, longitude: lng };
+      setMarkerCoord(coord);
+      setCameraCenter(coord);
+      originalCoordRef.current = coord;
+      setManuallyAdjusted(false);
+      setShowSearchArea(false);
+      setShowAreaResults(false);
+      setAreaResults([]);
       setVenueName(place.name ?? '');
       setVenueAddress(place.address ?? '');
       setVenueShortAddress(place.shortAddress ?? '');
       setVenueCity('');
-    } else {
-      // Drop pin manually — reverse geocode default location
-      setVenueName('');
-      setVenueAddress('');
-      setVenueShortAddress('');
-      triggerReverseGeocode(lat, lng, true);
-    }
+      // Queue the camera move — fires immediately if map is already ready,
+      // otherwise fires inside onMapReady once Google Maps SDK is fully up.
+      animateWhenReady(lat, lng);
+    };
 
-    // Animate camera after modal is visible
-    setTimeout(() => {
-      mapRef.current?.animateToRegion({
-        latitude: lat,
-        longitude: lng,
-        latitudeDelta: 0.008,
-        longitudeDelta: 0.008,
-      }, 600);
-    }, 350);
+    if (hasCoords) {
+      initWithCoords(place.lat, place.lng);
+    } else if (place.placeId && place.provider === 'mappls') {
+      // Coordinates missing — resolve via placedetail API.
+      // Pass the full placeAddress from autosuggest as fallback so that if
+      // placedetail returns no coordinates (e.g. free-tier plan restriction),
+      // the provider can immediately try geocoding the address string instead.
+      setIsLoadingAddress(true);
+      getActiveProvider()
+        .getPlaceDetails(place.placeId, place.address, place.name)
+        .then((detailed) => {
+          console.log('[MapPicker] getPlaceDetails result — lat:', detailed?.lat, 'lng:', detailed?.lng, 'name:', detailed?.name);
+
+          const lat = detailed?.lat ?? userLocation?.lat ?? 12.9716;
+          const lng = detailed?.lng ?? userLocation?.lng ?? 77.5946;
+          if (detailed) {
+            place.address = detailed.address || place.address;
+            place.shortAddress = detailed.shortAddress || place.shortAddress;
+            place.name = detailed.name || place.name;
+          }
+          initWithCoords(lat, lng);
+        })
+        .catch((err) => {
+          console.error('[MapPicker] getPlaceDetails catch:', err?.message);
+          initWithCoords(userLocation?.lat ?? 12.9716, userLocation?.lng ?? 77.5946);
+        })
+        .finally(() => setIsLoadingAddress(false));
+    } else {
+      // Fallback for Google or unknown provider with missing coords
+      initWithCoords(userLocation?.lat ?? 12.9716, userLocation?.lng ?? 77.5946);
+    }
   }, [visible, initialPlace]);
+
 
   // ─── Reverse geocode (debounced) ───────────────────────────────────────────
   const triggerReverseGeocode = useCallback((lat, lng, immediate = false) => {
@@ -366,6 +468,7 @@ export default function MapLocationPicker({
             latitudeDelta: 0.008,
             longitudeDelta: 0.008,
           }}
+          onMapReady={handleMapReady}
           onPress={handleMapPress}
           onLongPress={handleMapLongPress}
           onRegionChange={handleRegionChange}
@@ -448,6 +551,16 @@ export default function MapLocationPicker({
           </View>
         )}
 
+        {/* ── "Resolving location…" overlay (while getPlaceDetails fetches coords) ── */}
+        {isLoadingAddress && !markerCoord && (
+          <View style={styles.resolvingOverlay} pointerEvents="none">
+            <View style={styles.resolvingCard}>
+              <ActivityIndicator size="small" color={COLORS.primary} />
+              <Text style={styles.resolvingText}>Locating on map…</Text>
+            </View>
+          </View>
+        )}
+
         {/* ── My Location FAB ── */}
         <View style={[styles.fabContainer, { bottom: 240 + insets.bottom }]}>
           <TouchableOpacity
@@ -461,6 +574,7 @@ export default function MapLocationPicker({
             }
           </TouchableOpacity>
         </View>
+
 
         {/* ── Bottom confirmation card ── */}
         <View style={[styles.bottomCard, { paddingBottom: insets.bottom + 20 }]}>
@@ -833,5 +947,30 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     textAlign: 'center',
     marginBottom: 4,
+  },
+
+  // ── Resolving coordinates overlay ──
+  resolvingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+  },
+
+  resolvingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: 'rgba(255,255,255,0.93)',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 999,
+    ...SHADOWS.md,
+  },
+
+  resolvingText: {
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: COLORS.textPrimary,
   },
 });

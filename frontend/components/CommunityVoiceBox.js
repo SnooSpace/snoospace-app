@@ -305,158 +305,155 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
   const imageHeight = CARD_CONTENT_WIDTH / firstAspectRatio;
 
   return (
-    <View ref={cardRef} style={cardStyles.card}>
-      {/* Author row */}
-      <View style={cardStyles.authorRow}>
-        <View style={cardStyles.avatarWrap}>
-          {!isAnon && post.author_photo_url ? (
-            <ExpoImage
-              source={{ uri: post.author_photo_url }}
-              style={cardStyles.avatar}
-              cachePolicy="memory-disk"
-              contentFit="cover"
-            />
-          ) : (
-            <View style={[cardStyles.avatar, cardStyles.anonAvatar]}>
-              <HatGlasses size={16} color={COLORS.primary} strokeWidth={2} />
-            </View>
-          )}
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={cardStyles.authorName}>
-            {isAnon ? "Anonymous" : post.author_name || "Member"}
-          </Text>
-          <Text style={cardStyles.timestamp}>{timeAgo(post.created_at)}</Text>
-        </View>
-      </View>
-
-      {/* Content & Image wrapper for double tap */}
-      <TouchableWithoutFeedback onPress={handleDoubleTap}>
-        <View style={{ flexGrow: 1 }}>
-          {/* Content */}
-          {!!post.caption && <Text style={cardStyles.content}>{post.caption}</Text>}
-
-          {/* Image */}
-          {Array.isArray(post.image_urls) && post.image_urls.length > 0 && (
-            <ExpoImage
-              source={{ uri: post.image_urls[0] }}
-              style={[cardStyles.postImage, { height: imageHeight }]}
-              cachePolicy="memory-disk"
-              contentFit="cover"
-            />
-          )}
-        </View>
-      </TouchableWithoutFeedback>
-
-      {/* Divider */}
-      <View style={cardStyles.divider} />
-
-      {/* Engagement Row */}
-      <View style={cardStyles.engagementRow}>
-        {/* Like */}
-        <Pressable
-          style={cardStyles.engagementButton}
-          onPress={handleLike}
-          disabled={isLiking}
-        >
-          <Heart
-            size={20}
-            strokeWidth={2}
-            color={isLiked ? COLORS.error : COLORS.textSecondary}
-            fill={isLiked ? COLORS.error : "transparent"}
-          />
-          <Text style={[cardStyles.engagementCount, isLiked && cardStyles.likedCount]}>
-            {likeCount}
-          </Text>
-        </Pressable>
-
-        {/* Comment */}
-        <Pressable style={cardStyles.engagementButton} onPress={handleCommentPress}>
-          <MessageCircle
-            size={20}
-            strokeWidth={2}
-            color={COLORS.textSecondary}
-          />
-          <Text style={cardStyles.engagementCount}>
-            {post.comment_count || 0}
-          </Text>
-        </Pressable>
-
-        {/* Views */}
-        <Pressable
-          style={cardStyles.engagementButton}
-          onPress={() => HapticsService.triggerView()}
-        >
-          <ChartNoAxesCombined
-            size={20}
-            strokeWidth={2}
-            color={COLORS.textSecondary}
-          />
-          <Text style={cardStyles.engagementCount}>
-            {viewCount}
-          </Text>
-        </Pressable>
-
-        {/* Share */}
-        <Pressable style={cardStyles.engagementButton} onPress={handleShare}>
-          <Send
-            size={20}
-            strokeWidth={2}
-            color={COLORS.textSecondary}
-          />
-          <Text style={cardStyles.engagementCount}>
-            {shareCount}
-          </Text>
-        </Pressable>
-
-        {/* Bookmark */}
-        <Pressable style={cardStyles.engagementButton} onPress={handleSave}>
-          <Bookmark
-            size={20}
-            strokeWidth={2}
-            color={COLORS.textSecondary}
-            fill={isSaved ? COLORS.textSecondary : "transparent"}
-          />
-          {saveCount > 0 && (
-            <Text style={cardStyles.engagementCount}>
-              {saveCount}
+    <TouchableWithoutFeedback onPress={handleDoubleTap}>
+      <View ref={cardRef} style={cardStyles.card}>
+        {/* Author row */}
+        <View style={cardStyles.authorRow}>
+          <View style={cardStyles.avatarWrap}>
+            {!isAnon && post.author_photo_url ? (
+              <ExpoImage
+                source={{ uri: post.author_photo_url }}
+                style={cardStyles.avatar}
+                cachePolicy="memory-disk"
+                contentFit="cover"
+              />
+            ) : (
+              <View style={[cardStyles.avatar, cardStyles.anonAvatar]}>
+                <HatGlasses size={16} color={COLORS.primary} strokeWidth={2} />
+              </View>
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={cardStyles.authorName}>
+              {isAnon ? "Anonymous" : post.author_name || "Member"}
             </Text>
-          )}
-        </Pressable>
+            <Text style={cardStyles.timestamp}>{timeAgo(post.created_at)}</Text>
+          </View>
+        </View>
+
+        {/* Content */}
+        {!!post.caption && <Text style={cardStyles.content}>{post.caption}</Text>}
+
+        {/* Image */}
+        {Array.isArray(post.image_urls) && post.image_urls.length > 0 && (
+          <ExpoImage
+            source={{ uri: post.image_urls[0] }}
+            style={[cardStyles.postImage, { height: imageHeight }]}
+            cachePolicy="memory-disk"
+            contentFit="cover"
+          />
+        )}
+
+        {/* Divider */}
+        <View style={cardStyles.divider} />
+
+        {/* Engagement Row */}
+        <View style={cardStyles.engagementRow}>
+          {/* Like */}
+          <Pressable
+            style={cardStyles.engagementButton}
+            onPress={handleLike}
+            disabled={isLiking}
+          >
+            <Heart
+              size={20}
+              strokeWidth={2}
+              color={isLiked ? COLORS.error : COLORS.textSecondary}
+              fill={isLiked ? COLORS.error : "transparent"}
+            />
+            <Text style={[cardStyles.engagementCount, isLiked && cardStyles.likedCount]}>
+              {likeCount}
+            </Text>
+          </Pressable>
+
+          {/* Comment */}
+          <Pressable style={cardStyles.engagementButton} onPress={handleCommentPress}>
+            <MessageCircle
+              size={20}
+              strokeWidth={2}
+              color={COLORS.textSecondary}
+            />
+            <Text style={cardStyles.engagementCount}>
+              {post.comment_count || 0}
+            </Text>
+          </Pressable>
+
+          {/* Views */}
+          <Pressable
+            style={cardStyles.engagementButton}
+            onPress={() => HapticsService.triggerView()}
+          >
+            <ChartNoAxesCombined
+              size={20}
+              strokeWidth={2}
+              color={COLORS.textSecondary}
+            />
+            <Text style={cardStyles.engagementCount}>
+              {viewCount}
+            </Text>
+          </Pressable>
+
+          {/* Share */}
+          <Pressable style={cardStyles.engagementButton} onPress={handleShare}>
+            <Send
+              size={20}
+              strokeWidth={2}
+              color={COLORS.textSecondary}
+            />
+            <Text style={cardStyles.engagementCount}>
+              {shareCount}
+            </Text>
+          </Pressable>
+
+          {/* Bookmark */}
+          <Pressable style={cardStyles.engagementButton} onPress={handleSave}>
+            <Bookmark
+              size={20}
+              strokeWidth={2}
+              color={COLORS.textSecondary}
+              fill={isSaved ? COLORS.textSecondary : "transparent"}
+            />
+            {saveCount > 0 && (
+              <Text style={cardStyles.engagementCount}>
+                {saveCount}
+              </Text>
+            )}
+          </Pressable>
+        </View>
+
+        {/* Share Modal */}
+        {shareModalVisible && (
+          <ShareModal
+            visible={shareModalVisible}
+            post={post}
+            onClose={() => setShareModalVisible(false)}
+          />
+        )}
+
+        {/* Floating Heart */}
+        {showHeart && (
+          <Animated.View
+            style={{
+              position: 'absolute',
+              top: heartPos.y - 75,
+              left: heartPos.x - 75,
+              transform: [
+                { scale: heartScale },
+                { rotate: `${heartRot}deg` }
+              ],
+              opacity: heartScale.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 1],
+              }),
+              zIndex: 9999,
+            }}
+            pointerEvents="none"
+          >
+            <GradientHeart />
+          </Animated.View>
+        )}
       </View>
-
-      {/* Share Modal */}
-      {shareModalVisible && (
-        <ShareModal
-          visible={shareModalVisible}
-          post={post}
-          onClose={() => setShareModalVisible(false)}
-        />
-      )}
-
-      {/* Floating Heart */}
-      {showHeart && (
-        <Animated.View
-          style={{
-            position: 'absolute',
-            top: heartPos.y - 75,
-            left: heartPos.x - 75,
-            transform: [
-              { scale: heartScale },
-              { rotate: `${heartRot}deg` }
-            ],
-            opacity: heartScale.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, 1],
-            }),
-            zIndex: 9999,
-          }}
-          pointerEvents="none"
-        >
-          <GradientHeart />
-        </Animated.View>
-      )}
-    </View>
+    </TouchableWithoutFeedback>
   );
 });
 
