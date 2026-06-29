@@ -27,6 +27,7 @@ import {
   Switch,
   Dimensions,
   Alert,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { Image as ExpoImage } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -45,6 +46,7 @@ import {
   Bookmark,
   ChartNoAxesCombined,
 } from "lucide-react-native";
+import { GradientHeart } from "./ui/GradientHeart";
 import { COLORS, FONTS, SHADOWS } from "../constants/theme";
 import HapticsService from "../services/HapticsService";
 import { getAuthToken, getActiveAccount } from "../api/auth";
@@ -107,6 +109,69 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
   const [viewCount, setViewCount] = useState(post?.public_view_count || post?.view_count || 0);
   const [shareCount, setShareCount] = useState(post?.share_count || 0);
   const [shareModalVisible, setShareModalVisible] = useState(false);
+
+  const lastTapRef = useRef(0);
+  const cardRef = useRef(null);
+  const heartScale = useRef(new Animated.Value(0)).current;
+  const [heartPos, setHeartPos] = useState({ x: 0, y: 0 });
+  const [heartRot, setHeartRot] = useState(0);
+  const [showHeart, setShowHeart] = useState(false);
+
+  const triggerHeartAnimation = (x, y) => {
+    setHeartPos({ x, y });
+    setHeartRot(Math.random() * 30 - 15);
+    setShowHeart(true);
+    heartScale.setValue(0);
+
+    Animated.sequence([
+      Animated.timing(heartScale, {
+        toValue: 1.2,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(heartScale, {
+        toValue: 0.9,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(heartScale, {
+        toValue: 1.05,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(heartScale, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.delay(800),
+      Animated.timing(heartScale, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setShowHeart(false);
+    });
+  };
+
+  const handleDoubleTap = (event) => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      const { pageX, pageY } = event.nativeEvent;
+      cardRef.current?.measure((x, y, width, height, cardPageX, cardPageY) => {
+        const relativeX = pageX - cardPageX;
+        const relativeY = pageY - cardPageY;
+        triggerHeartAnimation(relativeX, relativeY);
+      });
+      if (!isLiked) {
+        handleLike();
+      } else {
+        HapticsService.triggerImpactLight();
+      }
+    }
+    lastTapRef.current = now;
+  };
 
   // Sync state when post prop changes
   useEffect(() => {
@@ -240,7 +305,7 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
   const imageHeight = CARD_CONTENT_WIDTH / firstAspectRatio;
 
   return (
-    <View style={cardStyles.card}>
+    <View ref={cardRef} style={cardStyles.card}>
       {/* Author row */}
       <View style={cardStyles.authorRow}>
         <View style={cardStyles.avatarWrap}>
@@ -265,18 +330,23 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
         </View>
       </View>
 
-      {/* Content */}
-      {!!post.caption && <Text style={cardStyles.content}>{post.caption}</Text>}
+      {/* Content & Image wrapper for double tap */}
+      <TouchableWithoutFeedback onPress={handleDoubleTap}>
+        <View style={{ flexGrow: 1 }}>
+          {/* Content */}
+          {!!post.caption && <Text style={cardStyles.content}>{post.caption}</Text>}
 
-      {/* Image */}
-      {Array.isArray(post.image_urls) && post.image_urls.length > 0 && (
-        <ExpoImage
-          source={{ uri: post.image_urls[0] }}
-          style={[cardStyles.postImage, { height: imageHeight }]}
-          cachePolicy="memory-disk"
-          contentFit="cover"
-        />
-      )}
+          {/* Image */}
+          {Array.isArray(post.image_urls) && post.image_urls.length > 0 && (
+            <ExpoImage
+              source={{ uri: post.image_urls[0] }}
+              style={[cardStyles.postImage, { height: imageHeight }]}
+              cachePolicy="memory-disk"
+              contentFit="cover"
+            />
+          )}
+        </View>
+      </TouchableWithoutFeedback>
 
       {/* Divider */}
       <View style={cardStyles.divider} />
@@ -362,6 +432,29 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
           post={post}
           onClose={() => setShareModalVisible(false)}
         />
+      )}
+
+      {/* Floating Heart */}
+      {showHeart && (
+        <Animated.View
+          style={{
+            position: 'absolute',
+            top: heartPos.y - 75,
+            left: heartPos.x - 75,
+            transform: [
+              { scale: heartScale },
+              { rotate: `${heartRot}deg` }
+            ],
+            opacity: heartScale.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, 1],
+            }),
+            zIndex: 9999,
+          }}
+          pointerEvents="none"
+        >
+          <GradientHeart />
+        </Animated.View>
       )}
     </View>
   );
@@ -977,6 +1070,7 @@ const cardStyles = StyleSheet.create({
     padding: 16,
     marginHorizontal: 16,
     marginBottom: 12,
+    position: "relative",
   },
   authorRow: {
     flexDirection: "row",

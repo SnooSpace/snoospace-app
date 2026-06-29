@@ -35,6 +35,7 @@ import {
   Trash2,
   TrendingUp,
   Zap,
+  ZapOff,
   X,
   BarChart,
   Briefcase,
@@ -299,11 +300,13 @@ export default function SettingsScreen({ route, navigation }) {
   const [isTogglingCreator, setIsTogglingCreator] = useState(false);
   const [showCreatorOnboarding, setShowCreatorOnboarding] = useState(false);
   const [showCreatorInfo, setShowCreatorInfo] = useState(false);
+  const [showCreatorOffWarning, setShowCreatorOffWarning] = useState(false);
+  const [hasBeenWarnedOff, setHasBeenWarnedOff] = useState(false);
 
   const slideAnim = useRef(new RNAnimated.Value(0)).current;
 
   useEffect(() => {
-    if (showCreatorOnboarding || showCreatorInfo) {
+    if (showCreatorOnboarding || showCreatorInfo || showCreatorOffWarning) {
       slideAnim.setValue(0);
       RNAnimated.spring(slideAnim, {
         toValue: 1,
@@ -312,7 +315,7 @@ export default function SettingsScreen({ route, navigation }) {
         friction: 11,
       }).start();
     }
-  }, [showCreatorOnboarding, showCreatorInfo]);
+  }, [showCreatorOnboarding, showCreatorInfo, showCreatorOffWarning]);
 
   const sheetTranslateY = slideAnim.interpolate({
     inputRange: [0, 1],
@@ -327,6 +330,9 @@ export default function SettingsScreen({ route, navigation }) {
     AsyncStorage.getItem(CREATOR_MODE_CACHE_KEY).then((val) => {
       if (val !== null) setIsCreatorModeEnabled(val === "true");
     });
+    AsyncStorage.getItem("creator_mode_off_warned").then((val) => {
+      if (val === "true") setHasBeenWarnedOff(true);
+    });
   }, []);
 
   // Keep in sync when the parent profile prop updates (e.g. from EventBus)
@@ -340,6 +346,17 @@ export default function SettingsScreen({ route, navigation }) {
   const handleToggleCreatorMode = async (val) => {
     if (isTogglingCreator) return;
     HapticsService.triggerImpactLight();
+
+    if (!val && !hasBeenWarnedOff) {
+      // Show first-time warning modal before turning off
+      setShowCreatorOffWarning(true);
+      return;
+    }
+
+    await performToggleCreatorMode(val);
+  };
+
+  const performToggleCreatorMode = async (val) => {
     // Optimistic update + persist immediately
     setIsCreatorModeEnabled(val);
     await AsyncStorage.setItem(CREATOR_MODE_CACHE_KEY, String(val));
@@ -368,6 +385,13 @@ export default function SettingsScreen({ route, navigation }) {
     } finally {
       setIsTogglingCreator(false);
     }
+  };
+
+  const handleConfirmTurnOff = async () => {
+    setShowCreatorOffWarning(false);
+    setHasBeenWarnedOff(true);
+    await AsyncStorage.setItem("creator_mode_off_warned", "true");
+    await performToggleCreatorMode(false);
   };
 
   const handleToggleHaptics = async (val) => {
@@ -851,6 +875,78 @@ export default function SettingsScreen({ route, navigation }) {
           </Pressable>
         </Modal>
       )}
+
+      {/* ── Creator Mode first-time turn-off warning modal ── */}
+      {showCreatorOffWarning && (
+        <Modal
+          transparent
+          visible={showCreatorOffWarning}
+          animationType="none"
+          statusBarTranslucent
+          onRequestClose={() => setShowCreatorOffWarning(false)}
+        >
+          <Pressable
+            style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" }}
+            onPress={() => setShowCreatorOffWarning(false)}
+          >
+            <RNAnimated.View
+              style={[creatorModalStyles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}
+            >
+              <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
+                {/* Handle */}
+                <View style={creatorModalStyles.handle} />
+
+                {/* Header */}
+                <View style={creatorModalStyles.header}>
+                  <View style={[creatorModalStyles.iconRing, { backgroundColor: "#FEF2F2" }]}>
+                    <ZapOff size={26} color="#EF4444" strokeWidth={2.5} />
+                  </View>
+                  <Text style={creatorModalStyles.title}>Turn off Creator Mode?</Text>
+                  <Text style={creatorModalStyles.subtitle}>
+                    You are disabling Creator Mode. Here is what will happen:
+                  </Text>
+                </View>
+
+                {/* Warning details */}
+                {[
+                  { icon: Users,      color: "#10B981", label: "Followers Will Be Hidden", sub: "Your creator followers count will drop to 0. Toggling Creator Mode back on will restore them." },
+                  { icon: BarChart,   color: "#3B82F6", label: "Lose Audience Insights",   sub: "Your Audience Score, reach metrics, and follower insights will be hidden." },
+                  { icon: Sparkles,   color: "#8B5CF6", label: "Lock Advanced Post Types", sub: "You won't be able to post Polls, Prompts, Q&As, Challenges, or Opportunities." },
+                  { icon: TrendingUp, color: "#EC4899", label: "Disable Sponsor Discovery", sub: "Sponsorship preferences will be turned off and brands won't find you." },
+                ].map(({ icon: Icon, color, label, sub }) => (
+                  <View key={label} style={creatorModalStyles.featureRow}>
+                    <View style={[creatorModalStyles.featureIcon, { backgroundColor: color + "18" }]}>
+                      <Icon size={18} color={color} strokeWidth={2} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={creatorModalStyles.featureLabel}>{label}</Text>
+                      <Text style={creatorModalStyles.featureSub}>{sub}</Text>
+                    </View>
+                  </View>
+                ))}
+
+                {/* Keep On Button */}
+                <TouchableOpacity
+                  style={creatorModalStyles.cta}
+                  onPress={() => setShowCreatorOffWarning(false)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={creatorModalStyles.ctaText}>Keep Creator Mode On</Text>
+                </TouchableOpacity>
+
+                {/* Turn Off Button */}
+                <TouchableOpacity
+                  style={creatorModalStyles.cancelCta}
+                  onPress={handleConfirmTurnOff}
+                  activeOpacity={0.85}
+                >
+                  <Text style={creatorModalStyles.cancelCtaText}>Yes, Turn Off</Text>
+                </TouchableOpacity>
+              </Pressable>
+            </RNAnimated.View>
+          </Pressable>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -979,5 +1075,16 @@ const creatorModalStyles = StyleSheet.create({
     fontFamily: "Manrope-SemiBold",
     fontSize: 16,
     color: "#FFFFFF",
+  },
+  cancelCta: {
+    marginTop: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cancelCtaText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 16,
+    color: "#EF4444",
   },
 });
