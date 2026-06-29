@@ -23,6 +23,7 @@ import {
   getCommunityCircleStatus,
   removeMemberFromCommunityCircle
 } from '../../../api/members';
+import { getFollowStatusForCommunity, followCommunity, unfollowCommunity } from '../../../api/communities';
 import CustomAlertModal from '../../../components/ui/CustomAlertModal';
 import HapticsService from '../../../services/HapticsService';
 import EventBus from '../../../utils/EventBus';
@@ -44,6 +45,8 @@ const CircleMemberRow = React.memo(({
   circleState,
   circleLoading,
   onCircleRequest,
+  isViewerCreator,
+  onCommunityFollow,
 }) => {
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -115,8 +118,31 @@ const CircleMemberRow = React.memo(({
               </GHPressable>
             )}
 
-            {/* Regular Member Row: Add / Requested / In Circle */}
-            {!isCreator && viewerType === "member" && (
+            {/* Community Row viewed by a Creator: interactive Follow / Following chip */}
+            {!isCreator && item.is_community && isViewerCreator && (
+              <GHPressable
+                style={[
+                  styles.ctaBtn,
+                  followState === true
+                    ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                    : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+                ]}
+                onPress={() => onCommunityFollow && onCommunityFollow(item)}
+                disabled={followLoading}
+                hitSlop={8}
+              >
+                {followLoading ? (
+                  <ActivityIndicator size="small" color={followState === true ? '#2962FF' : '#fff'} style={{ width: 60 }} />
+                ) : (
+                  <Text style={[styles.ctaTextDefault, { color: followState === true ? '#2962FF' : '#fff' }]}>
+                    {followState === true ? 'Following' : 'Follow'}
+                  </Text>
+                )}
+              </GHPressable>
+            )}
+
+            {/* Regular Member Row (non-community, non-creator item): Add / Requested / In Circle */}
+            {!isCreator && !item.is_community && viewerType === "member" && (
               <GHPressable
                 style={[
                   styles.ctaBtn,
@@ -261,6 +287,11 @@ export default function CircleListScreen({ route, navigation }) {
               const status = await getFollowStatusForMember(row.id).catch(() => null);
               preSeededFollow[row.id] = !!status?.isFollowing;
             }
+            // 3. Community follow status — needed for creator-viewers to show Following badge
+            if (row.is_community) {
+              const status = await getFollowStatusForCommunity(row.id).catch(() => null);
+              preSeededFollow[row.id] = !!(status?.isFollowing ?? status?.is_following);
+            }
           })
         );
 
@@ -384,6 +415,27 @@ export default function CircleListScreen({ route, navigation }) {
     }
   }, [followStates]);
 
+  // Follow/Unfollow toggle for communities in public views (creator-viewer only)
+  const handleCommunityFollowToggle = useCallback(async (item) => {
+    const communityId = item.id || item.member_id;
+    const isFollowing = followStates[communityId];
+    HapticsService.triggerImpactMedium();
+    setFollowLoadingMap((prev) => ({ ...prev, [communityId]: true }));
+    setFollowStates((prev) => ({ ...prev, [communityId]: !isFollowing }));
+    try {
+      if (isFollowing) {
+        await unfollowCommunity(communityId);
+      } else {
+        await followCommunity(communityId);
+      }
+    } catch (e) {
+      console.warn('[CircleList] handleCommunityFollowToggle error:', e);
+      setFollowStates((prev) => ({ ...prev, [communityId]: isFollowing }));
+    } finally {
+      setFollowLoadingMap((prev) => ({ ...prev, [communityId]: false }));
+    }
+  }, [followStates]);
+
   // Circle request for regular members in public views
   const handleMemberCircleRequest = useCallback(async (targetId) => {
     HapticsService.triggerImpactMedium();
@@ -481,12 +533,14 @@ export default function CircleListScreen({ route, navigation }) {
         followState={followStates[item.member_id || item.id]}
         followLoading={!!followLoadingMap[item.member_id || item.id]}
         onFollow={handleFollowToggle}
+        onCommunityFollow={handleCommunityFollowToggle}
         circleState={memberCircleStates[item.member_id || item.id] || "none"}
         circleLoading={circleLoading}
         onCircleRequest={handleMemberCircleRequest}
+        isViewerCreator={isViewerCreator}
       />
     );
-  }, [handlePress, handleRemove, readOnly, viewerType, myId, followStates, followLoadingMap, handleFollowToggle, memberCircleStates, handleMemberCircleRequest, memberCircleLoadingMap]);
+  }, [handlePress, handleRemove, readOnly, viewerType, myId, followStates, followLoadingMap, handleFollowToggle, handleCommunityFollowToggle, memberCircleStates, handleMemberCircleRequest, memberCircleLoadingMap, isViewerCreator]);
 
   const keyExtractor = useCallback((item) => item.member_id || item.id, []);
 
