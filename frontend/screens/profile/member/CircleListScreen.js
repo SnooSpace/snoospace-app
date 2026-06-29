@@ -118,8 +118,8 @@ const CircleMemberRow = React.memo(({
               </GHPressable>
             )}
 
-            {/* Community Row viewed by a Creator: interactive Follow / Following chip */}
-            {!isCreator && item.is_community && isViewerCreator && (
+            {/* Community Row viewed by any Member: interactive Follow / Following chip */}
+            {!isCreator && item.is_community && viewerType === "member" && (
               <GHPressable
                 style={[
                   styles.ctaBtn,
