@@ -18,7 +18,7 @@ async function signup(req, res) {
       heads,
       username,
       // NEW: Community type fields
-      community_type, // 'individual_organizer' | 'college_affiliated' | 'organization'
+      community_type, // 'college_affiliated' | 'organization'
       college_id, // UUID if college-affiliated
       campus_id, // UUID of specific campus
       college_subtype, // 'event' | 'club' | 'student_community'
@@ -44,12 +44,19 @@ async function signup(req, res) {
       community_type,
     });
 
+    // Validate community type — 'individual_organizer' (Page) is no longer accepted.
+    // Individual creators should use Creator Mode on a Member account.
+    const VALID_COMMUNITY_TYPES = ["college_affiliated", "organization"];
+    if (community_type && !VALID_COMMUNITY_TYPES.includes(community_type)) {
+      return res.status(400).json({
+        error: "Invalid community type. Valid types: college_affiliated, organization",
+      });
+    }
+
     // Determine the community type - default to 'organization' for backwards compatibility
     const resolvedCommunityType = community_type || "organization";
     const isOrganization = resolvedCommunityType === "organization";
     const isCollegeAffiliated = resolvedCommunityType === "college_affiliated";
-    const isIndividualOrganizer =
-      resolvedCommunityType === "individual_organizer";
 
     // Base validation - name and email always required
     if (!name || !email) {
@@ -59,12 +66,12 @@ async function signup(req, res) {
       });
     }
 
-    // Organization and Creator types require phone (sponsor_types is now optional)
-    if (isOrganization || isIndividualOrganizer) {
+    // Organization type requires phone (sponsor_types is now optional)
+    if (isOrganization) {
       if (!phone) {
-        console.log("Validation failed - organization/creator missing phone");
+        console.log("Validation failed - organization missing phone");
         return res.status(400).json({
-          error: "Required for organization/creator: phone",
+          error: "Required for organization: phone",
         });
       }
       if (!/^\d{10}$/.test(phone)) {
@@ -191,7 +198,7 @@ async function signup(req, res) {
 
       // Determine sponsor visibility based on community type
       // Student communities are NEVER sponsor visible
-      const isSponsorVisible = (isOrganization || isIndividualOrganizer)
+      const isSponsorVisible = isOrganization
         ? true
         : isCollegeAffiliated && college_subtype !== "student_community"
           ? false
@@ -234,9 +241,9 @@ async function signup(req, res) {
       );
       community.category = community.categories[0] || community.category;
 
-      // Clear existing heads and insert provided ones (for organization, college-affiliated, AND individual organizer types)
+      // Clear existing heads and insert provided ones (for organization and college-affiliated types)
       if (
-        (isOrganization || isCollegeAffiliated || isIndividualOrganizer) &&
+        (isOrganization || isCollegeAffiliated) &&
         Array.isArray(heads) &&
         heads.length > 0
       ) {

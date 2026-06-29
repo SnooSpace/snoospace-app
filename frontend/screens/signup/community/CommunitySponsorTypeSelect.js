@@ -287,19 +287,12 @@ const CommunitySponsorTypeSelect = ({ navigation, route }) => {
       );
     }
 
-    // Creators go to IndividualLocation next; Organizations go to Username (final step)
-    const isCreator = params.community_type === "individual_organizer";
-    if (isCreator) {
-      navigation.navigate("IndividualLocation", {
-        ...userData,
-      });
-    } else {
-      navigation.navigate("CommunityUsername", {
-        userData,
-        accessToken: params.accessToken,
-        refreshToken: params.refreshToken,
-      });
-    }
+    // Route to CommunityUsername (final step) — SponsorType is now a post-signup Settings feature
+    navigation.navigate("CommunityUsername", {
+      userData,
+      accessToken: params.accessToken,
+      refreshToken: params.refreshToken,
+    });
   };
 
   const openToAllIsSelected = isOpenToAll;

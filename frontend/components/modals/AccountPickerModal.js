@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Account Picker Modal
  * Shown when OTP verification returns multiple accounts for the same email
  * User can select one, multiple, or all accounts to log into
@@ -12,8 +12,9 @@ import {
   StyleSheet,
   FlatList,
   Platform,
+  Modal,
+  TouchableWithoutFeedback,
 } from "react-native";
-import SwipeableModal from "./SwipeableModal";
 import {
   Check,
   User,
@@ -265,110 +266,118 @@ export default function AccountPickerModal({
   };
 
   return (
-    <SwipeableModal
+    <Modal
       visible={visible}
-      onClose={onClose}
-      sheetStyle={styles.modalContent}
-      backdropColor="rgba(0, 0, 0, 0.5)"
+      transparent={true}
+      animationType="slide"
+      onRequestClose={onGoBack || onClose}
+      statusBarTranslucent={true}
+      navigationBarTranslucent={Platform.OS === "android"}
     >
-      <View style={styles.handleBar} />
+      <TouchableWithoutFeedback onPress={undefined}>
+        <View style={styles.overlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.modalContent}>
+              <View style={styles.handleBar} />
 
-          <Text style={styles.title}>Multiple Accounts Detected</Text>
-          <Text style={styles.subtitle}>
-            Select the account(s) you want to log into
-          </Text>
+              <Text style={styles.title}>Multiple Accounts Detected</Text>
+              <Text style={styles.subtitle}>
+                Select the account(s) you want to log into
+              </Text>
 
-          {loading && (
-            <View style={styles.loadingContainer}>
-              <SnooLoader size="large" color={COLORS.primary} />
-              <Text style={styles.loadingText}>Logging in...</Text>
-            </View>
-          )}
-
-          {!loading && (
-            <>
-              {(accounts || []).length > 1 && (
-                <TouchableOpacity
-                  style={styles.loginAllButton}
-                  onPress={selectAll}
-                >
-                  <Check size={18} color={COLORS.primary} strokeWidth={2.5} />
-                  <Text style={styles.loginAllText}>
-                    Select All ({(accounts || []).length} accounts)
-                  </Text>
-                </TouchableOpacity>
+              {loading && (
+                <View style={styles.loadingContainer}>
+                  <SnooLoader size="large" color={COLORS.primary} />
+                  <Text style={styles.loadingText}>Logging in...</Text>
+                </View>
               )}
 
-              <FlatList
-                data={accounts || []}
-                renderItem={renderAccountItem}
-                keyExtractor={(item, index) =>
-                  `${item.type}_${item.id}_${index}`
-                }
-                style={styles.accountList}
-                showsVerticalScrollIndicator={false}
-              />
+              {!loading && (
+                <>
+                  {(accounts || []).length > 1 && (
+                    <TouchableOpacity
+                      style={styles.loginAllButton}
+                      onPress={selectAll}
+                    >
+                      <Check size={18} color={COLORS.primary} strokeWidth={2.5} />
+                      <Text style={styles.loginAllText}>
+                        Select All ({(accounts || []).length} accounts)
+                      </Text>
+                    </TouchableOpacity>
+                  )}
 
-              {onCreateNewProfile && (
+                  <View style={styles.accountList}>
+                    {(accounts || []).map((item, index) => (
+                      <View key={`${item.type}_${item.id}_${index}`}>
+                        {renderAccountItem({ item })}
+                      </View>
+                    ))}
+                  </View>
+
+                  {onCreateNewProfile && (
+                    <TouchableOpacity
+                      style={styles.createNewButton}
+                      onPress={onCreateNewProfile}
+                      disabled={loading}
+                    >
+                      <LinearGradient
+                        colors={["#E9F2FF", "#F5F9FF"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.createNewIcon}
+                      >
+                        <Plus size={20} color={COLORS.primary} strokeWidth={2.5} />
+                      </LinearGradient>
+                      <GradientText style={styles.createNewText}>
+                        Create a new profile
+                      </GradientText>
+                      <MoveRight size={20} color={COLORS.primary} strokeWidth={2} />
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+
+              <View style={styles.buttonContainer}>
                 <TouchableOpacity
-                  style={styles.createNewButton}
-                  onPress={onCreateNewProfile}
+                  style={styles.cancelButton}
+                  onPress={onGoBack || onClose}
                   disabled={loading}
                 >
-                  <LinearGradient
-                    colors={["#E9F2FF", "#F5F9FF"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.createNewIcon}
-                  >
-                    <Plus size={20} color={COLORS.primary} strokeWidth={2.5} />
-                  </LinearGradient>
-                  <GradientText style={styles.createNewText}>
-                    Create a new profile
-                  </GradientText>
-                  <MoveRight size={20} color={COLORS.primary} strokeWidth={2} />
+                  <Text style={styles.cancelButtonText}>← Go Back to Email</Text>
                 </TouchableOpacity>
-              )}
-            </>
-          )}
 
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={onGoBack || onClose}
-              disabled={loading}
-            >
-              <Text style={styles.cancelButtonText}>← Go Back to Email</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.loginButton,
-                selectedAccounts.length === 0 && styles.loginButtonDisabled,
-              ]}
-              onPress={handleLogin}
-              disabled={loading || selectedAccounts.length === 0}
-            >
-              <LinearGradient
-                colors={
-                  selectedAccounts.length > 0
-                    ? COLORS.primaryGradient
-                    : ["#C7C7CC", "#C7C7CC"]
-                }
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.loginButtonGradient}
-              >
-                <Text style={styles.loginButtonText}>
-                  Login
-                  {selectedAccounts.length > 1
-                    ? ` (${selectedAccounts.length})`
-                    : ""}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-    </SwipeableModal>
+                <TouchableOpacity
+                  style={[
+                    styles.loginButton,
+                    selectedAccounts.length === 0 && styles.loginButtonDisabled,
+                  ]}
+                  onPress={handleLogin}
+                  disabled={loading || selectedAccounts.length === 0}
+                >
+                  <LinearGradient
+                    colors={
+                      selectedAccounts.length > 0
+                        ? COLORS.primaryGradient
+                        : ["#C7C7CC", "#C7C7CC"]
+                    }
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.loginButtonGradient}
+                  >
+                    <Text style={styles.loginButtonText}>
+                      Login
+                      {selectedAccounts.length > 1
+                        ? ` (${selectedAccounts.length})`
+                        : ""}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
   );
 }
 
@@ -433,12 +442,12 @@ const styles = StyleSheet.create({
   },
   loginAllText: {
     color: COLORS.primary,
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: "Manrope-SemiBold",
     marginLeft: 8,
   },
   accountList: {
-    maxHeight: 320,
+    width: "100%",
   },
   accountItem: {
     flexDirection: "row",
@@ -499,8 +508,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   accountName: {
-    fontFamily: "BasicCommercial-Bold",
-    fontSize: 17,
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 16,
     color: COLORS.textPrimary,
     marginBottom: 2,
   },
@@ -556,8 +565,8 @@ const styles = StyleSheet.create({
   createNewText: {
     flex: 1,
     marginLeft: 16,
-    fontSize: 17,
-    fontFamily: "Manrope-Bold",
+    fontSize: 16,
+    fontFamily: "Manrope-SemiBold",
     height: 24,
     justifyContent: "center",
   },

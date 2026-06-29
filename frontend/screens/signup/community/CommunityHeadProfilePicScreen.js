@@ -97,8 +97,6 @@ const CommunityHeadProfilePicScreen = ({ navigation, route }) => {
     sponsor_types,
   });
 
-  const isIndividual = params.community_type === "individual_organizer";
-
   const [imageUri, setImageUri] = useState(existingHeadPhoto || null);
   const [isLoading, setIsLoading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -307,15 +305,13 @@ const CommunityHeadProfilePicScreen = ({ navigation, route }) => {
               entering={FadeInDown.delay(100).duration(600).springify()}
               style={styles.title}
             >
-              {isIndividual ? "Add your photo" : "Head's profile photo"}
+              Head's profile photo
             </Animated.Text>
             <Animated.Text
               entering={FadeInDown.delay(200).duration(600).springify()}
               style={styles.subtitle}
             >
-              {isIndividual
-                ? "Put a face to your community — members love seeing who's behind it."
-                : "Help members recognise the person heading this community."}
+              Help members recognise the person heading this community.
             </Animated.Text>
 
             <Animated.View

@@ -479,7 +479,6 @@ export function getCommunityNextScreenForStep(currentStep) {
     CommunityLogo: "CommunityBio",
     CommunityBio: "CommunityCategory",
     CommunityCategory: "CollegeHeads", // Default for college; org goes to CommunityLocation separately
-    IndividualLocation: "CommunityPhone", // kept for legacy resume safety — screen is no longer visited in new signups
     CommunityLocation: "CommunityHeadName",
     CollegeHeads: "CommunityPhone", // College heads now includes photos inline
     CommunityHeadName: "CommunityPhone", // Photos now collected inline on CommunityHeadName
@@ -575,12 +574,8 @@ export function getCommunityResumeStack(lastStep, draftData = {}) {
   // College communities no longer go through the Location screen
   let locationStack = [];
   if (!isStudentCommunity && !isCollege) {
-    if (community_type === "individual_organizer") {
-      locationStack = ["IndividualLocation"];
-    } else {
-      // Organization
-      locationStack = ["CommunityLocation"];
-    }
+    // Organization goes through CommunityLocation
+    locationStack = ["CommunityLocation"];
   }
 
   // Post-location screens vary by type:
@@ -613,21 +608,13 @@ export function getCommunityResumeStack(lastStep, draftData = {}) {
       ...collegePostStack,
       "CommunityUsername",
     ];
-  } else if (community_type === "organization") {
+  } else {
+    // Organization
     fullPath = [
       ...baseStack,
       ...coreStack,
       ...locationStack,
       ...orgPostStack,
-      "CommunityUsername",
-    ];
-  } else {
-    // Page (individual_organizer) — no location step, no HeadName, no SponsorType
-    // Flow: CommunityTypeSelect -> Name -> Logo -> Bio -> Category -> Phone -> Username
-    fullPath = [
-      ...baseStack,
-      ...coreStack,
-      ...individualPostStack,
       "CommunityUsername",
     ];
   }

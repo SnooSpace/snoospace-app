@@ -39,6 +39,8 @@ export default function SwipeableModal({
   blurIntensity = 20,
   blurTint = "dark",
   springConfig = { damping: 22, stiffness: 180, mass: 1 },
+  swipeEnabled = true,
+  closeOnBackdropPress = true,
 }) {
   const [shouldRender, setShouldRender] = useState(visible);
   const translateY = useSharedValue(SCREEN_HEIGHT);
@@ -72,6 +74,7 @@ export default function SwipeableModal({
   const context = useSharedValue({ y: 0 });
 
   const panGesture = Gesture.Pan()
+    .enabled(swipeEnabled)
     .hitSlop({ top: 0, height: 120 })
     .onStart(() => {
       context.value = { y: translateY.value };
@@ -115,6 +118,7 @@ export default function SwipeableModal({
       animationType="none"
       onRequestClose={onRequestClose || onClose}
       statusBarTranslucent={statusBarTranslucent}
+      navigationBarTranslucent={false}
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={styles.overlay}>
@@ -126,24 +130,34 @@ export default function SwipeableModal({
               animatedBackdropStyle,
             ]}
           >
-            {useBlur ? (
-              <TouchableOpacity
-                style={StyleSheet.absoluteFill}
-                activeOpacity={1}
-                onPress={onClose}
-              >
-                <BlurView
-                  intensity={blurIntensity}
-                  tint={blurTint}
+            {closeOnBackdropPress ? (
+              useBlur ? (
+                <TouchableOpacity
                   style={StyleSheet.absoluteFill}
+                  activeOpacity={1}
+                  onPress={onClose}
+                >
+                  <BlurView
+                    intensity={blurIntensity}
+                    tint={blurTint}
+                    style={StyleSheet.absoluteFill}
+                  />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={StyleSheet.absoluteFill}
+                  activeOpacity={1}
+                  onPress={onClose}
                 />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
+              )
+            ) : useBlur ? (
+              <BlurView
+                intensity={blurIntensity}
+                tint={blurTint}
                 style={StyleSheet.absoluteFill}
-                activeOpacity={1}
-                onPress={onClose}
               />
+            ) : (
+              <View style={StyleSheet.absoluteFill} />
             )}
           </Animated.View>
 

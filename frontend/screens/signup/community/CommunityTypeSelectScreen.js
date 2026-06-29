@@ -10,7 +10,7 @@ import {
   ImageBackground,
   ScrollView,
 } from "react-native";
-import { Sparkles, School, Briefcase, ChevronRight } from "lucide-react-native";
+import { University, Building2, ChevronRight } from "lucide-react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/wave.webp";
@@ -28,27 +28,23 @@ import { COMMUNITY_TYPE_LABELS } from "../../../constants/communityTypeLabels";
 
 const COMMUNITY_TYPES = [
   {
-    id: "individual_organizer",
-    title: COMMUNITY_TYPE_LABELS.individual_organizer.label,
-    subtitle: COMMUNITY_TYPE_LABELS.individual_organizer.description,
-    icon: "Sparkles",
-    gradientColors: ["#FF6B6B", "#FF8E53"],
-    nextScreen: "CommunityName",
-  },
-  {
     id: "college_affiliated",
     title: COMMUNITY_TYPE_LABELS.college_affiliated.label,
     subtitle: COMMUNITY_TYPE_LABELS.college_affiliated.description,
-    icon: "School",
-    gradientColors: ["#667eea", "#764ba2"],
+    iconName: "University",
+    iconColor: "#2962FF", // Sophisticated Brand Blue
+    bgColor: "rgba(41, 98, 255, 0.08)", // Soft brand blue tint
+    borderColor: "rgba(41, 98, 255, 0.15)", // Subtle brand border
     nextScreen: "CollegeSearch",
   },
   {
     id: "organization",
     title: COMMUNITY_TYPE_LABELS.organization.label,
     subtitle: COMMUNITY_TYPE_LABELS.organization.description,
-    icon: "Briefcase",
-    gradientColors: ["#11998e", "#38ef7d"],
+    iconName: "Building2",
+    iconColor: "#00BFA5", // Sophisticated Accent Teal
+    bgColor: "rgba(0, 191, 165, 0.08)", // Soft teal tint
+    borderColor: "rgba(0, 191, 165, 0.15)", // Subtle teal border
     nextScreen: "CommunityName",
   },
 ];
@@ -56,44 +52,46 @@ const COMMUNITY_TYPES = [
 /**
  * Type Selection Card Component
  */
-const TypeCard = ({ type, onPress, isLast, index }) => (
-  <Animated.View 
-    entering={FadeInDown.delay(400 + index * 100).duration(600).springify()}
-    style={[styles.card, isLast && styles.cardLast]}
-  >
-    <BlurView intensity={60} tint="light" style={styles.absoluteFill} />
-    <TouchableOpacity
-      style={styles.cardInner}
-      onPress={() => onPress(type)}
-      activeOpacity={0.8}
-      accessibilityRole="button"
-      accessibilityLabel={`Select ${type.title}`}
+const TypeCard = ({ type, onPress, isLast, index }) => {
+  const Icon = { University, Building2 }[type.iconName];
+  return (
+    <Animated.View 
+      entering={FadeInDown.delay(400 + index * 100).duration(600).springify()}
+      style={[styles.card, isLast && styles.cardLast]}
     >
-      <LinearGradient
-        colors={type.gradientColors}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.cardGradient}
+      <BlurView intensity={60} tint="light" style={styles.absoluteFill} />
+      <TouchableOpacity
+        style={styles.cardInner}
+        onPress={() => onPress(type)}
+        activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={`Select ${type.title}`}
       >
-        <View style={styles.cardIconContainer}>
-          {(() => {
-            const Icon = { Sparkles, School, Briefcase }[type.icon];
-            return <Icon size={32} color="#fff" />;
-          })()}
+        <View
+          style={[
+            styles.cardIconContainer,
+            {
+              backgroundColor: type.bgColor,
+              borderColor: type.borderColor,
+              borderWidth: 1,
+            }
+          ]}
+        >
+          <Icon size={22} color={type.iconColor} />
         </View>
-      </LinearGradient>
-      <View style={styles.cardContent}>
-        <Text style={styles.cardTitle}>{type.title}</Text>
-        <Text style={styles.cardSubtitle}>{type.subtitle}</Text>
-      </View>
-      <ChevronRight
-        size={24}
-        color={COLORS.textSecondary}
-        style={styles.cardArrow}
-      />
-    </TouchableOpacity>
-  </Animated.View>
-);
+        <View style={styles.cardContent}>
+          <Text style={styles.cardTitle}>{type.title}</Text>
+          <Text style={styles.cardSubtitle}>{type.subtitle}</Text>
+        </View>
+        <ChevronRight
+          size={20}
+          color={COLORS.textSecondary}
+          style={styles.cardArrow}
+        />
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
 
 /**
  * Community Type Selection Screen
@@ -294,14 +292,10 @@ const styles = StyleSheet.create({
   cardLast: {
     marginBottom: 0,
   },
-  cardGradient: {
-    width: 60,
-    height: 60,
-    borderRadius: 18,
-    justifyContent: "center",
-    alignItems: "center",
-  },
   cardIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
   },

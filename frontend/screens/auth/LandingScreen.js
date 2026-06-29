@@ -61,11 +61,12 @@ const PARTICIPATION_ROLES = [
     title: "People",
     subtitle:
       "Join events, discover communities, and connect with people nearby.",
-    quote: "Where every event is a chance to meet someone worth knowing.",
+    quote:
+      "Where every event is a chance to meet someone worth knowing — or become someone worth following.",
     buttonText: "Start Exploring",
     animation: require("../../assets/animations/gossipers.json"),
     icon: Users,
-    accentColor: "#448AFF",
+    accentColor: "#3B5BDB",
   },
   {
     id: "community",
@@ -75,7 +76,7 @@ const PARTICIPATION_ROLES = [
     buttonText: "Start Building",
     animation: require("../../assets/animations/Community svg.json"),
     icon: Building2,
-    accentColor: "#6366F1",
+    accentColor: "#3B5BDB",
   },
 ];
 

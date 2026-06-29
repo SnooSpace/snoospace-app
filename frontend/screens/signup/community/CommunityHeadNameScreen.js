@@ -1,4 +1,4 @@
-﻿/**
+/**
  * CommunityHeadNameScreen.js
  *
  * Combined head name + profile photo screen for Organization and Individual
@@ -247,15 +247,11 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
     sponsor_types,
   });
 
-  const isIndividual = params.community_type === "individual_organizer";
-
   // Each entry: { name, role, photoUri (local), uploadedUrl (remote), linkedMember (object|null) }
-  const initialHeadState = isIndividual
-    ? [{ name: "", role: "", photoUri: null, uploadedUrl: null, linkedMember: null }]
-    : [
-        { name: "", role: "", photoUri: null, uploadedUrl: null, linkedMember: null },
-        { name: "", role: "", photoUri: null, uploadedUrl: null, linkedMember: null },
-      ];
+  const initialHeadState = [
+    { name: "", role: "", photoUri: null, uploadedUrl: null, linkedMember: null },
+    { name: "", role: "", photoUri: null, uploadedUrl: null, linkedMember: null },
+  ];
 
   const [heads, setHeads] = useState(initialHeadState);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -398,7 +394,7 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
           uploadedUrl: h.profile_pic_url || null,
         }));
         // Ensure minimum count
-        const minCount = isIndividual ? 1 : 2;
+        const minCount = 2;
         while (hydrated.length < minCount) {
           hydrated.push({ name: "", role: "", photoUri: null, uploadedUrl: null });
         }
@@ -450,7 +446,7 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
   };
 
   const removeHead = (index) => {
-    const minCount = isIndividual ? 1 : 2;
+    const minCount = 2;
     if (heads.length > minCount) {
       setHeads(heads.filter((_, i) => i !== index));
     }
@@ -546,8 +542,7 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else {
-      const prevScreen = isIndividual ? "IndividualLocation" : "CommunityLocation";
-      navigation.replace(prevScreen, { ...params });
+      navigation.replace("CommunityLocation", { ...params });
     }
   };
 
@@ -628,8 +623,8 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
                         onRemove={() => removeHead(index)}
                         onPickPhoto={() => handlePickPhoto(index)}
                         isRequired={index === 0}
-                        showRemove={isIndividual ? false : index >= 2}
-                        isIndividual={isIndividual}
+                        showRemove={index >= 2}
+                        isIndividual={false}
                         linkedMember={head.linkedMember}
                         onLinkMember={() => openLinkSheet(index)}
                         onUnlinkMember={() => handleUnlinkMember(index)}
@@ -637,15 +632,13 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
                     </Animated.View>
                   ))}
 
-                  {/* Add more button — hidden for Individual organizers */}
-                  {!isIndividual && (
-                    <TouchableOpacity style={styles.addButton} onPress={addHead} activeOpacity={0.7}>
-                      <View style={styles.addButtonIconContainer}>
-                        <PlusCircle size={20} color={COLORS.primary} strokeWidth={2.5} />
-                      </View>
-                      <Text style={styles.addButtonText}>Add Another Organizer</Text>
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity style={styles.addButton} onPress={addHead} activeOpacity={0.7}>
+                    <View style={styles.addButtonIconContainer}>
+                      <PlusCircle size={20} color={COLORS.primary} strokeWidth={2.5} />
+                    </View>
+                    <Text style={styles.addButtonText}>Add Another Organizer</Text>
+                  </TouchableOpacity>
+
                 </View>
               </Animated.View>
 

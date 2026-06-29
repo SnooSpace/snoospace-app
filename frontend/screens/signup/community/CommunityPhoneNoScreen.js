@@ -134,9 +134,6 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
     sponsor_types,
   });
 
-  // Individual organizers show a simplified single-number UI
-  const isIndividual = params.community_type === "individual_organizer";
-
   const [primaryNumber, setPrimaryNumber] = useState("");
   const [secondaryNumber, setSecondaryNumber] = useState("");
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -287,9 +284,7 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
               const isCollege = params.community_type === "college_affiliated";
               const prevScreen = isCollege
                 ? "CollegeHeads"
-                : isIndividual
-                  ? "CommunityCategory"
-                  : "CommunityHeadName";
+                : "CommunityHeadName";
               navigation.replace(prevScreen, {
                 ...params,
               });
@@ -313,15 +308,13 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
                 entering={FadeInDown.delay(100).duration(600).springify()}
                 style={styles.mainTitle}
               >
-                {isIndividual ? "Your contact number" : "What's your number?"}
+                What's your number?
               </Animated.Text>
               <Animated.Text 
                 entering={FadeInDown.delay(200).duration(600).springify()}
                 style={styles.subtitle}
               >
-                {isIndividual
-                  ? "Members & sponsors can reach you here."
-                  : "Your number is private and never shared."}
+                Your number is private and never shared.
               </Animated.Text>
 
               <Animated.View 
@@ -337,21 +330,19 @@ const CommunityPhoneNoScreen = ({ navigation, route }) => {
                   onChangeText={setPrimaryNumber}
                 />
 
-                {/* Secondary number — hidden for Individual organizers */}
-                {!isIndividual && (
-                  <>
-                    <View style={styles.optionalInputSection}>
-                      <Text style={styles.optionalInputLabel}>Add another number</Text>
-                      <Text style={styles.optionalLabel}>Optional</Text>
-                    </View>
-                    <PhoneInput
-                      placeholder="(000) 000-0000"
-                      isRequired={false}
-                      value={secondaryNumber}
-                      onChangeText={setSecondaryNumber}
-                    />
-                  </>
-                )}
+                {/* Secondary number — optional for all types */}
+                <>
+                  <View style={styles.optionalInputSection}>
+                    <Text style={styles.optionalInputLabel}>Add another number</Text>
+                    <Text style={styles.optionalLabel}>Optional</Text>
+                  </View>
+                  <PhoneInput
+                    placeholder="(000) 000-0000"
+                    isRequired={false}
+                    value={secondaryNumber}
+                    onChangeText={setSecondaryNumber}
+                  />
+                </>
               </View>
             </Animated.View>
 

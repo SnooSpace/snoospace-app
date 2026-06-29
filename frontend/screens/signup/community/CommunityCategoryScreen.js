@@ -239,10 +239,7 @@ const CommunityCategoryScreen = ({ navigation, route }) => {
       categories: selectedCategories,
     };
 
-    if (params.community_type === "individual_organizer") {
-      // Page flow: go directly to CommunityPhone — no location step
-      navigation.navigate("CommunityPhone", categoryParams);
-    } else if (params.community_type === "college_affiliated") {
+    if (params.community_type === "college_affiliated") {
       // College communities skip the Location screen entirely — location is not required for them
       navigation.navigate("CollegeHeads", {
         ...categoryParams,
