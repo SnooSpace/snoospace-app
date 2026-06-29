@@ -67,7 +67,7 @@ const CircleMemberRow = React.memo(({
           style={styles.avatar}
         />
         <View style={styles.rowInfo}>
-          <Text style={styles.rowName} numberOfLines={1}>{item.name || 'Member'}</Text>
+          <Text style={styles.rowName} numberOfLines={1}>{item.nickname || item.name || 'Member'}</Text>
           {item.username ? (
             <Text style={styles.rowUsername} numberOfLines={1}>@{item.username}</Text>
           ) : null}

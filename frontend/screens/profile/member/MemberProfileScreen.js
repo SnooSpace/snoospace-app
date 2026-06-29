@@ -176,7 +176,7 @@ const ProfileBioHeader = React.memo(({ profile, setShowCollegeHub }) => {
           !hasBio && !hasPronouns && { marginBottom: 30 },
         ]}
       >
-        <Text style={styles.profileName}>{profile.name}</Text>
+        <Text style={styles.profileName}>{profile.nickname || profile.name}</Text>
         {hasPronouns ? (
           <View style={styles.pronounsRowCentered}>
             <View style={[styles.chip, styles.pronounChipSmall]}>

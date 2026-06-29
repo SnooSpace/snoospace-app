@@ -1321,7 +1321,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                     <Text style={styles.profileName}>
-                      {profile?.full_name || "Member"}
+                      {profile?.nickname || profile?.full_name || "Member"}
                     </Text>
                     {profile?.is_verified && (
                       <BadgeCheck size={20} color="#2962FF" strokeWidth={2} />

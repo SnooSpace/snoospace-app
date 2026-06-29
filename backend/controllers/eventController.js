@@ -823,6 +823,7 @@ const getEventAttendees = async (req, res) => {
       SELECT 
         m.id,
         m.name,
+        m.nickname,
         m.dob,
         m.gender,
         m.bio,
@@ -861,7 +862,7 @@ const getEventAttendees = async (req, res) => {
              OR (ub.blocker_id = m.id AND ub.blocked_id = $2)
         )
         ${filterClause}
-      GROUP BY m.id, m.name, m.dob, m.gender, m.bio, m.interests, m.profile_photo_url, m.username, m.intent_badges, m.pronouns, m.show_pronouns, m.discover_photos, m.openers
+      GROUP BY m.id, m.name, m.nickname, m.dob, m.gender, m.bio, m.interests, m.profile_photo_url, m.username, m.intent_badges, m.pronouns, m.show_pronouns, m.discover_photos, m.openers
       ORDER BY m.name
     `;
 
@@ -1173,8 +1174,8 @@ const getEventMatches = async (req, res) => {
           ELSE m1.id
         END as matched_member_id,
         CASE 
-          WHEN em.member1_id = $1 THEN m2.name
-          ELSE m1.name
+          WHEN em.member1_id = $1 THEN COALESCE(m2.nickname, m2.name)
+          ELSE COALESCE(m1.nickname, m1.name)
         END as matched_member_name,
         CASE 
           WHEN em.member1_id = $1 THEN m2.profile_photo_url
@@ -5670,7 +5671,7 @@ const getEventInsights = async (req, res) => {
 
     // 7. Attendee list
     const attendeeResult = await pool.query(`
-      SELECT m.id, m.name, m.username, m.profile_photo_url, m.gender,
+      SELECT m.id, m.name, m.nickname, m.username, m.profile_photo_url, m.gender,
              EXTRACT(YEAR FROM AGE(CURRENT_DATE, m.dob))::int AS age,
              er.created_at AS registered_at,
              er.total_amount, er.discount_amount,
@@ -5710,7 +5711,7 @@ const getEventInsights = async (req, res) => {
           timesUsed: parseInt(r.times_used, 10), totalSaved: parseFloat(r.total_saved),
         })),
         attendees: attendeeResult.rows.map((r) => ({
-          id: r.id, name: r.name, username: r.username,
+          id: r.id, name: r.name, nickname: r.nickname, username: r.username,
           profile_photo_url: r.profile_photo_url, gender: r.gender, age: r.age,
           registered_at: r.registered_at,
           totalPaid: parseFloat(r.total_amount) || 0,

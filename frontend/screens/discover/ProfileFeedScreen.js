@@ -182,7 +182,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const currentAttendee = attendees[currentIndex];
 
   // Data Extraction
-  const name = (currentAttendee?.name || "Unknown").trim() || "Unknown";
+  const name = (currentAttendee?.nickname || currentAttendee?.name || "Unknown").trim() || "Unknown";
   const role =
     (currentAttendee?.role || currentAttendee?.job_title || "Member").trim() ||
     "Member";

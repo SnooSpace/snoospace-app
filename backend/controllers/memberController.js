@@ -165,7 +165,7 @@ async function getProfile(req, res) {
 
     // Get member profile — includes denormalized follower/following counts
     const memberResult = await pool.query(
-      `SELECT id, name, email, phone, dob, gender, interests, username, bio, profile_photo_url, pronouns, location, created_at,
+      `SELECT id, name, nickname, email, phone, dob, gender, interests, username, bio, profile_photo_url, pronouns, location, created_at,
               intent_badges, available_today, available_this_week, prompt_question, prompt_answer, appear_in_discover,
               discover_photos, openers, show_pronouns, occupation, campus_id, show_college,
               occupation_details, occupation_category, portfolio_link, education,
@@ -456,7 +456,7 @@ async function getPublicMember(req, res) {
     }
 
     const memberR = await pool.query(
-      `SELECT id, username, name as full_name, bio, profile_photo_url, created_at, interests, pronouns, occupation,
+      `SELECT id, username, name as full_name, nickname, bio, profile_photo_url, created_at, interests, pronouns, occupation,
               occupation_details, occupation_category, portfolio_link, education, campus_id, show_college,
               instagram_username, is_creator_mode_enabled,
               follower_count AS followers_count, following_count, circle_count,
@@ -561,6 +561,7 @@ async function getPublicMember(req, res) {
       id: profile.id,
       username: profile.username,
       full_name: profile.full_name,
+      nickname: profile.nickname || null,
       bio: profile.bio,
       profile_photo_url: profile.profile_photo_url,
       created_at: profile.created_at,
@@ -642,6 +643,7 @@ async function patchProfile(req, res) {
 
     const {
       name,
+      nickname,
       bio,
       phone,
       pronouns,
@@ -682,6 +684,17 @@ async function patchProfile(req, res) {
       }
       updates.push(`name = $${paramIndex++}`);
       values.push(nameTrimmed);
+    }
+
+    if (nickname !== undefined) {
+      const nicknameTrimmed = typeof nickname === "string" ? nickname.trim() : null;
+      if (nicknameTrimmed && nicknameTrimmed.length > 100) {
+        return res
+          .status(400)
+          .json({ error: "Nickname must be 100 characters or less" });
+      }
+      updates.push(`nickname = $${paramIndex++}`);
+      values.push(nicknameTrimmed || null);
     }
 
     if (bio !== undefined) {
@@ -951,7 +964,7 @@ async function patchProfile(req, res) {
     values.push(userId);
     const query = `UPDATE members SET ${updates.join(
       ", "
-    )} WHERE id = $${paramIndex} RETURNING id, name, bio, phone, pronouns, interests, location`;
+    )} WHERE id = $${paramIndex} RETURNING id, name, nickname, bio, phone, pronouns, interests, location`;
 
     const result = await pool.query(query, values);
     if (result.rows.length === 0) {
@@ -994,6 +1007,7 @@ async function patchProfile(req, res) {
       success: true,
       profile: {
         name: member.name,
+        nickname: member.nickname,
         bio: member.bio,
         phone: member.phone,
         pronouns: parsePgTextArray(member.pronouns),

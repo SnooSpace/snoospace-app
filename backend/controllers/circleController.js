@@ -35,7 +35,7 @@ function sortedPair(idA, idB) {
  */
 async function getMemberMeta(memberId) {
   const r = await pool.query(
-    `SELECT name, username, profile_photo_url FROM members WHERE id = $1`,
+    `SELECT name, nickname, username, profile_photo_url FROM members WHERE id = $1`,
     [memberId]
   );
   return r.rows[0] || {};
@@ -67,7 +67,7 @@ async function notifyRequestReceived(senderId, receiverId) {
       receiverId,
       senderId,
       JSON.stringify({
-        actorName: actor.name || null,
+        actorName: actor.nickname || actor.name || null,
         actorUsername: actor.username || null,
         actorAvatar: actor.profile_photo_url || null,
       }),
@@ -78,7 +78,7 @@ async function notifyRequestReceived(senderId, receiverId) {
       receiverId,
       'member',
       '🔗 Circle Request',
-      `${actor.name || 'Someone'} wants to connect with you`,
+      `${actor.nickname || actor.name || 'Someone'} wants to connect with you`,
       { type: 'circle_request_received', actorId: senderId, actorType: 'member' }
     );
 
@@ -113,7 +113,7 @@ async function notifyRequestAccepted(acceptorId, originalSenderId) {
       originalSenderId,
       acceptorId,
       JSON.stringify({
-        actorName: actor.name || null,
+        actorName: actor.nickname || actor.name || null,
         actorUsername: actor.username || null,
         actorAvatar: actor.profile_photo_url || null,
       }),
@@ -124,7 +124,7 @@ async function notifyRequestAccepted(acceptorId, originalSenderId) {
       originalSenderId,
       'member',
       '✅ Circle Request Accepted',
-      `${actor.name || 'Someone'} accepted your circle request`,
+      `${actor.nickname || actor.name || 'Someone'} accepted your circle request`,
       { type: 'circle_request_accepted', actorId: acceptorId, actorType: 'member' }
     );
 
@@ -353,6 +353,7 @@ const getIncomingRequests = async (req, res) => {
         cr.sender_id,
         cr.created_at,
         m.name AS sender_name,
+        m.nickname AS sender_nickname,
         m.username AS sender_username,
         m.profile_photo_url AS sender_avatar
       FROM circle_requests cr
@@ -387,6 +388,7 @@ const getOutgoingRequests = async (req, res) => {
         cr.receiver_id,
         cr.created_at,
         m.name AS receiver_name,
+        m.nickname AS receiver_nickname,
         m.username AS receiver_username,
         m.profile_photo_url AS receiver_avatar
       FROM circle_requests cr
@@ -430,6 +432,7 @@ const getCircleMembers = async (req, res) => {
           c.created_at AS connected_since,
           m.id AS member_id,
           m.name,
+          m.nickname,
           m.username,
           m.profile_photo_url,
           m.is_creator_mode_enabled,
@@ -449,6 +452,7 @@ const getCircleMembers = async (req, res) => {
           cc.created_at AS connected_since,
           com.id AS member_id,
           com.name,
+          NULL AS nickname,
           com.username,
           com.logo_url AS profile_photo_url,
           false AS is_creator_mode_enabled,
@@ -602,6 +606,7 @@ const getPublicCircleMembers = async (req, res) => {
           c.created_at AS connected_since,
           m.id AS member_id,
           m.name,
+          m.nickname,
           m.username,
           m.profile_photo_url,
           m.is_creator_mode_enabled,
@@ -621,6 +626,7 @@ const getPublicCircleMembers = async (req, res) => {
           cc.created_at AS connected_since,
           com.id AS member_id,
           com.name,
+          NULL AS nickname,
           com.username,
           com.logo_url AS profile_photo_url,
           false AS is_creator_mode_enabled,

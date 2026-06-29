@@ -160,6 +160,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   // State
   const [name, setName] = useState(profile?.name || "");
+  const [nickname, setNickname] = useState(profile?.nickname || "");
   const [bio, setBio] = useState(profile?.bio || "");
   const [username, setUsername] = useState(profile?.username || "");
   const [email, setEmail] = useState(profile?.email || "");
@@ -246,7 +247,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     checkForChanges();
-  }, [name, bio, username, phone, pronouns, interests, email, educationDegree, educationYear, selectedOccupation, customOccupation, occupationDetails, occupationCategory, portfolioLink, campusId, showCollege, pendingPhotoUri]);
+  }, [name, nickname, bio, username, phone, pronouns, interests, email, educationDegree, educationYear, selectedOccupation, customOccupation, occupationDetails, occupationCategory, portfolioLink, campusId, showCollege, pendingPhotoUri]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -296,6 +297,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   const checkForChanges = () => {
     const originalName = profile?.name || "";
+    const originalNickname = profile?.nickname || "";
     const originalBio = profile?.bio || "";
     const originalUsername = profile?.username || "";
     const originalPhone = profile?.phone || "";
@@ -327,6 +329,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
     const changed =
       name !== originalName ||
+      nickname !== originalNickname ||
       bio !== originalBio ||
       username !== originalUsername ||
       phone !== originalPhone ||
@@ -458,6 +461,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
       const updates = {
         name: name.trim(),
+        nickname: nickname.trim() || null,
         bio: bio.trim(),
         phone: phone.trim(),
         occupation: finalOccupation,
@@ -486,6 +490,7 @@ export default function EditProfileScreen({ route, navigation }) {
         const localUpdates = {
           username: username.trim(),
           name: name.trim(),
+          nickname: nickname.trim(),
         };
         if (finalPhotoUrl) {
           localUpdates.profilePicture = finalPhotoUrl;
@@ -597,6 +602,18 @@ export default function EditProfileScreen({ route, navigation }) {
               onChangeText={setName}
               placeholder="Your Name"
               placeholderTextColor={TEXT_SECONDARY}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>NICK NAME</Text>
+            <FormTextInput
+              style={styles.input}
+              value={nickname}
+              onChangeText={setNickname}
+              placeholder="Your Nickname (replaces display name)"
+              placeholderTextColor={TEXT_SECONDARY}
+              maxLength={50}
             />
           </View>
 

@@ -1,10 +1,10 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal, Animated } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Svg, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { getAuthToken } from "../../api/auth";
 import { apiGet } from "../../api/client";
-import { updateMemberProfile } from "../../api/members";
+import { updateMemberProfile, fetchPronouns } from "../../api/members";
 import { uploadMultipleImages } from "../../api/cloudinary";
 import {
   COLORS,
@@ -27,6 +27,7 @@ import {
   ArrowLeft,
   CircleCheck,
   AlertCircle,
+  ChevronRight,
 } from "lucide-react-native";
 import { INTEREST_CATEGORIES } from "../profile/member/EditProfileConstants";
 import SnooLoader from "../../components/ui/SnooLoader";
@@ -77,10 +78,13 @@ export default function EditDiscoverProfileScreen({ navigation }) {
 
   // Profile data
   const [name, setName] = useState("");
+  const [nickname, setNickname] = useState("");
   const [age, setAge] = useState(null);
   const [gender, setGender] = useState(""); // Added Gender
   const [pronouns, setPronouns] = useState([]);
   const [showPronouns, setShowPronouns] = useState(true);
+  const [showPronounsModal, setShowPronounsModal] = useState(false);
+  const [pronounPresets, setPronounPresets] = useState(["He/Him", "She/Her", "They/Them"]);
   const [photos, setPhotos] = useState([]);
   const [goalBadges, setGoalBadges] = useState([]);
   const [openers, setOpeners] = useState([]);
@@ -152,8 +156,19 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           }
         }
 
+        // Fetch pronouns catalog
+        try {
+          const pronounsData = await fetchPronouns();
+          if (pronounsData && pronounsData.length > 0) {
+            setPronounPresets(pronounsData.map((p) => p.label || p));
+          }
+        } catch (err) {
+          console.error("Error loading pronouns catalog:", err);
+        }
+
         const loadedState = {
           name: profile.name || "",
+          nickname: profile.nickname || "",
           age: calculatedAge,
           gender: profile.gender || "Not Specified", // Handle Gender
           pronouns: profile.pronouns || [],
@@ -165,6 +180,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         };
 
         setName(loadedState.name);
+        setNickname(loadedState.nickname);
         setAge(loadedState.age);
         setGender(loadedState.gender);
         setPronouns(loadedState.pronouns);
@@ -197,9 +213,11 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       JSON.stringify(goalBadges) !== JSON.stringify(initialState.goalBadges) ||
       JSON.stringify(openers) !== JSON.stringify(initialState.openers) ||
       showPronouns !== initialState.showPronouns ||
-      appearInDiscover !== initialState.appearInDiscover
+      appearInDiscover !== initialState.appearInDiscover ||
+      JSON.stringify(pronouns) !== JSON.stringify(initialState.pronouns) ||
+      nickname !== initialState.nickname
     );
-  }, [photos, goalBadges, openers, showPronouns, appearInDiscover, initialState]);
+  }, [photos, goalBadges, openers, showPronouns, appearInDiscover, pronouns, nickname, initialState]);
 
   // Handle back button with unsaved changes confirmation
   const handleBackPress = useCallback(() => {
@@ -270,6 +288,8 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         openers: openers,
         show_pronouns: showPronouns,
         appear_in_discover: appearInDiscover,
+        pronouns: pronouns.length > 0 ? pronouns : null,
+        nickname: nickname.trim() || null,
       });
       HapticsService.triggerNotificationSuccess();
 
@@ -278,6 +298,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
 
       setInitialState({
         name,
+        nickname,
         age,
         gender,
         pronouns,
@@ -305,6 +326,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     }
   }, [
     name,
+    nickname,
     age,
     gender,
     pronouns,
@@ -698,6 +720,21 @@ export default function EditDiscoverProfileScreen({ navigation }) {
               </View>
 
               <View style={styles.identityRowNoLine}>
+                <Text style={styles.identityLabel}>Nick Name</Text>
+                <TextInput
+                  style={styles.identityInput}
+                  value={nickname}
+                  onChangeText={(text) => {
+                    setNickname(text);
+                  }}
+                  placeholder="Set a nickname"
+                  placeholderTextColor={CONSTANTS_COLORS.textSecondary}
+                  maxLength={50}
+                  returnKeyType="done"
+                />
+              </View>
+
+              <View style={styles.identityRowNoLine}>
                 <Text style={styles.identityLabel}>Age</Text>
                 <View style={styles.identityValueRow}>
                   <Text style={styles.identityValue}>{age || "—"}</Text>
@@ -713,15 +750,25 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                 </View>
               </View>
 
-              <View style={styles.identityRowNoLine}>
-                <View style={styles.identityLabelRow}>
-                  <Text style={styles.identityLabel}>Pronouns</Text>
-                  {pronouns.length > 0 && (
-                    <Text style={styles.pronounsPreview}>
-                      {pronouns.join(", ")}
-                    </Text>
-                  )}
+              <TouchableOpacity
+                style={styles.identityRowNoLine}
+                onPress={() => {
+                  HapticsService.triggerSelection();
+                  setShowPronounsModal(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.identityLabel}>Pronouns</Text>
+                <View style={styles.identityValueRow}>
+                  <Text style={styles.identityValue}>
+                    {pronouns.length > 0 ? pronouns.join(", ") : "Add Pronouns"}
+                  </Text>
+                  <ChevronRight size={18} color={CONSTANTS_COLORS.disabledIcon} />
                 </View>
+              </TouchableOpacity>
+
+              <View style={styles.identityRowNoLine}>
+                <Text style={styles.identityLabel}>Show Pronouns</Text>
                 <TouchableOpacity
                   style={[styles.toggle, showPronouns && styles.toggleActive]}
                   onPress={() => {
@@ -1110,6 +1157,66 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                 <Text style={styles.modalPrimaryButtonText}>Got It</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+      {/* Pronouns Selection Modal */}
+      <Modal
+        visible={showPronounsModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowPronounsModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.pronounsModalContainer}>
+            <View style={styles.pronounsModalHeader}>
+              <Text style={styles.pronounsModalTitle}>Select Pronouns</Text>
+              <TouchableOpacity
+                onPress={() => setShowPronounsModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <X size={24} color={TEXT_COLOR} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.pronounsPillsContainer}>
+              {pronounPresets.map((p) => {
+                const isSelected = pronouns.includes(p);
+                return (
+                  <TouchableOpacity
+                    key={p}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      const newPronouns = isSelected
+                        ? pronouns.filter((pr) => pr !== p)
+                        : [...pronouns, p];
+                      setPronouns(newPronouns);
+                      HapticsService.triggerSelection();
+                    }}
+                    style={[
+                      styles.pronounPresetPill,
+                      isSelected && styles.pronounPresetPillSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.pronounPresetText,
+                        isSelected && styles.pronounPresetTextSelected,
+                      ]}
+                    >
+                      {p}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <TouchableOpacity
+              style={styles.pronounsDoneButton}
+              onPress={() => setShowPronounsModal(false)}
+            >
+              <Text style={styles.pronounsDoneButtonText}>Done</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1640,5 +1747,78 @@ const styles = StyleSheet.create({
   cardErrorRounded: {
     backgroundColor: "#FFF5F5",
     borderColor: "#FCA5A5",
+  },
+  pronounsModalContainer: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 24,
+    width: "100%",
+    position: "absolute",
+    bottom: 0,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  pronounsModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  pronounsModalTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 20,
+    color: "#0F172A",
+  },
+  pronounsPillsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 28,
+  },
+  pronounPresetPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  pronounPresetPillSelected: {
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    borderColor: "#2962FF",
+  },
+  pronounPresetText: {
+    fontFamily: FONTS.medium, // Manrope-Medium
+    fontSize: 15,
+    color: "#475569",
+  },
+  pronounPresetTextSelected: {
+    color: "#2962FF",
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
+  },
+  pronounsDoneButton: {
+    backgroundColor: "#2962FF",
+    height: 48,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pronounsDoneButtonText: {
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
+    fontSize: 16,
+    color: "#FFFFFF",
+  },
+  identityInput: {
+    fontFamily: FONTS.medium,
+    fontSize: 16,
+    color: "#0F172A",
+    textAlign: "right",
+    flex: 1,
+    marginLeft: 16,
+    paddingVertical: 4,
   },
 });

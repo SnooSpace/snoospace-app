@@ -97,8 +97,8 @@ const AnimatedCounter = ({ value, prefix = "", format = "0,0" }) => {
 };
 
 const AttendeeListItem = ({ attendee, onPress }) => {
-  const gradientColors = getGradientForName(attendee.name);
-  const initials = getInitials(attendee.name);
+  const gradientColors = getGradientForName(attendee.nickname || attendee.name);
+  const initials = getInitials(attendee.nickname || attendee.name);
   const genderColor = getGenderColor(attendee.gender);
   const genderAbbrev = getGenderAbbrev(attendee.gender);
 
@@ -130,7 +130,7 @@ const AttendeeListItem = ({ attendee, onPress }) => {
         {/* Name Row with Gender and Age */}
         <View style={styles.nameRow}>
           <Text style={styles.attendeeName} numberOfLines={1}>
-            {attendee.name}
+            {attendee.nickname || attendee.name}
           </Text>
           {genderAbbrev && (
             <Text style={[styles.genderBadge, { color: genderColor }]}>
