@@ -42,7 +42,12 @@
         "android.permission.READ_MEDIA_AUDIO"
       ],
       "package": "com.snoospace.app",
-      "googleServicesFile": "./google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDFcXn1y8b18LbzZQvTd6RaGuYP2aK-RXI"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

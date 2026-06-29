@@ -14,6 +14,9 @@ import { getAuthToken } from '../../api/auth';
 import { createPlan } from '../../api/plans';
 import CustomDatePicker from '../../components/ui/CustomDatePicker';
 import CustomTimePicker from '../../components/ui/CustomTimePicker';
+import VenueSearchSheet from '../../components/location/VenueSearchSheet';
+import MapLocationPicker from '../../components/location/MapLocationPicker';
+import { getActiveProvider } from '../../services/location/index';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -87,6 +90,12 @@ export default function HostPlanBottomSheet({ isVisible, onClose, onPlanCreated,
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
+  // ── Venue / Location (new unified flow) ──
+  const [selectedVenue, setSelectedVenue] = useState(null);
+  const [pendingPlace, setPendingPlace] = useState(null);
+  const [venueSheetVisible, setVenueSheetVisible] = useState(false);
+  const [mapPickerVisible, setMapPickerVisible] = useState(false);
+
   useEffect(() => {
     const showSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
@@ -110,6 +119,8 @@ export default function HostPlanBottomSheet({ isVisible, onClose, onPlanCreated,
     setLocationPublic(''); setLocationPrivate(''); setSelectedDate(null);
     setSelectedTime(null); setMaxAccepted(5); setIsRecurring(false);
     setErrors({});
+    setSelectedVenue(null);
+    setPendingPlace(null);
   };
 
   const validate = () => {
@@ -138,7 +149,18 @@ export default function HostPlanBottomSheet({ isVisible, onClose, onPlanCreated,
         visibility,
         gender_preference: genderPref,
         location_public: locationPublic.trim() || null,
-        location_private: locationPrivate.trim() || null,
+        location_private: selectedVenue
+          ? JSON.stringify({
+              name: selectedVenue.venueName,
+              address: selectedVenue.venueAddress,
+              short_address: selectedVenue.venueShortAddress,
+              lat: selectedVenue.venueLat,
+              lng: selectedVenue.venueLng,
+              place_id: selectedVenue.venueProviderId,
+              provider: selectedVenue.venueProvider,
+              manually_adjusted: selectedVenue.manuallyAdjusted,
+            })
+          : locationPrivate.trim() || null,
         scheduled_at: scheduledAt,
         max_accepted: maxAccepted,
         is_recurring: isRecurring,
@@ -361,16 +383,71 @@ export default function HostPlanBottomSheet({ isVisible, onClose, onPlanCreated,
               </View>
 
               <Text style={styles.fieldLabel}>Exact meetup point (only approved attendees see this)</Text>
-              <View style={[styles.input, styles.inputRow]}>
-                <Lock size={14} color={COLORS.textMuted} strokeWidth={1.8} />
-                <TextInput
-                  style={styles.inputInner}
-                  placeholder="Court 2, Aditya Sports Complex"
-                  placeholderTextColor={COLORS.textMuted}
-                  value={locationPrivate}
-                  onChangeText={setLocationPrivate}
-                />
-              </View>
+              {selectedVenue ? (
+                /* Confirmed venue — compact text row */
+                <TouchableOpacity
+                  style={[styles.input, styles.inputRow]}
+                  onPress={() => setVenueSheetVisible(true)}
+                >
+                  <Lock size={14} color={COLORS.primary} strokeWidth={1.8} />
+                  <Text style={[styles.inputInner, { color: COLORS.textPrimary, flex: 1 }]} numberOfLines={1}>
+                    {selectedVenue.venueName}
+                  </Text>
+                  <Text style={{ fontFamily: FONTS.medium, fontSize: 11, color: COLORS.primary }}>Change</Text>
+                </TouchableOpacity>
+              ) : (
+                /* Empty — tap to search */
+                <TouchableOpacity
+                  style={[styles.input, styles.inputRow]}
+                  onPress={() => setVenueSheetVisible(true)}
+                >
+                  <Lock size={14} color={COLORS.textMuted} strokeWidth={1.8} />
+                  <Text style={[styles.inputInner, { color: COLORS.textMuted }]}>
+                    Court 2, Aditya Sports Complex
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* VenueSearchSheet */}
+              <VenueSearchSheet
+                visible={venueSheetVisible}
+                onClose={() => setVenueSheetVisible(false)}
+                onSelect={(place) => {
+                  setPendingPlace(place);
+                  setVenueSheetVisible(false);
+                  setMapPickerVisible(true);
+                }}
+                onDropPin={() => {
+                  setPendingPlace(null);
+                  setMapPickerVisible(true);
+                }}
+                title="Exact meetup point"
+                showNearby={true}
+                userLocation={null}
+              />
+
+              {/* MapLocationPicker */}
+              <MapLocationPicker
+                visible={mapPickerVisible}
+                initialPlace={pendingPlace}
+                userLocation={null}
+                onBack={() => {
+                  setMapPickerVisible(false);
+                  if (pendingPlace) setVenueSheetVisible(true);
+                }}
+                onConfirm={async (venue) => {
+                  setSelectedVenue(venue);
+                  setMapPickerVisible(false);
+                  // Auto-fill public location from reverseGeocode
+                  if (!locationPublic.trim()) {
+                    try {
+                      const provider = getActiveProvider();
+                      const geo = await provider.reverseGeocode(venue.venueLat, venue.venueLng);
+                      if (geo?.shortAddress) setLocationPublic(geo.shortAddress);
+                    } catch {}
+                  }
+                }}
+              />
 
               {/* Recurring */}
               <View style={styles.recurringRow}>

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Modal,
   View,
@@ -63,6 +63,9 @@ import { createEvent } from "../../api/events";
 import { isValidGoogleMapsUrl } from "../../utils/validateGoogleMapsUrl";
 import { useLocationName } from "../../utils/locationNameCache";
 import { getDiscoverCategories } from "../../api/categories";
+import VenueSearchSheet from "../location/VenueSearchSheet";
+import MapLocationPicker from "../location/MapLocationPicker";
+import MiniMapPreview from "../location/MiniMapPreview";
 
 // Import our components
 import StepIndicator from "../StepIndicator";
@@ -278,6 +281,12 @@ const CreateEventModal = ({
   const [accessType, setAccessType] = useState("public"); // 'public' or 'invite_only'
   const [invitePublicVisibility, setInvitePublicVisibility] = useState(false); // Show in feeds with hidden location
 
+  // ── Venue / Location (new unified flow) ──
+  const [selectedVenue, setSelectedVenue] = useState(null);    // confirmed venue object
+  const [pendingPlace, setPendingPlace] = useState(null);       // place from search, before map confirm
+  const [venueSheetVisible, setVenueSheetVisible] = useState(false);
+  const [mapPickerVisible, setMapPickerVisible] = useState(false);
+
   // UI States
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -366,6 +375,8 @@ const CreateEventModal = ({
     setThingsToKnow([]);
     setAccessType("public");
     setInvitePublicVisibility(false);
+    setSelectedVenue(null);
+    setPendingPlace(null);
   };
 
   const getCurrentFormData = () => ({
@@ -380,7 +391,17 @@ const CreateEventModal = ({
     has_reached_review: hasReachedReview,
     event_type: eventType,
     location_url: locationUrl,
-    location_name: locationName.trim(),
+    location_name: selectedVenue?.venueName ?? locationName.trim(),
+    // Unified venue fields (from new search+map flow)
+    venue_name: selectedVenue?.venueName ?? locationName.trim(),
+    venue_address: selectedVenue?.venueAddress ?? "",
+    venue_short_address: selectedVenue?.venueShortAddress ?? "",
+    venue_lat: selectedVenue?.venueLat ?? null,
+    venue_lng: selectedVenue?.venueLng ?? null,
+    venue_category: selectedVenue?.venueCategory ?? null,
+    venue_provider: selectedVenue?.venueProvider ?? null,
+    venue_provider_id: selectedVenue?.venueProviderId ?? null,
+    venue_manually_adjusted: selectedVenue?.manuallyAdjusted ?? false,
     virtual_link: virtualLink,
     max_attendees: maxAttendees,
     ticket_types: ticketTypes,
@@ -620,9 +641,8 @@ const CreateEventModal = ({
       case 1:
         if (!title.trim()) return false;
         if (!eventDate || !hasTime) return false;
-        if (eventType !== "virtual" && !isValidGoogleMapsUrl(locationUrl))
-          return false;
-        if (eventType !== "virtual" && !locationName.trim()) return false;
+        // Use selectedVenue (new flow) OR fall back to the legacy locationUrl+locationName
+        if (eventType !== "virtual" && !selectedVenue && !locationName.trim()) return false;
         if (
           (eventType === "virtual" || eventType === "hybrid") &&
           !virtualLink.trim()
@@ -652,10 +672,8 @@ const CreateEventModal = ({
     if (step === 1) {
       if (!title.trim()) return "title";
       if (!eventDate || !hasTime) return "dateTime";
-      if (eventType !== "virtual" && !isValidGoogleMapsUrl(locationUrl))
+      if (eventType !== "virtual" && !selectedVenue && !locationName.trim())
         return "location";
-      if (eventType !== "virtual" && !locationName.trim())
-        return "locationName";
       if (
         (eventType === "virtual" || eventType === "hybrid") &&
         !virtualLink.trim()
@@ -702,7 +720,7 @@ const CreateEventModal = ({
     const fieldFilled = {
       title: !!title.trim(),
       dateTime: !!eventDate && hasTime,
-      location: isValidGoogleMapsUrl(locationUrl),
+      location: !!(selectedVenue || locationName.trim()),
       virtualLink: !!virtualLink.trim(),
       ticketing: ticketTypes.length > 0,
       categories: categories.length > 0,
@@ -718,7 +736,8 @@ const CreateEventModal = ({
     title,
     eventDate,
     hasTime,
-    locationUrl,
+    selectedVenue,
+    locationName,
     virtualLink,
     ticketTypes,
     categories,
@@ -1340,80 +1359,100 @@ const CreateEventModal = ({
               )}
             </View>
 
-            {/* Location Section — In-Person / Hybrid */}
+            {/* ── Location Section — In-Person / Hybrid (new venue flow) ── */}
             {eventType !== "virtual" && (
-              <>
-                <Animated.View
-                  style={[
-                    styles.sectionBlock,
-                    errorField === "location" && styles.sectionError,
-                    errorField === "location" && {
-                      transform: [{ translateX: shakeAnim }],
-                    },
-                  ]}
-                  onLayout={registerSectionLayout("location")}
-                >
-                  <Text style={styles.label}>Location</Text>
-                  <View style={styles.locationCard}>
-                    <Search size={20} color={MODAL_TOKENS.primary} />
-                    <TextInput
-                      style={styles.locationInput}
-                      value={locationUrl}
-                      onChangeText={setLocationUrl}
-                      placeholder="Google Maps Link"
-                      placeholderTextColor={MODAL_TOKENS.textMuted}
+              <Animated.View
+                style={[
+                  styles.sectionBlock,
+                  errorField === "location" && styles.sectionError,
+                  errorField === "location" && {
+                    transform: [{ translateX: shakeAnim }],
+                  },
+                ]}
+                onLayout={registerSectionLayout("location")}
+              >
+                <Text style={styles.label}>Location</Text>
+
+                {selectedVenue ? (
+                  /* ── Confirmed venue card with mini map ── */
+                  <TouchableOpacity
+                    onPress={() => setVenueSheetVisible(true)}
+                    activeOpacity={0.85}
+                    style={styles.confirmedVenueCard}
+                  >
+                    <MiniMapPreview
+                      lat={selectedVenue.venueLat}
+                      lng={selectedVenue.venueLng}
+                      name={selectedVenue.venueName}
+                      height={140}
+                      borderRadius={12}
                     />
-                  </View>
-                </Animated.View>
-                <Animated.View
-                  style={[
-                    styles.sectionBlock,
-                    { marginTop: -8 },
-                    errorField === "locationName" && styles.sectionError,
-                    errorField === "locationName" && {
-                      transform: [{ translateX: shakeAnim }],
-                    },
-                  ]}
-                  onLayout={registerSectionLayout("locationName")}
-                >
-                  <Text style={styles.label}>Location Name</Text>
-                  <View
+                    <View style={styles.confirmedVenueInfo}>
+                      <View style={styles.confirmedVenueRow}>
+                        <MapPin size={14} color={MODAL_TOKENS.primary} strokeWidth={2} />
+                        <Text style={styles.confirmedVenueName} numberOfLines={1}>
+                          {selectedVenue.venueName}
+                        </Text>
+                      </View>
+                      {!!selectedVenue.venueShortAddress && (
+                        <Text style={styles.confirmedVenueAddr} numberOfLines={1}>
+                          {selectedVenue.venueShortAddress}
+                        </Text>
+                      )}
+                      <Text style={styles.confirmedVenueChange}>Tap to change</Text>
+                    </View>
+                  </TouchableOpacity>
+                ) : (
+                  /* ── Empty location field — tap to open search ── */
+                  <TouchableOpacity
                     style={[
                       styles.locationCard,
-                      {
-                        backgroundColor: "transparent",
-                        borderWidth: 1,
-                        borderColor:
-                          errorField === "locationName"
-                            ? MODAL_TOKENS.error
-                            : MODAL_TOKENS.border,
-                        paddingVertical: 12,
-                      },
+                      errorField === "location" && { borderColor: MODAL_TOKENS.error },
                     ]}
+                    onPress={() => setVenueSheetVisible(true)}
+                    activeOpacity={0.7}
                   >
-                    <TextInput
-                      style={[
-                        styles.locationInput,
-                        { marginLeft: 0, fontSize: 14 },
-                      ]}
-                      value={locationName}
-                      onChangeText={setLocationName}
-                      placeholder="e.g. Room 302, Central Park"
-                      placeholderTextColor={MODAL_TOKENS.textMuted}
-                    />
-                  </View>
-                  <Text
-                    style={{
-                      fontFamily: "Manrope-Regular",
-                      fontSize: 12,
-                      color: MODAL_TOKENS.textMuted,
-                      marginTop: 4,
-                    }}
-                  >
-                    Give attendees a recognisable name for your venue.
-                  </Text>
-                </Animated.View>
-              </>
+                    <MapPin size={20} color={MODAL_TOKENS.primary} strokeWidth={2} />
+                    <Text style={styles.locationPlaceholder}>
+                      Search for a venue or area…
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* ── VenueSearchSheet ── */}
+                <VenueSearchSheet
+                  visible={venueSheetVisible}
+                  onClose={() => setVenueSheetVisible(false)}
+                  onSelect={(place) => {
+                    setPendingPlace(place);
+                    setVenueSheetVisible(false);
+                    setMapPickerVisible(true);
+                  }}
+                  onDropPin={() => {
+                    setPendingPlace(null);
+                    setMapPickerVisible(true);
+                  }}
+                  title="Where's this event?"
+                  showNearby={true}
+                  userLocation={null}
+                />
+
+                {/* ── MapLocationPicker ── */}
+                <MapLocationPicker
+                  visible={mapPickerVisible}
+                  initialPlace={pendingPlace}
+                  userLocation={null}
+                  onBack={() => {
+                    setMapPickerVisible(false);
+                    if (pendingPlace) setVenueSheetVisible(true);
+                  }}
+                  onConfirm={(venue) => {
+                    setSelectedVenue(venue);
+                    setLocationName(venue.venueName ?? "");
+                    setMapPickerVisible(false);
+                  }}
+                />
+              </Animated.View>
             )}
 
             {/* Virtual Link Section — Virtual / Hybrid */}
@@ -3245,6 +3284,67 @@ const styles = StyleSheet.create({
     fontFamily: MODAL_TOKENS.fonts.regular,
     fontSize: 12,
     color: MODAL_TOKENS.textMuted,
+  },
+
+  // ── Location / Venue card (new search+map flow) ──
+  locationCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: MODAL_TOKENS.surface,
+    borderRadius: MODAL_TOKENS.radius.md,
+    borderWidth: 1.5,
+    borderColor: MODAL_TOKENS.border,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+  },
+
+  locationPlaceholder: {
+    flex: 1,
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 15,
+    color: MODAL_TOKENS.textMuted,
+  },
+
+  confirmedVenueCard: {
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: MODAL_TOKENS.border,
+  },
+
+  confirmedVenueInfo: {
+    padding: 12,
+    gap: 2,
+    backgroundColor: MODAL_TOKENS.surface,
+  },
+
+  confirmedVenueRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  confirmedVenueName: {
+    fontFamily: MODAL_TOKENS.fonts.semibold,
+    fontSize: 14,
+    color: MODAL_TOKENS.textPrimary,
+    flex: 1,
+  },
+
+  confirmedVenueAddr: {
+    fontFamily: MODAL_TOKENS.fonts.regular,
+    fontSize: 12,
+    color: MODAL_TOKENS.textSecondary,
+    marginLeft: 20,
+  },
+
+  confirmedVenueChange: {
+    fontFamily: MODAL_TOKENS.fonts.medium,
+    fontSize: 11,
+    color: MODAL_TOKENS.primary,
+    marginLeft: 20,
+    marginTop: 2,
   },
 });
 
