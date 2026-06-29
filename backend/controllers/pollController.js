@@ -9,6 +9,13 @@ const { emitSignal, getCategoryForPost } = require("../utils/signalEmitter");
 
 const pool = createPool();
 
+// Idempotent migration to add is_anonymous column to poll_votes
+pool.query(
+  `ALTER TABLE poll_votes ADD COLUMN IF NOT EXISTS is_anonymous BOOLEAN DEFAULT FALSE`
+).catch((err) => {
+  console.error("[pollController] Failed to run migration for poll_votes is_anonymous:", err);
+});
+
 /**
  * Create a poll post
  * POST /posts (with post_type: 'poll')
@@ -22,11 +29,23 @@ const createPollPost = async (req, res) => {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    // Only communities can create polls
+    // Only communities and creator members can create polls
     if (userType !== "community") {
-      return res
-        .status(403)
-        .json({ error: "Only communities can create polls" });
+      if (userType === "member") {
+        const creatorCheck = await pool.query(
+          "SELECT is_creator_mode_enabled FROM members WHERE id = $1",
+          [userId]
+        );
+        if (creatorCheck.rows.length === 0 || !creatorCheck.rows[0].is_creator_mode_enabled) {
+          return res
+            .status(403)
+            .json({ error: "Only communities and creators can create polls" });
+        }
+      } else {
+        return res
+          .status(403)
+          .json({ error: "Only communities and creators can create polls" });
+      }
     }
 
     const {
@@ -132,7 +151,7 @@ const createPollPost = async (req, res) => {
 const vote = async (req, res) => {
   try {
     const { postId } = req.params;
-    const { option_index, option_indexes } = req.body; // Support single or multiple
+    const { option_index, option_indexes, is_anonymous = false } = req.body; // Support single or multiple, and anonymous vote
     const userId = req.user?.id;
     const userType = req.user?.type;
 
@@ -242,9 +261,9 @@ const vote = async (req, res) => {
     // Insert new vote(s)
     for (const idx of indexesToAdd) {
       await pool.query(
-        `INSERT INTO poll_votes (post_id, voter_id, voter_type, option_index)
-         VALUES ($1, $2, $3, $4)`,
-        [postId, userId, userType, idx],
+        `INSERT INTO poll_votes (post_id, voter_id, voter_type, option_index, is_anonymous)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [postId, userId, userType, idx, Boolean(is_anonymous)],
       );
     }
 

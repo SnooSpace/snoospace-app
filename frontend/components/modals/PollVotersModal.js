@@ -9,10 +9,11 @@ import {
   Image,
   SafeAreaView,
 } from "react-native";
-import { X } from "lucide-react-native";
+import { X, HatGlasses } from "lucide-react-native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import SnooLoader from "../ui/SnooLoader";
+import { COLORS } from "../../constants/theme";
 
 const PollVotersModal = ({ visible, onClose, postId, options }) => {
   const [loading, setLoading] = useState(true);
@@ -49,22 +50,33 @@ const PollVotersModal = ({ visible, onClose, postId, options }) => {
     }
   };
 
-  const renderVoter = ({ item }) => (
-    <View style={styles.voterItem}>
-      <Image
-        source={
-          item.voter_photo_url
-            ? { uri: item.voter_photo_url }
-            : { uri: "https://via.placeholder.com/44" }
-        }
-        style={styles.voterAvatar}
-      />
-      <View style={styles.voterInfo}>
-        <Text style={styles.voterName}>{item.voter_name}</Text>
-        <Text style={styles.voterUsername}>@{item.voter_username}</Text>
+  const renderVoter = ({ item }) => {
+    const isVoterAnon = item.is_anonymous === true || !item.voter_username;
+    return (
+      <View style={styles.voterItem}>
+        {isVoterAnon ? (
+          <View style={styles.anonVoterAvatar}>
+            <HatGlasses size={22} color={COLORS.primary || "#3b65e4"} strokeWidth={2} />
+          </View>
+        ) : (
+          <Image
+            source={
+              item.voter_photo_url
+                ? { uri: item.voter_photo_url }
+                : { uri: "https://via.placeholder.com/44" }
+            }
+            style={styles.voterAvatar}
+          />
+        )}
+        <View style={styles.voterInfo}>
+          <Text style={styles.voterName}>{item.voter_name || "Anonymous"}</Text>
+          {!isVoterAnon && (
+            <Text style={styles.voterUsername}>@{item.voter_username}</Text>
+          )}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
@@ -284,6 +296,15 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     backgroundColor: "#F0F0F0",
     marginRight: 12,
+  },
+  anonVoterAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(59, 101, 228, 0.08)",
+    marginRight: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   voterInfo: {
     flex: 1,

@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform, Image, Modal, LayoutAnimation, UIManager, Keyboard } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";

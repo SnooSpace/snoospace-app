@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, Dimensions, TouchableWithoutFeedback, Animated } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, Dimensions, TouchableWithoutFeedback, Animated, Switch } from "react-native";
 import { Pressable as GHPressable } from "react-native-gesture-handler";
 import { Image } from "expo-image";
 import { GradientHeart } from "../ui/GradientHeart";
@@ -43,6 +43,7 @@ import {
   MoveRight,
   Check,
   BarChart3,
+  HatGlasses,
 } from "lucide-react-native";
 import EventBus from "../../utils/EventBus";
 import CountdownTimer from "../CountdownTimer";
@@ -79,6 +80,9 @@ const PollPostCard = React.memo(({
   const [showEditModal, setShowEditModal] = useState(false);
   const [showVotersModal, setShowVotersModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  const isAnon = post.type_data?.is_anonymous === true || post.is_anonymous === true;
+  const [voteAnonymously, setVoteAnonymously] = useState(false);
 
   // Custom Alert Modal State
   const [alertVisible, setAlertVisible] = useState(false);
@@ -357,7 +361,7 @@ const PollPostCard = React.memo(({
       // If option is not selected, it will be added
       const response = await apiPost(
         `/posts/${post.id}/vote`,
-        { option_index: optionIndex },
+        { option_index: optionIndex, is_anonymous: voteAnonymously },
         15000,
         token,
       );
@@ -448,6 +452,7 @@ const PollPostCard = React.memo(({
   };
 
   const handleUserPress = () => {
+    if (isAnon) return;
     if (onUserPress) {
       onUserPress(post.author_id, post.author_type);
     }
@@ -665,19 +670,25 @@ const PollPostCard = React.memo(({
         )}
 
         {/* Author Info */}
-        <TouchableOpacity style={styles.authorRow} onPress={handleUserPress}>
-          <Image
-            source={
-              post.author_photo_url
-                ? { uri: post.author_photo_url }
-                : { uri: "https://via.placeholder.com/40" }
-            }
-            style={styles.profileImage}
-            cachePolicy="memory-disk"
-            contentFit="cover"
-          />
+        <TouchableOpacity style={styles.authorRow} onPress={handleUserPress} disabled={isAnon}>
+          {isAnon ? (
+            <View style={styles.anonProfileImage}>
+              <HatGlasses size={18} color={COLORS.primary} strokeWidth={2} />
+            </View>
+          ) : (
+            <Image
+              source={
+                post.author_photo_url
+                  ? { uri: post.author_photo_url }
+                  : { uri: "https://via.placeholder.com/40" }
+              }
+              style={styles.profileImage}
+              cachePolicy="memory-disk"
+              contentFit="cover"
+            />
+          )}
           <Text style={styles.authorName}>
-            {post.author_name || post.author_username}
+            {isAnon ? "Anonymous" : (post.author_name || post.author_username)}
           </Text>
           <Text style={styles.separator}>•</Text>
           <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
@@ -698,6 +709,24 @@ const PollPostCard = React.memo(({
             <Text style={styles.extensionBadgeText}>
               {getExtensionBadgeText(post.extension_count)}
             </Text>
+          </View>
+        )}
+
+        {/* Anonymous Vote Toggle */}
+        {!isExpired && !hasVoted && (
+          <View style={styles.anonVoteRow}>
+            <View style={styles.anonVoteLeft}>
+              <HatGlasses size={18} color="#5e8d9b" strokeWidth={2} style={{ marginRight: 8 }} />
+              <Text style={styles.anonVoteLabel}>Vote Anonymously</Text>
+            </View>
+            <Switch
+              trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
+              thumbColor={"#FFFFFF"}
+              ios_backgroundColor="#E5E7EB"
+              onValueChange={setVoteAnonymously}
+              value={voteAnonymously}
+              style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
+            />
           </View>
         )}
 
@@ -956,6 +985,34 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     marginRight: 8,
+  },
+  anonProfileImage: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    marginRight: 8,
+    backgroundColor: "rgba(41, 98, 255, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  anonVoteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F8F9FB",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 12,
+  },
+  anonVoteLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  anonVoteLabel: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 13,
+    color: "#5e8d9b",
   },
   authorName: {
     fontSize: 16,

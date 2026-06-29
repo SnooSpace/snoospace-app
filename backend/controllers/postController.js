@@ -2440,17 +2440,21 @@ const getPollVoters = async (req, res) => {
         pv.voter_id,
         pv.voter_type,
         pv.created_at as voted_at,
+        pv.is_anonymous,
         CASE 
+          WHEN pv.is_anonymous = true THEN 'Anonymous'
           WHEN pv.voter_type = 'member' THEN m.name
           WHEN pv.voter_type = 'community' THEN c.name
           WHEN pv.voter_type = 'sponsor' THEN s.brand_name
         END as voter_name,
         CASE 
+          WHEN pv.is_anonymous = true THEN NULL
           WHEN pv.voter_type = 'member' THEN m.username
           WHEN pv.voter_type = 'community' THEN c.username
           WHEN pv.voter_type = 'sponsor' THEN s.username
         END as voter_username,
         CASE 
+          WHEN pv.is_anonymous = true THEN NULL
           WHEN pv.voter_type = 'member' THEN m.profile_photo_url
           WHEN pv.voter_type = 'community' THEN c.logo_url
           WHEN pv.voter_type = 'sponsor' THEN s.logo_url

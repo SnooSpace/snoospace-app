@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PollCreateForm
  * Form for creating poll posts with a premium, card-based design.
  */
