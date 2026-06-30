@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -83,12 +83,19 @@ const getGenderStyle = (gender) => {
   return GENDER_STYLES[gender] || GENDER_STYLES.default;
 };
 
-export default function DiscoverFilterSheet({
+const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
   visible,
   onClose,
   onApply,
   initialFilters = {},
 }) {
+  const renderCount = useRef(0);
+  useEffect(() => {
+    console.log("[DiscoverFilterSheet] Mounted");
+    return () => console.log("[DiscoverFilterSheet] Unmounted");
+  }, []);
+  console.log(`[DiscoverFilterSheet] Render #${++renderCount.current} (visible: ${visible})`);
+
   const [selectedBadges, setSelectedBadges] = useState(
     initialFilters.badges || [],
   );
@@ -557,7 +564,9 @@ export default function DiscoverFilterSheet({
             </View>
     </SwipeableModal>
   );
-}
+});
+
+export default DiscoverFilterSheet;
 
 const styles = StyleSheet.create({
   overlay: {

@@ -8,6 +8,20 @@
  * - Soft delete for data integrity
  */
 
+// Module-level Socket.io instance — set once from server.js after io is initialised.
+let _io = null;
+const setIo = (ioInstance) => { _io = ioInstance; };
+
+/**
+ * Emit a lightweight 'new_notification' event to the recipient's personal socket room.
+ * The frontend context will react by re-fetching the full notification list.
+ */
+const _emitNotification = (recipientId) => {
+  if (_io && recipientId) {
+    _io.to(`user_${recipientId}`).emit('new_notification');
+  }
+};
+
 // Environment-based suppression
 const shouldSuppressNotifications = () => {
   return process.env.SUPPRESS_NOTIFICATIONS === "true";
@@ -62,6 +76,7 @@ const createFollowNotification = async (
       JSON.stringify(payload || {}),
     ]);
 
+    _emitNotification(recipientId);
     return result.rows[0]?.id || null;
   } catch (error) {
     console.error(
@@ -186,6 +201,7 @@ const createAggregatedNotification = async (
     ]);
 
     if (updateResult.rows.length > 0) {
+      _emitNotification(recipientId);
       return updateResult.rows[0].id;
     }
 
@@ -234,6 +250,7 @@ const createAggregatedNotification = async (
       JSON.stringify(payload || {}),
     ]);
 
+    _emitNotification(recipientId);
     return insertResult.rows[0]?.id || null;
   } catch (error) {
     console.error(
@@ -333,6 +350,7 @@ const createSimpleNotification = async (
       JSON.stringify(payload || {}),
     ]);
 
+    _emitNotification(recipientId);
     return result.rows[0]?.id || null;
   } catch (error) {
     console.error(
@@ -455,6 +473,7 @@ const createNotification = async ({
       JSON.stringify(payload),
     ]);
 
+    _emitNotification(recipientId);
     return result.rows[0]?.id || null;
   } catch (error) {
     console.error(
@@ -542,6 +561,7 @@ const createCreatorFollowNotification = async (
       [creatorId, followerId, followerType, payload]
     );
 
+    _emitNotification(creatorId);
     return result.rows[0]?.id || null;
 
   } catch (error) {
@@ -554,6 +574,7 @@ const createCreatorFollowNotification = async (
 };
 
 module.exports = {
+  setIo,
   createFollowNotification,
   deactivateFollowNotification,
   createAggregatedNotification,

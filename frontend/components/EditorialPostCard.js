@@ -47,7 +47,12 @@ import {
   Info,
   HatGlasses,
 } from "lucide-react-native";
-import { ScrollView, Gesture, GestureDetector, Pressable as GHPressable } from "react-native-gesture-handler";
+import {
+  ScrollView,
+  Gesture,
+  GestureDetector,
+  Pressable as GHPressable,
+} from "react-native-gesture-handler";
 import AnimatedReanimated, {
   useSharedValue,
   useAnimatedStyle,
@@ -57,7 +62,13 @@ import AnimatedReanimated, {
   runOnJS,
 } from "react-native-reanimated";
 import Svg, { Defs, LinearGradient, Stop, Path } from "react-native-svg";
-import { apiGet, apiPost, apiDelete, savePost, unsavePost } from "../api/client";
+import {
+  apiGet,
+  apiPost,
+  apiDelete,
+  savePost,
+  unsavePost,
+} from "../api/client";
 import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 import MentionTextRenderer from "./MentionTextRenderer";
@@ -233,13 +244,22 @@ const EditorialPostCard = ({
 
   // Default: Media/text post with editorial design
   const [fullscreenVisible, setFullscreenVisible] = useState(false);
-  const videoPositionRef = useRef(0);  // tracks current playback position for modal sync
+  const videoPositionRef = useRef(0); // tracks current playback position for modal sync
   const initialIsLiked = post.is_liked === true;
   const [isLiked, setIsLiked] = useState(initialIsLiked);
   const [likeCount, setLikeCount] = useState(post.like_count || 0);
   const [isLiking, setIsLiking] = useState(false);
+  // Cache auth token so handleLike never awaits I/O before the optimistic UI update
+  const tokenRef = useRef(null);
+  useEffect(() => {
+    getAuthToken().then((t) => {
+      tokenRef.current = t;
+    });
+  }, []);
   const [isSaved, setIsSaved] = useState(post.is_saved || false);
-  const [saveCount, setSaveCount] = useState(post.save_count || post.saves_count || 0);
+  const [saveCount, setSaveCount] = useState(
+    post.save_count || post.saves_count || 0,
+  );
   const [videoViewCounted, setVideoViewCounted] = useState(false);
   const [imageViewCounted, setImageViewCounted] = useState(false);
 
@@ -254,10 +274,20 @@ const EditorialPostCard = ({
     iconColor: "#FF3B30",
   });
 
-  const showAlert = (title, message, buttons = null, icon = null, iconColor = null) => {
+  const showAlert = (
+    title,
+    message,
+    buttons = null,
+    icon = null,
+    iconColor = null,
+  ) => {
     if (!buttons || buttons.length === 0) {
-      const isSuccess = title.toLowerCase().includes("success") || title.toLowerCase().includes("sent");
-      const isError = title.toLowerCase().includes("error") || title.toLowerCase().includes("fail");
+      const isSuccess =
+        title.toLowerCase().includes("success") ||
+        title.toLowerCase().includes("sent");
+      const isError =
+        title.toLowerCase().includes("error") ||
+        title.toLowerCase().includes("fail");
       setAlertConfig({
         title,
         message,
@@ -267,14 +297,20 @@ const EditorialPostCard = ({
         },
         secondaryAction: null,
         icon: icon || (isSuccess ? CheckCircle2 : isError ? CircleX : Info),
-        iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
+        iconColor:
+          iconColor ||
+          (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
       });
       setAlertVisible(true);
       return;
     }
 
-    const cancelBtn = buttons.find((b) => b.style === "cancel" || b.text.toLowerCase() === "cancel");
-    const actionBtn = buttons.find((b) => b.style !== "cancel" && b.text.toLowerCase() !== "cancel");
+    const cancelBtn = buttons.find(
+      (b) => b.style === "cancel" || b.text.toLowerCase() === "cancel",
+    );
+    const actionBtn = buttons.find(
+      (b) => b.style !== "cancel" && b.text.toLowerCase() !== "cancel",
+    );
 
     setAlertConfig({
       title,
@@ -299,7 +335,9 @@ const EditorialPostCard = ({
           }
         : null,
       icon: icon || (actionBtn?.style === "destructive" ? TriangleAlert : Info),
-      iconColor: iconColor || (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
+      iconColor:
+        iconColor ||
+        (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
     });
     setAlertVisible(true);
   };
@@ -331,7 +369,8 @@ const EditorialPostCard = ({
     `→ normalised count=${imageUrls.length}`,
   );
 
-  const isAnon = post.type_data?.is_anonymous === true || post.is_anonymous === true;
+  const isAnon =
+    post.type_data?.is_anonymous === true || post.is_anonymous === true;
 
   // Check if post has media and determine type
   const hasMedia = imageUrls.length > 0;
@@ -451,7 +490,9 @@ const EditorialPostCard = ({
     const dwellThreshold = 2500; // 2.5s for all post types (image, text)
 
     const alreadyViewed = viewQueueService.hasViewed(post.id);
-    console.log(`[EditorialPostCard] Dwell timer START post=${post.id} alreadyViewed=${alreadyViewed} threshold=${dwellThreshold}ms`);
+    console.log(
+      `[EditorialPostCard] Dwell timer START post=${post.id} alreadyViewed=${alreadyViewed} threshold=${dwellThreshold}ms`,
+    );
 
     if (!alreadyViewed) {
       // ── Fresh view path: qualify and count as unique viewer ──────────────
@@ -552,7 +593,14 @@ const EditorialPostCard = ({
     setLikeCount(post.like_count || 0);
     setIsSaved(post.is_saved || false);
     setSaveCount(post.save_count || post.saves_count || 0);
-  }, [post.is_liked, post.isLiked, post.like_count, post.is_saved, post.save_count, post.saves_count]);
+  }, [
+    post.is_liked,
+    post.isLiked,
+    post.like_count,
+    post.is_saved,
+    post.save_count,
+    post.saves_count,
+  ]);
 
   // Format timestamp to lowercase relative time
   const formatTimeAgo = (timestamp) => {
@@ -579,14 +627,15 @@ const EditorialPostCard = ({
     const delta = nextLiked ? 1 : -1;
     const nextLikes = Math.max(0, prevLikeCount + delta);
 
-    // Optimistic update
+    // Optimistic update — all synchronous, zero async before this point
     setIsLiked(nextLiked);
     setLikeCount(nextLikes);
+    setIsLiking(true);
     if (onLike) onLike(post.id, nextLiked, nextLikes);
 
-    setIsLiking(true);
     try {
-      const token = await getAuthToken();
+      // Use cached token; if stale, fall back to async fetch
+      const token = tokenRef.current || (await getAuthToken());
       if (nextLiked) {
         await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
       } else {
@@ -709,9 +758,10 @@ const EditorialPostCard = ({
   // Cap: portrait allows down to 9:16 (so user-chosen 9:16 crop displays correctly),
   //      landscape caps at 1.91:1 to prevent extreme wide containers.
   const videoNativeAR = post.video_aspect_ratio || firstAspectRatio;
-  const clampedVideoAR = videoNativeAR < 1
-    ? Math.max(videoNativeAR, 9 / 16)  // portrait: cap at 9:16 (allows 4:5 and 9:16 crops)
-    : Math.min(videoNativeAR, 1.91);    // landscape: cap at 1.91:1
+  const clampedVideoAR =
+    videoNativeAR < 1
+      ? Math.max(videoNativeAR, 9 / 16) // portrait: cap at 9:16 (allows 4:5 and 9:16 crops)
+      : Math.min(videoNativeAR, 1.91); // landscape: cap at 1.91:1
 
   // Check if author is the current user (to hide follow button)
   // Convert both to strings since author_id from API is string but currentUserId might be number
@@ -817,21 +867,21 @@ const EditorialPostCard = ({
         withTiming(1.05, { duration: 150 }), // Jiggle up
         withTiming(1, { duration: 150 }), // Settle
         withTiming(1, { duration: 800 }), // Hold state
-        withTiming(0, { duration: 500 }) // Fade out
+        withTiming(0, { duration: 500 }), // Fade out
       );
     });
   };
 
   const bodyDoubleTap = Gesture.Tap()
     .numberOfTaps(2)
-    .maxDelay(250)
+    .maxDelay(200)
     .onStart((e) => {
       runOnJS(onDoubleTap)(e.absoluteX, e.absoluteY);
     });
 
   const authorDoubleTap = Gesture.Tap()
     .numberOfTaps(2)
-    .maxDelay(250)
+    .maxDelay(200)
     .onStart((e) => {
       runOnJS(onDoubleTap)(e.absoluteX, e.absoluteY);
     });
@@ -845,12 +895,12 @@ const EditorialPostCard = ({
   const authorGesture = Gesture.Exclusive(authorDoubleTap, authorSingleTap);
 
   const heartStyle = useAnimatedStyle(() => ({
-    position: 'absolute',
+    position: "absolute",
     top: heartY.value - 75, // Center the 150px heart
     left: heartX.value - 75,
     transform: [
       { scale: heartScale.value },
-      { rotate: `${heartRotation.value}deg` }
+      { rotate: `${heartRotation.value}deg` },
     ],
     opacity: heartScale.value > 0 ? 1 : 0,
     zIndex: 1000,
@@ -862,52 +912,52 @@ const EditorialPostCard = ({
       <View style={styles.authorRow}>
         <GestureDetector gesture={authorGesture}>
           <View style={styles.authorInfo}>
-          {!isAnon && post.author_photo_url ? (
-            <Image
-              source={{ uri: post.author_photo_url }}
-              style={styles.profileImage}
-            />
-          ) : !isAnon ? (
-            <Image
-              source={{
-                uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                  post.author_name || "U",
-                )}&background=E5E7EB&color=6B7280&size=88`,
-              }}
-              style={styles.profileImage}
-            />
-          ) : (
-            <View style={styles.anonProfileImage}>
-              <HatGlasses size={18} color={COLORS.primary} strokeWidth={2} />
-            </View>
-          )}
-          <View style={styles.authorTextContainer}>
-            <View style={styles.authorNameRow}>
-              <Text style={styles.displayName} numberOfLines={1}>
-                {post.author_name || "Unknown"}
-              </Text>
-              {post.is_verified && !isAnon && (
-                <View style={styles.verifiedBadge}>
-                  <Text style={styles.verifiedIcon}>✓</Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.usernameRow}>
-              {!isAnon && (
-                <>
-                  <Text style={styles.username} numberOfLines={1}>
-                    @{post.author_username || "user"}
-                  </Text>
-                  <Text style={styles.separator}>•</Text>
-                </>
-              )}
-              <Text style={styles.timestamp}>
-                {formatTimeAgo(post.created_at)}
-              </Text>
+            {!isAnon && post.author_photo_url ? (
+              <Image
+                source={{ uri: post.author_photo_url }}
+                style={styles.profileImage}
+              />
+            ) : !isAnon ? (
+              <Image
+                source={{
+                  uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                    post.author_name || "U",
+                  )}&background=E5E7EB&color=6B7280&size=88`,
+                }}
+                style={styles.profileImage}
+              />
+            ) : (
+              <View style={styles.anonProfileImage}>
+                <HatGlasses size={18} color={COLORS.primary} strokeWidth={2} />
+              </View>
+            )}
+            <View style={styles.authorTextContainer}>
+              <View style={styles.authorNameRow}>
+                <Text style={styles.displayName} numberOfLines={1}>
+                  {post.author_name || "Unknown"}
+                </Text>
+                {post.is_verified && !isAnon && (
+                  <View style={styles.verifiedBadge}>
+                    <Text style={styles.verifiedIcon}>✓</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.usernameRow}>
+                {!isAnon && (
+                  <>
+                    <Text style={styles.username} numberOfLines={1}>
+                      @{post.author_username || "user"}
+                    </Text>
+                    <Text style={styles.separator}>•</Text>
+                  </>
+                )}
+                <Text style={styles.timestamp}>
+                  {formatTimeAgo(post.created_at)}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
-      </GestureDetector>
+        </GestureDetector>
 
         {/* Follow Button */}
         {showFollowButton && !isOwnPost && !isAnon && (
@@ -920,9 +970,9 @@ const EditorialPostCard = ({
             textStyle={styles.followButtonText}
             currentFollowerId={currentUserId}
             navigationContext={{
-              navigationState: { routeName: isVideo ? 'PostView' : 'HomeFeed' },
+              navigationState: { routeName: isVideo ? "PostView" : "HomeFeed" },
               lastContentInteraction: {
-                type: isVideo ? 'video' : 'post',
+                type: isVideo ? "video" : "post",
                 contentId: post.id,
               },
             }}
@@ -967,7 +1017,7 @@ const EditorialPostCard = ({
 
       {/* Card Content & Media (double-tap area) */}
       <GestureDetector gesture={bodyDoubleTap}>
-        <View style={{ flexGrow: 1, backgroundColor: 'transparent' }}>
+        <View style={{ flexGrow: 1, backgroundColor: "transparent" }}>
           {/* Post Text */}
           {post.caption && (
             <View style={styles.textContainer}>
@@ -987,121 +1037,124 @@ const EditorialPostCard = ({
           {/* Media Container */}
           {hasMedia && firstMediaUrl && (
             <View style={styles.mediaContainer}>
-          {isVideo ? (
-            <View
-              style={[
-                styles.mediaWrapper,
-                {
-                  width: CONTENT_WIDTH,
-                  height: CONTENT_WIDTH / clampedVideoAR,
-                },
-              ]}
-            >
-              <VideoPlayer
-                source={post.video_url || firstMediaUrl}
-                thumbnailUrl={post.video_thumbnail}
-                lqipUrl={post.video_lqip}
-                hlsUrl={post.video_hls_url || null}
-                durationSeconds={post.duration_seconds || null}
-                shouldPreload={shouldPreload}
-                aspectRatio={clampedVideoAR}
-                containerWidth={CONTENT_WIDTH}
-                postId={post.id} // For VideoContext registration
-                autoplay={true}
-                muted={true}
-                loop={true}
-                showControls={true}
-                isVisible={isVideoPlaying}
-                isScreenFocused={isScreenFocused}
-                isFullscreen={false} // Feed view - show Watch Again overlay
-                onUnmute={handleVideoUnmute}
-                onFullscreen={handleVideoFullscreen}
-                onPlaybackStart={handleVideoPlaybackChange}
-                onPositionChange={handleVideoPositionChange}
-                onDoubleTap={onDoubleTap}
-                cropMetadata={post.video_crop_transform || null}
-                viewerId={currentUserId}
-                viewSource="for_you"
-              />
-            </View>
-          ) : hasMultipleMedia ? (
-            // Carousel for multiple images
-            <GestureDetector gesture={carouselGesture}>
-              <View style={{ width: CONTENT_WIDTH, overflow: 'hidden' }}>
-                {/* Counter badge */}
-                <View style={styles.carouselBadge} pointerEvents="none">
-                  <Text style={styles.carouselBadgeText}>
-                    {currentMediaIndex + 1}/{imageUrls.length}
-                  </Text>
-                </View>
-
-                <AnimatedReanimated.View
+              {isVideo ? (
+                <View
                   style={[
+                    styles.mediaWrapper,
                     {
-                      flexDirection: "row",
-                      width: imageUrls.length * CONTENT_WIDTH,
+                      width: CONTENT_WIDTH,
+                      height: CONTENT_WIDTH / clampedVideoAR,
                     },
-                    carouselRowStyle,
                   ]}
                 >
-                  {imageUrls.map((url, index) => {
-                    // Handle both array and single number formats for aspect_ratios
-                    const aspectRatio = Array.isArray(post.aspect_ratios)
-                      ? post.aspect_ratios[index] || firstAspectRatio
-                      : firstAspectRatio;
-                    return (
-                      <View
-                        key={index}
-                        style={[
-                          styles.mediaWrapper,
-                          { aspectRatio, width: CONTENT_WIDTH },
-                        ]}
-                      >
-                        <Image
-                          source={{ uri: url }}
-                          style={styles.mediaImage}
-                          resizeMode="cover"
-                        />
-                      </View>
-                    );
-                  })}
-                </AnimatedReanimated.View>
-
-                {/* Pagination Dots */}
-                <View style={styles.paginationContainer} pointerEvents="none">
-                  {imageUrls.map((_, index) => (
-                    <View
-                      key={index}
-                      style={[
-                        styles.paginationDot,
-                        index === currentMediaIndex && styles.paginationDotActive,
-                      ]}
-                    />
-                  ))}
+                  <VideoPlayer
+                    source={post.video_url || firstMediaUrl}
+                    thumbnailUrl={post.video_thumbnail}
+                    lqipUrl={post.video_lqip}
+                    hlsUrl={post.video_hls_url || null}
+                    durationSeconds={post.duration_seconds || null}
+                    shouldPreload={shouldPreload}
+                    aspectRatio={clampedVideoAR}
+                    containerWidth={CONTENT_WIDTH}
+                    postId={post.id} // For VideoContext registration
+                    autoplay={true}
+                    muted={true}
+                    loop={true}
+                    showControls={true}
+                    isVisible={isVideoPlaying}
+                    isScreenFocused={isScreenFocused}
+                    isFullscreen={false} // Feed view - show Watch Again overlay
+                    onUnmute={handleVideoUnmute}
+                    onFullscreen={handleVideoFullscreen}
+                    onPlaybackStart={handleVideoPlaybackChange}
+                    onPositionChange={handleVideoPositionChange}
+                    onDoubleTap={onDoubleTap}
+                    cropMetadata={post.video_crop_transform || null}
+                    viewerId={currentUserId}
+                    viewSource="for_you"
+                  />
                 </View>
-              </View>
-            </GestureDetector>
-          ) : (
-            // Single image
-            <View
-              style={[
-                styles.mediaWrapper,
-                {
-                  width: CONTENT_WIDTH,
-                  height: CONTENT_WIDTH / firstAspectRatio,
-                },
-              ]}
-            >
-              <Image
-                source={{ uri: firstMediaUrl }}
-                style={styles.mediaImage}
-                resizeMode="cover"
-              />
+              ) : hasMultipleMedia ? (
+                // Carousel for multiple images
+                <GestureDetector gesture={carouselGesture}>
+                  <View style={{ width: CONTENT_WIDTH, overflow: "hidden" }}>
+                    {/* Counter badge */}
+                    <View style={styles.carouselBadge} pointerEvents="none">
+                      <Text style={styles.carouselBadgeText}>
+                        {currentMediaIndex + 1}/{imageUrls.length}
+                      </Text>
+                    </View>
+
+                    <AnimatedReanimated.View
+                      style={[
+                        {
+                          flexDirection: "row",
+                          width: imageUrls.length * CONTENT_WIDTH,
+                        },
+                        carouselRowStyle,
+                      ]}
+                    >
+                      {imageUrls.map((url, index) => {
+                        // Handle both array and single number formats for aspect_ratios
+                        const aspectRatio = Array.isArray(post.aspect_ratios)
+                          ? post.aspect_ratios[index] || firstAspectRatio
+                          : firstAspectRatio;
+                        return (
+                          <View
+                            key={index}
+                            style={[
+                              styles.mediaWrapper,
+                              { aspectRatio, width: CONTENT_WIDTH },
+                            ]}
+                          >
+                            <Image
+                              source={{ uri: url }}
+                              style={styles.mediaImage}
+                              resizeMode="cover"
+                            />
+                          </View>
+                        );
+                      })}
+                    </AnimatedReanimated.View>
+
+                    {/* Pagination Dots */}
+                    <View
+                      style={styles.paginationContainer}
+                      pointerEvents="none"
+                    >
+                      {imageUrls.map((_, index) => (
+                        <View
+                          key={index}
+                          style={[
+                            styles.paginationDot,
+                            index === currentMediaIndex &&
+                              styles.paginationDotActive,
+                          ]}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                </GestureDetector>
+              ) : (
+                // Single image
+                <View
+                  style={[
+                    styles.mediaWrapper,
+                    {
+                      width: CONTENT_WIDTH,
+                      height: CONTENT_WIDTH / firstAspectRatio,
+                    },
+                  ]}
+                >
+                  <Image
+                    source={{ uri: firstMediaUrl }}
+                    style={styles.mediaImage}
+                    resizeMode="cover"
+                  />
+                </View>
+              )}
             </View>
           )}
-
-        </View>
-      )}
         </View>
       </GestureDetector>
 
@@ -1124,7 +1177,10 @@ const EditorialPostCard = ({
         </GHPressable>
 
         {/* Comment */}
-        <GHPressable style={styles.engagementButton} onPress={handleCommentPress}>
+        <GHPressable
+          style={styles.engagementButton}
+          onPress={handleCommentPress}
+        >
           <MessageCircle
             size={EDITORIAL_SPACING.iconSize}
             color={COLORS.editorial.textSecondary}
@@ -1202,13 +1258,20 @@ const EditorialPostCard = ({
       >
         <Pressable style={viewStyles.overlay} onPress={handleCloseViewStats}>
           <Animated.View
-            style={[viewStyles.sheet, { transform: [{ translateY: sheetTranslateY }] }]}
+            style={[
+              viewStyles.sheet,
+              { transform: [{ translateY: sheetTranslateY }] },
+            ]}
           >
             <Pressable onPress={(e) => e.stopPropagation()}>
               <View style={viewStyles.handle} />
               <View style={viewStyles.header}>
                 <View style={viewStyles.headerLeft}>
-                  <ChartNoAxesCombined size={18} color="#3565F2" strokeWidth={2} />
+                  <ChartNoAxesCombined
+                    size={18}
+                    color="#3565F2"
+                    strokeWidth={2}
+                  />
                   <Text style={viewStyles.headerTitle}>View Insights</Text>
                 </View>
                 <Pressable onPress={handleCloseViewStats} hitSlop={12}>
@@ -1222,31 +1285,48 @@ const EditorialPostCard = ({
               ) : (
                 <>
                   <View style={viewStyles.statRow}>
-                    <View style={[viewStyles.statIconBox, { backgroundColor: "rgba(53,101,242,0.10)" }]}>
+                    <View
+                      style={[
+                        viewStyles.statIconBox,
+                        { backgroundColor: "rgba(53,101,242,0.10)" },
+                      ]}
+                    >
                       <Users size={18} color="#3565F2" strokeWidth={2} />
                     </View>
                     <View style={viewStyles.statTextCol}>
                       <Text style={viewStyles.statValue}>
-                        {formatCount(viewStats?.unique_views ?? (post.public_view_count || 0))}
+                        {formatCount(
+                          viewStats?.unique_views ??
+                            (post.public_view_count || 0),
+                        )}
                       </Text>
                       <Text style={viewStyles.statLabel}>Unique viewers</Text>
                     </View>
                   </View>
                   <View style={viewStyles.statRow}>
-                    <View style={[viewStyles.statIconBox, { backgroundColor: "rgba(108,77,246,0.10)" }]}>
+                    <View
+                      style={[
+                        viewStyles.statIconBox,
+                        { backgroundColor: "rgba(108,77,246,0.10)" },
+                      ]}
+                    >
                       <RefreshCw size={18} color="#6C4DF6" strokeWidth={2} />
                     </View>
                     <View style={viewStyles.statTextCol}>
                       <Text style={viewStyles.statValue}>
-                        {formatCount(viewStats?.total_views ?? (post.view_count || 0))}
+                        {formatCount(
+                          viewStats?.total_views ?? (post.view_count || 0),
+                        )}
                       </Text>
-                      <Text style={viewStyles.statLabel}>Total impressions</Text>
+                      <Text style={viewStyles.statLabel}>
+                        Total impressions
+                      </Text>
                     </View>
                   </View>
                   <View style={viewStyles.explainerBox}>
                     <Text style={viewStyles.explainerText}>
-                      Unique viewers are people who saw this post for the first time.
-                      Total impressions include everyone who revisited.
+                      Unique viewers are people who saw this post for the first
+                      time. Total impressions include everyone who revisited.
                     </Text>
                   </View>
                 </>
@@ -1278,7 +1358,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.editorial.background,
     paddingVertical: EDITORIAL_SPACING.cardPadding,
     marginBottom: SPACING.m,
-    position: 'relative',
+    position: "relative",
   },
 
   // Author Row
@@ -1486,7 +1566,7 @@ const viewStyles = StyleSheet.create({
     paddingBottom: 36,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.10,
+    shadowOpacity: 0.1,
     shadowRadius: 16,
     elevation: 12,
   },

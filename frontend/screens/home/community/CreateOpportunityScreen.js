@@ -1,4 +1,4 @@
-﻿import React, {
+import React, {
   useState,
   useEffect,
   useCallback,
@@ -67,7 +67,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import CustomDatePicker from "../../../components/ui/CustomDatePicker";
-import OpportunitySuccessModal from "../../../components/modals/OpportunitySuccessModal";
+import SuccessCard from "../../../components/feedback/SuccessCard";
 
 import { COLORS, FONTS, SHADOWS } from "../../../constants/theme";
 import {
@@ -3098,18 +3098,22 @@ export default function CreateOpportunityScreen({ navigation, route }) {
         </Modal>
 
         {/* Opportunity Creation Outcome Success Modal */}
-        <OpportunitySuccessModal
+        <SuccessCard
           visible={successModalVisible}
-          title={successModalData.title}
-          message={successModalData.message}
-          isDraft={successModalData.isDraft}
-          onClose={() => {
+          type="opportunity"
+          data={{
+            ...successModalData.opportunity,
+            customTitle: successModalData.title,
+            customSubtitle: successModalData.message,
+          }}
+          onPrimaryAction={() => {
             setSuccessModalVisible(false);
             if (successModalData.opportunity) {
               EventBus.emit("opportunityUpdated", successModalData.opportunity);
             }
             navigation.goBack();
           }}
+          onSecondaryAction={null}
         />
       </SafeAreaView>
       </View>

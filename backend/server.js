@@ -5,6 +5,7 @@ const { createPool, ensureTables } = require("./config/db");
 const routes = require("./routes/index");
 const schedulerService = require("./services/schedulerService");
 const { verifyRazorpaySignature, handleRazorpayWebhook } = require("./routes/webhooks");
+const notificationService = require("./services/notificationService");
 
 // Nodemon reload complete
 const app = express();
@@ -63,6 +64,8 @@ const io = new Server(server, {
 
 // Save io on app.locals to make it accessible to controllers without circular dependencies
 app.locals.io = io;
+// Share io with notificationService so notification creates emit real-time events
+notificationService.setIo(io);
 
 io.on("connection", (socket) => {
   console.log("[Socket.io] Client connected:", socket.id);

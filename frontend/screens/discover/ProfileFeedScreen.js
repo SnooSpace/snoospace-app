@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Modal, TextInput, KeyboardAvoidingView, Platform, Alert, Keyboard, Animated, InteractionManager } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -67,6 +67,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
   const translateX = React.useRef(new Animated.Value(0)).current;
   const opacity = React.useRef(new Animated.Value(1)).current;
   const [loading, setLoading] = useState(true);
+  const [filterLoading, setFilterLoading] = useState(false);
   const [messageModalVisible, setMessageModalVisible] = useState(false);
   const [selectedContent, setSelectedContent] = useState(null);
   const [activeFilters, setActiveFilters] = useState({});
@@ -83,7 +84,58 @@ export default function ProfileFeedScreen({ route, navigation }) {
     icebreakers: 0,
   });
 
-  console.log("[ProfileFeedScreen] Render. event:", eventData?.id, "title:", eventData?.title, "loading:", loading, "attendees:", attendees.length);
+  const renderCount = useRef(0);
+  useEffect(() => {
+    console.log("[ProfileFeedScreen] Mounted");
+    return () => console.log("[ProfileFeedScreen] Unmounted");
+  }, []);
+  console.log(`[ProfileFeedScreen] Render #${++renderCount.current} (loading: ${loading}, filterLoading: ${filterLoading}, filterSheetVisible: ${filterSheetVisible}, attendees: ${attendees.length})`);
+
+  // Pure callback: no outer component state or props referenced, depend only on arguments
+  const loadAttendees = useCallback(async (filters, targetEventId, showGlobalLoader = false) => {
+    if (!targetEventId) return;
+    try {
+      if (showGlobalLoader) {
+        setLoading(true);
+      } else {
+        setFilterLoading(true);
+      }
+      const token = await getAuthToken();
+      if (token) {
+        // Build query string based on filters
+        const params = [];
+        if (filters?.badges && filters.badges.length > 0) {
+          params.push(`badges=${encodeURIComponent(filters.badges.join(","))}`);
+        }
+        if (filters?.interests && filters.interests.length > 0) {
+          params.push(`interests=${encodeURIComponent(filters.interests.join(","))}`);
+        }
+        if (filters?.genders && filters.genders.length > 0) {
+          params.push(`genders=${encodeURIComponent(filters.genders.join(","))}`);
+        }
+        if (filters?.ageMin !== undefined) {
+          params.push(`ageMin=${filters.ageMin}`);
+        }
+        if (filters?.ageMax !== undefined) {
+          params.push(`ageMax=${filters.ageMax}`);
+        }
+
+        const queryString = params.length > 0 ? `?${params.join("&")}` : "";
+        const url = `/events/${targetEventId}/attendees${queryString}`;
+        console.log("[ProfileFeedScreen] Fetching attendees url:", url);
+
+        const response = await apiGet(url, 15000, token);
+        setAttendees(response.attendees || []);
+        setCurrentIndex(0); // Reset index to first attendee when filters change
+      }
+    } catch (error) {
+      console.error("[ProfileFeedScreen] Error loading attendees:", error);
+      setAttendees([]);
+    } finally {
+      setLoading(false);
+      setFilterLoading(false);
+    }
+  }, []);
 
   const checkAndLoadAttendees = useCallback(async () => {
     try {
@@ -92,11 +144,12 @@ export default function ProfileFeedScreen({ route, navigation }) {
       if (!token) { setLoading(false); return; }
 
       // 0. Fetch full event details if title is missing
-      let currentEvent = eventData;
-      if (initialEvent?.id && (!currentEvent || !currentEvent.title)) {
+      let currentEvent = initialEvent || null;
+      const targetEventId = initialEvent?.id;
+      if (targetEventId && (!currentEvent || !currentEvent.title)) {
         try {
-          console.log("[ProfileFeedScreen] Fetching full event details for ID:", initialEvent.id);
-          const response = await getEventDetails(initialEvent.id);
+          console.log("[ProfileFeedScreen] Fetching full event details for ID:", targetEventId);
+          const response = await getEventDetails(targetEventId);
           if (response?.event) {
             currentEvent = response.event;
             setEventData(response.event);
@@ -126,9 +179,9 @@ export default function ProfileFeedScreen({ route, navigation }) {
         return;
       }
 
-      // 2. Load attendees (backend already filters incomplete profiles)
+      // 2. Load attendees (initial load, so show global loader)
       if (currentEvent) {
-        await loadAttendees(activeFilters, currentEvent.id);
+        await loadAttendees({}, currentEvent.id, true);
       } else {
         console.warn("[ProfileFeedScreen] Mounted without an event object in route params!");
       }
@@ -138,7 +191,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
     } finally {
       setLoading(false);
     }
-  }, [initialEvent, eventData, activeFilters]);
+  }, [initialEvent, loadAttendees]);
 
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
@@ -159,52 +212,18 @@ export default function ProfileFeedScreen({ route, navigation }) {
     checkSkipInfo();
   }, []);
 
+  const isInitialMountRef = useRef(true);
+
   // Reload when filters change (only if not gated)
-  const loadAttendees = useCallback(async (filters = activeFilters, targetEventId = eventData?.id) => {
-    if (profileGated) return;
-    try {
-      setLoading(true);
-      const token = await getAuthToken();
-      if (token && targetEventId) {
-        // Build query string based on filters
-        const params = [];
-        if (filters.badges && filters.badges.length > 0) {
-          params.push(`badges=${encodeURIComponent(filters.badges.join(","))}`);
-        }
-        if (filters.interests && filters.interests.length > 0) {
-          params.push(`interests=${encodeURIComponent(filters.interests.join(","))}`);
-        }
-        if (filters.genders && filters.genders.length > 0) {
-          params.push(`genders=${encodeURIComponent(filters.genders.join(","))}`);
-        }
-        if (filters.ageMin !== undefined) {
-          params.push(`ageMin=${filters.ageMin}`);
-        }
-        if (filters.ageMax !== undefined) {
-          params.push(`ageMax=${filters.ageMax}`);
-        }
-
-        const queryString = params.length > 0 ? `?${params.join("&")}` : "";
-        const url = `/events/${targetEventId}/attendees${queryString}`;
-        console.log("[ProfileFeedScreen] Fetching attendees url:", url);
-
-        const response = await apiGet(url, 15000, token);
-        setAttendees(response.attendees || []);
-        setCurrentIndex(0); // Reset index to first attendee when filters change
-      }
-    } catch (error) {
-      console.error("[ProfileFeedScreen] Error loading attendees:", error);
-      setAttendees([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [eventData, profileGated]);
-
   useEffect(() => {
-    if (eventData && !profileGated) {
-      loadAttendees(activeFilters);
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
     }
-  }, [activeFilters]);
+    if (!loading && eventData?.id && !profileGated) {
+      loadAttendees(activeFilters, eventData.id);
+    }
+  }, [activeFilters, eventData?.id, profileGated, loading, loadAttendees]);
 
   const currentAttendee = attendees[currentIndex];
 
@@ -885,6 +904,12 @@ export default function ProfileFeedScreen({ route, navigation }) {
         </ScrollView>
         </Animated.View>
 
+        {filterLoading && (
+          <View style={styles.filterLoadingOverlay}>
+            <SnooLoader size="large" color={COLORS.primary} />
+          </View>
+        )}
+
         {/* Floating Action Bar */}
         <View style={styles.actionBar}>
           <TouchableOpacity style={styles.skipButton} onPress={handleSkip} activeOpacity={0.8}>
@@ -920,14 +945,12 @@ export default function ProfileFeedScreen({ route, navigation }) {
           </TouchableOpacity>
         </View>
 
-        {filterSheetVisible && (
-          <DiscoverFilterSheet
-            visible={filterSheetVisible}
-            onClose={handleCloseFilters}
-            onApply={setActiveFilters}
-            initialFilters={activeFilters}
-          />
-        )}
+        <DiscoverFilterSheet
+          visible={filterSheetVisible}
+          onClose={handleCloseFilters}
+          onApply={setActiveFilters}
+          initialFilters={activeFilters}
+        />
 
         {/* Comment/Message Icebreaker Modal */}
         <Modal
@@ -2558,5 +2581,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#FFFFFF",
     letterSpacing: 0.2,
+  },
+  filterLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255, 255, 255, 0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
   },
 });

@@ -19,6 +19,7 @@ import {
   Switch,
 } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
+import { useNavigation } from "@react-navigation/native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -78,7 +79,7 @@ import ThingsToKnowEditor from "../ThingsToKnowEditor";
 import TicketTypesEditor from "../editors/TicketTypesEditor";
 import PromoEditor from "../editors/PromoEditor";
 import CategorySelector from "../CategorySelector";
-import EventSuccessModal from "./EventSuccessModal";
+import SuccessCard from "../feedback/SuccessCard";
 
 // Draft storage utilities
 import {
@@ -209,6 +210,7 @@ const CreateEventModal = ({
   resumeDraft = false,
 }) => {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 7;
   // Progress calculation
@@ -2333,16 +2335,24 @@ const CreateEventModal = ({
           </TouchableOpacity>
         </Modal>
 
-        <EventSuccessModal
+        <SuccessCard
           visible={showSuccessModal}
-          eventData={createdEvent}
-          onClose={async () => {
+          type="event"
+          data={createdEvent}
+          onPrimaryAction={async () => {
             setShowSuccessModal(false);
             await deleteDraftData();
             resetForm();
             onEventCreated?.(createdEvent);
             onClose();
+            if (createdEvent?.id) {
+              navigation.navigate("EventDetails", {
+                eventId: createdEvent.id,
+                eventData: createdEvent,
+              });
+            }
           }}
+          onSecondaryAction={null}
         />
       </SafeAreaView>
     </Modal>
