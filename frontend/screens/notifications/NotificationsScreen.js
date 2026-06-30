@@ -412,10 +412,16 @@ const NotificationRow = ({
     case "like":
       isNavigable = true;
       onPress = () => navigateToProfile(firstItem.actor_id, firstItem.actor_type);
+      const likedPostText = payload.postTitle || payload.postCaption;
       title = (
         <Text style={styles.title}>
           <Text style={styles.bold}>{payload.actorName || "Someone"}</Text>{" "}
-          {count > 1 ? `liked ${count} of your posts` : "liked your post"}
+          {count > 1 
+            ? `liked ${count} of your posts` 
+            : likedPostText 
+              ? `liked your post "${likedPostText}"` 
+              : "liked your post"
+          }
         </Text>
       );
       break;
@@ -423,10 +429,14 @@ const NotificationRow = ({
     case "comment":
       isNavigable = true;
       onPress = () => navigateToProfile(firstItem.actor_id, firstItem.actor_type);
+      const commentedPostText = payload.postTitle || payload.postCaption;
       title = (
         <Text style={styles.title}>
           <Text style={styles.bold}>{payload.actorName || "Someone"}</Text>{" "}
-          commented: {payload.commentText || "commented on your post"}
+          {commentedPostText 
+            ? `commented: "${payload.commentText || "commented"}" on your post "${commentedPostText}"`
+            : `commented: ${payload.commentText || "commented on your post"}`
+          }
         </Text>
       );
       break;
@@ -434,10 +444,14 @@ const NotificationRow = ({
     case "tag":
       isNavigable = true;
       onPress = () => navigateToProfile(firstItem.actor_id, firstItem.actor_type);
+      const taggedPostText = payload.postTitle || payload.postCaption;
       title = (
         <Text style={styles.title}>
           <Text style={styles.bold}>{payload.actorName || "Someone"}</Text>{" "}
-          tagged you in a {payload.commentId ? "comment" : "post"}
+          {taggedPostText
+            ? `tagged you in a ${payload.commentId ? "comment" : "post"} on "${taggedPostText}"`
+            : `tagged you in a ${payload.commentId ? "comment" : "post"}`
+          }
         </Text>
       );
       break;
@@ -639,8 +653,32 @@ const NotificationRow = ({
       subtitle = payload.message;
       break;
 
-    default:
-      return null;
+  }
+
+  // Show thumbnail or text preview on the right for likes, comments, and tags
+  if (["like", "comment", "tag"].includes(group.type) && !rightComponent) {
+    const postImage = payload.postImage;
+    const postTitle = payload.postTitle || payload.postCaption;
+
+    if (postImage) {
+      rightComponent = (
+        <Image
+          source={{ uri: postImage }}
+          style={styles.postThumbnail}
+          resizeMode="cover"
+        />
+      );
+    } else if (postTitle) {
+      rightComponent = (
+        <View style={styles.postTextPreviewContainer}>
+          <Text style={styles.postTextPreview} numberOfLines={2}>
+            {postTitle}
+          </Text>
+        </View>
+      );
+    }
+  if (!title) {
+    return null;
   }
 
   const isUnread = !firstItem.is_read;
@@ -1088,6 +1126,29 @@ const styles = StyleSheet.create({
   emptyText: {
     fontFamily: "Manrope-Regular",
     fontSize: 15,
+    color: COLORS.textSecondary,
+    textAlign: "center",
+  },
+  postThumbnail: {
+    width: 36,
+    height: 36,
+    borderRadius: 4,
+    marginLeft: 8,
+    backgroundColor: "#F2F2F7",
+  },
+  postTextPreviewContainer: {
+    width: 44,
+    height: 36,
+    borderRadius: 4,
+    padding: 3,
+    backgroundColor: "#F2F2F7",
+    marginLeft: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  postTextPreview: {
+    fontSize: 9,
+    fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
     textAlign: "center",
   },

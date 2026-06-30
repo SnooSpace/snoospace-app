@@ -6030,7 +6030,7 @@ async function addEventComment(req, res) {
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     if (!commentText?.trim()) return res.status(400).json({ error: "Comment text required" });
     await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS comment_count INTEGER NOT NULL DEFAULT 0`);
-    const eventCheck = await pool.query("SELECT id, community_id, title FROM events WHERE id = $1 AND is_cancelled = false", [eventId]);
+    const eventCheck = await pool.query("SELECT id, community_id, title, banner_url FROM events WHERE id = $1 AND is_cancelled = false", [eventId]);
     if (eventCheck.rows.length === 0) return res.status(404).json({ error: "Event not found" });
     const insertRes = await pool.query(
       "INSERT INTO event_comments (event_id, parent_id, commenter_id, commenter_type, comment_text, tagged_entities) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
@@ -6059,6 +6059,8 @@ async function addEventComment(req, res) {
             actorAvatar: actorProfile.avatar,
             eventId: eventId,
             postId: eventId,
+            postTitle: event.title,
+            postImage: event.banner_url,
             commentId: insertRes.rows[0].id,
             commentText: commentText.trim().substring(0, 100),
           }
@@ -6096,6 +6098,8 @@ async function addEventComment(req, res) {
                 actorAvatar: actorProfile.avatar,
                 eventId: eventId,
                 postId: eventId,
+                postTitle: event.title,
+                postImage: event.banner_url,
                 commentId: insertRes.rows[0].id,
               }
             });
@@ -6105,7 +6109,7 @@ async function addEventComment(req, res) {
               entity.id,
               entity.type,
               "You were tagged 📌",
-              `${actorProfile.name || "Someone"} tagged you in a comment`,
+              `${actorProfile.name || "Someone"} tagged you in a comment on "${event.title}"`,
               {
                 type: "tag",
                 eventId: eventId,
@@ -6314,7 +6318,7 @@ async function replyToEventComment(req, res) {
 
     // Notify event creator (skip if self-replying)
     try {
-      const eventRes = await pool.query("SELECT community_id, title FROM events WHERE id = $1", [eventId]);
+      const eventRes = await pool.query("SELECT community_id, title, banner_url FROM events WHERE id = $1", [eventId]);
       const event = eventRes.rows[0];
       const eventCreator = event?.community_id;
       if (eventCreator && (String(eventCreator) !== String(userId) || userType !== "community")) {
@@ -6332,6 +6336,8 @@ async function replyToEventComment(req, res) {
             actorAvatar: actorProfile.avatar,
             eventId: eventId,
             postId: eventId,
+            postTitle: event?.title,
+            postImage: event?.banner_url,
             commentId: insertRes.rows[0].id,
             commentText: commentText.trim().substring(0, 100),
           }

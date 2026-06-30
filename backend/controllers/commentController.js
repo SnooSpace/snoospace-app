@@ -122,10 +122,26 @@ const createComment = async (req, res) => {
       }
 
       const postResult = await pool.query(
-        "SELECT author_id, author_type FROM posts WHERE id = $1",
+        "SELECT author_id, author_type, caption, image_urls FROM posts WHERE id = $1",
         [postId]
       );
       const postAuthor = postResult.rows[0];
+
+      let postImage = null;
+      let postCaption = null;
+      if (postAuthor) {
+        try {
+          if (postAuthor.image_urls) {
+            const urls = typeof postAuthor.image_urls === 'string' ? JSON.parse(postAuthor.image_urls) : postAuthor.image_urls;
+            if (Array.isArray(urls) && urls.length > 0) {
+              postImage = urls[0];
+            } else if (typeof urls === 'string' && urls.startsWith('http')) {
+              postImage = urls;
+            }
+          }
+        } catch (err) {}
+        postCaption = postAuthor.caption ? postAuthor.caption.substring(0, 100) : null;
+      }
 
       if (
         postAuthor &&
@@ -147,6 +163,8 @@ const createComment = async (req, res) => {
               postId,
               commentId: comment.id,
               commentText: commentText.trim().substring(0, 100),
+              postCaption,
+              postImage,
             }),
           ]
         );
@@ -191,6 +209,8 @@ const createComment = async (req, res) => {
                   actorAvatar,
                   postId,
                   commentId: comment.id,
+                  postCaption,
+                  postImage,
                 }),
               ]
             );
@@ -312,12 +332,27 @@ const replyToComment = async (req, res) => {
     );
 
     // Create notification for post author (skip if user comments on their own post)
-    try {
       const postResult = await pool.query(
-        "SELECT author_id, author_type FROM posts WHERE id = $1",
+        "SELECT author_id, author_type, caption, image_urls FROM posts WHERE id = $1",
         [postId]
       );
       const postAuthor = postResult.rows[0];
+
+      let postImage = null;
+      let postCaption = null;
+      if (postAuthor) {
+        try {
+          if (postAuthor.image_urls) {
+            const urls = typeof postAuthor.image_urls === 'string' ? JSON.parse(postAuthor.image_urls) : postAuthor.image_urls;
+            if (Array.isArray(urls) && urls.length > 0) {
+              postImage = urls[0];
+            } else if (typeof urls === 'string' && urls.startsWith('http')) {
+              postImage = urls;
+            }
+          }
+        } catch (err) {}
+        postCaption = postAuthor.caption ? postAuthor.caption.substring(0, 100) : null;
+      }
 
       if (
         postAuthor &&
@@ -386,6 +421,8 @@ const replyToComment = async (req, res) => {
               postId,
               commentId: comment.id,
               commentText: commentText.trim().substring(0, 100),
+              postCaption,
+              postImage,
             }),
           ]
         );

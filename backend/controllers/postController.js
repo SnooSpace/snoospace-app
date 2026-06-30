@@ -497,6 +497,17 @@ const createPost = async (req, res) => {
         }
 
         // Create notification for each tagged entity (skip if tagging self)
+        let postImage = null;
+        try {
+          if (post.image_urls) {
+            const urls = typeof post.image_urls === 'string' ? JSON.parse(post.image_urls) : post.image_urls;
+            if (Array.isArray(urls) && urls.length > 0) {
+              postImage = urls[0];
+            }
+          }
+        } catch (err) {}
+        const postCaption = post.caption ? post.caption.substring(0, 100) : null;
+
         for (const entity of taggedEntities) {
           if (entity.id !== userId || entity.type !== userType) {
             await pool.query(
@@ -513,6 +524,8 @@ const createPost = async (req, res) => {
                   actorUsername,
                   actorAvatar,
                   postId: post.id,
+                  postCaption,
+                  postImage,
                 }),
               ],
             );
@@ -1345,7 +1358,7 @@ const likePost = async (req, res) => {
     // Create notification for post author (skip if user likes their own post)
     try {
       const postResult = await pool.query(
-        "SELECT author_id, author_type FROM posts WHERE id = $1",
+        "SELECT author_id, author_type, caption, image_urls FROM posts WHERE id = $1",
         [postId],
       );
       const postAuthor = postResult.rows[0];
@@ -1401,6 +1414,19 @@ const likePost = async (req, res) => {
           }
         }
 
+        let postImage = null;
+        try {
+          if (postAuthor.image_urls) {
+            const urls = typeof postAuthor.image_urls === 'string' ? JSON.parse(postAuthor.image_urls) : postAuthor.image_urls;
+            if (Array.isArray(urls) && urls.length > 0) {
+              postImage = urls[0];
+            } else if (typeof urls === 'string' && urls.startsWith('http')) {
+              postImage = urls;
+            }
+          }
+        } catch (err) {}
+        const postCaption = postAuthor.caption ? postAuthor.caption.substring(0, 100) : null;
+
         await pool.query(
           `INSERT INTO notifications (recipient_id, recipient_type, actor_id, actor_type, type, payload)
            VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -1415,6 +1441,8 @@ const likePost = async (req, res) => {
               actorUsername,
               actorAvatar,
               postId,
+              postCaption,
+              postImage,
             }),
           ],
         );

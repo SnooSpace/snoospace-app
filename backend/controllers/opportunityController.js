@@ -1527,7 +1527,7 @@ const likeOpportunity = async (req, res) => {
       [id, userId, userType]
     );
     const updated = await pool.query(
-      `UPDATE opportunities SET like_count = COALESCE(like_count, 0) + 1 WHERE id = $1 RETURNING like_count, creator_id, creator_type`,
+      `UPDATE opportunities SET like_count = COALESCE(like_count, 0) + 1 WHERE id = $1 RETURNING like_count, creator_id, creator_type, title`,
       [id]
     );
 
@@ -1549,6 +1549,7 @@ const likeOpportunity = async (req, res) => {
             actorAvatar: actorProfile.avatar,
             opportunityId: id,
             postId: id,
+            postTitle: opp.title,
           }
         });
 
@@ -1557,7 +1558,7 @@ const likeOpportunity = async (req, res) => {
           opp.creator_id,
           opp.creator_type,
           "Someone liked your opportunity ❤️",
-          `${actorProfile.name || "Someone"} liked your opportunity`,
+          `${actorProfile.name || "Someone"} liked your opportunity "${opp.title}"`,
           {
             type: "like",
             opportunityId: id,
@@ -1971,6 +1972,7 @@ const createOpportunityComment = async (req, res) => {
             actorAvatar: actorProfile.avatar,
             opportunityId: id,
             postId: id,
+            postTitle: opp.title,
             commentId: comment.id,
             commentText: commentText.trim().substring(0, 100),
           }
@@ -1982,7 +1984,7 @@ const createOpportunityComment = async (req, res) => {
           opp.creator_id,
           opp.creator_type,
           "New Comment on Opportunity 💬",
-          `${actorProfile.name || "Someone"} commented on your opportunity`,
+          `${actorProfile.name || "Someone"} commented on your opportunity "${opp.title}"`,
           {
             type: "comment",
             opportunityId: id,
@@ -2008,6 +2010,7 @@ const createOpportunityComment = async (req, res) => {
                 actorAvatar: actorProfile.avatar,
                 opportunityId: id,
                 postId: id,
+                postTitle: opp.title,
                 commentId: comment.id,
               }
             });
@@ -2017,7 +2020,7 @@ const createOpportunityComment = async (req, res) => {
               entity.id,
               entity.type,
               "You were tagged 📌",
-              `${actorProfile.name || "Someone"} tagged you in a comment`,
+              `${actorProfile.name || "Someone"} tagged you in a comment on "${opp.title}"`,
               {
                 type: "tag",
                 opportunityId: id,
@@ -2092,7 +2095,7 @@ const replyToOpportunityComment = async (req, res) => {
     // Notify opportunity creator (skip if self-replying)
     try {
       const oppResult = await pool.query(
-        "SELECT creator_id, creator_type FROM opportunities WHERE id = $1",
+        "SELECT creator_id, creator_type, title FROM opportunities WHERE id = $1",
         [opportunityId]
       );
       const opp = oppResult.rows[0];
@@ -2111,6 +2114,7 @@ const replyToOpportunityComment = async (req, res) => {
             actorAvatar: actorProfile.avatar,
             opportunityId: opportunityId,
             postId: opportunityId,
+            postTitle: opp.title,
             commentId: comment.id,
             commentText: commentText.trim().substring(0, 100),
           }
@@ -2122,7 +2126,7 @@ const replyToOpportunityComment = async (req, res) => {
           opp.creator_id,
           opp.creator_type,
           "New Comment on Opportunity 💬",
-          `${actorProfile.name || "Someone"} replied on your opportunity`,
+          `${actorProfile.name || "Someone"} replied on your opportunity "${opp.title}"`,
           {
             type: "comment",
             opportunityId: opportunityId,
