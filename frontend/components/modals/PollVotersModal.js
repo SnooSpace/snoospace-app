@@ -2,18 +2,19 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  Modal,
   StyleSheet,
   TouchableOpacity,
   FlatList,
   Image,
   SafeAreaView,
+  Dimensions,
 } from "react-native";
 import { X, HatGlasses } from "lucide-react-native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import SnooLoader from "../ui/SnooLoader";
-import { COLORS } from "../../constants/theme";
+import { COLORS, FONTS } from "../../constants/theme";
+import SwipeableModal from "./SwipeableModal";
 
 const PollVotersModal = ({ visible, onClose, postId, options }) => {
   const [loading, setLoading] = useState(true);
@@ -85,131 +86,120 @@ const PollVotersModal = ({ visible, onClose, postId, options }) => {
   );
 
   return (
-    <Modal
+    <SwipeableModal
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-      statusBarTranslucent
+      onClose={onClose}
+      sheetStyle={styles.modalContainer}
     >
-      <View style={styles.modalOverlay}>
-        <TouchableOpacity
-          style={styles.overlayTouchable}
-          activeOpacity={1}
-          onPress={onClose}
-        />
-        <View style={styles.modalContainer}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerTitleContainer}>
-              <Text style={styles.headerTitle}>Poll Results</Text>
-              <Text style={styles.headerSubtitle}>
-                {totalVotes} {totalVotes === 1 ? "vote" : "votes"}
-              </Text>
-            </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <X size={24} color="#1D1D1F" />
-            </TouchableOpacity>
-          </View>
+      {/* Handle bar */}
+      <View style={styles.handleBar} />
 
-          {/* Option Tabs */}
-          <View style={styles.tabsContainer}>
-            <FlatList
-              horizontal
-              data={options}
-              keyExtractor={(item, index) => `tab-${index}`}
-              showsHorizontalScrollIndicator={false}
-              renderItem={({ item, index }) => {
-                const voteCount = votersByOption[item.index]?.length || 0;
-                return (
-                  <TouchableOpacity
-                    style={[
-                      styles.tab,
-                      selectedOption === item.index && styles.tabActive,
-                    ]}
-                    onPress={() => setSelectedOption(item.index)}
-                  >
-                    <Text
-                      style={[
-                        styles.tabText,
-                        selectedOption === item.index && styles.tabTextActive,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {item.text}
-                    </Text>
-                    <View
-                      style={[
-                        styles.tabBadge,
-                        selectedOption === item.index && styles.tabBadgeActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.tabBadgeText,
-                          selectedOption === item.index &&
-                            styles.tabBadgeTextActive,
-                        ]}
-                      >
-                        {voteCount}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          </View>
-
-          {/* Voters List */}
-          <View style={styles.votersListContainer}>
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <SnooLoader size="large" color="#3b65e4" />
-              </View>
-            ) : (
-              <FlatList
-                data={votersByOption[selectedOption] || []}
-                keyExtractor={(item, index) =>
-                  `voter-${item.voter_id}-${item.voter_type}-${index}`
-                }
-                renderItem={renderVoter}
-                ListEmptyComponent={renderEmptyState}
-                contentContainerStyle={styles.votersList}
-              />
-            )}
-          </View>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle}>Poll Results</Text>
+          <Text style={styles.headerSubtitle}>
+            {totalVotes} {totalVotes === 1 ? "vote" : "votes"}
+          </Text>
         </View>
+        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+          <X size={24} color="#1D1D1F" />
+        </TouchableOpacity>
       </View>
-    </Modal>
+
+      {/* Option Tabs */}
+      <View style={styles.tabsContainer}>
+        <FlatList
+          horizontal
+          data={options}
+          keyExtractor={(item, index) => `tab-${index}`}
+          showsHorizontalScrollIndicator={false}
+          renderItem={({ item, index }) => {
+            const voteCount = votersByOption[item.index]?.length || 0;
+            return (
+              <TouchableOpacity
+                style={[
+                  styles.tab,
+                  selectedOption === item.index && styles.tabActive,
+                ]}
+                onPress={() => setSelectedOption(item.index)}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    selectedOption === item.index && styles.tabTextActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {item.text}
+                </Text>
+                <View
+                  style={[
+                    styles.tabBadge,
+                    selectedOption === item.index && styles.tabBadgeActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tabBadgeText,
+                      selectedOption === item.index &&
+                        styles.tabBadgeTextActive,
+                    ]}
+                  >
+                    {voteCount}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          }}
+        />
+      </View>
+
+      {/* Voters List */}
+      <View style={styles.votersListContainer}>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <SnooLoader size="large" color="#3b65e4" />
+          </View>
+        ) : (
+          <FlatList
+            data={votersByOption[selectedOption] || []}
+            keyExtractor={(item, index) =>
+              `voter-${item.voter_id}-${item.voter_type}-${index}`
+            }
+            renderItem={renderVoter}
+            ListEmptyComponent={renderEmptyState}
+            contentContainerStyle={styles.votersList}
+          />
+        )}
+      </View>
+    </SwipeableModal>
   );
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "flex-end",
-  },
-  overlayTouchable: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
   modalContainer: {
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    height: "80%",
+    height: Dimensions.get("window").height * 0.8,
     paddingBottom: 20,
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#E5E5EA",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: 8,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 10,
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#F0F0F0",
@@ -218,12 +208,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
+    fontFamily: FONTS.primary,
     fontSize: 20,
-    fontWeight: "700",
     color: "#1D1D1F",
     marginBottom: 2,
   },
   headerSubtitle: {
+    fontFamily: FONTS.medium,
     fontSize: 14,
     color: "#6B7280",
   },
@@ -249,8 +240,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#3b65e4",
   },
   tabText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 14,
-    fontWeight: "600",
     color: "#5B6B7C",
     maxWidth: 120,
   },
@@ -269,8 +260,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.25)",
   },
   tabBadgeText: {
+    fontFamily: FONTS.medium,
     fontSize: 12,
-    fontWeight: "700",
     color: "#5B6B7C",
   },
   tabBadgeTextActive: {
@@ -310,12 +301,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   voterName: {
+    fontFamily: FONTS.semiBold,
     fontSize: 16,
-    fontWeight: "600",
     color: "#1D1D1F",
     marginBottom: 2,
   },
   voterUsername: {
+    fontFamily: FONTS.regular,
     fontSize: 14,
     color: "#6B7280",
   },
@@ -332,9 +324,9 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyText: {
+    fontFamily: FONTS.regular,
     fontSize: 16,
     color: "#9CA3AF",
-    fontWeight: "500",
   },
 });
 

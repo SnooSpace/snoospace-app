@@ -35,6 +35,7 @@ import Animated, {
 import { GestureHandlerRootView, TouchableOpacity } from "react-native-gesture-handler";
 
 import SwipeableMessageRow from "../../components/SwipeableMessageRow";
+import SwipeableModal from "../../components/modals/SwipeableModal";
 import useChatPagination from "../../hooks/useChatPagination";
 import {
   useKeyboardHandler,
@@ -693,168 +694,140 @@ const ChatActionsSheet = ({
   youHaveBlocked,
   isGroup,
 }) => {
-  const slideVal = useSharedValue(0);
-
-  useEffect(() => {
-    if (visible) {
-      slideVal.value = 0;
-      slideVal.value = withSpring(1, {
-        damping: 15,
-        stiffness: 120,
-        mass: 0.8,
-      });
-    }
-  }, [visible]);
-
-  const animatedSheetStyle = useAnimatedStyle(() => {
-    const translateY = (1 - slideVal.value) * 300;
-    return {
-      transform: [{ translateY }],
-    };
-  });
-
   return (
-    <Modal
+    <SwipeableModal
       visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
+      onClose={onClose}
+      sheetStyle={actionSheetStyles.sheet}
     >
-      <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
-        <Animated.View
-          style={[actionSheetStyles.sheet, animatedSheetStyle]}
-        >
-          <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
-            <View style={actionSheetStyles.handle} />
+      {/* Handle bar */}
+      <View style={actionSheetStyles.handle} />
 
-        {/* Mute / Unmute */}
-        <TouchableOpacity
-          style={actionSheetStyles.row}
-          onPress={onMute}
-          activeOpacity={0.7}
+      {/* Mute / Unmute */}
+      <TouchableOpacity
+        style={actionSheetStyles.row}
+        onPress={onMute}
+        activeOpacity={0.7}
+      >
+        <View
+          style={[
+            actionSheetStyles.iconBox,
+            {
+              backgroundColor: isMuted
+                ? "rgba(52,199,89,0.1)"
+                : "rgba(255,159,10,0.1)",
+            },
+          ]}
         >
-          <View
-            style={[
-              actionSheetStyles.iconBox,
-              {
-                backgroundColor: isMuted
-                  ? "rgba(52,199,89,0.1)"
-                  : "rgba(255,159,10,0.1)",
-              },
-            ]}
+          {isMuted ? (
+            <Bell size={20} color="#34C759" strokeWidth={2.5} />
+          ) : (
+            <BellOff size={20} color="#FF9F0A" strokeWidth={2.5} />
+          )}
+        </View>
+        <View style={actionSheetStyles.rowText}>
+          <Text style={actionSheetStyles.rowLabel}>
+            {isMuted ? "Unmute Chat" : "Mute Chat"}
+          </Text>
+          <Text style={actionSheetStyles.rowSub}>
+            {isMuted
+              ? "Turn notifications back on"
+              : "Silence notifications for this chat"}
+          </Text>
+        </View>
+      </TouchableOpacity>
+
+      <View style={actionSheetStyles.divider} />
+
+      <TouchableOpacity
+        style={actionSheetStyles.row}
+        onPress={onDeleteChat}
+        activeOpacity={0.7}
+      >
+        <View
+          style={[
+            actionSheetStyles.iconBox,
+            { backgroundColor: "rgba(229, 57, 53, 0.1)" },
+          ]}
+        >
+          <Trash2 size={20} color="#E53935" strokeWidth={2.5} />
+        </View>
+        <View style={actionSheetStyles.rowText}>
+          <Text style={actionSheetStyles.rowLabel}>Delete Chat</Text>
+          <Text style={actionSheetStyles.rowSub}>
+            Removes this chat from your inbox only
+          </Text>
+        </View>
+      </TouchableOpacity>
+
+      <View style={actionSheetStyles.divider} />
+
+      <TouchableOpacity
+        style={actionSheetStyles.row}
+        onPress={onReport}
+        activeOpacity={0.7}
+      >
+        <View
+          style={[
+            actionSheetStyles.iconBox,
+            { backgroundColor: "rgba(255, 152, 0, 0.1)" },
+          ]}
+        >
+          <Flag size={20} color="#FF9800" strokeWidth={2.5} />
+        </View>
+        <View style={actionSheetStyles.rowText}>
+          <Text style={actionSheetStyles.rowLabel}>Report Chat</Text>
+          <Text style={actionSheetStyles.rowSub}>
+            Report abusive or harmful content
+          </Text>
+        </View>
+      </TouchableOpacity>
+
+      {/* Block User — only for 1:1 DMs */}
+      {!isGroup && (
+        <>
+          <View style={actionSheetStyles.divider} />
+          <TouchableOpacity
+            style={actionSheetStyles.row}
+            onPress={youHaveBlocked ? onUnblock : onBlock}
+            activeOpacity={0.7}
           >
-            {isMuted ? (
-              <Bell size={20} color="#34C759" strokeWidth={2.5} />
-            ) : (
-              <BellOff size={20} color="#FF9F0A" strokeWidth={2.5} />
-            )}
-          </View>
-          <View style={actionSheetStyles.rowText}>
-            <Text style={actionSheetStyles.rowLabel}>
-              {isMuted ? "Unmute Chat" : "Mute Chat"}
-            </Text>
-            <Text style={actionSheetStyles.rowSub}>
-              {isMuted
-                ? "Turn notifications back on"
-                : "Silence notifications for this chat"}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        <View style={actionSheetStyles.divider} />
-
-        <TouchableOpacity
-          style={actionSheetStyles.row}
-          onPress={onDeleteChat}
-          activeOpacity={0.7}
-        >
-          <View
-            style={[
-              actionSheetStyles.iconBox,
-              { backgroundColor: "rgba(229, 57, 53, 0.1)" },
-            ]}
-          >
-            <Trash2 size={20} color="#E53935" strokeWidth={2.5} />
-          </View>
-          <View style={actionSheetStyles.rowText}>
-            <Text style={actionSheetStyles.rowLabel}>Delete Chat</Text>
-            <Text style={actionSheetStyles.rowSub}>
-              Removes this chat from your inbox only
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        <View style={actionSheetStyles.divider} />
-
-        <TouchableOpacity
-          style={actionSheetStyles.row}
-          onPress={onReport}
-          activeOpacity={0.7}
-        >
-          <View
-            style={[
-              actionSheetStyles.iconBox,
-              { backgroundColor: "rgba(255, 152, 0, 0.1)" },
-            ]}
-          >
-            <Flag size={20} color="#FF9800" strokeWidth={2.5} />
-          </View>
-          <View style={actionSheetStyles.rowText}>
-            <Text style={actionSheetStyles.rowLabel}>Report Chat</Text>
-            <Text style={actionSheetStyles.rowSub}>
-              Report abusive or harmful content
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Block User — only for 1:1 DMs */}
-        {!isGroup && (
-          <>
-            <View style={actionSheetStyles.divider} />
-            <TouchableOpacity
-              style={actionSheetStyles.row}
-              onPress={youHaveBlocked ? onUnblock : onBlock}
-              activeOpacity={0.7}
+            <View
+              style={[
+                actionSheetStyles.iconBox,
+                {
+                  backgroundColor: youHaveBlocked
+                    ? "rgba(53, 101, 242, 0.08)"
+                    : "rgba(229, 57, 53, 0.08)",
+                },
+              ]}
             >
-              <View
+              {youHaveBlocked ? (
+                <ShieldOff size={20} color="#3565F2" strokeWidth={2.5} />
+              ) : (
+                <UserX size={20} color="#E53935" strokeWidth={2.5} />
+              )}
+            </View>
+            <View style={actionSheetStyles.rowText}>
+              <Text
                 style={[
-                  actionSheetStyles.iconBox,
-                  {
-                    backgroundColor: youHaveBlocked
-                      ? "rgba(53, 101, 242, 0.08)"
-                      : "rgba(229, 57, 53, 0.08)",
-                  },
+                  actionSheetStyles.rowLabel,
+                  youHaveBlocked && { color: "#3565F2" },
+                  !youHaveBlocked && { color: "#E53935" },
                 ]}
               >
-                {youHaveBlocked ? (
-                  <ShieldOff size={20} color="#3565F2" strokeWidth={2.5} />
-                ) : (
-                  <UserX size={20} color="#E53935" strokeWidth={2.5} />
-                )}
-              </View>
-              <View style={actionSheetStyles.rowText}>
-                <Text
-                  style={[
-                    actionSheetStyles.rowLabel,
-                    youHaveBlocked && { color: "#3565F2" },
-                    !youHaveBlocked && { color: "#E53935" },
-                  ]}
-                >
-                  {youHaveBlocked ? "Unblock User" : "Block User"}
-                </Text>
-                <Text style={actionSheetStyles.rowSub}>
-                  {youHaveBlocked
-                    ? "Remove block and restore access"
-                    : "They won't be able to message or find you"}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          </>
-        )}
-          </Pressable>
-        </Animated.View>
-      </Pressable>
-    </Modal>
+                {youHaveBlocked ? "Unblock User" : "Block User"}
+              </Text>
+              <Text style={actionSheetStyles.rowSub}>
+                {youHaveBlocked
+                  ? "Remove block and restore access"
+                  : "They won't be able to message or find you"}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </>
+      )}
+    </SwipeableModal>
   );
 };
 const actionSheetStyles = StyleSheet.create({
