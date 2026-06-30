@@ -1,4 +1,6 @@
 const { createPool } = require("../config/db");
+const notificationService = require("../services/notificationService");
+const pushService = require("../services/pushService");
 
 const pool = createPool();
 
@@ -1472,9 +1474,18 @@ const likeOpportunity = async (req, res) => {
       [id, userId, userType]
     );
     const updated = await pool.query(
-      `UPDATE opportunities SET like_count = COALESCE(like_count, 0) + 1 WHERE id = $1 RETURNING like_count`,
+      `UPDATE opportunities SET like_count = COALESCE(like_count, 0) + 1 WHERE id = $1 RETURNING like_count, creator_id, creator_type`,
       [id]
     );
+
+    // Notify opportunity creator (skip self-likes)
+    try {
+      const opp = updated.rows[0];
+      if (opp && (String(opp.creator_id) !== String(userId) || opp.creator_type !== userType)) {
+        notificationService.emitNotification(opp.creator_id);
+      }
+    } catch (e) { /* non-fatal */ }
+
     res.json({ success: true, like_count: updated.rows[0]?.like_count || 0 });
   } catch (e) {
     console.error('Error liking opportunity:', e);

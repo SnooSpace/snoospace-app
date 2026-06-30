@@ -6,6 +6,7 @@
 const { createPool } = require("../config/db");
 const pushService = require("../services/pushService");
 const { emitSignal, getCategoryForPost } = require("../utils/signalEmitter");
+const notificationService = require("../services/notificationService");
 
 const pool = createPool();
 
@@ -2070,6 +2071,9 @@ const createSubmissionComment = async (req, res) => {
             commentId: comment.id,
           }
         );
+
+        // Emit real-time socket event so recipient's bell updates immediately
+        notificationService.emitNotification(submission.participant_id);
       } catch (e) {
         console.error("[Challenge] Failed to send comment notification:", e);
       }

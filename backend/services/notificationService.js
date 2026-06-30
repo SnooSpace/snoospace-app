@@ -575,6 +575,7 @@ const createCreatorFollowNotification = async (
 
 module.exports = {
   setIo,
+  emitNotification: _emitNotification, // public alias for controllers doing raw INSERTs
   createFollowNotification,
   deactivateFollowNotification,
   createAggregatedNotification,

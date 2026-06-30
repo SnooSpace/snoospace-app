@@ -1,5 +1,6 @@
 const { createPool } = require("../config/db");
 const pushService = require("../services/pushService");
+const notificationService = require("../services/notificationService");
 
 const pool = createPool();
 
@@ -150,6 +151,9 @@ const createComment = async (req, res) => {
           ]
         );
 
+        // Emit real-time socket event so recipient's bell updates immediately
+        notificationService.emitNotification(postAuthor.author_id);
+
         // Send push notification for comment
         await pushService.sendPushNotification(
           pool,
@@ -190,6 +194,9 @@ const createComment = async (req, res) => {
                 }),
               ]
             );
+
+            // Emit real-time socket event for tagged user
+            notificationService.emitNotification(entity.id);
 
             // Send push notification for tag in comment
             await pushService.sendPushNotification(
@@ -382,6 +389,9 @@ const replyToComment = async (req, res) => {
             }),
           ]
         );
+
+        // Emit real-time socket event so recipient's bell updates immediately
+        notificationService.emitNotification(postAuthor.author_id);
 
         // Send push notification for reply
         await pushService.sendPushNotification(

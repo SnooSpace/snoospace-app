@@ -3034,6 +3034,11 @@ const cancelEvent = async (req, res) => {
 
     await Promise.all(notificationPromises);
 
+    // Emit real-time socket event to each notified attendee
+    attendees.forEach((attendee) => {
+      notificationService.emitNotification(attendee.member_id);
+    });
+
     // Send push notifications to attendees (if push tokens exist)
     try {
       const pushTokensResult = await pool.query(

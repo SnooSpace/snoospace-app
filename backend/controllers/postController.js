@@ -5,6 +5,7 @@ const {
   generateVideoMetadata,
   findVideoIndex,
 } = require("../utils/cloudinaryVideo");
+const notificationService = require("../services/notificationService");
 
 const pool = createPool();
 
@@ -515,6 +516,9 @@ const createPost = async (req, res) => {
                 }),
               ],
             );
+
+            // Emit real-time socket event to tagged user's room
+            notificationService.emitNotification(entity.id);
 
             // Send push notification for tag
             await pushService.sendPushNotification(
@@ -1414,6 +1418,9 @@ const likePost = async (req, res) => {
             }),
           ],
         );
+
+        // Emit real-time socket event so recipient's NotificationsContext updates immediately
+        notificationService.emitNotification(postAuthor.author_id);
 
         // Send push notification for like
         await pushService.sendPushNotification(
