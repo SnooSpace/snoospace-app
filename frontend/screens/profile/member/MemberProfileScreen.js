@@ -527,7 +527,9 @@ export default function MemberProfileScreen({ navigation }) {
     if (typeof updater === "function") {
       setProfileState((prev) => {
         const next = updater(prev);
-        setMemberProfile(next);
+        Promise.resolve().then(() => {
+          setMemberProfile(next);
+        });
         return next;
       });
     } else {
@@ -540,7 +542,9 @@ export default function MemberProfileScreen({ navigation }) {
     if (typeof updater === "function") {
       setPostsState((prev) => {
         const next = updater(prev);
-        setMemberPosts(next);
+        Promise.resolve().then(() => {
+          setMemberPosts(next);
+        });
         return next;
       });
     } else {
@@ -2132,7 +2136,19 @@ export default function MemberProfileScreen({ navigation }) {
           {renderedProfileTab === "posts" && (
             <View style={{ display: "flex" }}>
               {(() => {
-                const visiblePosts = posts.slice(0, renderedPostsLimit);
+                const displayPosts = posts.filter((p) => {
+                  if (!profile?.is_creator_mode_enabled) return true;
+                  const postType = p.post_type || p.type;
+                  const isInteractive = [
+                    "poll",
+                    "prompt",
+                    "qna",
+                    "challenge",
+                    "opportunity",
+                  ].includes(postType);
+                  return !isInteractive;
+                });
+                const visiblePosts = displayPosts.slice(0, renderedPostsLimit);
                 const numRows = Math.ceil(visiblePosts.length / 3);
                 const gridHeight =
                   numRows > 0
@@ -2164,7 +2180,7 @@ export default function MemberProfileScreen({ navigation }) {
                         })}
                       />
                     </View>
-                    {renderedPostsLimit < posts.length && (
+                    {renderedPostsLimit < displayPosts.length && (
                       <View style={{ paddingVertical: 20, alignItems: "center" }}>
                         <SnooLoader size="small" color={PRIMARY_COLOR} />
                       </View>

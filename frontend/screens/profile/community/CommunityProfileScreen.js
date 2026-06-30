@@ -734,7 +734,9 @@ export default function CommunityProfileScreen({ navigation, route }) {
     if (typeof updater === "function") {
       setProfileState((prev) => {
         const next = updater(prev);
-        setCommunityProfile(next);
+        Promise.resolve().then(() => {
+          setCommunityProfile(next);
+        });
         return next;
       });
     } else {
@@ -747,7 +749,9 @@ export default function CommunityProfileScreen({ navigation, route }) {
     if (typeof updater === "function") {
       setPostsState((prev) => {
         const next = updater(prev);
-        setCommunityPosts(next);
+        Promise.resolve().then(() => {
+          setCommunityPosts(next);
+        });
         return next;
       });
     } else {

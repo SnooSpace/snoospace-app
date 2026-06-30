@@ -1976,7 +1976,19 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           {renderedProfileTab === 'posts' && (
             <View style={{ display: 'flex' }}>
               {(() => {
-                const visiblePosts = posts.slice(0, renderedPostsLimit);
+                const displayPosts = posts.filter((p) => {
+                  if (!profile?.is_creator_mode_enabled) return true;
+                  const postType = p.post_type || p.type;
+                  const isInteractive = [
+                    "poll",
+                    "prompt",
+                    "qna",
+                    "challenge",
+                    "opportunity",
+                  ].includes(postType);
+                  return !isInteractive;
+                });
+                const visiblePosts = displayPosts.slice(0, renderedPostsLimit);
                 const numRows = Math.ceil(visiblePosts.length / 3);
                 const gridHeight = numRows > 0 ? numRows * (ITEM_SIZE * 1.35) + (numRows - 1) * GAP : 0;
                 return visiblePosts.length > 0 ? (
@@ -2001,7 +2013,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                         })}
                       />
                     </View>
-                    {renderedPostsLimit < posts.length && (
+                    {renderedPostsLimit < displayPosts.length && (
                       <View style={{ paddingVertical: 20, alignItems: "center" }}>
                         <SnooLoader size="small" color={PRIMARY_COLOR} />
                       </View>
