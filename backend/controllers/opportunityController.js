@@ -4,6 +4,59 @@ const pushService = require("../services/pushService");
 
 const pool = createPool();
 
+const getActorProfile = async (userId, userType) => {
+  let name = null;
+  let username = null;
+  let avatar = null;
+
+  try {
+    if (userType === "member") {
+      const result = await pool.query(
+        "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
+        [userId]
+      );
+      if (result.rows[0]) {
+        name = result.rows[0].name;
+        username = result.rows[0].username;
+        avatar = result.rows[0].profile_photo_url;
+      }
+    } else if (userType === "community") {
+      const result = await pool.query(
+        "SELECT name, username, logo_url FROM communities WHERE id = $1",
+        [userId]
+      );
+      if (result.rows[0]) {
+        name = result.rows[0].name;
+        username = result.rows[0].username;
+        avatar = result.rows[0].logo_url;
+      }
+    } else if (userType === "sponsor") {
+      const result = await pool.query(
+        "SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1",
+        [userId]
+      );
+      if (result.rows[0]) {
+        name = result.rows[0].name;
+        username = result.rows[0].username;
+        avatar = result.rows[0].logo_url;
+      }
+    } else if (userType === "venue") {
+      const result = await pool.query(
+        "SELECT name, username FROM venues WHERE id = $1",
+        [userId]
+      );
+      if (result.rows[0]) {
+        name = result.rows[0].name;
+        username = result.rows[0].username;
+      }
+    }
+  } catch (e) {
+    console.error("Error in getActorProfile helper:", e);
+  }
+
+  return { name, username, avatar };
+};
+
 // Ensure all engagement columns and tables exist on opportunities (idempotent, runs once at startup)
 const ensureOpportunityColumns = async () => {
   try {
@@ -1482,9 +1535,39 @@ const likeOpportunity = async (req, res) => {
     try {
       const opp = updated.rows[0];
       if (opp && (String(opp.creator_id) !== String(userId) || opp.creator_type !== userType)) {
-        notificationService.emitNotification(opp.creator_id);
+        const actorProfile = await getActorProfile(userId, userType);
+
+        await notificationService.createSimpleNotification(pool, {
+          recipientId: opp.creator_id,
+          recipientType: opp.creator_type,
+          actorId: userId,
+          actorType: userType,
+          type: "like",
+          payload: {
+            actorName: actorProfile.name,
+            actorUsername: actorProfile.username,
+            actorAvatar: actorProfile.avatar,
+            opportunityId: id,
+            postId: id,
+          }
+        });
+
+        await pushService.sendPushNotification(
+          pool,
+          opp.creator_id,
+          opp.creator_type,
+          "Someone liked your opportunity ❤️",
+          `${actorProfile.name || "Someone"} liked your opportunity`,
+          {
+            type: "like",
+            opportunityId: id,
+            postId: id,
+          }
+        );
       }
-    } catch (e) { /* non-fatal */ }
+    } catch (e) {
+      console.error("Failed to create opportunity like notification:", e);
+    }
 
     res.json({ success: true, like_count: updated.rows[0]?.like_count || 0 });
   } catch (e) {
@@ -1514,6 +1597,35 @@ const unlikeOpportunity = async (req, res) => {
       `UPDATE opportunities SET like_count = GREATEST(0, COALESCE(like_count, 1) - 1) WHERE id = $1 RETURNING like_count`,
       [id]
     );
+
+    // Delete the like notification if it exists
+    try {
+      const oppResult = await pool.query(
+        "SELECT creator_id, creator_type FROM opportunities WHERE id = $1",
+        [id]
+      );
+      const opp = oppResult.rows[0];
+      if (opp) {
+        await pool.query(
+          `DELETE FROM notifications 
+           WHERE recipient_id = $1 
+           AND recipient_type = $2 
+           AND actor_id = $3 
+           AND actor_type = $4 
+           AND type = 'like' 
+           AND (payload->>'opportunityId' = $5 OR payload->>'postId' = $5)`,
+          [
+            opp.creator_id,
+            opp.creator_type,
+            userId,
+            userType,
+            id,
+          ],
+        );
+        notificationService.emitNotification(opp.creator_id);
+      }
+    } catch (e) { /* non-fatal */ }
+
     res.json({ success: true, like_count: updated.rows[0]?.like_count || 0 });
   } catch (e) {
     console.error('Error unliking opportunity:', e);
@@ -1817,11 +1929,12 @@ const createOpportunityComment = async (req, res) => {
 
     await ensureOpportunityCommentsTable();
 
-    // Verify opportunity exists
-    const oppCheck = await pool.query('SELECT id FROM opportunities WHERE id = $1', [id]);
+    // Verify opportunity exists and get creator
+    const oppCheck = await pool.query('SELECT id, creator_id, creator_type FROM opportunities WHERE id = $1', [id]);
     if (oppCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Opportunity not found' });
     }
+    const opp = oppCheck.rows[0];
 
     const taggedEntitiesJson = taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0
       ? JSON.stringify(taggedEntities)
@@ -1840,6 +1953,84 @@ const createOpportunityComment = async (req, res) => {
       `UPDATE opportunities SET comment_count = COALESCE(comment_count, 0) + 1 WHERE id = $1`,
       [id]
     ).catch(() => {}); // non-fatal if column doesn't exist yet
+
+    // Notify opportunity creator (skip if self-commenting)
+    try {
+      if (opp && (String(opp.creator_id) !== String(userId) || opp.creator_type !== userType)) {
+        const actorProfile = await getActorProfile(userId, userType);
+
+        await notificationService.createSimpleNotification(pool, {
+          recipientId: opp.creator_id,
+          recipientType: opp.creator_type,
+          actorId: userId,
+          actorType: userType,
+          type: "comment",
+          payload: {
+            actorName: actorProfile.name,
+            actorUsername: actorProfile.username,
+            actorAvatar: actorProfile.avatar,
+            opportunityId: id,
+            postId: id,
+            commentId: comment.id,
+            commentText: commentText.trim().substring(0, 100),
+          }
+        });
+
+        // Send push notification
+        await pushService.sendPushNotification(
+          pool,
+          opp.creator_id,
+          opp.creator_type,
+          "New Comment on Opportunity 💬",
+          `${actorProfile.name || "Someone"} commented on your opportunity`,
+          {
+            type: "comment",
+            opportunityId: id,
+            postId: id,
+          }
+        );
+      }
+
+      // Create notifications for tagged users
+      if (taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0) {
+        const actorProfile = await getActorProfile(userId, userType);
+        for (const entity of taggedEntities) {
+          if (entity.id !== userId || entity.type !== userType) {
+            await notificationService.createSimpleNotification(pool, {
+              recipientId: entity.id,
+              recipientType: entity.type,
+              actorId: userId,
+              actorType: userType,
+              type: "tag",
+              payload: {
+                actorName: actorProfile.name,
+                actorUsername: actorProfile.username,
+                actorAvatar: actorProfile.avatar,
+                opportunityId: id,
+                postId: id,
+                commentId: comment.id,
+              }
+            });
+
+            await pushService.sendPushNotification(
+              pool,
+              entity.id,
+              entity.type,
+              "You were tagged 📌",
+              `${actorProfile.name || "Someone"} tagged you in a comment`,
+              {
+                type: "tag",
+                opportunityId: id,
+                postId: id,
+                commentId: comment.id,
+              }
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to create opportunity comment notification:", e);
+    }
 
     res.status(201).json({
       success: true,
@@ -1897,6 +2088,51 @@ const replyToOpportunityComment = async (req, res) => {
       `UPDATE opportunities SET comment_count = COALESCE(comment_count, 0) + 1 WHERE id = $1`,
       [opportunityId]
     ).catch(() => {});
+
+    // Notify opportunity creator (skip if self-replying)
+    try {
+      const oppResult = await pool.query(
+        "SELECT creator_id, creator_type FROM opportunities WHERE id = $1",
+        [opportunityId]
+      );
+      const opp = oppResult.rows[0];
+      if (opp && (String(opp.creator_id) !== String(userId) || opp.creator_type !== userType)) {
+        const actorProfile = await getActorProfile(userId, userType);
+
+        await notificationService.createSimpleNotification(pool, {
+          recipientId: opp.creator_id,
+          recipientType: opp.creator_type,
+          actorId: userId,
+          actorType: userType,
+          type: "comment",
+          payload: {
+            actorName: actorProfile.name,
+            actorUsername: actorProfile.username,
+            actorAvatar: actorProfile.avatar,
+            opportunityId: opportunityId,
+            postId: opportunityId,
+            commentId: comment.id,
+            commentText: commentText.trim().substring(0, 100),
+          }
+        });
+
+        // Send push notification
+        await pushService.sendPushNotification(
+          pool,
+          opp.creator_id,
+          opp.creator_type,
+          "New Comment on Opportunity 💬",
+          `${actorProfile.name || "Someone"} replied on your opportunity`,
+          {
+            type: "comment",
+            opportunityId: opportunityId,
+            postId: opportunityId,
+          }
+        );
+      }
+    } catch (e) {
+      console.error("Failed to create opportunity reply notification:", e);
+    }
 
     res.status(201).json({
       success: true,

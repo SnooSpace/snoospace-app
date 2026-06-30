@@ -5967,6 +5967,59 @@ async function getEventComments(req, res) {
   }
 };
 
+const getActorProfile = async (userId, userType) => {
+  let name = null;
+  let username = null;
+  let avatar = null;
+
+  try {
+    if (userType === "member") {
+      const result = await pool.query(
+        "SELECT name, username, profile_photo_url FROM members WHERE id = $1",
+        [userId]
+      );
+      if (result.rows[0]) {
+        name = result.rows[0].name;
+        username = result.rows[0].username;
+        avatar = result.rows[0].profile_photo_url;
+      }
+    } else if (userType === "community") {
+      const result = await pool.query(
+        "SELECT name, username, logo_url FROM communities WHERE id = $1",
+        [userId]
+      );
+      if (result.rows[0]) {
+        name = result.rows[0].name;
+        username = result.rows[0].username;
+        avatar = result.rows[0].logo_url;
+      }
+    } else if (userType === "sponsor") {
+      const result = await pool.query(
+        "SELECT brand_name as name, username, logo_url FROM sponsors WHERE id = $1",
+        [userId]
+      );
+      if (result.rows[0]) {
+        name = result.rows[0].name;
+        username = result.rows[0].username;
+        avatar = result.rows[0].logo_url;
+      }
+    } else if (userType === "venue") {
+      const result = await pool.query(
+        "SELECT name, username FROM venues WHERE id = $1",
+        [userId]
+      );
+      if (result.rows[0]) {
+        name = result.rows[0].name;
+        username = result.rows[0].username;
+      }
+    }
+  } catch (e) {
+    console.error("Error in getActorProfile helper:", e);
+  }
+
+  return { name, username, avatar };
+};
+
 /** POST /events/:eventId/comments */
 async function addEventComment(req, res) {
   try {
@@ -5977,7 +6030,7 @@ async function addEventComment(req, res) {
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
     if (!commentText?.trim()) return res.status(400).json({ error: "Comment text required" });
     await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS comment_count INTEGER NOT NULL DEFAULT 0`);
-    const eventCheck = await pool.query("SELECT id FROM events WHERE id = $1 AND is_cancelled = false", [eventId]);
+    const eventCheck = await pool.query("SELECT id, community_id, title FROM events WHERE id = $1 AND is_cancelled = false", [eventId]);
     if (eventCheck.rows.length === 0) return res.status(404).json({ error: "Event not found" });
     const insertRes = await pool.query(
       "INSERT INTO event_comments (event_id, parent_id, commenter_id, commenter_type, comment_text, tagged_entities) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
@@ -5985,12 +6038,94 @@ async function addEventComment(req, res) {
     );
     // Always increment — both top-level and replies count
     await pool.query("UPDATE events SET comment_count = COALESCE(comment_count,0) + 1 WHERE id = $1", [eventId]);
+
+    const event = eventCheck.rows[0];
+
+    // Notify event creator (skip if self-commenting)
+    try {
+      const eventCreator = event.community_id;
+      if (eventCreator && (String(eventCreator) !== String(userId) || userType !== "community")) {
+        const actorProfile = await getActorProfile(userId, userType);
+
+        await notificationService.createSimpleNotification(pool, {
+          recipientId: eventCreator,
+          recipientType: "community",
+          actorId: userId,
+          actorType: userType,
+          type: "comment",
+          payload: {
+            actorName: actorProfile.name,
+            actorUsername: actorProfile.username,
+            actorAvatar: actorProfile.avatar,
+            eventId: eventId,
+            postId: eventId,
+            commentId: insertRes.rows[0].id,
+            commentText: commentText.trim().substring(0, 100),
+          }
+        });
+
+        // Send push notification
+        await pushService.sendPushNotification(
+          pool,
+          eventCreator,
+          "community",
+          "New Comment on Event 💬",
+          `${actorProfile.name || "Someone"} commented on your event "${event.title}"`,
+          {
+            type: "comment",
+            eventId: eventId,
+            postId: eventId,
+          }
+        );
+      }
+
+      // Create notifications for tagged users
+      if (taggedEntities && Array.isArray(taggedEntities) && taggedEntities.length > 0) {
+        const actorProfile = await getActorProfile(userId, userType);
+        for (const entity of taggedEntities) {
+          if (entity.id !== userId || entity.type !== userType) {
+            await notificationService.createSimpleNotification(pool, {
+              recipientId: entity.id,
+              recipientType: entity.type,
+              actorId: userId,
+              actorType: userType,
+              type: "tag",
+              payload: {
+                actorName: actorProfile.name,
+                actorUsername: actorProfile.username,
+                actorAvatar: actorProfile.avatar,
+                eventId: eventId,
+                postId: eventId,
+                commentId: insertRes.rows[0].id,
+              }
+            });
+
+            await pushService.sendPushNotification(
+              pool,
+              entity.id,
+              entity.type,
+              "You were tagged 📌",
+              `${actorProfile.name || "Someone"} tagged you in a comment`,
+              {
+                type: "tag",
+                eventId: eventId,
+                postId: eventId,
+                commentId: insertRes.rows[0].id,
+              }
+            );
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to create event comment notification:", e);
+    }
+
     return res.json({ success: true, comment: insertRes.rows[0] });
   } catch (err) {
     console.error("[addEventComment]", err.message);
     return res.status(500).json({ error: "Failed to post comment" });
   }
-};
+}
 
 /** POST /events/:eventId/view */
 async function recordEventView(req, res) {
@@ -6028,7 +6163,7 @@ async function recordEventView(req, res) {
     console.error("[recordEventView]", err.message);
     return res.json({ success: true, is_new: false, view_count: 0 });
   }
-};
+}
 
 /** POST /events/:eventId/share */
 async function shareEvent(req, res) {
@@ -6154,7 +6289,7 @@ async function shareEvent(req, res) {
     console.error("[shareEvent]", err.message);
     return res.status(500).json({ error: "Failed to share event" });
   }
-};
+}
 
 /** POST /event-comments/:commentId/reply */
 async function replyToEventComment(req, res) {
@@ -6176,12 +6311,56 @@ async function replyToEventComment(req, res) {
       [eventId, commentId, userId, userType, commentText.trim(), JSON.stringify(taggedEntities || [])]
     );
     await pool.query("UPDATE events SET comment_count = COALESCE(comment_count,0) + 1 WHERE id = $1", [eventId]);
+
+    // Notify event creator (skip if self-replying)
+    try {
+      const eventRes = await pool.query("SELECT community_id, title FROM events WHERE id = $1", [eventId]);
+      const event = eventRes.rows[0];
+      const eventCreator = event?.community_id;
+      if (eventCreator && (String(eventCreator) !== String(userId) || userType !== "community")) {
+        const actorProfile = await getActorProfile(userId, userType);
+
+        await notificationService.createSimpleNotification(pool, {
+          recipientId: eventCreator,
+          recipientType: "community",
+          actorId: userId,
+          actorType: userType,
+          type: "comment",
+          payload: {
+            actorName: actorProfile.name,
+            actorUsername: actorProfile.username,
+            actorAvatar: actorProfile.avatar,
+            eventId: eventId,
+            postId: eventId,
+            commentId: insertRes.rows[0].id,
+            commentText: commentText.trim().substring(0, 100),
+          }
+        });
+
+        // Send push notification
+        await pushService.sendPushNotification(
+          pool,
+          eventCreator,
+          "community",
+          "New Comment on Event 💬",
+          `${actorProfile.name || "Someone"} replied on your event "${event.title}"`,
+          {
+            type: "comment",
+            eventId: eventId,
+            postId: eventId,
+          }
+        );
+      }
+    } catch (e) {
+      console.error("Failed to create event reply notification:", e);
+    }
+
     return res.status(201).json({ success: true, comment: insertRes.rows[0] });
   } catch (err) {
     console.error("[replyToEventComment]", err.message);
     return res.status(500).json({ error: "Failed to reply to comment" });
   }
-};
+}
 
 /** DELETE /event-comments/:commentId */
 async function deleteEventComment(req, res) {
