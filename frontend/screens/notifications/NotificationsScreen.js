@@ -677,6 +677,8 @@ const NotificationRow = ({
         </View>
       );
     }
+  }
+
   if (!title) {
     return null;
   }
