@@ -1,4 +1,4 @@
-﻿/**
+/**
  * OpenPlanCard — Premium event discovery card for Open Plans feed.
  *
  * Layout (360–380px total):
@@ -226,6 +226,14 @@ const OpenPlanCard = ({
   const navHook = useNavigation();
   const navigation = navProp || navHook;
 
+  // Cache auth token
+  const tokenRef = useRef(null);
+  useEffect(() => {
+    getAuthToken().then((t) => {
+      tokenRef.current = t;
+    });
+  }, []);
+
   // Engagement state
   const [isLiked,       setIsLiked]       = useState(Boolean(plan?.is_liked));
   const [likeCount,     setLikeCount]     = useState(plan?.like_count ?? 0);
@@ -326,7 +334,7 @@ const OpenPlanCard = ({
       if (onInterest) {
         await onInterest(plan?.id, next);
       } else {
-        const token = await getAuthToken();
+        const token = tokenRef.current || (await getAuthToken());
         await togglePlanInterest(plan?.id, token);
       }
     } catch {
@@ -900,4 +908,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default OpenPlanCard;
+export default React.memo(OpenPlanCard);

@@ -251,6 +251,14 @@ const QnAPostCard = React.memo(({
     };
   }, [previewQuestion?.id, post.id, onPostUpdate]);
 
+  // Cache auth token so handleLike never awaits I/O before the optimistic UI update
+  const tokenRef = useRef(null);
+  useEffect(() => {
+    getAuthToken().then((t) => {
+      tokenRef.current = t;
+    });
+  }, []);
+
   // Engagement State
   const initialIsLiked = post.is_liked === true;
   const [isLiked, setIsLiked] = useState(initialIsLiked);
@@ -326,7 +334,7 @@ const QnAPostCard = React.memo(({
 
     setIsLiking(true);
     try {
-      const token = await getAuthToken();
+      const token = tokenRef.current || (await getAuthToken());
       if (nextLiked) {
         await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
       } else {

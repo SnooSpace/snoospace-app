@@ -602,6 +602,8 @@ const EditorialPostCard = ({
     post.saves_count,
   ]);
 
+  console.log("[EditorialPostCard INSTRUMENT] Render tick at: " + Date.now() + " ms | postId: " + post.id + " | isLiked state: " + isLiked + " | isLiked prop: " + post.is_liked);
+
   // Format timestamp to lowercase relative time
   const formatTimeAgo = (timestamp) => {
     const now = new Date();
@@ -618,7 +620,12 @@ const EditorialPostCard = ({
   };
 
   const handleLike = async () => {
-    if (isLiking) return;
+    const tapTime = Date.now();
+    console.log("[EditorialPostCard INSTRUMENT] 1. User tap received at: " + tapTime + " ms | postId: " + post.id);
+    if (isLiking) {
+      console.log("[EditorialPostCard INSTRUMENT] Tap ignored (isLiking is true)");
+      return;
+    }
     HapticsService.triggerLike();
 
     const prevLiked = isLiked;
@@ -628,19 +635,30 @@ const EditorialPostCard = ({
     const nextLikes = Math.max(0, prevLikeCount + delta);
 
     // Optimistic update — all synchronous, zero async before this point
+    console.log("[EditorialPostCard INSTRUMENT] 2. Local liked state updated to " + nextLiked + " at: " + Date.now() + " ms");
     setIsLiked(nextLiked);
     setLikeCount(nextLikes);
     setIsLiking(true);
-    if (onLike) onLike(post.id, nextLiked, nextLikes);
+    if (onLike) {
+      console.log("[EditorialPostCard INSTRUMENT] 3. Calling parent onLike at: " + Date.now() + " ms");
+      onLike(post.id, nextLiked, nextLikes);
+    }
 
     try {
       // Use cached token; if stale, fall back to async fetch
+      console.log("[EditorialPostCard INSTRUMENT] 4. Awaiting getAuthToken/tokenRef at: " + Date.now() + " ms");
       const token = tokenRef.current || (await getAuthToken());
+      console.log("[EditorialPostCard INSTRUMENT] 5. Network request starting at: " + Date.now() + " ms");
+      
+      const netStart = Date.now();
       if (nextLiked) {
         await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
       } else {
         await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
       }
+      console.log("[EditorialPostCard INSTRUMENT] 6. Network request completed at: " + Date.now() + " ms | duration: " + (Date.now() - netStart) + " ms");
+
+      console.log("[EditorialPostCard INSTRUMENT] 7. Emitting post-like-updated event at: " + Date.now() + " ms");
       EventBus.emit("post-like-updated", {
         postId: post.id,
         isLiked: nextLiked,
@@ -654,6 +672,7 @@ const EditorialPostCard = ({
       if (onLike) onLike(post.id, prevLiked, prevLikeCount);
     } finally {
       setIsLiking(false);
+      console.log("[EditorialPostCard INSTRUMENT] 8. handleLike finished at: " + Date.now() + " ms");
     }
   };
 
@@ -1647,4 +1666,19 @@ const viewStyles = StyleSheet.create({
   },
 });
 
-export default EditorialPostCard;
+export default React.memo(EditorialPostCard, (prev, next) => {
+  return (
+    prev.post.id === next.post.id &&
+    prev.isVideoPlaying === next.isVideoPlaying &&
+    prev.isInViewport === next.isInViewport &&
+    prev.isScreenFocused === next.isScreenFocused &&
+    prev.post.like_count === next.post.like_count &&
+    prev.post.is_liked === next.post.is_liked &&
+    prev.post.comment_count === next.post.comment_count &&
+    prev.post.public_view_count === next.post.public_view_count &&
+    prev.post.save_count === next.post.save_count &&
+    prev.post.saves_count === next.post.saves_count &&
+    prev.post.is_saved === next.post.is_saved &&
+    prev.post.is_pinned === next.post.is_pinned
+  );
+});

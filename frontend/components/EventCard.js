@@ -113,7 +113,7 @@ const parseDisplayDate = (dateStr) => {
  * @param {Function} onInterestedPress - Callback when interested button is pressed
  * @param {string} style - Additional styles
  */
-export default function EventCard({
+function EventCard({
   event,
   onPress,
   onInterestedPress,
@@ -1697,3 +1697,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
 });
+
+export default React.memo(EventCard);

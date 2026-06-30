@@ -7,12 +7,52 @@ const KEY_EMAIL = "auth_email";
 const KEY_REFRESH = "auth_refresh_token";
 const KEY_PENDING = "pending_otp";
 
+// In-memory token cache to completely avoid AsyncStorage and Decryption overhead on every API request.
+let cachedToken = null;
+
+// Lightweight EventEmitter implementation safe for React Native
+class SimpleEventEmitter {
+  constructor() {
+    this.listeners = {};
+  }
+  on(event, handler) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(handler);
+    return () => {
+      this.listeners[event] = this.listeners[event].filter(h => h !== handler);
+    };
+  }
+  emit(event, data) {
+    const handlers = this.listeners[event];
+    if (handlers) {
+      handlers.forEach(h => {
+        try { h(data); } catch {}
+      });
+    }
+  }
+}
+
+if (typeof global !== 'undefined') {
+  if (!global.authEventEmitter) {
+    global.authEventEmitter = new SimpleEventEmitter();
+  }
+  global.authEventEmitter.on("accountSwitched", (data) => {
+    console.log("[api/auth] Clearing cached token due to account switch:", data?.email);
+    cachedToken = null;
+  });
+  global.authEventEmitter.on("unexpectedLogout", (data) => {
+    console.log("[api/auth] Clearing cached token due to logout:", data?.email);
+    cachedToken = null;
+  });
+}
+
 /**
  * Set auth session for current active account
  * Also updates the account in the account manager
  */
 export async function setAuthSession(token, email, refreshToken) {
   try {
+    cachedToken = token || null;
     // Set old-style storage for backward compatibility during migration
     const pairs = [
       [KEY_TOKEN, token || ""],
@@ -27,6 +67,9 @@ export async function setAuthSession(token, email, refreshToken) {
 }
 
 export async function getAuthToken() {
+  if (cachedToken) {
+    return cachedToken;
+  }
   try {
     // Try new multi-account system first
     const activeAccount = await accountManager.getActiveAccount();
@@ -39,6 +82,7 @@ export async function getAuthToken() {
         "length:",
         activeAccount.authToken?.length
       );
+      cachedToken = activeAccount.authToken;
       return activeAccount.authToken;
     }
 
@@ -52,15 +96,17 @@ export async function getAuthToken() {
       console.log(
         "[getAuthToken] Returning null - caller should handle session expiry"
       );
+      cachedToken = null;
       return null;
     }
 
-    // Fallback to old storage (for migration)
     const v = await AsyncStorage.getItem(KEY_TOKEN);
     if (v) {
       console.log("[getAuthToken] Using old storage token, length:", v?.length);
+      cachedToken = v;
     } else {
       console.log("[getAuthToken] No logged-in account found");
+      cachedToken = null;
     }
     return v || null;
   } catch (error) {
@@ -125,6 +171,7 @@ export async function getRefreshToken() {
  */
 export async function clearAuthSession() {
   try {
+    cachedToken = null;
     const allAccounts = await accountManager.getAllAccounts();
     const activeAccount = await accountManager.getActiveAccount();
 
@@ -150,6 +197,7 @@ export async function clearAuthSession() {
 
 export async function setAccessToken(token) {
   try {
+    cachedToken = token || null;
     const activeAccount = await accountManager.getActiveAccount();
 
     if (!token) {
@@ -230,6 +278,9 @@ export async function updateAccountTokens(
   refreshToken
 ) {
   try {
+    if (accessToken) {
+      cachedToken = accessToken;
+    }
     if (!accountId) {
       console.warn("[updateAccountTokens] No account ID provided");
       return;
@@ -489,6 +540,7 @@ export async function removeAccountAndAutoSwitch(accountId) {
  * Logout all accounts
  */
 export async function clearAllAccounts() {
+  cachedToken = null;
   await accountManager.clearAllAccounts();
   await AsyncStorage.multiRemove([KEY_TOKEN, KEY_EMAIL, KEY_REFRESH]);
   clearSupabaseAuth();

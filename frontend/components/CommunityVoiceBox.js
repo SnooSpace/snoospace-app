@@ -455,6 +455,17 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
       </View>
     </TouchableWithoutFeedback>
   );
+}, (prev, next) => {
+  return (
+    prev.post?.id === next.post?.id &&
+    prev.post?.like_count === next.post?.like_count &&
+    prev.post?.is_liked === next.post?.is_liked &&
+    prev.post?.comment_count === next.post?.comment_count &&
+    prev.post?.public_view_count === next.post?.public_view_count &&
+    prev.post?.save_count === next.post?.save_count &&
+    prev.post?.saves_count === next.post?.saves_count &&
+    prev.post?.is_saved === next.post?.is_saved
+  );
 });
 
 // ─────────────────────────────────────────────────────────────

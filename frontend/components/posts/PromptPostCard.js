@@ -178,6 +178,14 @@ const PromptPostCard = React.memo(({
     String(post.author_id) === String(currentUserId) &&
     post.author_type === currentUserType;
 
+  // Cache auth token so handleLike never awaits I/O before the optimistic UI update
+  const tokenRef = useRef(null);
+  useEffect(() => {
+    getAuthToken().then((t) => {
+      tokenRef.current = t;
+    });
+  }, []);
+
   // Engagement State
   const initialIsLiked = post.is_liked === true;
   const [isLiked, setIsLiked] = useState(initialIsLiked);
@@ -253,7 +261,7 @@ const PromptPostCard = React.memo(({
 
     setIsLiking(true);
     try {
-      const token = await getAuthToken();
+      const token = tokenRef.current || (await getAuthToken());
       if (nextLiked) {
         await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
       } else {

@@ -183,6 +183,7 @@ const HeaderIcon = ({ IconComponent, onPress, showDot }) => {
 
 export default function HomeFeedScreen({ navigation, role = "member" }) {
   const insets = useSafeAreaInsets();
+  console.log("[HomeFeedScreen INSTRUMENT] Render tick at: " + Date.now() + " ms | feedItems: " + (typeof feedItems !== 'undefined' ? feedItems.length : 'init'));
 
   // Calculate total header height including status bar
   const totalHeaderHeight = getPremiumHeaderTotalHeight(insets);
@@ -203,7 +204,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
 
   // Determine navigation stack based on current role
-  const getNavigationStack = () => {
+  const getNavigationStack = useCallback(() => {
     switch (role) {
       case "community":
         return "CommunityHome";
@@ -215,11 +216,18 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       default:
         return "MemberHome";
     }
-  };
+  }, [role]);
   const [posts, setPosts] = useState([]);
   const [events, setEvents] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
-  const [feedItems, setFeedItems] = useState([]); // Combined posts + events + opportunities
+
+  const postsRef = useRef(posts);
+  const opportunitiesRef = useRef(opportunities);
+  const eventsRef = useRef(events);
+
+  useEffect(() => { postsRef.current = posts; }, [posts]);
+  useEffect(() => { opportunitiesRef.current = opportunities; }, [opportunities]);
+  useEffect(() => { eventsRef.current = events; }, [events]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
@@ -575,102 +583,80 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
 
   // Merge posts, events, and opportunities into a single flat list.
-  // ── PERF RATIONALE: We intentionally do NOT wrap this in InteractionManager
-  //    for the initial load / account-switch path. InteractionManager treats the
-  //    account-switch overlay animation as an "active interaction", which means
-  //    setFeedItems would fire the moment the animation ends — i.e., when the
-  //    new screen is fully visible and the RecyclerView has already positioned
-  //    itself at a cached offset (the opportunity card). Running the merge
-  //    synchronously ensures feedItems populates in the same render cycle as
-  //    posts/events/opportunities, so FlashList never sees a stale layout pass.
-  //
-  //    For polling updates (every 30 s), the user may be actively scrolling, so
-  //    we defer via InteractionManager only in that case by checking isScrollingRef.
-  useEffect(() => {
-    const runMerge = () => {
-      if (
-        posts.length === 0 &&
-        events.length === 0 &&
-        opportunities.length === 0
-      ) {
-        setFeedItems([]);
-        return;
-      }
+  // We use useMemo to compute feedItems synchronously in the render phase,
+  // reducing the number of renders from two down to exactly one on updates.
+  const feedItems = useMemo(() => {
+    if (
+      posts.length === 0 &&
+      events.length === 0 &&
+      opportunities.length === 0
+    ) {
+      return [];
+    }
 
-      const merged = [];
-      let eventIndex = 0;
-      let opportunityIndex = 0;
-      const FIRST_EVENT_AT = 2;
-      const SUBSEQUENT_INTERVAL = 5;
-      const OPPORTUNITY_INTERVAL = 3;
+    const merged = [];
+    let eventIndex = 0;
+    let opportunityIndex = 0;
+    const FIRST_EVENT_AT = 2;
+    const SUBSEQUENT_INTERVAL = 5;
+    const OPPORTUNITY_INTERVAL = 3;
 
-      if (posts.length > 0) {
-        posts.forEach((post, index) => {
-          merged.push({ ...post, itemType: "post" });
+    if (posts.length > 0) {
+      posts.forEach((post, index) => {
+        merged.push({ ...post, itemType: "post" });
 
-          const postNumber = index + 1;
+        const postNumber = index + 1;
 
-          // Insert Event
-          const shouldInsertEvent =
-            (postNumber === FIRST_EVENT_AT && eventIndex === 0) ||
-            (eventIndex > 0 &&
-              postNumber > FIRST_EVENT_AT &&
-              (postNumber - FIRST_EVENT_AT) % SUBSEQUENT_INTERVAL === 0);
+        // Insert Event
+        const shouldInsertEvent =
+          (postNumber === FIRST_EVENT_AT && eventIndex === 0) ||
+          (eventIndex > 0 &&
+            postNumber > FIRST_EVENT_AT &&
+            (postNumber - FIRST_EVENT_AT) % SUBSEQUENT_INTERVAL === 0);
 
-          if (shouldInsertEvent && eventIndex < events.length) {
-            merged.push({ ...events[eventIndex], itemType: "event" });
-            eventIndex++;
-          }
-
-          // Insert Opportunity (Distributed every 3rd post)
-          if (
-            postNumber % OPPORTUNITY_INTERVAL === 0 &&
-            opportunityIndex < opportunities.length
-          ) {
-            merged.push({
-              ...opportunities[opportunityIndex],
-              itemType: "opportunity",
-            });
-            opportunityIndex++;
-          }
-        });
-
-        // Append remaining events
-        while (eventIndex < events.length) {
+        if (shouldInsertEvent && eventIndex < events.length) {
           merged.push({ ...events[eventIndex], itemType: "event" });
           eventIndex++;
         }
 
-        // Append remaining opportunities
-        while (opportunityIndex < opportunities.length) {
+        // Insert Opportunity (Distributed every 3rd post)
+        if (
+          postNumber % OPPORTUNITY_INTERVAL === 0 &&
+          opportunityIndex < opportunities.length
+        ) {
           merged.push({
             ...opportunities[opportunityIndex],
             itemType: "opportunity",
           });
           opportunityIndex++;
         }
-      } else {
-        // If no posts, just show events then opportunities
-        events.forEach((event) => {
-          merged.push({ ...event, itemType: "event" });
-        });
-        opportunities.forEach((opp) => {
-          merged.push({ ...opp, itemType: "opportunity" });
-        });
+      });
+
+      // Append remaining events
+      while (eventIndex < events.length) {
+        merged.push({ ...events[eventIndex], itemType: "event" });
+        eventIndex++;
       }
 
-      setFeedItems(merged);
-    };
-
-    // If the user is actively scrolling, defer until they stop to avoid
-    // triggering a re-render mid-scroll. Otherwise run immediately so the
-    // FlashList gets data in the same render cycle and never jumps.
-    if (isScrollingRef.current) {
-      const task = InteractionManager.runAfterInteractions(runMerge);
-      return () => task.cancel();
+      // Append remaining opportunities
+      while (opportunityIndex < opportunities.length) {
+        merged.push({
+          ...opportunities[opportunityIndex],
+          itemType: "opportunity",
+        });
+        opportunityIndex++;
+      }
     } else {
-      runMerge();
+      // If no posts, just show events then opportunities
+      events.forEach((event) => {
+        merged.push({ ...event, itemType: "event" });
+      });
+      opportunities.forEach((opp) => {
+        merged.push({ ...opp, itemType: "opportunity" });
+      });
     }
+
+    return merged;
   }, [posts, events, opportunities]);
 
   useEffect(() => {
@@ -738,24 +724,29 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       if (!payload?.postId) return;
       await LikeStateManager.setLikeState(payload.postId, payload.isLiked);
 
-      const likeUpdater = (prev) =>
-        prev.map((post) =>
-          post.id === payload.postId
-            ? {
-                ...post,
-                is_liked: payload.isLiked,
-                isLiked: payload.isLiked,
-                like_count:
-                  typeof payload.likeCount === "number"
-                    ? payload.likeCount
-                    : post.like_count,
-                comment_count:
-                  typeof payload.commentCount === "number"
-                    ? payload.commentCount
-                    : post.comment_count,
-              }
-            : post,
-        );
+      const likeUpdater = (prev) => {
+        let changed = false;
+        const updated = prev.map((post) => {
+          if (post.id === payload.postId) {
+            const nextLikes = typeof payload.likeCount === "number" ? payload.likeCount : post.like_count;
+            const nextComments = typeof payload.commentCount === "number" ? payload.commentCount : post.comment_count;
+            if (post.is_liked === payload.isLiked && post.like_count === nextLikes && post.comment_count === nextComments) {
+              return post;
+            }
+            changed = true;
+            return {
+              ...post,
+              is_liked: payload.isLiked,
+              isLiked: payload.isLiked,
+              like_count: nextLikes,
+              comment_count: nextComments,
+            };
+          }
+          return post;
+        });
+        return changed ? updated : prev;
+      };
+
       setPosts(likeUpdater);
       setOpportunities(likeUpdater);
     };
@@ -1020,34 +1011,58 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     setRefreshing(false);
   };
 
-  const handleLikeUpdate = (postId, isLiked) => {
-    setPosts((prevPosts) =>
-      prevPosts.map((p) =>
-        p.id === postId
-          ? {
+  const handleLikeUpdate = useCallback((postId, isLiked) => {
+    console.log("[HomeFeedScreen INSTRUMENT] Parent handleLikeUpdate called at: " + Date.now() + " ms | postId: " + postId + " | isLiked: " + isLiked);
+    
+    // Defer the parent state updates until after interaction animations settle
+    InteractionManager.runAfterInteractions(() => {
+      setPosts((prevPosts) => {
+        let changed = false;
+        const updated = prevPosts.map((p) => {
+          if (p.id === postId) {
+            const nextLiked = isLiked;
+            const nextLikes = Math.max(0, (p.like_count || 0) + (isLiked ? 1 : -1));
+            if (p.is_liked === nextLiked && p.like_count === nextLikes) {
+              return p;
+            }
+            changed = true;
+            return {
               ...p,
-              is_liked: isLiked,
-              isLiked,
-              like_count: Math.max(0, (p.like_count || 0) + (isLiked ? 1 : -1)),
-            }
-          : p,
-      ),
-    );
-    setOpportunities((prevOpps) =>
-      prevOpps.map((o) =>
-        o.id === postId
-          ? {
-              ...o,
-              is_liked: isLiked,
-              isLiked,
-              like_count: Math.max(0, (o.like_count || 0) + (isLiked ? 1 : -1)),
-            }
-          : o,
-      ),
-    );
-  };
+              is_liked: nextLiked,
+              isLiked: nextLiked,
+              like_count: nextLikes,
+            };
+          }
+          return p;
+        });
+        return changed ? updated : prevPosts;
+      });
 
-  const handlePostUpdate = (updatedItem) => {
+      setOpportunities((prevOpps) => {
+        let changed = false;
+        const updated = prevOpps.map((o) => {
+          if (o.id === postId) {
+            const nextLiked = isLiked;
+            const nextLikes = Math.max(0, (o.like_count || 0) + (isLiked ? 1 : -1));
+            if (o.is_liked === nextLiked && o.like_count === nextLikes) {
+              return o;
+            }
+            changed = true;
+            return {
+              ...o,
+              is_liked: nextLiked,
+              isLiked: nextLiked,
+              like_count: nextLikes,
+            };
+          }
+          return o;
+        });
+        return changed ? updated : prevOpps;
+      });
+    });
+  }, []);
+
+  const handlePostUpdate = useCallback((updatedItem) => {
     // Determine if it's a post or opportunity based on some property or just try both
     // But better to be explicit or generic.
     // The EventBus might send an opportunity, EditorialPostCard might send a post.
@@ -1063,32 +1078,25 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         o.id === updatedItem.id ? { ...o, ...updatedItem } : o,
       ),
     );
+  }, []);
 
-    // Also update feedItems if they store a copy
-    setFeedItems((prevFeed) =>
-      prevFeed.map((item) =>
-        item.id === updatedItem.id ? { ...item, ...updatedItem } : item,
-      ),
-    );
-  };
-
-  const handleCommentPress = (postId, postType = "post") => {
+  const handleCommentPress = useCallback((postId, postType = "post") => {
     setSelectedPostId(postId);
     setSelectedPostType(postType);
     setCommentsModalVisible(true);
-  };
+  }, []);
 
-  const handleSharePress = (postId) => {
-    const fromPosts = posts.find((p) => p.id === postId);
-    const fromOpps = !fromPosts && opportunities.find((o) => o.id === postId);
-    const fromEvents = !fromPosts && !fromOpps && events.find((e) => e.id === postId);
+  const handleSharePress = useCallback((postId) => {
+    const fromPosts = postsRef.current.find((p) => p.id === postId);
+    const fromOpps = !fromPosts && opportunitiesRef.current.find((o) => o.id === postId);
+    const fromEvents = !fromPosts && !fromOpps && eventsRef.current.find((e) => e.id === postId);
 
     const post = fromPosts || fromOpps || (fromEvents ? { ...fromEvents, itemType: "event" } : null);
     if (post) {
       setSelectedSharePost(post);
       setShareModalVisible(true);
     }
-  };
+  }, []);
 
   const handleCommentCountChange = (postId, postType) => {
     return (prevCount) => {
@@ -1114,19 +1122,105 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     };
   };
 
-  const handleEventPress = (event) => {
+  const handleEventPress = useCallback((event) => {
     navigation.navigate("EventDetails", {
       eventId: event.id,
       eventData: event,
     });
-  };
+  }, [navigation]);
 
-  const handleInterestedPress = (event) => {
+  const handleInterestedPress = useCallback((event) => {
     // EventCard already handles the API toggle and UI state
     // No additional feedback needed here
-  };
+  }, []);
 
-  const handleFollow = async (userId, userType, shouldFollow) => {
+  const handleEventComment = useCallback((id) => {
+    handleCommentPress(id, "event");
+  }, [handleCommentPress]);
+
+  const handleOpportunityComment = useCallback((id) => {
+    handleCommentPress(id, "opportunity");
+  }, [handleCommentPress]);
+
+  const handleOpportunityPress = useCallback((opp) => {
+    navigation.navigate("OpportunityView", {
+      opportunityId: opp.id,
+    });
+  }, [navigation]);
+
+  const handleOpportunitySave = useCallback((id, saved) => {
+    setOpportunities((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, is_saved: saved } : o)),
+    );
+  }, []);
+
+  const handleOpportunityDelete = useCallback((opportunityId) => {
+    setOpportunities((prev) => prev.filter((o) => o.id !== opportunityId));
+  }, []);
+
+  const handleUserPress = useCallback((userId, userType) => {
+    if (!userId) return;
+    const actualUserType = userType || "member";
+
+    if (actualUserType === "community") {
+      const isOwnCommunity =
+        currentUserId && String(userId) === String(currentUserId);
+
+      if (isOwnCommunity && role === "community") {
+        const root = navigation.getParent()?.getParent();
+        if (root) {
+          root.navigate(getNavigationStack(), {
+            screen: "Profile",
+            params: {
+              screen: "CommunityProfile",
+            },
+          });
+        }
+      } else if (role === "member") {
+        navigation.navigate("CommunityPublicProfile", {
+          communityId: userId,
+          viewerRole: "member",
+        });
+      } else {
+        Alert.alert(
+          "Community Profile",
+          `Viewing community: ${userId}`,
+        );
+      }
+      return;
+    }
+
+    if (actualUserType === "member") {
+      const isOwnProfile =
+        currentUserId && String(userId) === String(currentUserId);
+
+      if (role === "member" || role === "community") {
+        if (!isOwnProfile) {
+          navigation.navigate("MemberPublicProfile", {
+            memberId: userId,
+          });
+        } else {
+          const root = navigation.getParent()?.getParent();
+          if (root) {
+            root.navigate(getNavigationStack(), {
+              screen: "Profile",
+              params: {
+                screen: "MemberProfile",
+              },
+            });
+          }
+        }
+      } else {
+        Alert.alert(
+          "Member Profile",
+          `Viewing member profile: ${userId}`,
+        );
+      }
+      return;
+    }
+  }, [currentUserId, role, navigation, getNavigationStack]);
+
+  const handleFollow = useCallback(async (userId, userType, shouldFollow) => {
     try {
       const token = await getAuthToken();
       if (shouldFollow) {
@@ -1156,12 +1250,12 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       console.error("Error following entity:", error);
       Alert.alert("Error", "Failed to update follow status");
     }
-  };
+  }, []);
 
-  const handleRequestDelete = (postId) => {
+  const handleRequestDelete = useCallback((postId) => {
     setPostToDelete(postId);
     setDeleteModalVisible(true);
-  };
+  }, []);
 
   const handleConfirmDelete = async () => {
     if (!postToDelete) return;
@@ -1225,7 +1319,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           onPress={handleEventPress}
           onInterestedPress={handleInterestedPress}
           onShare={handleSharePress}
-          onComment={(id) => handleCommentPress(id, "event")}
+          onComment={handleEventComment}
         />
       );
     }
@@ -1234,65 +1328,13 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       return (
         <OpportunityFeedCard
           opportunity={item}
-          onPress={(opp) => {
-            navigation.navigate("OpportunityView", {
-              opportunityId: opp.id,
-            });
-          }}
+          onPress={handleOpportunityPress}
           onLike={handleLikeUpdate}
-          onComment={(id) => handleCommentPress(id, "opportunity")}
+          onComment={handleOpportunityComment}
           onShare={handleSharePress}
-          onSave={(id, saved) => {
-            setOpportunities((prev) =>
-              prev.map((o) => (o.id === id ? { ...o, is_saved: saved } : o)),
-            );
-          }}
-          onDelete={(opportunityId) => {
-            setOpportunities((prev) => prev.filter((o) => o.id !== opportunityId));
-            setFeedItems((prev) => prev.filter((fi) => fi.id !== opportunityId));
-          }}
-          onUserPress={(userId, userType) => {
-            const actualUserType = userType || item?.creator_type;
-            const actualUserId = userId || item?.creator_id;
-
-            if (actualUserType === "community") {
-              const isOwnCommunity =
-                currentUserId && String(actualUserId) === String(currentUserId);
-              if (isOwnCommunity && role === "community") {
-                const root = navigation.getParent()?.getParent();
-                if (root) {
-                  root.navigate(getNavigationStack(), {
-                    screen: "Profile",
-                    params: { screen: "CommunityProfile" },
-                  });
-                }
-              } else {
-                navigation.navigate("CommunityPublicProfile", {
-                  communityId: actualUserId,
-                  viewerRole: "member",
-                });
-              }
-              return;
-            }
-
-            if (actualUserType === "member") {
-              const isOwnProfile =
-                currentUserId && actualUserId === currentUserId;
-              if (!isOwnProfile) {
-                navigation.navigate("MemberPublicProfile", {
-                  memberId: actualUserId,
-                });
-              } else {
-                const root = navigation.getParent()?.getParent();
-                if (root) {
-                  root.navigate(getNavigationStack(), {
-                    screen: "Profile",
-                    params: { screen: "MemberProfile" },
-                  });
-                }
-              }
-            }
-          }}
+          onSave={handleOpportunitySave}
+          onDelete={handleOpportunityDelete}
+          onUserPress={handleUserPress}
           onPostUpdate={handlePostUpdate}
         />
       );
@@ -1316,76 +1358,13 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         isInViewport={isFocusedRef.current}
         isScreenFocused={isFocusedRef.current}
         navigation={navigation}
-        onUserPress={(userId, userType) => {
-          const actualUserType = userType || item?.author_type;
-          const actualUserId = userId || item?.author_id;
-
-          if (actualUserType === "community") {
-            const isOwnCommunity =
-              currentUserId && String(actualUserId) === String(currentUserId);
-
-            if (isOwnCommunity && role === "community") {
-              const root = navigation.getParent()?.getParent();
-              if (root) {
-                root.navigate(getNavigationStack(), {
-                  screen: "Profile",
-                  params: {
-                    screen: "CommunityProfile",
-                  },
-                });
-              }
-            } else if (role === "member") {
-              navigation.navigate("CommunityPublicProfile", {
-                communityId: actualUserId,
-                viewerRole: "member",
-              });
-            } else {
-              Alert.alert(
-                "Community Profile",
-                `Viewing community: ${actualUserId}`,
-              );
-            }
-            return;
-          }
-
-          if (actualUserType === "member") {
-            const isOwnProfile =
-              currentUserId && actualUserId === currentUserId;
-
-            if (role === "member" || role === "community") {
-              if (!isOwnProfile) {
-                navigation.navigate("MemberPublicProfile", {
-                  memberId: actualUserId,
-                });
-              } else {
-                const root = navigation.getParent()?.getParent();
-                if (root) {
-                  root.navigate(getNavigationStack(), {
-                    screen: "Profile",
-                    params: {
-                      screen: "MemberProfile",
-                    },
-                  });
-                }
-              }
-            } else {
-              Alert.alert(
-                "Member Profile",
-                `Viewing member profile: ${actualUserId}`,
-              );
-            }
-            return;
-          }
-        }}
+        onUserPress={handleUserPress}
       />
     );
   }, [
     navigation,
     currentUserId,
     currentUserType,
-    // ── PERF: visiblePostId kept as state for EditorialPostCard equality check,
-    //    but visibleIndex/isFocused/feedItems are now read from refs so they
-    //    NO LONGER invalidate this callback during scroll events.
     visiblePostId,
     shouldPreloadItem,
     role,
@@ -1399,6 +1378,12 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     handleFollow,
     handleDelete,
     handleRequestDelete,
+    handleEventComment,
+    handleOpportunityComment,
+    handleOpportunityPress,
+    handleOpportunitySave,
+    handleOpportunityDelete,
+    handleUserPress,
   ]);
 
   const viewabilityConfig = useRef({

@@ -220,6 +220,14 @@ const OpportunityFeedCard = React.memo(({
     return tools.slice(0, 8);
   }, [opportunity.skill_groups]);
 
+  // Cache auth token so handleLike never awaits I/O before the optimistic UI update
+  const tokenRef = useRef(null);
+  useEffect(() => {
+    getAuthToken().then((t) => {
+      tokenRef.current = t;
+    });
+  }, []);
+
   // ── Engagement state ───────────────────────────────────────────────────────
   const initialIsLiked = opportunity.is_liked === true || opportunity.isLiked === true;
   const [isLiked, setIsLiked] = useState(initialIsLiked);
@@ -289,7 +297,7 @@ const OpportunityFeedCard = React.memo(({
 
     setIsLiking(true);
     try {
-      const token = await getAuthToken();
+      const token = tokenRef.current || (await getAuthToken());
       if (nextLiked) {
         await apiPost(`/opportunities/${opportunity.id}/like`, {}, 15000, token);
       } else {

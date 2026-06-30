@@ -225,11 +225,7 @@ class HapticsService {
    * Premium heartbeat pop: rapid light impact followed by medium impact after 80ms
    */
   async triggerLike() {
-    if (this.isEnabled) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      await new Promise((resolve) => setTimeout(resolve, 80));
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
+    // Disabled globally per user request
   }
 
   /**

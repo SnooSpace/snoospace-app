@@ -68,6 +68,7 @@ const PollPostCard = React.memo(({
   showManagementControls = false,
 }) => {
   const { showToast } = useToast();
+
   const typeData = post.type_data || {};
   const [hasVoted, setHasVoted] = useState(post.has_voted || false);
   const [votedIndexes, setVotedIndexes] = useState(post.voted_indexes || []);
@@ -159,6 +160,14 @@ const PollPostCard = React.memo(({
     typeData.total_votes,
   ]);
 
+  // Cache auth token so handleLike never awaits I/O before the optimistic UI update
+  const tokenRef = useRef(null);
+  useEffect(() => {
+    getAuthToken().then((t) => {
+      tokenRef.current = t;
+    });
+  }, []);
+
   // Engagement State
   const initialIsLiked = post.is_liked === true;
   const [isLiked, setIsLiked] = useState(initialIsLiked);
@@ -173,6 +182,8 @@ const PollPostCard = React.memo(({
     setIsSaved(post.is_saved || false);
     setSaveCount(post.save_count || post.saves_count || 0);
   }, [post.is_liked, post.like_count, post.is_saved, post.save_count, post.saves_count]);
+
+  console.log("[PollPostCard INSTRUMENT] Render tick at: " + Date.now() + " ms | postId: " + post.id + " | isLiked state: " + isLiked + " | isLiked prop: " + post.is_liked);
 
   // ── View Tracking ──────────────────────────────────────────────────────────
   const [viewCount, setViewCount] = useState(post.public_view_count || post.view_count || 0);
@@ -193,7 +204,9 @@ const PollPostCard = React.memo(({
     }
 
     return () => {
-      if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
+      if (dwellTimerRef.current) {
+        clearTimeout(dwellTimerRef.current);
+      }
     };
   }, [post.id]);
 
@@ -207,7 +220,12 @@ const PollPostCard = React.memo(({
   }, [post.id]);
 
   const handleLike = async () => {
-    if (isLiking) return;
+    const tapTime = Date.now();
+    console.log("[PollPostCard INSTRUMENT] 1. User tap received at: " + tapTime + " ms | postId: " + post.id);
+    if (isLiking) {
+      console.log("[PollPostCard INSTRUMENT] Tap ignored (isLiking is true)");
+      return;
+    }
     HapticsService.triggerLike();
 
     const prevLiked = isLiked;
@@ -216,19 +234,29 @@ const PollPostCard = React.memo(({
     const delta = nextLiked ? 1 : -1;
     const nextLikes = Math.max(0, prevLikeCount + delta);
 
-    // Optimistic update
+    console.log("[PollPostCard INSTRUMENT] 2. Local liked state updated to " + nextLiked + " at: " + Date.now() + " ms");
     setIsLiked(nextLiked);
     setLikeCount(nextLikes);
-    if (onLike) onLike(post.id, nextLiked, nextLikes);
+    if (onLike) {
+      console.log("[PollPostCard INSTRUMENT] 3. Calling parent onLike at: " + Date.now() + " ms");
+      onLike(post.id, nextLiked, nextLikes);
+    }
 
     setIsLiking(true);
     try {
-      const token = await getAuthToken();
+      console.log("[PollPostCard INSTRUMENT] 4. Awaiting getAuthToken at: " + Date.now() + " ms");
+      const token = tokenRef.current || (await getAuthToken());
+      console.log("[PollPostCard INSTRUMENT] 5. Network request starting at: " + Date.now() + " ms");
+      
+      const netStart = Date.now();
       if (nextLiked) {
         await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
       } else {
         await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
       }
+      console.log("[PollPostCard INSTRUMENT] 6. Network request completed at: " + Date.now() + " ms | duration: " + (Date.now() - netStart) + " ms");
+
+      console.log("[PollPostCard INSTRUMENT] 7. Emitting post-like-updated event at: " + Date.now() + " ms");
       EventBus.emit("post-like-updated", {
         postId: post.id,
         isLiked: nextLiked,
@@ -242,6 +270,7 @@ const PollPostCard = React.memo(({
       if (onLike) onLike(post.id, prevLiked, prevLikeCount);
     } finally {
       setIsLiking(false);
+      console.log("[PollPostCard INSTRUMENT] 8. handleLike finished at: " + Date.now() + " ms");
     }
   };
 
