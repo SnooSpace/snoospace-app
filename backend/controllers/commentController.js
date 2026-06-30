@@ -332,6 +332,7 @@ const replyToComment = async (req, res) => {
     );
 
     // Create notification for post author (skip if user comments on their own post)
+    try {
       const postResult = await pool.query(
         "SELECT author_id, author_type, caption, image_urls FROM posts WHERE id = $1",
         [postId]
