@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { View, StyleSheet, ActivityIndicator } from "react-native";
 import { Image } from "expo-image"; // ── PERF: memory-disk cache so tab bar avatar never re-fetches
 import { User } from "lucide-react-native";
@@ -11,38 +11,39 @@ const ProfileTabIcon = ({ focused, color, userType = "member" }) => {
   const [photoUrl, setPhotoUrl] = useState(null);
   const [isSwitching, setIsSwitching] = useState(false);
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const token = await getAuthToken();
-        const activeAccount = await getActiveAccount();
-        const email = activeAccount?.email;
+  const fetchProfile = useCallback(async () => {
+    try {
+      const token = await getAuthToken();
+      const activeAccount = await getActiveAccount();
+      const email = activeAccount?.email;
 
-        if (token && email) {
-          const response = await apiPost(
-            "/auth/get-user-profile",
-            { email },
-            10000,
-            token,
-          );
+      if (token && email) {
+        const response = await apiPost(
+          "/auth/get-user-profile",
+          { email },
+          10000,
+          token,
+        );
 
-          if (response?.profile) {
-            const url =
-              userType === "member"
-                ? response.profile.profile_photo_url
-                : response.profile.logo_url;
-            setPhotoUrl(url);
-          }
+        if (response?.profile) {
+          const url =
+            userType === "member"
+              ? response.profile.profile_photo_url
+              : response.profile.logo_url;
+          setPhotoUrl(url || null);
         }
-      } catch (error) {
-        console.log("[ProfileTabIcon] Error fetching profile photo:", error);
       }
-    };
-
-    fetchProfile();
+    } catch (error) {
+      console.log("[ProfileTabIcon] Error fetching profile photo:", error);
+    }
   }, [userType]);
 
-  // Listen to account switch events to show loading indicator
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  // Listen to account switch events — show spinner during switch, then
+  // re-fetch the new account's photo once the switch completes.
   useEffect(() => {
     const unsubStart = EventBus.on("account-switch-start", () => {
       setIsSwitching(true);
@@ -52,13 +53,17 @@ const ProfileTabIcon = ({ focused, color, userType = "member" }) => {
     });
     const unsubDone = EventBus.on("account-switch-done", () => {
       setIsSwitching(false);
+      // Clear stale photo immediately so the old avatar doesn't linger,
+      // then fetch the new account's photo.
+      setPhotoUrl(null);
+      fetchProfile();
     });
     return () => {
       if (unsubStart) unsubStart();
       if (unsubEnd) unsubEnd();
       if (unsubDone) unsubDone();
     };
-  }, []);
+  }, [fetchProfile]);
 
   if (isSwitching) {
     return (

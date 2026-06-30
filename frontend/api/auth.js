@@ -7,44 +7,24 @@ const KEY_EMAIL = "auth_email";
 const KEY_REFRESH = "auth_refresh_token";
 const KEY_PENDING = "pending_otp";
 
+import authEventEmitter from "../utils/authEventEmitter";
+
 // In-memory token cache to completely avoid AsyncStorage and Decryption overhead on every API request.
 let cachedToken = null;
 
-// Lightweight EventEmitter implementation safe for React Native
-class SimpleEventEmitter {
-  constructor() {
-    this.listeners = {};
-  }
-  on(event, handler) {
-    if (!this.listeners[event]) this.listeners[event] = [];
-    this.listeners[event].push(handler);
-    return () => {
-      this.listeners[event] = this.listeners[event].filter(h => h !== handler);
-    };
-  }
-  emit(event, data) {
-    const handlers = this.listeners[event];
-    if (handlers) {
-      handlers.forEach(h => {
-        try { h(data); } catch {}
-      });
-    }
-  }
-}
+// Register listeners on the unified singleton authEventEmitter
+console.log('🔵 [TRACE:1b] api/auth.js using authEventEmitter singleton. ID:', authEventEmitter._traceId || '(no id)');
 
-if (typeof global !== 'undefined') {
-  if (!global.authEventEmitter) {
-    global.authEventEmitter = new SimpleEventEmitter();
-  }
-  global.authEventEmitter.on("accountSwitched", (data) => {
-    console.log("[api/auth] Clearing cached token due to account switch:", data?.email);
-    cachedToken = null;
-  });
-  global.authEventEmitter.on("unexpectedLogout", (data) => {
-    console.log("[api/auth] Clearing cached token due to logout:", data?.email);
-    cachedToken = null;
-  });
-}
+authEventEmitter.on("accountSwitched", (data) => {
+  console.log('🔵 [TRACE:1c] accountSwitched received in api/auth.js. cachedToken BEFORE clear:', cachedToken ? cachedToken.substring(0, 20) + '...' : 'null', '| new account email:', data?.email);
+  cachedToken = null;
+  console.log('🔵 [TRACE:1d] cachedToken is now: null');
+});
+
+authEventEmitter.on("unexpectedLogout", (data) => {
+  console.log("[api/auth] Clearing cached token due to logout:", data?.email);
+  cachedToken = null;
+});
 
 /**
  * Set auth session for current active account
@@ -68,11 +48,39 @@ export async function setAuthSession(token, email, refreshToken) {
 
 export async function getAuthToken() {
   if (cachedToken) {
+    console.log('🔵 [TRACE:2a] getAuthToken CACHE HIT. token[0..20]:', cachedToken.substring(0, 20) + '...');
+    
+    // Decode cached JWT to extract its email/userId
+    let cachedEmail = 'unknown';
+    try {
+      const parts = cachedToken.split('.');
+      if (parts.length === 3) {
+        // Decode base64 payload
+        const payload = JSON.parse(atob(parts[1]));
+        cachedEmail = payload.email || payload.userId || 'unknown';
+      }
+    } catch (e) {
+      cachedEmail = `decode-error: ${e.message}`;
+    }
+
+    // Compare with the actual active account in accountManager
+    accountManager.getActiveAccount()
+      .then((active) => {
+        console.log(
+          `🔴 [getAuthToken] IDENTITY MISMATCH DETECTED?\n` +
+          `   -> cachedToken belongs to: ${cachedEmail}\n` +
+          `   -> Active account is:      ${active?.email || 'none'}`
+        );
+      })
+      .catch(() => {});
+
     return cachedToken;
   }
+  console.log('🔵 [TRACE:2b] getAuthToken CACHE MISS — reading from accountManager...');
   try {
     // Try new multi-account system first
     const activeAccount = await accountManager.getActiveAccount();
+    console.log('🔵 [TRACE:2c] getAuthToken accountManager returned: email=', activeAccount?.email, 'type=', activeAccount?.type, 'tokenLen=', activeAccount?.authToken?.length);
 
     // Check if active account is logged in AND has a token
     if (activeAccount?.authToken && activeAccount.isLoggedIn !== false) {

@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { encryptToken, decryptToken, clearEncryptionKey } from "./encryption";
+import authEventEmitter from "./authEventEmitter";
 
 const ACCOUNTS_KEY = "@accounts";
 const ACTIVE_ACCOUNT_KEY = "@activeAccountId";
@@ -216,8 +217,8 @@ export async function addAccount(accountData) {
     await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, compositeActiveId);
 
     // Emit event for global handling
-    if (global.authEventEmitter) {
-      global.authEventEmitter.emit("accountSwitched", {
+    if (authEventEmitter) {
+      authEventEmitter.emit("accountSwitched", {
         accountId: accountId,
         email: accountData.email,
         type: accountType,
@@ -337,12 +338,16 @@ export async function switchAccount(accountId) {
     console.log("[switchAccount] Set active account ID:", compositeId);
 
     // Emit event for global handling
-    if (global.authEventEmitter) {
-      global.authEventEmitter.emit("accountSwitched", {
+    if (authEventEmitter) {
+      console.log('🔵 [TRACE:4a] switchAccount emitting on authEventEmitter. ID:', authEventEmitter._traceId || '(no id)', '| switching TO email:', account.email);
+      authEventEmitter.emit("accountSwitched", {
         accountId: account.id,
         email: account.email,
         type: account.type,
       });
+      console.log('🔵 [TRACE:4b] switchAccount emit complete.');
+    } else {
+      console.log('🔵 [TRACE:4a] switchAccount: NO authEventEmitter available!');
     }
 
     // Double-check the active account after switch
@@ -465,8 +470,8 @@ export async function removeAccount(accountId) {
         await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, nextCompositeId);
 
         // Emit event for global handling
-        if (global.authEventEmitter) {
-          global.authEventEmitter.emit("accountSwitched", {
+        if (authEventEmitter) {
+          authEventEmitter.emit("accountSwitched", {
             accountId: nextLoggedIn.id,
             email: nextLoggedIn.email,
             type: nextLoggedIn.type,
@@ -639,8 +644,8 @@ export async function markAccountLoggedOut(accountId, reason, source) {
     await AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
 
     // Emit event for global handling
-    if (global.authEventEmitter) {
-      global.authEventEmitter.emit("unexpectedLogout", {
+    if (authEventEmitter) {
+      authEventEmitter.emit("unexpectedLogout", {
         accountId: account.id,
         email: account.email,
         reason,
@@ -672,8 +677,8 @@ export async function clearAllAccounts() {
     await clearEncryptionKey();
 
     // Emit event for global handling
-    if (global.authEventEmitter) {
-      global.authEventEmitter.emit("accountSwitched", null);
+    if (authEventEmitter) {
+      authEventEmitter.emit("accountSwitched", null);
     }
 
     return true;
@@ -816,8 +821,8 @@ export async function removeAccountAndAutoSwitch(accountId) {
         );
 
         // Emit event for global handling
-        if (global.authEventEmitter) {
-          global.authEventEmitter.emit("accountSwitched", {
+        if (authEventEmitter) {
+          authEventEmitter.emit("accountSwitched", {
             accountId: nextLoggedIn.id,
             email: nextLoggedIn.email,
             type: nextLoggedIn.type,

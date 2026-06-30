@@ -5,16 +5,11 @@ import React, {
   useEffect,
   useCallback,
 } from "react";
-import EventEmitter from "eventemitter3";
 import { getActiveAccount } from "../api/auth";
+import authEventEmitter from "../utils/authEventEmitter";
 
-// Global event emitter for auth events
-const authEventEmitter = new EventEmitter();
-
-// Make it globally accessible for accountManager to emit events
-if (typeof global !== "undefined") {
-  global.authEventEmitter = authEventEmitter;
-}
+// Make it globally visible that the context uses the singleton
+console.log('🔵 [TRACE:3] AuthStateContext using global singleton authEventEmitter. ID:', authEventEmitter._traceId);
 
 // Context types
 const AuthStateContext = createContext(null);

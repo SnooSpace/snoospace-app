@@ -183,7 +183,6 @@ const HeaderIcon = ({ IconComponent, onPress, showDot }) => {
 
 export default function HomeFeedScreen({ navigation, role = "member" }) {
   const insets = useSafeAreaInsets();
-  console.log("[HomeFeedScreen INSTRUMENT] Render tick at: " + Date.now() + " ms | feedItems: " + (typeof feedItems !== 'undefined' ? feedItems.length : 'init'));
 
   // Calculate total header height including status bar
   const totalHeaderHeight = getPremiumHeaderTotalHeight(insets);
@@ -710,12 +709,40 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     const offPinUpdated = EventBus.on("prompt-pin-updated", () => {
       loadFeed();
     });
+
+    // When the active account changes, this component may be reused by React
+    // Navigation (same route name = no unmount/remount), so the mount effect
+    // above won't re-fire. Force a full reload so the greeting name, feed, and
+    // identity state all reflect the newly active account.
+    const offAccountSwitch = EventBus.on("account-switch-done", async () => {
+      // Clear stale identity immediately so the UI doesn't flash old data
+      setGreetingName(null);
+      setCurrentUserId(null);
+      setCurrentUserType(null);
+      // Reload all data for the new account
+      setLoading(true);
+      try {
+        await Promise.all([
+          loadGreetingName(),
+          loadFeed(true, true),
+          loadEvents(),
+          loadOpportunities(),
+          loadMessageUnreadCount(),
+        ]);
+      } catch (e) {
+        console.warn("[HomeFeed] Error reloading after account switch:", e);
+      } finally {
+        setLoading(false);
+      }
+    });
+
     return () => {
       off();
       offMessages();
       offNewMessage();
       offPostCreated();
       offPinUpdated();
+      offAccountSwitch?.();
     };
   }, []);
 
@@ -973,9 +1000,13 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       const { getActiveAccount } = await import("../api/auth");
       const activeAccount = await getActiveAccount();
 
+      console.log('🔵 [TRACE:5a] loadGreetingName → activeAccount.email:', activeAccount?.email, '| token[0..20]:', token ? token.substring(0, 20) + '...' : 'null');
+
       if (!token || !activeAccount?.email) return;
 
       const email = activeAccount.email;
+      console.log('🔵 [TRACE:5b] loadGreetingName → POST /auth/get-user-profile with body.email:', email, '| Authorization token[0..20]:', token.substring(0, 20) + '...');
+
       const res = await apiPost(
         "/auth/get-user-profile",
         { email },
@@ -984,6 +1015,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       );
       const prof = res?.profile || {};
       const name = prof.full_name || prof.name || prof.username || "Member";
+
+      console.log('🔵 [TRACE:5c] loadGreetingName → server returned: name=', name, '| prof.email=', prof.email, '| res.role=', res?.role);
+
       setGreetingName(name);
       setCurrentUserId(prof.id);
       const userType = res?.role || role; // API returns role at top level, not prof.type
@@ -1012,7 +1046,6 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
 
   const handleLikeUpdate = useCallback((postId, isLiked) => {
-    console.log("[HomeFeedScreen INSTRUMENT] Parent handleLikeUpdate called at: " + Date.now() + " ms | postId: " + postId + " | isLiked: " + isLiked);
     
     // Defer the parent state updates until after interaction animations settle
     InteractionManager.runAfterInteractions(() => {

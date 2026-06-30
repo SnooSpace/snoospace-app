@@ -37,18 +37,27 @@ const ProfileTabButton = (props) => {
         if (allAccounts && allAccounts.length > 1) {
           const activeAccount = await getActiveAccount();
           if (activeAccount) {
-            const activeIndex = allAccounts.findIndex((a) => a.id === activeAccount.id);
+            // CRITICAL: Use composite key (type_id) so member_28 and community_28
+            // are distinguished correctly and we find the exact active account.
+            const activeCompositeId = `${activeAccount.type}_${activeAccount.id}`;
+            const activeIndex = allAccounts.findIndex(
+              (a) => `${a.type}_${a.id}` === activeCompositeId,
+            );
             if (activeIndex !== -1) {
               const nextIndex = (activeIndex + 1) % allAccounts.length;
               const nextAccount = allAccounts[nextIndex];
-              await switchAccount(nextAccount.id);
+              // Pass composite key so accountManager picks the exact account type
+              const nextCompositeId = `${nextAccount.type}_${nextAccount.id}`;
+              await switchAccount(nextCompositeId);
               EventBus.emit("account-switch-done", {
                 name: nextAccount.name || nextAccount.username || "",
                 username: nextAccount.username || "",
                 photoUrl: nextAccount.profilePicture || null,
               });
 
-              // Small delay to ensure state propagates, then navigate to correct home
+              // 350ms delay: gives Reanimated spring/scroll animations time to
+              // fully settle before React tears down the current component tree.
+              // 50ms was too short and caused "Expected static flag was missing".
               setTimeout(() => {
                 const routeMap = {
                   member: "MemberHome",
@@ -69,7 +78,7 @@ const ProfileTabButton = (props) => {
                     routes: [{ name: routeName }],
                   })
                 );
-              }, 50);
+              }, 350);
             }
           }
         }

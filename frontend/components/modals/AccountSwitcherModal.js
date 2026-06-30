@@ -226,21 +226,25 @@ export default function AccountSwitcherModal({
       console.log("[AccountSwitcher] Closing switcher modal...");
       onClose();
 
-      // Wait for modal dismiss animation to complete (250ms animation + 50ms buffer)
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // 450ms: waits for the SwipeableModal dismiss animation (~250ms) plus a
+      // generous buffer so Reanimated springs fully settle before navigation.reset()
+      // unmounts the component tree. 300ms was causing "Expected static flag was missing".
+      await new Promise((resolve) => setTimeout(resolve, 450));
+
+      // Emit BEFORE navigation.reset() so the HomeFeedScreen EventBus listener
+      // fires while the current component is still mounted and can immediately
+      // clear stale identity state and kick off reloads for the new account.
+      EventBus.emit("account-switch-done", {
+        name: account.name || account.username || "",
+        username: account.username || "",
+        photoUrl: account.profilePicture || null,
+      });
 
       // Navigate to correct screen (triggers stack reset)
       if (onAccountSwitch) {
         console.log("[AccountSwitcher] Calling onAccountSwitch...");
         onAccountSwitch(account);
       }
-
-      // Emit event to show the toast notification
-      EventBus.emit("account-switch-done", {
-        name: account.name || account.username || "",
-        username: account.username || "",
-        photoUrl: account.profilePicture || null,
-      });
     } catch (error) {
       console.error("[AccountSwitcher] Error switching account:", error);
 
