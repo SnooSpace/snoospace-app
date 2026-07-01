@@ -44,7 +44,8 @@ import VenueSearchSheet from "../../components/location/VenueSearchSheet";
 import MapLocationPicker from "../../components/location/MapLocationPicker";
 import { getActiveProvider } from "../../services/location/index";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
+const CONTAINER_WIDTH = SCREEN_WIDTH - 40;
 
 const ACTIVITIES = [
   { key: "sports", label: "🏀 Sports" },
@@ -369,7 +370,7 @@ export default function HostPlanBottomSheet({
                   resizeMode="cover"
                 />
               ) : (
-                <PlanCropImage activityType={activityType} containerW={290} height={130} />
+                <PlanCropImage activityType={activityType} containerW={CONTAINER_WIDTH} height={130} />
               )}
             </View>
 

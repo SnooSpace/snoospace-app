@@ -35,7 +35,8 @@ import PlanCropImage from './PlanCropImage';
 import CustomDatePicker from '../../components/ui/CustomDatePicker';
 import CustomTimePicker from '../../components/ui/CustomTimePicker';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const CONTAINER_WIDTH = SCREEN_WIDTH - 40;
 
 function formatDateTime(date, time) {
   if (!date) return null;
@@ -229,7 +230,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, onPlanUpda
               ) : existingBannerUrl && !bannerRemoved ? (
                 <Image source={{ uri: existingBannerUrl }} style={styles.bannerPreviewImg} resizeMode="cover" />
               ) : (
-                <PlanCropImage activityType={plan?.activity_type || 'other'} containerW={335} height={140} />
+                <PlanCropImage activityType={plan?.activity_type || 'other'} containerW={CONTAINER_WIDTH} height={140} />
               )}
 
               {/* Overlay buttons */}
