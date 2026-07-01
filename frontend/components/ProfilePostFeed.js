@@ -232,16 +232,14 @@ const ProfilePostFeed = ({
           )}
 
           {/* Share Modal */}
-          {shareModalVisible && (
-            <ShareModal
-              visible={shareModalVisible}
-              post={selectedSharePost}
-              onClose={() => {
-                setShareModalVisible(false);
-                setSelectedSharePost(null);
-              }}
-            />
-          )}
+          <ShareModal
+            visible={shareModalVisible}
+            post={selectedSharePost}
+            onClose={() => {
+              setShareModalVisible(false);
+              setSelectedSharePost(null);
+            }}
+          />
 
           {/* Delete Confirmation Modal */}
           {deleteModalVisible && (

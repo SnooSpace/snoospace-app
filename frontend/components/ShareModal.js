@@ -23,6 +23,7 @@ import SnooLoader from "./ui/SnooLoader";
 import SwipeableModal from "./modals/SwipeableModal";
 import { SHADOWS } from "../constants/theme";
 import { useToast } from "../context/ToastContext";
+import { getCachedRecipients, setCachedRecipients, getCacheAgeSeconds } from "../utils/ShareRecipientsCache";
 
 const DEBOUNCE_MS = 350;
 
@@ -30,41 +31,120 @@ export default function ShareModal({ visible, onClose, post }) {
   const { showToast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState(getCachedRecipients() || []);
   const [selectedUsers, setSelectedUsers] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!getCachedRecipients());
   const [sending, setSending] = useState(false);
 
   const debounceTimer = useRef(null);
   const lastQuery = useRef(null);
+  const currentRequestId = useRef(0);
+  const renderCount = useRef(0);
+  const openTime = useRef(0);
+  const visibleTime = useRef(0);
 
-  // ─── Load / search recipients ────────────────────────────────────────────────
-  const fetchRecipients = useCallback(async (q) => {
-    try {
-      setLoading(true);
-      const token = await getAuthToken();
-      const response = await searchShareRecipients(q, token);
-      setUsers(response.users || []);
-    } catch (error) {
-      console.error("Failed to load share recipients:", error);
-    } finally {
-      setLoading(false);
-    }
+  renderCount.current += 1;
+  console.log(`[ShareModal] Render count: ${renderCount.current}, visible: ${visible}`);
+
+  useEffect(() => {
+    console.log("[ShareModal] Mounted");
+    return () => console.log("[ShareModal] Unmounted");
   }, []);
 
-  // Reset on open
+  // ─── Load / search recipients ────────────────────────────────────────────────
+  const fetchRecipients = useCallback(async (q, isBackground = false) => {
+    const requestId = ++currentRequestId.current;
+    const startTime = Date.now();
+    
+    if (!isBackground) {
+      setLoading(true);
+    }
+    
+    try {
+      const token = await getAuthToken();
+      console.log(`[ShareModal][API] Fetching recipients... Query: "${q}", RequestId: ${requestId}`);
+      const response = await searchShareRecipients(q, token);
+      const duration = Date.now() - startTime;
+      console.log(`[ShareModal][API] Fetch complete. Duration: ${duration}ms, RequestId: ${requestId}`);
+
+      if (requestId !== currentRequestId.current) {
+        console.log(`[ShareModal][API] Request ${requestId} superseded. Discarding response.`);
+        return;
+      }
+
+      const fetchedUsers = response.users || [];
+      
+      // Compare lists (dirty checking)
+      const hasChanged = fetchedUsers.length !== users.length || 
+        fetchedUsers.some((u, index) => !users[index] || u.id !== users[index].id || u.type !== users[index].type);
+
+      if (hasChanged) {
+        console.log(`[ShareModal][Perf] Recipients list changed. Updating state/cache.`);
+        setUsers(fetchedUsers);
+        if (q === "") {
+          setCachedRecipients(fetchedUsers);
+        }
+      } else {
+        console.log(`[ShareModal][Perf] Recipients list unchanged. Skipping state updates.`);
+      }
+      
+      if (q === "" && visibleTime.current === 0) {
+        visibleTime.current = Date.now();
+        const timeToVisible = visibleTime.current - openTime.current;
+        console.log(`[ShareModal][Perf] Time to Recipients Visible: ${timeToVisible}ms (API load)`);
+      }
+    } catch (error) {
+      console.error("[ShareModal][API] Failed to fetch share recipients:", error);
+    } finally {
+      if (requestId === currentRequestId.current) {
+        setLoading(false);
+      }
+    }
+  }, [users]);
+
+  // Reset & fetch logic on open
   useEffect(() => {
     if (visible) {
+      openTime.current = Date.now();
+      visibleTime.current = 0;
+      console.log("[ShareModal] Opened.");
+
       setSelectedUsers([]);
       setSearchQuery("");
       lastQuery.current = null;
-      fetchRecipients("");
+
+      const cached = getCachedRecipients();
+      if (cached) {
+        const age = getCacheAgeSeconds();
+        console.log(`[ShareModal] Cache HIT (Age: ${age}s). Painting instantly.`);
+        setUsers(cached);
+        setLoading(false);
+        // Mark visible instantly since we render from cache
+        visibleTime.current = Date.now();
+        const timeToVisible = visibleTime.current - openTime.current;
+        console.log(`[ShareModal][Perf] Time to Recipients Visible: ${timeToVisible}ms (Cache hit)`);
+        
+        // Trigger a silent background refresh
+        fetchRecipients("", true);
+      } else {
+        console.log("[ShareModal] Cache MISS. Loading from network.");
+        setUsers([]);
+        fetchRecipients("");
+      }
+
+      // Time to Modal Visible is essentially when visibility state gets processed
+      const modalVisibleTime = Date.now() - openTime.current;
+      console.log(`[ShareModal][Perf] Time to Modal Visible: ${modalVisibleTime}ms`);
+    } else {
+      console.log("[ShareModal] Closed.");
     }
   }, [visible]);
 
   // Debounce search query changes
   useEffect(() => {
     if (!visible) return;
+    if (searchQuery === "") return; // fetchRecipients("") is handled by the visible effect
+
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
     debounceTimer.current = setTimeout(() => {

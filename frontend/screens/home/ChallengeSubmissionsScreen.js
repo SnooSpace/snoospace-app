@@ -1532,16 +1532,14 @@ const ChallengeSubmissionsScreen = ({ route, navigation }) => {
       )}
 
       {/* Share Modal — passes the submission's parent post for share context */}
-      {shareModalVisible && (
-        <ShareModal
-          visible={shareModalVisible}
-          onClose={() => {
-            setShareModalVisible(false);
-            setSelectedShareSubmission(null);
-          }}
-          post={selectedShareSubmission ? { ...post, id: post.id } : post}
-        />
-      )}
+      <ShareModal
+        visible={shareModalVisible}
+        onClose={() => {
+          setShareModalVisible(false);
+          setSelectedShareSubmission(null);
+        }}
+        post={selectedShareSubmission ? { ...post, id: post.id } : post}
+      />
 
       {/* Submission Comments Modal — isolated from challenge post's comment count */}
       {commentsModalVisible && (

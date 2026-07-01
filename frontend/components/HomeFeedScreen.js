@@ -1634,16 +1634,14 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       />
 
       {/* Share Modal */}
-      {shareModalVisible && (
-        <ShareModal
-          visible={shareModalVisible}
-          post={selectedSharePost}
-          onClose={() => {
-            setShareModalVisible(false);
-            setSelectedSharePost(null);
-          }}
-        />
-      )}
+      <ShareModal
+        visible={shareModalVisible}
+        post={selectedSharePost}
+        onClose={() => {
+          setShareModalVisible(false);
+          setSelectedSharePost(null);
+        }}
+      />
 
       {/* Attendance Confirmation Modal */}
       {showAttendanceModal && (
