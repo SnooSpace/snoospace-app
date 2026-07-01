@@ -164,7 +164,7 @@ export default function SwipeableModal({
           {/* Sheet container with pan gesture */}
           <GestureDetector gesture={panGesture}>
             <Animated.View style={[styles.animatedSheet, animatedSheetStyle]}>
-              <View style={sheetStyle}>
+              <View style={[sheetStyle, { overflow: "hidden" }]}>
                 {children}
               </View>
             </Animated.View>

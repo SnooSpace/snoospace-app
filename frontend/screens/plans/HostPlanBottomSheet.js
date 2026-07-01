@@ -525,6 +525,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    overflow: 'hidden',
   },
   handle: {
     width: 40,

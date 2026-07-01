@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal, Animated, TouchableWithoutFeedback } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal, Animated, TouchableWithoutFeedback, InteractionManager, StatusBar } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Svg, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { getAuthToken } from "../../api/auth";
@@ -210,7 +210,10 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   useEffect(() => {
     if (!hasLoadedRef.current) {
       hasLoadedRef.current = true;
-      loadProfile();
+      const task = InteractionManager.runAfterInteractions(() => {
+        loadProfile();
+      });
+      return () => task.cancel();
     }
   }, [loadProfile]);
 
@@ -515,18 +518,9 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   const completionPercentage = getCompletionPercentage();
   const changesExist = hasChanges();
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <SnooLoader size="large" color={PRIMARY_COLOR} />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={CONSTANTS_COLORS.surface} />
       {/* Header with background covering status bar */}
       <SafeAreaView
         style={{ backgroundColor: CONSTANTS_COLORS.surface }}
@@ -544,92 +538,96 @@ export default function EditDiscoverProfileScreen({ navigation }) {
               <Text style={styles.headerTitle}>My Discover Profile</Text>
             </View>
             {/* Circular Progress Indicator */}
-            <View style={styles.progressContainer}>
-              <Svg width="44" height="44" viewBox="0 0 44 44">
-                <Defs>
-                  <LinearGradient
-                    id="progressGradient"
-                    x1="0%"
-                    y1="0%"
-                    x2="100%"
-                    y2="100%"
-                  >
-                    <Stop offset="0%" stopColor="#2962FF" />
-                    <Stop offset="100%" stopColor="#60A5FA" />
-                  </LinearGradient>
-                </Defs>
-                {/* Background Ring */}
-                <Circle
-                  cx="22"
-                  cy="22"
-                  r="18"
-                  stroke="#F1F5F9"
-                  strokeWidth="4"
-                  fill="transparent"
-                />
+            {!loading && (
+              <View style={styles.progressContainer}>
+                <Svg width="44" height="44" viewBox="0 0 44 44">
+                  <Defs>
+                    <LinearGradient
+                      id="progressGradient"
+                      x1="0%"
+                      y1="0%"
+                      x2="100%"
+                      y2="100%"
+                    >
+                      <Stop offset="0%" stopColor="#2962FF" />
+                      <Stop offset="100%" stopColor="#60A5FA" />
+                    </LinearGradient>
+                  </Defs>
+                  {/* Background Ring */}
+                  <Circle
+                    cx="22"
+                    cy="22"
+                    r="18"
+                    stroke="#F1F5F9"
+                    strokeWidth="4"
+                    fill="transparent"
+                  />
 
-                {/* Outer Glow (Subtle expansion) */}
-                <Circle
-                  cx="22"
-                  cy="22"
-                  r="18"
-                  stroke={CONSTANTS_COLORS.primaryBlue}
-                  strokeWidth="6"
-                  strokeDasharray={`${2 * Math.PI * 18}`}
-                  strokeDashoffset={`${
-                    2 * Math.PI * 18 * (1 - completionPercentage / 100)
-                  }`}
-                  fill="transparent"
-                  strokeLinecap="round"
-                  opacity={0.15}
-                  rotation="-90"
-                  origin="22, 22"
-                />
+                  {/* Outer Glow (Subtle expansion) */}
+                  <Circle
+                    cx="22"
+                    cy="22"
+                    r="18"
+                    stroke={CONSTANTS_COLORS.primaryBlue}
+                    strokeWidth="6"
+                    strokeDasharray={`${2 * Math.PI * 18}`}
+                    strokeDashoffset={`${
+                      2 * Math.PI * 18 * (1 - completionPercentage / 100)
+                    }`}
+                    fill="transparent"
+                    strokeLinecap="round"
+                    opacity={0.15}
+                    rotation="-90"
+                    origin="22, 22"
+                  />
 
-                {/* Main Progress Ring */}
-                <Circle
-                  cx="22"
-                  cy="22"
-                  r="18"
-                  stroke="url(#progressGradient)"
-                  strokeWidth="4.5"
-                  strokeDasharray={`${2 * Math.PI * 18}`}
-                  strokeDashoffset={`${
-                    2 * Math.PI * 18 * (1 - completionPercentage / 100)
-                  }`}
-                  fill="transparent"
-                  strokeLinecap="round"
-                  rotation="-90"
-                  origin="22, 22"
-                />
-              </Svg>
-              <View style={styles.progressTextContainer}>
-                <Text style={styles.progressText}>
-                  {Math.round(completionPercentage)}
-                </Text>
+                  {/* Main Progress Ring */}
+                  <Circle
+                    cx="22"
+                    cy="22"
+                    r="18"
+                    stroke="url(#progressGradient)"
+                    strokeWidth="4.5"
+                    strokeDasharray={`${2 * Math.PI * 18}`}
+                    strokeDashoffset={`${
+                      2 * Math.PI * 18 * (1 - completionPercentage / 100)
+                    }`}
+                    fill="transparent"
+                    strokeLinecap="round"
+                    rotation="-90"
+                    origin="22, 22"
+                  />
+                </Svg>
+                <View style={styles.progressTextContainer}>
+                  <Text style={styles.progressText}>
+                    {Math.round(completionPercentage)}
+                  </Text>
+                </View>
               </View>
-            </View>
+            )}
 
             {/* Spacer to push Save button to the right */}
             <View style={{ flex: 1 }} />
 
-            <TouchableOpacity
-              style={[
-                styles.saveButton,
-                (!changesExist || saving) && styles.saveButtonDisabled,
-              ]}
-              onPress={handleSave}
-              disabled={!changesExist || saving}
-            >
-              <Text
+            {!loading && (
+              <TouchableOpacity
                 style={[
-                  styles.saveButtonText,
-                  (!changesExist || saving) && styles.saveButtonTextDisabled,
+                  styles.saveButton,
+                  (!changesExist || saving) && styles.saveButtonDisabled,
                 ]}
+                onPress={handleSave}
+                disabled={!changesExist || saving}
               >
-                {saving ? "Saving..." : "Save"}
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    styles.saveButtonText,
+                    (!changesExist || saving) && styles.saveButtonTextDisabled,
+                  ]}
+                >
+                  {saving ? "Saving..." : "Save"}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </SafeAreaView>
@@ -641,11 +639,16 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         </View>
       )}
 
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <SnooLoader size="large" color={PRIMARY_COLOR} />
+        </View>
+      ) : (
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
         {/* SECTION 1: Photos (Edge-to-Edge Editorial) */}
         <Animated.View
           onLayout={(event) => {
@@ -1102,6 +1105,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      )}
 
       {/* Unsaved Changes Custom Alert Modal */}
       <Modal

@@ -9,6 +9,7 @@ import { getAuthToken, getActiveAccount } from '../../api/auth';
 import { getPlans } from '../../api/plans';
 import HostPlanBottomSheet from './HostPlanBottomSheet';
 import RequestBottomSheet from './RequestBottomSheet';
+import EventBus from '../../utils/EventBus';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -314,6 +315,9 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
           decelerationRate="fast"
           snapToAlignment="start"
           contentContainerStyle={styles.horizontalScrollContent}
+          onScrollBeginDrag={() => EventBus.emit('disable-tab-swipe')}
+          onScrollEndDrag={() => EventBus.emit('enable-tab-swipe')}
+          onMomentumScrollEnd={() => EventBus.emit('enable-tab-swipe')}
         >
           {plans.map(plan => renderOpenPlanCard(plan))}
           {renderSeeAllCard()}

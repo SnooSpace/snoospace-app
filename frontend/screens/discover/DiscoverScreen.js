@@ -44,20 +44,7 @@ export default function DiscoverScreen({ navigation }) {
   const [profileComplete, setProfileComplete] = useState(true);
   const hasLoadedRef = useRef(false);
 
-  const [listScrollEnabled, setListScrollEnabled] = useState(true);
 
-  useEffect(() => {
-    const unsubDisable = EventBus.on("disable-tab-swipe", () => {
-      setListScrollEnabled(false);
-    });
-    const unsubEnable = EventBus.on("enable-tab-swipe", () => {
-      setListScrollEnabled(true);
-    });
-    return () => {
-      if (unsubDisable) unsubDisable();
-      if (unsubEnable) unsubEnable();
-    };
-  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -113,14 +100,19 @@ export default function DiscoverScreen({ navigation }) {
       console.error("Error loading data:", error);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, []);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     setRefreshKey(k => k + 1);
-    await Promise.all([loadData(), checkProfileCompletion()]);
+    try {
+      await Promise.all([loadData(), checkProfileCompletion()]);
+    } catch (error) {
+      console.error("Error refreshing discover:", error);
+    } finally {
+      setRefreshing(false);
+    }
   }, [loadData, checkProfileCompletion]);
 
   const checkProfileCompletion = useCallback(async () => {
@@ -187,9 +179,11 @@ export default function DiscoverScreen({ navigation }) {
         </View>
         <ScrollView
           horizontal
-          scrollEnabled={listScrollEnabled}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalList}
+          onScrollBeginDrag={() => EventBus.emit("disable-tab-swipe")}
+          onScrollEndDrag={() => EventBus.emit("enable-tab-swipe")}
+          onMomentumScrollEnd={() => EventBus.emit("enable-tab-swipe")}
         >
           {slicedEvents.map((event) => (
             <EventCard
@@ -227,6 +221,9 @@ export default function DiscoverScreen({ navigation }) {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalList}
+          onScrollBeginDrag={() => EventBus.emit("disable-tab-swipe")}
+          onScrollEndDrag={() => EventBus.emit("enable-tab-swipe")}
+          onMomentumScrollEnd={() => EventBus.emit("enable-tab-swipe")}
         >
           {suggestedCommunities.map((community) => (
             <TribeCard
@@ -247,6 +244,9 @@ export default function DiscoverScreen({ navigation }) {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.horizontalList}
+        onScrollBeginDrag={() => EventBus.emit("disable-tab-swipe")}
+        onScrollEndDrag={() => EventBus.emit("enable-tab-swipe")}
+        onMomentumScrollEnd={() => EventBus.emit("enable-tab-swipe")}
       >
         {people.map((person) => (
           <DiscoverScreenPersonCard
@@ -291,34 +291,37 @@ export default function DiscoverScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={EDGES}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { fontFamily: 'Manrope-Medium' }]}>Discover</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={handleInsightsPress}
-            hitSlop={INSIGHTS_HITSLOP}
-          >
-            <BarChart3 size={26} color={COLORS.editorial.textSecondary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={handleEditProfilePress}
-            hitSlop={AVATAR_HITSLOP}
-          >
-            <View style={styles.avatarContainer}>
-              <User size={22} color={COLORS.editorial.textSecondary} />
-              {!profileComplete && <View style={styles.profileBadge} />}
-            </View>
-          </TouchableOpacity>
+    <View style={styles.container}>
+      <SafeAreaView style={{ backgroundColor: COLORS.screenBackground }} edges={EDGES}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { fontFamily: 'Manrope-Medium' }]}>Discover</Text>
+          <View style={styles.headerRight}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={handleInsightsPress}
+              hitSlop={INSIGHTS_HITSLOP}
+            >
+              <BarChart3 size={26} color={COLORS.editorial.textSecondary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleEditProfilePress}
+              hitSlop={AVATAR_HITSLOP}
+            >
+              <View style={styles.avatarContainer}>
+                <User size={22} color={COLORS.editorial.textSecondary} />
+                {!profileComplete && <View style={styles.profileBadge} />}
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </SafeAreaView>
 
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        alwaysBounceVertical={true}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -337,7 +340,7 @@ export default function DiscoverScreen({ navigation }) {
         {renderEventsSection()}
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
