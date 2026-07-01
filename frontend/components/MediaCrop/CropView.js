@@ -330,13 +330,13 @@ const CropView = ({
       imageWidth.value = width;
       imageHeight.value = height;
 
-      // Calculate initial scale to fill frame (cover behavior)
+      // Calculate initial scale to fit frame (fit/contain behavior)
       const initialScaleValue = calculateInitialScale({
         imageWidth: width,
         imageHeight: height,
         frameWidth,
         frameHeight,
-        mode: "fill",
+        mode: "fit",
       });
 
       // Set display dimensions so image fills the frame at initial scale
