@@ -162,39 +162,12 @@ const CropScreen = ({ route, navigation }) => {
     [imageLoaded],
   );
 
-  // Handle image load and validate dimensions (skip for re-edit since image was already approved)
+  // Handle image load (dimensions validation removed to allow any image size)
   const handleImageLoad = useCallback(
     ({ width, height }) => {
-      // Skip validation for re-edit mode (image was already approved)
-      if (initialCropData) {
-        return;
-      }
-
-      // Skip validation for videos — their effective dimensions are the crop frame
-      // size, not real pixel dimensions, so size checks would produce false positives.
-      if (isVideo) {
-        return;
-      }
-
-      const validation = validateImageSize(
-        width,
-        height,
-        preset.minWidth,
-        preset.minHeight,
-      );
-
-      if (!validation.valid) {
-        Alert.alert(
-          "Image Too Small",
-          validation.message + "\n\nDo you want to continue anyway?",
-          [
-            { text: "Cancel", onPress: () => handleCancel(), style: "cancel" },
-            { text: "Continue anyway", onPress: () => {} },
-          ]
-        );
-      }
+      // No-op - size validation removed
     },
-    [preset, initialCropData, isVideo],
+    [],
   );
 
   // Handle cancel

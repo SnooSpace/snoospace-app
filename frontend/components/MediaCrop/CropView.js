@@ -71,7 +71,7 @@ const CropView = ({
       p.muted = true;
       p.loop = true;
       p.play();
-    }
+    },
   );
 
   // Calculate frame dimensions based on aspect ratio and screen size.
@@ -306,16 +306,20 @@ const CropView = ({
         // This gives vertical overflow = videoHeight - frameHeight → pan range.
         //
         // Falls back to frameHeight (no overflow) when AR isn't provided.
-        const videoDisplayHeight = videoNaturalAR && videoNaturalAR > 0
-          ? Math.round(frameWidth / videoNaturalAR)
-          : frameHeight;
-        console.log("[CropView] Video loaded — computing display size from natural AR:", {
-          frameWidth,
-          frameHeight,
-          videoNaturalAR,
-          videoDisplayHeight,
-          verticalOverflow: videoDisplayHeight - frameHeight,
-        });
+        const videoDisplayHeight =
+          videoNaturalAR && videoNaturalAR > 0
+            ? Math.round(frameWidth / videoNaturalAR)
+            : frameHeight;
+        console.log(
+          "[CropView] Video loaded — computing display size from natural AR:",
+          {
+            frameWidth,
+            frameHeight,
+            videoNaturalAR,
+            videoDisplayHeight,
+            verticalOverflow: videoDisplayHeight - frameHeight,
+          },
+        );
         width = frameWidth;
         height = videoDisplayHeight;
       } else if (event && event.nativeEvent && event.nativeEvent.source) {
@@ -330,13 +334,13 @@ const CropView = ({
       imageWidth.value = width;
       imageHeight.value = height;
 
-      // Calculate initial scale to fit frame (fit/contain behavior)
+      // Calculate initial scale to fill frame (cover behavior)
       const initialScaleValue = calculateInitialScale({
         imageWidth: width,
         imageHeight: height,
         frameWidth,
         frameHeight,
-        mode: "fit",
+        mode: "fill",
       });
 
       // Set display dimensions so image fills the frame at initial scale
@@ -460,8 +464,14 @@ const CropView = ({
                 <VideoView
                   player={videoPlayer}
                   style={{
-                    width: displayDimensions.width > 0 ? displayDimensions.width : "100%",
-                    height: displayDimensions.height > 0 ? displayDimensions.height : "100%",
+                    width:
+                      displayDimensions.width > 0
+                        ? displayDimensions.width
+                        : "100%",
+                    height:
+                      displayDimensions.height > 0
+                        ? displayDimensions.height
+                        : "100%",
                   }}
                   contentFit="cover"
                   nativeControls={false}
