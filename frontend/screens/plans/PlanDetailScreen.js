@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Share, Image, Pressable,
+  Share, Image, Pressable, Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -16,7 +16,13 @@ import {
 import RequestBottomSheet from './RequestBottomSheet';
 import CommentsModal from '../../components/CommentsModal';
 import EditPlanBottomSheet from './EditPlanBottomSheet';
+import PlanCropImage from './PlanCropImage';
 import SnooLoader from '../../components/ui/SnooLoader';
+
+const CARD_PADDING = 16;
+const SCREEN_WIDTH = Dimensions.get('window').width;
+// Card width accounts for scrollContent padding: 16px each side
+const CARD_WIDTH = SCREEN_WIDTH - 32;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -243,8 +249,27 @@ export default function PlanDetailScreen({ navigation, route }) {
           {/* Card */}
           <View style={styles.card}>
 
+            {/* Banner — custom image or activity-type preset */}
+            <View style={styles.bannerContainer}>
+              {plan.banner_image_url ? (
+                <Image
+                  source={{ uri: plan.banner_image_url }}
+                  style={styles.bannerImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <PlanCropImage
+                  activityType={plan.activity_type}
+                  containerW={CARD_WIDTH}
+                  height={160}
+                />
+              )}
+            </View>
+
+
             {/* Top row: activity tag + gender + cost */}
             <View style={styles.topRow}>
+
               <View style={styles.topRowLeft}>
                 <View style={[styles.pill, { backgroundColor: activityStyle.bg }]}>
                   <Text style={[styles.pillText, { color: activityStyle.text }]}>
@@ -484,8 +509,23 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
     borderRadius: 18,
-    padding: 16,
+    padding: CARD_PADDING,
+    paddingTop: 0,
     ...SHADOWS.md,
+    overflow: 'hidden',
+  },
+
+  // Banner section at top of card
+  bannerContainer: {
+    marginHorizontal: -CARD_PADDING,
+    marginBottom: 14,
+    overflow: 'hidden',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+  },
+  bannerImage: {
+    width: CARD_WIDTH,
+    height: 160,
   },
 
   // Top row

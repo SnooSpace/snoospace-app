@@ -180,10 +180,21 @@ function fmt(n) {
  * scaled to fill containerW × 240px exactly (cover-fill semantics).
  */
 function CropImage({ activityType, containerW }) {
+  const H     = 240;
+  if (activityType === 'other') {
+    return (
+      <View style={{ width: containerW, height: H, overflow: 'hidden' }}>
+        <Image
+          source={MASTER_IMAGE}
+          style={{ width: '100%', height: '100%' }}
+          resizeMode="cover"
+        />
+      </View>
+    );
+  }
   const box   = CROP_MAP[activityType] || CROP_MAP.other;
   const boxW  = box.r - box.l;
   const boxH  = box.b - box.t;
-  const H     = 240;
 
   const scale   = Math.max(containerW / boxW, H / boxH);
   const imgSize = MASTER_SIZE * scale;

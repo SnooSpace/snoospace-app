@@ -1796,6 +1796,11 @@ router.post(
   UploadController.uploadEventBanner,
 );
 router.post(
+  "/upload/plan-banner",
+  authMiddleware,
+  UploadController.uploadPlanBanner,
+);
+router.post(
   "/upload/event-gallery",
   authMiddleware,
   UploadController.uploadEventGallery,

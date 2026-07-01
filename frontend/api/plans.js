@@ -21,6 +21,10 @@ export async function updatePlan(planId, body, token) {
   return apiPatch(`/plans/${planId}`, body, 15000, token);
 }
 
+export async function uploadPlanBanner(base64Uri, token) {
+  return apiPost('/upload/plan-banner', { image: base64Uri }, 30000, token);
+}
+
 export async function cancelPlan(planId, token) {
   return apiDelete(`/plans/${planId}`, null, 15000, token);
 }

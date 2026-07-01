@@ -192,8 +192,45 @@ const uploadPerformerPhoto = async (req, res) => {
 };
 
 /**
- * Delete image from Cloudinary
+ * Upload open-plan banner (any authenticated member)
+ * POST /upload/plan-banner
+ * Body: { image: "data:image/...;base64,..." }
  */
+const uploadPlanBanner = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(403).json({ error: 'Authentication required' });
+    }
+
+    if (!req.body.image) {
+      return res.status(400).json({ error: 'No image provided' });
+    }
+
+    const result = await uploadImage(req.body.image, {
+      folder: 'snoospace/plans/banners',
+      transformation: [
+        { width: 1200, height: 600, crop: 'limit' },
+        { quality: 'auto:good' },
+      ],
+    });
+
+    res.json({
+      success: true,
+      data: {
+        url: result.url,
+        public_id: result.public_id,
+        width: result.width,
+        height: result.height,
+      },
+    });
+  } catch (error) {
+    console.error('Error uploading plan banner:', error);
+    res.status(500).json({ error: 'Failed to upload banner image' });
+  }
+};
+
+
 const deleteUploadedImage = async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -262,6 +299,7 @@ module.exports = {
   uploadEventBanner,
   uploadEventGallery,
   uploadPerformerPhoto,
+  uploadPlanBanner,
   deleteUploadedImage,
   uploadCollegeLogo,
   uploadResume,

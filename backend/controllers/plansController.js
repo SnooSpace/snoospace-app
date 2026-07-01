@@ -93,6 +93,7 @@ async function createPlan(req, res) {
       max_accepted = 5,
       is_recurring = false,
       recurrence_interval,
+      banner_image_url,
     } = req.body;
 
     // --- Validations ---
@@ -148,12 +149,13 @@ async function createPlan(req, res) {
          created_by, title, activity_type, custom_activity_label,
          cost_type, cost_amount_paise, visibility, scoped_community_id,
          gender_preference, location_public, location_private,
-         scheduled_at, expires_at, max_accepted, is_recurring, recurrence_interval
+         scheduled_at, expires_at, max_accepted, is_recurring, recurrence_interval,
+         banner_image_url
        ) VALUES (
          $1, $2, $3, $4,
          $5, $6, $7, $8,
          $9, $10, $11,
-         $12, $12::timestamptz + INTERVAL '1 hour', $13, $14, $15
+         $12, $12::timestamptz + INTERVAL '1 hour', $13, $14, $15, $16
        ) RETURNING *`,
       [
         userId,
@@ -171,6 +173,7 @@ async function createPlan(req, res) {
         maxAcceptedInt,
         !!is_recurring,
         recurrence_interval || null,
+        banner_image_url || null,
       ]
     );
 
@@ -348,7 +351,7 @@ async function updatePlan(req, res) {
     const userId = req.user.id;
     const planId = parseInt(req.params.planId, 10);
 
-    const stringFields = ['title', 'custom_activity_label', 'cost_type', 'location_public', 'location_private'];
+    const stringFields = ['title', 'custom_activity_label', 'cost_type', 'location_public', 'location_private', 'banner_image_url'];
     const updates = [];
     const values = [];
     let idx = 1;

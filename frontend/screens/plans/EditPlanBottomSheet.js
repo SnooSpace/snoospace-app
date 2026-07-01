@@ -11,6 +11,7 @@ import {
   Alert,
   Platform,
   Dimensions,
+  Image,
 } from 'react-native';
 import SwipeableModal from '../../components/modals/SwipeableModal';
 import {
@@ -22,10 +23,15 @@ import {
   Plus,
   Calendar,
   Clock,
+  Image as ImageIcon,
+  X,
 } from 'lucide-react-native';
 import { COLORS, FONTS, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { getAuthToken } from '../../api/auth';
-import { updatePlan } from '../../api/plans';
+import { updatePlan, uploadPlanBanner } from '../../api/plans';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
+import PlanCropImage from './PlanCropImage';
 import CustomDatePicker from '../../components/ui/CustomDatePicker';
 import CustomTimePicker from '../../components/ui/CustomTimePicker';
 
@@ -50,6 +56,12 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, onPlanUpda
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
 
+  // Banner state
+  const [bannerUri, setBannerUri] = useState(null);       // local URI if newly picked
+  const [bannerBase64, setBannerBase64] = useState(null); // base64 for upload
+  const [existingBannerUrl, setExistingBannerUrl] = useState(null); // from plan
+  const [bannerRemoved, setBannerRemoved] = useState(false); // user explicitly cleared
+
   // Pre-fill from plan whenever the sheet opens
   useEffect(() => {
     if (!visible || !plan) return;
@@ -59,6 +71,12 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, onPlanUpda
     setMaxAccepted(plan.max_accepted ?? 5);
     setIsRecurring(plan.is_recurring ?? false);
     setErrors({});
+
+    // Banner pre-fill
+    setExistingBannerUrl(plan.banner_image_url || null);
+    setBannerUri(null);
+    setBannerBase64(null);
+    setBannerRemoved(false);
 
     if (plan.scheduled_at) {
       const d = new Date(plan.scheduled_at);
@@ -80,11 +98,49 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, onPlanUpda
     return Object.keys(e).length === 0;
   };
 
+  const pickBanner = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Allow photo access to upload a banner.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [2, 1],
+        quality: 0.8,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      const manipulated = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 1200 } }],
+        { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      );
+      setBannerUri(manipulated.uri);
+      setBannerBase64(`data:image/jpeg;base64,${manipulated.base64}`);
+      setBannerRemoved(false);
+    } catch (e) {
+      Alert.alert('Error', 'Could not load image.');
+    }
+  };
+
   const handleSave = async () => {
     if (!validate()) return;
     setLoading(true);
     try {
       const token = await getAuthToken();
+
+      // Handle banner
+      let finalBannerUrl = existingBannerUrl; // default: keep existing
+      if (bannerRemoved) {
+        finalBannerUrl = null;
+      } else if (bannerBase64) {
+        const uploadRes = await uploadPlanBanner(bannerBase64, token);
+        finalBannerUrl = uploadRes?.data?.url || existingBannerUrl;
+      }
+
       const scheduledAt = formatDateTime(selectedDate, selectedTime);
       const body = {
         title: title.trim(),
@@ -93,6 +149,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, onPlanUpda
         is_recurring: isRecurring,
         recurrence_interval: isRecurring ? 'weekly' : null,
         scheduled_at: scheduledAt,
+        banner_image_url: finalBannerUrl,
       };
       const data = await updatePlan(plan.id, body, token);
       onPlanUpdated(data.plan);
@@ -162,8 +219,50 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, onPlanUpda
             </View>
           </View>
 
-          {/* Card 2: Date, Time & Capacity */}
-          <Text style={styles.sectionHeader}>Timing & capacity</Text>
+          {/* Banner section */}
+          <Text style={styles.sectionHeader}>Banner image</Text>
+          <View style={styles.bannerCard}>
+            {/* Preview */}
+            <View style={styles.bannerPreviewWrap}>
+              {bannerUri ? (
+                <Image source={{ uri: bannerUri }} style={styles.bannerPreviewImg} resizeMode="cover" />
+              ) : existingBannerUrl && !bannerRemoved ? (
+                <Image source={{ uri: existingBannerUrl }} style={styles.bannerPreviewImg} resizeMode="cover" />
+              ) : (
+                <PlanCropImage activityType={plan?.activity_type || 'other'} containerW={335} height={140} />
+              )}
+
+              {/* Overlay buttons */}
+              <View style={styles.bannerActions}>
+                <TouchableOpacity style={styles.bannerBtn} onPress={pickBanner} activeOpacity={0.8}>
+                  <ImageIcon size={14} color="#FFFFFF" strokeWidth={2} />
+                  <Text style={styles.bannerBtnText}>{(existingBannerUrl && !bannerRemoved) || bannerUri ? 'Change' : 'Upload photo'}</Text>
+                </TouchableOpacity>
+                {((existingBannerUrl && !bannerRemoved) || bannerUri) && (
+                  <TouchableOpacity
+                    style={[styles.bannerBtn, styles.bannerBtnRemove]}
+                    onPress={() => { setBannerUri(null); setBannerBase64(null); setBannerRemoved(true); }}
+                    activeOpacity={0.8}
+                  >
+                    <X size={14} color="#FFFFFF" strokeWidth={2} />
+                    <Text style={styles.bannerBtnText}>Remove</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Badge */}
+              {(bannerUri || existingBannerUrl) && !bannerRemoved && (
+                <View style={styles.bannerBadge}>
+                  <Text style={styles.bannerBadgeText}>{bannerUri ? 'New' : 'Custom'}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.bannerHint}>Changes auto-save with the form</Text>
+          </View>
+
+
+          {/* Timing & capacity */}
+          <Text style={styles.sectionHeader}>Timing {'&'} capacity</Text>
           <View style={styles.card}>
             {/* Date & Time row */}
             <View style={styles.twoColRow}>
@@ -506,5 +605,65 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold, // Manrope SemiBold
     fontSize: 16,
     color: '#FFFFFF',
+  },
+
+  // Banner
+  bannerCard: {
+    marginBottom: 4,
+  },
+  bannerPreviewWrap: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#F0F4FF',
+    position: 'relative',
+  },
+  bannerPreviewImg: {
+    width: '100%',
+    height: 140,
+  },
+  bannerActions: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  bannerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  bannerBtnRemove: {
+    backgroundColor: 'rgba(200,30,30,0.7)',
+  },
+  bannerBtnText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: '#FFFFFF',
+  },
+  bannerBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(41,98,255,0.85)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  bannerBadgeText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+    color: '#FFFFFF',
+  },
+  bannerHint: {
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 6,
+    marginLeft: 2,
   },
 });

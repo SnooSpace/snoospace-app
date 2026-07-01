@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Dimensions,
   Keyboard,
+  Image,
 } from "react-native";
 import SwipeableModal from "../../components/modals/SwipeableModal";
 import {
@@ -28,10 +29,15 @@ import {
   Lock,
   MapPin,
   Clock,
+  Image as ImageIcon,
+  X,
 } from "lucide-react-native";
 import { COLORS, FONTS, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import { getAuthToken } from "../../api/auth";
-import { createPlan } from "../../api/plans";
+import { createPlan, uploadPlanBanner } from "../../api/plans";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
+import PlanCropImage from "./PlanCropImage";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
 import CustomTimePicker from "../../components/ui/CustomTimePicker";
 import VenueSearchSheet from "../../components/location/VenueSearchSheet";
@@ -119,6 +125,11 @@ export default function HostPlanBottomSheet({
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
 
+  // ── Banner (custom upload) ──
+  const [bannerUri, setBannerUri] = useState(null);     // local file URI for preview
+  const [bannerBase64, setBannerBase64] = useState(null); // base64 for upload
+  const [bannerUploading, setBannerUploading] = useState(false);
+
   // ── Venue / Location (new unified flow) ──
   const [selectedVenue, setSelectedVenue] = useState(null);
   const [pendingPlace, setPendingPlace] = useState(null);
@@ -160,6 +171,8 @@ export default function HostPlanBottomSheet({
     setErrors({});
     setSelectedVenue(null);
     setPendingPlace(null);
+    setBannerUri(null);
+    setBannerBase64(null);
   };
 
   const validate = () => {
@@ -174,11 +187,49 @@ export default function HostPlanBottomSheet({
     return Object.keys(e).length === 0;
   };
 
+  const pickBanner = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Allow photo access to upload a banner.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [2, 1],
+        quality: 0.8,
+      });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      // Compress and get base64
+      const manipulated = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: 1200 } }],
+        { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      );
+      setBannerUri(manipulated.uri);
+      setBannerBase64(`data:image/jpeg;base64,${manipulated.base64}`);
+    } catch (e) {
+      Alert.alert('Error', 'Could not load image.');
+    }
+  };
+
   const handleSubmit = async () => {
     if (!validate()) return;
     setLoading(true);
     try {
       const token = await getAuthToken();
+
+      // Upload custom banner if selected
+      let bannerImageUrl = null;
+      if (bannerBase64) {
+        setBannerUploading(true);
+        const uploadRes = await uploadPlanBanner(bannerBase64, token);
+        bannerImageUrl = uploadRes?.data?.url || null;
+        setBannerUploading(false);
+      }
+
       const scheduledAt = formatDateTime(selectedDate, selectedTime);
       const body = {
         activity_type: activityType,
@@ -208,12 +259,14 @@ export default function HostPlanBottomSheet({
         max_accepted: maxAccepted,
         is_recurring: isRecurring,
         recurrence_interval: isRecurring ? "weekly" : null,
+        banner_image_url: bannerImageUrl,
       };
       const data = await createPlan(body, token);
       onPlanCreated(data.plan);
       resetState();
       onClose();
     } catch (err) {
+      setBannerUploading(false);
       if (err.status === 403 && err.data?.error === "proof_gate_required") {
         Alert.alert(
           "Profile incomplete",
@@ -304,6 +357,53 @@ export default function HostPlanBottomSheet({
             <Text style={styles.errorText}>{errors.customLabel}</Text>
           )}
 
+          {/* ── Banner ── */}
+          <Text style={styles.fieldLabel}>Banner</Text>
+          <View style={styles.bannerPreviewWrap}>
+            {/* Preset or custom preview */}
+            <View style={styles.bannerPreview} pointerEvents="none">
+              {bannerUri ? (
+                <Image
+                  source={{ uri: bannerUri }}
+                  style={styles.bannerPreviewImg}
+                  resizeMode="cover"
+                />
+              ) : (
+                <PlanCropImage activityType={activityType} containerW={290} height={130} />
+              )}
+            </View>
+
+            {/* Overlay buttons */}
+            <View style={styles.bannerActions}>
+              {bannerUri ? (
+                <>
+                  <TouchableOpacity style={styles.bannerBtn} onPress={pickBanner} activeOpacity={0.8}>
+                    <ImageIcon size={15} color="#FFFFFF" strokeWidth={2} />
+                    <Text style={styles.bannerBtnText}>Change</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.bannerBtn, styles.bannerBtnRemove]}
+                    onPress={() => { setBannerUri(null); setBannerBase64(null); }}
+                    activeOpacity={0.8}
+                  >
+                    <X size={15} color="#FFFFFF" strokeWidth={2} />
+                    <Text style={styles.bannerBtnText}>Remove</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <TouchableOpacity style={styles.bannerBtn} onPress={pickBanner} activeOpacity={0.8}>
+                  <ImageIcon size={15} color="#FFFFFF" strokeWidth={2} />
+                  <Text style={styles.bannerBtnText}>Upload custom photo</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {bannerUri && (
+              <View style={styles.bannerCustomBadge}>
+                <Text style={styles.bannerCustomBadgeText}>Custom</Text>
+              </View>
+            )}
+          </View>
+
           {/* Title */}
           <Text style={styles.fieldLabel}>What's the plan?</Text>
           <TextInput
@@ -315,6 +415,7 @@ export default function HostPlanBottomSheet({
             onChangeText={setTitle}
           />
           {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
+
 
           {/* Cost */}
           <Text style={styles.fieldLabel}>Cost</Text>
@@ -923,5 +1024,62 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 16,
     color: "#FFFFFF",
+  },
+
+  // ── Banner section ──
+  bannerPreviewWrap: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 12,
+    position: 'relative',
+  },
+  bannerPreview: {
+    width: '100%',
+    height: 130,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#F0F4FF',
+  },
+  bannerPreviewImg: {
+    width: '100%',
+    height: 130,
+  },
+  bannerActions: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  bannerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  bannerBtnRemove: {
+    backgroundColor: 'rgba(200,30,30,0.7)',
+  },
+  bannerBtnText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: '#FFFFFF',
+  },
+  bannerCustomBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: 'rgba(41,98,255,0.85)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  bannerCustomBadgeText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+    color: '#FFFFFF',
   },
 });
