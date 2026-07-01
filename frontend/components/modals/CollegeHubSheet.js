@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import SwipeableModal from "./SwipeableModal";
 import {
-  X,
   GraduationCap,
   Users,
   Building2,
@@ -301,19 +300,9 @@ export default function CollegeHubSheet({
         blurTint="dark"
         statusBarTranslucent={true}
         header={
-          <View collapsable={false}>
+          <View collapsable={false} style={styles.headerTouchArea}>
             {/* Handle bar */}
             <View style={styles.handleBar} />
-
-            {/* Close button */}
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={onClose}
-              activeOpacity={0.7}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <X size={20} color="#9CA3AF" />
-            </TouchableOpacity>
           </View>
         }
       >
@@ -398,8 +387,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#E5E7EB",
     borderRadius: 2,
     alignSelf: "center",
-    marginTop: 10,
-    marginBottom: 6,
+  },
+  headerTouchArea: {
+    width: "100%",
+    paddingTop: 16,
+    paddingBottom: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   closeButton: {
     position: "absolute",

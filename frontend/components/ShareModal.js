@@ -20,6 +20,7 @@ import { searchShareRecipients, sharePost, shareOpportunity, shareEvent } from "
 import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 import SnooLoader from "./ui/SnooLoader";
+import SwipeableModal from "./modals/SwipeableModal";
 import { SHADOWS } from "../constants/theme";
 import { useToast } from "../context/ToastContext";
 
@@ -247,120 +248,119 @@ export default function ShareModal({ visible, onClose, post }) {
     ? "No results found"
     : "No recent conversations";
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
   return (
-    <Modal
+    <SwipeableModal
       visible={visible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={handleClose}
+      onClose={handleClose}
+      sheetStyle={styles.modalContent}
+      useBlur={true}
+      blurIntensity={20}
+      blurTint="dark"
       statusBarTranslucent={true}
-      navigationBarTranslucent={Platform.OS === "android"}
-    >
-      <TouchableWithoutFeedback onPress={handleClose}>
-        <View style={styles.modalOverlay}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <KeyboardStickyView style={styles.keyboardView}>
-              <View style={styles.modalContent}>
+      header={
+        <View collapsable={false}>
+          {/* Handle bar */}
+          <View style={styles.handleBar} />
 
-                {/* Header */}
-                <View style={styles.header}>
-                  <Text style={styles.headerTitle}>Share</Text>
-                  <TouchableOpacity
-                    onPress={handleClose}
-                    style={styles.closeButton}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <X size={22} color="#1D1D1F" strokeWidth={2.5} />
-                  </TouchableOpacity>
-                </View>
-
-                {/* Body */}
-                <View style={styles.body}>
-                  {/* Search Bar */}
-                  <View style={styles.searchContainer}>
-                    <Search
-                      size={18}
-                      color="#8E8E93"
-                      strokeWidth={2}
-                      style={styles.searchIcon}
-                    />
-                    <TextInput
-                      style={styles.searchInput}
-                      placeholder="Search people, groups…"
-                      placeholderTextColor="#8E8E93"
-                      value={searchQuery}
-                      onChangeText={setSearchQuery}
-                      returnKeyType="search"
-                      autoCorrect={false}
-                    />
-                    {searchQuery.length > 0 && (
-                      <TouchableOpacity
-                        onPress={() => setSearchQuery("")}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <X size={16} color="#8E8E93" strokeWidth={2.5} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {/* Section label */}
-                  {!searchQuery && (
-                    <Text style={styles.sectionLabel}>Recent</Text>
-                  )}
-
-                  {/* Users Grid */}
-                  <View style={styles.usersListContainer}>
-                    {loading ? (
-                      <View style={styles.loadingContainer}>
-                        <SnooLoader size="large" color="#007AFF" />
-                      </View>
-                    ) : (
-                      <FlatList
-                        data={users}
-                        renderItem={renderUser}
-                        keyExtractor={(item) => `${item.type}_${item.id}`}
-                        numColumns={3}
-                        contentContainerStyle={styles.usersList}
-                        keyboardShouldPersistTaps="handled"
-                        showsVerticalScrollIndicator={false}
-                        ListEmptyComponent={
-                          <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>{emptyText}</Text>
-                          </View>
-                        }
-                      />
-                    )}
-                  </View>
-
-                  {/* Send Button */}
-                  {selectedUsers.length > 0 && (
-                    <View style={styles.bottomActions}>
-                      <TouchableOpacity
-                        style={styles.sendButton}
-                        onPress={handleSend}
-                        disabled={sending}
-                      >
-                        {sending ? (
-                          <SnooLoader color="#FFF" />
-                        ) : (
-                          <>
-                            <Send size={18} color="#FFF" strokeWidth={2.5} />
-                            <Text style={styles.sendButtonText}>
-                              Send to {selectedUsers.length}
-                            </Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                </View>
-              </View>
-            </KeyboardStickyView>
-          </TouchableWithoutFeedback>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Share</Text>
+            <TouchableOpacity
+              onPress={handleClose}
+              style={styles.closeButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <X size={22} color="#1D1D1F" strokeWidth={2.5} />
+            </TouchableOpacity>
+          </View>
         </View>
+      }
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <KeyboardStickyView style={styles.keyboardView}>
+          {/* Body */}
+          <View style={styles.body}>
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+              <Search
+                size={18}
+                color="#8E8E93"
+                strokeWidth={2}
+                style={styles.searchIcon}
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search people, groups…"
+                placeholderTextColor="#8E8E93"
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                returnKeyType="search"
+                autoCorrect={false}
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setSearchQuery("")}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <X size={16} color="#8E8E93" strokeWidth={2.5} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Section label */}
+            {!searchQuery && (
+              <Text style={styles.sectionLabel}>Recent</Text>
+            )}
+
+            {/* Users Grid */}
+            <View style={styles.usersListContainer}>
+              {loading ? (
+                <View style={styles.loadingContainer}>
+                  <SnooLoader size="large" color="#007AFF" />
+                </View>
+              ) : (
+                <FlatList
+                  data={users}
+                  renderItem={renderUser}
+                  keyExtractor={(item) => `${item.type}_${item.id}`}
+                  numColumns={3}
+                  contentContainerStyle={styles.usersList}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                  ListEmptyComponent={
+                    <View style={styles.emptyContainer}>
+                      <Text style={styles.emptyText}>{emptyText}</Text>
+                    </View>
+                  }
+                />
+              )}
+            </View>
+
+            {/* Send Button */}
+            {selectedUsers.length > 0 && (
+              <View style={styles.bottomActions}>
+                <TouchableOpacity
+                  style={styles.sendButton}
+                  onPress={handleSend}
+                  disabled={sending}
+                >
+                  {sending ? (
+                    <SnooLoader color="#FFF" />
+                  ) : (
+                    <>
+                      <Send size={18} color="#FFF" strokeWidth={2.5} />
+                      <Text style={styles.sendButtonText}>
+                        Send to {selectedUsers.length}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </KeyboardStickyView>
       </TouchableWithoutFeedback>
-    </Modal>
+    </SwipeableModal>
   );
 }
 
@@ -372,6 +372,15 @@ const styles = StyleSheet.create({
   },
   keyboardView: {
     width: "100%",
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#E5E5EA",
+    borderRadius: 2,
+    alignSelf: "center",
+    marginTop: 10,
+    marginBottom: 10,
   },
   modalContent: {
     backgroundColor: "#FFFFFF",
