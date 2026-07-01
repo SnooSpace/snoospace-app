@@ -3,12 +3,13 @@ import {
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Dimensions,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { Plus, Clock, MapPin, Users, ArrowRight } from 'lucide-react-native';
+import { Plus, Clock, MapPin, Users, ArrowRight, Pencil } from 'lucide-react-native';
 import { COLORS, FONTS, SPACING, SHADOWS } from '../../constants/theme';
 import { getAuthToken, getActiveAccount } from '../../api/auth';
 import { getPlans } from '../../api/plans';
 import HostPlanBottomSheet from './HostPlanBottomSheet';
 import RequestBottomSheet from './RequestBottomSheet';
+import EditPlanBottomSheet from './EditPlanBottomSheet';
 import EventBus from '../../utils/EventBus';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -134,6 +135,7 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
   const [loading, setLoading] = useState(true);
   const [hostSheetOpen, setHostSheetOpen] = useState(false);
   const [requestSheet, setRequestSheet] = useState(null); // { planId, planTitle }
+  const [editingPlan, setEditingPlan] = useState(null);
   const [currentUserIdState, setCurrentUserIdState] = useState(currentUserId);
 
   useEffect(() => {
@@ -224,6 +226,20 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
                 {bottomPillLabel}
               </Text>
             </View>
+          )}
+
+          {/* Bottom-Right Edit Button (for owner) */}
+          {isOwner && (
+            <TouchableOpacity
+              style={styles.cardEditBtn}
+              onPress={(e) => {
+                e.stopPropagation();
+                setEditingPlan(plan);
+              }}
+              activeOpacity={0.8}
+            >
+              <Pencil size={11} color="#FFFFFF" strokeWidth={2.5} />
+            </TouchableOpacity>
           )}
         </View>
 
@@ -340,6 +356,17 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
           onRequested={() => {
             setRequestSheet(null);
             loadPlans();
+          }}
+        />
+      )}
+      {editingPlan && (
+        <EditPlanBottomSheet
+          visible={!!editingPlan}
+          onClose={() => setEditingPlan(null)}
+          plan={editingPlan}
+          onPlanUpdated={(updatedPlan) => {
+            setPlans(prev => prev.map(p => p.id === updatedPlan.id ? { ...p, ...updatedPlan } : p));
+            setEditingPlan(null);
           }}
         />
       )}
@@ -470,6 +497,22 @@ const styles = StyleSheet.create({
   },
   statusDotJoined: {
     backgroundColor: '#34D399',
+  },
+  cardEditBtn: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#2962FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#2962FF',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   cardContentContainer: {
     padding: 12,
