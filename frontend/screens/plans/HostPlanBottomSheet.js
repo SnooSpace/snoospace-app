@@ -38,6 +38,7 @@ import { createPlan, uploadPlanBanner } from "../../api/plans";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import PlanCropImage from "./PlanCropImage";
+import { useCrop } from "../../components/MediaCrop";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
 import CustomTimePicker from "../../components/ui/CustomTimePicker";
 import VenueSearchSheet from "../../components/location/VenueSearchSheet";
@@ -130,6 +131,9 @@ export default function HostPlanBottomSheet({
   const [bannerUri, setBannerUri] = useState(null);     // local file URI for preview
   const [bannerBase64, setBannerBase64] = useState(null); // base64 for upload
   const [bannerUploading, setBannerUploading] = useState(false);
+  const [isCropping, setIsCropping] = useState(false);
+
+  const { pickAndCrop } = useCrop();
 
   // ── Venue / Location (new unified flow) ──
   const [selectedVenue, setSelectedVenue] = useState(null);
@@ -190,29 +194,22 @@ export default function HostPlanBottomSheet({
 
   const pickBanner = async () => {
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert('Permission needed', 'Allow photo access to upload a banner.');
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [2, 1],
-        quality: 0.8,
-      });
-      if (result.canceled) return;
-      const asset = result.assets[0];
-      // Compress and get base64
+      setIsCropping(true);
+      const result = await pickAndCrop("event");
+      setIsCropping(false);
+      if (!result) return;
+
+      setBannerUri(result.uri);
+      // Compress and convert to base64 for Cloudinary
       const manipulated = await ImageManipulator.manipulateAsync(
-        asset.uri,
+        result.uri,
         [{ resize: { width: 1200 } }],
         { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG, base64: true }
       );
-      setBannerUri(manipulated.uri);
       setBannerBase64(`data:image/jpeg;base64,${manipulated.base64}`);
     } catch (e) {
-      Alert.alert('Error', 'Could not load image.');
+      setIsCropping(false);
+      Alert.alert('Error', 'Could not crop image.');
     }
   };
 
@@ -294,7 +291,7 @@ export default function HostPlanBottomSheet({
   return (
     <>
       <SwipeableModal
-        visible={isVisible}
+        visible={isVisible && !isCropping}
         onClose={() => {
           resetState();
           onClose();

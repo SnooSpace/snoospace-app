@@ -29,6 +29,7 @@ import { updatePlan, uploadPlanBanner } from '../../api/plans';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import PlanCropImage from './PlanCropImage';
+import { useCrop } from '../../components/MediaCrop';
 import CustomDatePicker from '../../components/ui/CustomDatePicker';
 import CustomTimePicker from '../../components/ui/CustomTimePicker';
 
@@ -42,7 +43,7 @@ function formatDateTime(date, time) {
   return d.toISOString();
 }
 
-export default function EditPlanBottomSheet({ visible, onClose, plan, onPlanUpdated }) {
+export default function EditPlanBottomSheet({ visible, onClose, plan, navigation, onPlanUpdated }) {
   const [title, setTitle] = useState('');
   const [locationPublic, setLocationPublic] = useState('');
   const [maxAccepted, setMaxAccepted] = useState(5);
@@ -59,6 +60,9 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, onPlanUpda
   const [bannerBase64, setBannerBase64] = useState(null); // base64 for upload
   const [existingBannerUrl, setExistingBannerUrl] = useState(null); // from plan
   const [bannerRemoved, setBannerRemoved] = useState(false); // user explicitly cleared
+  const [isCropping, setIsCropping] = useState(false);
+
+  const { pickAndCrop } = useCrop();
 
   // Pre-fill from plan whenever the sheet opens
   useEffect(() => {
@@ -98,29 +102,23 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, onPlanUpda
 
   const pickBanner = async () => {
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert('Permission needed', 'Allow photo access to upload a banner.');
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [2, 1],
-        quality: 0.8,
-      });
-      if (result.canceled) return;
-      const asset = result.assets[0];
+      setIsCropping(true);
+      const result = await pickAndCrop("event");
+      setIsCropping(false);
+      if (!result) return;
+
+      setBannerUri(result.uri);
+      // Compress and convert to base64 for Cloudinary
       const manipulated = await ImageManipulator.manipulateAsync(
-        asset.uri,
+        result.uri,
         [{ resize: { width: 1200 } }],
         { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG, base64: true }
       );
-      setBannerUri(manipulated.uri);
       setBannerBase64(`data:image/jpeg;base64,${manipulated.base64}`);
       setBannerRemoved(false);
     } catch (e) {
-      Alert.alert('Error', 'Could not load image.');
+      setIsCropping(false);
+      Alert.alert('Error', 'Could not crop image.');
     }
   };
 
@@ -164,7 +162,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, onPlanUpda
   return (
     <>
       <SwipeableModal
-        visible={visible}
+        visible={visible && !isCropping}
         onClose={onClose}
         sheetStyle={styles.sheet}
         header={

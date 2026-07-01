@@ -474,6 +474,7 @@ export default function PlanDetailScreen({ navigation, route }) {
         visible={editSheetOpen}
         onClose={() => setEditSheetOpen(false)}
         plan={plan}
+        navigation={navigation}
         onPlanUpdated={(updatedPlan) => {
           setPlan(p => ({ ...p, ...updatedPlan }));
           setEditSheetOpen(false);

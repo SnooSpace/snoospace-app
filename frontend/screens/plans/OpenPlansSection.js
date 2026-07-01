@@ -321,6 +321,7 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
           visible={!!editingPlan}
           onClose={() => setEditingPlan(null)}
           plan={editingPlan}
+          navigation={navigation}
           onPlanUpdated={(updatedPlan) => {
             setPlans(prev => prev.map(p => p.id === updatedPlan.id ? { ...p, ...updatedPlan } : p));
             setEditingPlan(null);
