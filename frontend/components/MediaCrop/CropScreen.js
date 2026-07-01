@@ -184,9 +184,14 @@ const CropScreen = ({ route, navigation }) => {
       );
 
       if (!validation.valid) {
-        Alert.alert("Image Too Small", validation.message, [
-          { text: "OK", onPress: () => handleCancel() },
-        ]);
+        Alert.alert(
+          "Image Too Small",
+          validation.message + "\n\nDo you want to continue anyway?",
+          [
+            { text: "Cancel", onPress: () => handleCancel(), style: "cancel" },
+            { text: "Continue anyway", onPress: () => {} },
+          ]
+        );
       }
     },
     [preset, initialCropData, isVideo],
