@@ -260,13 +260,6 @@ export async function updateAccountTokens(
     if (refreshToken) updates.refreshToken = refreshToken;
 
     if (Object.keys(updates).length > 0) {
-      console.log("[updateAccountTokens] Updating tokens for account:", {
-        accountId,
-        hasAccessToken: !!accessToken,
-        hasRefreshToken: !!refreshToken,
-        accessTokenLength: accessToken?.length,
-        refreshTokenLength: refreshToken?.length,
-      });
       await accountManager.updateAccount(accountId, updates);
     }
 

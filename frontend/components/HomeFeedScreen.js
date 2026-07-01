@@ -1000,12 +1000,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       const { getActiveAccount } = await import("../api/auth");
       const activeAccount = await getActiveAccount();
 
-      console.log('🔵 [TRACE:5a] loadGreetingName → activeAccount.email:', activeAccount?.email, '| token[0..20]:', token ? token.substring(0, 20) + '...' : 'null');
-
       if (!token || !activeAccount?.email) return;
 
       const email = activeAccount.email;
-      console.log('🔵 [TRACE:5b] loadGreetingName → POST /auth/get-user-profile with body.email:', email, '| Authorization token[0..20]:', token.substring(0, 20) + '...');
 
       const res = await apiPost(
         "/auth/get-user-profile",
@@ -1016,17 +1013,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       const prof = res?.profile || {};
       const name = prof.full_name || prof.name || prof.username || "Member";
 
-      console.log('🔵 [TRACE:5c] loadGreetingName → server returned: name=', name, '| prof.email=', prof.email, '| res.role=', res?.role);
-
       setGreetingName(name);
       setCurrentUserId(prof.id);
-      const userType = res?.role || role; // API returns role at top level, not prof.type
-      console.log("[HomeFeed] Setting currentUserType:", {
-        apiRole: res?.role,
-        role,
-        finalType: userType,
-        profId: prof.id,
-      });
+      const userType = res?.role || role;
       setCurrentUserType(userType);
     } catch (e) {
       console.error("[HomeFeed] Error loading greeting name:", e);

@@ -363,12 +363,6 @@ const EditorialPostCard = ({
     ? post.image_urls.flat()
     : [];
 
-  console.log(
-    `[EditorialPostCard] post=${post.id} image_urls raw=`,
-    JSON.stringify(post.image_urls),
-    `→ normalised count=${imageUrls.length}`,
-  );
-
   const isAnon =
     post.type_data?.is_anonymous === true || post.is_anonymous === true;
 
@@ -490,10 +484,6 @@ const EditorialPostCard = ({
     const dwellThreshold = 2500; // 2.5s for all post types (image, text)
 
     const alreadyViewed = viewQueueService.hasViewed(post.id);
-    console.log(
-      `[EditorialPostCard] Dwell timer START post=${post.id} alreadyViewed=${alreadyViewed} threshold=${dwellThreshold}ms`,
-    );
-
     if (!alreadyViewed) {
       // ── Fresh view path: qualify and count as unique viewer ──────────────
       imageDwellStartRef.current = Date.now();
@@ -602,7 +592,6 @@ const EditorialPostCard = ({
     post.saves_count,
   ]);
 
-  console.log("[EditorialPostCard INSTRUMENT] Render tick at: " + Date.now() + " ms | postId: " + post.id + " | isLiked state: " + isLiked + " | isLiked prop: " + post.is_liked);
 
   // Format timestamp to lowercase relative time
   const formatTimeAgo = (timestamp) => {
@@ -620,10 +609,7 @@ const EditorialPostCard = ({
   };
 
   const handleLike = async () => {
-    const tapTime = Date.now();
-    console.log("[EditorialPostCard INSTRUMENT] 1. User tap received at: " + tapTime + " ms | postId: " + post.id);
     if (isLiking) {
-      console.log("[EditorialPostCard INSTRUMENT] Tap ignored (isLiking is true)");
       return;
     }
     HapticsService.triggerLike();
@@ -635,30 +621,23 @@ const EditorialPostCard = ({
     const nextLikes = Math.max(0, prevLikeCount + delta);
 
     // Optimistic update — all synchronous, zero async before this point
-    console.log("[EditorialPostCard INSTRUMENT] 2. Local liked state updated to " + nextLiked + " at: " + Date.now() + " ms");
     setIsLiked(nextLiked);
     setLikeCount(nextLikes);
     setIsLiking(true);
     if (onLike) {
-      console.log("[EditorialPostCard INSTRUMENT] 3. Calling parent onLike at: " + Date.now() + " ms");
       onLike(post.id, nextLiked, nextLikes);
     }
 
     try {
       // Use cached token; if stale, fall back to async fetch
-      console.log("[EditorialPostCard INSTRUMENT] 4. Awaiting getAuthToken/tokenRef at: " + Date.now() + " ms");
       const token = tokenRef.current || (await getAuthToken());
-      console.log("[EditorialPostCard INSTRUMENT] 5. Network request starting at: " + Date.now() + " ms");
       
-      const netStart = Date.now();
       if (nextLiked) {
         await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
       } else {
         await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
       }
-      console.log("[EditorialPostCard INSTRUMENT] 6. Network request completed at: " + Date.now() + " ms | duration: " + (Date.now() - netStart) + " ms");
 
-      console.log("[EditorialPostCard INSTRUMENT] 7. Emitting post-like-updated event at: " + Date.now() + " ms");
       EventBus.emit("post-like-updated", {
         postId: post.id,
         isLiked: nextLiked,
@@ -672,7 +651,6 @@ const EditorialPostCard = ({
       if (onLike) onLike(post.id, prevLiked, prevLikeCount);
     } finally {
       setIsLiking(false);
-      console.log("[EditorialPostCard INSTRUMENT] 8. handleLike finished at: " + Date.now() + " ms");
     }
   };
 
@@ -782,23 +760,9 @@ const EditorialPostCard = ({
       ? Math.max(videoNativeAR, 9 / 16) // portrait: cap at 9:16 (allows 4:5 and 9:16 crops)
       : Math.min(videoNativeAR, 1.91); // landscape: cap at 1.91:1
 
-  // Check if author is the current user (to hide follow button)
-  // Convert both to strings since author_id from API is string but currentUserId might be number
   const isOwnPost =
     String(post.author_id) === String(currentUserId) &&
     post.author_type === currentUserType;
-
-  console.log("[EditorialPostCard] isOwnPost check:", {
-    postId: post.id,
-    authorId: post.author_id,
-    authorType: post.author_type,
-    currentUserId,
-    currentUserType,
-    isOwnPost,
-    showFollowButton,
-    willShowButton: showFollowButton && !isOwnPost,
-    isFollowing: post.is_following,
-  });
 
   // [VIDEO INSIGHTS - DEFERRED] handleVideoInsightsPress and navigation to VideoInsights screen removed for v1 launch.
   // Restore this block when re-enabling the feature:

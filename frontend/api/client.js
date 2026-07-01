@@ -132,12 +132,6 @@ async function tryRefreshAndRetry(
     const refreshStartGeneration =
       requestGeneration !== null ? requestGeneration : accountSwitchGeneration;
 
-    console.log("[tryRefreshAndRetry] Attempting token refresh...", {
-      startGeneration: refreshStartGeneration,
-      currentGeneration: accountSwitchGeneration,
-      retryCount,
-    });
-
     // EARLY ABORT: If generation already changed, don't even attempt refresh
     if (refreshStartGeneration !== accountSwitchGeneration) {
       console.warn(
@@ -203,13 +197,6 @@ async function tryRefreshAndRetry(
       refreshingPromises.set(accountId, refreshPromise);
     }
 
-    console.log("[tryRefreshAndRetry] Captured account context:", {
-      accountId,
-      accountType,
-      email: activeAccount?.email,
-      generation: refreshStartGeneration,
-    });
-
     const refreshToken =
       activeAccount?.refreshToken || (await authModule.getRefreshToken());
 
@@ -217,19 +204,6 @@ async function tryRefreshAndRetry(
       console.warn("[tryRefreshAndRetry] No refresh token available");
       throw new Error("Unauthorized");
     }
-
-    console.log(
-      "[tryRefreshAndRetry] Refresh token length:",
-      refreshToken?.length,
-    );
-    console.log(
-      "[tryRefreshAndRetry] Refresh token preview:",
-      refreshToken ? `${refreshToken.substring(0, 16)}...` : "null",
-    );
-    console.log(
-      "[tryRefreshAndRetry] Refresh token source:",
-      activeAccount?.refreshToken ? "accountManager" : "getRefreshToken legacy",
-    );
 
     // VALIDATION: Refresh tokens should be at least 20 characters
     // If token is too short, it's likely corrupted - skip refresh attempt
@@ -260,26 +234,14 @@ async function tryRefreshAndRetry(
     // Only attempt V2 refresh if the token matches this format
     const isV2Token =
       refreshToken.length === 64 && /^[0-9a-f]+$/i.test(refreshToken);
-    console.log("[tryRefreshAndRetry] Token format check:", {
-      length: refreshToken.length,
-      isHex: /^[0-9a-f]+$/i.test(refreshToken),
-      isV2Token,
-    });
-
-    let needV1Fallback = !isV2Token; // Skip V2 for non-V2 tokens
+    let needV1Fallback = !isV2Token;
 
     if (isV2Token) {
       try {
-        console.log(
-          "[tryRefreshAndRetry] Trying V2 refresh endpoint (V2 token detected)...",
-        );
         const v2Result = await sessionManager.refreshTokens(refreshToken);
         newAccess = v2Result.accessToken;
         newRefresh = v2Result.refreshToken;
-        console.log("[tryRefreshAndRetry] V2 refresh successful");
       } catch (v2Error) {
-        console.log("[tryRefreshAndRetry] V2 refresh failed:", v2Error.message);
-
         // CRITICAL FIX: Do NOT fallback to V1 for V2 tokens!
         // V1 fallback would return a 32-char token that corrupts the V2 session
         // Instead, mark account as logged out and throw
@@ -300,7 +262,6 @@ async function tryRefreshAndRetry(
 
     // V1 fallback for legacy Supabase sessions or failed V2 refresh
     if (needV1Fallback && !newAccess) {
-      console.log("[tryRefreshAndRetry] Trying V1 fallback endpoint...");
       const res = await withTimeout(
         fetch(`${BACKEND_BASE_URL}/auth/refresh`, {
           method: "POST",
@@ -344,11 +305,6 @@ async function tryRefreshAndRetry(
     }
 
     if (newAccess) {
-      console.log(
-        "[tryRefreshAndRetry] Got new access token, length:",
-        newAccess?.length,
-      );
-
       // CRITICAL CHECK: Verify generation BEFORE saving tokens
       // If user switched accounts during refresh, DO NOT save tokens - they would corrupt the new account
       if (refreshStartGeneration !== accountSwitchGeneration) {
@@ -396,8 +352,6 @@ async function tryRefreshAndRetry(
         console.log(
           "[tryRefreshAndRetry] Tokens updated for account:",
           compositeId,
-          "generation:",
-          refreshStartGeneration,
         );
       } else {
         // Fallback to old behavior if no account context (legacy support)

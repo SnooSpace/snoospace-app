@@ -506,22 +506,6 @@ export async function updateAccount(accountId, updates) {
       return false;
     }
 
-    // Log the update for debugging
-    if (updates.authToken || updates.refreshToken) {
-      const currentAccount = accounts[accountIndex];
-      const currentTokenDecrypted = currentAccount.authToken
-        ? await decryptToken(currentAccount.authToken)
-        : null;
-
-      console.log("[updateAccount] Updating account tokens:", {
-        accountId: accountIdStr,
-        accountEmail: currentAccount.email,
-        currentTokenLength: currentTokenDecrypted?.length,
-        newTokenLength: updates.authToken?.length,
-        isUpdatingRefreshToken: !!updates.refreshToken,
-      });
-    }
-
     // Encrypt tokens if they're being updated
     if (updates.authToken) {
       updates.authToken = await encryptToken(updates.authToken);
