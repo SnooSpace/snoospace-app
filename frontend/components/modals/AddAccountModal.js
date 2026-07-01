@@ -48,26 +48,30 @@ export default function AddAccountModal({
       blurIntensity={20}
       blurTint="dark"
       statusBarTranslucent={true}
-    >
-      {/* Handle bar */}
-      <View style={styles.handleBar} />
+      header={
+        <View collapsable={false}>
+          {/* Handle bar */}
+          <View style={styles.handleBar} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Add account</Text>
-        <GHPressable
-          style={({ pressed }) => [
-            styles.closeButton,
-            { opacity: pressed ? 0.6 : 1 },
-          ]}
-          onPress={() => {
-            hapticsService.triggerClose();
-            onClose();
-          }}
-        >
-          <X size={20} color="#0F172A" strokeWidth={2.2} />
-        </GHPressable>
-      </View>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Add account</Text>
+            <GHPressable
+              style={({ pressed }) => [
+                styles.closeButton,
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
+              onPress={() => {
+                hapticsService.triggerClose();
+                onClose();
+              }}
+            >
+              <X size={20} color="#0F172A" strokeWidth={2.2} />
+            </GHPressable>
+          </View>
+        </View>
+      }
+    >
 
       {/* Log into existing account button */}
       <GHPressable

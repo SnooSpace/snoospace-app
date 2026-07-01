@@ -348,14 +348,18 @@ const SubmissionCommentsModal = ({
       blurIntensity={20}
       blurTint="dark"
       statusBarTranslucent={true}
+      header={
+        <View collapsable={false}>
+          <View style={styles.handleBar} />
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>{headerTitle}</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <X size={24} color="#111827" strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      }
     >
-      <View style={styles.handleBar} />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>{headerTitle}</Text>
-        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-          <X size={24} color="#111827" strokeWidth={2} />
-        </TouchableOpacity>
-      </View>
 
       {/* Comment List */}
       {loading ? (

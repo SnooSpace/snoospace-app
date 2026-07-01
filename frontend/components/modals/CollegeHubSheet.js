@@ -300,19 +300,23 @@ export default function CollegeHubSheet({
         blurIntensity={20}
         blurTint="dark"
         statusBarTranslucent={true}
-      >
-        {/* Handle bar */}
-        <View style={styles.handleBar} />
+        header={
+          <View collapsable={false}>
+            {/* Handle bar */}
+            <View style={styles.handleBar} />
 
-        {/* Close button */}
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={onClose}
-          activeOpacity={0.7}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <X size={20} color="#9CA3AF" />
-        </TouchableOpacity>
+            {/* Close button */}
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={onClose}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <X size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          </View>
+        }
+      >
 
         {loading ? (
           <View style={styles.loadingWrap}>

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * RemovalRequestsModal
  * Modal for challenge hosts to review & approve/reject submission removal requests
  */
@@ -290,20 +290,21 @@ const RemovalRequestsModal = ({
         onClose={onClose}
         sheetStyle={styles.container}
         backdropColor="rgba(0,0,0,0.5)"
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.handle} />
-          <View style={styles.headerRow}>
-            <Text style={styles.headerTitle}>Removal Requests</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <X size={24} color={COLORS.textPrimary} />
-            </TouchableOpacity>
+        header={
+          <View collapsable={false} style={styles.header}>
+            <View style={styles.handle} />
+            <View style={styles.headerRow}>
+              <Text style={styles.headerTitle}>Removal Requests</Text>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <X size={24} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.headerSubtitle}>
+              Review requests from participants to remove their submissions
+            </Text>
           </View>
-          <Text style={styles.headerSubtitle}>
-            Review requests from participants to remove their submissions
-          </Text>
-        </View>
+        }
+      >
 
         {/* Content */}
         {isLoading ? (

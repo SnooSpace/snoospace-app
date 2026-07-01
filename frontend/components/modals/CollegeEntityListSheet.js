@@ -322,32 +322,36 @@ export default function CollegeEntityListSheet({
       blurIntensity={20}
       blurTint="dark"
       statusBarTranslucent={true}
+      header={
+        <View collapsable={false}>
+          {/* Handle */}
+          <View style={styles.handle} />
+
+          {/* Header */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={onClose}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={styles.backBtn}
+            >
+              <ArrowLeft size={20} color="#374151" strokeWidth={2} />
+            </TouchableOpacity>
+            <View style={styles.headerTitles}>
+              <Text style={styles.headerTitle}>
+                {isMemberMode ? "Members" : "Communities"}
+              </Text>
+              {collegeName ? (
+                <Text style={styles.headerSubtitle} numberOfLines={1}>
+                  {collegeName}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+        </View>
+      }
     >
-      {/* Handle */}
-      <View style={styles.handle} />
-
-              {/* Header */}
-              <View style={styles.header}>
-                <TouchableOpacity
-                  onPress={onClose}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  style={styles.backBtn}
-                >
-                  <ArrowLeft size={20} color="#374151" strokeWidth={2} />
-                </TouchableOpacity>
-                <View style={styles.headerTitles}>
-                  <Text style={styles.headerTitle}>
-                    {isMemberMode ? "Members" : "Communities"}
-                  </Text>
-                  {collegeName ? (
-                    <Text style={styles.headerSubtitle} numberOfLines={1}>
-                      {collegeName}
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
-
-              <View style={styles.divider} />
 
               {/* Content */}
               {loading ? (

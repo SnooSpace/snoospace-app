@@ -162,25 +162,29 @@ export default function DegreePickerModal({
       blurTint="dark"
       statusBarTranslucent={true}
       onRequestClose={handleClose}
-    >
-      {/* Handle */}
-      <View style={styles.handleBar} />
+      header={
+        <View collapsable={false}>
+          {/* Handle */}
+          <View style={styles.handleBar} />
 
-              {/* Header */}
-              <View style={styles.header}>
-                <View>
-                  <Text style={styles.headerTitle}>Degree / Major</Text>
-                  <Text style={styles.headerSubtitle}>
-                    Select a preset or type your own
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={handleClose}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                >
-                  <X size={20} color="#9CA3AF" />
-                </TouchableOpacity>
-              </View>
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.headerTitle}>Degree / Major</Text>
+              <Text style={styles.headerSubtitle}>
+                Select a preset or type your own
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={handleClose}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <X size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      }
+    >
 
               {/* Search / Type Input */}
               <View style={styles.searchContainer}>

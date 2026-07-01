@@ -152,20 +152,24 @@ export default function CollegePickerModal({
       blurIntensity={20}
       blurTint="dark"
       statusBarTranslucent={true}
-    >
-      {/* Handle bar */}
-      <View style={styles.handleBar} />
+      header={
+        <View collapsable={false}>
+          {/* Handle bar */}
+          <View style={styles.handleBar} />
 
-              {/* Header */}
-              <View style={styles.header}>
-                <Text style={styles.headerTitle}>Select Your College</Text>
-                <TouchableOpacity
-                  onPress={onClose}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <X size={20} color="#9CA3AF" />
-                </TouchableOpacity>
-              </View>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Select Your College</Text>
+            <TouchableOpacity
+              onPress={onClose}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <X size={20} color="#9CA3AF" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      }
+    >
 
               {/* Search Input */}
               <View style={styles.searchContainer}>

@@ -1087,20 +1087,24 @@ const CommentsModal = ({
         blurIntensity={20}
         blurTint="dark"
         statusBarTranslucent={true}
+        header={
+          <View collapsable={false}>
+            <View style={styles.handleBar} />
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>Comments</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  HapticsService.triggerClose();
+                  onClose();
+                }}
+                style={styles.closeButton}
+              >
+                <X size={24} color="#111827" strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        }
       >
-        <View style={styles.handleBar} />
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Comments</Text>
-          <TouchableOpacity
-            onPress={() => {
-              HapticsService.triggerClose();
-              onClose();
-            }}
-            style={styles.closeButton}
-          >
-            <X size={24} color="#111827" strokeWidth={2} />
-          </TouchableOpacity>
-        </View>
 
         {loading ? (
           <View style={styles.loadingContainer}>

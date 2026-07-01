@@ -90,22 +90,26 @@ const PollVotersModal = ({ visible, onClose, postId, options }) => {
       visible={visible}
       onClose={onClose}
       sheetStyle={styles.modalContainer}
-    >
-      {/* Handle bar */}
-      <View style={styles.handleBar} />
+      header={
+        <View collapsable={false}>
+          {/* Handle bar */}
+          <View style={styles.handleBar} />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>Poll Results</Text>
-          <Text style={styles.headerSubtitle}>
-            {totalVotes} {totalVotes === 1 ? "vote" : "votes"}
-          </Text>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerTitleContainer}>
+              <Text style={styles.headerTitle}>Poll Results</Text>
+              <Text style={styles.headerSubtitle}>
+                {totalVotes} {totalVotes === 1 ? "vote" : "votes"}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <X size={24} color="#1D1D1F" />
+            </TouchableOpacity>
+          </View>
         </View>
-        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-          <X size={24} color="#1D1D1F" />
-        </TouchableOpacity>
-      </View>
+      }
+    >
 
       {/* Option Tabs */}
       <View style={styles.tabsContainer}>

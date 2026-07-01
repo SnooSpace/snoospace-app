@@ -41,9 +41,11 @@ export default function SwipeableModal({
   springConfig = { damping: 22, stiffness: 180, mass: 1 },
   swipeEnabled = true,
   closeOnBackdropPress = true,
+  header,
 }) {
   const [shouldRender, setShouldRender] = useState(visible);
   const translateY = useSharedValue(SCREEN_HEIGHT);
+  const sheetHeight = useSharedValue(SCREEN_HEIGHT * 0.85);
   const backdropOpacity = useSharedValue(0);
   const isSwipedDownRef = useRef(false);
 
@@ -75,7 +77,8 @@ export default function SwipeableModal({
 
   const panGesture = Gesture.Pan()
     .enabled(swipeEnabled)
-    .hitSlop({ top: 0, height: 120 })
+    .activeOffsetY([-10, 10])
+    .failOffsetX([-15, 15])
     .onStart(() => {
       context.value = { y: translateY.value };
     })
@@ -84,8 +87,8 @@ export default function SwipeableModal({
       translateY.value = Math.max(0, context.value.y + event.translationY);
     })
     .onEnd((event) => {
-      // Threshold: 120px translation or velocity > 600 snaps to close
-      if (translateY.value > 120 || event.velocityY > 600) {
+      // Threshold: 49% of sheet height translation OR velocity > 600 snaps to close
+      if (translateY.value > sheetHeight.value * 0.49 || event.velocityY > 600) {
         backdropOpacity.value = withTiming(0, { duration: 200 });
         translateY.value = withTiming(SCREEN_HEIGHT, { duration: 200 }, () => {
           runOnJS(handleDismiss)();
@@ -94,6 +97,10 @@ export default function SwipeableModal({
         translateY.value = withSpring(0, springConfig);
       }
     });
+
+  if (!header) {
+    panGesture.hitSlop({ top: 0, height: 120 });
+  }
 
   const animatedSheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -161,14 +168,41 @@ export default function SwipeableModal({
             )}
           </Animated.View>
 
-          {/* Sheet container with pan gesture */}
-          <GestureDetector gesture={panGesture}>
-            <Animated.View style={[styles.animatedSheet, animatedSheetStyle]}>
+          {/* Sheet container */}
+          {header ? (
+            <Animated.View 
+              style={[styles.animatedSheet, animatedSheetStyle]}
+              onLayout={(e) => {
+                sheetHeight.value = e.nativeEvent.layout.height;
+              }}
+            >
               <View style={[sheetStyle, { overflow: "hidden" }]}>
+                {/* GestureDetector ONLY wraps the header */}
+                <GestureDetector gesture={panGesture}>
+                  <View collapsable={false}>
+                    {header}
+                  </View>
+                </GestureDetector>
+                
+                {/* Main Content is OUTSIDE GestureDetector */}
                 {children}
               </View>
             </Animated.View>
-          </GestureDetector>
+          ) : (
+            /* Backward compatible mode */
+            <GestureDetector gesture={panGesture}>
+              <Animated.View 
+                style={[styles.animatedSheet, animatedSheetStyle]}
+                onLayout={(e) => {
+                  sheetHeight.value = e.nativeEvent.layout.height;
+                }}
+              >
+                <View style={[sheetStyle, { overflow: "hidden" }]}>
+                  {children}
+                </View>
+              </Animated.View>
+            </GestureDetector>
+          )}
         </View>
       </GestureHandlerRootView>
     </Modal>

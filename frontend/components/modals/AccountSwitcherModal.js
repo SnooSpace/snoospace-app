@@ -385,9 +385,13 @@ export default function AccountSwitcherModal({
         blurIntensity={20}
         blurTint="dark"
         statusBarTranslucent={true}
+        header={
+          <View collapsable={false}>
+            {/* Handle bar */}
+            <View style={styles.handleBar} />
+          </View>
+        }
       >
-        {/* Handle bar */}
-        <View style={styles.handleBar} />
 
         {/* Account List */}
         <FlatList
