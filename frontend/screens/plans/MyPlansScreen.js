@@ -159,7 +159,7 @@ export default function MyPlansScreen({ navigation }) {
         getHostedPlans(token),
         getAttendingPlans(token),
       ]);
-      setHostedPlans(hostedData.plans || []);
+      setHostedPlans((hostedData.plans || []).filter(p => !p.parent_plan_id));
       setAttendingPlans(attendingData.plans || []);
     } catch (err) {
       console.error('[MyPlansScreen]', err.message);

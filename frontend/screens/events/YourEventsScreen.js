@@ -500,7 +500,7 @@ export default function YourEventsScreen({ navigation }) {
       ]);
       const allEvents = response?.events || [];
       setEvents(allEvents);
-      setHostedPlans(hostedData.plans || []);
+      setHostedPlans((hostedData.plans || []).filter(p => !p.parent_plan_id));
       setAttendingPlans(attendingData.plans || []);
       setInterestedPlans(interestedPlansData.plans || []);
     } catch (error) {

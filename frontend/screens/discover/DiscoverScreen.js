@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Alert, InteractionManager } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Alert, InteractionManager, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BarChart3, User, Calendar, Users, Clock, MapPin } from "lucide-react-native";
@@ -39,6 +39,8 @@ export default function DiscoverScreen({ navigation }) {
   const [suggestedCommunities, setSuggestedCommunities] = useState([]);
   const [people, setPeople] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [profileComplete, setProfileComplete] = useState(true);
   const hasLoadedRef = useRef(false);
 
@@ -111,8 +113,15 @@ export default function DiscoverScreen({ navigation }) {
       console.error("Error loading data:", error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    setRefreshKey(k => k + 1);
+    await Promise.all([loadData(), checkProfileCompletion()]);
+  }, [loadData, checkProfileCompletion]);
 
   const checkProfileCompletion = useCallback(async () => {
     try {
@@ -310,10 +319,18 @@ export default function DiscoverScreen({ navigation }) {
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={COLORS.primary}
+            colors={[COLORS.primary]}
+          />
+        }
       >
         {renderReconnectSection()}
         <View style={styles.sectionDivider} />
-        <OpenPlansSection navigation={navigation} />
+        <OpenPlansSection navigation={navigation} refreshKey={refreshKey} />
         <View style={styles.sectionDivider} />
         {renderTribeSection()}
         {renderPeopleSection()}

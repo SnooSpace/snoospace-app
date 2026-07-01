@@ -19,6 +19,7 @@ async function getHostedPlans(req, res) {
        FROM open_plans op
        JOIN members m ON m.id = op.created_by
        WHERE op.created_by = $1
+         AND op.parent_plan_id IS NULL
        ORDER BY op.scheduled_at DESC`,
       [userId]
     );

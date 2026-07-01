@@ -128,7 +128,7 @@ function CropImage({ activityType, containerW, height = 110 }) {
   );
 }
 
-export default function OpenPlansSection({ navigation, currentUserId }) {
+export default function OpenPlansSection({ navigation, currentUserId, refreshKey }) {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [hostSheetOpen, setHostSheetOpen] = useState(false);
@@ -156,7 +156,7 @@ export default function OpenPlansSection({ navigation, currentUserId }) {
     }
   }, []);
 
-  useEffect(() => { loadPlans(); }, [loadPlans]);
+  useEffect(() => { loadPlans(); }, [loadPlans, refreshKey]);
 
   const handlePlanCreated = useCallback((newPlan) => {
     setPlans(prev => [newPlan, ...prev].slice(0, 6));

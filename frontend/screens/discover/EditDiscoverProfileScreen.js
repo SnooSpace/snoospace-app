@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal, Animated } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal, Animated, TouchableWithoutFeedback } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Svg, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { getAuthToken } from "../../api/auth";
@@ -1210,58 +1210,62 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         animationType="slide"
         onRequestClose={() => setShowPronounsModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.pronounsModalContainer}>
-            <View style={styles.pronounsModalHeader}>
-              <Text style={styles.pronounsModalTitle}>Select Pronouns</Text>
-              <TouchableOpacity
-                onPress={() => setShowPronounsModal(false)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <X size={24} color={TEXT_COLOR} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.pronounsPillsContainer}>
-              {pronounPresets.map((p) => {
-                const isSelected = pronouns.includes(p);
-                return (
+        <TouchableWithoutFeedback onPress={() => setShowPronounsModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={styles.pronounsModalContainer}>
+                <View style={styles.pronounsModalHeader}>
+                  <Text style={styles.pronounsModalTitle}>Select Pronouns</Text>
                   <TouchableOpacity
-                    key={p}
-                    activeOpacity={0.8}
-                    onPress={() => {
-                      const newPronouns = isSelected
-                        ? pronouns.filter((pr) => pr !== p)
-                        : [...pronouns, p];
-                      setPronouns(newPronouns);
-                      HapticsService.triggerSelection();
-                    }}
-                    style={[
-                      styles.pronounPresetPill,
-                      isSelected && styles.pronounPresetPillSelected,
-                    ]}
+                    onPress={() => setShowPronounsModal(false)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    <Text
-                      style={[
-                        styles.pronounPresetText,
-                        isSelected && styles.pronounPresetTextSelected,
-                      ]}
-                    >
-                      {p}
-                    </Text>
+                    <X size={24} color={TEXT_COLOR} />
                   </TouchableOpacity>
-                );
-              })}
-            </View>
+                </View>
 
-            <TouchableOpacity
-              style={styles.pronounsDoneButton}
-              onPress={() => setShowPronounsModal(false)}
-            >
-              <Text style={styles.pronounsDoneButtonText}>Done</Text>
-            </TouchableOpacity>
+                <View style={styles.pronounsPillsContainer}>
+                  {pronounPresets.map((p) => {
+                    const isSelected = pronouns.includes(p);
+                    return (
+                      <TouchableOpacity
+                        key={p}
+                        activeOpacity={0.8}
+                        onPress={() => {
+                          const newPronouns = isSelected
+                            ? pronouns.filter((pr) => pr !== p)
+                            : [...pronouns, p];
+                          setPronouns(newPronouns);
+                          HapticsService.triggerSelection();
+                        }}
+                        style={[
+                          styles.pronounPresetPill,
+                          isSelected && styles.pronounPresetPillSelected,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.pronounPresetText,
+                            isSelected && styles.pronounPresetTextSelected,
+                          ]}
+                        >
+                          {p}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                <TouchableOpacity
+                  style={styles.pronounsDoneButton}
+                  onPress={() => setShowPronounsModal(false)}
+                >
+                  <Text style={styles.pronounsDoneButtonText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );
