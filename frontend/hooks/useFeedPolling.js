@@ -145,10 +145,14 @@ export function useFeedPolling(options = {}) {
         appStateRef.current.match(/inactive|background/) &&
         nextAppState === 'active'
       ) {
+        // Update ref BEFORE calling forceRefresh so that checkForNewPosts()
+        // sees 'active' and doesn't bail out on its appStateRef guard.
+        appStateRef.current = nextAppState;
         console.log('[FeedPolling] App came to foreground, refreshing...');
         forceRefresh();
+      } else {
+        appStateRef.current = nextAppState;
       }
-      appStateRef.current = nextAppState;
     });
 
     return () => {

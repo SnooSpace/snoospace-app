@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { AppState } from "react-native";
-import { getAllAccounts } from "../api/auth";
+import { getAllAccounts, getActiveAccount } from "../api/auth";
 import * as accountManager from "../utils/accountManager";
 import * as sessionManager from "../utils/sessionManager";
 
@@ -60,15 +60,17 @@ async function refreshExpiredTokens() {
       return;
     }
 
-    console.log(`[TokenRefresh] Checking ${accounts.length} accounts`);
+    // Resolve the active account once so we can decide per-account whether
+    // to update the in-memory token cache (active) or storage only (background).
+    const activeAccount = await getActiveAccount();
+    const activeCompositeId = activeAccount
+      ? `${activeAccount.type}_${activeAccount.id}`
+      : null;
 
     for (const account of accounts) {
       // Check if account has tokens - isLoggedIn might be undefined for older accounts
       // Only skip if explicitly set to false (not just falsy/undefined)
       if (account.isLoggedIn === false || !account.authToken) {
-        console.log(
-          `[TokenRefresh] Skipping ${account.email} - logged out or no token`
-        );
         continue;
       }
 
@@ -76,12 +78,9 @@ async function refreshExpiredTokens() {
       const isExpired = isTokenExpiringSoon(account.authToken);
 
       if (isExpired) {
-        console.log(
-          `[TokenRefresh] Token expiring soon for ${account.email}, attempting refresh`
-        );
-        await attemptTokenRefresh(account);
-      } else {
-        console.log(`[TokenRefresh] Token valid for ${account.email}`);
+        const compositeId = `${account.type}_${account.id}`;
+        const isActive = compositeId === activeCompositeId;
+        await attemptTokenRefresh(account, compositeId, isActive);
       }
     }
   } catch (error) {
@@ -114,9 +113,20 @@ function isTokenExpiringSoon(token, bufferMinutes = 10) {
 }
 
 /**
- * Attempt to refresh token for an account
+ * Attempt to refresh token for an account.
+ *
+ * @param {object}  account     - Decrypted account object from accountManager
+ * @param {string}  compositeId - Composite key e.g. "member_28"
+ * @param {boolean} isActive    - Whether this is the currently active account.
+ *
+ * When isActive is true: routes through updateAccountTokens() which updates the
+ * in-memory cachedToken AND the Supabase realtime auth header in addition to storage.
+ *
+ * When isActive is false: updates storage only (accountManager + sessionManager).
+ * This prevents a background account's token from overwriting cachedToken, which
+ * would cause every subsequent API call to authenticate as the wrong account.
  */
-async function attemptTokenRefresh(account) {
+async function attemptTokenRefresh(account, compositeId, isActive) {
   try {
     // Validate refresh token before attempting
     if (!account.refreshToken || account.refreshToken.length < 20) {
@@ -135,22 +145,38 @@ async function attemptTokenRefresh(account) {
     try {
       const result = await sessionManager.refreshTokens(account.refreshToken);
 
-      // Update account with new tokens
-      await accountManager.updateAccount(account.id, {
-        authToken: result.accessToken,
-        refreshToken: result.refreshToken || account.refreshToken,
-      });
+      if (isActive) {
+        // Active account: use updateAccountTokens() so it sets cachedToken and
+        // updates the Supabase realtime auth header with the new JWT.
+        // Dynamic import breaks the auth ↔ accountManager circular reference.
+        // This is the same pattern used by client.js/tryRefreshAndRetry.
+        const { updateAccountTokens } = await import('../api/auth');
+        await updateAccountTokens(
+          compositeId,
+          result.accessToken,
+          result.refreshToken || account.refreshToken,
+        );
+        console.log(
+          `[TokenRefresh] ✅ Active account refreshed (cache + Supabase updated): ${account.email}`
+        );
+      } else {
+        // Background account: update storage only — do NOT touch cachedToken
+        // or Supabase auth, as those belong to the active account.
+        await accountManager.updateAccount(compositeId, {
+          authToken: result.accessToken,
+          refreshToken: result.refreshToken || account.refreshToken,
+        });
+        console.log(
+          `[TokenRefresh] ✅ Background account refreshed (storage only): ${account.email}`
+        );
+      }
 
-      // Also update sessionManager storage
-      const compositeId = `${account.type}_${account.id}`;
+      // Always update sessionManager V2 storage regardless of active/background
       await sessionManager.updateLocalSession(compositeId, {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
       });
 
-      console.log(
-        `[TokenRefresh] Successfully refreshed token for ${account.email}`
-      );
     } catch (v2Error) {
       console.error(
         `[TokenRefresh] V2 refresh failed for ${account.email}:`,

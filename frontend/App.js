@@ -37,6 +37,7 @@ import * as Notifications from "expo-notifications";
 import { registerPushTokenWithBackend } from "./services/pushNotificationService";
 import { connectSocket, disconnectSocket } from "./services/socketService";
 import { useAuthState } from "./contexts/AuthStateContext";
+import { useAppResume } from "./hooks/useAppResume";
 
 import { ToastProvider } from "./context/ToastContext";
 import AccountSwitchOverlay from "./components/ui/AccountSwitchOverlay";
@@ -56,7 +57,15 @@ function AppContent() {
   const { currentBanner, setCurrentBanner } = useNotifications();
   const navigationRef = React.useRef(null);
   const removeAppStateListenerRef = React.useRef(null);
-  const { activeAccountEmail } = useAuthState();
+  const { activeAccountEmail, refreshAuthState } = useAuthState();
+
+  // ── Central Foreground Resume Handler ────────────────────────────────────
+  // Runs a single ordered sequence on every background → foreground transition:
+  //   1. Re-check auth state (detect server-side session invalidation)
+  //   2. Reconnect socket and re-register user room
+  //   3. Emit 'appResumed' EventBus event for any other subscriber
+  // See hooks/useAppResume.js for full rationale.
+  useAppResume({ onRefreshAuthState: refreshAuthState });
 
   // ── Socket.io & Push Notifications Sync ────────────────────────────────────
   useEffect(() => {

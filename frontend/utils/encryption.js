@@ -22,7 +22,7 @@ export async function getEncryptionKey() {
       await SecureStore.setItemAsync(ENCRYPTION_KEY_NAME, key);
       console.log('[Encryption] ✓ New encryption key generated and saved, hash:', key.substring(0, 8) + '...');
     } else {
-      console.log('[Encryption] ✓ Existing encryption key found, hash:', key.substring(0, 8) + '...');
+      // Key already exists — no log needed, this is the happy path
     }
     
     return key;

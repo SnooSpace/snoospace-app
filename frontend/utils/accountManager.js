@@ -18,14 +18,6 @@ const MAX_ACCOUNTS = 5;
 export async function getAllAccounts() {
   try {
     const accountsJson = await AsyncStorage.getItem(ACCOUNTS_KEY);
-    console.log(
-      "[getAllAccounts] Raw storage:",
-      accountsJson
-        ? `${accountsJson.length} chars, ${
-            JSON.parse(accountsJson).length
-          } accounts`
-        : "EMPTY",
-    );
 
     if (!accountsJson) return [];
 
@@ -46,16 +38,6 @@ export async function getAllAccounts() {
             : null,
         };
         decryptedAccounts.push(decryptedAccount);
-        console.log(
-          "[getAllAccounts] Decrypted account:",
-          account.id,
-          "tokenLength:",
-          decryptedAccount.authToken?.length || "null",
-          "refreshLength:",
-          decryptedAccount.refreshToken?.length || "null",
-          "isLoggedIn:",
-          decryptedAccount.isLoggedIn,
-        );
       } catch (error) {
         console.error(
           `[getAllAccounts] Skipping corrupted account ${account.id}:`,
@@ -65,11 +47,6 @@ export async function getAllAccounts() {
       }
     }
 
-    console.log(
-      "[getAllAccounts] Returning",
-      decryptedAccounts.length,
-      "accounts",
-    );
     return decryptedAccounts;
   } catch (error) {
     console.error("[getAllAccounts] Error loading accounts:", error);

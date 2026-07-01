@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchNotifications, fetchUnreadCount, markAllNotificationsRead } from '../api/notifications';
 import { getSocket } from '../services/socketService';
+import EventBus from '../utils/EventBus';
 
 const NotificationsContext = createContext(null);
 
@@ -45,8 +46,18 @@ export function NotificationsProvider({ children }) {
 
     socket.on('new_notification', handleNewNotification);
 
+    // When the socket drops and reconnects (background drop, server restart, etc.)
+    // reload notifications to recover any events missed during the gap.
+    // Fires only on actual reconnects — not on every foreground — so no wasted
+    // API calls when the OS kept the socket connection alive.
+    const unsubReconnect = EventBus.on('socket:reconnected', () => {
+      console.log('[Notifications] socket:reconnected — reloading to catch missed events');
+      loadInitial();
+    });
+
     return () => {
       socket.off('new_notification', handleNewNotification);
+      unsubReconnect();
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [loadInitial]);

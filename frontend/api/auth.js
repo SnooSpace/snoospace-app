@@ -48,48 +48,14 @@ export async function setAuthSession(token, email, refreshToken) {
 
 export async function getAuthToken() {
   if (cachedToken) {
-    console.log('🔵 [TRACE:2a] getAuthToken CACHE HIT. token[0..20]:', cachedToken.substring(0, 20) + '...');
-    
-    // Decode cached JWT to extract its email/userId
-    let cachedEmail = 'unknown';
-    try {
-      const parts = cachedToken.split('.');
-      if (parts.length === 3) {
-        // Decode base64 payload
-        const payload = JSON.parse(atob(parts[1]));
-        cachedEmail = payload.email || payload.userId || 'unknown';
-      }
-    } catch (e) {
-      cachedEmail = `decode-error: ${e.message}`;
-    }
-
-    // Compare with the actual active account in accountManager
-    accountManager.getActiveAccount()
-      .then((active) => {
-        console.log(
-          `🔴 [getAuthToken] IDENTITY MISMATCH DETECTED?\n` +
-          `   -> cachedToken belongs to: ${cachedEmail}\n` +
-          `   -> Active account is:      ${active?.email || 'none'}`
-        );
-      })
-      .catch(() => {});
-
     return cachedToken;
   }
-  console.log('🔵 [TRACE:2b] getAuthToken CACHE MISS — reading from accountManager...');
   try {
     // Try new multi-account system first
     const activeAccount = await accountManager.getActiveAccount();
-    console.log('🔵 [TRACE:2c] getAuthToken accountManager returned: email=', activeAccount?.email, 'type=', activeAccount?.type, 'tokenLen=', activeAccount?.authToken?.length);
 
     // Check if active account is logged in AND has a token
     if (activeAccount?.authToken && activeAccount.isLoggedIn !== false) {
-      console.log(
-        "[getAuthToken] Using multi-account token for:",
-        activeAccount.email,
-        "length:",
-        activeAccount.authToken?.length
-      );
       cachedToken = activeAccount.authToken;
       return activeAccount.authToken;
     }
@@ -101,20 +67,15 @@ export async function getAuthToken() {
         "[getAuthToken] Active account is logged out:",
         activeAccount.email
       );
-      console.log(
-        "[getAuthToken] Returning null - caller should handle session expiry"
-      );
       cachedToken = null;
       return null;
     }
 
     const v = await AsyncStorage.getItem(KEY_TOKEN);
-    if (v) {
-      console.log("[getAuthToken] Using old storage token, length:", v?.length);
-      cachedToken = v;
-    } else {
-      console.log("[getAuthToken] No logged-in account found");
+    if (!v) {
       cachedToken = null;
+    } else {
+      cachedToken = v;
     }
     return v || null;
   } catch (error) {
