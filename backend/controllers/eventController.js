@@ -5801,6 +5801,8 @@ module.exports = {
   unlikeEventComment,
   recordEventView,
   shareEvent,
+  pinEventComment,
+  unpinEventComment,
 };
 
 /**
@@ -5933,7 +5935,7 @@ async function getEventComments(req, res) {
       LEFT JOIN members m ON ec.commenter_type = 'member' AND ec.commenter_id = m.id
       LEFT JOIN communities c ON ec.commenter_type = 'community' AND ec.commenter_id = c.id
       WHERE ec.event_id = $1 AND ec.parent_id IS NULL
-      ORDER BY ec.created_at ASC`,
+      ORDER BY ec.is_pinned DESC, ec.created_at ASC`,
       [eventId, userId || 0, userType || "member"]
     );
     const repliesRes = await pool.query(
@@ -6439,3 +6441,125 @@ async function unlikeEventComment(req, res) {
     return res.status(500).json({ error: "Failed to unlike comment" });
   }
 };
+
+// Pin an event comment
+async function pinEventComment(req, res) {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Ensure table exists and has is_pinned
+    await pool.query(`ALTER TABLE event_comments ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE`).catch(() => {});
+
+    // Get the comment and its parent event creator
+    const commentResult = await pool.query(
+      `SELECT ec.*, e.community_id
+       FROM event_comments ec
+       JOIN events e ON ec.event_id = e.id
+       WHERE ec.id = $1`,
+      [commentId]
+    );
+
+    if (commentResult.rows.length === 0) {
+      return res.status(404).json({ error: "Comment not found" });
+    }
+
+    const comment = commentResult.rows[0];
+
+    // Verify if user is the event community creator
+    if (
+      parseInt(comment.community_id) !== parseInt(userId) ||
+      userType !== "community"
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Only the event organizer can pin comments" });
+    }
+
+    // Only top-level comments can be pinned
+    if (comment.parent_id !== null) {
+      return res
+        .status(400)
+        .json({ error: "Only top-level comments can be pinned" });
+    }
+
+    // Check current pinned count for the event
+    const countCheck = await pool.query(
+      `SELECT COUNT(*)::int as count FROM event_comments WHERE event_id = $1 AND is_pinned = TRUE`,
+      [comment.event_id]
+    );
+    const pinnedCount = countCheck.rows[0]?.count || 0;
+
+    if (pinnedCount >= 3) {
+      return res.status(400).json({ error: "You can only pin up to 3 comments" });
+    }
+
+    // Pin the selected comment
+    await pool.query(
+      `UPDATE event_comments SET is_pinned = TRUE WHERE id = $1`,
+      [commentId]
+    );
+
+    res.json({ success: true, message: "Comment pinned successfully" });
+  } catch (error) {
+    console.error("Error pinning event comment:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+// Unpin an event comment
+async function unpinEventComment(req, res) {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Ensure table exists and has is_pinned
+    await pool.query(`ALTER TABLE event_comments ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE`).catch(() => {});
+
+    // Get the comment and its parent event creator
+    const commentResult = await pool.query(
+      `SELECT ec.*, e.community_id
+       FROM event_comments ec
+       JOIN events e ON ec.event_id = e.id
+       WHERE ec.id = $1`,
+      [commentId]
+    );
+
+    if (commentResult.rows.length === 0) {
+      return res.status(404).json({ error: "Comment not found" });
+    }
+
+    const comment = commentResult.rows[0];
+
+    // Verify if user is the event community creator
+    if (
+      parseInt(comment.community_id) !== parseInt(userId) ||
+      userType !== "community"
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Only the event organizer can unpin comments" });
+    }
+
+    // Unpin the comment
+    await pool.query(
+      `UPDATE event_comments SET is_pinned = FALSE WHERE id = $1`,
+      [commentId]
+    );
+
+    res.json({ success: true, message: "Comment unpinned successfully" });
+  } catch (error) {
+    console.error("Error unpining event comment:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+}

@@ -25,7 +25,7 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
 } from "react-native-reanimated";
-import { X, Send, Heart, CornerUpLeft, Trash2, ChevronUp, ChevronDown } from "lucide-react-native";
+import { X, Send, Heart, CornerUpLeft, Trash2, ChevronUp, ChevronDown, Pin } from "lucide-react-native";
 import { apiGet, apiPost, apiDelete } from "../api/client";
 import { getAuthToken, getAuthEmail, getActiveAccount } from "../api/auth";
 import { searchMembers } from "../api/search";
@@ -195,6 +195,21 @@ const CommentsModal = ({
     }
   };
 
+  const sortComments = useCallback((list) => {
+    return [...list].sort((a, b) => {
+      const aPinned = a.is_pinned ? 1 : 0;
+      const bPinned = b.is_pinned ? 1 : 0;
+      if (aPinned !== bPinned) {
+        return bPinned - aPinned;
+      }
+      return new Date(a.created_at) - new Date(b.created_at);
+    });
+  }, []);
+
+  const pinnedCommentsCount = useMemo(() => {
+    return comments.filter((c) => c.is_pinned).length;
+  }, [comments]);
+
   const loadComments = async () => {
     try {
       setLoading(true);
@@ -230,7 +245,7 @@ const CommentsModal = ({
             };
           })
         : [];
-      setComments(normalizedComments);
+      setComments(sortComments(normalizedComments));
 
       if (data?.post_author_id && data?.post_author_type) {
         setPostAuthorId(data.post_author_id);
@@ -590,6 +605,61 @@ const CommentsModal = ({
     [replyBaseRoute],
   );
 
+  const handleTogglePin = useCallback(
+    async (commentId, isPinned) => {
+      if (!isPinned) {
+        if (pinnedCommentsCount >= 3) {
+          Alert.alert("Limit Reached", "You can only pin up to 3 comments.");
+          return;
+        }
+      }
+
+      // Optimistic update in UI for instantaneous feeling
+      setComments((prevComments) => {
+        const updated = prevComments.map((comment) => {
+          if (comment.id === commentId) {
+            return { ...comment, is_pinned: !isPinned };
+          }
+          return comment;
+        });
+        return sortComments(updated);
+      });
+
+      try {
+        const token = await getAuthToken();
+        let pinRoute;
+        if (replyBaseRoute === "/opportunity-comments") {
+          pinRoute = `/opportunity-comments/${commentId}/pin`;
+        } else if (replyBaseRoute === "/event-comments") {
+          pinRoute = `/event-comments/${commentId}/pin`;
+        } else {
+          pinRoute = `/comments/${commentId}/pin`;
+        }
+        
+        if (isPinned) {
+          await apiDelete(pinRoute, null, 15000, token);
+        } else {
+          await apiPost(pinRoute, {}, 15000, token);
+        }
+        HapticsService.triggerNotificationSuccess();
+      } catch (error) {
+        console.error("Error toggling comment pin:", error);
+        // Rollback state on error
+        setComments((prevComments) => {
+          const rolledBack = prevComments.map((comment) => {
+            if (comment.id === commentId) {
+              return { ...comment, is_pinned: isPinned };
+            }
+            return comment;
+          });
+          return sortComments(rolledBack);
+        });
+        Alert.alert("Error", error?.message || "Failed to update pinned comment");
+      }
+    },
+    [replyBaseRoute, pinnedCommentsCount, sortComments],
+  );
+
   const renderComment = useCallback(
     ({ item }) => {
       const depth = item.depth || 0;
@@ -655,13 +725,16 @@ const CommentsModal = ({
               item.commenter_name || "User",
             )}&background=${placeholderBg}&color=FFFFFF`;
 
+      const isPostAuthor =
+        activeAccount &&
+        String(postAuthorId) === String(activeAccount.id) &&
+        postAuthorType === activeAccount.type;
+
       const canDelete =
         (activeAccount &&
           String(item.commenter_id) === String(activeAccount.id) &&
           item.commenter_type === activeAccount.type) ||
-        (activeAccount &&
-          String(postAuthorId) === String(activeAccount.id) &&
-          postAuthorType === activeAccount.type);
+        isPostAuthor;
 
       return (
         <View style={[styles.commentItem, { marginLeft: leftMargin }]}>
@@ -676,6 +749,12 @@ const CommentsModal = ({
               <Text style={styles.commentTime}>
                 {formatTimeAgo(item.created_at)}
               </Text>
+              {item.is_pinned && (
+                <View style={styles.pinnedBadge}>
+                  <Pin size={10} color={COLORS.primary} fill={COLORS.primary} />
+                  <Text style={styles.pinnedBadgeText}>Pinned</Text>
+                </View>
+              )}
             </View>
             <Text style={styles.commentText}>
               {(() => {
@@ -753,6 +832,18 @@ const CommentsModal = ({
                 <Text style={styles.replyButtonText}>Reply</Text>
               </TouchableOpacity>
 
+              {isPostAuthor && item.isTopLevel && (item.is_pinned || pinnedCommentsCount < 3) && (
+                <TouchableOpacity
+                  style={styles.pinButton}
+                  onPress={() => handleTogglePin(item.id, item.is_pinned)}
+                >
+                  <Pin size={12} color={item.is_pinned ? COLORS.primary : "#6B7280"} strokeWidth={2} />
+                  <Text style={[styles.pinButtonText, item.is_pinned && { color: COLORS.primary }]}>
+                    {item.is_pinned ? "Unpin" : "Pin"}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
               {hasReplies && (
                 <TouchableOpacity
                   style={styles.showRepliesButton}
@@ -822,7 +913,9 @@ const CommentsModal = ({
       postAuthorType,
       handleDeleteComment,
       handleCommentLike,
+      handleTogglePin,
       navigation,
+      pinnedCommentsCount,
     ],
   );
 
@@ -1281,8 +1374,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     paddingTop: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   headerTitle: {
     fontFamily: FONTS.semiBold,
@@ -1309,8 +1400,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   commentAvatar: {
     width: 40,
@@ -1404,8 +1493,6 @@ const styles = StyleSheet.create({
   },
   toolbarContainer: {
     backgroundColor: COLORS.dark,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
   },
   inputContainer: {
     paddingHorizontal: 20,
@@ -1591,6 +1678,32 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 15,
     color: "#FFFFFF",
+  },
+  pinnedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: 8,
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  pinnedBadgeText: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: "#4B5563",
+  },
+  pinButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  pinButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: "#6B7280",
+    lineHeight: 16,
   },
 });
 

@@ -891,6 +891,16 @@ router.delete(
   authMiddleware,
   OpportunityController.unlikeOpportunityComment,
 );
+router.post(
+  "/opportunity-comments/:commentId/pin",
+  authMiddleware,
+  OpportunityController.pinOpportunityComment,
+);
+router.delete(
+  "/opportunity-comments/:commentId/pin",
+  authMiddleware,
+  OpportunityController.unpinOpportunityComment,
+);
 
 
 // Applications
@@ -1413,6 +1423,17 @@ router.delete(
   authMiddleware,
   CommentController.unlikeComment,
 );
+router.post(
+  "/comments/:commentId/pin",
+  authMiddleware,
+  CommentController.pinComment,
+);
+router.delete(
+  "/comments/:commentId/pin",
+  authMiddleware,
+  CommentController.unpinComment,
+);
+
 
 // Follow system (member→community/sponsor/venue — unchanged)
 router.post("/follow", authMiddleware, FollowController.follow);
@@ -1651,6 +1672,8 @@ router.post("/event-comments/:commentId/reply", authMiddleware, EventController.
 router.delete("/event-comments/:commentId", authMiddleware, EventController.deleteEventComment);
 router.post("/event-comments/:commentId/like", authMiddleware, EventController.likeEventComment);
 router.delete("/event-comments/:commentId/like", authMiddleware, EventController.unlikeEventComment);
+router.post("/event-comments/:commentId/pin", authMiddleware, EventController.pinEventComment);
+router.delete("/event-comments/:commentId/pin", authMiddleware, EventController.unpinEventComment);
 // Event registration routes
 router.post(
   "/events/:eventId/register",

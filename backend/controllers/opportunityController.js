@@ -1778,9 +1778,16 @@ const ensureOpportunityCommentsTable = async () => {
       comment_text   TEXT NOT NULL,
       parent_comment_id INTEGER REFERENCES opportunity_comments(id) ON DELETE CASCADE,
       tagged_entities   JSONB,
+      is_pinned BOOLEAN DEFAULT FALSE,
       created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  try {
+    await pool.query(
+      `ALTER TABLE opportunity_comments ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE`
+    );
+  } catch (e) { /* already exists */ }
 };
 
 const getOpportunityComments = async (req, res) => {
@@ -1843,7 +1850,7 @@ const getOpportunityComments = async (req, res) => {
       LEFT JOIN sponsors    s    ON c.commenter_type = 'sponsor'   AND c.commenter_id = s.id
       LEFT JOIN venues      v    ON c.commenter_type = 'venue'     AND c.commenter_id = v.id
       WHERE c.opportunity_id = $1 AND c.parent_comment_id IS NULL
-      ORDER BY c.created_at ASC
+      ORDER BY c.is_pinned DESC, c.created_at ASC
       LIMIT $2 OFFSET $3
     `;
 
@@ -2493,6 +2500,126 @@ const proxyResume = async (req, res) => {
   }
 };
 
+// Pin an opportunity comment
+const pinOpportunityComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    await ensureOpportunityCommentsTable();
+
+    // Get the comment and its parent opportunity creator
+    const commentResult = await pool.query(
+      `SELECT c.*, o.creator_id, o.creator_type
+       FROM opportunity_comments c
+       JOIN opportunities o ON c.opportunity_id = o.id
+       WHERE c.id = $1`,
+      [commentId]
+    );
+
+    if (commentResult.rows.length === 0) {
+      return res.status(404).json({ error: "Comment not found" });
+    }
+
+    const comment = commentResult.rows[0];
+
+    // Verify if user is the opportunity creator
+    if (
+      parseInt(comment.creator_id) !== parseInt(userId) ||
+      comment.creator_type !== userType
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Only the opportunity creator can pin comments" });
+    }
+
+    // Only top-level comments can be pinned
+    if (comment.parent_comment_id !== null) {
+      return res
+        .status(400)
+        .json({ error: "Only top-level comments can be pinned" });
+    }
+
+    // Check current pinned count for the opportunity
+    const countCheck = await pool.query(
+      `SELECT COUNT(*)::int as count FROM opportunity_comments WHERE opportunity_id = $1 AND is_pinned = TRUE`,
+      [comment.opportunity_id]
+    );
+    const pinnedCount = countCheck.rows[0]?.count || 0;
+
+    if (pinnedCount >= 3) {
+      return res.status(400).json({ error: "You can only pin up to 3 comments" });
+    }
+
+    // Pin the selected comment
+    await pool.query(
+      `UPDATE opportunity_comments SET is_pinned = TRUE WHERE id = $1`,
+      [commentId]
+    );
+
+    res.json({ success: true, message: "Comment pinned successfully" });
+  } catch (error) {
+    console.error("Error pinning opportunity comment:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Unpin an opportunity comment
+const unpinOpportunityComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    await ensureOpportunityCommentsTable();
+
+    // Get the comment and its parent opportunity creator
+    const commentResult = await pool.query(
+      `SELECT c.*, o.creator_id, o.creator_type
+       FROM opportunity_comments c
+       JOIN opportunities o ON c.opportunity_id = o.id
+       WHERE c.id = $1`,
+      [commentId]
+    );
+
+    if (commentResult.rows.length === 0) {
+      return res.status(404).json({ error: "Comment not found" });
+    }
+
+    const comment = commentResult.rows[0];
+
+    // Verify if user is the opportunity creator
+    if (
+      parseInt(comment.creator_id) !== parseInt(userId) ||
+      comment.creator_type !== userType
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Only the opportunity creator can unpin comments" });
+    }
+
+    // Unpin the comment
+    await pool.query(
+      `UPDATE opportunity_comments SET is_pinned = FALSE WHERE id = $1`,
+      [commentId]
+    );
+
+    res.json({ success: true, message: "Comment unpinned successfully" });
+  } catch (error) {
+    console.error("Error unpining opportunity comment:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   createOpportunity,
   getOpportunities,
@@ -2521,4 +2648,6 @@ module.exports = {
   shareOpportunity,
   likeOpportunityComment,
   unlikeOpportunityComment,
+  pinOpportunityComment,
+  unpinOpportunityComment,
 };

@@ -199,12 +199,18 @@ async function ensureTables(pool) {
         parent_comment_id BIGINT REFERENCES post_comments(id) ON DELETE CASCADE, -- NULL for top-level comments
         comment_text TEXT NOT NULL,
         tagged_entities JSONB, -- array of {id, type, username} objects for tagged users
+        is_pinned BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
       
       -- Add tagged_entities column if it doesn't exist (for existing databases)
       DO $$ BEGIN
         ALTER TABLE post_comments ADD COLUMN IF NOT EXISTS tagged_entities JSONB;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+
+      -- Add is_pinned column if it doesn't exist (for existing databases)
+      DO $$ BEGIN
+        ALTER TABLE post_comments ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE;
       EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       
       -- Add share_count and save_count to posts table
@@ -1281,10 +1287,16 @@ async function ensureTables(pool) {
         comment_text TEXT NOT NULL,
         like_count INT NOT NULL DEFAULT 0,
         tagged_entities JSONB DEFAULT '[]',
+        is_pinned BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_event_comments_event ON event_comments(event_id);
       CREATE INDEX IF NOT EXISTS idx_event_comments_parent ON event_comments(parent_id);
+
+      -- Add is_pinned column if it doesn't exist (for existing databases)
+      DO $$ BEGIN
+        ALTER TABLE event_comments ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE;
+      EXCEPTION WHEN duplicate_column THEN NULL; END $$;
       CREATE TABLE IF NOT EXISTS event_comment_likes (
         id BIGSERIAL PRIMARY KEY,
         comment_id BIGINT NOT NULL REFERENCES event_comments(id) ON DELETE CASCADE,

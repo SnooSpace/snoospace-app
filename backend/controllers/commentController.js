@@ -532,7 +532,7 @@ const getPostComments = async (req, res) => {
         LEFT JOIN sponsors s ON c.commenter_type = 'sponsor' AND c.commenter_id = s.id
         LEFT JOIN venues v ON c.commenter_type = 'venue' AND c.commenter_id = v.id
         WHERE c.post_id = $1 AND c.parent_comment_id IS NULL
-        ORDER BY c.created_at ASC
+        ORDER BY c.is_pinned DESC, c.created_at ASC
         LIMIT $2 OFFSET $3
       `;
       queryParams = [postId, limit, offset, userId, userType];
@@ -568,7 +568,7 @@ const getPostComments = async (req, res) => {
         LEFT JOIN sponsors s ON c.commenter_type = 'sponsor' AND c.commenter_id = s.id
         LEFT JOIN venues v ON c.commenter_type = 'venue' AND c.commenter_id = v.id
         WHERE c.post_id = $1 AND c.parent_comment_id IS NULL
-        ORDER BY c.created_at ASC
+        ORDER BY c.is_pinned DESC, c.created_at ASC
         LIMIT $2 OFFSET $3
       `;
       queryParams = [postId, limit, offset];
@@ -606,7 +606,7 @@ const getPostComments = async (req, res) => {
         LEFT JOIN sponsors s ON c.commenter_type = 'sponsor' AND c.commenter_id = s.id
         LEFT JOIN venues v ON c.commenter_type = 'venue' AND c.commenter_id = v.id
         WHERE c.post_id = $1 AND c.parent_comment_id IS NULL
-        ORDER BY c.created_at ASC
+        ORDER BY c.is_pinned DESC, c.created_at ASC
         LIMIT $2 OFFSET $3
       `,
         [postId, limit, offset]
@@ -880,6 +880,122 @@ const unlikeComment = async (req, res) => {
   }
 };
 
+// Pin a comment
+const pinComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Get the comment and its parent post author
+    const commentResult = await pool.query(
+      `SELECT c.*, p.author_id as post_author_id, p.author_type as post_author_type
+       FROM post_comments c
+       JOIN posts p ON c.post_id = p.id
+       WHERE c.id = $1`,
+      [commentId]
+    );
+
+    if (commentResult.rows.length === 0) {
+      return res.status(404).json({ error: "Comment not found" });
+    }
+
+    const comment = commentResult.rows[0];
+
+    // Verify if user is the post author
+    if (
+      parseInt(comment.post_author_id) !== parseInt(userId) ||
+      comment.post_author_type !== userType
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Only the post author can pin comments" });
+    }
+
+    // Only top-level comments can be pinned
+    if (comment.parent_comment_id !== null) {
+      return res
+        .status(400)
+        .json({ error: "Only top-level comments can be pinned" });
+    }
+
+    // Check current pinned count for the post
+    const countCheck = await pool.query(
+      `SELECT COUNT(*)::int as count FROM post_comments WHERE post_id = $1 AND is_pinned = TRUE`,
+      [comment.post_id]
+    );
+    const pinnedCount = countCheck.rows[0]?.count || 0;
+
+    if (pinnedCount >= 3) {
+      return res.status(400).json({ error: "You can only pin up to 3 comments" });
+    }
+
+    // Pin the selected comment
+    await pool.query(
+      `UPDATE post_comments SET is_pinned = TRUE WHERE id = $1`,
+      [commentId]
+    );
+
+    res.json({ success: true, message: "Comment pinned successfully" });
+  } catch (error) {
+    console.error("Error pinning comment:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Unpin a comment
+const unpinComment = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // Get the comment and its parent post author
+    const commentResult = await pool.query(
+      `SELECT c.*, p.author_id as post_author_id, p.author_type as post_author_type
+       FROM post_comments c
+       JOIN posts p ON c.post_id = p.id
+       WHERE c.id = $1`,
+      [commentId]
+    );
+
+    if (commentResult.rows.length === 0) {
+      return res.status(404).json({ error: "Comment not found" });
+    }
+
+    const comment = commentResult.rows[0];
+
+    // Verify if user is the post author
+    if (
+      parseInt(comment.post_author_id) !== parseInt(userId) ||
+      comment.post_author_type !== userType
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Only the post author can unpin comments" });
+    }
+
+    // Unpin the comment
+    await pool.query(
+      `UPDATE post_comments SET is_pinned = FALSE WHERE id = $1`,
+      [commentId]
+    );
+
+    res.json({ success: true, message: "Comment unpinned successfully" });
+  } catch (error) {
+    console.error("Error unpining comment:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   createComment,
   replyToComment,
@@ -887,4 +1003,6 @@ module.exports = {
   deleteComment,
   likeComment,
   unlikeComment,
+  pinComment,
+  unpinComment,
 };
