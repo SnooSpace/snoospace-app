@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft, BadgeCheck, MapPin, Clock, Users, Lock,
-  Heart, MessageCircle, ChartNoAxesCombined, Send,
+  Heart, MessageCircle, ChartNoAxesCombined, Send, Pencil,
 } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { getAuthToken, getActiveAccount } from '../../api/auth';
@@ -15,6 +15,7 @@ import {
 } from '../../api/plans';
 import RequestBottomSheet from './RequestBottomSheet';
 import CommentsModal from '../../components/CommentsModal';
+import EditPlanBottomSheet from './EditPlanBottomSheet';
 import SnooLoader from '../../components/ui/SnooLoader';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -101,6 +102,7 @@ export default function PlanDetailScreen({ navigation, route }) {
   const [likeCount, setLikeCount] = useState(0);
   const [requestSheetOpen, setRequestSheetOpen] = useState(false);
   const [commentsModalVisible, setCommentsModalVisible] = useState(openComments || false);
+  const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
 
   const loadPlan = useCallback(async () => {
@@ -222,7 +224,13 @@ export default function PlanDetailScreen({ navigation, route }) {
           <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>Open Plans</Text>
-        <View style={{ width: 24 }} />
+        {isOwner ? (
+          <TouchableOpacity onPress={() => setEditSheetOpen(true)} hitSlop={12}>
+            <Pencil size={20} color={COLORS.primary} strokeWidth={2} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 24 }} />
+        )}
       </View>
 
       <View style={styles.container}>
@@ -298,12 +306,20 @@ export default function PlanDetailScreen({ navigation, route }) {
             </View>
 
             {/* Private location */}
-            {showPrivateLocation && plan.location_private ? (
-              <View style={styles.privateLocationBox}>
-                <Lock size={13} color="#2962FF" strokeWidth={2} />
-                <Text style={styles.privateLocationText}>{plan.location_private}</Text>
-              </View>
-            ) : null}
+            {showPrivateLocation && plan.location_private ? (() => {
+              let locLabel = plan.location_private;
+              try {
+                const parsed = JSON.parse(plan.location_private);
+                locLabel = parsed.name || parsed.address || parsed.short_address || plan.location_private;
+              } catch {}
+              return (
+                <View style={styles.privateLocationBox}>
+                  <Lock size={13} color="#2962FF" strokeWidth={2} />
+                  <Text style={styles.privateLocationText}>{locLabel}</Text>
+                </View>
+              );
+            })() : null}
+
 
             {/* Acceptance bar */}
             <View style={styles.acceptanceRow}>
@@ -426,6 +442,16 @@ export default function PlanDetailScreen({ navigation, route }) {
         navigation={navigation}
         onCommentCountChange={(newCount) => {
           setPlan(p => ({ ...p, comment_count: newCount }));
+        }}
+      />
+
+      <EditPlanBottomSheet
+        visible={editSheetOpen}
+        onClose={() => setEditSheetOpen(false)}
+        plan={plan}
+        onPlanUpdated={(updatedPlan) => {
+          setPlan(p => ({ ...p, ...updatedPlan }));
+          setEditSheetOpen(false);
         }}
       />
     </SafeAreaView>

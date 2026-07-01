@@ -47,7 +47,7 @@ const ACTIVITIES = [
   { key: "bar", label: "🍸 Bar" },
   { key: "movies", label: "🎬 Movies" },
   { key: "live_music", label: "🎵 Live Music" },
-  { key: "games", label: "🎮 Games" },
+  { key: "gaming", label: "🎮 Games" },
   { key: "gym", label: "💪 Gym" },
   { key: "yoga", label: "🧘 Yoga" },
   { key: "walk", label: "🚶 Walk" },

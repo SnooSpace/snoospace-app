@@ -348,26 +348,63 @@ async function updatePlan(req, res) {
     const userId = req.user.id;
     const planId = parseInt(req.params.planId, 10);
 
-    const allowedFields = ['title', 'custom_activity_label', 'cost_type', 'cost_amount_paise', 'location_public', 'location_private', 'max_accepted'];
+    const stringFields = ['title', 'custom_activity_label', 'cost_type', 'location_public', 'location_private'];
     const updates = [];
     const values = [];
     let idx = 1;
 
-    for (const field of allowedFields) {
+    // --- Simple string / nullable fields ---
+    for (const field of stringFields) {
       if (req.body[field] !== undefined) {
-        if (field === 'title' && (typeof req.body.title !== 'string' || req.body.title.trim().length === 0)) {
-          return res.status(400).json({ error: 'title cannot be empty' });
-        }
-        if (field === 'max_accepted') {
-          const v = parseInt(req.body.max_accepted, 10);
-          if (isNaN(v) || v < 1 || v > 50) return res.status(400).json({ error: 'max_accepted must be between 1 and 50' });
+        if (field === 'title') {
+          if (typeof req.body.title !== 'string' || req.body.title.trim().length === 0)
+            return res.status(400).json({ error: 'title cannot be empty' });
           updates.push(`${field} = $${idx++}`);
-          values.push(v);
+          values.push(req.body[field].trim());
         } else {
           updates.push(`${field} = $${idx++}`);
-          values.push(field === 'title' ? req.body[field].trim() : req.body[field]);
+          values.push(req.body[field]);
         }
       }
+    }
+
+    // --- cost_amount_paise ---
+    if (req.body.cost_amount_paise !== undefined) {
+      updates.push(`cost_amount_paise = $${idx++}`);
+      values.push(req.body.cost_amount_paise || null);
+    }
+
+    // --- max_accepted ---
+    if (req.body.max_accepted !== undefined) {
+      const v = parseInt(req.body.max_accepted, 10);
+      if (isNaN(v) || v < 1 || v > 50)
+        return res.status(400).json({ error: 'max_accepted must be between 1 and 50' });
+      updates.push(`max_accepted = $${idx++}`);
+      values.push(v);
+    }
+
+    // --- scheduled_at ---
+    if (req.body.scheduled_at !== undefined) {
+      const scheduledDate = new Date(req.body.scheduled_at);
+      if (isNaN(scheduledDate.getTime()) || scheduledDate <= new Date())
+        return res.status(400).json({ error: 'scheduled_at must be a valid future date' });
+      updates.push(`scheduled_at = $${idx++}`);
+      values.push(req.body.scheduled_at);
+      // Also extend the expiry window: 1 hour after the event
+      updates.push(`expires_at = $${idx++}`);
+      values.push(scheduledDate.toISOString());
+    }
+
+    // --- is_recurring + recurrence_interval ---
+    if (req.body.is_recurring !== undefined) {
+      const recurring = !!req.body.is_recurring;
+      const interval = recurring ? (req.body.recurrence_interval || 'weekly') : null;
+      if (recurring && interval !== 'weekly')
+        return res.status(400).json({ error: 'recurrence_interval must be weekly when is_recurring is true' });
+      updates.push(`is_recurring = $${idx++}`);
+      values.push(recurring);
+      updates.push(`recurrence_interval = $${idx++}`);
+      values.push(interval);
     }
 
     if (updates.length === 0) return res.status(400).json({ error: 'No valid fields to update' });
