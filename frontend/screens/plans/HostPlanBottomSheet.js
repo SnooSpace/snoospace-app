@@ -617,6 +617,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     gap: 4,
+    backgroundColor: COLORS.surface,
   },
   visCardActive: {
     borderColor: COLORS.primary,
@@ -695,6 +696,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 14,
     marginTop: 16,
+    backgroundColor: COLORS.surface,
   },
   recurringLeft: {
     flexDirection: 'row',

@@ -104,7 +104,7 @@ export default function SwipeableModal({
       translateY.value,
       [0, SCREEN_HEIGHT * 0.5],
       [1, 0],
-      Extrapolation.CLAMP
+      Extrapolation.CLAMP,
     );
     return {
       opacity: backdropOpacity.value * opacity,
