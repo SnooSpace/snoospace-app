@@ -31,6 +31,7 @@ async function apiRequest<T>(
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
     headers,
+    cache: "no-store",
   });
 
   const data = await response.json();
@@ -1143,6 +1144,13 @@ export async function getReports(params?: {
   if (params?.limit) query.set("limit", params.limit.toString());
 
   return apiRequest(`/admin/reports?${query.toString()}`);
+}
+
+export async function getReportById(id: number): Promise<{
+  success: boolean;
+  report: Report;
+}> {
+  return apiRequest(`/admin/reports/${id}`);
 }
 
 // Chat Reports

@@ -2544,7 +2544,18 @@ export default function MemberProfileScreen({ navigation }) {
         {/* --- Full Post Modal Viewer --- */}
         <ProfilePostFeed
           visible={postModalVisible}
-          posts={posts}
+          posts={posts.filter((p) => {
+            if (!profile?.is_creator_mode_enabled) return true;
+            const postType = p.post_type || p.type;
+            const isInteractive = [
+              "poll",
+              "prompt",
+              "qna",
+              "challenge",
+              "opportunity",
+            ].includes(postType);
+            return !isInteractive;
+          })}
           initialPostId={selectedPost?.id}
           onClose={closePostModal}
           currentUserId={profile?.id}

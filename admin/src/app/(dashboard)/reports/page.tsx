@@ -52,6 +52,7 @@ import {
   getReports,
   getReportStats,
   resolveReport,
+  getReportById,
   getChatReports,
   getChatReportById,
   resolveChatReport,
@@ -478,7 +479,17 @@ export default function ReportsPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setSelectedReport(report)}
+                              onClick={async () => {
+                                setSelectedReport(report);
+                                try {
+                                  const data = await getReportById(Number(report.id));
+                                  if (data?.success && data?.report) {
+                                    setSelectedReport(data.report);
+                                  }
+                                } catch (e) {
+                                  console.error("Failed to load report details:", e);
+                                }
+                              }}
                             >
                               Review
                             </Button>
