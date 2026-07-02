@@ -2270,6 +2270,11 @@ export default function MemberProfileScreen({ navigation }) {
                                 <OpportunityFeedCard
                                   opportunity={item}
                                   showManagementControls={isOwnProfile}
+                                  onDelete={(oppId) =>
+                                    setPosts((prev) =>
+                                      prev.filter((p) => p.id !== oppId),
+                                    )
+                                  }
                                   onPress={(opp) =>
                                     navigation.navigate("OpportunityView", {
                                       opportunityId: opp.id,

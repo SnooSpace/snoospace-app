@@ -2126,7 +2126,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                                 onShare={() => {}}
                                 onFollow={() => {}}
                                 showFollowButton={false}
-                                currentUserId={null}
+                                currentUserId={viewerId}
                                 currentUserType="member"
                                 onUserPress={() => {}}
                                 showManagementControls={false}
@@ -2216,7 +2216,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                               <View key={`plan-${item.id}-${item.role ?? 'member'}`} style={{ paddingHorizontal: 16 }}>
                                 <OpenPlanCard
                                   plan={item}
-                                  currentUserId={null}
+                                  currentUserId={viewerId}
                                   onPress={(id) => navigation.navigate('PlanDetail', { planId: id })}
                                   onRequestPress={(id) => setPlanRequestSheet({ planId: id, planTitle: item.title })}
                                   onLike={async (planId, liked) => {
@@ -2283,7 +2283,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           })}
           initialPostId={selectedPost?.id}
           onClose={closePostModal}
-          currentUserId={profile?.id}
+          currentUserId={viewerId}
           currentUserType="member"
           navigation={navigation}
           onLikeUpdate={(postId, isLiked, count) => {

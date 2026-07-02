@@ -2549,6 +2549,11 @@ export default function CommunityProfileScreen({ navigation, route }) {
                                   <OpportunityFeedCard
                                     opportunity={post}
                                     showManagementControls={true}
+                                    onDelete={(oppId) =>
+                                      setPosts((prev) =>
+                                        prev.filter((p) => p.id !== oppId),
+                                      )
+                                    }
                                     onPress={(opp) =>
                                       navigation.navigate("OpportunityView", {
                                         opportunityId: opp.id,
