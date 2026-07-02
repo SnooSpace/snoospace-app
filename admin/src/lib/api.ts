@@ -1079,6 +1079,7 @@ export interface Report {
   resolved_at: string | null;
   reporter_name: string | null;
   resolved_by_email: string | null;
+  reported_content?: any;
 }
 
 export interface ReportStats {

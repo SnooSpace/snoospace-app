@@ -102,6 +102,82 @@ async function createReport(req, res) {
 
 
 /**
+ * Fetch detailed content of reported item based on reported_type and reported_id
+ */
+async function fetchReportedContent(pool, type, id) {
+  if (!id) return null;
+  try {
+    switch (type) {
+      case 'post': {
+        const res = await pool.query(
+          `SELECT p.id, p.caption, p.post_type, p.image_urls, p.type_data,
+             CASE 
+               WHEN p.author_type = 'member' THEN (SELECT name FROM members WHERE id = p.author_id)
+               WHEN p.author_type = 'community' THEN (SELECT name FROM communities WHERE id = p.author_id)
+             END as author_name
+           FROM posts p WHERE p.id = $1`,
+          [id]
+        );
+        return res.rows[0] || null;
+      }
+      case 'comment': {
+        const res = await pool.query(
+          `SELECT c.id, c.comment_text, c.post_id,
+             CASE 
+               WHEN c.commenter_type = 'member' THEN (SELECT name FROM members WHERE id = c.commenter_id)
+               WHEN c.commenter_type = 'community' THEN (SELECT name FROM communities WHERE id = c.commenter_id)
+             END as author_name
+           FROM post_comments c WHERE c.id = $1`,
+          [id]
+        );
+        return res.rows[0] || null;
+      }
+      case 'member': {
+        const res = await pool.query(
+          `SELECT id, name, username, profile_photo_url, bio, current_college FROM members WHERE id = $1`,
+          [id]
+        );
+        return res.rows[0] || null;
+      }
+      case 'community': {
+        const res = await pool.query(
+          `SELECT id, name, username, description, logo_url, tagline FROM communities WHERE id = $1`,
+          [id]
+        );
+        return res.rows[0] || null;
+      }
+      case 'event': {
+        const res = await pool.query(
+          `SELECT e.id, e.title, e.description, e.banner_url, e.event_date, e.location_url,
+             CASE 
+               WHEN e.organizer_type = 'community' THEN (SELECT name FROM communities WHERE id = e.organizer_id)
+             END as author_name
+           FROM events e WHERE e.id = $1`,
+          [id]
+        );
+        return res.rows[0] || null;
+      }
+      case 'open_plan': {
+        const res = await pool.query(
+          `SELECT p.id, p.title, p.description, p.activity_type, p.custom_activity_label, p.scheduled_at, p.location_public,
+             CASE 
+               WHEN p.created_by_type = 'member' THEN (SELECT name FROM members WHERE id = p.created_by)
+             END as author_name
+           FROM plans p WHERE p.id = $1`,
+          [id]
+        );
+        return res.rows[0] || null;
+      }
+      default:
+        return null;
+    }
+  } catch (err) {
+    console.error(`Error fetching reported content details for ${type} #${id}:`, err.message);
+    return null;
+  }
+}
+
+/**
  * Get all reports with filters
  * @query status - pending, reviewed, resolved, dismissed
  * @query type - post, comment, member, community, event
@@ -151,9 +227,16 @@ async function getReports(req, res) {
       [...params, parseInt(limit), offset]
     );
 
+    const reportsWithContent = await Promise.all(
+      result.rows.map(async (row) => {
+        const reported_content = await fetchReportedContent(pool, row.reported_type, row.reported_id);
+        return { ...row, reported_content };
+      })
+    );
+
     res.json({
       success: true,
-      reports: result.rows,
+      reports: reportsWithContent,
       pagination: {
         total,
         page: parseInt(page),
@@ -195,7 +278,10 @@ async function getReportById(req, res) {
         .json({ success: false, error: "Report not found" });
     }
 
-    res.json({ success: true, report: result.rows[0] });
+    const report = result.rows[0];
+    report.reported_content = await fetchReportedContent(pool, report.reported_type, report.reported_id);
+
+    res.json({ success: true, report });
   } catch (error) {
     console.error("Error fetching report:", error.message);
     res.status(500).json({ success: false, error: "Failed to fetch report" });

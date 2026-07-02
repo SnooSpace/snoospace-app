@@ -144,6 +144,173 @@ export default function ReportsPage() {
     }
   }
 
+  const renderReportedContent = (report: Report) => {
+    const content = report.reported_content;
+    if (!content) {
+      return (
+        <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground text-center border border-dashed">
+          Content details not available (may have been deleted)
+        </div>
+      );
+    }
+
+    switch (report.reported_type) {
+      case "post": {
+        const typeData = content.type_data ? (typeof content.type_data === "string" ? JSON.parse(content.type_data) : content.type_data) : {};
+        let subText = "";
+        if (content.post_type === "prompt") subText = typeData.prompt_text || "";
+        else if (content.post_type === "poll") subText = typeData.question || "";
+        else if (content.post_type === "qna") subText = typeData.prompt_text || "";
+        else if (content.post_type === "challenge") subText = typeData.description || "";
+        else if (content.post_type === "opportunity") subText = typeData.description || "";
+
+        return (
+          <div className="rounded-lg border bg-card p-4 space-y-3">
+            <div className="flex items-center justify-between border-b pb-2">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm">{content.author_name || "Anonymous"}</span>
+                <Badge variant="secondary" className="capitalize text-xs">
+                  {content.post_type || "Post"}
+                </Badge>
+              </div>
+              {content.created_at && (
+                <span className="text-xs text-muted-foreground">
+                  {formatDate(content.created_at)}
+                </span>
+              )}
+            </div>
+            <div className="space-y-2">
+              {content.caption && (
+                <p className="text-sm font-medium leading-relaxed">{content.caption}</p>
+              )}
+              {subText && (
+                <div className="rounded bg-muted/60 p-2.5 text-xs text-muted-foreground italic border-l-2 border-primary/70">
+                  {subText}
+                </div>
+              )}
+              {content.image_urls && (
+                <div className="flex gap-2 flex-wrap">
+                  {(() => {
+                    try {
+                      const urls = typeof content.image_urls === "string" ? JSON.parse(content.image_urls) : content.image_urls;
+                      if (Array.isArray(urls)) {
+                        return urls.map((url: string, idx: number) => (
+                          <img key={idx} src={url} alt="Post content" className="w-16 h-16 object-cover rounded border" />
+                        ));
+                      }
+                    } catch (e) {}
+                    return null;
+                  })()}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      case "comment":
+        return (
+          <div className="rounded-lg border bg-card p-4 space-y-2">
+            <div className="flex items-center justify-between border-b pb-1">
+              <span className="font-semibold text-sm">{content.author_name || "Anonymous"}</span>
+              <span className="text-xs text-muted-foreground">Comment</span>
+            </div>
+            <p className="text-sm italic">"{content.comment_text}"</p>
+          </div>
+        );
+
+      case "member":
+        return (
+          <div className="rounded-lg border bg-card p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              {content.profile_photo_url && (
+                <img src={content.profile_photo_url} alt={content.name} className="w-12 h-12 rounded-full object-cover border" />
+              )}
+              <div>
+                <h4 className="font-semibold text-sm">{content.name}</h4>
+                <p className="text-xs text-muted-foreground">@{content.username}</p>
+              </div>
+            </div>
+            {content.bio && <p className="text-sm text-muted-foreground">{content.bio}</p>}
+            {content.current_college && (
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium">College:</span> {content.current_college}
+              </p>
+            )}
+          </div>
+        );
+
+      case "community":
+        return (
+          <div className="rounded-lg border bg-card p-4 space-y-3">
+            <div className="flex items-center gap-3">
+              {content.logo_url && (
+                <img src={content.logo_url} alt={content.name} className="w-12 h-12 rounded-lg object-cover border" />
+              )}
+              <div>
+                <h4 className="font-semibold text-sm">{content.name}</h4>
+                <p className="text-xs text-muted-foreground">@{content.username}</p>
+              </div>
+            </div>
+            {content.tagline && <p className="text-sm font-medium">{content.tagline}</p>}
+            {content.description && <p className="text-sm text-muted-foreground">{content.description}</p>}
+          </div>
+        );
+
+      case "event":
+        return (
+          <div className="rounded-lg border bg-card p-4 space-y-3">
+            <div className="flex justify-between items-start border-b pb-2">
+              <div>
+                <h4 className="font-semibold text-sm text-primary">{content.title}</h4>
+                <p className="text-xs text-muted-foreground">by {content.author_name || "Community"}</p>
+              </div>
+              {content.event_date && (
+                <span className="text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                  {new Date(content.event_date).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+            {content.description && <p className="text-sm text-muted-foreground">{content.description}</p>}
+            {content.location_url && (
+              <a href={content.location_url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:underline block truncate">
+                Map Location Link
+              </a>
+            )}
+          </div>
+        );
+
+      case "open_plan":
+        return (
+          <div className="rounded-lg border bg-card p-4 space-y-3">
+            <div className="flex justify-between items-start border-b pb-2">
+              <div>
+                <h4 className="font-semibold text-sm text-primary">{content.title}</h4>
+                <p className="text-xs text-muted-foreground">Host: {content.author_name || "User"}</p>
+              </div>
+              <Badge variant="outline" className="capitalize text-xs">
+                {content.activity_type || "Plan"}
+              </Badge>
+            </div>
+            {content.description && <p className="text-sm text-muted-foreground">{content.description}</p>}
+            {content.scheduled_at && (
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium">Scheduled:</span> {new Date(content.scheduled_at).toLocaleString()}
+              </p>
+            )}
+            {content.location_public && (
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium">Location:</span> {content.location_public}
+              </p>
+            )}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("en-US", {
       month: "short",
@@ -477,6 +644,12 @@ export default function ReportsPage() {
                   <span>•</span>
                   <span>{formatDate(selectedReport.created_at)}</span>
                 </div>
+              </div>
+
+              {/* Reported Content Box */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Reported Content</label>
+                {renderReportedContent(selectedReport)}
               </div>
 
               <div className="space-y-2">
