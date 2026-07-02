@@ -78,6 +78,7 @@ import FollowButton from "./FollowButton";
 import CustomAlertModal from "./ui/CustomAlertModal";
 import { viewQueueService } from "../services/ViewQueueService";
 import HapticsService from "../services/HapticsService";
+import ContentActionsSheet from "./ContentActionsSheet";
 
 // Import type-specific card components for special post types
 import PollPostCard from "./posts/PollPostCard";
@@ -979,8 +980,8 @@ const EditorialPostCard = ({
           </TouchableOpacity>
         )}
 
-        {/* Ellipsis Menu for Own Posts */}
-        {isOwnPost && onDelete && (
+        {/* Ellipsis Menu — own posts: Delete; non-own posts: ContentActionsSheet */}
+        {isOwnPost && onDelete ? (
           <TouchableOpacity
             style={styles.ellipsisButton}
             onPress={handleDeletePress}
@@ -988,7 +989,18 @@ const EditorialPostCard = ({
           >
             <Ellipsis size={20} color={COLORS.editorial.textSecondary} />
           </TouchableOpacity>
-        )}
+        ) : !isOwnPost && !isAnon ? (
+          <View style={styles.ellipsisButton}>
+            <ContentActionsSheet
+              type="post"
+              targetId={post.id}
+              targetName={post.author_name || post.author_username}
+              label="Post"
+              iconColor={COLORS.editorial.textSecondary}
+              iconSize={20}
+            />
+          </View>
+        ) : null}
 
         {/* [VIDEO INSIGHTS - DEFERRED] ChartBar insights button removed for v1 launch.
           Restore when re-enabling: isOwnPost && isVideo && navigation &&

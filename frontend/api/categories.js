@@ -5,7 +5,8 @@ import { apiGet, apiPost, apiDelete, apiPatch } from "./client";
  * Returns categories with their events for the new carousel-based discover feed
  */
 export const getDiscoverFeedV2 = async () => {
-  return await apiGet("/discover/v2/feed");
+  const token = await (await import('./auth')).getAuthToken();
+  return await apiGet("/discover/v2/feed", 15000, token);
 };
 
 /**

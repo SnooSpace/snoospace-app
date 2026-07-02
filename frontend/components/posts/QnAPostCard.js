@@ -64,6 +64,7 @@ import SnooLoader from "../ui/SnooLoader";
 import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
 import HapticsService from "../../services/HapticsService";
+import ContentActionsSheet from "../ContentActionsSheet";
 
 const QnAPostCard = React.memo(({
   post,
@@ -680,6 +681,18 @@ const QnAPostCard = React.memo(({
               >
                 <Ellipsis size={20} color="#5B6B7C" />
               </TouchableOpacity>
+            )}
+            {!isOwnPost && (
+              <View style={styles.ellipsisButton}>
+                <ContentActionsSheet
+                  type="post"
+                  targetId={post.id}
+                  targetName={post.author_name || post.author_username}
+                  label="Q&A"
+                  iconColor="#5B6B7C"
+                  iconSize={20}
+                />
+              </View>
             )}
             <View style={styles.avatarStack}>
               {participants.slice(0, 2).map((participant, index) => (

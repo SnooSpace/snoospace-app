@@ -70,6 +70,7 @@ import HapticsService from "../../services/HapticsService";
 import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
 import CustomImagePicker from "../CustomImagePicker";
+import ContentActionsSheet from "../ContentActionsSheet";
 
 const PromptPostCard = React.memo(({
   post,
@@ -642,6 +643,18 @@ const PromptPostCard = React.memo(({
             >
               <Ellipsis size={20} color="#5B6B7C" />
             </TouchableOpacity>
+          )}
+          {!isOwnPost && (
+            <View style={styles.ellipsisButton}>
+              <ContentActionsSheet
+                type="post"
+                targetId={post.id}
+                targetName={post.author_name || post.author_username}
+                label="Nudge"
+                iconColor="#5B6B7C"
+                iconSize={20}
+              />
+            </View>
           )}
           <View style={styles.starIconContainer}>
             <Star size={24} color="#FFB800" fill="#FFB800" />

@@ -25,7 +25,7 @@ import {
 } from 'lucide-react-native';
 import { COLORS, FONTS, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { getAuthToken } from '../../api/auth';
-import { updatePlan, uploadPlanBanner } from '../../api/plans';
+import { updatePlan, uploadPlanBanner, cancelPlan } from '../../api/plans';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import PlanCropImage from './PlanCropImage';
@@ -43,7 +43,7 @@ function formatDateTime(date, time) {
   return d.toISOString();
 }
 
-export default function EditPlanBottomSheet({ visible, onClose, plan, navigation, onPlanUpdated }) {
+export default function EditPlanBottomSheet({ visible, onClose, plan, navigation, onPlanUpdated, onPlanCancelled }) {
   const [title, setTitle] = useState('');
   const [locationPublic, setLocationPublic] = useState('');
   const [maxAccepted, setMaxAccepted] = useState(5);
@@ -54,6 +54,8 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
   const [errors, setErrors] = useState({});
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
+  const [cancelConfirming, setCancelConfirming] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   // Banner state
   const [bannerUri, setBannerUri] = useState(null);       // local URI if newly picked
@@ -73,6 +75,8 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
     setMaxAccepted(plan.max_accepted ?? 5);
     setIsRecurring(plan.is_recurring ?? false);
     setErrors({});
+    setCancelConfirming(false);
+    setCancelling(false);
 
     // Banner pre-fill
     setExistingBannerUrl(plan.banner_image_url || null);
@@ -154,6 +158,28 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
       Alert.alert('Could not save', err?.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCancelPlan = async () => {
+    if (!cancelConfirming) {
+      // Phase 1: show warning
+      setCancelConfirming(true);
+      return;
+    }
+    // Phase 2: execute
+    setCancelling(true);
+    try {
+      const token = await getAuthToken();
+      await cancelPlan(plan.id, token);
+      onClose();
+      // Notify parent to remove plan from list
+      if (onPlanCancelled) onPlanCancelled(plan.id);
+    } catch (err) {
+      Alert.alert('Error', err?.message || 'Could not cancel plan. Please try again.');
+    } finally {
+      setCancelling(false);
+      setCancelConfirming(false);
     }
   };
 
@@ -366,6 +392,49 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
               <Text style={styles.submitBtnText}>Save changes</Text>
             )}
           </TouchableOpacity>
+          {/* Cancel Plan */}
+          {plan && !['cancelled', 'completed'].includes(plan.status) && (
+            <View style={styles.cancelSection}>
+              {cancelConfirming && (
+                <View style={styles.cancelWarning}>
+                  <Text style={styles.cancelWarningText}>
+                    {plan.accepted_count > 0
+                      ? `⚠️ ${plan.accepted_count} approved attendee${plan.accepted_count > 1 ? 's' : ''} will be notified. This cannot be undone.`
+                      : 'This will cancel the plan for all requesters. This cannot be undone.'}
+                  </Text>
+                </View>
+              )}
+              <TouchableOpacity
+                style={[
+                  styles.cancelPlanBtn,
+                  cancelConfirming && styles.cancelPlanBtnConfirm,
+                  cancelling && styles.submitBtnDisabled,
+                ]}
+                onPress={handleCancelPlan}
+                disabled={cancelling || loading}
+                activeOpacity={0.8}
+              >
+                {cancelling ? (
+                  <ActivityIndicator color="#EF4444" />
+                ) : (
+                  <Text style={[
+                    styles.cancelPlanBtnText,
+                    cancelConfirming && styles.cancelPlanBtnTextConfirm,
+                  ]}>
+                    {cancelConfirming ? 'Confirm — Cancel Plan' : 'Cancel Plan'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+              {cancelConfirming && (
+                <TouchableOpacity
+                  style={styles.undoBtn}
+                  onPress={() => setCancelConfirming(false)}
+                >
+                  <Text style={styles.undoBtnText}>Never mind</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </ScrollView>
       </SwipeableModal>
 
@@ -541,6 +610,57 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 32,
+  },
+
+  // Cancel Plan section
+  cancelSection: {
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  cancelWarning: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  cancelWarningText: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: '#991B1B',
+    lineHeight: 20,
+  },
+  cancelPlanBtn: {
+    height: 50,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    backgroundColor: '#FFF5F5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelPlanBtnConfirm: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#EF4444',
+  },
+  cancelPlanBtnText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: '#EF4444',
+  },
+  cancelPlanBtnTextConfirm: {
+    color: '#DC2626',
+  },
+  undoBtn: {
+    marginTop: 8,
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  undoBtnText: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: COLORS.textMuted,
   },
 
   // Banner section

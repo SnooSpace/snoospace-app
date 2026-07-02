@@ -46,6 +46,7 @@ import {
   MessageSquare,
   Calendar,
   Image,
+  MapPin,
 } from "lucide-react";
 import {
   getReports,
@@ -75,6 +76,7 @@ const typeIcons: Record<string, React.ReactNode> = {
   member: <User className="h-4 w-4" />,
   community: <User className="h-4 w-4" />,
   event: <Calendar className="h-4 w-4" />,
+  open_plan: <MapPin className="h-4 w-4" />,
   conversation: <MessageSquare className="h-4 w-4" />,
 };
 
@@ -85,6 +87,7 @@ export default function ReportsPage() {
   const [stats, setStats] = useState<ReportStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("pending");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [selectedChatReport, setSelectedChatReport] = useState<ChatReport | null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -94,7 +97,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     fetchData();
-  }, [statusFilter, activeTab]);
+  }, [statusFilter, typeFilter, activeTab]);
 
   async function fetchData() {
     try {
@@ -103,6 +106,7 @@ export default function ReportsPage() {
         const [reportsData, statsData] = await Promise.all([
           getReports({
             status: statusFilter === "all" ? undefined : statusFilter,
+            type: typeFilter === "all" ? undefined : typeFilter,
           }),
           getReportStats(),
         ]);
@@ -222,17 +226,33 @@ export default function ReportsPage() {
                     Click on a report to review and take action
                   </CardDescription>
                 </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                    <SelectItem value="resolved">Resolved</SelectItem>
-                    <SelectItem value="dismissed">Dismissed</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue placeholder="Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="post">Post</SelectItem>
+                      <SelectItem value="event">Event</SelectItem>
+                      <SelectItem value="open_plan">Open Plan</SelectItem>
+                      <SelectItem value="member">Person</SelectItem>
+                      <SelectItem value="comment">Comment</SelectItem>
+                      <SelectItem value="community">Community</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[150px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                      <SelectItem value="dismissed">Dismissed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -270,9 +290,9 @@ export default function ReportsPage() {
                       >
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {typeIcons[report.reported_type]}
+                            {typeIcons[report.reported_type] ?? <FileText className="h-4 w-4" />}
                             <span className="capitalize">
-                              {report.reported_type}
+                              {report.reported_type === "open_plan" ? "Open Plan" : report.reported_type}
                             </span>
                           </div>
                         </TableCell>

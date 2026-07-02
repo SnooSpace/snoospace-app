@@ -35,6 +35,73 @@ async function logAdminAction(
 // ============================================================
 
 /**
+ * POST /reports  (user-facing, requires authMiddleware)
+ * Submit a report on a post, event, open_plan, member, or community.
+ * Duplicate reports from the same user on the same target return 409.
+ */
+async function createReport(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const reporterId = req.user.id;
+    const reporterType = req.user.type || 'member'; // default to member
+
+    const { reported_type, reported_id, reason, description } = req.body;
+
+    const validTypes = ['post', 'comment', 'member', 'community', 'event', 'open_plan'];
+    if (!reported_type || !validTypes.includes(reported_type)) {
+      return res.status(400).json({
+        success: false,
+        error: `reported_type must be one of: ${validTypes.join(', ')}`,
+      });
+    }
+
+    if (!reported_id) {
+      return res.status(400).json({ success: false, error: 'reported_id is required' });
+    }
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ success: false, error: 'reason is required' });
+    }
+
+    // Prevent self-reports on member type
+    if (reported_type === 'member' && String(reported_id) === String(reporterId)) {
+      return res.status(400).json({ success: false, error: 'You cannot report yourself' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO reports
+         (reporter_id, reporter_type, reported_type, reported_id, reason, description, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+       ON CONFLICT (reporter_id, reporter_type, reported_id, reported_type) DO NOTHING
+       RETURNING id`,
+      [
+        reporterId,
+        reporterType,
+        reported_type,
+        parseInt(reported_id, 10),
+        reason.trim(),
+        description?.trim() || null,
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      // ON CONFLICT — duplicate report
+      return res.status(409).json({
+        success: false,
+        error: 'already_reported',
+        message: 'You have already reported this content.',
+      });
+    }
+
+    res.status(201).json({ success: true, report_id: result.rows[0].id });
+  } catch (error) {
+    console.error('Error creating report:', error.message);
+    res.status(500).json({ success: false, error: 'Failed to submit report' });
+  }
+}
+
+
+/**
  * Get all reports with filters
  * @query status - pending, reviewed, resolved, dismissed
  * @query type - post, comment, member, community, event
@@ -470,7 +537,9 @@ async function getAuditLog(req, res) {
 }
 
 module.exports = {
-  // Reports
+  // Reports (user-facing)
+  createReport,
+  // Reports (admin)
   getReports,
   getReportById,
   resolveReport,

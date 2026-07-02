@@ -120,6 +120,15 @@ router.get(
 );
 
 // ============================================
+// USER-FACING REPORTS (Protected — any authenticated user)
+// ============================================
+router.post(
+  "/reports",
+  authMiddleware,
+  ModerationController.createReport,
+);
+
+// ============================================
 // ADMIN MODERATION (Protected)
 // ============================================
 // Reports

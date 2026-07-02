@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft, BadgeCheck, MapPin, Clock, Users, Lock,
-  Heart, MessageCircle, ChartNoAxesCombined, Send, Pencil,
+  Heart, MessageCircle, ChartNoAxesCombined, Send, Pencil, MoreHorizontal,
 } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { getAuthToken, getActiveAccount } from '../../api/auth';
@@ -18,6 +18,7 @@ import CommentsModal from '../../components/CommentsModal';
 import EditPlanBottomSheet from './EditPlanBottomSheet';
 import PlanCropImage from './PlanCropImage';
 import SnooLoader from '../../components/ui/SnooLoader';
+import ReportSheet from '../../components/ReportSheet';
 
 const CARD_PADDING = 16;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -110,6 +111,7 @@ export default function PlanDetailScreen({ navigation, route }) {
   const [commentsModalVisible, setCommentsModalVisible] = useState(openComments || false);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [reportSheetVisible, setReportSheetVisible] = useState(false);
 
   const loadPlan = useCallback(async () => {
     try {
@@ -235,7 +237,9 @@ export default function PlanDetailScreen({ navigation, route }) {
             <Pencil size={20} color={COLORS.primary} strokeWidth={2} />
           </TouchableOpacity>
         ) : (
-          <View style={{ width: 24 }} />
+          <TouchableOpacity onPress={() => setReportSheetVisible(true)} hitSlop={12}>
+            <MoreHorizontal size={22} color="#94A3B8" strokeWidth={2} />
+          </TouchableOpacity>
         )}
       </View>
 
@@ -479,6 +483,18 @@ export default function PlanDetailScreen({ navigation, route }) {
           setPlan(p => ({ ...p, ...updatedPlan }));
           setEditSheetOpen(false);
         }}
+        onPlanCancelled={() => {
+          setEditSheetOpen(false);
+          navigation.goBack();
+        }}
+      />
+
+      <ReportSheet
+        visible={reportSheetVisible}
+        onClose={() => setReportSheetVisible(false)}
+        type="open_plan"
+        targetId={plan.id}
+        targetName={plan.title}
       />
     </SafeAreaView>
   );

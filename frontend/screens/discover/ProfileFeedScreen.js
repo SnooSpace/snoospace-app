@@ -28,6 +28,7 @@ import SnooLoader from "../../components/ui/SnooLoader";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Svg, { Path, Circle, Rect, G, Defs, LinearGradient as SvgLinearGradient, Stop } from "react-native-svg";
 import { SpotifyArtistsCard } from "../../components/profile/SpotifyArtistsCard";
+import ContentActionsSheet from "../../components/ContentActionsSheet";
 
 const { width } = Dimensions.get("window");
 const CARD_RADIUS = 24;
@@ -910,7 +911,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Floating Action Bar */}
+          {/* Floating Action Bar */}
         <View style={styles.actionBar}>
           <TouchableOpacity style={styles.skipButton} onPress={handleSkip} activeOpacity={0.8}>
             <View style={styles.skipButtonGradientContainer}>
@@ -943,6 +944,22 @@ export default function ProfileFeedScreen({ route, navigation }) {
               </View>
             </View>
           </TouchableOpacity>
+
+          {/* 3-dot report button */}
+          {currentAttendee?.id && (
+            <View
+              style={styles.reportDotButton}
+            >
+              <ContentActionsSheet
+                type="member"
+                targetId={currentAttendee.id}
+                targetName={name}
+                label="Person"
+                iconColor="#64748B"
+                iconSize={20}
+              />
+            </View>
+          )}
         </View>
 
         <DiscoverFilterSheet
@@ -2588,5 +2605,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     zIndex: 9999,
+  },
+  reportDotButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.75)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(100,116,139,0.15)",
+    marginLeft: 8,
   },
 });

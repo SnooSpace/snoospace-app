@@ -50,6 +50,7 @@ import HapticsService from "../services/HapticsService";
 import EventBus from "../utils/EventBus";
 import { getActiveAccount } from "../api/auth";
 import CommentsModal from "./CommentsModal";
+import ContentActionsSheet from "./ContentActionsSheet";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 40; // 20px padding on each side
@@ -1226,6 +1227,16 @@ function EventCard({
                 <Send size={22} color="#5e8d9b" strokeWidth={2} />
                 <Text style={styles.engagementCount}>{shareCount}</Text>
               </GHPressable>
+              <View style={[styles.engagementBtn, { justifyContent: 'center' }]}>
+                <ContentActionsSheet
+                  type="event"
+                  targetId={id}
+                  targetName={title}
+                  label="Event"
+                  iconColor="#5e8d9b"
+                  iconSize={22}
+                />
+              </View>
             </View>
           )}
 

@@ -76,6 +76,7 @@ import {
   getExtensionBadgeText,
   getTimeRemaining,
 } from "../../utils/cardTiming";
+import ContentActionsSheet from "../ContentActionsSheet";
 
 const ChallengePostCard = React.memo(({
   post,
@@ -849,6 +850,18 @@ const ChallengePostCard = React.memo(({
               >
                 <Ellipsis size={20} color="#5B6B7C" />
               </TouchableOpacity>
+            )}
+            {!isOwnPost && (
+              <View style={styles.ellipsisButton}>
+                <ContentActionsSheet
+                  type="post"
+                  targetId={post.id}
+                  targetName={post.author_name || post.author_username}
+                  label="Challenge"
+                  iconColor="#5B6B7C"
+                  iconSize={20}
+                />
+              </View>
             )}
             <View style={styles.trophyContainer}>
               <Trophy size={20} color="#EAB308" />

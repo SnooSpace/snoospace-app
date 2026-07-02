@@ -51,6 +51,7 @@ import { getExtensionBadgeText } from "../../utils/cardTiming";
 import SnooLoader from "../ui/SnooLoader";
 import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
+import ContentActionsSheet from "../ContentActionsSheet";
 
 const PollPostCard = React.memo(({
   post,
@@ -611,6 +612,18 @@ const PollPostCard = React.memo(({
               >
                 <Ellipsis size={20} color="#5B6B7C" />
               </TouchableOpacity>
+            )}
+            {!isOwnPost && !isAnon && (
+              <View style={styles.ellipsisButton}>
+                <ContentActionsSheet
+                  type="post"
+                  targetId={post.id}
+                  targetName={post.author_name || post.author_username}
+                  label="Poll"
+                  iconColor="#5B6B7C"
+                  iconSize={20}
+                />
+              </View>
             )}
             <TouchableOpacity
               style={styles.pollIconContainer}

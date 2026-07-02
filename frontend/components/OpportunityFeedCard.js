@@ -57,6 +57,7 @@ import CountdownTimer from "./CountdownTimer";
 import CommentsModal from "./CommentsModal";
 import EventBus from "../utils/EventBus";
 import HapticsService from "../services/HapticsService";
+import ContentActionsSheet from "./ContentActionsSheet";
 
 // Static Helper Functions (Extracted outside the component scope)
 const formatTimeAgo = (dateStr) => {
@@ -569,6 +570,20 @@ const OpportunityFeedCard = React.memo(({
               >
                 <MoreHorizontal size={20} color="#5B6B7C" strokeWidth={2} />
               </TouchableOpacity>
+            )}
+
+            {/* Report ⋯ — shown only to non-creators */}
+            {!isCreator && (
+              <View style={styles.menuButton}>
+                <ContentActionsSheet
+                  type="post"
+                  targetId={opportunity.id}
+                  targetName={opportunity.creator_name || opportunity.title}
+                  label="Opportunity"
+                  iconColor="#5B6B7C"
+                  iconSize={20}
+                />
+              </View>
             )}
  
             <View style={styles.iconContainer}>

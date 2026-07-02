@@ -12,6 +12,7 @@ import RequestBottomSheet from './RequestBottomSheet';
 import EditPlanBottomSheet from './EditPlanBottomSheet';
 import PlanCropImage from './PlanCropImage';
 import EventBus from '../../utils/EventBus';
+import ContentActionsSheet from '../../components/ContentActionsSheet';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const ACTIVITY_COLORS = {
@@ -114,6 +115,11 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
     setPlans(prev => [newPlan, ...prev].slice(0, 6));
   }, []);
 
+  const handlePlanCancelled = useCallback((planId) => {
+    setPlans(prev => prev.filter(p => p.id !== planId));
+    setEditingPlan(null);
+  }, []);
+
   const renderOpenPlanCard = useCallback((plan) => {
     const isOwner = currentUserIdState && (plan.created_by === currentUserIdState || plan.created_by === String(currentUserIdState));
     const activityKey = plan.activity_type in ACTIVITY_COLORS ? plan.activity_type : 'other';
@@ -185,8 +191,8 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
             </View>
           )}
 
-          {/* Bottom-Right Edit Button (for owner) */}
-          {isOwner && (
+          {/* Bottom-Right: Edit (owner) or Report (non-owner) */}
+          {isOwner ? (
             <TouchableOpacity
               style={styles.cardEditBtn}
               onPress={(e) => {
@@ -197,6 +203,19 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
             >
               <Pencil size={11} color="#FFFFFF" strokeWidth={2.5} />
             </TouchableOpacity>
+          ) : (
+            <View
+              style={styles.cardEditBtn}
+            >
+              <ContentActionsSheet
+                type="open_plan"
+                targetId={plan.id}
+                targetName={plan.title}
+                label="Open Plan"
+                iconColor="#FFFFFF"
+                iconSize={13}
+              />
+            </View>
           )}
         </View>
 
@@ -326,6 +345,7 @@ export default function OpenPlansSection({ navigation, currentUserId, refreshKey
             setPlans(prev => prev.map(p => p.id === updatedPlan.id ? { ...p, ...updatedPlan } : p));
             setEditingPlan(null);
           }}
+          onPlanCancelled={handlePlanCancelled}
         />
       )}
     </View>
