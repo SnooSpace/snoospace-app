@@ -170,19 +170,141 @@ export default function ReportsPage() {
     switch (report.reported_type) {
       case "post": {
         const typeData = content.type_data ? (typeof content.type_data === "string" ? JSON.parse(content.type_data) : content.type_data) : {};
-        let subText = "";
-        if (content.post_type === "prompt") subText = typeData.prompt_text || "";
-        else if (content.post_type === "poll") subText = typeData.question || "";
-        else if (content.post_type === "qna") subText = typeData.prompt_text || "";
-        else if (content.post_type === "challenge") subText = typeData.description || "";
-        else if (content.post_type === "opportunity") subText = typeData.description || "";
+
+        // Render based on post_type
+        if (content.post_type === "poll") {
+          const options = Array.isArray(typeData.options) ? typeData.options : [];
+          return (
+            <div className="rounded-lg border bg-card p-4 space-y-3">
+              <div className="flex items-center justify-between border-b pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm">{content.author_name || "Anonymous"}</span>
+                  <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 border-none font-semibold">
+                    Poll
+                  </Badge>
+                </div>
+                {content.created_at && (
+                  <span className="text-xs text-muted-foreground">{formatDate(content.created_at)}</span>
+                )}
+              </div>
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold">{typeData.question || content.caption}</h4>
+                {content.caption && content.caption !== typeData.question && (
+                  <p className="text-xs text-muted-foreground">{content.caption}</p>
+                )}
+                <div className="space-y-1.5 pt-1">
+                  {options.map((opt: any, idx: number) => {
+                    const optText = typeof opt === "string" ? opt : (opt.text || opt.option_text || "");
+                    const votes = typeof opt === "object" && opt.votes !== undefined ? Number(opt.votes) : 0;
+                    return (
+                      <div key={idx} className="flex justify-between items-center text-xs p-2 rounded bg-muted/50 border border-border">
+                        <span className="font-medium">{optText}</span>
+                        <span className="text-muted-foreground font-semibold">{votes} votes</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        if (content.post_type === "challenge") {
+          return (
+            <div className="rounded-lg border bg-card p-4 space-y-3">
+              <div className="flex items-center justify-between border-b pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm">{content.author_name || "Anonymous"}</span>
+                  <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 border-none font-semibold">
+                    Challenge
+                  </Badge>
+                </div>
+                {content.created_at && (
+                  <span className="text-xs text-muted-foreground">{formatDate(content.created_at)}</span>
+                )}
+              </div>
+              <div className="space-y-2 text-sm">
+                <h4 className="font-semibold">{typeData.title || content.caption}</h4>
+                {typeData.description && <p className="text-muted-foreground text-xs leading-relaxed">{typeData.description}</p>}
+                <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                  <div className="p-2 rounded bg-muted/40 border">
+                    <span className="font-semibold block text-muted-foreground text-[10px] uppercase">Type</span>
+                    <span className="capitalize font-medium">{typeData.challenge_type || "Standard"}</span>
+                  </div>
+                  <div className="p-2 rounded bg-muted/40 border">
+                    <span className="font-semibold block text-muted-foreground text-[10px] uppercase">Submissions</span>
+                    <span className="font-medium">{typeData.submission_count || 0} / {typeData.target_count || "unlimited"}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        if (content.post_type === "opportunity") {
+          const roles = Array.isArray(typeData.roles) ? typeData.roles : 
+                        (Array.isArray(content.opportunity_types) ? content.opportunity_types : []);
+          return (
+            <div className="rounded-lg border bg-card p-4 space-y-3">
+              <div className="flex items-center justify-between border-b pb-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm">{content.author_name || "Anonymous"}</span>
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-none font-semibold">
+                    Opportunity
+                  </Badge>
+                </div>
+                {content.created_at && (
+                  <span className="text-xs text-muted-foreground">{formatDate(content.created_at)}</span>
+                )}
+              </div>
+              <div className="space-y-2 text-sm">
+                <h4 className="font-semibold text-primary">{typeData.title || content.caption}</h4>
+                {(typeData.description || content.caption) && (
+                  <p className="text-muted-foreground text-xs leading-relaxed">{typeData.description || content.caption}</p>
+                )}
+                {roles.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {roles.map((r: string, idx: number) => (
+                      <Badge key={idx} variant="outline" className="text-[10px] px-2 py-0 border-primary/30">
+                        {r}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+                <div className="grid grid-cols-3 gap-2 text-xs pt-1.5">
+                  <div className="p-2 rounded bg-muted/40 border">
+                    <span className="font-semibold block text-muted-foreground text-[9px] uppercase">Mode</span>
+                    <span className="font-medium">{typeData.work_mode || "Remote"}</span>
+                  </div>
+                  <div className="p-2 rounded bg-muted/40 border">
+                    <span className="font-semibold block text-muted-foreground text-[9px] uppercase">Nature</span>
+                    <span className="font-medium capitalize">{typeData.payment_nature || "Negotiable"}</span>
+                  </div>
+                  <div className="p-2 rounded bg-muted/40 border">
+                    <span className="font-semibold block text-muted-foreground text-[9px] uppercase">Budget</span>
+                    <span className="font-medium">{typeData.budget_range || "N/A"}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        // Prompts, QnAs, and default Media / Image Carousel Posts
+        const isPrompt = content.post_type === "prompt";
+        const isQna = content.post_type === "qna";
+        const promptText = isPrompt || isQna ? (typeData.prompt_text || typeData.question || "") : "";
+
+        let badgeClass = "bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300";
+        if (isPrompt) badgeClass = "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300";
+        if (isQna) badgeClass = "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300";
 
         return (
           <div className="rounded-lg border bg-card p-4 space-y-3">
             <div className="flex items-center justify-between border-b pb-2">
               <div className="flex items-center gap-2">
                 <span className="font-semibold text-sm">{content.author_name || "Anonymous"}</span>
-                <Badge variant="secondary" className="capitalize text-xs">
+                <Badge variant="secondary" className={`${badgeClass} border-none font-semibold capitalize text-xs`}>
                   {content.post_type || "Post"}
                 </Badge>
               </div>
@@ -196,9 +318,9 @@ export default function ReportsPage() {
               {content.caption && (
                 <p className="text-sm font-medium leading-relaxed">{content.caption}</p>
               )}
-              {subText && (
+              {promptText && (
                 <div className="rounded bg-muted/60 p-2.5 text-xs text-muted-foreground italic border-l-2 border-primary/70">
-                  {subText}
+                  "{promptText}"
                 </div>
               )}
               {content.image_urls && (
