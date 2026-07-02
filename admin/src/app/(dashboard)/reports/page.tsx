@@ -145,6 +145,18 @@ export default function ReportsPage() {
     }
   }
 
+  const isVideoUrl = (url: string) => {
+    if (!url) return false;
+    const lowercase = url.toLowerCase();
+    return (
+      lowercase.endsWith(".mp4") ||
+      lowercase.endsWith(".mov") ||
+      lowercase.endsWith(".webm") ||
+      lowercase.endsWith(".avi") ||
+      lowercase.includes("/video/upload/")
+    );
+  };
+
   const renderReportedContent = (report: Report) => {
     const content = report.reported_content;
     if (!content) {
@@ -195,9 +207,27 @@ export default function ReportsPage() {
                     try {
                       const urls = typeof content.image_urls === "string" ? JSON.parse(content.image_urls) : content.image_urls;
                       if (Array.isArray(urls)) {
-                        return urls.map((url: string, idx: number) => (
-                          <img key={idx} src={url} alt="Post content" className="w-16 h-16 object-cover rounded border" />
-                        ));
+                        return urls.map((url: string, idx: number) => {
+                          if (isVideoUrl(url)) {
+                            return (
+                              <video
+                                key={idx}
+                                src={url}
+                                className="w-full max-h-[240px] object-contain rounded border bg-black"
+                                controls
+                                preload="metadata"
+                              />
+                            );
+                          }
+                          return (
+                            <img
+                              key={idx}
+                              src={url}
+                              alt="Post content"
+                              className="w-24 h-24 object-cover rounded border"
+                            />
+                          );
+                        });
                       }
                     } catch (e) {}
                     return null;
