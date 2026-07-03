@@ -24,6 +24,7 @@ import { apiPatch } from '../../../api/client';
 import { getAuthToken } from '../../../api/auth';
 import EventBus from '../../../utils/EventBus';
 import DynamicStatusBar from '../../../components/DynamicStatusBar';
+import RemoveInstagramModal from '../../../components/modals/RemoveInstagramModal';
 
 /**
  * LinkedAccountsScreen
@@ -47,6 +48,7 @@ export default function LinkedAccountsScreen({ route, navigation }) {
   );
   const [inputError, setInputError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [isRemoveModalVisible, setIsRemoveModalVisible] = useState(false);
   const inputRef = useRef(null);
 
   // ─── Open Instagram ───────────────────────────────────────────────────────
@@ -110,36 +112,27 @@ export default function LinkedAccountsScreen({ route, navigation }) {
   // ─── Remove ───────────────────────────────────────────────────────────────
   const handleRemove = useCallback(() => {
     HapticsService.triggerImpactLight();
-    Alert.alert(
-      'Remove Instagram',
-      'This will remove @' + linked + ' from your profile.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              setSaving(true);
-              const token = await getAuthToken();
-              await apiPatch('/members/profile', { instagram_username: null }, 15000, token);
-              HapticsService.triggerNotificationSuccess();
-              setLinked(null);
-              setInputValue('');
-              setEditing(true);
-              // Notify SettingsScreen of the removal
-              EventBus.emit('instagram:updated', { username: null });
-            } catch (err) {
-              console.error('[LinkedAccountsScreen] remove error:', err);
-              Alert.alert('Error', 'Could not remove Instagram. Please try again.');
-            } finally {
-              setSaving(false);
-            }
-          },
-        },
-      ]
-    );
-  }, [linked]);
+    setIsRemoveModalVisible(true);
+  }, []);
+
+  const handleConfirmRemove = useCallback(async () => {
+    try {
+      setSaving(true);
+      const token = await getAuthToken();
+      await apiPatch('/members/profile', { instagram_username: null }, 15000, token);
+      HapticsService.triggerNotificationSuccess();
+      setLinked(null);
+      setInputValue('');
+      setEditing(true);
+      // Notify SettingsScreen of the removal
+      EventBus.emit('instagram:updated', { username: null });
+    } catch (err) {
+      console.error('[LinkedAccountsScreen] remove error:', err);
+      Alert.alert('Error', 'Could not remove Instagram. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }, []);
 
   // ─── Cancel edit ─────────────────────────────────────────────────────────
   const handleCancelEdit = useCallback(() => {
@@ -329,6 +322,13 @@ export default function LinkedAccountsScreen({ route, navigation }) {
           </Text>
         </ScrollView>
       </SafeAreaView>
+
+      <RemoveInstagramModal
+        visible={isRemoveModalVisible}
+        onClose={() => setIsRemoveModalVisible(false)}
+        onConfirm={handleConfirmRemove}
+        username={linked}
+      />
     </View>
   );
 }
