@@ -103,9 +103,20 @@ const ProfileTabButton = ({
                   ? "VenueHome"
                   : "Landing";
 
+        // Walk up to root navigator.
+        // After a background→foreground transition, getParent() can return
+        // undefined instead of null, so we must guard each step explicitly.
         let rootNav = navigation;
-        while (rootNav.getParent && rootNav.getParent()) {
-          rootNav = rootNav.getParent();
+        let parent = rootNav.getParent ? rootNav.getParent() : null;
+        while (parent) {
+          rootNav = parent;
+          parent = rootNav.getParent ? rootNav.getParent() : null;
+        }
+
+        if (!rootNav || !rootNav.dispatch) {
+          console.warn('[DoubleTapCycle] Root navigator unavailable, skipping dispatch');
+          navigateToProfile();
+          return;
         }
 
         rootNav.dispatch(

@@ -257,12 +257,6 @@ export async function switchAccount(accountId) {
     const { incrementAccountSwitchGeneration } = await import("../api/client");
     const newGeneration = incrementAccountSwitchGeneration();
 
-    console.log(
-      "[switchAccount] Starting switch to account:",
-      accountId,
-      "generation:",
-      newGeneration,
-    );
     const accounts = await getAllAccounts();
     const accountIdStr = String(accountId);
 
@@ -282,15 +276,6 @@ export async function switchAccount(accountId) {
       console.error("[switchAccount] Cannot switch to logged-out account");
       throw new Error("This account is logged out. Please log in again.");
     }
-
-    console.log("[switchAccount] Found account:", {
-      id: account.id,
-      email: account.email,
-      type: account.type,
-      isLoggedIn: account.isLoggedIn,
-      tokenLength: account.authToken?.length,
-      refreshTokenLength: account.refreshToken?.length,
-    });
 
     // Validate token before switching
     if (!account.authToken) {
@@ -312,28 +297,15 @@ export async function switchAccount(accountId) {
 
     // Set as active using composite key
     await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, compositeId);
-    console.log("[switchAccount] Set active account ID:", compositeId);
 
     // Emit event for global handling
     if (authEventEmitter) {
-      console.log('🔵 [TRACE:4a] switchAccount emitting on authEventEmitter. ID:', authEventEmitter._traceId || '(no id)', '| switching TO email:', account.email);
       authEventEmitter.emit("accountSwitched", {
         accountId: account.id,
         email: account.email,
         type: account.type,
       });
-      console.log('🔵 [TRACE:4b] switchAccount emit complete.');
-    } else {
-      console.log('🔵 [TRACE:4a] switchAccount: NO authEventEmitter available!');
     }
-
-    // Double-check the active account after switch
-    const verifyActiveAccount = await getActiveAccount();
-    console.log("[switchAccount] Post-switch verification:", {
-      activeId: verifyActiveAccount?.id,
-      activeEmail: verifyActiveAccount?.email,
-      activeTokenLength: verifyActiveAccount?.authToken?.length,
-    });
 
     return account;
   } catch (error) {
