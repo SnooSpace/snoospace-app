@@ -1305,8 +1305,8 @@ async function patchHeads(req, res) {
     if (!Array.isArray(heads) || heads.length === 0) {
       return res.status(400).json({ error: "heads[] required" });
     }
-    if (heads.length > 5) {
-      return res.status(400).json({ error: "You can add at most 5 heads" });
+    if (heads.length > 10) {
+      return res.status(400).json({ error: "You can add at most 10 heads" });
     }
     const primaryCount = heads.filter((h) => h && h.is_primary).length;
     if (primaryCount !== 1) {

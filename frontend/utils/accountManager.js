@@ -235,97 +235,92 @@ export async function addAccount(accountData) {
  * Validates that target account is logged in before switching
  */
 export async function switchAccount(accountId) {
+  const switchStart = Date.now();
+
   try {
-    // CRITICAL: Clear like cache for previous account BEFORE switch
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] START: Switching to account ID:`, accountId);
+
+    // Step 1: Clear like cache
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 1: Getting active account to clear like cache...`);
     const previousAccount = await getActiveAccount();
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 1: Active account returned:`, previousAccount?.id);
+
     if (previousAccount) {
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 1.1: Importing LikeStateManager...`);
       const LikeStateManager = (await import("./LikeStateManager")).default;
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 1.2: Clearing like cache...`);
       LikeStateManager.clearAccountCache(
         previousAccount.type,
         previousAccount.id,
       );
-      console.log(
-        "[switchAccount] Cleared like cache for:",
-        previousAccount.type,
-        previousAccount.id,
-      );
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 1.3: Cleared like cache.`);
 
-      // Clear viewed-posts cache so the new account's view tracking starts fresh
+      // Step 2: Clear viewed posts cache
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 2.1: Importing ViewQueueService...`);
       const { viewQueueService } = await import("../services/ViewQueueService");
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 2.2: Awaiting viewQueueService.resetForAccountSwitch()...`);
       await viewQueueService.resetForAccountSwitch();
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 2.3: Reset viewed posts cache complete.`);
     }
 
-    // CRITICAL: Increment generation FIRST to invalidate all in-flight requests
-    // from the previous account session. This prevents token corruption.
+    // Step 3: Increment generation
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 3.1: Importing api/client...`);
     const { incrementAccountSwitchGeneration } = await import("../api/client");
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 3.2: Incrementing generation...`);
     const newGeneration = incrementAccountSwitchGeneration();
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 3.3: Generation incremented to:`, newGeneration);
 
+    // Step 4: Get and find account
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 4.1: Awaiting getAllAccounts()...`);
     const accounts = await getAllAccounts();
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 4.2: Found ${accounts.length} stored accounts. Finding target...`);
     const accountIdStr = String(accountId);
-
-    // Support both composite key (type_id) and legacy (just id) formats
     const account = accounts.find((acc) => {
       const compositeId = `${acc.type}_${acc.id}`;
       return compositeId === accountIdStr || String(acc.id) === accountIdStr;
     });
 
     if (!account) {
-      console.error("[switchAccount] Account not found");
+      console.error(`[switchAccount] [${Date.now() - switchStart}ms] ERROR: Target account not found in list`);
       throw new Error("Account not found");
     }
 
-    // Check if account is logged out
+    // Step 5: Validate target account state
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 5: Validating target account login status for:`, account.email);
     if (account.isLoggedIn === false) {
-      console.error("[switchAccount] Cannot switch to logged-out account");
       throw new Error("This account is logged out. Please log in again.");
     }
-
-    // Validate token before switching
     if (!account.authToken) {
-      console.error("[switchAccount] Account has no auth token!");
       throw new Error("Account token is missing");
     }
 
-    if (account.authToken.length < 100) {
-      console.warn(
-        "[switchAccount] ⚠️ Token seems unusually short:",
-        account.authToken.length,
-        "chars - may be corrupted",
-      );
-    }
-
-    // Update last active time
+    // Step 6: Update active account record in storage
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 6.1: Updating last active...`);
     const compositeId = `${account.type}_${account.id}`;
     await updateAccount(compositeId, { lastActive: Date.now() });
 
-    // Set as active using composite key
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 6.2: Writing ACTIVE_ACCOUNT_KEY to AsyncStorage...`);
     await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, compositeId);
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 6.3: ACTIVE_ACCOUNT_KEY successfully written.`);
 
-    // IMPORTANT: dispatch asynchronously — do not make this synchronous.
-    //
-    // Convention: utility modules must not synchronously trigger global React
-    // state updates. Emitting "accountSwitched" synchronously here causes
-    // AuthStateContext's listener to call setActiveAccountEmail() in the same
-    // JS execution frame, scheduling a React state update while media components
-    // may still be mounting or unmounting. This re-entrancy produced a
-    // TypeError at runtime ("Cannot read property 'reload' of undefined").
-    //
-    // setImmediate defers the notification until after switchAccount() returns
-    // and the current call stack fully unwinds, giving React a clean frame
-    // before any global state update is enqueued.
+    // Step 7: Emit event for global handling
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 7: Scheduling accountSwitched event emit...`);
     if (authEventEmitter) {
       setImmediate(() => {
+        console.log(`[switchAccount] [${Date.now() - switchStart}ms] setImmediate: Emitting accountSwitched for:`, account.email);
         authEventEmitter.emit("accountSwitched", {
           accountId: account.id,
           email: account.email,
           type: account.type,
         });
+        console.log(`[switchAccount] [${Date.now() - switchStart}ms] setImmediate: accountSwitched event emitted.`);
       });
     }
 
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] SUCCESS: Switch complete for:`, account.email);
     return account;
   } catch (error) {
-    console.error("[switchAccount] Error switching account:", error);
+    console.error(`[switchAccount] [${Date.now() - switchStart}ms] ERROR during switch account:`, error);
     throw error;
   }
 }

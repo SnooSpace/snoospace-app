@@ -442,6 +442,10 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
   };
 
   const addHead = () => {
+    if (heads.length >= 10) {
+      Alert.alert("Limit Reached", "You can add at most 10 organizers.");
+      return;
+    }
     setHeads([...heads, { name: "", role: "", photoUri: null, uploadedUrl: null }]);
   };
 
@@ -632,7 +636,12 @@ const CommunityHeadNameScreen = ({ navigation, route }) => {
                     </Animated.View>
                   ))}
 
-                  <TouchableOpacity style={styles.addButton} onPress={addHead} activeOpacity={0.7}>
+                  <TouchableOpacity
+                    style={[styles.addButton, heads.length >= 10 && { opacity: 0.5 }]}
+                    onPress={addHead}
+                    disabled={heads.length >= 10}
+                    activeOpacity={0.7}
+                  >
                     <View style={styles.addButtonIconContainer}>
                       <PlusCircle size={20} color={COLORS.primary} strokeWidth={2.5} />
                     </View>

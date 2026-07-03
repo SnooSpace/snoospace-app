@@ -30,15 +30,19 @@ const ProfileTabButton = (props) => {
       lastTapRef.current = 0;
       // Provide instant feedback
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      const cycleStart = Date.now();
+
+      console.log(`[CommunityBottomTabNavigator:DoubleTapCycle] [${Date.now() - cycleStart}ms] Emitting account-switch-start`);
       EventBus.emit("account-switch-start");
 
       try {
+        console.log(`[CommunityBottomTabNavigator:DoubleTapCycle] [${Date.now() - cycleStart}ms] Awaiting getAllAccounts()...`);
         const allAccounts = await getAllAccounts();
         if (allAccounts && allAccounts.length > 1) {
+          console.log(`[CommunityBottomTabNavigator:DoubleTapCycle] [${Date.now() - cycleStart}ms] Awaiting getActiveAccount()...`);
           const activeAccount = await getActiveAccount();
           if (activeAccount) {
-            // CRITICAL: Use composite key (type_id) so member_28 and community_28
-            // are distinguished correctly and we find the exact active account.
             const activeCompositeId = `${activeAccount.type}_${activeAccount.id}`;
             const activeIndex = allAccounts.findIndex(
               (a) => `${a.type}_${a.id}` === activeCompositeId,
@@ -46,9 +50,13 @@ const ProfileTabButton = (props) => {
             if (activeIndex !== -1) {
               const nextIndex = (activeIndex + 1) % allAccounts.length;
               const nextAccount = allAccounts[nextIndex];
-              // Pass composite key so accountManager picks the exact account type
               const nextCompositeId = `${nextAccount.type}_${nextAccount.id}`;
+
+              console.log(`[CommunityBottomTabNavigator:DoubleTapCycle] [${Date.now() - cycleStart}ms] Awaiting switchAccount for ${nextCompositeId}...`);
               await switchAccount(nextCompositeId);
+              console.log(`[CommunityBottomTabNavigator:DoubleTapCycle] [${Date.now() - cycleStart}ms] switchAccount finished successfully.`);
+
+              console.log(`[CommunityBottomTabNavigator:DoubleTapCycle] [${Date.now() - cycleStart}ms] Emitting account-switch-done`);
               EventBus.emit("account-switch-done", {
                 name: nextAccount.name || nextAccount.username || "",
                 username: nextAccount.username || "",
@@ -57,43 +65,48 @@ const ProfileTabButton = (props) => {
 
               // 350ms delay: gives Reanimated spring/scroll animations time to
               // fully settle before React tears down the current component tree.
-              // 50ms was too short and caused "Expected static flag was missing".
               setTimeout(() => {
-                const routeMap = {
-                  member: "MemberHome",
-                  community: "CommunityHome",
-                  sponsor: "SponsorHome",
-                  venue: "VenueHome",
-                };
-                const routeName = routeMap[nextAccount.type] || "Landing";
+                try {
+                  const routeMap = {
+                    member: "MemberHome",
+                    community: "CommunityHome",
+                    sponsor: "SponsorHome",
+                    venue: "VenueHome",
+                  };
+                  const routeName = routeMap[nextAccount.type] || "Landing";
 
-                // Guard: getParent() can return undefined (not null) after
-                // a background→foreground transition.
-                let rootNav = navigation;
-                let parent = rootNav.getParent ? rootNav.getParent() : null;
-                while (parent) {
-                  rootNav = parent;
-                  parent = rootNav.getParent ? rootNav.getParent() : null;
+                  console.log(`[CommunityBottomTabNavigator:DoubleTapCycle] [${Date.now() - cycleStart}ms] Resetting stack to:`, routeName);
+
+                  let rootNav = navigation;
+                  let parent = rootNav.getParent ? rootNav.getParent() : null;
+                  while (parent) {
+                    rootNav = parent;
+                    parent = rootNav.getParent ? rootNav.getParent() : null;
+                  }
+
+                  if (!rootNav || !rootNav.dispatch) {
+                    console.warn(`[CommunityBottomTabNavigator:DoubleTapCycle] [${Date.now() - cycleStart}ms] Root navigator unavailable after account switch`);
+                    return;
+                  }
+
+                  rootNav.dispatch(
+                    CommonActions.reset({
+                      index: 0,
+                      routes: [{ name: routeName }],
+                    })
+                  );
+                  console.log(`[CommunityBottomTabNavigator:DoubleTapCycle] [${Date.now() - cycleStart}ms] Stack reset dispatched.`);
+                } catch (navErr) {
+                  console.error(`[CommunityBottomTabNavigator:DoubleTapCycle] [${Date.now() - cycleStart}ms] ERROR during navigation stack reset:`, navErr);
                 }
-
-                if (!rootNav || !rootNav.dispatch) {
-                  console.warn('[CommunityBottomTabNavigator] Root navigator unavailable after account switch');
-                  return;
-                }
-
-                rootNav.dispatch(
-                  CommonActions.reset({
-                    index: 0,
-                    routes: [{ name: routeName }],
-                  })
-                );
               }, 350);
             }
           }
         }
       } catch (err) {
-        console.error("Error cycling accounts:", err);
+        console.error(`[CommunityBottomTabNavigator:DoubleTapCycle] [${Date.now() - cycleStart}ms] ERROR cycling accounts:`, err);
       } finally {
+        console.log(`[CommunityBottomTabNavigator:DoubleTapCycle] [${Date.now() - cycleStart}ms] finally block: Emitting account-switch-end`);
         EventBus.emit("account-switch-end");
       }
     } else {

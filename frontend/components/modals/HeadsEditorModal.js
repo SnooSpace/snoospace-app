@@ -92,7 +92,7 @@ export default function HeadsEditorModal({
   initialHeads = [],
   onCancel,
   onSave,
-  maxHeads = 3,
+  maxHeads = 10,
 }) {
   const { pickAndCrop } = useCrop();
   const [croppingIndex, setCroppingIndex] = useState(-1);

@@ -58,18 +58,23 @@ const ProfileTabButton = ({
         (a) => a.isLoggedIn !== false && a.authToken,
       );
 
+      const cycleStart = Date.now();
+
       if (loggedInAccounts.length <= 1) {
         navigateToProfile();
         return;
       }
 
       hapticsService.triggerImpactLight();
+      console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Emitting account-switch-start`);
       EventBus.emit("account-switch-start");
 
+      console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Awaiting getActiveAccount()...`);
       const activeAccount = await getActiveAccount();
       const activeCompositeId = activeAccount
         ? `${activeAccount.type}_${activeAccount.id}`
         : null;
+      console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Active account composite ID:`, activeCompositeId);
 
       let currentIndex = loggedInAccounts.findIndex(
         (acc) => `${acc.type}_${acc.id}` === activeCompositeId,
@@ -81,9 +86,11 @@ const ProfileTabButton = ({
         loggedInAccounts[(currentIndex + 1) % loggedInAccounts.length];
       const nextCompositeId = `${nextAccount.type}_${nextAccount.id}`;
 
-      console.log(`[DoubleTapCycle] Switching to ${nextCompositeId}`);
+      console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Awaiting switchAccount for ${nextCompositeId}...`);
       await switchAccount(nextCompositeId);
+      console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] switchAccount finished successfully.`);
 
+      console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Emitting account-switch-done`);
       EventBus.emit("account-switch-done", {
         name: nextAccount.name || nextAccount.username || "",
         username: nextAccount.username || "",
@@ -92,44 +99,51 @@ const ProfileTabButton = ({
 
       // Small delay to ensure state propagates, then navigate to correct home
       setTimeout(() => {
-        const routeName =
-          nextAccount.type === "member"
-            ? "MemberHome"
-            : nextAccount.type === "community"
-              ? "CommunityHome"
-              : nextAccount.type === "sponsor"
-                ? "SponsorHome"
-                : nextAccount.type === "venue"
-                  ? "VenueHome"
-                  : "Landing";
+        try {
+          const routeName =
+            nextAccount.type === "member"
+              ? "MemberHome"
+              : nextAccount.type === "community"
+                ? "CommunityHome"
+                : nextAccount.type === "sponsor"
+                  ? "SponsorHome"
+                  : nextAccount.type === "venue"
+                    ? "VenueHome"
+                    : "Landing";
 
-        // Walk up to root navigator.
-        // After a background→foreground transition, getParent() can return
-        // undefined instead of null, so we must guard each step explicitly.
-        let rootNav = navigation;
-        let parent = rootNav.getParent ? rootNav.getParent() : null;
-        while (parent) {
-          rootNav = parent;
-          parent = rootNav.getParent ? rootNav.getParent() : null;
-        }
+          console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Resetting stack to:`, routeName);
 
-        if (!rootNav || !rootNav.dispatch) {
-          console.warn('[DoubleTapCycle] Root navigator unavailable, skipping dispatch');
+          // Walk up to root navigator.
+          let rootNav = navigation;
+          let parent = rootNav.getParent ? rootNav.getParent() : null;
+          while (parent) {
+            rootNav = parent;
+            parent = rootNav.getParent ? rootNav.getParent() : null;
+          }
+
+          if (!rootNav || !rootNav.dispatch) {
+            console.warn(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Root navigator unavailable, skipping dispatch`);
+            navigateToProfile();
+            return;
+          }
+
+          rootNav.dispatch(
+            CommonActions.reset({
+              index: 0,
+              routes: [{ name: routeName }],
+            }),
+          );
+          console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Stack reset dispatched.`);
+        } catch (navErr) {
+          console.error(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] ERROR during navigation stack reset:`, navErr);
           navigateToProfile();
-          return;
         }
-
-        rootNav.dispatch(
-          CommonActions.reset({
-            index: 0,
-            routes: [{ name: routeName }],
-          }),
-        );
       }, 50);
     } catch (error) {
-      console.error("[DoubleTapCycle] Error cycling account:", error);
+      console.error(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] ERROR cycling account:`, error);
       navigateToProfile();
     } finally {
+      console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] finally block: Emitting account-switch-end`);
       EventBus.emit("account-switch-end");
     }
   };

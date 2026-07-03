@@ -103,15 +103,39 @@ const AccountSwitchOverlay = () => {
   const toastY = useRef(new Animated.Value(-70)).current;
   const toastOpacity = useRef(new Animated.Value(0)).current;
 
+  const startSwitchTime = useRef(0);
+  const failSafeTimeoutRef = useRef(null);
+
   useEffect(() => {
     const offStart = EventBus.on("account-switch-start", () => {
+      startSwitchTime.current = Date.now();
+      console.log(`[AccountSwitchOverlay] [0ms] Received account-switch-start`);
       setToastData(null);
       setVisible(true);
       // Show skeleton INSTANTLY — no animation delay
       overlayOpacity.setValue(1);
+
+      // Fail-safe debug backup timeout: hides after 5s strictly in development
+      if (failSafeTimeoutRef.current) clearTimeout(failSafeTimeoutRef.current);
+      failSafeTimeoutRef.current = setTimeout(() => {
+        const elapsed = Date.now() - startSwitchTime.current;
+        console.error(`[AccountSwitchOverlay] [${elapsed}ms] ERROR: Switch exceeded 5s!`);
+        if (__DEV__) {
+          console.warn("[AccountSwitchOverlay] __DEV__ mode: auto-dismissing stuck overlay for safety.");
+          Animated.timing(overlayOpacity, {
+            toValue: 0,
+            duration: 350,
+            useNativeDriver: true,
+          }).start(() => setVisible(false));
+        }
+      }, 5000);
     });
 
     const offDone = EventBus.on("account-switch-done", (data) => {
+      const elapsed = Date.now() - startSwitchTime.current;
+      console.log(`[AccountSwitchOverlay] [${elapsed}ms] Received account-switch-done for: ${data?.username || data?.name}`);
+      if (failSafeTimeoutRef.current) clearTimeout(failSafeTimeoutRef.current);
+      
       // 1. Spring in the toast first
       setToastData(data);
       toastY.setValue(-70);
@@ -135,11 +159,17 @@ const AccountSwitchOverlay = () => {
 
       // 2. After a short hold, fade the skeleton out (reveals the new home screen)
       setTimeout(() => {
+        const fadeStart = Date.now() - startSwitchTime.current;
+        console.log(`[AccountSwitchOverlay] [${fadeStart}ms] Fading out skeleton...`);
         Animated.timing(overlayOpacity, {
           toValue: 0,
           duration: 350,
           useNativeDriver: true,
-        }).start(() => setVisible(false));
+        }).start(() => {
+          const fadeDone = Date.now() - startSwitchTime.current;
+          console.log(`[AccountSwitchOverlay] [${fadeDone}ms] Skeleton fade complete.`);
+          setVisible(false);
+        });
       }, 600);
 
       // 3. Auto-dismiss toast after 3s
@@ -159,9 +189,23 @@ const AccountSwitchOverlay = () => {
       }, 3500);
     });
 
+    const offEnd = EventBus.on("account-switch-end", () => {
+      const elapsed = Date.now() - startSwitchTime.current;
+      console.log(`[AccountSwitchOverlay] [${elapsed}ms] Received account-switch-end (completed/aborted)`);
+      if (failSafeTimeoutRef.current) clearTimeout(failSafeTimeoutRef.current);
+
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 350,
+        useNativeDriver: true,
+      }).start(() => setVisible(false));
+    });
+
     return () => {
       offStart();
       offDone();
+      offEnd();
+      if (failSafeTimeoutRef.current) clearTimeout(failSafeTimeoutRef.current);
     };
   }, []);
 

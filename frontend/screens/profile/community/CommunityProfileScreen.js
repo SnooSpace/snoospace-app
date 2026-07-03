@@ -325,7 +325,7 @@ const CommunityProfileHostsAndSponsors = React.memo(
                     HapticsService.triggerImpactLight();
                     navigation.navigate("CommunityHosts", {
                       initialHeads: profile?.heads || [],
-                      maxHeads: 5,
+                      maxHeads: 10,
                     });
                   }}
                 >
@@ -423,7 +423,7 @@ const CommunityProfileHostsAndSponsors = React.memo(
                     HapticsService.triggerImpactLight();
                     navigation.navigate("CommunityHosts", {
                       initialHeads: profile?.heads || [],
-                      maxHeads: 5,
+                      maxHeads: 10,
                     });
                   }}
                 >

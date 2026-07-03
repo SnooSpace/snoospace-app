@@ -55,7 +55,7 @@ export default function CommunityHostsScreen({ route, navigation }) {
   const { pickAndCrop } = useCrop();
   const [croppingIndex, setCroppingIndex] = useState(-1);
 
-  const { initialHeads = [], maxHeads = 5 } = route.params || {};
+  const { initialHeads = [], maxHeads = 10 } = route.params || {};
 
   // Custom Alert State
   const [alertConfig, setAlertConfig] = useState({
