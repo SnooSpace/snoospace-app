@@ -55,6 +55,18 @@ export default function CommunityHostsScreen({ route, navigation }) {
   const { pickAndCrop } = useCrop();
   const [croppingIndex, setCroppingIndex] = useState(-1);
 
+  // Hide parent tab bar on mount, restore on unmount
+  useEffect(() => {
+    navigation.getParent()?.setOptions({
+      tabBarStyle: { display: "none" },
+    });
+    return () => {
+      navigation.getParent()?.setOptions({
+        tabBarStyle: undefined,
+      });
+    };
+  }, [navigation]);
+
   const { initialHeads = [], maxHeads = 10 } = route.params || {};
 
   // Custom Alert State
