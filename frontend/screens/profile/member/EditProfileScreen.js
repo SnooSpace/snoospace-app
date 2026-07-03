@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, LayoutAnimation, UIManager, Platform, Image, Keyboard, TouchableWithoutFeedback } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CircleCheck, CircleX } from "lucide-react-native";
 // Use transparent Lucid icons if available or standard Ionicons
@@ -100,20 +99,9 @@ import FormTextInput from "../../../components/ui/FormTextInput";
 
 // Pronoun Category Tints
 const PRONOUN_STYLE_CONFIG = {
-  masculine: {
-    bg: "#E2E8F1", // Deepened Cool slate
-    text: "#2F3A55",
-    keywords: ["he", "him", "his"],
-  },
-  feminine: {
-    bg: "#F2E2E6", // Deepened Muted rose
-    text: "#5A2F3C",
-    keywords: ["she", "her", "hers"],
-  },
-  neutral: {
-    bg: "#E2EFED", // Deepened Soft teal-sage
-    text: "#1F4E4A",
-    keywords: ["they", "them", "theirs"],
+  selected: {
+    bg: "#E8EFFF", // Cool light brand blue tint
+    text: "#2962FF", // High contrast brand blue
   },
   unselected: {
     bg: "#F3F4F6",
@@ -123,19 +111,7 @@ const PRONOUN_STYLE_CONFIG = {
 
 const getPronounStyles = (pronoun, isSelected) => {
   if (!isSelected) return PRONOUN_STYLE_CONFIG.unselected;
-
-  const lower = pronoun.toLowerCase();
-  // Use word-based matching to avoid "she" matching "he"
-  const words = lower.split(/[\/\s,.]+/);
-
-  if (words.some((w) => PRONOUN_STYLE_CONFIG.feminine.keywords.includes(w)))
-    return PRONOUN_STYLE_CONFIG.feminine;
-  if (words.some((w) => PRONOUN_STYLE_CONFIG.masculine.keywords.includes(w)))
-    return PRONOUN_STYLE_CONFIG.masculine;
-  if (words.some((w) => PRONOUN_STYLE_CONFIG.neutral.keywords.includes(w)))
-    return PRONOUN_STYLE_CONFIG.neutral;
-
-  return PRONOUN_STYLE_CONFIG.neutral; // Default to neutral tinted if selected but unknown
+  return PRONOUN_STYLE_CONFIG.selected;
 };
 
 export default function EditProfileScreen({ route, navigation }) {
@@ -178,6 +154,7 @@ export default function EditProfileScreen({ route, navigation }) {
         ).map(cleanLabel)
       : [],
   );
+  const [customPronounText, setCustomPronounText] = useState("");
   const [interests, setInterests] = useState(profile?.interests || []);
   const [spotifyConnected, setSpotifyConnected] = useState(!!profile?.spotify_connected);
   const [spotifyTopArtists, setSpotifyTopArtists] = useState(profile?.spotify_top_artists || []);
@@ -250,8 +227,22 @@ export default function EditProfileScreen({ route, navigation }) {
   }, []);
 
   useEffect(() => {
+    const loadedPronouns = profile?.pronouns
+      ? (Array.isArray(profile.pronouns)
+          ? profile.pronouns
+          : [profile.pronouns]
+        )
+      : [];
+    const defaultPresets = ["He/Him", "She/Her", "They/Them"];
+    const customItems = loadedPronouns.filter(p => !defaultPresets.includes(p));
+    if (customItems.length > 0) {
+      setCustomPronounText(customItems.join(", "));
+    }
+  }, [profile]);
+
+  useEffect(() => {
     checkForChanges();
-  }, [name, nickname, bio, username, phone, pronouns, interests, email, educationDegree, educationYear, selectedOccupation, customOccupation, occupationDetails, occupationCategory, portfolioLink, campusId, showCollege, pendingPhotoUri, spotifyConnected, spotifyTopArtists]);
+  }, [name, nickname, bio, username, phone, pronouns, customPronounText, interests, email, educationDegree, educationYear, selectedOccupation, customOccupation, occupationDetails, occupationCategory, portfolioLink, campusId, showCollege, pendingPhotoUri, spotifyConnected, spotifyTopArtists]);
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
@@ -283,7 +274,19 @@ export default function EditProfileScreen({ route, navigation }) {
     try {
       const data = await fetchPronouns();
       if (data && data.length > 0) {
-        setPronounPresets(data.map((p) => p.label));
+        const labels = data.map((p) => p.label);
+        setPronounPresets(labels);
+
+        const loadedPronouns = profile?.pronouns
+          ? (Array.isArray(profile.pronouns)
+              ? profile.pronouns
+              : [profile.pronouns]
+            )
+          : [];
+        const customItems = loadedPronouns.filter(p => !labels.includes(p));
+        if (customItems.length > 0) {
+          setCustomPronounText(customItems.join(", "));
+        }
       }
     } catch (error) {
       console.error("Error loading pronouns:", error);
@@ -320,7 +323,14 @@ export default function EditProfileScreen({ route, navigation }) {
         .sort();
 
     const originalPronouns = normalizePronouns(profile?.pronouns);
-    const currentPronouns = normalizePronouns(pronouns);
+    const customList = customPronounText
+      ? customPronounText.split(/,\s*/).map(p => p.trim()).filter(Boolean)
+      : [];
+    const combinedCurrentPronouns = [
+      ...pronouns.filter(p => pronounPresets.includes(p)),
+      ...customList
+    ];
+    const currentPronouns = normalizePronouns(combinedCurrentPronouns);
 
     const normalizeInterests = (arr) => (arr ? [...arr].sort() : []);
     const originalInterests = normalizeInterests(profile?.interests || []);
@@ -474,7 +484,16 @@ export default function EditProfileScreen({ route, navigation }) {
         occupation_details: Object.keys(cleanDetails).length > 0 ? cleanDetails : null,
         occupation_category: selectedOccupation === "other" ? occupationCategory : null,
         portfolio_link: portfolioLink.trim() || null,
-        pronouns: pronouns.length > 0 ? pronouns.map(cleanLabel) : null,
+        pronouns: (() => {
+          const customList = customPronounText
+            ? customPronounText.split(/,\s*/).map(p => p.trim()).filter(Boolean)
+            : [];
+          const combinedPronouns = [
+            ...pronouns.filter(p => pronounPresets.includes(p)),
+            ...customList
+          ];
+          return combinedPronouns.length > 0 ? combinedPronouns.map(cleanLabel) : null;
+        })(),
         interests: interests.length > 0 ? interests : [],
         campus_id: campusId,
         show_college: showCollege,
@@ -529,21 +548,63 @@ export default function EditProfileScreen({ route, navigation }) {
     setEmailChangeModalVisible(false);
   };
 
-  const renderSectionHeader = (title, IconComponent) => (
-    <View style={styles.cardHeader}>
-      {IconComponent && (
-        <View style={styles.cardIcon}>
-          <IconComponent
-            size={18}
-            color={TEXT_PRIMARY}
-            strokeWidth={1.5}
-            style={{ opacity: 0.7 }}
-          />
-        </View>
-      )}
-      <Text style={styles.cardTitle}>{title}</Text>
-    </View>
-  );
+  const getSectionHeaderStyle = (title) => {
+    switch (title) {
+      case "THE BASICS":
+        return {
+          iconColor: "#2962FF", // Brand Blue
+          bg: "rgba(41, 98, 255, 0.08)",
+        };
+      case "ABOUT ME":
+        return {
+          iconColor: "#7B1FA2", // Deep Purple
+          bg: "rgba(123, 31, 162, 0.08)",
+        };
+      case "OCCUPATION":
+        return {
+          iconColor: "#2E7D32", // Forest Green
+          bg: "rgba(46, 125, 50, 0.08)",
+        };
+      case "EDUCATION":
+        return {
+          iconColor: "#EF6C00", // Dark Orange
+          bg: "rgba(239, 108, 0, 0.08)",
+        };
+      case "MY VIBES":
+        return {
+          iconColor: "#E53E3E", // Vibrant Premium Red
+          bg: "rgba(229, 62, 62, 0.08)",
+        };
+      case "PRIVATE DETAILS":
+        return {
+          iconColor: "#475569", // Dark Slate/Gray
+          bg: "rgba(71, 85, 105, 0.08)",
+        };
+      default:
+        return {
+          iconColor: TEXT_PRIMARY,
+          bg: "rgba(0,0,0,0.03)",
+        };
+    }
+  };
+
+  const renderSectionHeader = (title, IconComponent) => {
+    const { iconColor, bg } = getSectionHeaderStyle(title);
+    return (
+      <View style={styles.cardHeader}>
+        {IconComponent && (
+          <View style={[styles.cardIcon, { backgroundColor: bg }]}>
+            <IconComponent
+              size={18}
+              color={iconColor}
+              strokeWidth={1.8}
+            />
+          </View>
+        )}
+        <Text style={styles.cardTitle}>{title}</Text>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
@@ -575,13 +636,12 @@ export default function EditProfileScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAwareScrollView
+      <ScrollView
         ref={scrollViewRef}
         style={[styles.content, { backgroundColor: BG_COLOR }]}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        bottomOffset={15}
       >
         {/* Profile Photo - Global Section 2 */}
         <View style={styles.photoSection}>
@@ -682,6 +742,17 @@ export default function EditProfileScreen({ route, navigation }) {
                   </TouchableOpacity>
                 );
               })}
+            </View>
+            <View style={{ marginTop: 12 }}>
+              <FormTextInput
+                style={styles.input}
+                placeholder="Or add custom pronouns (e.g. su/per/co/ol)"
+                placeholderTextColor={TEXT_SECONDARY}
+                value={customPronounText}
+                onChangeText={(text) => {
+                  setCustomPronounText(text);
+                }}
+              />
             </View>
           </View>
         </View>
@@ -803,7 +874,7 @@ export default function EditProfileScreen({ route, navigation }) {
                         // For students: replace the institution text field with the CollegePickerModal button
                         if (selectedOccupation === 'student' && field.key === 'institution') {
                           const displayLabel = collegeDisplayName
-                            ? `${collegeDisplayName}${collegeCampusName ? ` â€¢ ${collegeCampusName}` : ''}`
+                            ? `${collegeDisplayName}${collegeCampusName ? ` • ${collegeCampusName}` : ''}`
                             : null;
                           return (
                             <View key={field.key} style={{ marginBottom: 14 }}>
@@ -1011,7 +1082,7 @@ export default function EditProfileScreen({ route, navigation }) {
               })}
             </View>
 
-            <Text style={styles.helperText}>Optional â€¢ Shown on your profile</Text>
+            <Text style={styles.helperText}>Optional • Shown on your profile</Text>
           </View>
         </View>
 
@@ -1038,7 +1109,7 @@ export default function EditProfileScreen({ route, navigation }) {
                   numberOfLines={1}
                 >
                   {collegeDisplayName
-                    ? `${collegeDisplayName}${collegeCampusName ? ` â€¢ ${collegeCampusName}` : ''}`
+                    ? `${collegeDisplayName}${collegeCampusName ? ` • ${collegeCampusName}` : ''}`
                     : 'Select your college...'}
                 </Text>
                 <ChevronRight size={16} color={TEXT_SECONDARY} strokeWidth={2} />
@@ -1369,19 +1440,7 @@ export default function EditProfileScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* Spotify Card */}
-        <View style={styles.card}>
-          {renderSectionHeader("CONNECTIONS", Music)}
-          <View style={styles.inputGroupLast}>
-            <SpotifyConnectorWidget
-              connected={spotifyConnected}
-              onConnectedChange={setSpotifyConnected}
-              topArtists={spotifyTopArtists}
-              onArtistsChange={setSpotifyTopArtists}
-              accentColor={ACCENT_COLOR}
-            />
-          </View>
-        </View>
+
 
         {/* Card 6: Private Details */}
         <View style={styles.card}>
@@ -1412,7 +1471,7 @@ export default function EditProfileScreen({ route, navigation }) {
                 onPress={() => setEmailChangeModalVisible(true)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.helperText, { color: ACCENT_COLOR, fontFamily: 'Manrope-SemiBold' }]}>Tap to change â†’</Text>
+                <Text style={[styles.helperText, { color: ACCENT_COLOR, fontFamily: 'Manrope-SemiBold' }]}>Tap to change →</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1443,14 +1502,14 @@ export default function EditProfileScreen({ route, navigation }) {
                 onPress={() => phoneInputRef.current?.focus()}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.helperText, { color: ACCENT_COLOR, fontFamily: 'Manrope-SemiBold' }]}>Tap to change â†’</Text>
+                <Text style={[styles.helperText, { color: ACCENT_COLOR, fontFamily: 'Manrope-SemiBold' }]}>Tap to change →</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
 
         <View style={{ height: 0 }} />
-      </KeyboardAwareScrollView>
+      </ScrollView>
 
       <EmailChangeModal
         visible={emailChangeModalVisible}

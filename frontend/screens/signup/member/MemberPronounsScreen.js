@@ -190,6 +190,33 @@ const MemberPronounsScreen = ({ navigation, route }) => {
     }
   };
 
+  const handleSkip = async () => {
+    HapticsService.triggerSelection();
+    setSelectedPronouns([]);
+    try {
+      await updateSignupDraft("MemberPronouns", {
+        pronouns: [],
+        showPronouns: false,
+      });
+      console.log("[MemberPronounsScreen] Draft updated (skipped)");
+    } catch (e) {
+      console.log("[MemberPronounsScreen] Draft update failed:", e.message);
+    }
+
+    navigation.navigate("MemberGender", {
+      email,
+      accessToken,
+      refreshToken,
+      name,
+      profile_photo_url,
+      dob,
+      pronouns: [],
+      showPronouns: false,
+      prefill,
+      fromCommunitySignup,
+    });
+  };
+
   const handleNext = async () => {
     // Filter out "Prefer not to say" - it should not be stored in the database
     const pronounsToSave = selectedPronouns.filter(
@@ -252,7 +279,8 @@ const MemberPronounsScreen = ({ navigation, route }) => {
               });
             }
           }}
-          onCancel={() => setShowCancelModal(true)}
+          onCancel={handleSkip}
+          cancelText="Add Later"
         />
 
         <ScrollView
