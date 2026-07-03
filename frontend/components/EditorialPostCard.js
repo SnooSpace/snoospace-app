@@ -141,7 +141,89 @@ const formatCount = (count) => {
   return `${(count / 1000000).toFixed(1)}m`;
 };
 
-const EditorialPostCard = ({
+const EditorialPostCard = (props) => {
+  const postType = props.post?.post_type || "media";
+
+  if (postType === "poll") {
+    return (
+      <PollPostCard
+        post={props.post}
+        onUserPress={props.onUserPress}
+        onLike={props.onLike}
+        onComment={props.onComment}
+        onSave={props.onSave}
+        onShare={props.onShare}
+        onDelete={props.onDelete}
+        onPostUpdate={props.onPostUpdate}
+        onPinToggle={props.onPinToggle}
+        currentUserId={props.currentUserId}
+        currentUserType={props.currentUserType}
+        showManagementControls={props.showManagementControls}
+      />
+    );
+  }
+
+  if (postType === "prompt") {
+    return (
+      <PromptPostCard
+        post={props.post}
+        onUserPress={props.onUserPress}
+        onLike={props.onLike}
+        onComment={props.onComment}
+        onSave={props.onSave}
+        onShare={props.onShare}
+        onDelete={props.onDelete}
+        onPostUpdate={props.onPostUpdate}
+        onPinToggle={props.onPinToggle}
+        currentUserId={props.currentUserId}
+        currentUserType={props.currentUserType}
+        showManagementControls={props.showManagementControls}
+      />
+    );
+  }
+
+  if (postType === "qna") {
+    return (
+      <QnAPostCard
+        post={props.post}
+        onUserPress={props.onUserPress}
+        onLike={props.onLike}
+        onComment={props.onComment}
+        onSave={props.onSave}
+        onShare={props.onShare}
+        onDelete={props.onDelete}
+        onPostUpdate={props.onPostUpdate}
+        onPinToggle={props.onPinToggle}
+        currentUserId={props.currentUserId}
+        currentUserType={props.currentUserType}
+        showManagementControls={props.showManagementControls}
+      />
+    );
+  }
+
+  if (postType === "challenge") {
+    return (
+      <ChallengePostCard
+        post={props.post}
+        onUserPress={props.onUserPress}
+        onLike={props.onLike}
+        onComment={props.onComment}
+        onSave={props.onSave}
+        onShare={props.onShare}
+        onDelete={props.onDelete}
+        onPostUpdate={props.onPostUpdate}
+        onPinToggle={props.onPinToggle}
+        currentUserId={props.currentUserId}
+        currentUserType={props.currentUserType}
+        showManagementControls={props.showManagementControls}
+      />
+    );
+  }
+
+  return <DefaultEditorialPostCard {...props} />;
+};
+
+const DefaultEditorialPostCard = ({
   post,
   onUserPress,
   onLike,
@@ -164,85 +246,6 @@ const EditorialPostCard = ({
   navigation = null,
   showManagementControls = false, // When false (HomeFeed), hides pin button on all card types
 }) => {
-  // Route to type-specific card components for special post types
-  const postType = post.post_type || "media";
-
-  if (postType === "poll") {
-    return (
-      <PollPostCard
-        post={post}
-        onUserPress={onUserPress}
-        onLike={onLike}
-        onComment={onComment}
-        onSave={onSave}
-        onShare={onShare}
-        onDelete={onDelete}
-        onPostUpdate={onPostUpdate}
-        onPinToggle={onPinToggle}
-        currentUserId={currentUserId}
-        currentUserType={currentUserType}
-        showManagementControls={showManagementControls}
-      />
-    );
-  }
-
-  if (postType === "prompt") {
-    return (
-      <PromptPostCard
-        post={post}
-        onUserPress={onUserPress}
-        onLike={onLike}
-        onComment={onComment}
-        onSave={onSave}
-        onShare={onShare}
-        onDelete={onDelete}
-        onPostUpdate={onPostUpdate}
-        onPinToggle={onPinToggle}
-        currentUserId={currentUserId}
-        currentUserType={currentUserType}
-        showManagementControls={showManagementControls}
-      />
-    );
-  }
-
-  if (postType === "qna") {
-    return (
-      <QnAPostCard
-        post={post}
-        onUserPress={onUserPress}
-        onLike={onLike}
-        onComment={onComment}
-        onSave={onSave}
-        onShare={onShare}
-        onDelete={onDelete}
-        onPostUpdate={onPostUpdate}
-        onPinToggle={onPinToggle}
-        currentUserId={currentUserId}
-        currentUserType={currentUserType}
-        showManagementControls={showManagementControls}
-      />
-    );
-  }
-
-  if (postType === "challenge") {
-    return (
-      <ChallengePostCard
-        post={post}
-        onUserPress={onUserPress}
-        onLike={onLike}
-        onComment={onComment}
-        onSave={onSave}
-        onShare={onShare}
-        onDelete={onDelete}
-        onPostUpdate={onPostUpdate}
-        onPinToggle={onPinToggle}
-        currentUserId={currentUserId}
-        currentUserType={currentUserType}
-        showManagementControls={showManagementControls}
-      />
-    );
-  }
-
   // Default: Media/text post with editorial design
   const [fullscreenVisible, setFullscreenVisible] = useState(false);
   const videoPositionRef = useRef(0); // tracks current playback position for modal sync
