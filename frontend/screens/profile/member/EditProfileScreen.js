@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, LayoutAnimation, UIManager, Platform, Image, Keyboard, TouchableWithoutFeedback, ImageBackground } from "react-native";
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, LayoutAnimation, UIManager, Platform, Image, Keyboard, TouchableWithoutFeedback, ImageBackground, KeyboardAvoidingView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import PillShape from "../../../assets/PillShape.jpeg";
@@ -609,7 +609,7 @@ export default function EditProfileScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <ImageBackground
         source={PillShape}
         style={styles.backgroundImage}
@@ -645,13 +645,17 @@ export default function EditProfileScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        ref={scrollViewRef}
-        style={[styles.content, { backgroundColor: "transparent" }]}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          ref={scrollViewRef}
+          style={[styles.content, { backgroundColor: "transparent" }]}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Profile Photo - Global Section 2 */}
         <View style={styles.photoSection}>
           <TouchableOpacity
@@ -1512,7 +1516,8 @@ export default function EditProfileScreen({ route, navigation }) {
         </View>
 
         <View style={{ height: 0 }} />
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <EmailChangeModal
         visible={emailChangeModalVisible}
@@ -1634,7 +1639,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 10,
+    paddingBottom: 120, // Generous padding to allow scrolling up when keyboard is open!
     gap: 24,
   },
 

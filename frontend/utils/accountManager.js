@@ -193,12 +193,15 @@ export async function addAccount(accountData) {
     console.log("[addAccount] Setting active account to:", compositeActiveId);
     await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, compositeActiveId);
 
-    // Emit event for global handling
+    // IMPORTANT: dispatch asynchronously (see switchAccount for full rationale).
+    // Utility modules must not synchronously trigger global React state updates.
     if (authEventEmitter) {
-      authEventEmitter.emit("accountSwitched", {
-        accountId: accountId,
-        email: accountData.email,
-        type: accountType,
+      setImmediate(() => {
+        authEventEmitter.emit("accountSwitched", {
+          accountId: accountId,
+          email: accountData.email,
+          type: accountType,
+        });
       });
     }
 
@@ -298,12 +301,25 @@ export async function switchAccount(accountId) {
     // Set as active using composite key
     await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, compositeId);
 
-    // Emit event for global handling
+    // IMPORTANT: dispatch asynchronously — do not make this synchronous.
+    //
+    // Convention: utility modules must not synchronously trigger global React
+    // state updates. Emitting "accountSwitched" synchronously here causes
+    // AuthStateContext's listener to call setActiveAccountEmail() in the same
+    // JS execution frame, scheduling a React state update while media components
+    // may still be mounting or unmounting. This re-entrancy produced a
+    // TypeError at runtime ("Cannot read property 'reload' of undefined").
+    //
+    // setImmediate defers the notification until after switchAccount() returns
+    // and the current call stack fully unwinds, giving React a clean frame
+    // before any global state update is enqueued.
     if (authEventEmitter) {
-      authEventEmitter.emit("accountSwitched", {
-        accountId: account.id,
-        email: account.email,
-        type: account.type,
+      setImmediate(() => {
+        authEventEmitter.emit("accountSwitched", {
+          accountId: account.id,
+          email: account.email,
+          type: account.type,
+        });
       });
     }
 
@@ -418,12 +434,15 @@ export async function removeAccount(accountId) {
         const nextCompositeId = `${nextLoggedIn.type}_${nextLoggedIn.id}`;
         await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, nextCompositeId);
 
-        // Emit event for global handling
+        // IMPORTANT: dispatch asynchronously (see switchAccount for full rationale).
+    // Utility modules must not synchronously trigger global React state updates.
         if (authEventEmitter) {
-          authEventEmitter.emit("accountSwitched", {
-            accountId: nextLoggedIn.id,
-            email: nextLoggedIn.email,
-            type: nextLoggedIn.type,
+          setImmediate(() => {
+            authEventEmitter.emit("accountSwitched", {
+              accountId: nextLoggedIn.id,
+              email: nextLoggedIn.email,
+              type: nextLoggedIn.type,
+            });
           });
         }
       } else if (updatedAccounts.length > 0) {
@@ -609,9 +628,12 @@ export async function clearAllAccounts() {
     await AsyncStorage.removeItem(ACTIVE_ACCOUNT_KEY);
     await clearEncryptionKey();
 
-    // Emit event for global handling
+    // IMPORTANT: dispatch asynchronously (see switchAccount for full rationale).
+    // Utility modules must not synchronously trigger global React state updates.
     if (authEventEmitter) {
-      authEventEmitter.emit("accountSwitched", null);
+      setImmediate(() => {
+        authEventEmitter.emit("accountSwitched", null);
+      });
     }
 
     return true;
@@ -753,12 +775,15 @@ export async function removeAccountAndAutoSwitch(accountId) {
           nextLoggedIn.email,
         );
 
-        // Emit event for global handling
+        // IMPORTANT: dispatch asynchronously (see switchAccount for full rationale).
+    // Utility modules must not synchronously trigger global React state updates.
         if (authEventEmitter) {
-          authEventEmitter.emit("accountSwitched", {
-            accountId: nextLoggedIn.id,
-            email: nextLoggedIn.email,
-            type: nextLoggedIn.type,
+          setImmediate(() => {
+            authEventEmitter.emit("accountSwitched", {
+              accountId: nextLoggedIn.id,
+              email: nextLoggedIn.email,
+              type: nextLoggedIn.type,
+            });
           });
         }
 

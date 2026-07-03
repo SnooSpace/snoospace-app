@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, Image, Modal, LayoutAnimation, UIManager, ImageBackground } from "react-native";
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, Image, Modal, LayoutAnimation, UIManager, ImageBackground, KeyboardAvoidingView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import PillShape from "../../../assets/PillShape.jpeg";
 import { ScrollView } from "react-native";
@@ -548,7 +548,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <ImageBackground
         source={PillShape}
         style={styles.backgroundImage}
@@ -584,13 +584,17 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        ref={scrollViewRef}
-        style={[styles.content, { backgroundColor: "transparent" }]}
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          ref={scrollViewRef}
+          style={[styles.content, { backgroundColor: "transparent" }]}
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Visuals Card */}
         <View style={styles.visualsContainer}>
           <TouchableOpacity
@@ -996,8 +1000,8 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         )}
 
         <View style={{ height: 40 }} />
-
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       <EmailChangeModal
         visible={emailChangeModalVisible}
@@ -1242,7 +1246,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 120, // Generous padding to allow scrolling up when keyboard is open!
     gap: 24,
   },
 
