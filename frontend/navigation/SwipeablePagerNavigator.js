@@ -52,13 +52,12 @@ const ProfileTabButton = ({
   };
 
   const cycleNextAccount = async () => {
+    const cycleStart = Date.now();
     try {
       const allAccounts = await getAllAccounts();
       const loggedInAccounts = allAccounts.filter(
         (a) => a.isLoggedIn !== false && a.authToken,
       );
-
-      const cycleStart = Date.now();
 
       if (loggedInAccounts.length <= 1) {
         navigateToProfile();

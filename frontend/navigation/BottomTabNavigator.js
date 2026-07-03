@@ -59,13 +59,14 @@ const ProfileTabButton = (props) => {
   const handlePress = async (e) => {
     const now = Date.now();
     const DOUBLE_PRESS_DELAY = 300;
+    let cycleStart = 0;
 
     if (now - lastTapRef.current < DOUBLE_PRESS_DELAY) {
       lastTapRef.current = 0;
       // Provide instant feedback
       impactAsync(ImpactFeedbackStyle.Medium);
 
-      const cycleStart = Date.now();
+      cycleStart = Date.now();
 
       console.log(`[BottomTabNavigator:DoubleTapCycle] [${Date.now() - cycleStart}ms] Emitting account-switch-start`);
       EventBus.emit("account-switch-start");
