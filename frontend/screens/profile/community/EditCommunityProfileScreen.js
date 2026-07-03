@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, Image, Modal, LayoutAnimation, UIManager } from "react-native";
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, Image, Modal, LayoutAnimation, UIManager, ImageBackground } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import PillShape from "../../../assets/PillShape.jpeg";
+import { ScrollView } from "react-native";
+import { BlurView } from "expo-blur";
 import {
   ArrowLeft,
   Camera,
@@ -55,7 +57,9 @@ import FormTextInput from "../../../components/ui/FormTextInput";
 // Typography constants
 const FONT_HEADER = FONTS.primary || "BasicCommercial-Bold";
 const FONT_LABEL = FONTS.medium;
-const INPUT_BG = "#F3F4F6";
+const CARD_BG = "rgba(255, 255, 255, 0.25)"; // Frosted glass card background
+const INPUT_BG = "rgba(255, 255, 255, 0.4)"; // Frosted glass input background
+const BORDER_COLOR = "rgba(255, 255, 255, 0.5)";
 const TEXT_PRIMARY = COLORS.textPrimary;
 const TEXT_SECONDARY = COLORS.textSecondary;
 const ACCENT_COLOR = COLORS.primary;
@@ -485,26 +489,75 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     }
   };
 
-  const renderSectionHeader = (title, IconComponent) => (
-    <View style={styles.cardHeader}>
-      {IconComponent && (
-        <View style={styles.cardIcon}>
-          <IconComponent
-            size={18}
-            color={TEXT_PRIMARY}
-            strokeWidth={1.5}
-            style={{ opacity: 0.7 }}
-          />
-        </View>
-      )}
-      <Text style={styles.cardTitle}>{title}</Text>
-    </View>
-  );
+  const getSectionHeaderStyle = (title) => {
+    switch (title) {
+      case "THE BASICS":
+        return {
+          iconColor: "#2962FF", // Brand Blue
+          bg: "rgba(41, 98, 255, 0.08)",
+        };
+      case "ABOUT":
+        return {
+          iconColor: "#7B1FA2", // Deep Purple
+          bg: "rgba(123, 31, 162, 0.08)",
+        };
+      case "CATEGORIES":
+        return {
+          iconColor: "#2E7D32", // Forest Green
+          bg: "rgba(46, 125, 50, 0.08)",
+        };
+      case "CONTACT DETAILS":
+        return {
+          iconColor: "#EF6C00", // Dark Orange
+          bg: "rgba(239, 108, 0, 0.08)",
+        };
+      case "LOCATION":
+        return {
+          iconColor: "#E53E3E", // Vibrant Premium Red/Pink
+          bg: "rgba(229, 62, 62, 0.08)",
+        };
+      case "COLLEGE AFFILIATION":
+        return {
+          iconColor: "#475569", // Dark Slate/Gray
+          bg: "rgba(71, 85, 105, 0.08)",
+        };
+      default:
+        return {
+          iconColor: TEXT_PRIMARY,
+          bg: "rgba(0,0,0,0.03)",
+        };
+    }
+  };
+
+  const renderSectionHeader = (title, IconComponent) => {
+    const { iconColor, bg } = getSectionHeaderStyle(title);
+    return (
+      <View style={styles.cardHeader}>
+        {IconComponent && (
+          <View style={[styles.cardIcon, { backgroundColor: bg }]}>
+            <IconComponent
+              size={18}
+              color={iconColor}
+              strokeWidth={1.8}
+            />
+          </View>
+        )}
+        <Text style={styles.cardTitle}>{title}</Text>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      {/* Header Matches EditProfileScreen exactly */}
-      <View style={styles.header}>
+      <ImageBackground
+        source={PillShape}
+        style={styles.backgroundImage}
+        imageStyle={{ opacity: 0.4 }}
+        resizeMode="cover"
+        blurRadius={20}
+      >
+        {/* Header Matches EditProfileScreen exactly */}
+        <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.headerButtonLeft}
@@ -531,13 +584,12 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAwareScrollView
+      <ScrollView
         ref={scrollViewRef}
-        style={[styles.content, { backgroundColor: BG_COLOR }]}
+        style={[styles.content, { backgroundColor: "transparent" }]}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-        bottomOffset={15}
       >
         {/* Visuals Card */}
         <View style={styles.visualsContainer}>
@@ -582,6 +634,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
         {/* The Basics */}
         <View style={styles.card}>
+          <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("THE BASICS", User)}
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>COMMUNITY NAME</Text>
@@ -628,6 +681,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
         {/* About */}
         <View style={styles.card}>
+          <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("ABOUT", NotebookText)}
           <View style={styles.inputGroupLast}>
             <FormTextInput
@@ -645,6 +699,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
         {/* Categories (My Vibes Style) */}
         <View style={styles.card}>
+          <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("CATEGORIES", Tag)}
           <View style={[styles.inputGroupLast, { paddingTop: 10 }]}>
             {/* Selected Categories */}
@@ -808,17 +863,33 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
 
         <View style={styles.card}>
+          <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("CONTACT DETAILS", Phone)}
 
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>EMAIL</Text>
             <TouchableOpacity
-              style={styles.input}
+              activeOpacity={0.7}
               onPress={() => setEmailChangeModalVisible(true)}
+              style={[styles.input, styles.rowInput]}
             >
-              <Text style={{ color: TEXT_PRIMARY }}>{email}</Text>
+              <Mail size={16} color={"#8B95A5"} style={{ marginRight: 10 }} />
+              <TextInput
+                style={[styles.flexInput, { color: TEXT_SECONDARY }]}
+                value={email}
+                editable={false}
+                pointerEvents="none"
+              />
             </TouchableOpacity>
-            <Text style={styles.helperText}>Only visible to you</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={styles.helperText}>Only visible to you</Text>
+              <TouchableOpacity 
+                onPress={() => setEmailChangeModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.helperText, { color: ACCENT_COLOR, fontFamily: 'Manrope-SemiBold' }]}>Tap to change →</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           <View style={styles.inputGroup}>
@@ -848,6 +919,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
         {/* Location */}
         <View style={styles.card}>
+          <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("LOCATION", MapPinned)}
           <View style={styles.locationRow}>
             <TouchableOpacity
@@ -883,6 +955,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         {/* College Affiliation — only for college_affiliated communities */}
         {profile?.community_type === 'college_affiliated' && (
           <View style={styles.card}>
+            <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
             {renderSectionHeader("COLLEGE AFFILIATION", GraduationCap)}
             <View style={styles.inputGroupLast}>
               {collegeInfo?.college_name ? (
@@ -924,7 +997,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
         <View style={{ height: 40 }} />
 
-      </KeyboardAwareScrollView>
+      </ScrollView>
 
       <EmailChangeModal
         visible={emailChangeModalVisible}
@@ -1075,7 +1148,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
             </View>
           </View>
 
-          <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 16 }}>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 16 }}>
             {collegeSearchResults.length === 0 && collegeSearchQuery.length >= 2 && !collegeSearching && (
               <Text style={{ color: TEXT_SECONDARY, textAlign: 'center', marginTop: 32, fontFamily: 'Manrope-Regular' }}>
                 No colleges found. Try a different name.
@@ -1104,9 +1177,10 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
                 )}
               </TouchableOpacity>
             ))}
-          </KeyboardAwareScrollView>
+          </ScrollView>
         </SafeAreaView>
       </Modal>
+      </ImageBackground>
     </SafeAreaView>
   );
 }
@@ -1114,7 +1188,12 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
+  },
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
   },
   header: {
     flexDirection: "row",
@@ -1123,7 +1202,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0,0,0,0.05)",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 255, 255, 0.7)", // Frosted header
     position: "relative",
     minHeight: 60,
   },
@@ -1157,7 +1236,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "600",
     fontSize: 14,
-    fontFamily: FONTS.medium,
+    fontFamily: "Manrope-SemiBold",
   },
   content: {
     flex: 1,
@@ -1191,7 +1270,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#D1D5DB",
   },
   bannerPlaceholderText: {
-    fontFamily: FONTS.medium,
+    fontFamily: "Manrope-SemiBold",
     color: "#6B7280",
   },
   logoWrapper: {
@@ -1236,15 +1315,24 @@ const styles = StyleSheet.create({
 
   // Card
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: CARD_BG,
     borderRadius: 20,
     padding: 20,
     marginBottom: 16,
-    ...SHADOWS.sm,
-    shadowOpacity: 0.05,
-    elevation: 2,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.02)",
+    borderColor: "rgba(255, 255, 255, 0.4)",
+    overflow: "hidden", // Crucial for BlurView!
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   cardHeader: {
     flexDirection: "row",
@@ -1357,7 +1445,7 @@ const styles = StyleSheet.create({
   },
   helperText: {
     fontFamily: FONTS.regular,
-    fontSize: 12,
+    fontSize: 13,
     color: TEXT_SECONDARY,
     marginTop: 6,
     marginLeft: 4,
@@ -1575,7 +1663,7 @@ const styles = StyleSheet.create({
   },
   modalButtonText: {
     fontSize: 16,
-    fontFamily: FONTS.medium,
+    fontFamily: "Manrope-SemiBold",
     color: TEXT_PRIMARY,
   },
   modalButtonTextDestructive: {
@@ -1606,7 +1694,7 @@ const styles = StyleSheet.create({
   },
   collegeLinkedSub: {
     fontFamily: 'Manrope-Regular',
-    fontSize: 12,
+    fontSize: 13,
     color: '#6B7280',
     marginBottom: 6,
   },
@@ -1623,7 +1711,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF3C7',
   },
   statusText: {
-    fontFamily: 'Manrope-Medium',
+    fontFamily: 'Manrope-SemiBold',
     fontSize: 11,
   },
   statusTextApproved: {
@@ -1702,7 +1790,7 @@ const styles = StyleSheet.create({
   },
   collegeResultSub: {
     fontFamily: 'Manrope-Regular',
-    fontSize: 12,
+    fontSize: 13,
     color: TEXT_SECONDARY,
   },
 });

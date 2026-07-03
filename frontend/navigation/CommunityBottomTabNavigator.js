@@ -66,12 +66,21 @@ const ProfileTabButton = (props) => {
                   venue: "VenueHome",
                 };
                 const routeName = routeMap[nextAccount.type] || "Landing";
-                
+
+                // Guard: getParent() can return undefined (not null) after
+                // a background→foreground transition.
                 let rootNav = navigation;
-                while (rootNav.getParent && rootNav.getParent()) {
-                  rootNav = rootNav.getParent();
+                let parent = rootNav.getParent ? rootNav.getParent() : null;
+                while (parent) {
+                  rootNav = parent;
+                  parent = rootNav.getParent ? rootNav.getParent() : null;
                 }
-                
+
+                if (!rootNav || !rootNav.dispatch) {
+                  console.warn('[CommunityBottomTabNavigator] Root navigator unavailable after account switch');
+                  return;
+                }
+
                 rootNav.dispatch(
                   CommonActions.reset({
                     index: 0,

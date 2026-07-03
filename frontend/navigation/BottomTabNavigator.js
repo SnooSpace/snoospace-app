@@ -101,9 +101,19 @@ const ProfileTabButton = (props) => {
                 };
                 const routeName = routeMap[nextAccount.type] || "Landing";
                 
+                // Guard: getParent() can return undefined (not null) after
+                // a background→foreground transition, causing the loop to
+                // overshoot and leave rootNav as undefined.
                 let rootNav = navigation;
-                while (rootNav.getParent && rootNav.getParent()) {
-                  rootNav = rootNav.getParent();
+                let parent = rootNav.getParent ? rootNav.getParent() : null;
+                while (parent) {
+                  rootNav = parent;
+                  parent = rootNav.getParent ? rootNav.getParent() : null;
+                }
+
+                if (!rootNav || !rootNav.dispatch) {
+                  console.warn('[BottomTabNavigator] Root navigator unavailable after account switch');
+                  return;
                 }
                 
                 rootNav.dispatch(

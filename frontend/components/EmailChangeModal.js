@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, Alert, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { View, Text, TextInput, TouchableOpacity, Modal, StyleSheet, Alert, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, Animated, PanResponder, Dimensions } from "react-native";
 import { X, Check } from "lucide-react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import {
@@ -40,6 +40,46 @@ export default function EmailChangeModal({
   const [loading, setLoading] = useState(false);
   const [sendingOtp, setSendingOtp] = useState(false);
   const [error, setError] = useState(null);
+
+  const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+  const [shouldRender, setShouldRender] = useState(visible);
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setShouldRender(true);
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          stiffness: 200,
+          damping: 25,
+          mass: 1,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: SCREEN_HEIGHT,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setShouldRender(false);
+      });
+    }
+  }, [visible]);
 
   const handleRequestOtp = async () => {
     setError(null);
@@ -105,192 +145,254 @@ export default function EmailChangeModal({
   };
 
   const handleClose = () => {
-    setNewEmail("");
-    setOtp("");
-    setStep("email");
-    setLoading(false);
-    setSendingOtp(false);
-    setError(null);
-    onClose();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: SCREEN_HEIGHT,
+        duration: 250,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setNewEmail("");
+      setOtp("");
+      setStep("email");
+      setLoading(false);
+      setSendingOtp(false);
+      setError(null);
+      setShouldRender(false);
+      onClose();
+    });
   };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only set pan responder if dragging down
+        return gestureState.dy > 5;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          slideAnim.setValue(gestureState.dy);
+          fadeAnim.setValue(Math.max(0, 1 - gestureState.dy / (SCREEN_HEIGHT * 0.5)));
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 120 || gestureState.vy > 0.5) {
+          handleClose();
+        } else {
+          Animated.parallel([
+            Animated.spring(slideAnim, {
+              toValue: 0,
+              useNativeDriver: true,
+            }),
+            Animated.timing(fadeAnim, {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }),
+          ]).start();
+        }
+      },
+    })
+  ).current;
 
   const isValidEmailStep = newEmail.trim().length > 0 && !sendingOtp;
   const isValidOtpStep = otp.trim().length === 6 && !loading;
 
+  if (!shouldRender) return null;
+
   return (
     <Modal
-      visible={visible}
+      visible={shouldRender}
       transparent={true}
-      animationType="slide"
+      animationType="none"
       onRequestClose={handleClose}
       statusBarTranslucent={true}
     >
-      <TouchableWithoutFeedback onPress={handleClose}>
-        <View style={styles.modalOverlay}>
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <KeyboardStickyView style={styles.keyboardView}>
-              <View style={styles.modalContent}>
-                {/* Drag Handle (Optional subtle detail) */}
-                <View style={styles.dragHandleContainer}>
-                  <View style={styles.dragHandle} />
-                </View>
+      <View style={styles.modalOverlay}>
+        <TouchableWithoutFeedback onPress={handleClose}>
+          <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: MODAL_OVERLAY, opacity: fadeAnim }]} />
+        </TouchableWithoutFeedback>
 
-                {/* Header */}
-                <View style={styles.header}>
-                  <Text style={styles.title}>Change Email</Text>
-                  <TouchableOpacity
-                    onPress={handleClose}
-                    style={styles.closeButton}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <X size={22} color={TEXT_SECONDARY} />
-                  </TouchableOpacity>
-                </View>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <KeyboardStickyView style={styles.keyboardView}>
+            <Animated.View 
+              style={[
+                styles.modalContent, 
+                { transform: [{ translateY: slideAnim }] }
+              ]}
+            >
+              {/* Drag Handle Container (Swipe target) */}
+              <View 
+                style={styles.dragHandleContainer}
+                {...panResponder.panHandlers}
+              >
+                <View style={styles.dragHandle} />
+              </View>
 
-                {/* Body Content */}
-                <View style={styles.body}>
-                  {error && (
-                    <View style={styles.errorContainer}>
-                      <Text style={styles.errorText}>{error}</Text>
+              {/* Header */}
+              <View 
+                style={styles.header}
+                {...panResponder.panHandlers}
+              >
+                <Text style={styles.title}>Change Email</Text>
+                <TouchableOpacity
+                  onPress={handleClose}
+                  style={styles.closeButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <X size={22} color={TEXT_SECONDARY} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Body Content */}
+              <View style={styles.body}>
+                {error && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                )}
+
+                {step === "email" ? (
+                  <>
+                    {/* Current Email (Read-only) */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Current email</Text>
+                      <View style={styles.readOnlyInput}>
+                        <Text style={styles.readOnlyText}>
+                          {currentEmail}
+                        </Text>
+                      </View>
                     </View>
-                  )}
 
-                  {step === "email" ? (
-                    <>
-                      {/* Current Email (Read-only) */}
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Current email</Text>
-                        <View style={styles.readOnlyInput}>
-                          <Text style={styles.readOnlyText}>
-                            {currentEmail}
-                          </Text>
-                        </View>
-                      </View>
+                    {/* New Email */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>New email</Text>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          {
+                            borderColor: newEmail
+                              ? PRIMARY_BLUE
+                              : "transparent",
+                          },
+                        ]}
+                        placeholder="Enter your new email"
+                        placeholderTextColor={TEXT_SECONDARY}
+                        value={newEmail}
+                        onChangeText={(t) => {
+                          setNewEmail(t);
+                          if (error) setError(null);
+                        }}
+                        autoCapitalize="none"
+                        keyboardType="email-address"
+                        editable={!sendingOtp}
+                        autoFocus={true}
+                      />
+                    </View>
 
-                      {/* New Email */}
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.label}>New email</Text>
-                        <TextInput
-                          style={[
-                            styles.input,
-                            {
-                              borderColor: newEmail
-                                ? PRIMARY_BLUE
-                                : "transparent",
-                            },
-                          ]} // Subtle active border logic if needed, usually focus handles it
-                          placeholder="Enter your new email"
-                          placeholderTextColor={TEXT_SECONDARY} // Lighter placeholder
-                          value={newEmail}
-                          onChangeText={(t) => {
-                            setNewEmail(t);
-                            if (error) setError(null);
+                    {/* CTA */}
+                    <TouchableOpacity
+                      style={[
+                        styles.primaryButton,
+                        !isValidEmailStep && styles.buttonDisabled,
+                      ]}
+                      onPress={handleRequestOtp}
+                      disabled={!isValidEmailStep}
+                    >
+                      {sendingOtp ? (
+                        <SnooLoader size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={[styles.primaryButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
+                          Send verification code
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+
+                    <Text style={styles.microcopy}>
+                      We’ll send a verification code to your new email.
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    {/* OTP Step */}
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>
+                        Enter verification code
+                      </Text>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          { letterSpacing: 4, textAlign: "center" },
+                        ]}
+                        placeholder="000000"
+                        placeholderTextColor={TEXT_SECONDARY}
+                        value={otp}
+                        onChangeText={(text) => {
+                          setOtp(text.replace(/[^0-9]/g, "").slice(0, 6));
+                          if (error) setError(null);
+                        }}
+                        keyboardType="number-pad"
+                        maxLength={6}
+                        editable={!loading}
+                        autoFocus={true}
+                      />
+                      <Text style={styles.helperText}>
+                        Sent to{" "}
+                        <Text
+                          style={{
+                            fontFamily: FONTS.medium,
+                            color: TEXT_PRIMARY,
                           }}
-                          autoCapitalize="none"
-                          keyboardType="email-address"
-                          editable={!sendingOtp}
-                          autoFocus={true}
-                        />
-                      </View>
+                        >
+                          {newEmail}
+                        </Text>
+                      </Text>
+                    </View>
 
-                      {/* CTA */}
+                    <View style={styles.otpButtonRow}>
+                      <TouchableOpacity
+                        style={styles.secondaryButton}
+                        onPress={() => {
+                          setStep("email");
+                          setOtp("");
+                          setError(null);
+                        }}
+                        disabled={loading}
+                      >
+                        <Text style={styles.secondaryButtonText}>Back</Text>
+                      </TouchableOpacity>
+
                       <TouchableOpacity
                         style={[
                           styles.primaryButton,
-                          !isValidEmailStep && styles.buttonDisabled,
+                          { flex: 2 },
+                          !isValidOtpStep && styles.buttonDisabled,
                         ]}
-                        onPress={handleRequestOtp}
-                        disabled={!isValidEmailStep}
+                        onPress={handleVerifyOtp}
+                        disabled={!isValidOtpStep}
                       >
-                        {sendingOtp ? (
+                        {loading ? (
                           <SnooLoader size="small" color="#FFFFFF" />
                         ) : (
                           <Text style={[styles.primaryButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
-                            Send verification code
+                            Verify Email
                           </Text>
                         )}
                       </TouchableOpacity>
-
-                      <Text style={styles.microcopy}>
-                        We’ll send a verification code to your new email.
-                      </Text>
-                    </>
-                  ) : (
-                    <>
-                      {/* OTP Step */}
-                      <View style={styles.inputGroup}>
-                        <Text style={styles.label}>
-                          Enter verification code
-                        </Text>
-                        <TextInput
-                          style={[
-                            styles.input,
-                            { letterSpacing: 4, textAlign: "center" },
-                          ]}
-                          placeholder="000000"
-                          placeholderTextColor={TEXT_SECONDARY}
-                          value={otp}
-                          onChangeText={(text) => {
-                            setOtp(text.replace(/[^0-9]/g, "").slice(0, 6));
-                            if (error) setError(null);
-                          }}
-                          keyboardType="number-pad"
-                          maxLength={6}
-                          editable={!loading}
-                          autoFocus={true}
-                        />
-                        <Text style={styles.helperText}>
-                          Sent to{" "}
-                          <Text
-                            style={{
-                              fontFamily: FONTS.medium,
-                              color: TEXT_PRIMARY,
-                            }}
-                          >
-                            {newEmail}
-                          </Text>
-                        </Text>
-                      </View>
-
-                      <View style={styles.otpButtonRow}>
-                        <TouchableOpacity
-                          style={styles.secondaryButton}
-                          onPress={() => {
-                            setStep("email");
-                            setOtp("");
-                            setError(null);
-                          }}
-                          disabled={loading}
-                        >
-                          <Text style={styles.secondaryButtonText}>Back</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={[
-                            styles.primaryButton,
-                            { flex: 2 },
-                            !isValidOtpStep && styles.buttonDisabled,
-                          ]}
-                          onPress={handleVerifyOtp}
-                          disabled={!isValidOtpStep}
-                        >
-                          {loading ? (
-                            <SnooLoader size="small" color="#FFFFFF" />
-                          ) : (
-                            <Text style={[styles.primaryButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
-                              Verify Email
-                            </Text>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  )}
-                </View>
+                    </View>
+                  </>
+                )}
               </View>
-            </KeyboardStickyView>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
+            </Animated.View>
+          </KeyboardStickyView>
+        </TouchableWithoutFeedback>
+      </View>
     </Modal>
   );
 }
@@ -298,7 +400,7 @@ export default function EmailChangeModal({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: MODAL_OVERLAY,
+    backgroundColor: "transparent",
     justifyContent: "flex-end", // Bottom sheet style
   },
   keyboardView: {

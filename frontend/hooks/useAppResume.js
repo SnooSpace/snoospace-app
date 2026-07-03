@@ -37,6 +37,13 @@ export function useAppResume({ onRefreshAuthState } = {}) {
   const appStateRef = useRef(AppState.currentState);
   const resumeInProgress = useRef(false);
 
+  // Keep the latest callback in a ref so the AppState handler always calls
+  // the current version without needing to re-subscribe on every render.
+  const onRefreshAuthStateRef = useRef(onRefreshAuthState);
+  useEffect(() => {
+    onRefreshAuthStateRef.current = onRefreshAuthState;
+  }, [onRefreshAuthState]);
+
   useEffect(() => {
     const subscription = AppState.addEventListener(
       'change',
@@ -57,12 +64,12 @@ export function useAppResume({ onRefreshAuthState } = {}) {
         resumeInProgress.current = true;
 
         try {
-        console.log('[AppResume] Foreground detected — running resume sequence');
+          console.log('[AppResume] Foreground detected — running resume sequence');
 
           // ── Step 1: Refresh auth state ────────────────────────────────────
           try {
-            if (typeof onRefreshAuthState === 'function') {
-              await onRefreshAuthState();
+            if (typeof onRefreshAuthStateRef.current === 'function') {
+              await onRefreshAuthStateRef.current();
             }
           } catch (e) {
             console.warn('[AppResume] Auth state refresh failed:', e?.message);
@@ -87,5 +94,7 @@ export function useAppResume({ onRefreshAuthState } = {}) {
     );
 
     return () => subscription.remove();
-  }, [onRefreshAuthState]);
+  // Empty deps: subscribe once, never re-subscribe.
+  // The ref above ensures we always call the latest onRefreshAuthState.
+  }, []);
 }

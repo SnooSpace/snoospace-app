@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, LayoutAnimation, UIManager, Platform, Image, Keyboard, TouchableWithoutFeedback } from "react-native";
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, LayoutAnimation, UIManager, Platform, Image, Keyboard, TouchableWithoutFeedback, ImageBackground } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
+import PillShape from "../../../assets/PillShape.jpeg";
 import { CircleCheck, CircleX } from "lucide-react-native";
 // Use transparent Lucid icons if available or standard Ionicons
 import {
@@ -77,11 +79,11 @@ const FONT_BUTTON = FONTS.medium; // Cancel / Save
 // Colors
 const ACCENT_COLOR = COLORS.primary;
 const BG_COLOR = COLORS.screenBackground || "#F9FAFB";
-const CARD_BG = "#FFFFFF";
+const CARD_BG = "rgba(255, 255, 255, 0.25)"; // Frosted glass card background
 const TEXT_PRIMARY = COLORS.textPrimary;
 const TEXT_SECONDARY = COLORS.textSecondary;
-const INPUT_BG = "#F3F4F6"; // Soft filled input
-const BORDER_COLOR = "#E5E7EB";
+const INPUT_BG = "rgba(255, 255, 255, 0.4)"; // Frosted glass input background
+const BORDER_COLOR = "rgba(255, 255, 255, 0.5)";
 
 // Enable LayoutAnimation for Android
 if (
@@ -608,8 +610,15 @@ export default function EditProfileScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
-      {/* Header */}
-      <View style={styles.header}>
+      <ImageBackground
+        source={PillShape}
+        style={styles.backgroundImage}
+        imageStyle={{ opacity: 0.4 }}
+        resizeMode="cover"
+        blurRadius={20}
+      >
+        {/* Header */}
+        <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={styles.headerButtonLeft}
@@ -638,7 +647,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
       <ScrollView
         ref={scrollViewRef}
-        style={[styles.content, { backgroundColor: BG_COLOR }]}
+        style={[styles.content, { backgroundColor: "transparent" }]}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -660,6 +669,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
         {/* Card 1: The Basics */}
         <View style={styles.card}>
+          <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("THE BASICS", User)}
 
           <View style={styles.inputGroup}>
@@ -670,18 +680,6 @@ export default function EditProfileScreen({ route, navigation }) {
               onChangeText={setName}
               placeholder="Your Name"
               placeholderTextColor={TEXT_SECONDARY}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>NICK NAME</Text>
-            <FormTextInput
-              style={styles.input}
-              value={nickname}
-              onChangeText={setNickname}
-              placeholder="Your Nickname (replaces display name)"
-              placeholderTextColor={TEXT_SECONDARY}
-              maxLength={50}
             />
           </View>
 
@@ -759,6 +757,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
         {/* Card 2: About Me */}
         <View style={styles.card}>
+          <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("ABOUT ME", NotebookText)}
           <View style={styles.inputGroupLast}>
             <FormTextInput
@@ -776,6 +775,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
         {/* Card 3: Occupation */}
         <View style={styles.card}>
+          <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("OCCUPATION", Briefcase)}
 
           <View style={styles.inputGroupLast}>
@@ -1092,6 +1092,7 @@ export default function EditProfileScreen({ route, navigation }) {
         */}
         {selectedOccupation !== 'student' && (
           <View style={styles.card}>
+            <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
             {renderSectionHeader("EDUCATION", GraduationCap)}
 
             <View style={styles.inputGroup}>
@@ -1186,6 +1187,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
         {/* Card 5: My Vibes (Scalable Redesign) */}
         <View style={styles.card}>
+          <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("MY VIBES", RollerCoaster)}
 
           <View style={[styles.inputGroupLast, { marginTop: 12 }]}>
@@ -1444,6 +1446,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
         {/* Card 6: Private Details */}
         <View style={styles.card}>
+          <BlurView intensity={60} tint="light" style={[StyleSheet.absoluteFill, { borderRadius: 20, overflow: 'hidden' }]} />
           {renderSectionHeader("PRIVATE DETAILS", Lock)}
 
           <View style={styles.inputGroup}>
@@ -1454,7 +1457,7 @@ export default function EditProfileScreen({ route, navigation }) {
               style={[
                 styles.input,
                 styles.rowInput,
-                { backgroundColor: "#F8F8F8" },
+                { backgroundColor: INPUT_BG },
               ]}
             >
               <Mail size={16} color={"#8B95A5"} style={{ marginRight: 10 }} />
@@ -1482,7 +1485,7 @@ export default function EditProfileScreen({ route, navigation }) {
               <View style={[
                 styles.input,
                 styles.rowInput,
-                { backgroundColor: "#F8F8F8" }
+                { backgroundColor: INPUT_BG }
               ]}>
                 <Phone size={16} color={"#8B95A5"} style={{ marginRight: 10 }} />
                 <FormTextInput
@@ -1558,6 +1561,7 @@ export default function EditProfileScreen({ route, navigation }) {
         }}
         onClose={() => setShowDegreePicker(false)}
       />
+      </ImageBackground>
     </SafeAreaView>
   );
 }
@@ -1565,10 +1569,15 @@ export default function EditProfileScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
   },
   keyboardView: {
     flex: 1,
+  },
+  backgroundImage: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
   },
   header: {
     flexDirection: "row",
@@ -1577,7 +1586,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0,0,0,0.05)",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "rgba(255, 255, 255, 0.7)", //Frosted glass style header
     position: "relative",
     minHeight: 60,
   },
@@ -1683,10 +1692,20 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderRadius: 20,
     padding: 20,
-    ...SHADOWS.sm, // Soft elevation
-    shadowOpacity: 0.05,
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.02)",
+    borderColor: "rgba(255, 255, 255, 0.4)",
+    overflow: "hidden", // Crucial for BlurView!
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 0,
+      },
+    }),
   },
   cardHeader: {
     flexDirection: "row",
@@ -1765,7 +1784,8 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   helperText: {
-    fontSize: 12,
+    fontSize: 13,
+    fontFamily: FONTS.regular,
     color: TEXT_SECONDARY,
     marginTop: 6,
     marginLeft: 4,
@@ -1964,6 +1984,7 @@ const styles = StyleSheet.create({
   },
   helperText: {
     fontSize: 13,
+    fontFamily: FONTS.regular,
     color: TEXT_SECONDARY,
     marginTop: 8,
   },
