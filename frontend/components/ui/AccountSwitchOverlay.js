@@ -105,10 +105,12 @@ const AccountSwitchOverlay = () => {
 
   const startSwitchTime = useRef(0);
   const failSafeTimeoutRef = useRef(null);
+  const hasCompletedRef = useRef(false);
 
   useEffect(() => {
     const offStart = EventBus.on("account-switch-start", () => {
       startSwitchTime.current = Date.now();
+      hasCompletedRef.current = false;
       console.log(`[AccountSwitchOverlay] [0ms] Received account-switch-start`);
       setToastData(null);
       setVisible(true);
@@ -124,7 +126,7 @@ const AccountSwitchOverlay = () => {
           console.warn("[AccountSwitchOverlay] __DEV__ mode: auto-dismissing stuck overlay for safety.");
           Animated.timing(overlayOpacity, {
             toValue: 0,
-            duration: 350,
+            duration: 200,
             useNativeDriver: true,
           }).start(() => setVisible(false));
         }
@@ -136,6 +138,8 @@ const AccountSwitchOverlay = () => {
       console.log(`[AccountSwitchOverlay] [${elapsed}ms] Received account-switch-done for: ${data?.username || data?.name}`);
       if (failSafeTimeoutRef.current) clearTimeout(failSafeTimeoutRef.current);
       
+      hasCompletedRef.current = true;
+
       // 1. Spring in the toast first
       setToastData(data);
       toastY.setValue(-70);
@@ -157,20 +161,24 @@ const AccountSwitchOverlay = () => {
         }),
       ]).start();
 
-      // 2. After a short hold, fade the skeleton out (reveals the new home screen)
+      // 2. Overlap hold + fade-out based on minimum visibility of 300ms and a 150ms render buffer
+      const minimumVisible = Math.max(0, 300 - elapsed);
+      const renderBuffer = 150;
+      const delay = minimumVisible + renderBuffer;
+
       setTimeout(() => {
         const fadeStart = Date.now() - startSwitchTime.current;
         console.log(`[AccountSwitchOverlay] [${fadeStart}ms] Fading out skeleton...`);
         Animated.timing(overlayOpacity, {
           toValue: 0,
-          duration: 350,
+          duration: 200, // Smooth 200ms fade duration
           useNativeDriver: true,
         }).start(() => {
           const fadeDone = Date.now() - startSwitchTime.current;
           console.log(`[AccountSwitchOverlay] [${fadeDone}ms] Skeleton fade complete.`);
           setVisible(false);
         });
-      }, 600);
+      }, delay);
 
       // 3. Auto-dismiss toast after 3s
       setTimeout(() => {
@@ -191,12 +199,18 @@ const AccountSwitchOverlay = () => {
 
     const offEnd = EventBus.on("account-switch-end", () => {
       const elapsed = Date.now() - startSwitchTime.current;
-      console.log(`[AccountSwitchOverlay] [${elapsed}ms] Received account-switch-end (completed/aborted)`);
+      console.log(`[AccountSwitchOverlay] [${elapsed}ms] Received account-switch-end (completed=${hasCompletedRef.current})`);
       if (failSafeTimeoutRef.current) clearTimeout(failSafeTimeoutRef.current);
 
+      // If the switch succeeded, let offDone handle the smooth transition
+      if (hasCompletedRef.current) {
+        return;
+      }
+
+      // If it aborted or failed, dismiss immediately
       Animated.timing(overlayOpacity, {
         toValue: 0,
-        duration: 350,
+        duration: 200,
         useNativeDriver: true,
       }).start(() => setVisible(false));
     });
