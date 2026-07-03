@@ -120,6 +120,7 @@ async function run() {
       ALTER TABLE members ADD COLUMN IF NOT EXISTS prompt_answer TEXT;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS appear_in_discover BOOLEAN DEFAULT true;
       ALTER TABLE members ADD COLUMN IF NOT EXISTS instagram_username TEXT;
+      ALTER TABLE communities ADD COLUMN IF NOT EXISTS instagram_username TEXT;
     `);
     console.log("✓ Discover/social columns added to members.");
 

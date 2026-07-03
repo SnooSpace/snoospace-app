@@ -47,6 +47,7 @@ async function ensureTables(pool) {
         phone TEXT NOT NULL,
         sponsor_types JSONB NOT NULL,
         username TEXT UNIQUE,
+        instagram_username TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       

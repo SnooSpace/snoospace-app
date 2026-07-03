@@ -36,7 +36,7 @@ import RemoveInstagramModal from '../../../components/modals/RemoveInstagramModa
  *   - instagramUsername: string | null  (current value from profile)
  */
 export default function LinkedAccountsScreen({ route, navigation }) {
-  const { instagramUsername: initialUsername } = route?.params || {};
+  const { instagramUsername: initialUsername, accountType = 'member' } = route?.params || {};
 
   // Local mutable copy of the linked username
   const [linked, setLinked] = useState(initialUsername || null);
@@ -94,7 +94,8 @@ export default function LinkedAccountsScreen({ route, navigation }) {
     try {
       setSaving(true);
       const token = await getAuthToken();
-      await apiPatch('/members/profile', { instagram_username: cleanUsername }, 15000, token);
+      const endpoint = accountType === 'community' ? '/communities/profile' : '/members/profile';
+      await apiPatch(endpoint, { instagram_username: cleanUsername }, 15000, token);
       HapticsService.triggerNotificationSuccess();
       setLinked(cleanUsername);
       setEditing(false);
@@ -107,7 +108,7 @@ export default function LinkedAccountsScreen({ route, navigation }) {
     } finally {
       setSaving(false);
     }
-  }, [inputValue]);
+  }, [inputValue, accountType]);
 
   // ─── Remove ───────────────────────────────────────────────────────────────
   const handleRemove = useCallback(() => {
@@ -119,7 +120,8 @@ export default function LinkedAccountsScreen({ route, navigation }) {
     try {
       setSaving(true);
       const token = await getAuthToken();
-      await apiPatch('/members/profile', { instagram_username: null }, 15000, token);
+      const endpoint = accountType === 'community' ? '/communities/profile' : '/members/profile';
+      await apiPatch(endpoint, { instagram_username: null }, 15000, token);
       HapticsService.triggerNotificationSuccess();
       setLinked(null);
       setInputValue('');
@@ -132,7 +134,7 @@ export default function LinkedAccountsScreen({ route, navigation }) {
     } finally {
       setSaving(false);
     }
-  }, []);
+  }, [accountType]);
 
   // ─── Cancel edit ─────────────────────────────────────────────────────────
   const handleCancelEdit = useCallback(() => {

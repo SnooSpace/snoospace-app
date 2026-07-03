@@ -150,6 +150,7 @@ import { useToast } from "../../../context/ToastContext";
 import CommunityVoiceBox, {
   VoicePostCard,
 } from "../../../components/CommunityVoiceBox";
+import InstagramRow from "../../../components/InstagramRow";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height
@@ -286,15 +287,29 @@ const CommunityProfileHeaderBioSection = React.memo(
                 </View>
               )}
 
-            {/* College Chip — shown for college-affiliated communities */}
-            {profile.college_info && (
-              <View style={{ marginTop: 8 }}>
-                <CollegeChip
-                  collegeInfo={profile.college_info}
-                  onPress={onShowCollegeHub}
-                />
+            {/* College & Socials Row */}
+            {(profile.instagram_username || profile.college_info) ? (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
+                  marginTop: 10,
+                  marginBottom: 8,
+                }}
+              >
+                {profile.college_info && (
+                  <CollegeChip
+                    collegeInfo={profile.college_info}
+                    onPress={onShowCollegeHub}
+                  />
+                )}
+                {profile.instagram_username && (
+                  <InstagramRow username={profile.instagram_username} />
+                )}
               </View>
-            )}
+            ) : null}
 
             {!!profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
           </View>
@@ -1622,6 +1637,7 @@ export default function CommunityProfileScreen({ navigation, route }) {
         events_scheduled_count: fullProfile?.events_scheduled_count || 0,
         events_hosted_count: fullProfile?.events_hosted_count || 0,
         college_info: fullProfile?.college_info || null,
+        instagram_username: fullProfile?.instagram_username || null,
       };
       console.log(
         "[CommunityProfile] mappedProfile.college_info:",

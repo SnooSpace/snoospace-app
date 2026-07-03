@@ -61,6 +61,7 @@ import CollegeChip from "../../../components/CollegeChip";
 import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
 import EventCard from "../../../components/EventCard";
 import HapticsService from "../../../services/HapticsService";
+import InstagramRow from "../../../components/InstagramRow";
 
 import {
   getPublicCommunity,
@@ -1803,15 +1804,29 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 </View>
               )}
 
-            {/* College Chip */}
-            {profile?.college_info && (
-              <View style={{ marginTop: 8 }}>
-                <CollegeChip
-                  collegeInfo={profile.college_info}
-                  onPress={() => setShowCollegeHub(true)}
-                />
+            {/* College & Socials Row */}
+            {(profile?.instagram_username || profile?.college_info) ? (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
+                  marginTop: 10,
+                  marginBottom: 8,
+                }}
+              >
+                {profile?.college_info && (
+                  <CollegeChip
+                    collegeInfo={profile.college_info}
+                    onPress={() => setShowCollegeHub(true)}
+                  />
+                )}
+                {profile?.instagram_username && (
+                  <InstagramRow username={profile.instagram_username} />
+                )}
               </View>
-            )}
+            ) : null}
 
             {!!profile?.bio && <Text style={styles.bio}>{profile.bio}</Text>}
           </View>

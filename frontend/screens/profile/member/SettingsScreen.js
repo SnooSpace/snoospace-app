@@ -503,6 +503,7 @@ export default function SettingsScreen({ route, navigation }) {
               onPress={() =>
                 navigation.navigate("LinkedAccounts", {
                   instagramUsername,
+                  accountType: isCommunity ? "community" : "member",
                 })
               }
               isLast

@@ -341,7 +341,7 @@ async function getProfile(req, res) {
     const communityResult = await pool.query(
       `SELECT id, name, email, phone, secondary_phone, category, categories, location, username, bio, logo_url, banner_url, sponsor_types, show_heads, created_at,
               community_type, college_id, college_subtype, club_type, community_theme, campus_id,
-              follower_count, following_count,
+              follower_count, following_count, instagram_username,
               (SELECT COUNT(*) FROM community_member_circles WHERE community_id = $1)::int AS circle_count,
               (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'community')::int
                + (SELECT COUNT(*) FROM opportunities WHERE creator_id = $1::text AND creator_type = 'community' AND status != 'closed')::int AS post_count,
@@ -563,6 +563,7 @@ async function patchProfile(req, res) {
       banner_url,
       college_id,
       campus_id,
+      instagram_username,
     } = req.body || {};
 
     const updates = [];
@@ -702,6 +703,28 @@ async function patchProfile(req, res) {
       values.push(req.body.auto_join_group_chat === true);
     }
 
+    // Instagram username linking (no OAuth — store clean username only)
+    if (req.body.hasOwnProperty('instagram_username')) {
+      const raw = req.body.instagram_username;
+      if (raw === null || raw === '') {
+        updates.push(`instagram_username = NULL`);
+      } else if (typeof raw === 'string') {
+        // Strip URL prefix and @ on the server side for safety
+        let clean = raw.trim();
+        const urlMatch = clean.match(/^https?:\/\/(?:www\.)?instagram\.com\/([a-zA-Z0-9._]{1,30})\/?(?:\?.*)?$/i);
+        if (urlMatch) {
+          clean = urlMatch[1];
+        } else {
+          clean = clean.startsWith('@') ? clean.slice(1) : clean;
+        }
+        if (!/^[a-zA-Z0-9._]{1,30}$/.test(clean)) {
+          return res.status(400).json({ error: 'Invalid Instagram username. Only letters, numbers, dots, and underscores are allowed.' });
+        }
+        updates.push(`instagram_username = $${paramIndex++}`);
+        values.push(clean);
+      }
+    }
+
     if (updates.length === 0) {
       return res.status(400).json({ error: "No valid fields to update" });
     }
@@ -709,7 +732,7 @@ async function patchProfile(req, res) {
     values.push(userId);
     const query = `UPDATE communities SET ${updates.join(
       ", ",
-    )} WHERE id = $${paramIndex} RETURNING id, name, bio, phone, secondary_phone, category, categories, sponsor_types, location, banner_url, college_id, campus_id, community_type, college_subtype, club_type`;
+    )} WHERE id = $${paramIndex} RETURNING id, name, bio, phone, secondary_phone, category, categories, sponsor_types, location, banner_url, college_id, campus_id, community_type, college_subtype, club_type, instagram_username`;
 
     const result = await pool.query(query, values);
     if (result.rows.length === 0) {
@@ -738,6 +761,7 @@ async function patchProfile(req, res) {
             ? JSON.parse(community.location)
             : community.location,
         banner_url: community.banner_url || null,
+        instagram_username: community.instagram_username || null,
       },
     });
   } catch (err) {
@@ -832,7 +856,7 @@ async function getPublicCommunity(req, res) {
 
     const communityR = await pool.query(
       `SELECT id, username, name, bio, logo_url, banner_url, category, categories, created_at, sponsor_types, location, show_heads,
-              community_type, college_id, college_subtype, club_type, campus_id
+              community_type, college_id, college_subtype, club_type, campus_id, instagram_username
        FROM communities
        WHERE id = $1`,
       [targetId],
@@ -1062,6 +1086,7 @@ async function getPublicCommunity(req, res) {
       show_heads: profile.show_heads !== false, // default true
       college_info: collegeInfo,
       you_have_blocked: youHaveBlocked,
+      instagram_username: profile.instagram_username || null,
     });
   } catch (err) {
     console.error(
