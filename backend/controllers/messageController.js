@@ -718,12 +718,71 @@ const sendMessage = async (req, res) => {
         console.error("Error triggering message push notification:", err);
       }
     }
-    // Notify recipient(s) via their personal socket rooms so the inbox list
-    // and unread badge update instantly without a full Supabase Realtime query.
+    // Notify active participants in the chat screen via the chat room,
+    // and others via their personal socket rooms.
     if (!isHidden) {
       try {
         const io = req.app.locals.io;
         if (io) {
+          // Fetch reply details if it's a reply
+          let replyPreview = null;
+          if (reply_to_message_id) {
+            const replyMsgQuery = `
+              SELECT
+                m.message_text,
+                m.message_type,
+                m.metadata,
+                m.sender_id,
+                m.sender_type,
+                m.is_deleted,
+                COALESCE(mem.name, comm.name) AS sender_name
+              FROM messages m
+              LEFT JOIN members mem ON (m.sender_id = mem.id AND m.sender_type = 'member')
+              LEFT JOIN communities comm ON (m.sender_id = comm.id AND m.sender_type = 'community')
+              WHERE m.id = $1
+            `;
+            const replyMsgRes = await pool.query(replyMsgQuery, [reply_to_message_id]);
+            if (replyMsgRes.rows[0]) {
+              const rMsg = replyMsgRes.rows[0];
+              const isPostShare = rMsg.message_type === "post_share";
+              const replyMeta = rMsg.metadata || {};
+              replyPreview = {
+                messageText:       rMsg.is_deleted ? null : rMsg.message_text,
+                messageType:       rMsg.message_type,
+                senderId:          rMsg.sender_id,
+                senderType:        rMsg.sender_type,
+                senderName:        rMsg.sender_name,
+                isDeleted:         rMsg.is_deleted,
+                isPostShare:       isPostShare,
+                postAuthorUsername: isPostShare ? (replyMeta.authorUsername || null) : null,
+                postAuthorName:    isPostShare ? (replyMeta.authorName || null) : null,
+                postCaption:       isPostShare ? (replyMeta.caption || null) : null,
+              };
+            }
+          }
+
+          const chatPayload = {
+            id:             message.id,
+            conversationId: convId,
+            senderId:       userId,
+            senderType:     userType,
+            senderName:     senderInfo.rows[0]?.name,
+            senderUsername: senderInfo.rows[0]?.username,
+            senderPhotoUrl: senderInfo.rows[0]?.profile_photo_url,
+            messageText:    finalText,
+            messageType,
+            metadata:       metadata || null,
+            replyToMessageId: reply_to_message_id || null,
+            replyPreview,
+            isRead:         false,
+            isDeleted:      false,
+            createdAt:      message.created_at,
+          };
+
+          // 1. Emit to active viewers in the chat room
+          io.to(`chat_${convId}`).emit('new_chat_message', chatPayload);
+
+          // 2. Emit 'new_message' to personal rooms for inbox list updates
           const convInfoForSocket = await pool.query(
             `SELECT is_group, participant1_id, participant1_type, participant2_id, participant2_type
              FROM conversations WHERE id = $1`,
@@ -753,7 +812,7 @@ const sendMessage = async (req, res) => {
         }
       } catch (socketErr) {
         // Non-fatal — push notification already handles offline delivery
-        console.error('[MessageController] Socket emit for inbox refresh failed:', socketErr.message);
+        console.error('[MessageController] Socket emit for inbox/chat refresh failed:', socketErr.message);
       }
     }
 
@@ -1745,10 +1804,12 @@ const unsendMessage = async (req, res) => {
       return res.status(401).json({ error: "Authentication required" });
     }
     const check = await pool.query(
-      `SELECT id FROM messages WHERE id = $1 AND sender_id = $2 AND sender_type = $3`,
+      `SELECT id, conversation_id FROM messages WHERE id = $1 AND sender_id = $2 AND sender_type = $3`,
       [messageId, userId, userType],
     );
     if (check.rows.length === 0) return res.status(403).json({ error: "Cannot unsend this message" });
+
+    const convId = check.rows[0].conversation_id;
 
     await pool.query(
       // deleted_by_type must be 'sender' or 'recipient' (DB CHECK constraint).
@@ -1756,6 +1817,22 @@ const unsendMessage = async (req, res) => {
       `UPDATE messages SET is_deleted = true, deleted_by_type = 'sender' WHERE id = $1`,
       [messageId],
     );
+
+    // Notify active chat screen viewers of the unsent message
+    try {
+      const io = req.app.locals.io;
+      if (io && convId) {
+        io.to(`chat_${convId}`).emit('message_updated', {
+          id: messageId,
+          isDeleted: true,
+          deletedByType: 'sender',
+          messageText: null
+        });
+      }
+    } catch (socketErr) {
+      console.error('[MessageController] Socket emit for unsend failed:', socketErr.message);
+    }
+
     res.json({ success: true });
   } catch (error) {
     console.error("Error unsending message:", error);

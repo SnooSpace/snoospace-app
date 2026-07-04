@@ -2242,6 +2242,56 @@ export default function ChatScreen({ route, navigation }) {
     };
   }, []);
 
+  // ——— Socket.io Realtime Message Listeners ———————————————————————————————————————————
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket || !currentConversationId) return;
+
+    const handleNewChatMessage = (msg) => {
+      // Don't duplicate self-sent messages (already inserted locally)
+      if (currentUser?.id && String(msg.senderId) === String(currentUser.id)) {
+        return;
+      }
+      console.log("[ChatScreen] Socket.io new message received:", msg.id);
+      addNewMessage({
+        id: msg.id,
+        senderId: msg.senderId,
+        senderType: msg.senderType,
+        senderName: msg.senderName,
+        senderUsername: msg.senderUsername,
+        senderPhotoUrl: msg.senderPhotoUrl,
+        messageText: msg.messageText,
+        messageType: msg.messageType,
+        metadata: msg.metadata,
+        isDeleted: msg.isDeleted,
+        deletedByType: msg.deletedByType,
+        replyToMessageId: msg.replyToMessageId,
+        replyPreview: msg.replyPreview,
+        isRead: msg.isRead,
+        createdAt: msg.createdAt,
+      });
+      // Mark as read immediately
+      markMessageRead(msg.id).catch(() => {});
+    };
+
+    const handleMessageUpdated = (msg) => {
+      console.log("[ChatScreen] Socket.io message update received:", msg.id);
+      updateMessageById(msg.id, {
+        isDeleted: msg.isDeleted,
+        deletedByType: msg.deletedByType,
+        messageText: msg.messageText,
+      });
+    };
+
+    socket.on("new_chat_message", handleNewChatMessage);
+    socket.on("message_updated", handleMessageUpdated);
+
+    return () => {
+      socket.off("new_chat_message", handleNewChatMessage);
+      socket.off("message_updated", handleMessageUpdated);
+    };
+  }, [currentConversationId, currentUser, addNewMessage, updateMessageById]);
+
   const handleSend = async () => {
     const hasText = messageText.trim().length > 0;
     const hasMedia = mediaAttachments.length > 0;
