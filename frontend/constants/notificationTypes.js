@@ -232,7 +232,6 @@ export const NotificationTypes = {
 export const CATEGORIES = [
   { id: "all", label: "All" },
   { id: "activity", label: "Activity" },
-  { id: "messages", label: "Messages" },
   { id: "events", label: "Events" },
   { id: "communities", label: "Communities" },
   { id: "system", label: "System" },

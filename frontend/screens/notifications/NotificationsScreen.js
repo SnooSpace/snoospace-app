@@ -46,11 +46,18 @@ import { fetchNotifications } from "../../api/notifications";
 import { CATEGORIES } from "../../constants/notificationTypes";
 import EventBus from "../../utils/EventBus";
 import {
-  followMember,
-  unfollowMember,
-  getFollowStatusForMember,
+  getCircleStatus,
   sendCircleRequest,
+  getCommunityCircleStatus,
+  sendCommunityCircleInvite,
+  getCreatorFollowStatus,
+  followCreator,
+  unfollowCreator,
+  getMemberCommunityCircleStatus,
+  respondToCommunityCircleInvite,
 } from "../../api/members";
+import { apiGet, apiPost, apiDelete } from "../../api/client";
+import { getAuthToken, getActiveAccount } from "../../api/auth";
 import hapticsService from "../../services/HapticsService";
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from "../../constants/theme";
 
@@ -113,12 +120,10 @@ const NotificationRow = ({
   sections,
   scrollY,
   overscrollBottom,
-  followedUserIds,
-  followLoading,
-  handleFollowToggle,
-  circleRequestedIds,
-  circleRequestLoading,
-  handleSendCircleRequest,
+  relationshipStatuses,
+  relationshipLoading,
+  handleRelationshipAction,
+  handleRespondToInvite,
   navigateToProfile,
   navigateToEvent,
   navigation,
@@ -248,6 +253,7 @@ const NotificationRow = ({
           icon: <AtSign size={18} color="#34C759" strokeWidth={2} />,
           bg: "rgba(52, 199, 89, 0.08)",
         };
+      case "community_circle_invite":
       case "circle_request_received":
         return {
           icon: <UserPlus size={18} color="#2962FF" strokeWidth={2} />,
@@ -332,7 +338,7 @@ const NotificationRow = ({
 
   const renderLeftSection = () => {
     const iconInfo = getNotificationIconInfo(group.type);
-    const hasAvatar = ["follow", "like", "comment", "tag", "event_registration", "circle_request_received", "circle_request_accepted", "creator_follow_received", "plan_like", "plan_comment", "qna_question", "qna_upvote", "qna_answered", "challenge_submission_like", "submission_comment", "removal_request"].includes(group.type) && payload.actorAvatar;
+    const hasAvatar = ["follow", "like", "comment", "tag", "event_registration", "circle_request_received", "circle_request_accepted", "creator_follow_received", "plan_like", "plan_comment", "qna_question", "qna_upvote", "qna_answered", "challenge_submission_like", "submission_comment", "removal_request", "community_circle_invite"].includes(group.type) && payload.actorAvatar;
 
     if (hasAvatar) {
       return (
@@ -357,6 +363,141 @@ const NotificationRow = ({
           {iconInfo.icon}
         </View>
       </View>
+    );
+  };
+
+  const renderRightActionButton = () => {
+    const actorId = firstItem.actor_id;
+    const relStatus = relationshipStatuses[actorId];
+    if (!relStatus) return null;
+
+    const { type, status, requestId } = relStatus;
+    const isLoading = !!relationshipLoading[actorId];
+
+    let buttonText = "";
+    let isButtonActive = false; // active state = gray/disabled, inactive state = blue/clickable
+    let isDisabled = false;
+
+    if (type === 'circle') {
+      if (status === 'in_circle') {
+        buttonText = "In Circle";
+        isButtonActive = true;
+        isDisabled = true;
+      } else if (status === 'requested') {
+        buttonText = "Requested";
+        isButtonActive = true;
+        isDisabled = true;
+      } else {
+        buttonText = "Add to Circle";
+        isButtonActive = false;
+        isDisabled = false;
+      }
+    } else if (type === 'community_circle') {
+      if (status === 'in_circle') {
+        buttonText = "In Circle";
+        isButtonActive = true;
+        isDisabled = true;
+      } else if (status === 'requested') {
+        buttonText = "Invited";
+        isButtonActive = true;
+        isDisabled = true;
+      } else {
+        buttonText = "Add to Circle";
+        isButtonActive = false;
+        isDisabled = false;
+      }
+    } else if (type === 'creator_follow') {
+      if (status === 'in_circle') {
+        buttonText = "In Circle";
+        isButtonActive = true;
+        isDisabled = true;
+      } else if (status === 'following') {
+        buttonText = "Following";
+        isButtonActive = true;
+        isDisabled = false;
+      } else {
+        buttonText = "Follow";
+        isButtonActive = false;
+        isDisabled = false;
+      }
+    } else if (type === 'follow') {
+      if (status === 'following') {
+        buttonText = "Following";
+        isButtonActive = true;
+        isDisabled = false;
+      } else if (status === 'follow_back') {
+        buttonText = "Follow Back";
+        isButtonActive = false;
+        isDisabled = false;
+      } else {
+        buttonText = "Follow";
+        isButtonActive = false;
+        isDisabled = false;
+      }
+    } else if (type === 'community_circle_invite') {
+      if (status === 'in_circle') {
+        buttonText = "In Circle";
+        isButtonActive = true;
+        isDisabled = true;
+      } else if (status === 'pending_invite' && requestId) {
+        return (
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.actionButtonInactive, { minWidth: 60 }]}
+              onPress={() => handleRespondToInvite(actorId, requestId, 'accepted')}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color={COLORS.textInverted} />
+              ) : (
+                <Text style={[styles.actionButtonText, styles.actionButtonTextInactive]}>Accept</Text>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.actionButtonActive, { minWidth: 60 }]}
+              onPress={() => handleRespondToInvite(actorId, requestId, 'declined')}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color={COLORS.textSecondary} />
+              ) : (
+                <Text style={[styles.actionButtonText, styles.actionButtonTextActive]}>Decline</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        );
+      } else {
+        return null;
+      }
+    }
+
+    if (!buttonText) return null;
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.actionButton,
+          isButtonActive ? styles.actionButtonActive : styles.actionButtonInactive,
+        ]}
+        onPress={() => handleRelationshipAction(actorId, firstItem.actor_type)}
+        disabled={isLoading || isDisabled}
+      >
+        {isLoading ? (
+          <ActivityIndicator
+            size="small"
+            color={isButtonActive ? COLORS.textSecondary : COLORS.textInverted}
+          />
+        ) : (
+          <Text
+            style={[
+              styles.actionButtonText,
+              isButtonActive ? styles.actionButtonTextActive : styles.actionButtonTextInactive,
+            ]}
+          >
+            {buttonText}
+          </Text>
+        )}
+      </TouchableOpacity>
     );
   };
 
@@ -386,36 +527,18 @@ const NotificationRow = ({
           <Text style={styles.bold}>{payload.actorName || "Someone"}</Text> started following your creator content
         </Text>
       );
-      // Only show Add to Circle for member followers
-      if (firstItem.actor_type === "member") {
-        const circleState = circleRequestedIds[firstItem.actor_id] || "none";
-        const isCircleLoading = circleRequestLoading[firstItem.actor_id];
-        if (circleState !== "in_circle") {
-          rightComponent = (
-            <TouchableOpacity
-              style={[
-                styles.actionButton,
-                circleState === "requested" ? styles.actionButtonActive : styles.actionButtonInactive,
-              ]}
-              onPress={() => handleSendCircleRequest(firstItem.actor_id)}
-              disabled={isCircleLoading || circleState === "requested"}
-            >
-              {isCircleLoading ? (
-                <ActivityIndicator size="small" color={COLORS.textSecondary} />
-              ) : (
-                <Text
-                  style={[
-                    styles.actionButtonText,
-                    circleState === "requested" ? styles.actionButtonTextActive : styles.actionButtonTextInactive,
-                  ]}
-                >
-                  {circleState === "requested" ? "Requested" : "Add to Circle"}
-                </Text>
-              )}
-            </TouchableOpacity>
-          );
-        }
-      }
+      rightComponent = renderRightActionButton();
+      break;
+
+    case "community_circle_invite":
+      isNavigable = true;
+      onPress = () => navigateToProfile(firstItem.actor_id, firstItem.actor_type);
+      title = (
+        <Text style={styles.title}>
+          <Text style={styles.bold}>{payload.actorName || "Someone"}</Text> invited you to join their circle
+        </Text>
+      );
+      rightComponent = renderRightActionButton();
       break;
 
     case "circle_request_accepted":
@@ -436,36 +559,7 @@ const NotificationRow = ({
           <Text style={styles.bold}>{payload.actorName || "Someone"}</Text> started following you
         </Text>
       );
-      if (firstItem.actor_type === "member") {
-        const isFollowing = followedUserIds[firstItem.actor_id];
-        const isLoading = followLoading[firstItem.actor_id];
-        rightComponent = (
-          <TouchableOpacity
-            style={[
-              styles.actionButton,
-              isFollowing ? styles.actionButtonActive : styles.actionButtonInactive,
-            ]}
-            onPress={() => handleFollowToggle(firstItem.actor_id)}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator
-                size="small"
-                color={isFollowing ? COLORS.textSecondary : COLORS.textInverted}
-              />
-            ) : (
-              <Text
-                style={[
-                  styles.actionButtonText,
-                  isFollowing ? styles.actionButtonTextActive : styles.actionButtonTextInactive,
-                ]}
-              >
-                {isFollowing ? "Following" : "Follow Back"}
-              </Text>
-            )}
-          </TouchableOpacity>
-        );
-      }
+      rightComponent = renderRightActionButton();
       break;
 
     case "like":
@@ -864,10 +958,9 @@ const NotificationRow = ({
 
   }
 
-  // Show thumbnail or text preview on the right for likes, comments, and tags
+  // Show thumbnail on the right for likes, comments, and tags
   if (["like", "comment", "tag"].includes(group.type) && !rightComponent) {
     const postImage = payload.postImage;
-    const postTitle = payload.postTitle || payload.postCaption;
 
     if (postImage) {
       rightComponent = (
@@ -876,14 +969,6 @@ const NotificationRow = ({
           style={styles.postThumbnail}
           resizeMode="cover"
         />
-      );
-    } else if (postTitle) {
-      rightComponent = (
-        <View style={styles.postTextPreviewContainer}>
-          <Text style={styles.postTextPreview} numberOfLines={2}>
-            {postTitle}
-          </Text>
-        </View>
       );
     }
   }
@@ -974,11 +1059,26 @@ export default function NotificationsScreen({ navigation }) {
     }
   };
 
-  const [followedUserIds, setFollowedUserIds] = useState({});
-  const [followLoading, setFollowLoading] = useState({});
-  // Inline Add to Circle state for creator_follow_received notifications
-  const [circleRequestedIds, setCircleRequestedIds] = useState({}); // { [actorId]: 'none' | 'requested' | 'in_circle' }
-  const [circleRequestLoading, setCircleRequestLoading] = useState({}); // { [actorId]: boolean }
+  const [viewerType, setViewerType] = useState(null);
+  const [viewerId, setViewerId] = useState(null);
+
+  useEffect(() => {
+    const getViewerInfo = async () => {
+      try {
+        const acc = await getActiveAccount();
+        if (acc) {
+          setViewerType(acc.type?.toLowerCase());
+          setViewerId(acc.id);
+        }
+      } catch (err) {
+        console.warn("Failed to get active account info:", err);
+      }
+    };
+    getViewerInfo();
+  }, []);
+
+  const [relationshipStatuses, setRelationshipStatuses] = useState({});
+  const [relationshipLoading, setRelationshipLoading] = useState({});
 
   const scrollY = useSharedValue(0);
   const overscrollBottom = useSharedValue(0);
@@ -1076,35 +1176,154 @@ export default function NotificationsScreen({ navigation }) {
     return result;
   }, [groupedNotifications]);
 
-  // Fetch follow statuses for member follow notifications
-  useEffect(() => {
-    const loadFollowStatuses = async () => {
-      const followMemberIds = localItems
-        .filter((item) => item.type === "follow" && item.actor_type === "member")
-        .map((item) => item.actor_id);
+  const checkFollowStatus = async (followingId, followingType) => {
+    const token = await getAuthToken();
+    const params = new URLSearchParams();
+    params.set("followingId", String(followingId));
+    params.set("followingType", followingType);
+    const res = await apiGet(`/follow/status?${params.toString()}`, 10000, token);
+    return !!res?.isFollowing;
+  };
 
-      const uniqueIds = [...new Set(followMemberIds)];
-      for (const memberId of uniqueIds) {
-        if (followedUserIds[memberId] === undefined) {
-          try {
-            const res = await getFollowStatusForMember(memberId);
-            setFollowedUserIds((prev) => ({
-              ...prev,
-              [memberId]: !!res?.isFollowing,
-            }));
-          } catch (e) {
-            console.warn(`Failed to load follow status for ${memberId}`, e);
-          }
+  const toggleFollow = async (followingId, followingType, isFollowing) => {
+    const token = await getAuthToken();
+    if (isFollowing) {
+      return apiDelete("/follow", { followingId, followingType }, 10000, token);
+    } else {
+      return apiPost("/follow", { followingId, followingType }, 10000, token);
+    }
+  };
+
+  // Fetch follow/circle statuses for all actors involved in relationship notifications
+  const loadRelationshipStatuses = useCallback(async (items, vType) => {
+    if (!vType || !items || items.length === 0) return;
+
+    // Filter unique actors from follow & creator_follow_received notifications
+    const targetActors = [];
+    const seen = new Set();
+
+    items.forEach((item) => {
+      if ((item.type === "follow" || item.type === "creator_follow_received" || item.type === "community_circle_invite") && item.actor_id) {
+        const key = `${item.actor_id}-${item.actor_type}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          targetActors.push({
+            id: item.actor_id,
+            type: item.actor_type,
+            isCreator: !!item.payload?.actorIsCreator || !!item.actor_is_creator,
+          });
         }
       }
-    };
-    if (localItems.length > 0) {
+    });
+
+    if (targetActors.length === 0) return;
+
+    // Fetch status for each target actor in parallel
+    const statusPromises = targetActors.map(async (actor) => {
+      try {
+        let relType = 'follow';
+        let relStatus = 'none';
+        let requestId = null;
+
+        if (vType === 'member') {
+          if (actor.type === 'member') {
+            if (actor.isCreator) {
+              // Member-to-Creator: Creator Follow
+              relType = 'creator_follow';
+              const res = await getCreatorFollowStatus(actor.id);
+              if (res?.is_in_circle) {
+                relStatus = 'in_circle';
+              } else if (res?.is_following) {
+                relStatus = 'following';
+              } else {
+                relStatus = 'not_following';
+              }
+            } else {
+              // Member-to-Member: Circle
+              relType = 'circle';
+              const res = await getCircleStatus(actor.id);
+              if (res?.status === 'in_circle') {
+                relStatus = 'in_circle';
+              } else if (res?.status === 'pending_outgoing') {
+                relStatus = 'requested';
+                requestId = res.request_id;
+              } else {
+                relStatus = 'none';
+              }
+            }
+          } else {
+            // Member-to-Other (Community/Sponsor/Venue): Follow / Community Circle Invite
+            if (actor.type === 'community') {
+              const commCircleRes = await getMemberCommunityCircleStatus(actor.id);
+              if (commCircleRes?.status === 'pending_invite') {
+                relType = 'community_circle_invite';
+                relStatus = 'pending_invite';
+                requestId = commCircleRes.invite_id;
+              } else if (commCircleRes?.status === 'in_circle') {
+                relType = 'community_circle_invite';
+                relStatus = 'in_circle';
+              } else {
+                relType = 'follow';
+                const isFollowing = await checkFollowStatus(actor.id, actor.type);
+                relStatus = isFollowing ? 'following' : 'not_following';
+              }
+            } else {
+              relType = 'follow';
+              const isFollowing = await checkFollowStatus(actor.id, actor.type);
+              relStatus = isFollowing ? 'following' : 'not_following';
+            }
+          }
+        } else if (vType === 'community') {
+          if (actor.type === 'member') {
+            // Community-to-Member: Community Circle
+            relType = 'community_circle';
+            const res = await getCommunityCircleStatus(actor.id);
+            if (res?.status === 'in_circle') {
+              relStatus = 'in_circle';
+            } else if (res?.status === 'pending_outgoing') {
+              relStatus = 'requested';
+              requestId = res.invite_id;
+            } else {
+              relStatus = 'none';
+            }
+          } else {
+            // Community-to-Other (Community/Sponsor/Venue): Follow
+            relType = 'follow';
+            const isFollowing = await checkFollowStatus(actor.id, actor.type);
+            relStatus = isFollowing ? 'following' : 'follow_back';
+          }
+        }
+
+        return { actorId: actor.id, relType, relStatus, requestId };
+      } catch (err) {
+        console.warn(`Failed to fetch relationship for actor ${actor.id}:`, err);
+        return null;
+      }
+    });
+
+    const results = await Promise.all(statusPromises);
+    const newStatuses = {};
+    results.forEach((res) => {
+      if (res) {
+        newStatuses[res.actorId] = {
+          type: res.relType,
+          status: res.relStatus,
+          requestId: res.requestId,
+        };
+      }
+    });
+
+    setRelationshipStatuses((prev) => ({ ...prev, ...newStatuses }));
+  }, []);
+
+  useEffect(() => {
+    if (localItems.length > 0 && viewerType) {
       const task = InteractionManager.runAfterInteractions(() => {
-        loadFollowStatuses();
+        loadRelationshipStatuses(localItems, viewerType);
       });
       return () => task.cancel();
     }
-  }, [localItems, followedUserIds]);
+  }, [localItems, viewerType, loadRelationshipStatuses]);
 
   // Mark all read on mount and clear tray
   useEffect(() => {
@@ -1133,37 +1352,89 @@ export default function NotificationsScreen({ navigation }) {
     }
   }, [navigation]);
 
-  const handleFollowToggle = useCallback(async (actorId) => {
-    hapticsService.triggerImpactMedium();
-    const isCurrentlyFollowing = followedUserIds[actorId];
+  const handleRelationshipAction = useCallback(async (actorId, actorType) => {
+    const currentRel = relationshipStatuses[actorId];
+    if (!currentRel || !viewerType) return;
 
-    setFollowLoading((prev) => ({ ...prev, [actorId]: true }));
+    hapticsService.triggerImpactMedium();
+    setRelationshipLoading((prev) => ({ ...prev, [actorId]: true }));
+
     try {
-      if (isCurrentlyFollowing) {
-        await unfollowMember(actorId);
-        setFollowedUserIds((prev) => ({ ...prev, [actorId]: false }));
-      } else {
-        await followMember(actorId);
-        setFollowedUserIds((prev) => ({ ...prev, [actorId]: true }));
+      if (currentRel.type === 'circle') {
+        if (currentRel.status === 'none') {
+          const res = await sendCircleRequest(actorId);
+          if (res?.auto_accepted) {
+            setRelationshipStatuses((prev) => ({
+              ...prev,
+              [actorId]: { ...currentRel, status: 'in_circle' },
+            }));
+          } else {
+            setRelationshipStatuses((prev) => ({
+              ...prev,
+              [actorId]: { ...currentRel, status: 'requested', requestId: res?.request_id },
+            }));
+          }
+        }
+      } else if (currentRel.type === 'community_circle') {
+        if (currentRel.status === 'none') {
+          const res = await sendCommunityCircleInvite(actorId);
+          setRelationshipStatuses((prev) => ({
+            ...prev,
+            [actorId]: { ...currentRel, status: 'requested', requestId: res?.invite_id },
+          }));
+        }
+      } else if (currentRel.type === 'creator_follow') {
+        const isFollowing = currentRel.status === 'following';
+        if (isFollowing) {
+          await unfollowCreator(actorId);
+          setRelationshipStatuses((prev) => ({
+            ...prev,
+            [actorId]: { ...currentRel, status: 'not_following' },
+          }));
+        } else {
+          await followCreator(actorId);
+          setRelationshipStatuses((prev) => ({
+            ...prev,
+            [actorId]: { ...currentRel, status: 'following' },
+          }));
+        }
+      } else if (currentRel.type === 'follow') {
+        const isFollowing = currentRel.status === 'following';
+        await toggleFollow(actorId, actorType, isFollowing);
+        setRelationshipStatuses((prev) => ({
+          ...prev,
+          [actorId]: {
+            ...currentRel,
+            status: isFollowing
+              ? (viewerType === 'community' && actorType !== 'member' ? 'follow_back' : 'not_following')
+              : 'following'
+          },
+        }));
       }
     } catch (e) {
-      console.warn("Failed to toggle follow:", e);
+      console.warn(`Failed to perform relationship action for ${actorId}:`, e);
     } finally {
-      setFollowLoading((prev) => ({ ...prev, [actorId]: false }));
+      setRelationshipLoading((prev) => ({ ...prev, [actorId]: false }));
     }
-  }, [followedUserIds]);
+  }, [relationshipStatuses, viewerType]);
 
-  const handleSendCircleRequest = useCallback(async (actorId) => {
+  const handleRespondToInvite = useCallback(async (actorId, inviteId, responseStatus) => {
     hapticsService.triggerImpactMedium();
-    setCircleRequestLoading((prev) => ({ ...prev, [actorId]: true }));
-    setCircleRequestedIds((prev) => ({ ...prev, [actorId]: 'requested' })); // optimistic
+    setRelationshipLoading((prev) => ({ ...prev, [actorId]: true }));
     try {
-      await sendCircleRequest(actorId);
+      await respondToCommunityCircleInvite(inviteId, responseStatus);
+      setRelationshipStatuses((prev) => ({
+        ...prev,
+        [actorId]: {
+          type: 'community_circle_invite',
+          status: responseStatus === 'accepted' ? 'in_circle' : 'none',
+          requestId: null,
+        },
+      }));
     } catch (e) {
-      console.warn('[Notifications] sendCircleRequest failed:', e);
-      setCircleRequestedIds((prev) => ({ ...prev, [actorId]: 'none' })); // revert
+      console.warn(`Failed to respond to community circle invite ${inviteId}:`, e);
     } finally {
-      setCircleRequestLoading((prev) => ({ ...prev, [actorId]: false }));
+      setRelationshipLoading((prev) => ({ ...prev, [actorId]: false }));
     }
   }, []);
 
@@ -1175,17 +1446,15 @@ export default function NotificationsScreen({ navigation }) {
       sections={sections}
       scrollY={scrollY}
       overscrollBottom={overscrollBottom}
-      followedUserIds={followedUserIds}
-      followLoading={followLoading}
-      handleFollowToggle={handleFollowToggle}
-      circleRequestedIds={circleRequestedIds}
-      circleRequestLoading={circleRequestLoading}
-      handleSendCircleRequest={handleSendCircleRequest}
+      relationshipStatuses={relationshipStatuses}
+      relationshipLoading={relationshipLoading}
+      handleRelationshipAction={handleRelationshipAction}
+      handleRespondToInvite={handleRespondToInvite}
       navigateToProfile={navigateToProfile}
       navigateToEvent={navigateToEvent}
       navigation={navigation}
     />
-  ), [sections, scrollY, overscrollBottom, followedUserIds, followLoading, handleFollowToggle, circleRequestedIds, circleRequestLoading, handleSendCircleRequest, navigateToProfile, navigateToEvent, navigation]);
+  ), [sections, scrollY, overscrollBottom, relationshipStatuses, relationshipLoading, handleRelationshipAction, handleRespondToInvite, navigateToProfile, navigateToEvent, navigation]);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>

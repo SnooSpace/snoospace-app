@@ -40,7 +40,12 @@ const listNotifications = async (req, res) => {
           WHEN n.actor_type = 'community' THEN c.logo_url
           WHEN n.actor_type = 'sponsor' THEN s.logo_url
           WHEN n.actor_type = 'venue' THEN NULL
-        END as actor_avatar
+        END as actor_avatar,
+        -- Check if actor is a creator
+        CASE
+          WHEN n.actor_type = 'member' THEN m.is_creator_mode_enabled
+          ELSE false
+        END as actor_is_creator
       FROM notifications n
       LEFT JOIN members m ON n.actor_type = 'member' AND n.actor_id = m.id
       LEFT JOIN communities c ON n.actor_type = 'community' AND n.actor_id = c.id
@@ -66,12 +71,14 @@ const listNotifications = async (req, res) => {
       const payload = row.payload || {};
       return {
         ...row,
+        actor_is_creator: row.actor_is_creator === true,
         payload: {
           ...payload,
           // Use JOINed actor data if payload is missing these fields
           actorName: payload.actorName || row.actor_name || null,
           actorUsername: payload.actorUsername || row.actor_username || null,
           actorAvatar: payload.actorAvatar || row.actor_avatar || null,
+          actorIsCreator: payload.actorIsCreator !== undefined ? payload.actorIsCreator : (row.actor_is_creator === true),
         },
       };
     });
