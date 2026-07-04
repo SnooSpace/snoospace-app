@@ -125,7 +125,10 @@ export const NotificationConsumptionService = {
           return match;
         }
         
-        // 2. Fallback: match by title text/structure if data is missing (Android background launch bug)
+        // 2. Fallback: match by title text/structure if data is missing.
+        // NOTE: This fallback compensates for a platform behavior where notifications 
+        // displayed directly by the OS in background/terminated states may return an
+        // empty request.content.data payload upon querying getPresentedNotificationsAsync().
         // Chat notifications are typically sender names or group names without the standard action emojis.
         const isOther = (
           title.includes("💬") || 
@@ -172,7 +175,10 @@ export const NotificationConsumptionService = {
           return match;
         }
         
-        // 2. Fallback: match by title text if data payload is missing (Android background launch bug)
+        // 2. Fallback: match by title text if data payload is missing.
+        // NOTE: This fallback compensates for a platform behavior where notifications 
+        // displayed directly by the OS in background/terminated states may return an
+        // empty request.content.data payload upon querying getPresentedNotificationsAsync().
         const lowerTitle = title.toLowerCase();
         const matchFallback = (
           lowerTitle.includes("event") || 
@@ -214,7 +220,10 @@ export const NotificationConsumptionService = {
           return match;
         }
         
-        // 2. Fallback: match by title text if data payload is missing (Android background launch bug)
+        // 2. Fallback: match by title text if data payload is missing.
+        // NOTE: This fallback compensates for a platform behavior where notifications 
+        // displayed directly by the OS in background/terminated states may return an
+        // empty request.content.data payload upon querying getPresentedNotificationsAsync().
         const matchFallback = (
           title.includes("Comment") || 
           title.includes("Like") || 
@@ -253,7 +262,10 @@ export const NotificationConsumptionService = {
           return match;
         }
         
-        // 2. Fallback: match by title text if data payload is missing (Android background launch bug)
+        // 2. Fallback: match by title text if data payload is missing.
+        // NOTE: This fallback compensates for a platform behavior where notifications 
+        // displayed directly by the OS in background/terminated states may return an
+        // empty request.content.data payload upon querying getPresentedNotificationsAsync().
         const matchFallback = (
           title.includes("Follow") || 
           title.includes("👤")
