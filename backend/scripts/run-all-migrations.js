@@ -43,11 +43,6 @@ async function run() {
     const { ensureTables } = require('../config/db');
     console.log("Creating colleges, campuses, and conversation tables first...");
     await pool.query(`
-      DROP TABLE IF EXISTS conversation_participants CASCADE;
-      DROP TABLE IF EXISTS conversations CASCADE;
-      DROP TABLE IF EXISTS campuses CASCADE;
-      DROP TABLE IF EXISTS colleges CASCADE;
-      
       CREATE TABLE IF NOT EXISTS colleges (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         name TEXT NOT NULL,
