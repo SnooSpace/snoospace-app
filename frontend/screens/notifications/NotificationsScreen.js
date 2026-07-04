@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback, useState, useMemo } from "react";
+import * as Notifications from 'expo-notifications';
 import {
   View,
   Text,
@@ -851,10 +852,11 @@ export default function NotificationsScreen({ navigation }) {
     }
   }, [items, followedUserIds]);
 
-  // Mark all read on mount
+  // Mark all read on mount and clear tray
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
       markAllRead();
+      Notifications.dismissAllNotificationsAsync().catch(() => {});
     });
     return () => task.cancel();
   }, [markAllRead]);
@@ -873,7 +875,7 @@ export default function NotificationsScreen({ navigation }) {
 
   const navigateToEvent = useCallback((eventId) => {
     if (eventId) {
-      navigation.navigate("EventDetailsScreen", { eventId });
+      navigation.navigate("EventDetails", { eventId });
     }
   }, [navigation]);
 

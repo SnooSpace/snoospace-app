@@ -83,6 +83,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import EventBus from "../../../utils/EventBus";
+import { NotificationConsumptionService } from "../../../services/NotificationConsumptionService";
 import CommentsModal from "../../../components/CommentsModal";
 import { getAuthToken, getAuthEmail, getActiveAccount } from "../../../api/auth";
 import { apiPost, apiDelete, apiGet } from "../../../api/client";
@@ -998,6 +999,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
       setIsFollowing(!!p?.is_following);
       setTheyFollowYou(!!p?.they_follow_you);
       setYouHaveBlocked(!!p?.you_have_blocked);
+
+      NotificationConsumptionService.consumeFollow(communityId).catch(console.error);
     } catch (e) {
       setError(e?.message || "Failed to load profile");
     }

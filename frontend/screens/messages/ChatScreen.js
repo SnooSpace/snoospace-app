@@ -94,6 +94,7 @@ import { getPublicMemberProfile } from "../../api/members";
 import { getPublicCommunity } from "../../api/communities";
 import { confirmGiftRSVP } from "../../api/events";
 import EventBus from "../../utils/EventBus";
+import { NotificationConsumptionService } from "../../services/NotificationConsumptionService";
 import { COLORS } from "../../constants/theme";
 import KeyboardAwareToolbar from "../../components/KeyboardAwareToolbar";
 import TicketMessageCard from "../../components/TicketMessageCard";
@@ -1999,6 +2000,7 @@ export default function ChatScreen({ route, navigation }) {
           const tEndLoad = global.performance ? global.performance.now() : Date.now();
           console.log(`[PERF] loadInitial (conversationId exists) took: ${(tEndLoad - tStartLoad).toFixed(2)}ms`);
           EventBus.emit("messages-read");
+          NotificationConsumptionService.consumeChat(conversationId).catch(console.error);
           // For group chats: fetch restriction flag + current user role
           if (isGroup) {
             try {
@@ -2072,6 +2074,7 @@ export default function ChatScreen({ route, navigation }) {
           if (resolvedConvId) {
             setCurrentConversationId(resolvedConvId);
             EventBus.emit("messages-read");
+            NotificationConsumptionService.consumeChat(resolvedConvId).catch(console.error);
           } else {
             setCurrentConversationId(null);
           }
@@ -2272,6 +2275,7 @@ export default function ChatScreen({ route, navigation }) {
       });
       // Mark as read immediately
       markMessageRead(msg.id).catch(() => {});
+      NotificationConsumptionService.consumeChat(currentConversationId).catch(console.error);
     };
 
     const handleMessageUpdated = (msg) => {

@@ -164,4 +164,82 @@ const registerPushToken = async (req, res) => {
   }
 };
 
-module.exports = { listNotifications, unreadCount, markRead, markAllRead, registerPushToken };
+// Generic reference-driven notifications read handler
+const markReadByReference = async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { referenceType, referenceId } = req.body;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    if (!referenceType || !referenceId) {
+      return res.status(400).json({ error: "referenceType and referenceId are required" });
+    }
+
+    let q;
+    let params;
+
+    if (referenceType === "follow") {
+      // Follows reference actor directly via actor_id column
+      q = `
+        UPDATE notifications 
+        SET is_read = TRUE 
+        WHERE recipient_id = $1 
+          AND recipient_type = $2 
+          AND is_active = TRUE 
+          AND is_read = FALSE
+          AND type IN ('follow', 'creator_follow_received') 
+          AND actor_id::text = $3
+      `;
+      params = [userId, userType, String(referenceId)];
+    } else {
+      // Restrict matching JSON payload fields based on referenceType to prevent ID collisions
+      let filterSql;
+      if (referenceType === "post") {
+        filterSql = `(payload->>'postId' = $3 OR payload->>'post_id' = $3)`;
+      } else if (referenceType === "event") {
+        filterSql = `(payload->>'eventId' = $3 OR payload->>'event_id' = $3 OR payload->>'referenceId' = $3 OR payload->>'reference_id' = $3)`;
+      } else {
+        return res.status(400).json({ error: "Unsupported reference type" });
+      }
+
+      q = `
+        UPDATE notifications 
+        SET is_read = TRUE 
+        WHERE recipient_id = $1 
+          AND recipient_type = $2 
+          AND is_active = TRUE 
+          AND is_read = FALSE
+          AND ${filterSql}
+      `;
+      params = [userId, userType, String(referenceId)];
+    }
+
+    // Sync notification_aggregates table too (uses structured columns)
+    const aggQuery = `
+      UPDATE notification_aggregates 
+      SET is_read = TRUE 
+      WHERE recipient_id = $1 
+        AND recipient_type = $2 
+        AND is_active = TRUE 
+        AND is_read = FALSE 
+        AND reference_type = $3 
+        AND reference_id::text = $4
+    `;
+
+    const [result] = await Promise.all([
+      pool.query(q, params),
+      pool.query(aggQuery, [userId, userType, referenceType, String(referenceId)])
+    ]);
+
+    res.json({ success: true, count: result.rowCount });
+  } catch (e) {
+    console.error("markReadByReference error", e);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+module.exports = { listNotifications, unreadCount, markRead, markAllRead, registerPushToken, markReadByReference };

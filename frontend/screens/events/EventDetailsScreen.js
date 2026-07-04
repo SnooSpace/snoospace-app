@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import {
   View,
   Text,
@@ -152,6 +152,7 @@ import { useLocationName } from "../../utils/locationNameCache";
 import { getActiveAccount } from "../../api/auth";
 import HapticsService from "../../services/HapticsService";
 import EventBus from "../../utils/EventBus";
+import { NotificationConsumptionService } from "../../services/NotificationConsumptionService";
 import { Alert, ToastAndroid, Platform } from "react-native";
 import AttendanceConfirmationModal from "../../components/AttendanceConfirmationModal";
 import SnooLoader from "../../components/ui/SnooLoader";
@@ -296,6 +297,8 @@ const EventDetailsScreen = ({ route, navigation }) => {
         setTotalPublicCapacity(response.total_public_capacity);
         setTotalCapacity(response.total_capacity);
         setIsMostlyInviteOnly(response.is_mostly_invite_only || false);
+
+        NotificationConsumptionService.consumeEvent(id).catch(console.error);
 
         // Check if we should ask for attendance confirmation
         const shouldAsk = shouldAskAttendance(

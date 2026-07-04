@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import * as Notifications from 'expo-notifications';
 import { fetchNotifications, fetchUnreadCount, markAllNotificationsRead } from '../api/notifications';
 import { getSocket } from '../services/socketService';
 import EventBus from '../utils/EventBus';
@@ -30,9 +31,7 @@ export function NotificationsProvider({ children }) {
     }
   }, []);
 
-  // Listen for real-time notification events via Socket.io.
-  // The backend emits 'new_notification' to user_${id} room on every notification insert.
-  // This replaces the broken Supabase Realtime RLS-filtered subscription.
+  // Listen for real-time notification events via Socket.io and local consumption events.
   useEffect(() => {
     const socket = getSocket();
 
@@ -48,19 +47,27 @@ export function NotificationsProvider({ children }) {
 
     // When the socket drops and reconnects (background drop, server restart, etc.)
     // reload notifications to recover any events missed during the gap.
-    // Fires only on actual reconnects — not on every foreground — so no wasted
-    // API calls when the OS kept the socket connection alive.
     const unsubReconnect = EventBus.on('socket:reconnected', () => {
       console.log('[Notifications] socket:reconnected — reloading to catch missed events');
+      loadInitial();
+    });
+
+    const unsubConsumed = EventBus.on('notifications-read', () => {
       loadInitial();
     });
 
     return () => {
       socket.off('new_notification', handleNewNotification);
       unsubReconnect();
+      unsubConsumed();
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [loadInitial]);
+
+  // Keep OS badge count in sync with local unread context count
+  useEffect(() => {
+    Notifications.setBadgeCountAsync(unread).catch(() => {});
+  }, [unread]);
 
   const loadMore = useCallback(async () => {
     try {

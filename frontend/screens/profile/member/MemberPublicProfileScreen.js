@@ -39,6 +39,7 @@ import { resolveConversation } from "../../../api/messages";
 import { SafeAreaView } from "react-native-safe-area-context";
 import useRealtimeSubscription from "../../../hooks/useRealtimeSubscription";
 import EventBus from "../../../utils/EventBus";
+import { NotificationConsumptionService } from "../../../services/NotificationConsumptionService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getAuthToken, getAuthEmail, getActiveAccount } from "../../../api/auth";
 import { blockUser, unblockUser, likePlan, unlikePlan } from "../../../api/plans";
@@ -526,6 +527,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       setTheyFollowYou(!!p?.they_follow_you);
       setYouHaveBlocked(!!p?.you_have_blocked);
       setCommunityIsFollowingCreator(!!p?.community_is_following_creator);
+
+      NotificationConsumptionService.consumeFollow(memberId).catch(console.error);
       return normalized;
     } catch (e) {
       console.error('[MemberPublicProfile] loadProfile error:', e?.status, e?.message, e?.data);

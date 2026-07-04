@@ -30,6 +30,7 @@ import { apiGet, apiPost, apiDelete } from "../api/client";
 import { getAuthToken, getAuthEmail, getActiveAccount } from "../api/auth";
 import { searchMembers } from "../api/search";
 import EventBus from "../utils/EventBus";
+import { NotificationConsumptionService } from "../services/NotificationConsumptionService";
 import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
 import MentionInput from "./MentionInput";
 import HapticsService from "../services/HapticsService";
@@ -259,6 +260,8 @@ const CommentsModal = ({
       ) {
         onCommentCountChange(data.total_comment_count);
       }
+
+      NotificationConsumptionService.consumePost(postId, baseRoute).catch(console.error);
     } catch (error) {
       console.error("Error loading comments:", error);
       Alert.alert("Error", "Failed to load comments");

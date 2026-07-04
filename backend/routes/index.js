@@ -1605,6 +1605,11 @@ router.get(
   NotificationController.unreadCount,
 );
 router.patch(
+  "/notifications/read",
+  authMiddleware,
+  NotificationController.markReadByReference,
+);
+router.patch(
   "/notifications/:id/read",
   authMiddleware,
   NotificationController.markRead,
