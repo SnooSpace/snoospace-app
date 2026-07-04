@@ -278,38 +278,27 @@ const CommunityProfileHeaderBioSection = React.memo(
                 style={{ marginLeft: 2 }}
               />
             </TouchableOpacity>
-            {Array.isArray(profile.categories) &&
-              profile.categories.length > 0 && (
-                <View style={styles.categoriesRow}>
-                  {profile.categories.map((cat, idx) => (
+            {(Array.isArray(profile.categories) && profile.categories.length > 0) || profile.instagram_username ? (
+              <View style={styles.categoriesRow}>
+                {Array.isArray(profile.categories) &&
+                  profile.categories.map((cat, idx) => (
                     <ThemeChip key={cat} label={cat} index={idx} />
                   ))}
-                </View>
-              )}
-
-            {/* College & Socials Row */}
-            {(profile.instagram_username || profile.college_info) ? (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 10,
-                  marginTop: 10,
-                  marginBottom: 8,
-                }}
-              >
-                {profile.college_info && (
-                  <CollegeChip
-                    collegeInfo={profile.college_info}
-                    onPress={onShowCollegeHub}
-                  />
-                )}
                 {profile.instagram_username && (
                   <InstagramRow username={profile.instagram_username} />
                 )}
               </View>
             ) : null}
+
+            {/* College Chip — shown for college-affiliated communities */}
+            {profile.college_info && (
+              <View style={{ marginTop: 8 }}>
+                <CollegeChip
+                  collegeInfo={profile.college_info}
+                  onPress={onShowCollegeHub}
+                />
+              </View>
+            )}
 
             {!!profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
           </View>
@@ -3678,6 +3667,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
+    alignItems: "center",
     gap: 8,
     marginTop: 4,
   },
