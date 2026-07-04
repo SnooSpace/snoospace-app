@@ -140,6 +140,10 @@ const ProfileTabButton = ({
       }, 50);
     } catch (error) {
       console.error(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] ERROR cycling account:`, error);
+      if (error && error.stack) {
+        console.error(`[DoubleTapCycle] ERROR stack trace:`, error.stack);
+      }
+      console.error(`[DoubleTapCycle] ERROR JSON:`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
       navigateToProfile();
     } finally {
       console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] finally block: Emitting account-switch-end`);

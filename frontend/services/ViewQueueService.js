@@ -13,7 +13,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
 import { apiPost, apiPatch } from "../api/client";
-import { getAuthToken } from "../api/auth";
 import EventBus from "../utils/EventBus";
 
 const QUEUE_STORAGE_KEY = "qualified_view_queue";
@@ -180,6 +179,7 @@ class ViewQueueService {
     const batch = this.pendingQueue.splice(0, MAX_BATCH_SIZE);
 
     try {
+      const { getAuthToken } = await import("../api/auth");
       const token = await getAuthToken();
       if (!token) {
         // Not authenticated, put batch back
@@ -275,6 +275,7 @@ class ViewQueueService {
   async updateDwellTime(postId, dwellTimeMs) {
     if (!postId || !dwellTimeMs || dwellTimeMs <= 0) return;
     try {
+      const { getAuthToken } = await import("../api/auth");
       const token = await getAuthToken();
       if (!token) return;
       await apiPatch(

@@ -1,80 +1,19 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { encryptToken, decryptToken, clearEncryptionKey } from "./encryption";
 import authEventEmitter from "./authEventEmitter";
+import LikeStateManager from "./LikeStateManager";
+import { viewQueueService } from "../services/ViewQueueService";
+import { incrementAccountSwitchGeneration } from "../api/client";
+import {
+  getAllAccounts,
+  getActiveAccount,
+  ACCOUNTS_KEY,
+  ACTIVE_ACCOUNT_KEY
+} from "./accountStorage";
 
-const ACCOUNTS_KEY = "@accounts";
-const ACTIVE_ACCOUNT_KEY = "@activeAccountId";
+export { getAllAccounts, getActiveAccount };
+
 const MAX_ACCOUNTS = 5;
-
-/**
- * Account Manager
- * Handles storage and management of multiple user accounts
- * All IDs stored as strings to comply with AsyncStorage requirements
- */
-
-/**
- * Get all saved accounts
- */
-export async function getAllAccounts() {
-  try {
-    const accountsJson = await AsyncStorage.getItem(ACCOUNTS_KEY);
-
-    if (!accountsJson) return [];
-
-    const accounts = JSON.parse(accountsJson);
-
-    // Decrypt tokens for each account - skip corrupted ones
-    const decryptedAccounts = [];
-    for (const account of accounts) {
-      try {
-        const decryptedAccount = {
-          ...account,
-          // Ensure isLoggedIn defaults to true if not explicitly set to false
-          // This handles older accounts that may not have this property
-          isLoggedIn: account.isLoggedIn !== false,
-          authToken: await decryptToken(account.authToken),
-          refreshToken: account.refreshToken
-            ? await decryptToken(account.refreshToken)
-            : null,
-        };
-        decryptedAccounts.push(decryptedAccount);
-      } catch (error) {
-        console.error(
-          `[getAllAccounts] Skipping corrupted account ${account.id}:`,
-          error.message,
-        );
-        // Skip this account - it's corrupted
-      }
-    }
-
-    return decryptedAccounts;
-  } catch (error) {
-    console.error("[getAllAccounts] Error loading accounts:", error);
-    return [];
-  }
-}
-
-/**
- * Get active account
- */
-export async function getActiveAccount() {
-  try {
-    const activeId = await AsyncStorage.getItem(ACTIVE_ACCOUNT_KEY);
-    if (!activeId) return null;
-
-    const accounts = await getAllAccounts();
-    // Support both old format (just id) and new format (type_id)
-    return (
-      accounts.find((acc) => {
-        const compositeId = `${acc.type}_${acc.id}`;
-        return compositeId === activeId || String(acc.id) === String(activeId);
-      }) || null
-    );
-  } catch (error) {
-    console.error("Error getting active account:", error);
-    return null;
-  }
-}
 
 /**
  * Add new account
@@ -240,40 +179,64 @@ export async function switchAccount(accountId) {
   try {
     console.log(`[switchAccount] [${Date.now() - switchStart}ms] START: Switching to account ID:`, accountId);
 
-    // Step 1: Clear like cache
-    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 1: Getting active account to clear like cache...`);
-    const previousAccount = await getActiveAccount();
-    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 1: Active account returned:`, previousAccount?.id);
-
-    if (previousAccount) {
-      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 1.1: Importing LikeStateManager...`);
-      const LikeStateManager = (await import("./LikeStateManager")).default;
-      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 1.2: Clearing like cache...`);
-      LikeStateManager.clearAccountCache(
-        previousAccount.type,
-        previousAccount.id,
-      );
-      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 1.3: Cleared like cache.`);
-
-      // Step 2: Clear viewed posts cache
-      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 2.1: Importing ViewQueueService...`);
-      const { viewQueueService } = await import("../services/ViewQueueService");
-      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 2.2: Awaiting viewQueueService.resetForAccountSwitch()...`);
-      await viewQueueService.resetForAccountSwitch();
-      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 2.3: Reset viewed posts cache complete.`);
+    // Step 1: Get previous active account
+    let previousAccount;
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 1: Awaiting getActiveAccount()...`);
+    try {
+      previousAccount = await getActiveAccount();
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 1: Active account returned:`, previousAccount?.id);
+    } catch (e) {
+      console.error(`[switchAccount] [${Date.now() - switchStart}ms] Failed inside getActiveAccount()`, e);
+      throw e;
     }
 
-    // Step 3: Increment generation
-    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 3.1: Importing api/client...`);
-    const { incrementAccountSwitchGeneration } = await import("../api/client");
-    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 3.2: Incrementing generation...`);
-    const newGeneration = incrementAccountSwitchGeneration();
-    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 3.3: Generation incremented to:`, newGeneration);
+    if (previousAccount) {
+      // Step 2: Clear like cache
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 2: Clearing like cache...`);
+      try {
+        LikeStateManager.clearAccountCache(
+          previousAccount.type,
+          previousAccount.id,
+        );
+        console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 2: Cleared like cache.`);
+      } catch (e) {
+        console.error(`[switchAccount] [${Date.now() - switchStart}ms] Failed inside LikeStateManager.clearAccountCache()`, e);
+        throw e;
+      }
 
-    // Step 4: Get and find account
-    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 4.1: Awaiting getAllAccounts()...`);
-    const accounts = await getAllAccounts();
-    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 4.2: Found ${accounts.length} stored accounts. Finding target...`);
+      // Step 3: Clear viewed posts cache
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 3: Awaiting viewQueueService.resetForAccountSwitch()...`);
+      try {
+        await viewQueueService.resetForAccountSwitch();
+        console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 3: Reset viewed posts cache complete.`);
+      } catch (e) {
+        console.error(`[switchAccount] [${Date.now() - switchStart}ms] Failed inside viewQueueService.resetForAccountSwitch()`, e);
+        throw e;
+      }
+    }
+
+    // Step 4: Increment generation
+    let newGeneration;
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 4: Incrementing generation...`);
+    try {
+      newGeneration = incrementAccountSwitchGeneration();
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 4: Generation incremented to:`, newGeneration);
+    } catch (e) {
+      console.error(`[switchAccount] [${Date.now() - switchStart}ms] Failed inside incrementAccountSwitchGeneration()`, e);
+      throw e;
+    }
+
+    // Step 5: Get all accounts
+    let accounts;
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 5: Awaiting getAllAccounts()...`);
+    try {
+      accounts = await getAllAccounts();
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 5: Found ${accounts.length} stored accounts.`);
+    } catch (e) {
+      console.error(`[switchAccount] [${Date.now() - switchStart}ms] Failed inside getAllAccounts()`, e);
+      throw e;
+    }
+
     const accountIdStr = String(accountId);
     const account = accounts.find((acc) => {
       const compositeId = `${acc.type}_${acc.id}`;
@@ -285,8 +248,8 @@ export async function switchAccount(accountId) {
       throw new Error("Account not found");
     }
 
-    // Step 5: Validate target account state
-    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 5: Validating target account login status for:`, account.email);
+    // Step 6: Validate target account state
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 6: Validating target account login status for:`, account.email);
     if (account.isLoggedIn === false) {
       throw new Error("This account is logged out. Please log in again.");
     }
@@ -294,33 +257,58 @@ export async function switchAccount(accountId) {
       throw new Error("Account token is missing");
     }
 
-    // Step 6: Update active account record in storage
-    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 6.1: Updating last active...`);
+    // Step 7: Update active account record in storage
     const compositeId = `${account.type}_${account.id}`;
-    await updateAccount(compositeId, { lastActive: Date.now() });
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 7.1: Awaiting updateAccount...`);
+    try {
+      await updateAccount(compositeId, { lastActive: Date.now() });
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 7.1: updateAccount complete.`);
+    } catch (e) {
+      console.error(`[switchAccount] [${Date.now() - switchStart}ms] Failed inside updateAccount()`, e);
+      throw e;
+    }
 
-    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 6.2: Writing ACTIVE_ACCOUNT_KEY to AsyncStorage...`);
-    await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, compositeId);
-    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 6.3: ACTIVE_ACCOUNT_KEY successfully written.`);
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 7.2: Awaiting AsyncStorage.setItem ACTIVE_ACCOUNT_KEY...`);
+    try {
+      await AsyncStorage.setItem(ACTIVE_ACCOUNT_KEY, compositeId);
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 7.2: ACTIVE_ACCOUNT_KEY successfully written.`);
+    } catch (e) {
+      console.error(`[switchAccount] [${Date.now() - switchStart}ms] Failed inside AsyncStorage.setItem() for ACTIVE_ACCOUNT_KEY`, e);
+      throw e;
+    }
 
-    // Step 7: Emit event for global handling
-    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 7: Scheduling accountSwitched event emit...`);
+    // Step 8: Emit event for global handling
+    console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 8: Scheduling accountSwitched event emit...`);
     if (authEventEmitter) {
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 8.1: Calling setImmediate...`);
       setImmediate(() => {
-        console.log(`[switchAccount] [${Date.now() - switchStart}ms] setImmediate: Emitting accountSwitched for:`, account.email);
-        authEventEmitter.emit("accountSwitched", {
-          accountId: account.id,
-          email: account.email,
-          type: account.type,
-        });
-        console.log(`[switchAccount] [${Date.now() - switchStart}ms] setImmediate: accountSwitched event emitted.`);
+        console.log(`[switchAccount] [${Date.now() - switchStart}ms] setImmediate START: Emitting accountSwitched for:`, account.email);
+        try {
+          authEventEmitter.emit("accountSwitched", {
+            accountId: account.id,
+            email: account.email,
+            type: account.type,
+          });
+          console.log(`[switchAccount] [${Date.now() - switchStart}ms] setImmediate FINISH: accountSwitched event emitted.`);
+        } catch (e) {
+          console.error(`[switchAccount] [${Date.now() - switchStart}ms] setImmediate ERROR emitting accountSwitched:`, e);
+          console.error(e.stack);
+          console.dir(e);
+          console.error(Object.getOwnPropertyNames(e));
+        }
       });
+      console.log(`[switchAccount] [${Date.now() - switchStart}ms] Step 8.2: setImmediate scheduled.`);
     }
 
     console.log(`[switchAccount] [${Date.now() - switchStart}ms] SUCCESS: Switch complete for:`, account.email);
     return account;
   } catch (error) {
-    console.error(`[switchAccount] [${Date.now() - switchStart}ms] ERROR during switch account:`, error);
+    console.error(`[switchAccount] [${Date.now() - switchStart}ms] CATCH: ERROR during switch account:`, error);
+    if (error) {
+      console.error("[switchAccount] Error details stack:", error.stack);
+      console.dir(error);
+      console.error("[switchAccount] Error details properties:", Object.getOwnPropertyNames(error));
+    }
     throw error;
   }
 }
@@ -337,7 +325,6 @@ export async function logoutCurrentAccount() {
     }
 
     // Clear like cache for this account
-    const LikeStateManager = (await import("./LikeStateManager")).default;
     LikeStateManager.clearAccountCache(activeAccount.type, activeAccount.id);
     console.log(
       "[logoutCurrentAccount] Cleared like cache for:",

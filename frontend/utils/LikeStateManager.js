@@ -1,3 +1,5 @@
+import { getActiveAccount } from "./accountStorage";
+
 /**
  * LikeStateManager - In-memory cache for post like states
  *
@@ -25,8 +27,6 @@ class LikeStateManager {
    */
   async getCurrentViewer() {
     try {
-      // Dynamic import to avoid circular dependency
-      const { getActiveAccount } = await import("../api/auth");
       const account = await getActiveAccount();
 
       if (!account || !account.type || !account.id) {

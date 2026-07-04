@@ -38,8 +38,9 @@ if (SIMULATE_LATENCY_MS > 0) {
 const pool = createPool();
 pool
   .connect()
-  .then(() => {
+  .then((client) => {
     console.log("✅ Connected to PostgreSQL");
+    client.release();
     // Initialize scheduler service after DB connection
     schedulerService.init(pool);
   })

@@ -1,7 +1,7 @@
 const { Pool } = require("pg");
 
 function createPool() {
-  return new Pool({
+  const pool = new Pool({
     user: process.env.DB_USER,
     host: process.env.DB_HOST,
     database: process.env.DB_NAME,
@@ -11,6 +11,13 @@ function createPool() {
       ? { rejectUnauthorized: false }
       : false,
   });
+
+  // Handle unexpected errors on idle clients to prevent Node process from crashing
+  pool.on("error", (err) => {
+    console.error("⚠️ Unexpected error on idle database client:", err.message || err);
+  });
+
+  return pool;
 }
 
 async function ensureTables(pool) {
