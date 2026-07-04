@@ -1,3 +1,6 @@
+const pushService = require('../services/pushService');
+const notificationService = require('../services/notificationService');
+
 // ---------------------------------------------------------------------------
 // POST /plans/:planId/likes
 // ---------------------------------------------------------------------------
@@ -12,8 +15,48 @@ async function likePlan(req, res) {
       [planId, userId]
     );
 
-    const countR = await pool.query(`SELECT like_count FROM open_plans WHERE id = $1`, [planId]);
-    res.json({ liked: true, like_count: countR.rows[0]?.like_count ?? 0 });
+    const countR = await pool.query(`SELECT created_by, title, like_count FROM open_plans WHERE id = $1`, [planId]);
+    const plan = countR.rows[0];
+
+    // Send notification to plan host (if not self)
+    if (plan && plan.created_by !== userId) {
+      // Get liker name
+      const likerR = await pool.query(`SELECT name FROM members WHERE id = $1`, [userId]);
+      const likerName = likerR.rows[0]?.name || 'Someone';
+
+      try {
+        // 1. In-app DB notification
+        await notificationService.createSimpleNotification(pool, {
+          recipientId: plan.created_by,
+          recipientType: 'member',
+          actorId: userId,
+          actorType: 'member',
+          type: 'plan_like',
+          payload: {
+            planId,
+            planTitle: plan.title,
+            actorName: likerName,
+          },
+        });
+
+        // 2. Push notification
+        await pushService.sendPushNotification(
+          pool,
+          plan.created_by,
+          'member',
+          'Plan Liked ❤️',
+          `${likerName} liked your plan: "${plan.title}"`,
+          {
+            type: 'plan_like',
+            planId,
+          }
+        );
+      } catch (err) {
+        console.warn('[likePlan] Failed to send notification:', err.message);
+      }
+    }
+
+    res.json({ liked: true, like_count: plan?.like_count ?? 0 });
   } catch (err) {
     console.error('[planEngagementController.likePlan]', err);
     res.status(500).json({ error: 'server_error' });
@@ -34,8 +77,26 @@ async function unlikePlan(req, res) {
       [planId, userId]
     );
 
-    const countR = await pool.query(`SELECT like_count FROM open_plans WHERE id = $1`, [planId]);
-    res.json({ liked: false, like_count: countR.rows[0]?.like_count ?? 0 });
+    const countR = await pool.query(`SELECT created_by, like_count FROM open_plans WHERE id = $1`, [planId]);
+    const plan = countR.rows[0];
+
+    // Deactivate/delete notification
+    if (plan) {
+      try {
+        await pool.query(
+          `DELETE FROM notifications 
+           WHERE recipient_id = $1 AND recipient_type = 'member' 
+             AND actor_id = $2 AND actor_type = 'member' 
+             AND type = 'plan_like' 
+             AND (payload->>'planId')::int = $3`,
+          [plan.created_by, userId, planId]
+        );
+      } catch (err) {
+        console.warn('[unlikePlan] Failed to remove notification:', err.message);
+      }
+    }
+
+    res.json({ liked: false, like_count: plan?.like_count ?? 0 });
   } catch (err) {
     console.error('[planEngagementController.unlikePlan]', err);
     res.status(500).json({ error: 'server_error' });
@@ -107,8 +168,9 @@ async function addComment(req, res) {
     }
 
     // Verify plan exists
-    const planR = await pool.query(`SELECT id FROM open_plans WHERE id = $1`, [planId]);
+    const planR = await pool.query(`SELECT created_by, title FROM open_plans WHERE id = $1`, [planId]);
     if (planR.rows.length === 0) return res.status(404).json({ error: 'Plan not found' });
+    const plan = planR.rows[0];
 
     const insertR = await pool.query(
       `INSERT INTO open_plan_comments (plan_id, user_id, content) VALUES ($1, $2, $3) RETURNING *`,
@@ -120,12 +182,48 @@ async function addComment(req, res) {
       `SELECT id, name, profile_photo_url FROM members WHERE id = $1`,
       [userId]
     );
+    const commenterName = memberR.rows[0]?.name || 'Someone';
+
+    // Notify host if commenter is not the host
+    if (plan.created_by !== userId) {
+      try {
+        // 1. In-app DB notification
+        await notificationService.createSimpleNotification(pool, {
+          recipientId: plan.created_by,
+          recipientType: 'member',
+          actorId: userId,
+          actorType: 'member',
+          type: 'plan_comment',
+          payload: {
+            planId,
+            planTitle: plan.title,
+            actorName: commenterName,
+            commentText: content.trim().substring(0, 100),
+          },
+        });
+
+        // 2. Push notification
+        await pushService.sendPushNotification(
+          pool,
+          plan.created_by,
+          'member',
+          'New Plan Comment 💬',
+          `${commenterName} commented: "${content.trim().substring(0, 50)}${content.trim().length > 50 ? '...' : ''}"`,
+          {
+            type: 'plan_comment',
+            planId,
+          }
+        );
+      } catch (err) {
+        console.warn('[addComment] Failed to send notification:', err.message);
+      }
+    }
 
     res.status(201).json({
       comment: {
         ...comment,
         commenter_id: memberR.rows[0]?.id,
-        commenter_name: memberR.rows[0]?.name,
+        commenter_name: commenterName,
         commenter_photo: memberR.rows[0]?.profile_photo_url,
       },
     });
@@ -148,7 +246,7 @@ async function deleteComment(req, res) {
     // Fetch comment and plan host
     const [commentR, planR] = await Promise.all([
       pool.query(`SELECT user_id FROM open_plan_comments WHERE id = $1 AND plan_id = $2 AND is_deleted = false`, [cmtId, planId]),
-      pool.query(`SELECT created_by FROM open_plans WHERE id = $1`, [planId]),
+      pool.query(`SELECT created_by FROM open_plans WHERE id = $1`),
     ]);
 
     if (commentR.rows.length === 0) return res.status(404).json({ error: 'Comment not found' });

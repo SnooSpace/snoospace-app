@@ -622,12 +622,10 @@ export default function SettingsScreen({ route, navigation }) {
               icon={Bell}
               iconColor="#F59E0B"
               label="Notifications"
-              onPress={() =>
-                Alert.alert(
-                  "Notifications",
-                  "Notification settings coming soon.",
-                )
-              }
+              onPress={() => {
+                HapticsService.triggerImpactLight();
+                navigation.navigate("NotificationPreferences");
+              }}
               isFirst
             />
             <SettingsRow

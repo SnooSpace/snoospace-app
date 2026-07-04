@@ -1381,6 +1381,62 @@ const likeSubmission = async (req, res) => {
       [id],
     );
 
+    // Retrieve post_id, participant_id (user ID), and participant_type from challenge_submissions/participations
+    const subInfo = await pool.query(
+      `SELECT cs.post_id, cp.participant_id, cp.participant_type
+       FROM challenge_submissions cs
+       JOIN challenge_participations cp ON cs.participant_id = cp.id
+       WHERE cs.id = $1`,
+      [id]
+    );
+
+    if (subInfo.rows.length > 0) {
+      const sub = subInfo.rows[0];
+      if (sub.participant_id !== userId || sub.participant_type !== userType) {
+        try {
+          // Get liker name
+          let likerName = "Someone";
+          if (userType === "member") {
+            const memberResult = await pool.query(
+              "SELECT name FROM members WHERE id = $1",
+              [userId]
+            );
+            likerName = memberResult.rows[0]?.name || "Someone";
+          }
+
+          // 1. In-app DB notification
+          await notificationService.createSimpleNotification(pool, {
+            recipientId: sub.participant_id,
+            recipientType: sub.participant_type,
+            actorId: userId,
+            actorType: userType,
+            type: "challenge_submission_like",
+            payload: {
+              postId: sub.post_id,
+              submissionId: parseInt(id),
+              actorName: likerName,
+            },
+          });
+
+          // 2. Push notification
+          await pushService.sendPushNotification(
+            pool,
+            sub.participant_id,
+            sub.participant_type,
+            "Submission liked ❤️",
+            `${likerName} liked your challenge submission`,
+            {
+              type: "challenge_submission_like",
+              postId: sub.post_id,
+              submissionId: parseInt(id),
+            }
+          );
+        } catch (e) {
+          console.error("[Challenge] Failed to send like notification:", e);
+        }
+      }
+    }
+
     res.json({
       success: true,
       like_count: updateResult.rows[0].like_count,
@@ -1424,6 +1480,30 @@ const unlikeSubmission = async (req, res) => {
        RETURNING like_count`,
       [id],
     );
+
+    // Deactivate/delete notification
+    try {
+      const subInfo = await pool.query(
+        `SELECT cp.participant_id, cp.participant_type
+         FROM challenge_submissions cs
+         JOIN challenge_participations cp ON cs.participant_id = cp.id
+         WHERE cs.id = $1`,
+        [id]
+      );
+      if (subInfo.rows.length > 0) {
+        const sub = subInfo.rows[0];
+        await pool.query(
+          `DELETE FROM notifications 
+           WHERE recipient_id = $1 AND recipient_type = $2
+             AND actor_id = $3 AND actor_type = $4
+             AND type = 'challenge_submission_like'
+             AND (payload->>'submissionId')::int = $5`,
+          [sub.participant_id, sub.participant_type, userId, userType, parseInt(id)]
+        );
+      }
+    } catch (e) {
+      console.warn('[unlikeSubmission] Failed to remove notification:', e.message);
+    }
 
     res.json({
       success: true,
@@ -1539,6 +1619,22 @@ const requestSubmissionRemoval = async (req, res) => {
           requesterName = nameResult.rows[0]?.name || "Someone";
         }
 
+        // 1. In-app DB notification
+        await notificationService.createSimpleNotification(pool, {
+          recipientId: challengeAuthor.author_id,
+          recipientType: challengeAuthor.author_type,
+          actorId: userId,
+          actorType: userType,
+          type: "removal_request",
+          payload: {
+            postId: submission.post_id,
+            submissionId: parseInt(id),
+            requestId: insertResult.rows[0].id,
+            actorName: requesterName,
+          },
+        });
+
+        // 2. Push notification
         await pushService.sendPushNotification(
           pool,
           challengeAuthor.author_id,
@@ -1660,14 +1756,33 @@ const reviewRemovalRequest = async (req, res) => {
           ? "Your removal request was approved ✓"
           : "Your removal request was declined";
 
+      const details =
+        status === "approved"
+          ? "Your challenge submission has been removed."
+          : "The challenge host declined your removal request.";
+
+      // 1. In-app DB notification
+      await notificationService.createSimpleNotification(pool, {
+        recipientId: request.requester_id,
+        recipientType: request.requester_type,
+        actorId: userId,
+        actorType: userType,
+        type: "removal_request_review",
+        payload: {
+          postId: request.post_id,
+          status,
+          title: message,
+          message: details,
+        },
+      });
+
+      // 2. Push notification
       await pushService.sendPushNotification(
         pool,
         request.requester_id,
         request.requester_type,
         message,
-        status === "approved"
-          ? "Your challenge submission has been removed."
-          : "The challenge host declined your removal request.",
+        details,
         {
           type: "removal_request_review",
           postId: request.post_id,
@@ -2016,7 +2131,7 @@ const createSubmissionComment = async (req, res) => {
 
     // Verify submission exists and get participant info for notification
     const subCheck = await pool.query(
-      `SELECT cs.id, cp.participant_id, cp.participant_type
+      `SELECT cs.id, cs.post_id, cp.participant_id, cp.participant_type
        FROM challenge_submissions cs
        JOIN challenge_participations cp ON cs.participant_id = cp.id
        WHERE cs.id = $1`,
@@ -2059,6 +2174,23 @@ const createSubmissionComment = async (req, res) => {
           actorName = actorRes.rows[0]?.name || "Someone";
         }
 
+        // 1. In-app DB notification
+        await notificationService.createSimpleNotification(pool, {
+          recipientId: submission.participant_id,
+          recipientType: submission.participant_type,
+          actorId: userId,
+          actorType: userType,
+          type: "submission_comment",
+          payload: {
+            postId: submission.post_id,
+            submissionId: parseInt(submissionId),
+            commentId: comment.id,
+            commentText: commentText.trim().substring(0, 100),
+            actorName: actorName,
+          },
+        });
+
+        // 2. Push notification
         await pushService.sendPushNotification(
           pool,
           submission.participant_id,

@@ -9,6 +9,13 @@ const NotificationsContext = createContext(null);
 export function NotificationsProvider({ children }) {
   const [items, setItems] = useState([]);
   const [unread, setUnread] = useState(0);
+  const [categoryBreakdown, setCategoryBreakdown] = useState({
+    activity: 0,
+    communities: 0,
+    messages: 0,
+    events: 0,
+    system: 0
+  });
   const [loading, setLoading] = useState(false);
   const [currentBanner, setCurrentBanner] = useState(null);
   const offsetRef = useRef(0);
@@ -17,11 +24,18 @@ export function NotificationsProvider({ children }) {
   const loadInitial = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ unread: c }, list] = await Promise.all([
+      const [unreadRes, list] = await Promise.all([
         fetchUnreadCount(),
-        fetchNotifications({ limit: 20, offset: 0 })
+        fetchNotifications({ limit: 20, offset: 0, category: 'all' })
       ]);
-      setUnread(c || 0);
+      setUnread(unreadRes?.unread || 0);
+      setCategoryBreakdown(unreadRes?.breakdown || {
+        activity: 0,
+        communities: 0,
+        messages: 0,
+        events: 0,
+        system: 0
+      });
       setItems(list?.notifications || []);
       offsetRef.current = list?.nextOffset || 0;
     } catch {
@@ -71,7 +85,7 @@ export function NotificationsProvider({ children }) {
 
   const loadMore = useCallback(async () => {
     try {
-      const list = await fetchNotifications({ limit: 20, offset: offsetRef.current });
+      const list = await fetchNotifications({ limit: 20, offset: offsetRef.current, category: 'all' });
       setItems(prev => [...prev, ...(list?.notifications || [])]);
       offsetRef.current = list?.nextOffset || offsetRef.current;
     } catch {}
@@ -80,6 +94,13 @@ export function NotificationsProvider({ children }) {
   const markAllRead = useCallback(async () => {
     try {
       setUnread(0);
+      setCategoryBreakdown({
+        activity: 0,
+        communities: 0,
+        messages: 0,
+        events: 0,
+        system: 0
+      });
       setItems(prev => prev.map(n => ({ ...n, is_read: true })));
       await markAllNotificationsRead();
     } catch {}
@@ -90,8 +111,8 @@ export function NotificationsProvider({ children }) {
   }, [loadInitial]);
 
   const value = useMemo(
-    () => ({ items, unread, loading, loadInitial, loadMore, markAllRead, currentBanner, setCurrentBanner }),
-    [items, unread, loading, loadInitial, loadMore, markAllRead, currentBanner]
+    () => ({ items, unread, categoryBreakdown, loading, loadInitial, loadMore, markAllRead, currentBanner, setCurrentBanner }),
+    [items, unread, categoryBreakdown, loading, loadInitial, loadMore, markAllRead, currentBanner]
   );
 
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
@@ -101,6 +122,13 @@ export function useNotifications() {
   return useContext(NotificationsContext) || {
     items: [],
     unread: 0,
+    categoryBreakdown: {
+      activity: 0,
+      communities: 0,
+      messages: 0,
+      events: 0,
+      system: 0
+    },
     loading: false,
     loadInitial: () => {},
     loadMore: () => {},

@@ -49,12 +49,53 @@ export async function registerForPushNotificationsAsync() {
     console.log('[PushService] Expo push token retrieved:', token);
 
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-      });
+      const channels = [
+        {
+          id: 'default',
+          name: 'Default',
+          description: 'General notifications',
+        },
+        {
+          id: 'messages',
+          name: 'Messages',
+          description: 'Direct messages and chat requests',
+        },
+        {
+          id: 'activity',
+          name: 'Activity',
+          description: 'Activity on your plans, questions, and posts (likes, comments, tags, replies)',
+        },
+        {
+          id: 'social',
+          name: 'Social',
+          description: 'Circle requests, follows, and groups',
+        },
+        {
+          id: 'events',
+          name: 'Events',
+          description: 'Event invitations, RSVP updates, and reminders',
+        },
+        {
+          id: 'moderation',
+          name: 'Moderation',
+          description: 'Community reports and actions',
+        },
+        {
+          id: 'system',
+          name: 'System',
+          description: 'Security alerts and system announcements',
+        },
+      ];
+
+      for (const ch of channels) {
+        await Notifications.setNotificationChannelAsync(ch.id, {
+          name: ch.name,
+          description: ch.description,
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+        });
+      }
     }
 
     return token;

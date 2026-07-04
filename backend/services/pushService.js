@@ -6,6 +6,7 @@
  */
 
 const { Expo } = require("expo-server-sdk");
+const NotificationTypes = require("../config/notificationTypes");
 
 // Create a new Expo SDK client
 const expo = new Expo();
@@ -29,7 +30,9 @@ const sendPushNotifications = async (pool, notifications) => {
 
   try {
     // 1. Collect all user IDs and types to fetch tokens in bulk
-    const userKeys = notifications.map((n) => `(${n.userId}, '${n.userType}')`);
+    const userKeys = notifications
+      .filter((n) => n.userId && n.userType)
+      .map((n) => `(${Number(n.userId)}, '${n.userType.replace(/'/g, "''")}')`);
     const uniqueKeys = [...new Set(userKeys)];
 
     // 2. Fetch active push tokens for all users
@@ -51,6 +54,21 @@ const sendPushNotifications = async (pool, notifications) => {
       tokenMap[key].push(row.expo_push_token);
     }
 
+    // 2b. Fetch disabled notification preferences in bulk
+    const disabledPrefsQuery = `
+      SELECT user_id, user_type, category
+      FROM user_notification_preferences
+      WHERE enabled = false
+        AND (user_id, user_type) IN (${uniqueKeys.join(", ")})
+    `;
+    const disabledPrefsResult = await pool.query(disabledPrefsQuery);
+    
+    // Build a lookup set of "userId:userType:category" for disabled categories
+    const disabledSet = new Set();
+    for (const row of disabledPrefsResult.rows) {
+      disabledSet.add(`${row.user_id}:${row.user_type}:${row.category}`);
+    }
+
     // 3. Build Expo messages
     const messages = [];
     const errors = [];
@@ -61,6 +79,28 @@ const sendPushNotifications = async (pool, notifications) => {
 
       if (tokens.length === 0) {
         // User has no active push tokens
+        continue;
+      }
+
+      // Resolve category and channel based on type registry
+      let type = notif.data?.type;
+      let category = "system";
+      let channel = "system";
+
+      // Special case: Detect DM
+      if (notif.data?.screen === "Chat" || notif.data?.chatId) {
+        type = "dm";
+      }
+
+      if (type && NotificationTypes[type]) {
+        category = NotificationTypes[type].category;
+        channel = NotificationTypes[type].channel;
+      }
+
+      // Check user preferences
+      const prefKey = `${notif.userId}:${notif.userType}:${category}`;
+      if (disabledSet.has(prefKey)) {
+        // Skip push notification if user has disabled this category
         continue;
       }
 
@@ -82,9 +122,10 @@ const sendPushNotifications = async (pool, notifications) => {
           body: notif.body,
           data: {
             ...notif.data,
-            notificationType: notif.data?.type || "general",
+            notificationType: type || "general",
+            category: category,
           },
-          channelId: "default",
+          channelId: channel,
         });
       }
     }

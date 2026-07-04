@@ -9,6 +9,7 @@ import {
   Image,
   ActivityIndicator,
   InteractionManager,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
@@ -41,6 +42,9 @@ import {
   UserPlus,
 } from "lucide-react-native";
 import { useNotifications } from "../../context/NotificationsContext";
+import { fetchNotifications } from "../../api/notifications";
+import { CATEGORIES } from "../../constants/notificationTypes";
+import EventBus from "../../utils/EventBus";
 import {
   followMember,
   unfollowMember,
@@ -264,6 +268,60 @@ const NotificationRow = ({
           icon: <UserPlus size={18} color="#2962FF" strokeWidth={2} />,
           bg: "rgba(41, 98, 255, 0.08)",
         };
+      case "attendance_confirmation":
+        return {
+          icon: <CheckCircle2 size={18} color="#34C759" strokeWidth={2} />,
+          bg: "rgba(52, 199, 89, 0.1)",
+        };
+      case "plan_request":
+        return {
+          icon: <UserPlus size={18} color="#2962FF" strokeWidth={2} />,
+          bg: "rgba(41, 98, 255, 0.1)",
+        };
+      case "plan_approved":
+        return {
+          icon: <CheckCircle2 size={18} color="#34C759" strokeWidth={2} />,
+          bg: "rgba(52, 199, 89, 0.1)",
+        };
+      case "plan_declined":
+      case "plan_removed":
+        return {
+          icon: <MinusCircle size={18} color="#FF3B30" strokeWidth={2} />,
+          bg: "rgba(255, 59, 48, 0.1)",
+        };
+      case "plan_like":
+      case "challenge_submission_like":
+        return {
+          icon: <Heart size={18} color="#FF3B30" strokeWidth={2} />,
+          bg: "rgba(255, 59, 48, 0.08)",
+        };
+      case "plan_comment":
+      case "submission_comment":
+      case "qna_question":
+        return {
+          icon: <MessageCircle size={18} color="#2962FF" strokeWidth={2} />,
+          bg: "rgba(41, 98, 255, 0.08)",
+        };
+      case "qna_upvote":
+        return {
+          icon: <Heart size={18} color="#FF3B30" strokeWidth={2} />,
+          bg: "rgba(255, 59, 48, 0.08)",
+        };
+      case "qna_answered":
+        return {
+          icon: <CheckCircle2 size={18} color="#34C759" strokeWidth={2} />,
+          bg: "rgba(52, 199, 89, 0.1)",
+        };
+      case "removal_request":
+        return {
+          icon: <AlertCircle size={18} color="#FF9500" strokeWidth={2} />,
+          bg: "rgba(255, 149, 0, 0.1)",
+        };
+      case "removal_request_review":
+        return {
+          icon: <CheckCircle2 size={18} color="#34C759" strokeWidth={2} />,
+          bg: "rgba(52, 199, 89, 0.1)",
+        };
       default:
         return {
           icon: <Bell size={18} color="#8E8E93" strokeWidth={2} />,
@@ -274,7 +332,7 @@ const NotificationRow = ({
 
   const renderLeftSection = () => {
     const iconInfo = getNotificationIconInfo(group.type);
-    const hasAvatar = ["follow", "like", "comment", "tag", "event_registration", "circle_request_received", "circle_request_accepted", "creator_follow_received"].includes(group.type) && payload.actorAvatar;
+    const hasAvatar = ["follow", "like", "comment", "tag", "event_registration", "circle_request_received", "circle_request_accepted", "creator_follow_received", "plan_like", "plan_comment", "qna_question", "qna_upvote", "qna_answered", "challenge_submission_like", "submission_comment", "removal_request"].includes(group.type) && payload.actorAvatar;
 
     if (hasAvatar) {
       return (
@@ -654,6 +712,156 @@ const NotificationRow = ({
       subtitle = payload.message;
       break;
 
+    case "attendance_confirmation":
+      isNavigable = true;
+      onPress = () => navigateToEvent(payload.eventId);
+      title = (
+        <Text style={styles.title}>
+          Did you attend? 🎫 Let us know if you attended <Text style={styles.bold}>"{payload.eventTitle}"</Text>
+        </Text>
+      );
+      break;
+
+    case "plan_request":
+      isNavigable = true;
+      onPress = () => navigation.navigate("PlanDetail", { planId: payload.planId });
+      title = (
+        <Text style={styles.title}>
+          New request to join your plan: <Text style={styles.bold}>"{payload.planTitle}"</Text> from <Text style={styles.bold}>{payload.actorName || "Someone"}</Text>
+        </Text>
+      );
+      break;
+
+    case "plan_approved":
+      isNavigable = true;
+      onPress = () => {
+        if (payload.conversationId) {
+          navigation.navigate("Chat", { conversationId: payload.conversationId });
+        } else {
+          navigation.navigate("PlanDetail", { planId: payload.planId });
+        }
+      };
+      title = (
+        <Text style={styles.title}>
+          Request approved! 🎉 Your request to join <Text style={styles.bold}>"{payload.planTitle}"</Text> was approved.
+        </Text>
+      );
+      subtitle = payload.conversationId ? "Tap to chat with the host" : null;
+      break;
+
+    case "plan_declined":
+      isNavigable = true;
+      onPress = () => navigation.navigate("PlanDetail", { planId: payload.planId });
+      title = (
+        <Text style={styles.title}>
+          Your request to join <Text style={styles.bold}>"{payload.planTitle}"</Text> was not accepted.
+        </Text>
+      );
+      break;
+
+    case "plan_removed":
+      isNavigable = true;
+      onPress = () => navigation.navigate("PlanDetail", { planId: payload.planId });
+      title = (
+        <Text style={styles.title}>
+          You have been removed from the plan: <Text style={styles.bold}>"{payload.planTitle}"</Text>
+        </Text>
+      );
+      break;
+
+    case "plan_like":
+      isNavigable = true;
+      onPress = () => navigation.navigate("PlanDetail", { planId: payload.planId });
+      title = (
+        <Text style={styles.title}>
+          <Text style={styles.bold}>{payload.actorName || "Someone"}</Text> liked your plan <Text style={styles.bold}>"{payload.planTitle}"</Text>
+        </Text>
+      );
+      break;
+
+    case "plan_comment":
+      isNavigable = true;
+      onPress = () => navigation.navigate("PlanDetail", { planId: payload.planId });
+      title = (
+        <Text style={styles.title}>
+          <Text style={styles.bold}>{payload.actorName || "Someone"}</Text> commented on your plan <Text style={styles.bold}>"{payload.planTitle}"</Text>
+        </Text>
+      );
+      subtitle = payload.commentText ? `"${payload.commentText}"` : null;
+      break;
+
+    case "qna_question":
+      isNavigable = true;
+      onPress = () => navigation.navigate("QnAQuestions", { postId: payload.postId });
+      title = (
+        <Text style={styles.title}>
+          <Text style={styles.bold}>{payload.actorName || "Someone"}</Text> asked: <Text style={styles.bold}>"{payload.questionText}"</Text> in your Q&A session
+        </Text>
+      );
+      break;
+
+    case "qna_upvote":
+      isNavigable = true;
+      onPress = () => navigation.navigate("QnAQuestions", { postId: payload.postId });
+      title = (
+        <Text style={styles.title}>
+          Your question in Q&A was upvoted by <Text style={styles.bold}>{payload.actorName || "Someone"}</Text>
+        </Text>
+      );
+      break;
+
+    case "qna_answered":
+      isNavigable = true;
+      onPress = () => navigation.navigate("QnAQuestions", { postId: payload.postId });
+      title = (
+        <Text style={styles.title}>
+          Your question was answered! 🎉 <Text style={styles.bold}>{payload.actorName || "Someone"}</Text> posted an answer.
+        </Text>
+      );
+      break;
+
+    case "challenge_submission_like":
+      isNavigable = true;
+      onPress = () => navigation.navigate("HomeFeed");
+      title = (
+        <Text style={styles.title}>
+          <Text style={styles.bold}>{payload.actorName || "Someone"}</Text> liked your challenge submission
+        </Text>
+      );
+      break;
+
+    case "submission_comment":
+      isNavigable = true;
+      onPress = () => navigation.navigate("HomeFeed");
+      title = (
+        <Text style={styles.title}>
+          <Text style={styles.bold}>{payload.actorName || "Someone"}</Text> commented on your submission
+        </Text>
+      );
+      subtitle = payload.commentText ? `"${payload.commentText}"` : null;
+      break;
+
+    case "removal_request":
+      isNavigable = true;
+      onPress = () => navigation.navigate("HomeFeed");
+      title = (
+        <Text style={styles.title}>
+          Submission removal request from <Text style={styles.bold}>{payload.actorName || "Someone"}</Text>
+        </Text>
+      );
+      break;
+
+    case "removal_request_review":
+      isNavigable = true;
+      onPress = () => navigation.navigate("HomeFeed");
+      title = (
+        <Text style={styles.title}>
+          {payload.title || `Your removal request was ${payload.status}`}
+        </Text>
+      );
+      subtitle = payload.message;
+      break;
+
   }
 
   // Show thumbnail or text preview on the right for likes, comments, and tags
@@ -719,7 +927,53 @@ const NotificationRow = ({
 };
 
 export default function NotificationsScreen({ navigation }) {
-  const { items, unread, loading, loadMore, markAllRead } = useNotifications();
+  const { items, unread, categoryBreakdown, loading, loadInitial, loadMore, markAllRead } = useNotifications();
+  
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [localItems, setLocalItems] = useState([]);
+  const [localOffset, setLocalOffset] = useState(0);
+  const [localHasMore, setLocalHasMore] = useState(true);
+  const [localLoading, setLocalLoading] = useState(false);
+
+  const loadCategoryNotifications = useCallback(async (cat, reset = false) => {
+    setLocalLoading(true);
+    try {
+      const offset = reset ? 0 : localOffset;
+      const res = await fetchNotifications({ limit: 20, offset, category: cat });
+      if (reset) {
+        setLocalItems(res?.notifications || []);
+        setLocalOffset(res?.nextOffset || 0);
+        setLocalHasMore(res?.hasMore ?? false);
+      } else {
+        setLocalItems(prev => [...prev, ...(res?.notifications || [])]);
+        setLocalOffset(res?.nextOffset || localOffset);
+        setLocalHasMore(res?.hasMore ?? false);
+      }
+    } catch (e) {
+      console.warn("Failed to load category notifications", e);
+    } finally {
+      setLocalLoading(false);
+    }
+  }, [localOffset]);
+
+  useEffect(() => {
+    loadCategoryNotifications(selectedCategory, true);
+  }, [selectedCategory]);
+
+  // Reload category notifications when context or screen gets marked read/updated
+  useEffect(() => {
+    const unsubConsumed = EventBus.on('notifications-read', () => {
+      loadCategoryNotifications(selectedCategory, true);
+    });
+    return () => unsubConsumed();
+  }, [selectedCategory, loadCategoryNotifications]);
+
+  const handleLoadMore = () => {
+    if (!localLoading && localHasMore) {
+      loadCategoryNotifications(selectedCategory, false);
+    }
+  };
+
   const [followedUserIds, setFollowedUserIds] = useState({});
   const [followLoading, setFollowLoading] = useState({});
   // Inline Add to Circle state for creator_follow_received notifications
@@ -747,8 +1001,8 @@ export default function NotificationsScreen({ navigation }) {
     const grouped = [];
 
     let i = 0;
-    while (i < items.length) {
-      const current = items[i];
+    while (i < localItems.length) {
+      const current = localItems[i];
       const group = {
         items: [current],
         type: current.type,
@@ -760,8 +1014,8 @@ export default function NotificationsScreen({ navigation }) {
 
       if (current.type === "like") {
         let j = i + 1;
-        while (j < items.length) {
-          const next = items[j];
+        while (j < localItems.length) {
+          const next = localItems[j];
           const timeDiff =
             new Date(current.created_at) - new Date(next.created_at);
 
@@ -786,7 +1040,7 @@ export default function NotificationsScreen({ navigation }) {
     }
 
     return grouped;
-  }, [items]);
+  }, [localItems]);
 
   // Group into chronological sections: Today, This Week, Earlier
   const sections = useMemo(() => {
@@ -825,7 +1079,7 @@ export default function NotificationsScreen({ navigation }) {
   // Fetch follow statuses for member follow notifications
   useEffect(() => {
     const loadFollowStatuses = async () => {
-      const followMemberIds = items
+      const followMemberIds = localItems
         .filter((item) => item.type === "follow" && item.actor_type === "member")
         .map((item) => item.actor_id);
 
@@ -844,13 +1098,13 @@ export default function NotificationsScreen({ navigation }) {
         }
       }
     };
-    if (items.length > 0) {
+    if (localItems.length > 0) {
       const task = InteractionManager.runAfterInteractions(() => {
         loadFollowStatuses();
       });
       return () => task.cancel();
     }
-  }, [items, followedUserIds]);
+  }, [localItems, followedUserIds]);
 
   // Mark all read on mount and clear tray
   useEffect(() => {
@@ -948,6 +1202,45 @@ export default function NotificationsScreen({ navigation }) {
         <Text style={styles.headerTitle}>Notifications</Text>
         <View style={{ width: 40 }} />
       </View>
+      {/* Category Tabs */}
+      <View style={styles.tabsContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabsContent}
+        >
+          {CATEGORIES.map((cat) => {
+            const count = categoryBreakdown[cat.id] || 0;
+            const isSelected = selectedCategory === cat.id;
+            return (
+              <TouchableOpacity
+                key={cat.id}
+                style={[
+                  styles.tabButton,
+                  isSelected && styles.tabButtonActive,
+                ]}
+                onPress={() => {
+                  hapticsService.triggerImpactLight();
+                  setSelectedCategory(cat.id);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.tabButtonText,
+                    isSelected && styles.tabButtonTextActive,
+                  ]}
+                >
+                  {cat.label}
+                </Text>
+                {count > 0 && !isSelected && (
+                  <View style={styles.tabBadge} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       <AnimatedSectionList
         sections={sections}
         renderItem={renderItem}
@@ -957,17 +1250,31 @@ export default function NotificationsScreen({ navigation }) {
           </View>
         )}
         keyExtractor={(group, index) => `group-${index}-${group.items[0]?.id}`}
-        onEndReached={loadMore}
+        onEndReached={handleLoadMore}
         onEndReachedThreshold={0.6}
         contentContainerStyle={sections.length === 0 ? { flexGrow: 1 } : null}
         stickySectionHeadersEnabled={false}
         onScroll={scrollHandler}
         scrollEventThrottle={16}
         ListEmptyComponent={
-          !loading ? (
+          !(localLoading || loading) ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No notifications</Text>
+              <Text style={styles.emptyText}>
+                {selectedCategory === "messages" 
+                  ? "No message notifications\nDirect messages are managed in your Inbox." 
+                  : "No notifications"
+                }
+              </Text>
             </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+            </View>
+          )
+        }
+        ListFooterComponent={
+          localLoading && localItems.length > 0 ? (
+            <ActivityIndicator style={{ paddingVertical: 16 }} color={COLORS.primary} />
           ) : null
         }
       />
@@ -1155,5 +1462,41 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-Regular",
     color: COLORS.textSecondary,
     textAlign: "center",
+  },
+  tabsContainer: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F2F2F7",
+    backgroundColor: COLORS.surface,
+  },
+  tabsContent: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  tabButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#F2F2F7",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  tabButtonActive: {
+    backgroundColor: COLORS.primary,
+  },
+  tabButtonText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  tabButtonTextActive: {
+    color: COLORS.textInverted,
+  },
+  tabBadge: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#FF3B30",
+    marginLeft: 6,
   },
 });

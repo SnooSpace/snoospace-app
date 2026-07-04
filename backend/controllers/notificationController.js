@@ -11,12 +11,13 @@ const listNotifications = async (req, res) => {
 
     const limit = Math.min(parseInt(req.query.limit || "20", 10), 100);
     const offset = parseInt(req.query.offset || "0", 10);
+    const category = req.query.category; // e.g. "activity", "events", etc.
 
     // Query with JOINs to enrich actor data for old notifications missing payload info
-    const q = `
+    let q = `
       SELECT 
         n.id, n.recipient_id, n.recipient_type, n.actor_id, n.actor_type, 
-        n.type, n.payload, n.is_read,
+        n.type, n.payload, n.is_read, n.category,
         COALESCE(n.updated_at, n.created_at) AS timestamp, 
         n.created_at,
         -- Get actor name based on actor_type
@@ -45,11 +46,20 @@ const listNotifications = async (req, res) => {
       LEFT JOIN communities c ON n.actor_type = 'community' AND n.actor_id = c.id
       LEFT JOIN sponsors s ON n.actor_type = 'sponsor' AND n.actor_id = s.id
       LEFT JOIN venues v ON n.actor_type = 'venue' AND n.actor_id = v.id
-      WHERE n.recipient_id = $1 AND n.recipient_type = $2 AND n.is_active = TRUE
-      ORDER BY COALESCE(n.updated_at, n.created_at) DESC
-      LIMIT $3 OFFSET $4
     `;
-    const r = await pool.query(q, [userId, userType, limit, offset]);
+
+    const params = [userId, userType];
+    let whereClause = "WHERE n.recipient_id = $1 AND n.recipient_type = $2 AND n.is_active = TRUE";
+
+    if (category && category !== "all") {
+      params.push(category);
+      whereClause += ` AND n.category = $${params.length}`;
+    }
+
+    q += `\n${whereClause}\nORDER BY COALESCE(n.updated_at, n.created_at) DESC\nLIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
+
+    const r = await pool.query(q, params);
 
     // Enrich payload with actor data from the JOINed tables
     const enrichedNotifications = r.rows.map((row) => {
@@ -85,9 +95,39 @@ const unreadCount = async (req, res) => {
     const userType = req.user?.type;
     if (!userId || !userType)
       return res.status(401).json({ error: "Unauthorized" });
-    const q = `SELECT COUNT(*)::int AS count FROM notifications WHERE recipient_id = $1 AND recipient_type = $2 AND is_read = FALSE AND is_active = TRUE`;
-    const r = await pool.query(q, [userId, userType]);
-    res.json({ unread: r.rows[0]?.count || 0 });
+
+    // 1. Get total unread count
+    const totalQ = `SELECT COUNT(*)::int AS count FROM notifications WHERE recipient_id = $1 AND recipient_type = $2 AND is_read = FALSE AND is_active = TRUE`;
+    const totalR = await pool.query(totalQ, [userId, userType]);
+    const totalCount = totalR.rows[0]?.count || 0;
+
+    // 2. Get breakdown of unread count per category
+    const breakdownQ = `
+      SELECT category, COUNT(*)::int AS count 
+      FROM notifications 
+      WHERE recipient_id = $1 AND recipient_type = $2 AND is_read = FALSE AND is_active = TRUE
+      GROUP BY category
+    `;
+    const breakdownR = await pool.query(breakdownQ, [userId, userType]);
+    
+    const breakdown = {
+      activity: 0,
+      communities: 0,
+      messages: 0,
+      events: 0,
+      system: 0
+    };
+
+    for (const row of breakdownR.rows) {
+      if (row.category && breakdown[row.category] !== undefined) {
+        breakdown[row.category] = row.count;
+      }
+    }
+
+    res.json({ 
+      unread: totalCount,
+      breakdown
+    });
   } catch (e) {
     console.error("unreadCount error", e);
     res.status(500).json({ error: "Internal server error" });
@@ -198,6 +238,7 @@ const markReadByReference = async (req, res) => {
     } else {
       // Restrict matching JSON payload fields based on referenceType to prevent ID collisions
       let filterSql;
+
       if (referenceType === "post") {
         filterSql = `(payload->>'postId' = $3 OR payload->>'post_id' = $3)`;
       } else if (referenceType === "event") {
@@ -242,4 +283,86 @@ const markReadByReference = async (req, res) => {
   }
 };
 
-module.exports = { listNotifications, unreadCount, markRead, markAllRead, registerPushToken, markReadByReference };
+// Get user notification preferences
+const getPreferences = async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId || !userType)
+      return res.status(401).json({ error: "Unauthorized" });
+
+    const q = `
+      SELECT category, enabled 
+      FROM user_notification_preferences 
+      WHERE user_id = $1 AND user_type = $2
+    `;
+    const result = await pool.query(q, [userId, userType]);
+
+    // Construct preferences map, default all categories to true
+    const preferences = {
+      activity: true,
+      communities: true,
+      messages: true,
+      events: true,
+      system: true,
+    };
+
+    for (const row of result.rows) {
+      if (preferences[row.category] !== undefined) {
+        preferences[row.category] = row.enabled;
+      }
+    }
+
+    res.json({ preferences });
+  } catch (e) {
+    console.error("getPreferences error", e);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+// Update user notification preferences
+const updatePreferences = async (req, res) => {
+  try {
+    const pool = req.app.locals.pool;
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+    const { category, enabled } = req.body;
+
+    if (!userId || !userType)
+      return res.status(401).json({ error: "Unauthorized" });
+
+    if (category === undefined || enabled === undefined) {
+      return res.status(400).json({ error: "category and enabled are required" });
+    }
+
+    const validCategories = ["activity", "communities", "messages", "events", "system"];
+    if (!validCategories.includes(category)) {
+      return res.status(400).json({ error: "Invalid category" });
+    }
+
+    const q = `
+      INSERT INTO user_notification_preferences (user_id, user_type, category, enabled, updated_at)
+      VALUES ($1, $2, $3, $4, NOW())
+      ON CONFLICT (user_id, user_type, category)
+      DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = NOW()
+    `;
+    await pool.query(q, [userId, userType, category, enabled]);
+
+    res.json({ success: true, category, enabled });
+  } catch (e) {
+    console.error("updatePreferences error", e);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+module.exports = { 
+  listNotifications, 
+  unreadCount, 
+  markRead, 
+  markAllRead, 
+  registerPushToken, 
+  markReadByReference,
+  getPreferences,
+  updatePreferences
+};

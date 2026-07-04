@@ -1624,6 +1624,16 @@ router.post(
   authMiddleware,
   NotificationController.registerPushToken,
 );
+router.get(
+  "/notifications/preferences",
+  authMiddleware,
+  NotificationController.getPreferences,
+);
+router.patch(
+  "/notifications/preferences",
+  authMiddleware,
+  NotificationController.updatePreferences,
+);
 
 // Account
 router.delete("/account", authMiddleware, AccountController.deleteAccount);

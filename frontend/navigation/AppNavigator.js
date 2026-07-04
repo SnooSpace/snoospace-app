@@ -39,6 +39,7 @@ import ConsentScreen from "../screens/Privacy/ConsentScreen";
 import MyDataScreen from "../screens/Privacy/MyDataScreen";
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
 import SettingsScreen from "../screens/profile/member/SettingsScreen";
+import NotificationPreferencesScreen from "../screens/profile/member/NotificationPreferencesScreen";
 import LinkedAccountsScreen from "../screens/profile/member/LinkedAccountsScreen";
 import BlockedAccountsScreen from "../screens/profile/member/BlockedAccountsScreen";
 import CommunityMonetizationScreen from "../screens/profile/community/CommunityMonetizationScreen";
@@ -290,6 +291,7 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen name="BlockedUsers" component={BlockedUsersScreen} />
       <Stack.Screen name="VerificationSubmit" component={VerificationSubmitScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="NotificationPreferences" component={NotificationPreferencesScreen} />
       <Stack.Screen name="LinkedAccounts" component={LinkedAccountsScreen} />
       <Stack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
       <Stack.Screen name="CreatorMonetization" component={CommunityMonetizationScreen} />

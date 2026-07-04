@@ -5,6 +5,7 @@
 
 const { createPool } = require("../config/db");
 const pushService = require("../services/pushService");
+const notificationService = require("../services/notificationService");
 const { emitSignal, getCategoryForPost } = require("../utils/signalEmitter");
 
 const pool = createPool();
@@ -199,6 +200,23 @@ const submitQuestion = async (req, res) => {
 
     // Send notification to post author
     try {
+      // 1. In-app DB notification
+      await notificationService.createSimpleNotification(pool, {
+        recipientId: post.author_id,
+        recipientType: post.author_type,
+        actorId: userId,
+        actorType: userType,
+        type: "qna_question",
+        payload: {
+          postId: parseInt(postId),
+          postTitle: typeData.title,
+          questionId: question.id,
+          questionText: content.trim().substring(0, 100),
+          actorName: authorName || "Someone",
+        },
+      });
+
+      // 2. Push notification
       await pushService.sendPushNotification(
         pool,
         post.author_id,
@@ -488,6 +506,21 @@ const upvoteQuestion = async (req, res) => {
           voterName = voterResult.rows[0]?.name || "Someone";
         }
 
+        // 1. In-app DB notification
+        await notificationService.createSimpleNotification(pool, {
+          recipientId: question.author_id,
+          recipientType: question.author_type,
+          actorId: userId,
+          actorType: userType,
+          type: "qna_upvote",
+          payload: {
+            postId: question.post_id,
+            questionId: parseInt(questionId),
+            actorName: voterName,
+          },
+        });
+
+        // 2. Push notification
         await pushService.sendPushNotification(
           pool,
           question.author_id,
@@ -556,9 +589,26 @@ const removeUpvote = async (req, res) => {
       `UPDATE qna_questions 
        SET upvote_count = GREATEST(upvote_count - 1, 0) 
        WHERE id = $1
-       RETURNING upvote_count`,
+       RETURNING post_id, author_id, author_type, upvote_count`,
       [questionId],
     );
+
+    // Delete in-app DB notification if it exists
+    if (updateResult.rows.length > 0) {
+      const q = updateResult.rows[0];
+      try {
+        await pool.query(
+          `DELETE FROM notifications 
+           WHERE recipient_id = $1 AND recipient_type = $2
+             AND actor_id = $3 AND actor_type = $4
+             AND type = 'qna_upvote'
+             AND (payload->>'questionId')::int = $5`,
+          [q.author_id, q.author_type, userId, userType, parseInt(questionId)]
+        );
+      } catch (err) {
+        console.warn('[removeUpvote] Failed to remove notification:', err.message);
+      }
+    }
 
     res.json({
       success: true,
@@ -694,6 +744,22 @@ const answerQuestion = async (req, res) => {
     // Send notification to question author
     if (question.author_id !== userId || question.author_type !== userType) {
       try {
+        // 1. In-app DB notification
+        await notificationService.createSimpleNotification(pool, {
+          recipientId: question.author_id,
+          recipientType: question.author_type,
+          actorId: userId,
+          actorType: userType,
+          type: "qna_answered",
+          payload: {
+            postId: question.post_id,
+            questionId: parseInt(questionId),
+            answerId: answer.id,
+            actorName: authorName || "Someone",
+          },
+        });
+
+        // 2. Push notification
         await pushService.sendPushNotification(
           pool,
           question.author_id,
