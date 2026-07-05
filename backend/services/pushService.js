@@ -142,6 +142,8 @@ const sendPushNotifications = async (pool, notifications) => {
             ...notif.data,
             notificationType: type || "general",
             category: category,
+            recipientId: notif.userId,
+            recipientType: notif.userType,
           },
           channelId: channel,
         });

@@ -79,11 +79,96 @@ function AppContent() {
     }
 
     // Set up click listener for notification interaction (deep linking)
-    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(async response => {
       const data = response.notification.request.content.data;
       console.log("[App] User tapped notification. Data payload:", data);
       
-      if (data && data.screen === "Chat" && data.chatId) {
+      if (!data) return;
+
+      const recipientId = data.recipientId;
+      const recipientType = data.recipientType;
+
+      if (recipientId && recipientType) {
+        try {
+          const { getActiveAccount, getAllAccounts, switchAccount } = require("./api/auth");
+          const EventBus = require("./utils/EventBus").default;
+
+          const activeAccount = await getActiveAccount();
+          const activeCompositeId = activeAccount ? `${activeAccount.type}_${activeAccount.id}` : null;
+          const recipientCompositeId = `${recipientType}_${recipientId}`;
+
+          if (activeCompositeId !== recipientCompositeId) {
+            const allAccounts = await getAllAccounts();
+            const targetAccount = allAccounts.find(acc => `${acc.type}_${acc.id}` === recipientCompositeId);
+
+            if (targetAccount && targetAccount.isLoggedIn !== false) {
+              console.log(`[App] Switching account to recipient: ${recipientCompositeId}`);
+              
+              // Trigger premium switch overlay
+              EventBus.emit("account-switch-start");
+
+              // Switch active account in storage and trigger listeners
+              await switchAccount(recipientCompositeId);
+
+              // Complete transition toast & haptics
+              EventBus.emit("account-switch-done", {
+                name: targetAccount.name || targetAccount.username || "",
+                username: targetAccount.username || "",
+                photoUrl: targetAccount.profilePicture || null,
+              });
+
+              // Determine correct home screen
+              const routeName =
+                targetAccount.type === "member"
+                  ? "MemberHome"
+                  : targetAccount.type === "community"
+                    ? "CommunityHome"
+                    : targetAccount.type === "sponsor"
+                      ? "SponsorHome"
+                      : targetAccount.type === "venue"
+                        ? "VenueHome"
+                        : "Landing";
+
+              // Reset navigation to target account's home stack, and stack deep link on top if present
+              const routes = [{ name: routeName }];
+              if (data.screen === "Chat" && data.chatId) {
+                routes.push({
+                  name: "Chat",
+                  params: { conversationId: data.chatId },
+                });
+              }
+
+              // Safely handle navigation readiness
+              const performNavigation = () => {
+                navigationRef.current?.reset({
+                  index: routes.length - 1,
+                  routes,
+                });
+              };
+
+              if (navigationRef.current) {
+                performNavigation();
+              } else {
+                // If ref is not ready, retry in 100ms
+                const interval = setInterval(() => {
+                  if (navigationRef.current) {
+                    clearInterval(interval);
+                    performNavigation();
+                  }
+                }, 100);
+              }
+              return;
+            } else {
+              console.log("[App] Target account not found in switcher or is logged out. Skipping auto-switch.");
+            }
+          }
+        } catch (switchError) {
+          console.error("[App] Error switching account from notification:", switchError);
+        }
+      }
+
+      // Fallback: standard deep linking for active account
+      if (data.screen === "Chat" && data.chatId) {
         console.log(`[App] Deep linking to Chat screen with chatId: ${data.chatId}`);
         navigationRef.current?.dispatch(
           CommonActions.navigate({
