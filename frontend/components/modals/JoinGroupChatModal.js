@@ -125,7 +125,8 @@ export default function JoinGroupChatModal({ navigation }) {
         isProcessing.current = false;
         processNext();
         // Navigate to the group chat
-        navigation.navigate("Chat", {
+        const nav = navigation?.navigate ? navigation : navigation?.current;
+        nav?.navigate("Chat", {
           conversationId: invite.conversationId,
           isGroup: true,
           groupName: invite.groupName,

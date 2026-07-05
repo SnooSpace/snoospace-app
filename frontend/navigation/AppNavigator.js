@@ -31,6 +31,7 @@ import CategoryEventsScreen from "../screens/events/CategoryEventsScreen";
 import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicProfileScreen";
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import ChatScreen from "../screens/messages/ChatScreen";
+import GroupInfoScreen from "../screens/messages/GroupInfoScreen";
 import { CropScreen, BatchCropScreen } from "../components/MediaCrop";
 import SavedPostsScreen from "../screens/SavedPostsScreen";
 import DeleteAccountScreen from "../screens/profile/DeleteAccountScreen";
@@ -179,6 +180,10 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="Chat"
         component={ChatScreen}
+      />
+      <Stack.Screen
+        name="GroupInfo"
+        component={GroupInfoScreen}
       />
       <Stack.Screen
         name="CommunityPublicEventsList"

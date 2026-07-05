@@ -88,6 +88,8 @@ import CommentsModal from "../../../components/CommentsModal";
 import { getAuthToken, getAuthEmail, getActiveAccount } from "../../../api/auth";
 import { apiPost, apiDelete, apiGet } from "../../../api/client";
 import LikeStateManager from "../../../utils/LikeStateManager";
+import GroupsBottomSheet from "../../../components/modals/GroupsBottomSheet";
+import { getGroupsByOwner } from "../../../api/messages";
 import {
   getGradientForName,
   getInitials,
@@ -521,6 +523,52 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#475569',
   },
+  groupsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 4,
+  },
+  groupsRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  groupsIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(53, 101, 242, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  groupsRowTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary || "#0F172A",
+  },
+  groupsRowSubtitle: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textSecondary || "#8E8E93",
+    marginTop: 1,
+  },
+  groupsRowRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  groupsBadge: {
+    backgroundColor: "rgba(53, 101, 242, 0.1)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  groupsBadgeText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: "#3565F2",
+  },
 });
 
 const CommunityPublicPostGridCell = React.memo(({ item, itemSize, onPress }) => {
@@ -889,6 +937,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const [showCollegeHub, setShowCollegeHub] = useState(false);
   const [contactModalVisible, setContactModalVisible] = useState(false);
   const [selectedHeadForContact, setSelectedHeadForContact] = useState(null);
+  const [groupsCount, setGroupsCount] = useState(0);
+  const [groupsBottomSheetVisible, setGroupsBottomSheetVisible] = useState(false);
 
   const postsCount = profile?.posts_count ?? profile?.post_count ?? 0;
   const followersCount =
@@ -1018,6 +1068,17 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     }
   }, [communityId, currentUserRole]);
 
+  const loadGroupsCount = useCallback(async () => {
+    try {
+      const res = await getGroupsByOwner(communityId, "community");
+      if (res?.success) {
+        setGroupsCount(res.groups?.length || 0);
+      }
+    } catch (e) {
+      console.warn("[CommunityPublicProfile] Error loading groups count:", e);
+    }
+  }, [communityId]);
+
   const loadEvents = useCallback(async () => {
     console.log(
       "[CommunityPublicProfile] loadEvents called with communityId:",
@@ -1122,7 +1183,8 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     React.useCallback(() => {
       loadProfile();
       loadMemberCommCircleStatus();
-    }, [loadProfile, loadMemberCommCircleStatus]),
+      loadGroupsCount();
+    }, [loadProfile, loadMemberCommCircleStatus, loadGroupsCount]),
   );
 
   useEffect(() => {
@@ -1137,6 +1199,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           loadPosts(true),
           loadEvents(),
           loadCommunityVoicePosts(),
+          loadGroupsCount(),
         ]);
         if (mounted) setLoading(false);
       })();
@@ -2152,6 +2215,35 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
             </View>
           )}
 
+          {groupsCount > 0 && (
+            <View style={styles.sectionCard}>
+              <TouchableOpacity
+                style={styles.groupsRow}
+                onPress={() => {
+                  HapticsService.triggerImpactLight();
+                  setGroupsBottomSheetVisible(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.groupsRowLeft}>
+                  <View style={styles.groupsIconContainer}>
+                    <Users size={18} color="#3565F2" strokeWidth={2.2} />
+                  </View>
+                  <View>
+                    <Text style={styles.groupsRowTitle}>Group Chats</Text>
+                    <Text style={styles.groupsRowSubtitle}>Join community chatrooms & channels</Text>
+                  </View>
+                </View>
+                <View style={styles.groupsRowRight}>
+                  <View style={styles.groupsBadge}>
+                    <Text style={styles.groupsBadgeText}>{groupsCount}</Text>
+                  </View>
+                  <ChevronRight size={18} color="#8E8E93" strokeWidth={2.2} />
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {profile?.show_heads !== false && (
           <View style={styles.sectionCard}>
             <View style={styles.sectionHeader}>
@@ -2594,6 +2686,16 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           )}
         </View>
       </Animated.ScrollView>
+
+      <GroupsBottomSheet
+        visible={groupsBottomSheetVisible}
+        onClose={() => setGroupsBottomSheetVisible(false)}
+        ownerId={communityId}
+        ownerType="community"
+        ownerName={profile?.name}
+        navigation={navigation}
+      />
+
       {selectedPost && (
         <ProfilePostFeed
           visible={postModalVisible}

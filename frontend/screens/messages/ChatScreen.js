@@ -2965,7 +2965,6 @@ export default function ChatScreen({ route, navigation }) {
                   style={[
                     styles.headerInfo,
                     {
-                      flex: 1,
                       flexDirection: "column",
                       alignItems: "flex-start",
                     },
@@ -2983,6 +2982,7 @@ export default function ChatScreen({ route, navigation }) {
                   </Text>
                   <Text style={styles.headerUsername}>Tap to view info</Text>
                 </TouchableOpacity>
+                <View style={{ flex: 1 }} />
                 <TouchableOpacity
                   style={{ padding: 8 }}
                   onPress={() => setChatActionsVisible(true)}

@@ -13,7 +13,7 @@ import SwipeableModal from "../../../components/modals/SwipeableModal";
 import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } from 'react-native-reanimated';
 import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { Image as ExpoImage } from "expo-image";
-import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, TriangleAlert, CircleCheck, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock, Music } from "lucide-react-native";
+import { ArrowLeft, Play, Pin, BadgeCheck, Ticket, Users, MoreVertical, UserX, TriangleAlert, CircleCheck, ShieldOff, CalendarDays, UserPlus, UserCheck, UserMinus, Clock, Music, ChevronRight } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 import {
   getPublicMemberProfile,
@@ -37,6 +37,8 @@ import {
 } from "../../../api/members";
 import { resolveConversation } from "../../../api/messages";
 import { SafeAreaView } from "react-native-safe-area-context";
+import GroupsBottomSheet from "../../../components/modals/GroupsBottomSheet";
+import { getGroupsByOwner } from "../../../api/messages";
 import useRealtimeSubscription from "../../../hooks/useRealtimeSubscription";
 import EventBus from "../../../utils/EventBus";
 import { NotificationConsumptionService } from "../../../services/NotificationConsumptionService";
@@ -313,6 +315,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [blocked, setBlocked] = useState(false);
   const [youHaveBlocked, setYouHaveBlocked] = useState(false);
   const pendingPostUpdateRef = useRef(null);
+  const [groupsCount, setGroupsCount] = useState(0);
+  const [groupsBottomSheetVisible, setGroupsBottomSheetVisible] = useState(false);
 
   // Events tab state
   const [activeProfileTab, setActiveProfileTab] = useState('posts');
@@ -560,6 +564,19 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     }
   }, [memberId]);
 
+  const loadGroupsCount = useCallback(async (profileData) => {
+    const isCreator = profileData?.is_creator_mode_enabled ?? profile?.is_creator_mode_enabled ?? false;
+    if (!isCreator) return;
+    try {
+      const res = await getGroupsByOwner(memberId, "member");
+      if (res?.success) {
+        setGroupsCount(res.groups?.length || 0);
+      }
+    } catch (e) {
+      console.warn("[MemberPublicProfile] Error loading groups count:", e);
+    }
+  }, [memberId, profile]);
+
   const loadCreatorFollowStatus = useCallback(async (profileData) => {
     // Only fetch if the profile is a creator — either from arg or current state
     const isCreator = profileData?.is_creator_mode_enabled ?? false;
@@ -646,11 +663,12 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     if (p?.is_creator_mode_enabled) {
       await Promise.all([
         loadCreatorFollowStatus(p),
+        loadGroupsCount(p),
         activeProfileTab !== 'community' ? loadCommunityVoicePosts() : Promise.resolve()
       ]);
     }
     setRefreshing(false);
-  }, [activeProfileTab, loadProfile, loadPosts, loadCircleStatus, loadCreatorFollowStatus, loadPublicMemberEvents, loadCommunityVoicePosts]);
+  }, [activeProfileTab, loadProfile, loadPosts, loadCircleStatus, loadCreatorFollowStatus, loadGroupsCount, loadPublicMemberEvents, loadCommunityVoicePosts]);
 
   const loadPosts = useCallback(
     async (reset = false) => {
@@ -694,14 +712,17 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   useFocusEffect(
     React.useCallback(() => {
       loadProfile().then((p) => {
-        if (p?.is_creator_mode_enabled) loadCreatorFollowStatus(p);
+        if (p?.is_creator_mode_enabled) {
+          loadCreatorFollowStatus(p);
+          loadGroupsCount(p);
+        }
       });
       if (viewerAccountType === 'community') {
         loadCommunityCircleStatus();
       } else {
         loadCircleStatus();
       }
-    }, [loadProfile, loadCircleStatus, loadCommunityCircleStatus, loadCreatorFollowStatus, viewerAccountType]),
+    }, [loadProfile, loadCircleStatus, loadCommunityCircleStatus, loadCreatorFollowStatus, loadGroupsCount, viewerAccountType]),
   );
 
   // Subscribe to real-time general follows count updates
@@ -747,6 +768,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           await Promise.all([
             loadCreatorFollowStatus(profileResult),
             loadCommunityVoicePosts(),
+            loadGroupsCount(profileResult),
           ]);
         }
         if (mounted) setLoading(false);
@@ -1918,6 +1940,35 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
             </View>
           </View>
 
+          {groupsCount > 0 && (
+            <View style={[styles.sectionCard, { marginHorizontal: 20, marginBottom: 12 }]}>
+              <TouchableOpacity
+                style={styles.groupsRow}
+                onPress={() => {
+                  HapticsService.triggerImpactLight();
+                  setGroupsBottomSheetVisible(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.groupsRowLeft}>
+                  <View style={styles.groupsIconContainer}>
+                    <Users size={18} color="#3565F2" strokeWidth={2.2} />
+                  </View>
+                  <View>
+                    <Text style={styles.groupsRowTitle}>Group Chats</Text>
+                    <Text style={styles.groupsRowSubtitle}>Join creator chatrooms & channels</Text>
+                  </View>
+                </View>
+                <View style={styles.groupsRowRight}>
+                  <View style={styles.groupsBadge}>
+                    <Text style={styles.groupsBadgeText}>{groupsCount}</Text>
+                  </View>
+                  <ChevronRight size={18} color="#8E8E93" strokeWidth={2.2} />
+                </View>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Posts / Events / Community Posts Tab Bar */}
           <View style={pubTabStyles.tabBar}>
             {[
@@ -2267,6 +2318,15 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           onRequested={() => setPlanRequestSheet(null)}
         />
       )}
+
+      <GroupsBottomSheet
+        visible={groupsBottomSheetVisible}
+        onClose={() => setGroupsBottomSheetVisible(false)}
+        ownerId={memberId}
+        ownerType="member"
+        ownerName={profile?.full_name || profile?.name}
+        navigation={navigation}
+      />
 
 
       {selectedPost && (
@@ -2781,6 +2841,59 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 15,
     color: '#475569',
+  },
+  sectionCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.5)",
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+  },
+  groupsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 4,
+  },
+  groupsRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  groupsIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(53, 101, 242, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  groupsRowTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary || "#0F172A",
+  },
+  groupsRowSubtitle: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textSecondary || "#8E8E93",
+    marginTop: 1,
+  },
+  groupsRowRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  groupsBadge: {
+    backgroundColor: "rgba(53, 101, 242, 0.1)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  groupsBadgeText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: "#3565F2",
   },
 });
 

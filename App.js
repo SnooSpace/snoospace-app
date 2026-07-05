@@ -25,6 +25,7 @@ import {
   useNotifications,
 } from "./context/NotificationsContext";
 import NotificationBanner from "./components/NotificationBanner";
+import JoinGroupChatModal from "./components/modals/JoinGroupChatModal";
 import { useTokenRefresh } from "./hooks/useTokenRefresh";
 import { AuthStateProvider } from "./contexts/AuthStateContext";
 import { StatusBarManagerProvider } from "./contexts/StatusBarManager";
@@ -66,6 +67,7 @@ function AppContent() {
         onPress={handleBannerPress}
         onDismiss={() => setCurrentBanner(null)}
       />
+      <JoinGroupChatModal navigation={navigationRef} />
     </>
   );
 }

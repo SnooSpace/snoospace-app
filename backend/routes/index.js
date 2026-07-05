@@ -1909,6 +1909,7 @@ router.post("/messages/groups/:conversationId/demote-admin", authMiddleware, Mes
 router.post("/messages/groups/:conversationId/transfer-ownership", authMiddleware, MessageController.transferGroupOwnership);
 // Community-based: find first eligible auto-join group for this community
 router.get("/messages/communities/:communityId/join-invite", authMiddleware, MessageController.getGroupJoinInviteByCommunity);
+router.get("/messages/groups/owner/:ownerId/:ownerType", authMiddleware, MessageController.getGroupsByOwner);
 
 // Message actions
 router.patch("/messages/:messageId/unsend", authMiddleware, MessageController.unsendMessage);

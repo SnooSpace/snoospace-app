@@ -68,7 +68,6 @@ import { COLORS } from "../constants/theme";
 import EmptyFeedState from "./EmptyFeedState";
 import SnooLoader from "./ui/SnooLoader";
 import { LinearGradient } from "expo-linear-gradient";
-import JoinGroupChatModal from "./modals/JoinGroupChatModal";
 
 const AnimatedFlashList = Animated.createAnimatedComponent(FlashList);
 
@@ -1771,8 +1770,6 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           <Text style={styles.deleteToastText}>Post deleted</Text>
         </RNAnimated.View>
       )}
-      {/* Community group-join prompt */}
-      <JoinGroupChatModal navigation={navigation} />
     </SafeAreaView>
 
   );

@@ -187,6 +187,13 @@ export async function selfJoinGroup(conversationId) {
   return apiPost(`/messages/groups/${conversationId}/self-join`, {}, 10000, token);
 }
 
+/** Get all group conversations owned by community/creator */
+export async function getGroupsByOwner(ownerId, ownerType) {
+  const token = await getAuthToken();
+  if (!token) throw new Error("Authentication token not found.");
+  return apiGet(`/messages/groups/owner/${ownerId}/${ownerType}`, 10000, token);
+}
+
 /** Promote a participant to admin (any existing admin can call this). */
 export async function promoteToAdmin(conversationId, targetId, targetType = "member") {
   const token = await getAuthToken();

@@ -1240,7 +1240,7 @@ const selfJoinGroup = async (req, res) => {
 
     // Verify the group exists and has auto-join enabled
     const groupCheck = await pool.query(
-      `SELECT id, community_auto_join FROM conversations WHERE id = $1 AND is_group = true`,
+      `SELECT id, community_auto_join, admin_only_invite FROM conversations WHERE id = $1 AND is_group = true`,
       [conversationId],
     );
     if (groupCheck.rows.length === 0) {
@@ -1248,6 +1248,28 @@ const selfJoinGroup = async (req, res) => {
     }
     if (!groupCheck.rows[0].community_auto_join) {
       return res.status(403).json({ error: "This group does not accept open joins" });
+    }
+    if (groupCheck.rows[0].admin_only_invite) {
+      return res.status(403).json({ error: "This group is invite-only by admins" });
+    }
+
+    // Verify the group has at least one active participant (is not abandoned)
+    const activeParticipants = await pool.query(
+      `SELECT COUNT(*) as count FROM conversation_participants WHERE conversation_id = $1`,
+      [conversationId]
+    );
+    if (parseInt(activeParticipants.rows[0].count, 10) === 0) {
+      return res.status(403).json({ error: "Cannot join an inactive/abandoned group" });
+    }
+
+    // Check if the user is already a participant to prevent duplicate system messages
+    const memberCheck = await pool.query(
+      `SELECT id FROM conversation_participants 
+       WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = 'member'`,
+      [conversationId, userId]
+    );
+    if (memberCheck.rows.length > 0) {
+      return res.json({ success: true, conversationId: Number(conversationId), message: "Already a member" });
     }
 
     // Add the member (idempotent — DO NOTHING if already in group)
@@ -1913,6 +1935,61 @@ const getGroupJoinInviteByCommunity = async (req, res) => {
   }
 };
 
+// ─── getGroupsByOwner ────────────────────────────────────────────────────────
+// Returns all group chats owned by the specified owner (community or member).
+// Also checks if the requesting user is already a member of each group.
+const getGroupsByOwner = async (req, res) => {
+  try {
+    const { ownerId, ownerType } = req.params;
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    if (!ownerId || !ownerType) {
+      return res.status(400).json({ error: "ownerId and ownerType are required" });
+    }
+
+    const query = `
+      SELECT c.id, c.group_name, c.group_avatar_url, c.community_auto_join, c.admin_only_invite,
+             c.group_owner_id, c.group_owner_type,
+             (cp.id IS NOT NULL) AS is_member
+      FROM conversations c
+      LEFT JOIN conversation_participants cp
+        ON cp.conversation_id = c.id
+        AND cp.participant_id = $3
+        AND cp.participant_type = $4
+      WHERE c.is_group = true
+        AND (
+          (c.community_owner_id = $1 AND $2 = 'community')
+          OR (c.group_owner_id = $1 AND c.group_owner_type = $2)
+        )
+        AND EXISTS (
+          SELECT 1 FROM conversation_participants cp_any
+          WHERE cp_any.conversation_id = c.id
+        )
+      ORDER BY c.created_at DESC
+    `;
+
+    const result = await pool.query(query, [ownerId, ownerType, userId, userType]);
+    
+    const groups = result.rows.map((row) => ({
+      id: row.id,
+      groupName: row.group_name,
+      groupAvatarUrl: row.group_avatar_url,
+      communityAutoJoin: row.community_auto_join || false,
+      adminOnlyInvite: row.admin_only_invite || false,
+      isMember: row.is_member || false,
+    }));
+
+    res.json({ success: true, groups });
+  } catch (error) {
+    console.error("Error getting groups by owner:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 // ─── getGroupJoinInvite ───────────────────────────────────────────────────────
 
 const getGroupJoinInvite = async (req, res) => {
@@ -2188,6 +2265,7 @@ module.exports = {
   getGroupJoinInvite,
   getGroupJoinInviteByCommunity,
   dismissGroupInvite,
+  getGroupsByOwner,
 
   reportConversation,
   getChatReports,
