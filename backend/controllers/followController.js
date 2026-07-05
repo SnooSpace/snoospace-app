@@ -550,6 +550,53 @@ const getProfileCounts = async (req, res) => {
   }
 };
 
+// Remove a follower (the following entity removes their follower)
+const removeFollower = async (req, res) => {
+  try {
+    const { followerId, followerType } = req.params;
+    const followingId = req.user?.id;
+    const followingType = req.user?.type;
+
+    if (!followingId || !followingType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    if (!followerId || !followerType) {
+      return res
+        .status(400)
+        .json({ error: "Follower ID and type are required" });
+    }
+
+    // Remove follow row
+    const result = await pool.query(
+      "DELETE FROM follows WHERE follower_id = $1 AND follower_type = $2 AND following_id = $3 AND following_type = $4",
+      [followerId, followerType, followingId, followingType]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Follower not found or not following you" });
+    }
+
+    // Deactivate follow notification
+    try {
+      await deactivateFollowNotification(pool, {
+        recipientId: followingId,
+        recipientType: followingType,
+        actorId: followerId,
+        actorType: followerType,
+      });
+    } catch (e) {
+      // Non-fatal
+      console.error("Failed to deactivate follow notification", e);
+    }
+
+    res.json({ success: true, message: "Successfully removed follower" });
+  } catch (error) {
+    console.error("Error removing follower:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   follow,
   unfollow,
@@ -558,4 +605,5 @@ module.exports = {
   getFollowStatus,
   getFollowCounts,
   getProfileCounts,
+  removeFollower,
 };

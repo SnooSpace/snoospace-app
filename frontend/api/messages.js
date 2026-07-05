@@ -113,6 +113,13 @@ export async function removeGroupParticipant(conversationId, participantId, part
   return apiDelete(`/messages/groups/${conversationId}/participants/${participantId}?participantType=${participantType}`, null, 15000, token);
 }
 
+/** Delete a group conversation permanently (owner only) */
+export async function deleteGroupConversation(conversationId) {
+  const token = await getAuthToken();
+  if (!token) throw new Error("Authentication token not found.");
+  return apiDelete(`/messages/groups/${conversationId}`, null, 15000, token);
+}
+
 /**
  * Transfer admin role (community accounts only)
  * @param {number} conversationId

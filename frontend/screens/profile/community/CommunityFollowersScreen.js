@@ -38,6 +38,7 @@ import { COLORS, FONTS } from "../../../constants/theme";
 import {
   getCommunityFollowers,
   getFollowStatusForCommunity,
+  removeCommunityFollower,
 } from "../../../api/communities";
 import {
   getCommunityCircleMembers,
@@ -98,6 +99,7 @@ function PersonRow({
   onAddToCircle,
   onCancelCircleInvite,
   onRemoveFromCircle,
+  onRemoveFollower,
   onPress,
   followBackState, // boolean
   followBackLoading,
@@ -191,6 +193,18 @@ function PersonRow({
                     {followBackState === true ? 'Following' : 'Follow Back'}
                   </Text>
                 )}
+              </TouchableOpacity>
+            )}
+
+            {/* Remove follower button — only on own profile and when not in circle */}
+            {onRemoveFollower && circleState !== "in_circle" && (
+              <TouchableOpacity
+                style={styles.removeBtn}
+                onPress={() => onRemoveFollower(item)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                activeOpacity={0.7}
+              >
+                <X size={15} color={COLORS.textSecondary} strokeWidth={2} />
               </TouchableOpacity>
             )}
           </>
@@ -364,6 +378,8 @@ export default function CommunityFollowersScreen({ route, navigation }) {
   // Member-to-Member circle status map (for member viewer connecting with member rows)
   const [memberCircleStates, setMemberCircleStates] = useState({});
   const [memberCircleLoadingMap, setMemberCircleLoadingMap] = useState({});
+
+  const [hiddenFollowerIds, setHiddenFollowerIds] = useState(new Set());
 
   // Alert modal state
   const [alertConfig, setAlertConfig] = useState({ visible: false });
@@ -601,6 +617,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
         hasMountedRef.current = true;
         return;
       }
+      setHiddenFollowerIds(new Set());
       setFollowerLoading(true);
       (async () => {
         let circleMemberIdSet = new Set();
@@ -836,26 +853,85 @@ export default function CommunityFollowersScreen({ route, navigation }) {
     });
   }, [showAlert, hideAlert, circleSearch, loadCircle, communityId]);
 
+  // Remove Follower
+  const handleRemoveFollower = useCallback((item) => {
+    hapticsService.triggerImpactLight();
+    showAlert({
+      title: 'Remove Follower?',
+      message: `${item.name || 'This person'} will be removed from your followers. They can follow you again anytime.`,
+      icon: UserMinus,
+      iconColor: '#E53935',
+      secondaryAction: { text: 'Cancel', onPress: hideAlert },
+      primaryAction: {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          hideAlert();
+          // Optimistic hide and count update
+          setHiddenFollowerIds((prev) => new Set([...prev, String(item.id)]));
+          setFollowersTotal((t) => Math.max(0, t - 1));
+          hapticsService.triggerImpactLight();
+          try {
+            await removeCommunityFollower(item.id, item.follower_type || item.type || 'member');
+            EventBus.emit('community:follower-removed', { communityId, followerId: String(item.id) });
+          } catch (e) {
+            console.warn('[CommunityFollowers] removeCommunityFollower failed:', e);
+            // Revert on failure
+            setHiddenFollowerIds((prev) => {
+              const s = new Set(prev); s.delete(String(item.id)); return s;
+            });
+            setFollowersTotal((t) => t + 1);
+          }
+        },
+      },
+    });
+  }, [showAlert, hideAlert, communityId]);
+
   // Follow back community followers
   const handleFollowBack = useCallback(async (item) => {
     const communityId = item.id;
     const isFollowing = followBackStates[communityId];
-    hapticsService.triggerImpactMedium();
-    setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: true }));
-    setFollowBackStates((prev) => ({ ...prev, [communityId]: !isFollowing }));
-    try {
-      if (isFollowing) {
-        await unfollowMember(communityId);
-      } else {
+    if (isFollowing) {
+      hapticsService.triggerImpactLight();
+      showAlert({
+        title: 'Unfollow?',
+        message: `Are you sure you want to unfollow ${item.name || 'this member'}?`,
+        icon: UserMinus,
+        iconColor: COLORS.error || '#E53935',
+        secondaryAction: { text: 'Cancel', onPress: hideAlert },
+        primaryAction: {
+          text: 'Unfollow',
+          style: 'destructive',
+          onPress: async () => {
+            hideAlert();
+            hapticsService.triggerImpactMedium();
+            setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: true }));
+            setFollowBackStates((prev) => ({ ...prev, [communityId]: false }));
+            try {
+              await unfollowMember(communityId);
+            } catch (e) {
+              console.warn('[CommunityFollowers] handleFollowBack error:', e);
+              setFollowBackStates((prev) => ({ ...prev, [communityId]: true }));
+            } finally {
+              setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: false }));
+            }
+          },
+        },
+      });
+    } else {
+      hapticsService.triggerImpactMedium();
+      setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: true }));
+      setFollowBackStates((prev) => ({ ...prev, [communityId]: true }));
+      try {
         await followMember(communityId);
+      } catch (e) {
+        console.warn('[CommunityFollowers] handleFollowBack error:', e);
+        setFollowBackStates((prev) => ({ ...prev, [communityId]: false }));
+      } finally {
+        setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: false }));
       }
-    } catch (e) {
-      console.warn('[CommunityFollowers] handleFollowBack error:', e);
-      setFollowBackStates((prev) => ({ ...prev, [communityId]: isFollowing }));
-    } finally {
-      setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: false }));
     }
-  }, [followBackStates]);
+  }, [followBackStates, showAlert, hideAlert]);
 
   // Member-to-Member circle connection from public view
   const handleMemberCircleRequest = useCallback(async (targetId) => {
@@ -884,6 +960,9 @@ export default function CommunityFollowersScreen({ route, navigation }) {
 
   // Render lists
   const renderFollowerItem = useCallback(({ item }) => {
+    if (hiddenFollowerIds.has(String(item.id))) {
+      return null;
+    }
     const circleLoading = !!circleActionLoading[item.id] || !!memberCircleLoadingMap[item.id];
 
     // If a user is there in circles, then remove them from the followers list as we are giving more priority to circle
@@ -902,6 +981,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
         onAddToCircle={handleAddToCircle}
         onCancelCircleInvite={handleCancelCircleInvite}
         onRemoveFromCircle={handleRemoveFromCircle}
+        onRemoveFollower={handleRemoveFollower}
         onPress={() => navigateTo(item)}
         followBackState={followBackStates[item.id]}
         followBackLoading={!!followBackLoadingMap[item.id]}
@@ -910,7 +990,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
         onMemberCircleRequest={handleMemberCircleRequest}
       />
     );
-  }, [isOwnProfile, viewerType, myId, circleStates, circleActionLoading, handleAddToCircle, handleCancelCircleInvite, handleRemoveFromCircle, navigateTo, followBackStates, followBackLoadingMap, handleFollowBack, memberCircleStates, memberCircleLoadingMap, handleMemberCircleRequest]);
+  }, [isOwnProfile, viewerType, myId, circleStates, circleActionLoading, handleAddToCircle, handleCancelCircleInvite, handleRemoveFromCircle, handleRemoveFollower, hiddenFollowerIds, navigateTo, followBackStates, followBackLoadingMap, handleFollowBack, memberCircleStates, memberCircleLoadingMap, handleMemberCircleRequest]);
 
   const renderCircleItem = useCallback(({ item }) => {
     const circleLoading = !!circleActionLoading[item.id] || !!memberCircleLoadingMap[item.id];
@@ -956,6 +1036,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
       memberCircleLoadingMap,
       followBackStates,
       followBackLoadingMap,
+      hiddenFollowerIds,
     }),
     [
       myId,
@@ -966,6 +1047,7 @@ export default function CommunityFollowersScreen({ route, navigation }) {
       memberCircleLoadingMap,
       followBackStates,
       followBackLoadingMap,
+      hiddenFollowerIds,
     ]
   );
 
@@ -1246,6 +1328,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Manrope-SemiBold",
     color: "#FF9500",
+  },
+  removeBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#F2F2F7",
+    alignItems: "center",
+    justifyContent: "center",
   },
   emptyState: {
     flex: 1,

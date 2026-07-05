@@ -2240,8 +2240,86 @@ const resolveChatReport = async (req, res) => {
   }
 };
 
+// ─── deleteGroupConversation ──────────────────────────────────────────────────
+// Deletes a group conversation, clearing its participants, messages, and muted stats.
+// Security: Only the group owner can delete it.
+const deleteGroupConversation = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { conversationId } = req.params;
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    // 1. Fetch conversation details to verify existence and ownership
+    const convResult = await client.query(
+      `SELECT is_group, group_owner_id, group_owner_type, community_owner_id 
+       FROM conversations WHERE id = $1`,
+      [conversationId]
+    );
+
+    if (convResult.rows.length === 0) {
+      return res.status(404).json({ error: "Group conversation not found" });
+    }
+
+    const conv = convResult.rows[0];
+
+    // 2. Verify is_group
+    if (!conv.is_group) {
+      return res.status(400).json({ error: "Cannot delete a non-group conversation" });
+    }
+
+    // 3. Verify ownership:
+    // User must be the designated group owner OR community owner
+    const isOwner = 
+      (conv.group_owner_id && String(conv.group_owner_id) === String(userId) && conv.group_owner_type === userType) ||
+      (conv.community_owner_id && String(conv.community_owner_id) === String(userId) && userType === "community");
+
+    if (!isOwner) {
+      return res.status(403).json({ error: "Only the group owner can delete this group" });
+    }
+
+    // 4. Perform deletes inside a transaction
+    await client.query("BEGIN");
+
+    await client.query(
+      `DELETE FROM conversation_participants WHERE conversation_id = $1`,
+      [conversationId]
+    );
+
+    await client.query(
+      `DELETE FROM messages WHERE conversation_id = $1`,
+      [conversationId]
+    );
+
+    await client.query(
+      `DELETE FROM conversation_muted WHERE conversation_id = $1`,
+      [conversationId]
+    );
+
+    await client.query(
+      `DELETE FROM conversations WHERE id = $1`,
+      [conversationId]
+    );
+
+    await client.query("COMMIT");
+
+    res.json({ success: true });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error deleting group conversation:", error);
+    res.status(500).json({ error: "Internal server error" });
+  } finally {
+    client.release();
+  }
+};
+
 // ─── module.exports ───────────────────────────────────────────────────────────
 module.exports = {
+  deleteGroupConversation,
   getConversations,
   resolveConversation,
   getMessages,

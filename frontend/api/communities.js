@@ -115,3 +115,8 @@ export async function unblockCommunity(communityId, token) {
   return apiDelete(`/communities/${communityId}/block`, null, 15000, token);
 }
 
+export async function removeCommunityFollower(followerId, followerType = 'member') {
+  const token = await getAuthToken();
+  return apiDelete(`/follow/followers/${followerId}/${followerType}`, null, 15000, token);
+}
+

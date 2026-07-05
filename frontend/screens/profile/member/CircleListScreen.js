@@ -398,43 +398,93 @@ export default function CircleListScreen({ route, navigation }) {
   const handleFollowToggle = useCallback(async (item) => {
     const memberId = item.id || item.member_id;
     const isFollowing = followStates[memberId];
-    HapticsService.triggerImpactMedium();
-    setFollowLoadingMap((prev) => ({ ...prev, [memberId]: true }));
-    setFollowStates((prev) => ({ ...prev, [memberId]: !isFollowing }));
-    try {
-      if (isFollowing) {
-        await unfollowMember(memberId);
-      } else {
+    if (isFollowing) {
+      HapticsService.triggerImpactLight();
+      showAlert({
+        title: 'Unfollow?',
+        message: `Are you sure you want to unfollow ${item.name || 'this member'}?`,
+        icon: UserMinus,
+        iconColor: COLORS.error || '#E53935',
+        secondaryAction: { text: 'Cancel', onPress: hideAlert },
+        primaryAction: {
+          text: 'Unfollow',
+          style: 'destructive',
+          onPress: async () => {
+            hideAlert();
+            HapticsService.triggerImpactMedium();
+            setFollowLoadingMap((prev) => ({ ...prev, [memberId]: true }));
+            setFollowStates((prev) => ({ ...prev, [memberId]: false }));
+            try {
+              await unfollowMember(memberId);
+            } catch (e) {
+              console.warn('[CircleList] handleFollowToggle error:', e);
+              setFollowStates((prev) => ({ ...prev, [memberId]: true }));
+            } finally {
+              setFollowLoadingMap((prev) => ({ ...prev, [memberId]: false }));
+            }
+          },
+        },
+      });
+    } else {
+      HapticsService.triggerImpactMedium();
+      setFollowLoadingMap((prev) => ({ ...prev, [memberId]: true }));
+      setFollowStates((prev) => ({ ...prev, [memberId]: true }));
+      try {
         await followMember(memberId);
+      } catch (e) {
+        console.warn('[CircleList] handleFollowToggle error:', e);
+        setFollowStates((prev) => ({ ...prev, [memberId]: false }));
+      } finally {
+        setFollowLoadingMap((prev) => ({ ...prev, [memberId]: false }));
       }
-    } catch (e) {
-      console.warn('[CircleList] handleFollowToggle error:', e);
-      setFollowStates((prev) => ({ ...prev, [memberId]: isFollowing }));
-    } finally {
-      setFollowLoadingMap((prev) => ({ ...prev, [memberId]: false }));
     }
-  }, [followStates]);
+  }, [followStates, showAlert, hideAlert]);
 
   // Follow/Unfollow toggle for communities in public views (creator-viewer only)
   const handleCommunityFollowToggle = useCallback(async (item) => {
     const communityId = item.id || item.member_id;
     const isFollowing = followStates[communityId];
-    HapticsService.triggerImpactMedium();
-    setFollowLoadingMap((prev) => ({ ...prev, [communityId]: true }));
-    setFollowStates((prev) => ({ ...prev, [communityId]: !isFollowing }));
-    try {
-      if (isFollowing) {
-        await unfollowCommunity(communityId);
-      } else {
+    if (isFollowing) {
+      HapticsService.triggerImpactLight();
+      showAlert({
+        title: 'Unfollow?',
+        message: `Are you sure you want to unfollow ${item.name || 'this community'}?`,
+        icon: UserMinus,
+        iconColor: COLORS.error || '#E53935',
+        secondaryAction: { text: 'Cancel', onPress: hideAlert },
+        primaryAction: {
+          text: 'Unfollow',
+          style: 'destructive',
+          onPress: async () => {
+            hideAlert();
+            HapticsService.triggerImpactMedium();
+            setFollowLoadingMap((prev) => ({ ...prev, [communityId]: true }));
+            setFollowStates((prev) => ({ ...prev, [communityId]: false }));
+            try {
+              await unfollowCommunity(communityId);
+            } catch (e) {
+              console.warn('[CircleList] handleCommunityFollowToggle error:', e);
+              setFollowStates((prev) => ({ ...prev, [communityId]: true }));
+            } finally {
+              setFollowLoadingMap((prev) => ({ ...prev, [communityId]: false }));
+            }
+          },
+        },
+      });
+    } else {
+      HapticsService.triggerImpactMedium();
+      setFollowLoadingMap((prev) => ({ ...prev, [communityId]: true }));
+      setFollowStates((prev) => ({ ...prev, [communityId]: true }));
+      try {
         await followCommunity(communityId);
+      } catch (e) {
+        console.warn('[CircleList] handleCommunityFollowToggle error:', e);
+        setFollowStates((prev) => ({ ...prev, [communityId]: false }));
+      } finally {
+        setFollowLoadingMap((prev) => ({ ...prev, [communityId]: false }));
       }
-    } catch (e) {
-      console.warn('[CircleList] handleCommunityFollowToggle error:', e);
-      setFollowStates((prev) => ({ ...prev, [communityId]: isFollowing }));
-    } finally {
-      setFollowLoadingMap((prev) => ({ ...prev, [communityId]: false }));
     }
-  }, [followStates]);
+  }, [followStates, showAlert, hideAlert]);
 
   // Circle request for regular members in public views
   const handleMemberCircleRequest = useCallback(async (targetId) => {

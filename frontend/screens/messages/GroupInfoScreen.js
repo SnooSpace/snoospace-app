@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, Alert, ScrollView, ActivityIndicator, Switch,
@@ -8,9 +8,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { useCrop } from "../../components/MediaCrop";
 import { ArrowLeft, Edit2, Check, X, UserMinus, Shield, ShieldOff, ShieldCheck, UserPlus,
-  MoreHorizontal, Camera, LogOut, TriangleAlert, Info, LockKeyhole, Megaphone, Users, Crown,
+  MoreHorizontal, Camera, LogOut, TriangleAlert, Info, LockKeyhole, Megaphone, Users, Crown, Trash2,
 } from "lucide-react-native";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
+import EventBus from "../../utils/EventBus";
 import {
   getGroupParticipants,
   updateGroupConversation,
@@ -21,6 +22,7 @@ import {
   transferGroupOwnership,
   addGroupParticipant,
   sendMessage,
+  deleteGroupConversation,
 } from "../../api/messages";
 import { searchAccounts } from "../../api/search";
 import { getAuthToken, getAuthEmail } from "../../api/auth";
@@ -731,6 +733,40 @@ export default function GroupInfoScreen({ route, navigation }) {
     });
   }, [communityOwnerId, conversationId, currentUser, groupOwnerId, groupOwnerType, isMeAdmin, navigation, participants]);
 
+  // ── Delete group ───────────────────────────────────────────────────────────
+  const handleDeleteGroup = useCallback(() => {
+    showAlert({
+      title: "Delete Group",
+      message: "Are you sure you want to permanently delete this group? All messages and participants will be removed. This cannot be undone.",
+      icon: Trash2,
+      iconColor: DANGER,
+      secondaryAction: { text: "Cancel", onPress: hideAlert },
+      primaryAction: {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          hideAlert();
+          try {
+            setLoading(true);
+            await deleteGroupConversation(conversationId);
+            EventBus.emit("conversation-deleted", { conversationId });
+            navigation.popToTop();
+          } catch (err) {
+            showAlert({
+              title: "Error",
+              message: err?.message || "Could not delete group.",
+              primaryAction: { text: "OK", onPress: hideAlert },
+              icon: TriangleAlert,
+              iconColor: DANGER,
+            });
+          } finally {
+            setLoading(false);
+          }
+        },
+      },
+    });
+  }, [conversationId, navigation]);
+
   // ── Pick owner & leave (community owner explicit choice) ─────────────────
   const handlePickOwner = useCallback(async (target) => {
     console.log("[GroupInfo] handlePickOwner called:", {
@@ -1184,6 +1220,25 @@ export default function GroupInfoScreen({ route, navigation }) {
             <Text style={styles.leaveBtnText}>Leave Group</Text>
           </TouchableOpacity>
         )}
+
+        {/* Delete button (Owner only) */}
+        {(() => {
+          const isOwner =
+            (groupOwnerId && String(currentUser?.id) === String(groupOwnerId) && currentUser?.type === groupOwnerType) ||
+            (communityOwnerId && String(currentUser?.id) === String(communityOwnerId) && currentUser?.type === "community");
+          
+          if (!isOwner) return null;
+
+          return (
+            <TouchableOpacity 
+              style={[styles.leaveBtn, { marginTop: 12, backgroundColor: "rgba(229,57,53,0.15)", borderColor: "rgba(229,57,53,0.3)" }]} 
+              onPress={handleDeleteGroup}
+            >
+              <Trash2 size={18} color={DANGER} strokeWidth={2} style={{ marginRight: 10 }} />
+              <Text style={styles.leaveBtnText}>Delete Group</Text>
+            </TouchableOpacity>
+          );
+        })()}
       </ScrollView>
 
       <CustomAlertModal

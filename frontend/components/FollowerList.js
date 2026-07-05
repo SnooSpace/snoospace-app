@@ -5,12 +5,13 @@ import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-g
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { ArrowLeft, Search, X } from "lucide-react-native";
+import { ArrowLeft, Search, X, UserMinus } from "lucide-react-native";
 import { COLORS, FONTS } from "../constants/theme";
 import PropTypes from "prop-types";
 import EventBus from "../utils/EventBus";
 import SkeletonUserCard from "./SkeletonUserCard";
 import SnooLoader from "./ui/SnooLoader";
+import CustomAlertModal from "./ui/CustomAlertModal";
 
 const PAGE_SIZE = 30;
 const DEFAULT_PRIMARY = COLORS.primary;
@@ -53,6 +54,10 @@ export default function FollowerList({
   // Per-item circle request loading map (for Add button spinner)
   const [circleRequestLoading, setCircleRequestLoading] = useState({});
   const searchTimer = useRef(null);
+
+  const [alertConfig, setAlertConfig] = useState({ visible: false });
+  const showAlert = useCallback((config) => setAlertConfig({ ...config, visible: true }), []);
+  const hideAlert = useCallback(() => setAlertConfig((p) => ({ ...p, visible: false })), []);
 
   useEffect(() => {
     let isMounted = true;
@@ -185,27 +190,52 @@ export default function FollowerList({
     async (id, isFollowing, entityType = "member") => {
       if (!onToggleFollow) return;
 
-      // Optimistic update
-      setItems((prev) => {
-        if (removeOnUnfollow && isFollowing) {
-          return prev.filter((item) => String(item.id) !== String(id));
-        }
-        return prev.map((item) =>
-          String(item.id) === String(id)
-            ? { ...item, isFollowing: !isFollowing }
-            : item,
-        );
-      });
+      const executeToggle = async () => {
+        // Optimistic update
+        setItems((prev) => {
+          if (removeOnUnfollow && isFollowing) {
+            return prev.filter((item) => String(item.id) !== String(id));
+          }
+          return prev.map((item) =>
+            String(item.id) === String(id)
+              ? { ...item, isFollowing: !isFollowing }
+              : item,
+          );
+        });
 
-      try {
-        await onToggleFollow(id, isFollowing, entityType);
-      } catch (error) {
-        console.warn("[FollowerList] onToggleFollow failed", error);
-        // On error, let the scroll/focus refresh handle it or re-fetch
-        load({ reset: true });
+        try {
+          await onToggleFollow(id, isFollowing, entityType);
+        } catch (error) {
+          console.warn("[FollowerList] onToggleFollow failed", error);
+          // On error, let the scroll/focus refresh handle it or re-fetch
+          load({ reset: true });
+        }
+      };
+
+      if (isFollowing) {
+        const targetUser = items.find((u) => String(u.id) === String(id));
+        const displayName = targetUser?.name || targetUser?.username || "this account";
+
+        showAlert({
+          title: "Unfollow?",
+          message: `Are you sure you want to unfollow ${displayName}?`,
+          icon: UserMinus,
+          iconColor: COLORS.error || "#E53E3E",
+          secondaryAction: { text: "Cancel", onPress: hideAlert },
+          primaryAction: {
+            text: "Unfollow",
+            style: "destructive",
+            onPress: () => {
+              hideAlert();
+              executeToggle();
+            },
+          },
+        });
+      } else {
+        executeToggle();
       }
     },
-    [onToggleFollow, removeOnUnfollow, load],
+    [onToggleFollow, removeOnUnfollow, load, items, showAlert, hideAlert],
   );
 
   const renderItem = useCallback(
@@ -447,6 +477,7 @@ export default function FollowerList({
         />
       )}
       </View>
+      <CustomAlertModal onClose={hideAlert} {...alertConfig} />
     </GestureHandlerRootView>
   );
 }

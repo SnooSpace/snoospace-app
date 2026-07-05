@@ -1447,6 +1447,7 @@ router.delete(
 // Follow system (member→community/sponsor/venue — unchanged)
 router.post("/follow", authMiddleware, FollowController.follow);
 router.delete("/follow", authMiddleware, FollowController.unfollow);
+router.delete("/follow/followers/:followerId/:followerType", authMiddleware, FollowController.removeFollower);
 router.get("/followers/:userId/:userType", FollowController.getFollowers);
 router.get("/following/:userId/:userType", FollowController.getFollowing);
 router.get("/follow/status", authMiddleware, FollowController.getFollowStatus);
@@ -1895,6 +1896,7 @@ router.patch("/messages/groups/:conversationId", authMiddleware, MessageControll
 router.post("/messages/groups/:conversationId/participants", authMiddleware, MessageController.addGroupParticipant);
 router.delete("/messages/groups/:conversationId/participants/:participantId", authMiddleware, MessageController.removeGroupParticipant);
 router.post("/messages/groups/:conversationId/transfer-admin", authMiddleware, MessageController.transferAdmin);
+router.delete("/messages/groups/:conversationId", authMiddleware, MessageController.deleteGroupConversation);
 
 // Conversation utilities
 router.post("/messages/conversations/:conversationId/hide", authMiddleware, MessageController.hideConversation);

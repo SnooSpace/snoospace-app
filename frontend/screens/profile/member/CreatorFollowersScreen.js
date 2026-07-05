@@ -841,8 +841,9 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         style: 'destructive',
         onPress: async () => {
           hideAlert();
-          // Optimistic hide
+          // Optimistic hide and count update
           setHiddenFollowerIds((prev) => new Set([...prev, String(item.id)]));
+          setFollowersTotal((t) => Math.max(0, t - 1));
           hapticsService.triggerImpactLight();
           try {
             await removeCreatorFollower(item.id);
@@ -853,6 +854,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
             setHiddenFollowerIds((prev) => {
               const s = new Set(prev); s.delete(String(item.id)); return s;
             });
+            setFollowersTotal((t) => t + 1);
           }
         },
       },
@@ -981,24 +983,47 @@ export default function CreatorFollowersScreen({ route, navigation }) {
   const handleFollowBack = useCallback(async (item) => {
     const communityId = item.id;
     const isFollowing = followBackStates[communityId];
-    hapticsService.triggerImpactMedium();
-    setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: true }));
-    // Optimistic update
-    setFollowBackStates((prev) => ({ ...prev, [communityId]: !isFollowing }));
-    try {
-      if (isFollowing) {
-        await unfollowCommunity(communityId);
-      } else {
+    if (isFollowing) {
+      hapticsService.triggerImpactLight();
+      showAlert({
+        title: 'Unfollow?',
+        message: `Are you sure you want to unfollow ${item.name || 'this community'}?`,
+        icon: UserMinus,
+        iconColor: COLORS.error || '#E53935',
+        secondaryAction: { text: 'Cancel', onPress: hideAlert },
+        primaryAction: {
+          text: 'Unfollow',
+          style: 'destructive',
+          onPress: async () => {
+            hideAlert();
+            hapticsService.triggerImpactMedium();
+            setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: true }));
+            setFollowBackStates((prev) => ({ ...prev, [communityId]: false }));
+            try {
+              await unfollowCommunity(communityId);
+            } catch (e) {
+              console.warn('[CreatorFollowers] handleFollowBack error:', e);
+              setFollowBackStates((prev) => ({ ...prev, [communityId]: true }));
+            } finally {
+              setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: false }));
+            }
+          },
+        },
+      });
+    } else {
+      hapticsService.triggerImpactMedium();
+      setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: true }));
+      setFollowBackStates((prev) => ({ ...prev, [communityId]: true }));
+      try {
         await followCommunity(communityId);
+      } catch (e) {
+        console.warn('[CreatorFollowers] handleFollowBack error:', e);
+        setFollowBackStates((prev) => ({ ...prev, [communityId]: false }));
+      } finally {
+        setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: false }));
       }
-    } catch (e) {
-      console.warn('[CreatorFollowers] handleFollowBack error:', e);
-      // Revert on failure
-      setFollowBackStates((prev) => ({ ...prev, [communityId]: isFollowing }));
-    } finally {
-      setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: false }));
     }
-  }, [followBackStates]);
+  }, [followBackStates, showAlert, hideAlert]);
 
   // Member-to-Member circle connection from public view
   const handleMemberCircleRequest = useCallback(async (targetId) => {
@@ -1223,7 +1248,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: "#fff",
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: 0,
     borderBottomColor: COLORS.border || "#E5E7EB",
   },
   backBtn: {
