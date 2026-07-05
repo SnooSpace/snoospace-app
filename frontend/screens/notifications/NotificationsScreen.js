@@ -1464,6 +1464,32 @@ export default function NotificationsScreen({ navigation }) {
     />
   ), [sections, scrollY, overscrollBottom, relationshipStatuses, relationshipLoading, handleRelationshipAction, handleRespondToInvite, navigateToProfile, navigateToEvent, navigation]);
 
+  const renderFooter = useCallback(() => {
+    if (localLoading) {
+      return (
+        <View style={styles.footerLoader}>
+          <ActivityIndicator size="small" color={COLORS.primary} />
+        </View>
+      );
+    }
+
+    if (!localHasMore && localItems.length > 0) {
+      return (
+        <View style={styles.caughtUpContainer}>
+          <View style={styles.caughtUpIconCircle}>
+            <CircleCheck size={28} color="#34C759" strokeWidth={2.2} />
+          </View>
+          <Text style={styles.caughtUpTitle}>You're all caught up</Text>
+          <Text style={styles.caughtUpSubtitle}>
+            You have seen all notifications from the past 3 weeks.
+          </Text>
+        </View>
+      );
+    }
+
+    return null;
+  }, [localLoading, localHasMore, localItems]);
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
@@ -1549,11 +1575,7 @@ export default function NotificationsScreen({ navigation }) {
             </View>
           )
         }
-        ListFooterComponent={
-          localLoading && localItems.length > 0 ? (
-            <ActivityIndicator style={{ paddingVertical: 16 }} color={COLORS.primary} />
-          ) : null
-        }
+        ListFooterComponent={renderFooter}
       />
     </SafeAreaView>
   );
@@ -1791,5 +1813,39 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-SemiBold",
     fontSize: 10,
     color: "#7C3AED",
+  },
+  footerLoader: {
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  caughtUpContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 36,
+    paddingHorizontal: 24,
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  caughtUpIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(52, 199, 89, 0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  caughtUpTitle: {
+    fontFamily: "BasicCommercial-Bold",
+    fontSize: 16,
+    color: "#1D1D1F",
+    marginBottom: 4,
+  },
+  caughtUpSubtitle: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 13,
+    color: "#8E8E93",
+    textAlign: "center",
+    maxWidth: 260,
   },
 });

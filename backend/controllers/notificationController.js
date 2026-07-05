@@ -54,7 +54,7 @@ const listNotifications = async (req, res) => {
     `;
 
     const params = [userId, userType];
-    let whereClause = "WHERE n.recipient_id = $1 AND n.recipient_type = $2 AND n.is_active = TRUE";
+    let whereClause = "WHERE n.recipient_id = $1 AND n.recipient_type = $2 AND n.is_active = TRUE AND (n.created_at >= NOW() - INTERVAL '21 days' OR n.is_read = FALSE)";
 
     if (category && category !== "all") {
       params.push(category);
