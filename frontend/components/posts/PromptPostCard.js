@@ -22,6 +22,7 @@ import {
 import { Pressable as GHPressable } from "react-native-gesture-handler";
 import { Image } from "expo-image"; // ── PERF: memory-disk cache for author avatar
 import { GradientHeart } from "../ui/GradientHeart";
+import SwipeableModal from "../modals/SwipeableModal";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -86,6 +87,7 @@ const PromptPostCard = React.memo(({
   currentUserId,
   currentUserType,
   showManagementControls = false,
+  hideEngagement = false,
 }) => {
   const navigation = useNavigation();
   const { showToast } = useToast();
@@ -818,7 +820,8 @@ const PromptPostCard = React.memo(({
       </View>
 
       {/* Engagement Row */}
-      <View style={styles.engagementRow}>
+      {!hideEngagement && (
+        <View style={styles.engagementRow}>
         {/* Like */}
         <GHPressable
           style={styles.engagementButton}
@@ -875,6 +878,7 @@ const PromptPostCard = React.memo(({
           )}
         </GHPressable>
       </View>
+      )}
 
         {showHeart && (
           <Animated.View
@@ -901,18 +905,14 @@ const PromptPostCard = React.memo(({
     </TouchableWithoutFeedback>
 
       {/* Submit Modal */}
-      {showSubmitModal && (
-        <Modal
-          visible={showSubmitModal}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setShowSubmitModal(false)}
-        >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.modalOverlay}
-        >
-          <View style={styles.modalContent}>
+      <SwipeableModal
+        visible={showSubmitModal}
+        onClose={() => setShowSubmitModal(false)}
+        sheetStyle={styles.modalContent}
+        avoidKeyboard={true}
+        header={
+          <View collapsable={false} style={{ width: "100%" }}>
+            <View style={styles.modalHandle} />
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Your Response</Text>
               <TouchableOpacity
@@ -922,121 +922,120 @@ const PromptPostCard = React.memo(({
                 <X size={24} color={COLORS.textPrimary} />
               </TouchableOpacity>
             </View>
+          </View>
+        }
+      >
+        <View style={styles.modalInnerContent}>
+          {submissionType === "image" ? (
+            /* ── Image Picker ──────────────────────────────────────── */
+            <ScrollView
+              style={styles.imagePickerScroll}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.imagesGrid}>
+                {selectedImages.map((uri, index) => (
+                  <View key={`img-${index}`} style={styles.imageThumbWrapper}>
+                    <Image source={{ uri }} style={styles.imageThumb} />
+                    <TouchableOpacity
+                      style={styles.imageRemoveBtn}
+                      onPress={() => removeImage(index)}
+                    >
+                      <CircleX
+                        size={22}
+                        color="#FFFFFF"
+                      />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.imageHelperText}>
+                {selectedImages.length}/5 image
+                {selectedImages.length !== 1 ? "s" : ""} selected
+              </Text>
+            </ScrollView>
+          ) : (
+            /* ── Text Input ────────────────────────────────────────── */
+            <TextInput
+              style={styles.textInput}
+              placeholder="Write your response..."
+              placeholderTextColor={COLORS.textSecondary}
+              multiline
+              maxLength={maxLength}
+              value={submissionText}
+              onChangeText={setSubmissionText}
+              autoFocus
+            />
+          )}
 
-
-
+          <View style={styles.modalFooter}>
             {submissionType === "image" ? (
-              /* ── Image Picker ──────────────────────────────────────── */
-              <ScrollView
-                style={styles.imagePickerScroll}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-              >
-                <View style={styles.imagesGrid}>
-                  {selectedImages.map((uri, index) => (
-                    <View key={`img-${index}`} style={styles.imageThumbWrapper}>
-                      <Image source={{ uri }} style={styles.imageThumb} />
-                      <TouchableOpacity
-                        style={styles.imageRemoveBtn}
-                        onPress={() => removeImage(index)}
-                      >
-                        <CircleX
-                          size={22}
-                          color="#FFFFFF"
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-                <Text style={styles.imageHelperText}>
-                  {selectedImages.length}/5 image
-                  {selectedImages.length !== 1 ? "s" : ""} selected
-                </Text>
-              </ScrollView>
+              <View style={styles.imageAddRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.imageAddBtn,
+                    selectedImages.length >= 5 && styles.imageAddBtnDisabled,
+                  ]}
+                  onPress={pickImage}
+                  disabled={selectedImages.length >= 5}
+                >
+                  <LucideImage
+                    size={32}
+                    color={selectedImages.length >= 5 ? "#D1D5DB" : "#4B5563"}
+                    strokeWidth={2}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.imageAddBtn,
+                    selectedImages.length >= 5 && styles.imageAddBtnDisabled,
+                  ]}
+                  onPress={takePhoto}
+                  disabled={selectedImages.length >= 5}
+                >
+                  <Camera
+                    size={32}
+                    color={selectedImages.length >= 5 ? "#D1D5DB" : "#4B5563"}
+                    strokeWidth={2}
+                  />
+                </TouchableOpacity>
+              </View>
             ) : (
-              /* ── Text Input ────────────────────────────────────────── */
-              <TextInput
-                style={styles.textInput}
-                placeholder="Write your response..."
-                placeholderTextColor={COLORS.textSecondary}
-                multiline
-                maxLength={maxLength}
-                value={submissionText}
-                onChangeText={setSubmissionText}
-                autoFocus
-              />
-            )}
-
-            <View style={styles.modalFooter}>
-              {submissionType === "image" ? (
-                <View style={styles.imageAddRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.imageAddBtn,
-                      selectedImages.length >= 5 && styles.imageAddBtnDisabled,
-                    ]}
-                    onPress={pickImage}
-                    disabled={selectedImages.length >= 5}
-                  >
-                    <LucideImage
-                      size={32}
-                      color={selectedImages.length >= 5 ? "#D1D5DB" : "#4B5563"}
-                      strokeWidth={2}
-                    />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.imageAddBtn,
-                      selectedImages.length >= 5 && styles.imageAddBtnDisabled,
-                    ]}
-                    onPress={takePhoto}
-                    disabled={selectedImages.length >= 5}
-                  >
-                    <Camera
-                      size={32}
-                      color={selectedImages.length >= 5 ? "#D1D5DB" : "#4B5563"}
-                      strokeWidth={2}
-                    />
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <Text style={styles.charCount}>
-                  {submissionText.length}/{maxLength}
-                </Text>
-              )}
-              <TouchableOpacity
-                style={[
-                  styles.submitActionButton,
-                  (isSubmitting ||
-                    (submissionType === "text" && !submissionText.trim()) ||
-                    (submissionType === "image" &&
-                      selectedImages.length === 0)) &&
-                    styles.submitActionButtonDisabled,
-                ]}
-                onPress={handleSubmit}
-                disabled={
-                  isSubmitting ||
-                  (submissionType === "text" && !submissionText.trim()) ||
-                  (submissionType === "image" && selectedImages.length === 0)
-                }
-              >
-                {isSubmitting ? (
-                  <SnooLoader size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.submitActionButtonText}>Submit</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {typeData.require_approval && (
-              <Text style={styles.approvalNote}>
-                Your response will be reviewed before being published
+              <Text style={styles.charCount}>
+                {submissionText.length}/{maxLength}
               </Text>
             )}
+            <TouchableOpacity
+              style={[
+                styles.submitActionButton,
+                (isSubmitting ||
+                  (submissionType === "text" && !submissionText.trim()) ||
+                  (submissionType === "image" &&
+                    selectedImages.length === 0)) &&
+                  styles.submitActionButtonDisabled,
+              ]}
+              onPress={handleSubmit}
+              disabled={
+                isSubmitting ||
+                (submissionType === "text" && !submissionText.trim()) ||
+                (submissionType === "image" && selectedImages.length === 0)
+              }
+            >
+              {isSubmitting ? (
+                <SnooLoader size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.submitActionButtonText}>Submit</Text>
+              )}
+            </TouchableOpacity>
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
-      )}
+
+          {typeData.require_approval && (
+            <Text style={styles.approvalNote}>
+              Your response will be reviewed before being published
+            </Text>
+          )}
+        </View>
+      </SwipeableModal>
 
       {/* Custom Image Picker Modal */}
       {showCustomPicker && (
@@ -1316,8 +1315,25 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderTopLeftRadius: BORDER_RADIUS.xl,
     borderTopRightRadius: BORDER_RADIUS.xl,
-    padding: SPACING.l,
-    maxHeight: "80%",
+    paddingHorizontal: SPACING.l,
+    paddingBottom: Platform.OS === "ios" ? 34 : 20,
+    maxHeight: Dimensions.get("window").height * 0.8,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E2E8F0",
+    alignSelf: "center",
+    marginTop: 12,
+    marginBottom: 0,
+  },
+  keyboardAvoidingViewSwipeable: {
+    width: "100%",
+  },
+  modalInnerContent: {
+    width: "100%",
+    paddingTop: 12,
   },
   modalHeader: {
     flexDirection: "row",

@@ -224,6 +224,7 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
           onShare={() => {}}
           currentUserId={null}
           currentUserType={null}
+          hideEngagement={true}
         />
       </TouchableOpacity>
     );
@@ -245,6 +246,7 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
           onShare={() => {}}
           currentUserId={null}
           currentUserType={null}
+          hideEngagement={true}
         />
       </TouchableOpacity>
     );
@@ -266,6 +268,7 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
           onShare={() => {}}
           currentUserId={null}
           currentUserType={null}
+          hideEngagement={true}
         />
       </TouchableOpacity>
     );
@@ -287,6 +290,7 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
           onShare={() => {}}
           currentUserId={null}
           currentUserType={null}
+          hideEngagement={true}
         />
       </TouchableOpacity>
     );

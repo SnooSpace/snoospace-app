@@ -8,7 +8,7 @@ import {
   Platform,
 } from "react-native";
 import { BlurView } from "expo-blur";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { useKeyboardHandler } from "react-native-keyboard-controller";
 import {
   Gesture,
   GestureDetector,
@@ -42,12 +42,35 @@ export default function SwipeableModal({
   swipeEnabled = true,
   closeOnBackdropPress = true,
   header,
+  avoidKeyboard = false,
 }) {
   const [shouldRender, setShouldRender] = useState(visible);
   const translateY = useSharedValue(SCREEN_HEIGHT);
   const sheetHeight = useSharedValue(SCREEN_HEIGHT * 0.85);
   const backdropOpacity = useSharedValue(0);
   const isSwipedDownRef = useRef(false);
+  const keyboardHeight = useSharedValue(0);
+
+  useKeyboardHandler({
+    onStart: (e) => {
+      "worklet";
+      if (avoidKeyboard) {
+        keyboardHeight.value = e.height;
+      }
+    },
+    onMove: (e) => {
+      "worklet";
+      if (avoidKeyboard) {
+        keyboardHeight.value = e.height;
+      }
+    },
+    onEnd: (e) => {
+      "worklet";
+      if (avoidKeyboard) {
+        keyboardHeight.value = e.height;
+      }
+    },
+  }, [avoidKeyboard]);
 
   useEffect(() => {
     if (visible) {
@@ -103,7 +126,7 @@ export default function SwipeableModal({
   }
 
   const animatedSheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
+    transform: [{ translateY: translateY.value - keyboardHeight.value }],
   }));
 
   const animatedBackdropStyle = useAnimatedStyle(() => {
@@ -117,6 +140,8 @@ export default function SwipeableModal({
       opacity: backdropOpacity.value * opacity,
     };
   });
+
+
 
   return (
     <Modal

@@ -92,6 +92,7 @@ const ChallengePostCard = React.memo(({
   currentUserId,
   currentUserType,
   showManagementControls = false,
+  hideEngagement = false,
 }) => {
   const navigation = useNavigation();
   const { showToast } = useToast();
@@ -1245,7 +1246,8 @@ const ChallengePostCard = React.memo(({
         )}
 
         {/* Engagement Row */}
-        <View style={styles.engagementRow}>
+        {!hideEngagement && (
+          <View style={styles.engagementRow}>
           {/* Like */}
           <GHPressable
             style={styles.engagementButton}
@@ -1311,6 +1313,7 @@ const ChallengePostCard = React.memo(({
             )}
           </GHPressable>
         </View>
+        )}
 
         {/* Submission Activity Teaser — shown as soon as any approved submission exists */}
         {submissionStats && submissionStats.total_submissions > 0 && (

@@ -1538,6 +1538,11 @@ export default function ChatScreen({ route, navigation }) {
   } = useChatPagination();
 
   const [messageText, setMessageText] = useState("");
+  const [isChatInputFocused, setIsChatInputFocused] = useState(false);
+  const isChatInputFocusedShared = useSharedValue(false);
+  useEffect(() => {
+    isChatInputFocusedShared.value = isChatInputFocused;
+  }, [isChatInputFocused]);
   const [recipient, setRecipient] = useState(() => {
     if (recipientId && recipientName) {
       return {
@@ -1696,15 +1701,15 @@ export default function ChatScreen({ route, navigation }) {
   useKeyboardHandler({
     onStart: (e) => {
       "worklet";
-      keyboardHeight.value = e.height;
+      keyboardHeight.value = isChatInputFocusedShared.value ? e.height : 0;
     },
     onMove: (e) => {
       "worklet";
-      keyboardHeight.value = e.height;
+      keyboardHeight.value = isChatInputFocusedShared.value ? e.height : 0;
     },
     onEnd: (e) => {
       "worklet";
-      keyboardHeight.value = e.height;
+      keyboardHeight.value = isChatInputFocusedShared.value ? e.height : 0;
     },
   });
   const containerAnimatedStyle = useAnimatedStyle(() => {
@@ -1918,7 +1923,9 @@ export default function ChatScreen({ route, navigation }) {
 
   const handlePressPostShare = useCallback(
     (postId, postData) => {
-      if (postData?.post_type === "community_voice" && postData?.type_data) {
+      if (!postData) return;
+
+      if (postData.post_type === "community_voice" && postData.type_data) {
         const { target_id, target_type } = postData.type_data;
         if (target_id && target_type) {
           const nav = navigation.getParent()?.getParent() || navigation;
@@ -1940,9 +1947,26 @@ export default function ChatScreen({ route, navigation }) {
         }
       }
 
-      setSharedPosts((prev) => ({ ...prev, [postId]: postData }));
-      setSelectedSharedPost(postData);
-      setSharedPostModalVisible(true);
+      const authorId = postData.author_id || postData.authorId || postData.creator_id;
+      const authorType = postData.author_type || postData.authorType || "member";
+
+      if (authorId) {
+        const nav = navigation.getParent()?.getParent() || navigation;
+        if (authorType === "community") {
+          nav.navigate("CommunityPublicProfile", {
+            communityId: authorId,
+            viewerRole: "member",
+            initialTab: "community",
+            postId: postId || postData?.id || postData?.postId,
+          });
+        } else {
+          nav.navigate("MemberPublicProfile", {
+            memberId: authorId,
+            initialTab: "community",
+            postId: postId || postData?.id || postData?.postId,
+          });
+        }
+      }
     },
     [navigation],
   );
@@ -3099,6 +3123,7 @@ export default function ChatScreen({ route, navigation }) {
         </View>
 
         <KeyboardAvoidingView
+          enabled={isChatInputFocused}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
           style={styles.keyboardView}
           keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
@@ -3156,7 +3181,7 @@ export default function ChatScreen({ route, navigation }) {
           </Animated.View>
         </KeyboardAvoidingView>
 
-        <KeyboardAwareToolbar>
+        <KeyboardAwareToolbar enabled={isChatInputFocused}>
           <View
             style={{ flexDirection: "column" }}
             onLayout={(e) => {
@@ -3291,6 +3316,8 @@ export default function ChatScreen({ route, navigation }) {
                         onChangeText={handleTextChange}
                         multiline
                         maxLength={1000}
+                        onFocus={() => setIsChatInputFocused(true)}
+                        onBlur={() => setIsChatInputFocused(false)}
                       />
                     </View>
                   )}

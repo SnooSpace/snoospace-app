@@ -22,24 +22,29 @@ import Animated, {
  * 3. Respects safe area via the offset prop when keyboard is closed
  */
 
-const KeyboardAwareToolbar = ({ children, style, onLayout }) => {
+const KeyboardAwareToolbar = ({ children, style, onLayout, enabled = true }) => {
   const insets = useSafeAreaInsets();
   const keyboardHeight = useSharedValue(0);
+
+  const isEnabledShared = useSharedValue(enabled);
+  React.useEffect(() => {
+    isEnabledShared.value = enabled;
+  }, [enabled]);
 
   useKeyboardHandler({
     onStart: (e) => {
       "worklet";
-      keyboardHeight.value = e.height;
+      keyboardHeight.value = isEnabledShared.value ? e.height : 0;
     },
     onMove: (e) => {
       "worklet";
-      keyboardHeight.value = e.height;
+      keyboardHeight.value = isEnabledShared.value ? e.height : 0;
     },
     onEnd: (e) => {
       "worklet";
-      keyboardHeight.value = e.height;
+      keyboardHeight.value = isEnabledShared.value ? e.height : 0;
     },
-  });
+  }, [enabled]);
 
   const flattenedStyle = StyleSheet.flatten(style || {});
   const {
@@ -72,6 +77,33 @@ const KeyboardAwareToolbar = ({ children, style, onLayout }) => {
       transform: [{ translateY }],
     };
   });
+
+  if (!enabled) {
+    return (
+      <View style={[styles.container, containerStyle]}>
+        <View
+          onLayout={onLayout}
+          style={{
+            paddingBottom: insets.bottom,
+            backgroundColor,
+            borderTopWidth,
+            borderTopColor,
+            borderTopLeftRadius,
+            borderTopRightRadius,
+            borderWidth,
+            borderColor,
+            shadowColor,
+            shadowOffset,
+            shadowOpacity,
+            shadowRadius,
+            elevation,
+          }}
+        >
+          {children}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <KeyboardStickyView

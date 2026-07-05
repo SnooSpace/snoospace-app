@@ -67,6 +67,7 @@ const PollPostCard = React.memo(({
   currentUserId,
   currentUserType,
   showManagementControls = false,
+  hideEngagement = false,
 }) => {
   const { showToast } = useToast();
 
@@ -804,7 +805,8 @@ const PollPostCard = React.memo(({
         </View>
 
         {/* Engagement Row */}
-        <View style={styles.engagementRow}>
+        {!hideEngagement && (
+          <View style={styles.engagementRow}>
           {/* Like */}
           <GHPressable
             style={styles.engagementButton}
@@ -870,6 +872,7 @@ const PollPostCard = React.memo(({
             )}
           </GHPressable>
         </View>
+        )}
 
         {showHeart && (
           <Animated.View
