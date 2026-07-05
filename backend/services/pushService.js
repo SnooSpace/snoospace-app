@@ -36,23 +36,40 @@ const sendPushNotifications = async (pool, notifications) => {
       .map((n) => `(${Number(n.userId)}, '${n.userType.replace(/'/g, "''")}')`);
     const uniqueKeys = [...new Set(userKeys)];
 
-    // 2. Fetch active push tokens for all users
+    // 2. Fetch active push tokens for all users, including their usernames
+    // and the total count of active accounts associated with each push token on their device
     const tokenQuery = `
-      SELECT user_id, user_type, expo_push_token
-      FROM push_tokens
-      WHERE is_active = true
-        AND (user_id, user_type) IN (${uniqueKeys.join(", ")})
+      SELECT pt.user_id, pt.user_type, pt.expo_push_token,
+        CASE
+          WHEN pt.user_type = 'member' THEN m.username
+          WHEN pt.user_type = 'community' THEN c.username
+          WHEN pt.user_type = 'sponsor' THEN s.username
+          WHEN pt.user_type = 'venue' THEN v.username
+          ELSE NULL
+        END AS recipient_username,
+        (SELECT COUNT(*)::int FROM push_tokens pt2 WHERE pt2.expo_push_token = pt.expo_push_token AND pt2.is_active = true) AS device_account_count
+      FROM push_tokens pt
+      LEFT JOIN members m ON pt.user_type = 'member' AND pt.user_id = m.id
+      LEFT JOIN communities c ON pt.user_type = 'community' AND pt.user_id = c.id
+      LEFT JOIN sponsors s ON pt.user_type = 'sponsor' AND pt.user_id = s.id
+      LEFT JOIN venues v ON pt.user_type = 'venue' AND pt.user_id = v.id
+      WHERE pt.is_active = true
+        AND (pt.user_id, pt.user_type) IN (${uniqueKeys.join(", ")})
     `;
     const tokenResult = await pool.query(tokenQuery);
 
-    // Create a map of userId:userType -> [tokens]
+    // Create a map of userId:userType -> { tokens: [tokens], username: string, deviceAccountCount: number }
     const tokenMap = {};
     for (const row of tokenResult.rows) {
       const key = `${row.user_id}:${row.user_type}`;
       if (!tokenMap[key]) {
-        tokenMap[key] = [];
+        tokenMap[key] = {
+          tokens: [],
+          username: row.recipient_username,
+          deviceAccountCount: row.device_account_count || 1
+        };
       }
-      tokenMap[key].push(row.expo_push_token);
+      tokenMap[key].tokens.push(row.expo_push_token);
     }
 
     // 2b. Fetch disabled notification preferences in bulk
@@ -76,7 +93,10 @@ const sendPushNotifications = async (pool, notifications) => {
 
     for (const notif of notifications) {
       const key = `${notif.userId}:${notif.userType}`;
-      const tokens = tokenMap[key] || [];
+      const tokenInfo = tokenMap[key];
+      const tokens = tokenInfo ? tokenInfo.tokens : [];
+      const recipientUsername = tokenInfo ? tokenInfo.username : null;
+      const deviceAccountCount = tokenInfo ? tokenInfo.deviceAccountCount : 1;
 
       if (tokens.length === 0) {
         // User has no active push tokens
@@ -133,11 +153,21 @@ const sendPushNotifications = async (pool, notifications) => {
           continue;
         }
 
+        let title = notif.title || "SnooSpace";
+        let body = notif.body || "";
+
+        // If the user has 2 or more accounts registered on this device,
+        // format the notification to show the recipient username as the title.
+        if (deviceAccountCount >= 2 && recipientUsername) {
+          title = `@${recipientUsername}`;
+          body = notif.title ? `${notif.title}: ${notif.body || ""}` : (notif.body || "");
+        }
+
         messages.push({
           to: token,
           sound: "default",
-          title: notif.title,
-          body: notif.body,
+          title,
+          body,
           data: {
             ...notif.data,
             notificationType: type || "general",
