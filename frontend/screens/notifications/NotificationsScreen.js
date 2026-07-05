@@ -131,6 +131,9 @@ const NotificationRow = ({
   const firstItem = group.items[0];
   const payload = firstItem.payload || {};
   const count = group.items.length;
+  const isCreatorSocial =
+    group.type === "creator_follow_received" ||
+    (firstItem.actor_type === "community" && ["follow", "circle_request_received", "circle_request_accepted", "community_circle_invite"].includes(group.type));
 
   const sectionIndex = sections.findIndex((s) => s.title === section.title);
   const isFirst = sectionIndex === 0 && index === 0;
@@ -416,7 +419,7 @@ const NotificationRow = ({
         isButtonActive = true;
         isDisabled = false;
       } else {
-        buttonText = "Follow";
+        buttonText = "Follow Back";
         isButtonActive = false;
         isDisabled = false;
       }
@@ -994,6 +997,11 @@ const NotificationRow = ({
         <View style={styles.rowBody}>
           {title}
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          {isCreatorSocial && (
+            <View style={styles.creatorBadgeContainer}>
+              <Text style={styles.creatorBadgeText}>✨ Creator Connection</Text>
+            </View>
+          )}
           <Text style={styles.time}>
             {new Date(firstItem.created_at).toLocaleString()}
           </Text>
@@ -1767,5 +1775,21 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: "#FF3B30",
     marginLeft: 6,
+  },
+  creatorBadgeContainer: {
+    backgroundColor: "rgba(124, 58, 237, 0.08)",
+    borderColor: "rgba(124, 58, 237, 0.16)",
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    alignSelf: "flex-start",
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  creatorBadgeText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 10,
+    color: "#7C3AED",
   },
 });

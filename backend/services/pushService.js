@@ -7,6 +7,7 @@
 
 const { Expo } = require("expo-server-sdk");
 const NotificationTypes = require("../config/notificationTypes");
+const { shouldSuppressCreatorSocial } = require("./notificationService");
 
 // Create a new Expo SDK client
 const expo = new Expo();
@@ -102,6 +103,23 @@ const sendPushNotifications = async (pool, notifications) => {
       if (disabledSet.has(prefKey)) {
         // Skip push notification if user has disabled this category
         continue;
+      }
+
+      // Check special creator_social preference for follow/circle requests
+      if (["follow", "creator_follow_received", "circle_request_received"].includes(type)) {
+        const actorId = notif.data?.actorId;
+        const actorType = notif.data?.actorType;
+        if (actorId && actorType) {
+          try {
+            const isSuppressed = await shouldSuppressCreatorSocial(pool, notif.userId, notif.userType, actorId, actorType);
+            if (isSuppressed) {
+              console.log(`[PushService] Suppressing creator connection push notification from ${actorType}_${actorId} to ${notif.userType}_${notif.userId}`);
+              continue;
+            }
+          } catch (err) {
+            console.error("[PushService] shouldSuppressCreatorSocial check failed:", err.message);
+          }
+        }
       }
 
       for (const token of tokens) {

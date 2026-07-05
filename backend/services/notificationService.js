@@ -573,6 +573,58 @@ const createCreatorFollowNotification = async (
   }
 };
 
+/**
+ * Checks if a notification should be suppressed based on creator_social preferences.
+ * Suppresses if:
+ * 1. Recipient is a Creator (member.is_creator_mode_enabled = true) OR Community
+ * 2. Actor is a Creator (member.is_creator_mode_enabled = true) OR Community
+ * 3. Recipient has disabled the 'creator_social' category.
+ */
+const shouldSuppressCreatorSocial = async (pool, recipientId, recipientType, actorId, actorType) => {
+  try {
+    // 1. Recipient check
+    let isRecipientEligible = false;
+    if (recipientType === "community") {
+      isRecipientEligible = true;
+    } else if (recipientType === "member") {
+      const res = await pool.query(
+        "SELECT is_creator_mode_enabled FROM members WHERE id = $1",
+        [recipientId]
+      );
+      isRecipientEligible = !!res.rows[0]?.is_creator_mode_enabled;
+    }
+
+    if (!isRecipientEligible) return false;
+
+    // 2. Actor check
+    let isActorEligible = false;
+    if (actorType === "community") {
+      isActorEligible = true;
+    } else if (actorType === "member") {
+      const res = await pool.query(
+        "SELECT is_creator_mode_enabled FROM members WHERE id = $1",
+        [actorId]
+      );
+      isActorEligible = !!res.rows[0]?.is_creator_mode_enabled;
+    }
+
+    if (!isActorEligible) return false;
+
+    // 3. Preference check
+    const prefRes = await pool.query(
+      `SELECT enabled FROM user_notification_preferences 
+       WHERE user_id = $1 AND user_type = $2 AND category = 'creator_social'`,
+      [recipientId, recipientType]
+    );
+    if (prefRes.rows.length > 0 && prefRes.rows[0].enabled === false) {
+      return true; // Suppress!
+    }
+  } catch (e) {
+    console.error("[shouldSuppressCreatorSocial] error:", e.message);
+  }
+  return false;
+};
+
 module.exports = {
   setIo,
   emitNotification: _emitNotification, // public alias for controllers doing raw INSERTs
@@ -585,5 +637,6 @@ module.exports = {
   shouldSuppressNotifications,
   createNotification,
   createCreatorFollowNotification,
+  shouldSuppressCreatorSocial,
 };
 

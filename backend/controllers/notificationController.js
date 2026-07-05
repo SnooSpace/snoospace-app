@@ -313,6 +313,7 @@ const getPreferences = async (req, res) => {
       messages: true,
       events: true,
       system: true,
+      creator_social: true,
     };
 
     for (const row of result.rows) {
@@ -343,7 +344,7 @@ const updatePreferences = async (req, res) => {
       return res.status(400).json({ error: "category and enabled are required" });
     }
 
-    const validCategories = ["activity", "communities", "messages", "events", "system"];
+    const validCategories = ["activity", "communities", "messages", "events", "system", "creator_social"];
     if (!validCategories.includes(category)) {
       return res.status(400).json({ error: "Invalid category" });
     }

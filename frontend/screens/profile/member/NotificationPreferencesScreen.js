@@ -9,6 +9,7 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, {
   useAnimatedStyle,
   withSpring,
@@ -31,6 +32,7 @@ import {
   BORDER_RADIUS,
 } from "../../../constants/theme";
 import HapticsService from "../../../services/HapticsService";
+import { getActiveAccount } from "../../../api/auth";
 import {
   fetchNotificationPreferences,
   updateNotificationPreferences,
@@ -182,22 +184,41 @@ const sectionStyles = StyleSheet.create({
   },
 });
 
-export default function NotificationPreferencesScreen({ navigation }) {
+export default function NotificationPreferencesScreen({ route, navigation }) {
+  const { isCreator: initialCreator = false, isCommunity: initialCommunity = false } = route?.params || {};
+  const [isCreator, setIsCreator] = useState(initialCreator);
+  const [isCommunity, setIsCommunity] = useState(initialCommunity);
+
   const [preferences, setPreferences] = useState({
     activity: true,
     communities: true,
     messages: true,
     events: true,
     system: true,
+    creator_social: true,
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetchNotificationPreferences();
+        const [res, account] = await Promise.all([
+          fetchNotificationPreferences(),
+          getActiveAccount(),
+        ]);
         if (res?.preferences) {
-          setPreferences(res.preferences);
+          setPreferences(prev => ({
+            ...prev,
+            ...res.preferences
+          }));
+        }
+        if (account) {
+          const isComm = account.type === "community";
+          setIsCommunity(isComm);
+          if (!isComm) {
+            const creatorVal = await AsyncStorage.getItem("creator_mode_enabled");
+            setIsCreator(creatorVal === "true");
+          }
         }
       } catch (e) {
         console.warn("Failed to fetch notification preferences", e);
@@ -230,6 +251,8 @@ export default function NotificationPreferencesScreen({ navigation }) {
       Alert.alert("Error", "Failed to update notification settings. Please try again.");
     }
   }, []);
+
+  const isCreatorOrCommunity = isCreator || isCommunity;
 
   return (
     <View style={styles.container}>
@@ -300,6 +323,24 @@ export default function NotificationPreferencesScreen({ navigation }) {
               isLast
             />
           </View>
+
+          {isCreatorOrCommunity && (
+            <>
+              <SectionLabel title="Creator & Community Alerts" />
+              <View style={styles.card}>
+                <PreferenceRow
+                  icon={Users}
+                  iconColor="#7C3AED"
+                  label="Creator & Community Connections"
+                  sublabel="Notify when another Creator or Community follows you or sends a Circle request"
+                  value={preferences.creator_social}
+                  onValueChange={() => handleToggle("creator_social", preferences.creator_social)}
+                  isFirst
+                  isLast
+                />
+              </View>
+            </>
+          )}
         </ScrollView>
       )}
     </View>

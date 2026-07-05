@@ -624,7 +624,10 @@ export default function SettingsScreen({ route, navigation }) {
               label="Notifications"
               onPress={() => {
                 HapticsService.triggerImpactLight();
-                navigation.navigate("NotificationPreferences");
+                navigation.navigate("NotificationPreferences", {
+                  isCreator: isCreatorModeEnabled,
+                  isCommunity: isCommunity,
+                });
               }}
               isFirst
             />
