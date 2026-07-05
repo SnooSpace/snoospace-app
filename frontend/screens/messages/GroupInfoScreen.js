@@ -417,6 +417,8 @@ export default function GroupInfoScreen({ route, navigation }) {
   const [groupAvatar,         setGroupAvatar]         = useState(null);
   const [createdAt,           setCreatedAt]           = useState(null);
   const [loading,             setLoading]             = useState(true);
+  const [groupStatus,         setGroupStatus]         = useState("ACTIVE");
+  const [togglingStatus,      setTogglingStatus]      = useState(false);
   const [uploadingAvatar,     setUploadingAvatar]     = useState(false);
   const [currentUser,         setCurrentUser]         = useState(null);
   const [editingName,         setEditingName]         = useState(false);
@@ -473,6 +475,7 @@ export default function GroupInfoScreen({ route, navigation }) {
       setAdminOnlyInvite(res.adminOnlyInvite       || false);
       setGroupOwnerId(res.groupOwnerId             || null);
       setGroupOwnerType(res.groupOwnerType         || null);
+      setGroupStatus(res.status                    || "ACTIVE");
     } catch (err) {
       console.error("GroupInfoScreen: error loading participants:", err);
     } finally {
@@ -487,14 +490,18 @@ export default function GroupInfoScreen({ route, navigation }) {
     (p) => String(p.participantId) === String(currentUser?.id)
   );
   const isMeAdmin     = myParticipant?.role === "admin";
-  // Any member can add others unless adminOnlyInvite is on
-  const canAddMembers = isMeAdmin || !adminOnlyInvite;
+  const isOwner =
+    (groupOwnerId && String(currentUser?.id) === String(groupOwnerId) && currentUser?.type === groupOwnerType) ||
+    (communityOwnerId && String(currentUser?.id) === String(communityOwnerId) && currentUser?.type === "community");
+  // Any member can add others unless adminOnlyInvite is on; when closed, only the owner can add members.
+  const canAddMembers = groupStatus === "CLOSED" ? isOwner : (isMeAdmin || !adminOnlyInvite);
+  const canEditInfo = isMeAdmin && (groupStatus !== "CLOSED" || isOwner);
 
   const { pickAndCrop } = useCrop();
 
   // ── Avatar upload ──────────────────────────────────────────────────────────
   const handleAvatarPress = async () => {
-    if (!isMeAdmin) return;
+    if (!canEditInfo) return;
     setUploadingAvatar(true);
     try {
       const result = await pickAndCrop("avatar");
@@ -734,38 +741,73 @@ export default function GroupInfoScreen({ route, navigation }) {
   }, [communityOwnerId, conversationId, currentUser, groupOwnerId, groupOwnerType, isMeAdmin, navigation, participants]);
 
   // ── Delete group ───────────────────────────────────────────────────────────
-  const handleDeleteGroup = useCallback(() => {
-    showAlert({
-      title: "Delete Group",
-      message: "Are you sure you want to permanently delete this group? All messages and participants will be removed. This cannot be undone.",
-      icon: Trash2,
-      iconColor: DANGER,
-      secondaryAction: { text: "Cancel", onPress: hideAlert },
-      primaryAction: {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          hideAlert();
-          try {
-            setLoading(true);
-            await deleteGroupConversation(conversationId);
-            EventBus.emit("conversation-deleted", { conversationId });
-            navigation.popToTop();
-          } catch (err) {
-            showAlert({
-              title: "Error",
-              message: err?.message || "Could not delete group.",
-              primaryAction: { text: "OK", onPress: hideAlert },
-              icon: TriangleAlert,
-              iconColor: DANGER,
-            });
-          } finally {
-            setLoading(false);
-          }
+  // ── Toggle group active/closed status ──────────────────────────────────────
+  const handleToggleGroupStatus = useCallback(() => {
+    const isClosed = groupStatus === "CLOSED";
+    
+    if (isClosed) {
+      // Reopen flow
+      showAlert({
+        title: "Reopen Group?",
+        message: "This will reopen the group conversation. Members will be able to send new messages again.",
+        icon: ShieldCheck,
+        iconColor: ACCENT,
+        secondaryAction: { text: "Cancel", onPress: hideAlert },
+        primaryAction: {
+          text: "Reopen",
+          onPress: async () => {
+            hideAlert();
+            try {
+              setLoading(true);
+              await updateGroupConversation(conversationId, { status: "ACTIVE" });
+              await loadParticipants();
+            } catch (err) {
+              showAlert({
+                title: "Error",
+                message: err?.message || "Could not reopen group.",
+                primaryAction: { text: "OK", onPress: hideAlert },
+                icon: TriangleAlert,
+                iconColor: DANGER,
+              });
+            } finally {
+              setLoading(false);
+            }
+          },
         },
-      },
-    });
-  }, [conversationId, navigation]);
+      });
+    } else {
+      // Close flow
+      showAlert({
+        title: "Close Group?",
+        message: "This will end the group conversation.\n\nMembers will still be able to view past messages, but nobody will be able to send new messages.\n\nThis action can be reversed later if reopening is supported.",
+        icon: LockKeyhole,
+        iconColor: ACCENT,
+        secondaryAction: { text: "Cancel", onPress: hideAlert },
+        primaryAction: {
+          text: "Close Group",
+          onPress: async () => {
+            hideAlert();
+            try {
+              setLoading(true);
+              await updateGroupConversation(conversationId, { status: "CLOSED" });
+              await loadParticipants();
+              navigation.goBack();
+            } catch (err) {
+              showAlert({
+                title: "Error",
+                message: err?.message || "Could not close group.",
+                primaryAction: { text: "OK", onPress: hideAlert },
+                icon: TriangleAlert,
+                iconColor: DANGER,
+              });
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      });
+    }
+  }, [conversationId, groupStatus, loadParticipants, navigation]);
 
   // ── Pick owner & leave (community owner explicit choice) ─────────────────
   const handlePickOwner = useCallback(async (target) => {
@@ -984,6 +1026,13 @@ export default function GroupInfoScreen({ route, navigation }) {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
 
+        {groupStatus === "CLOSED" && (
+          <View style={styles.closedBadge}>
+            <LockKeyhole size={16} color="#E53935" strokeWidth={2.5} style={{ marginRight: 8 }} />
+            <Text style={styles.closedBadgeText}>Closed • This group is no longer accepting new messages.</Text>
+          </View>
+        )}
+
         {/* Ownership transfer sheet (shown when community owner taps Leave) */}
         {showOwnerPicker && (
           <OwnerPickerSheet
@@ -997,7 +1046,7 @@ export default function GroupInfoScreen({ route, navigation }) {
 
         {/* Group avatar */}
         <View style={styles.avatarSection}>
-          <TouchableOpacity onPress={handleAvatarPress} activeOpacity={isMeAdmin ? 0.7 : 1} style={styles.avatarWrap}>
+          <TouchableOpacity onPress={handleAvatarPress} activeOpacity={canEditInfo ? 0.7 : 1} style={styles.avatarWrap}>
             {uploadingAvatar ? (
               <View style={[styles.avatar, styles.avatarLoading]}>
                 <SnooLoader size="small" color={ACCENT} />
@@ -1010,7 +1059,7 @@ export default function GroupInfoScreen({ route, navigation }) {
                 cachePolicy="memory-disk"
               />
             )}
-            {isMeAdmin && !uploadingAvatar && (
+            {canEditInfo && !uploadingAvatar && (
               <View style={styles.cameraOverlay}>
                 <Camera size={16} color="#FFF" strokeWidth={2} />
               </View>
@@ -1041,7 +1090,7 @@ export default function GroupInfoScreen({ route, navigation }) {
             ) : (
               <View style={styles.nameDisplayRow}>
                 <Text style={styles.nameDisplay} numberOfLines={1}>{nameText || "Group"}</Text>
-                {isMeAdmin && (
+                {canEditInfo && (
                   <TouchableOpacity onPress={() => setEditingName(true)}
                     hitSlop={{ top:8, bottom:8, left:8, right:8 }} style={{ marginLeft: 8 }}>
                     <Edit2 size={16} color={TEXT_SEC} strokeWidth={2} />
@@ -1104,7 +1153,7 @@ export default function GroupInfoScreen({ route, navigation }) {
             <Switch
               value={communityAutoJoin}
               onValueChange={handleToggleAutoJoin}
-              disabled={togglingAutoJoin}
+              disabled={togglingAutoJoin || groupStatus === "CLOSED"}
               trackColor={{ false: "#E5E5EA", true: `${ACCENT}40` }}
               thumbColor={communityAutoJoin ? ACCENT : "#FFFFFF"}
               ios_backgroundColor="#E5E5EA"
@@ -1129,7 +1178,7 @@ export default function GroupInfoScreen({ route, navigation }) {
             <Switch
               value={messagingRestricted}
               onValueChange={handleToggleRestrict}
-              disabled={togglingRestrict}
+              disabled={togglingRestrict || groupStatus === "CLOSED"}
               trackColor={{ false: "#E5E5EA", true: `${ACCENT}40` }}
               thumbColor={messagingRestricted ? ACCENT : "#FFFFFF"}
               ios_backgroundColor="#E5E5EA"
@@ -1154,7 +1203,7 @@ export default function GroupInfoScreen({ route, navigation }) {
             <Switch
               value={adminOnlyInvite}
               onValueChange={handleToggleAdminInvite}
-              disabled={togglingAdminInvite}
+              disabled={togglingAdminInvite || groupStatus === "CLOSED"}
               trackColor={{ false: "#E5E5EA", true: `${ACCENT}40` }}
               thumbColor={adminOnlyInvite ? ACCENT : "#FFFFFF"}
               ios_backgroundColor="#E5E5EA"
@@ -1221,7 +1270,7 @@ export default function GroupInfoScreen({ route, navigation }) {
           </TouchableOpacity>
         )}
 
-        {/* Delete button (Owner only) */}
+        {/* Toggle Closed status button (Owner only) */}
         {(() => {
           const isOwner =
             (groupOwnerId && String(currentUser?.id) === String(groupOwnerId) && currentUser?.type === groupOwnerType) ||
@@ -1229,13 +1278,31 @@ export default function GroupInfoScreen({ route, navigation }) {
           
           if (!isOwner) return null;
 
+          const isClosed = groupStatus === "CLOSED";
+
           return (
             <TouchableOpacity 
-              style={[styles.leaveBtn, { marginTop: 12, backgroundColor: "rgba(229,57,53,0.15)", borderColor: "rgba(229,57,53,0.3)" }]} 
-              onPress={handleDeleteGroup}
+              style={[
+                styles.leaveBtn, 
+                { 
+                  marginTop: 12, 
+                  backgroundColor: isClosed ? "rgba(52,199,89,0.15)" : "rgba(0,0,0,0.05)", 
+                  borderColor: isClosed ? "rgba(52,199,89,0.3)" : "rgba(0,0,0,0.15)" 
+                }
+              ]} 
+              onPress={handleToggleGroupStatus}
             >
-              <Trash2 size={18} color={DANGER} strokeWidth={2} style={{ marginRight: 10 }} />
-              <Text style={styles.leaveBtnText}>Delete Group</Text>
+              {isClosed ? (
+                <>
+                  <ShieldCheck size={18} color="#34C759" strokeWidth={2} style={{ marginRight: 10 }} />
+                  <Text style={[styles.leaveBtnText, { color: "#34C759" }]}>Reopen Group</Text>
+                </>
+              ) : (
+                <>
+                  <LockKeyhole size={18} color="#000000" strokeWidth={2} style={{ marginRight: 10 }} />
+                  <Text style={[styles.leaveBtnText, { color: "#000000" }]}>Close Group</Text>
+                </>
+              )}
             </TouchableOpacity>
           );
         })()}
@@ -1257,6 +1324,24 @@ export default function GroupInfoScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container:    { flex:1, backgroundColor:BG },
+  closedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(229,57,53,0.08)",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(229,57,53,0.15)",
+  },
+  closedBadgeText: {
+    fontFamily: "Manrope-Medium",
+    fontSize: 12,
+    color: "#E53935",
+    flex: 1,
+  },
   header:       { flexDirection:"row", alignItems:"center", justifyContent:"space-between",
     paddingHorizontal:16, paddingVertical:12, borderBottomWidth:1, borderBottomColor:BORDER },
   iconBtn:      { width:40, height:40, alignItems:"center", justifyContent:"center" },

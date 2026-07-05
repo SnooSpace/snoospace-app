@@ -1552,6 +1552,7 @@ export default function ChatScreen({ route, navigation }) {
   });
   const [loading, setLoading] = useState(!recipientName && !isGroup);
   const [messagesLoading, setMessagesLoading] = useState(true);
+  const [groupStatus, setGroupStatus] = useState("ACTIVE");
   console.log(`[PERF] ChatScreen rendering... messagesLoading: ${messagesLoading}, loading: ${loading}`);
   const [sending, setSending] = useState(false);
   const [currentConversationId, setCurrentConversationId] =
@@ -1996,7 +1997,8 @@ export default function ChatScreen({ route, navigation }) {
         if (conversationId) {
           setCurrentConversationId(conversationId);
           const tStartLoad = global.performance ? global.performance.now() : Date.now();
-          await loadInitial(conversationId);
+          const loadRes = await loadInitial(conversationId);
+          if (loadRes?.status) setGroupStatus(loadRes.status);
           const tEndLoad = global.performance ? global.performance.now() : Date.now();
           console.log(`[PERF] loadInitial (conversationId exists) took: ${(tEndLoad - tStartLoad).toFixed(2)}ms`);
           EventBus.emit("messages-read");
@@ -2055,6 +2057,8 @@ export default function ChatScreen({ route, navigation }) {
 
           const tPromisesStart = global.performance ? global.performance.now() : Date.now();
           const results = await Promise.all(promises);
+          const loadRes = loadInitialIndex !== -1 ? results[loadInitialIndex] : null;
+          if (loadRes?.status) setGroupStatus(loadRes.status);
           const tPromisesEnd = global.performance ? global.performance.now() : Date.now();
           if (loadInitialIndex !== -1) {
             console.log(`[PERF] loadInitial + recipientPromise concurrent took: ${(tPromisesEnd - tPromisesStart).toFixed(2)}ms`);
@@ -2287,14 +2291,24 @@ export default function ChatScreen({ route, navigation }) {
       });
     };
 
+    const handleGroupStatusChanged = ({ conversationId, status }) => {
+      if (Number(conversationId) === Number(currentConversationId)) {
+        console.log("[ChatScreen] Socket.io group_status_changed received:", status);
+        setGroupStatus(status);
+        loadInitial(currentConversationId).catch(console.error);
+      }
+    };
+
     socket.on("new_chat_message", handleNewChatMessage);
     socket.on("message_updated", handleMessageUpdated);
+    socket.on("group_status_changed", handleGroupStatusChanged);
 
     return () => {
       socket.off("new_chat_message", handleNewChatMessage);
       socket.off("message_updated", handleMessageUpdated);
+      socket.off("group_status_changed", handleGroupStatusChanged);
     };
-  }, [currentConversationId, currentUser, addNewMessage, updateMessageById]);
+  }, [currentConversationId, currentUser, addNewMessage, updateMessageById, loadInitial]);
 
   const handleSend = async () => {
     const hasText = messageText.trim().length > 0;
@@ -3160,7 +3174,17 @@ export default function ChatScreen({ route, navigation }) {
             {renderTypingIndicator()}
 
             {/* ΓöÇΓöÇ Locked bar: shown to non-admins when messaging is restricted ΓöÇΓöÇ */}
-            {isGroup && messagingRestricted && myGroupRole !== "admin" ? (
+            {isGroup && groupStatus === "CLOSED" ? (
+              <View style={styles.closedBar}>
+                <View style={styles.closedBarHeader}>
+                  <LockKeyhole size={18} color="#FF3B30" strokeWidth={2.2} style={{ marginRight: 8 }} />
+                  <Text style={styles.closedBarTitle}>This group has been closed</Text>
+                </View>
+                <Text style={styles.closedBarSubtext}>
+                  Past conversations remain available, but new messages cannot be sent.
+                </Text>
+              </View>
+            ) : isGroup && messagingRestricted && myGroupRole !== "admin" ? (
               <View style={styles.lockedBar}>
                 <View style={styles.lockedBarIcon}>
                   <LockKeyhole size={16} color={ACCENT} strokeWidth={2} />
@@ -3446,6 +3470,31 @@ export default function ChatScreen({ route, navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: CHAT_CANVAS_BG },
+  closedBar: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: "#F8F9FA",
+    borderTopWidth: 1,
+    borderColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  closedBarHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  closedBarTitle: {
+    fontFamily: "Manrope-Bold",
+    fontSize: 14,
+    color: "#1E293B",
+  },
+  closedBarSubtext: {
+    fontFamily: "Manrope-Regular",
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+  },
   keyboardView: { flex: 1 },
   header: {
     flexDirection: "row",

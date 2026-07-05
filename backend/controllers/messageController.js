@@ -1,6 +1,7 @@
 const { createPool } = require("../config/db");
 
 const pool = createPool();
+const GroupPermissionService = require("../services/groupPermissionService");
 
 // ─── HELPER: get or create DM conversation (race-condition safe) ───────────────
 const getOrCreateConversation = async (
@@ -52,6 +53,13 @@ const getConversations = async (req, res) => {
         false                         AS is_group,
         NULL                          AS group_name,
         NULL                          AS group_avatar_url,
+        NULL                          AS messaging_restricted,
+        NULL                          AS group_owner_id,
+        NULL                          AS group_owner_type,
+        'ACTIVE'                      AS status,
+        NULL                          AS closed_at,
+        NULL                          AS closed_by_id,
+        NULL                          AS closed_by_type,
         c.last_message_at,
         c.created_at,
         CASE
@@ -144,6 +152,10 @@ const getConversations = async (req, res) => {
         c.messaging_restricted,
         c.group_owner_id,
         c.group_owner_type,
+        c.status,
+        c.closed_at,
+        c.closed_by_id,
+        c.closed_by_type,
         cp.role                       AS my_role,
         (SELECT COUNT(*) FROM conversation_participants p2
          WHERE p2.conversation_id = c.id)             AS participant_count,
@@ -233,6 +245,10 @@ const getConversations = async (req, res) => {
         myRole:              conv.my_role           || null,
         groupOwnerId:        conv.group_owner_id    || null,
         groupOwnerType:      conv.group_owner_type  || null,
+        status:              conv.status            || "ACTIVE",
+        closedAt:            conv.closed_at         || null,
+        closedById:          conv.closed_by_id      || null,
+        closedByType:        conv.closed_by_type    || null,
         participantCount:    parseInt(conv.participant_count) || null,
         otherParticipant: conv.is_group ? null : {
           id:             conv.other_participant_id,
@@ -334,7 +350,7 @@ const getMessages = async (req, res) => {
 
     // Access check: DM participant OR group participant
     const accessCheck = await pool.query(
-      `SELECT c.id FROM conversations c
+      `SELECT c.id, c.status FROM conversations c
        LEFT JOIN conversation_participants cp
          ON cp.conversation_id = c.id
          AND cp.participant_id = $2 AND cp.participant_type = $3
@@ -442,8 +458,25 @@ const getMessages = async (req, res) => {
         senderName:        msg.sender_name,
         senderUsername:    msg.sender_username,
         senderPhotoUrl:    msg.sender_photo_url,
-        messageText:       msg.is_deleted ? null : msg.message_text,
-        messageType:       msg.message_type || "text",
+        messageText:       (() => {
+          if (msg.is_deleted) return null;
+          if (msg.message_type === "system_group_closed") {
+            const actorName = msg.metadata?.actorName || "Someone";
+            return `${actorName} closed the group.`;
+          }
+          if (msg.message_type === "system_group_reopened") {
+            const actorName = msg.metadata?.actorName || "Someone";
+            return `${actorName} reopened the group.`;
+          }
+          return msg.message_text;
+        })(),
+        messageType:       (() => {
+          if (msg.is_deleted) return msg.message_type || "text";
+          if (msg.message_type === "system_group_closed" || msg.message_type === "system_group_reopened") {
+            return "system";
+          }
+          return msg.message_type || "text";
+        })(),
         metadata:          msg.is_deleted ? null : msg.metadata,
         isRead:            msg.is_read,
         isDeleted:         msg.is_deleted,
@@ -467,7 +500,7 @@ const getMessages = async (req, res) => {
     // Return oldest message's createdAt as next cursor for the client
     const nextCursor = messages.length > 0 ? messages[0].createdAt : null;
 
-    res.json({ messages, hasMore, nextCursor });
+    res.json({ messages, hasMore, nextCursor, status: accessCheck.rows[0]?.status || "ACTIVE" });
   } catch (error) {
     console.error("Error getting messages:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -512,13 +545,13 @@ const sendMessage = async (req, res) => {
     if (conversationId) {
       // Look up the conversation to determine if it's a group or DM
       const convLookup = await pool.query(
-        `SELECT id, is_group, messaging_restricted FROM conversations WHERE id = $1`,
+        `SELECT id, is_group, messaging_restricted, status FROM conversations WHERE id = $1`,
         [conversationId],
       );
       if (convLookup.rows.length === 0) {
         return res.status(404).json({ error: "Conversation not found" });
       }
-      const { is_group: isGroup, messaging_restricted: restricted } = convLookup.rows[0];
+      const { is_group: isGroup, messaging_restricted: restricted, status } = convLookup.rows[0];
 
       if (isGroup) {
         // Group chat: verify the user is a participant and check messaging restriction
@@ -530,6 +563,18 @@ const sendMessage = async (req, res) => {
         if (cpCheck.rows.length === 0) {
           return res.status(403).json({ error: "Not a participant of this group" });
         }
+        
+        // Enforce lifecycle permission check
+        if (!GroupPermissionService.canSendMessage(status, cpCheck.rows[0].role)) {
+          return res.status(403).json({
+            error: {
+              code: "GROUP_CLOSED",
+              message: "This group is closed. You can no longer send messages.",
+              retryable: false
+            }
+          });
+        }
+
         // Enforce announcement mode: only admins can send when messaging_restricted = true
         if (restricted && cpCheck.rows[0].role !== "admin") {
           return res.status(403).json({ error: "Messaging is restricted to admins only" });
@@ -1034,7 +1079,7 @@ const getGroupParticipants = async (req, res) => {
     const convInfo = await pool.query(
       `SELECT created_at, group_avatar_url, messaging_restricted,
               community_auto_join, community_owner_id, admin_only_invite,
-              group_owner_id, group_owner_type
+              group_owner_id, group_owner_type, status
        FROM conversations WHERE id = $1`,
       [conversationId],
     );
@@ -1081,6 +1126,7 @@ const getGroupParticipants = async (req, res) => {
       adminOnlyInvite:     conversationMeta.admin_only_invite    || false,
       groupOwnerId:        conversationMeta.group_owner_id       || null,
       groupOwnerType:      conversationMeta.group_owner_type     || null,
+      status:              conversationMeta.status               || "ACTIVE",
       _myRole:             myParticipant?.role || "member",
     });
   } catch (error) {
@@ -1095,17 +1141,39 @@ const updateGroupConversation = async (req, res) => {
     const { conversationId } = req.params;
     const userId   = req.user?.id;
     const userType = req.user?.type;
-    const { groupName, groupAvatarUrl, communityAutoJoin, messagingRestricted, adminOnlyInvite } = req.body;
+    const { groupName, groupAvatarUrl, communityAutoJoin, messagingRestricted, adminOnlyInvite, status } = req.body;
 
     if (!userId || (userType !== "member" && userType !== "community")) {
       return res.status(401).json({ error: "Authentication required" });
     }
-    const adminCheck = await pool.query(
-      `SELECT id FROM conversation_participants
-       WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3 AND role = 'admin'`,
-      [conversationId, userId, userType],
+
+    // 1. Fetch current conversation details for permissions
+    const convCheck = await pool.query(
+      `SELECT status, group_owner_id, group_owner_type, community_owner_id FROM conversations WHERE id = $1`,
+      [conversationId]
     );
-    if (adminCheck.rows.length === 0) return res.status(403).json({ error: "Admin access required" });
+    if (convCheck.rows.length === 0) return res.status(404).json({ error: "Conversation not found" });
+    const conv = convCheck.rows[0];
+
+    const isOwner =
+      (conv.group_owner_id && String(conv.group_owner_id) === String(userId) && conv.group_owner_type === userType) ||
+      (conv.community_owner_id && String(conv.community_owner_id) === String(userId) && userType === "community");
+
+    const cpRoleCheck = await pool.query(
+      `SELECT role FROM conversation_participants
+       WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = $3`,
+      [conversationId, userId, userType]
+    );
+    const myRole = cpRoleCheck.rows[0]?.role || null;
+
+    // 2. Centralized GroupPermissionService check
+    if (!GroupPermissionService.canEditSettings(conv.status, isOwner, myRole)) {
+      return res.status(403).json({ error: "Only the group owner can update settings on a closed group" });
+    }
+
+    if (conv.status === 'ACTIVE' && myRole !== 'admin') {
+      return res.status(403).json({ error: "Admin access required" });
+    }
 
     const setClauses = [];
     const values = [];
@@ -1121,25 +1189,67 @@ const updateGroupConversation = async (req, res) => {
       values.push(Boolean(adminOnlyInvite));
     }
 
-    // communityAutoJoin is settable by the group owner (any type) —
-    // previously locked to userType === "community" which broke after ownership transfer.
-    if (communityAutoJoin !== undefined) {
-      const ownerCheck = await pool.query(
-        `SELECT group_owner_id, group_owner_type, community_owner_id
-         FROM conversations WHERE id = $1`,
-        [conversationId],
-      );
-      const conv = ownerCheck.rows[0];
-      const isGroupOwner =
-        conv &&
-        String(conv.group_owner_id) === String(userId) &&
-        conv.group_owner_type === userType;
+    // 3. Handle Lifecycle Status Change (Owner only)
+    if (status !== undefined && status !== conv.status) {
+      if (!isOwner) {
+        return res.status(403).json({ error: "Only the group owner can change the group status" });
+      }
+      if (![GroupPermissionService.LIFECYCLE.ACTIVE, GroupPermissionService.LIFECYCLE.CLOSED].includes(status)) {
+        return res.status(400).json({ error: "Invalid status value" });
+      }
 
-      if (isGroupOwner) {
+      setClauses.push(`status = $${i++}`);
+      values.push(status);
+
+      if (status === GroupPermissionService.LIFECYCLE.CLOSED) {
+        setClauses.push(`closed_at = NOW()`);
+        setClauses.push(`closed_by_id = $${i++}`);
+        values.push(userId);
+        setClauses.push(`closed_by_type = $${i++}`);
+        values.push(userType);
+      } else {
+        setClauses.push(`closed_at = NULL`);
+        setClauses.push(`closed_by_id = NULL`);
+        setClauses.push(`closed_by_type = NULL`);
+      }
+
+      // Add timeline system message
+      let userName = "The owner";
+      if (userType === "member") {
+        const userResult = await pool.query(`SELECT full_name FROM members WHERE id = $1`, [userId]);
+        if (userResult.rows[0]?.full_name) userName = userResult.rows[0].full_name;
+      } else if (userType === "community") {
+        const userResult = await pool.query(`SELECT name FROM communities WHERE id = $1`, [userId]);
+        if (userResult.rows[0]?.name) userName = userResult.rows[0].name;
+      }
+
+      const sysType = status === GroupPermissionService.LIFECYCLE.CLOSED ? "system_group_closed" : "system_group_reopened";
+      await pool.query(
+        `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          conversationId,
+          userId,
+          userType,
+          status === GroupPermissionService.LIFECYCLE.CLOSED ? `${userName} closed the group.` : `${userName} reopened the group.`,
+          sysType,
+          JSON.stringify({ actorId: userId, actorName: userName })
+        ]
+      );
+
+      // Emit realtime websocket event to chat room
+      const io = req.app.locals.io;
+      if (io) {
+        io.to(`chat_${conversationId}`).emit("group_status_changed", { conversationId: Number(conversationId), status });
+      }
+    }
+
+    // communityAutoJoin is settable by the group owner (any type)
+    if (communityAutoJoin !== undefined) {
+      if (isOwner) {
         setClauses.push(`community_auto_join = $${i++}`);
         values.push(Boolean(communityAutoJoin));
       }
-      // If not the group owner, we silently skip this field (don't error — other fields may still update)
     }
 
     if (setClauses.length === 0) return res.status(400).json({ error: "Nothing to update" });
@@ -1196,13 +1306,29 @@ const addGroupParticipant = async (req, res) => {
     );
     if (selfCheck.rows.length === 0) return res.status(403).json({ error: "Not a participant" });
 
-    // Enforce admin-only invite setting
+    // Enforce admin-only invite setting & group lifecycle
     const convMeta = await pool.query(
-      `SELECT admin_only_invite FROM conversations WHERE id = $1`,
+      `SELECT admin_only_invite, status, group_owner_id, group_owner_type, community_owner_id 
+       FROM conversations WHERE id = $1`,
       [conversationId],
     );
-    if (convMeta.rows[0]?.admin_only_invite && selfCheck.rows[0].role !== "admin") {
-      return res.status(403).json({ error: "Only admins can add members to this group" });
+    const conv = convMeta.rows[0];
+    if (!conv) return res.status(404).json({ error: "Group not found" });
+
+    const isOwner =
+      (conv.group_owner_id && String(conv.group_owner_id) === String(userId) && conv.group_owner_type === userType) ||
+      (conv.community_owner_id && String(conv.community_owner_id) === String(userId) && userType === "community");
+
+    const userRole = selfCheck.rows[0].role;
+
+    if (!GroupPermissionService.canAddMembers(conv.status, isOwner, userRole, conv.admin_only_invite)) {
+      return res.status(403).json({
+        error: {
+          code: "GROUP_CLOSED",
+          message: "This group is closed. Only the group owner can add members.",
+          retryable: false
+        }
+      });
     }
 
     await pool.query(
@@ -1240,11 +1366,20 @@ const selfJoinGroup = async (req, res) => {
 
     // Verify the group exists and has auto-join enabled
     const groupCheck = await pool.query(
-      `SELECT id, community_auto_join, admin_only_invite FROM conversations WHERE id = $1 AND is_group = true`,
+      `SELECT id, community_auto_join, admin_only_invite, status FROM conversations WHERE id = $1 AND is_group = true`,
       [conversationId],
     );
     if (groupCheck.rows.length === 0) {
       return res.status(404).json({ error: "Group not found" });
+    }
+    if (groupCheck.rows[0].status === "CLOSED") {
+      return res.status(403).json({
+        error: {
+          code: "GROUP_CLOSED",
+          message: "This group is closed. You can no longer join it.",
+          retryable: false
+        }
+      });
     }
     if (!groupCheck.rows[0].community_auto_join) {
       return res.status(403).json({ error: "This group does not accept open joins" });
@@ -1896,7 +2031,7 @@ const getGroupJoinInviteByCommunity = async (req, res) => {
          AND cp.participant_id = $1
          AND cp.participant_type = 'community'
          AND cp.role = 'admin'
-       WHERE c.is_group = true AND c.community_auto_join = true
+       WHERE c.is_group = true AND c.community_auto_join = true AND c.status != 'CLOSED'
        LIMIT 5`,
       [communityId],
     );
@@ -1969,6 +2104,7 @@ const getGroupsByOwner = async (req, res) => {
           SELECT 1 FROM conversation_participants cp_any
           WHERE cp_any.conversation_id = c.id
         )
+        AND (c.status != 'CLOSED' OR cp.id IS NOT NULL)
       ORDER BY c.created_at DESC
     `;
 
@@ -2001,12 +2137,12 @@ const getGroupJoinInvite = async (req, res) => {
     if (!userId || userType !== "member") return res.status(401).json({ error: "Member auth required" });
 
     const conv = await pool.query(
-      `SELECT id, group_name, group_avatar_url, community_auto_join FROM conversations WHERE id = $1 AND is_group = true`,
+      `SELECT id, group_name, group_avatar_url, community_auto_join, status FROM conversations WHERE id = $1 AND is_group = true`,
       [conversationId],
     );
     if (conv.rows.length === 0) return res.status(404).json({ error: "Group not found" });
     const group = conv.rows[0];
-    if (!group.community_auto_join) return res.json({ showInvite: false });
+    if (group.status === "CLOSED" || !group.community_auto_join) return res.json({ showInvite: false });
 
     const inGroup = await pool.query(
       `SELECT id FROM conversation_participants WHERE conversation_id = $1 AND participant_id = $2 AND participant_type = 'member'`,

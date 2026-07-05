@@ -208,7 +208,7 @@ const SwipeableConvRow = React.memo(function SwipeableConvRow({ conv, onPress, o
             <View style={swipeStyles.content}>
               <View style={swipeStyles.topRow}>
                 <Text style={[swipeStyles.name, hasUnread && swipeStyles.nameUnread]} numberOfLines={1}>
-                  {name}
+                  {name}{conv.status === "CLOSED" ? " 🔒" : ""}
                 </Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                   {isMuted && <BellOff size={12} color={TEXT_SEC} strokeWidth={2} />}
