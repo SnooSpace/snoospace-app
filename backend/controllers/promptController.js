@@ -23,11 +23,20 @@ const createPromptPost = async (req, res) => {
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    // Only communities can create prompts
-    if (userType !== "community") {
+    let isCreator = false;
+    if (userType === "member") {
+      const memberResult = await pool.query(
+        "SELECT is_creator_mode_enabled FROM members WHERE id = $1",
+        [userId]
+      );
+      isCreator = !!memberResult.rows[0]?.is_creator_mode_enabled;
+    }
+
+    // Only communities and creators can create prompts
+    if (userType !== "community" && !isCreator) {
       return res
         .status(403)
-        .json({ error: "Only communities can create prompts" });
+        .json({ error: "Only communities and creators can create prompts" });
     }
 
     const {

@@ -113,11 +113,24 @@ const createOpportunity = async (req, res) => {
     const userId = req.user?.id;
     const userType = req.user?.type;
 
-    // Only communities can create opportunities (for now)
-    if (!userId || (userType !== "community" && userType !== "member")) {
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    let isCreator = false;
+    if (userType === "member") {
+      const memberResult = await pool.query(
+        "SELECT is_creator_mode_enabled FROM members WHERE id = $1",
+        [userId]
+      );
+      isCreator = !!memberResult.rows[0]?.is_creator_mode_enabled;
+    }
+
+    // Only communities and creators can create opportunities
+    if (userType !== "community" && !isCreator) {
       return res
         .status(403)
-        .json({ error: "Authentication required to create opportunities" });
+        .json({ error: "Only communities and creators can create opportunities" });
     }
 
     const {
