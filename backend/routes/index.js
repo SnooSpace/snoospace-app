@@ -566,6 +566,11 @@ router.get(
   MemberController.getMemberPublicPlans,
 );
 router.get(
+  "/members/:memberId/opportunities",
+  authMiddleware,
+  OpportunityController.getMemberOpportunities,
+);
+router.get(
   "/members/:id/public",
   authMiddleware,
   MemberController.getPublicMember,

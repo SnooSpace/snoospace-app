@@ -1580,6 +1580,107 @@ const getCommunityOpportunities = async (req, res) => {
 };
 
 // ============================================
+// GET MEMBER'S PUBLIC OPPORTUNITIES
+// Used by MemberPublicProfileScreen to show opportunity cards
+// ============================================
+const getMemberOpportunities = async (req, res) => {
+  try {
+    const { memberId } = req.params;
+    const viewerId = req.user?.id || null;
+    const viewerType = req.user?.type || null;
+
+    const query = `
+      SELECT 
+        o.id,
+        o.title,
+        o.status,
+        o.opportunity_types,
+        o.work_type,
+        o.work_mode,
+        o.payment_type,
+        o.payment_nature,
+        o.trial_type,
+        o.budget_range,
+        o.availability,
+        o.experience_level,
+        o.expires_at,
+        o.closed_at,
+        o.created_at,
+        o.creator_id,
+        o.creator_type,
+        COALESCE(o.applicant_count, 0) as applicant_count,
+        COALESCE(o.like_count, 0) as like_count,
+        COALESCE(o.view_count, 0) as view_count,
+        COALESCE(o.comment_count, 0) as comment_count,
+        COALESCE(o.save_count, 0) as save_count,
+        COALESCE(o.share_count, 0) as share_count,
+        o.is_pinned,
+        m.name as creator_name,
+        m.profile_photo_url as creator_photo,
+        m.username as creator_username,
+        CASE WHEN $2::integer IS NOT NULL THEN EXISTS(
+          SELECT 1 FROM opportunity_likes ol
+          WHERE ol.opportunity_id = o.id AND ol.liker_id = $2 AND ol.liker_type = $3
+        ) ELSE false END AS is_liked,
+        CASE WHEN $2::integer IS NOT NULL THEN EXISTS(
+          SELECT 1 FROM opportunity_saves os
+          WHERE os.opportunity_id = o.id AND os.saver_id = $2 AND os.saver_type = $3
+        ) ELSE false END AS is_saved,
+        CASE WHEN $2::integer IS NOT NULL THEN EXISTS(
+          SELECT 1 FROM follows WHERE follower_id = $2 AND follower_type = $3
+            AND following_id = $1::integer AND following_type = 'member'
+        ) ELSE false END AS is_following,
+        CASE WHEN $2::integer IS NOT NULL THEN 
+          CASE WHEN $3 = 'community' THEN EXISTS(
+            SELECT 1 FROM community_member_circles WHERE community_id = $2 AND member_id = $1::integer
+          ) ELSE EXISTS(
+            SELECT 1 FROM circles WHERE (user_a_id = $1::integer AND user_b_id = $2)
+              OR (user_b_id = $1::integer AND user_a_id = $2)
+          ) END
+        ELSE false END AS is_in_circle,
+        false AS is_circle_requested,
+        false AS author_is_creator
+      FROM opportunities o
+      LEFT JOIN members m ON o.creator_id::integer = m.id
+      WHERE o.creator_id = $1::text
+        AND o.creator_type = 'member'
+        AND o.status IN ('active', 'draft')
+        AND o.visibility = 'public'
+      ORDER BY COALESCE(o.is_pinned, FALSE) DESC, o.created_at DESC
+    `;
+
+    const result = await pool.query(query, [memberId, viewerId, viewerType]);
+
+    // Batch-fetch skill groups (eliminates N+1)
+    const memberOppIds = result.rows.map((r) => r.id);
+    let memberSkillGroups = [];
+    if (memberOppIds.length > 0) {
+      const sgBatch = await pool.query(
+        `SELECT opportunity_id, role, tools FROM opportunity_skill_groups 
+         WHERE opportunity_id = ANY($1) ORDER BY display_order`,
+        [memberOppIds],
+      );
+      memberSkillGroups = sgBatch.rows;
+    }
+    const memberSGByOpp = {};
+    for (const sg of memberSkillGroups) {
+      if (!memberSGByOpp[sg.opportunity_id]) memberSGByOpp[sg.opportunity_id] = [];
+      memberSGByOpp[sg.opportunity_id].push(sg);
+    }
+
+    const opportunities = result.rows.map((opp) => ({
+      ...opp,
+      skill_groups: memberSGByOpp[opp.id] || [],
+    }));
+
+    res.json({ success: true, opportunities });
+  } catch (error) {
+    console.error("Error getting member opportunities:", error);
+    res.status(500).json({ error: "Failed to get opportunities" });
+  }
+};
+
+// ============================================
 // PIN / UNPIN OPPORTUNITY
 // ============================================
 const pinOpportunity = async (req, res) => {
@@ -2800,6 +2901,7 @@ module.exports = {
   proxyResume,
   getFollowedOpportunities,
   getCommunityOpportunities,
+  getMemberOpportunities,
   pinOpportunity,
   unpinOpportunity,
   likeOpportunity,

@@ -1183,7 +1183,35 @@ export default function MemberProfileScreen({ navigation }) {
         );
       }
 
-      setPosts(normalizePosts(userPosts));
+      let mergedUserPosts = [...userPosts];
+      try {
+        const oppsRes = await apiGet("/opportunities", 15000, token);
+        const rawOpps = Array.isArray(oppsRes?.opportunities)
+          ? oppsRes.opportunities
+          : [];
+        const normalizedOpps = rawOpps.map((o) => ({
+          ...o,
+          post_type: "opportunity",
+          is_liked: o.is_liked === true,
+          is_saved: o.is_saved === true,
+          like_count: o.like_count || 0,
+          comment_count: o.comment_count || 0,
+          view_count: o.view_count || 0,
+          is_pinned: o.is_pinned || false,
+        }));
+        const profileOpps = normalizedOpps.map(opp => ({
+          ...opp,
+          creator_name: fullProfile.name,
+          creator_photo: fullProfile.profile_photo_url,
+          creator_username: fullProfile.username,
+        }));
+        mergedUserPosts = [...mergedUserPosts, ...profileOpps];
+        console.log(`[MemberProfile] Merged ${profileOpps.length} opportunities into posts.`);
+      } catch (oppErr) {
+        console.log("[MemberProfile] Failed to load opportunities:", oppErr);
+      }
+
+      setPosts(normalizePosts(mergedUserPosts));
       // Update pagination state from initial load
       setPostCursor(postsResponse?.next_cursor || null);
       setHasMorePosts(postsResponse?.has_more === true);

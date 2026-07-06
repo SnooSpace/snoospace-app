@@ -691,8 +691,39 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
         const normalizedPosts = normalizePosts(rawPosts);
 
         // Merge with cached like states to fix backend returning stale is_liked data
-        const mergedPosts =
+        let mergedPosts =
           await LikeStateManager.mergeLikeStates(normalizedPosts);
+
+        // On initial/reset load, also fetch & merge member's public opportunities
+        if (reset) {
+          try {
+            const token = await getAuthToken();
+            const oppsRes = await apiGet(
+              `/members/${memberId}/opportunities`,
+              15000,
+              token,
+            );
+            const rawOpps = Array.isArray(oppsRes?.opportunities)
+              ? oppsRes.opportunities
+              : [];
+            const normalizedOpps = rawOpps.map((o) => ({
+              ...o,
+              post_type: "opportunity",
+              is_liked: o.is_liked === true,
+              is_saved: o.is_saved === true,
+              like_count: o.like_count || 0,
+              comment_count: o.comment_count || 0,
+              view_count: o.view_count || 0,
+              is_pinned: o.is_pinned || false,
+            }));
+            mergedPosts = [...mergedPosts, ...normalizedOpps];
+            console.log(
+              `[MemberPublicProfile] Merged ${normalizedOpps.length} opportunities. Total: ${mergedPosts.length}`,
+            );
+          } catch (oppErr) {
+            console.log("[MemberPublicProfile] Could not load opportunities:", oppErr?.message);
+          }
+        }
 
         setPosts(mergedPosts);
         const received = (data?.posts || data || []).length;
