@@ -103,6 +103,7 @@ import SharedOpportunityCard from "../../components/SharedOpportunityCard";
 import SharedEventCard from "../../components/SharedEventCard";
 import SnooLoader from "../../components/ui/SnooLoader";
 import ProfilePostFeed from "../../components/ProfilePostFeed";
+import CommentsModal from "../../components/CommentsModal";
 import EmptyChatState from "../../components/EmptyChatState";
 import useRealtimeSubscription from "../../hooks/useRealtimeSubscription";
 import { getSocket } from "../../services/socketService";
@@ -1573,6 +1574,7 @@ export default function ChatScreen({ route, navigation }) {
   const rsvpLoadingRef = useRef({});
   const [sharedPostModalVisible, setSharedPostModalVisible] = useState(false);
   const [selectedSharedPost, setSelectedSharedPost] = useState(null);
+  const [commentsModalState, setCommentsModalState] = useState({ visible: false, postId: null, postType: "post" });
   const [sharedPosts, setSharedPosts] = useState({});
   const [selectedReply, setSelectedReply] = useState(null); // { id, messageText, senderName, isDeleted }
   const [optionsTarget, setOptionsTarget] = useState(null); // message object to show options for
@@ -1925,6 +1927,34 @@ export default function ChatScreen({ route, navigation }) {
     (postId, postData) => {
       if (!postData) return;
 
+      const isAnon = postData.is_anonymous === true || 
+                     postData.type_data?.is_anonymous === true || 
+                     postData.author_username === "anonymous" ||
+                     postData.author_name === "Anonymous";
+
+      if (isAnon) {
+        // Since the post is anonymous, do NOT navigate to their profile.
+        // Instead, open their detailed interactive submission/detail view, or open comments.
+        const nav = navigation.getParent()?.getParent() || navigation;
+        const pType = postData.post_type || postData.type;
+        if (pType === "prompt") {
+          nav.navigate("PromptSubmissions", { post: postData });
+        } else if (pType === "qna") {
+          nav.navigate("QnAQuestions", { post: postData });
+        } else if (pType === "challenge") {
+          nav.navigate("ChallengeSubmissions", { post: postData });
+        } else if (pType === "opportunity") {
+          nav.navigate("OpportunityView", {
+            opportunityId: postId || postData.id,
+            opportunity: postData
+          });
+        } else {
+          // Fallback: Open comments modal for polls or media posts
+          setCommentsModalState({ visible: true, postId: postId || postData.id, postType: pType });
+        }
+        return;
+      }
+
       if (postData.post_type === "community_voice" && postData.type_data) {
         const { target_id, target_type } = postData.type_data;
         if (target_id && target_type) {
@@ -1951,18 +1981,26 @@ export default function ChatScreen({ route, navigation }) {
       const authorType = postData.author_type || postData.authorType || "member";
 
       if (authorId) {
+        const pType = postData.post_type || postData.type || "media";
+        let initialTab = "posts";
+        if (["poll", "prompt", "qna", "challenge", "opportunity", "community_voice"].includes(pType)) {
+          initialTab = "community";
+        } else if (pType === "event") {
+          initialTab = "events";
+        }
+
         const nav = navigation.getParent()?.getParent() || navigation;
         if (authorType === "community") {
           nav.navigate("CommunityPublicProfile", {
             communityId: authorId,
             viewerRole: "member",
-            initialTab: "community",
+            initialTab,
             postId: postId || postData?.id || postData?.postId,
           });
         } else {
           nav.navigate("MemberPublicProfile", {
             memberId: authorId,
-            initialTab: "community",
+            initialTab,
             postId: postId || postData?.id || postData?.postId,
           });
         }
@@ -3443,6 +3481,15 @@ export default function ChatScreen({ route, navigation }) {
               }))
             }
             navigation={navigation}
+          />
+        )}
+
+        {commentsModalState.visible && (
+          <CommentsModal
+            visible={commentsModalState.visible}
+            postId={commentsModalState.postId}
+            postType={commentsModalState.postType}
+            onClose={() => setCommentsModalState({ visible: false, postId: null, postType: "post" })}
           />
         )}
 

@@ -110,6 +110,8 @@ const ChallengePostCard = React.memo(({
   showManagementControls = false,
   hideEngagement = false,
   showFollowButton = true,
+  isSharedPreview = false,
+  onPress,
 }) => {
   const navigation = useNavigation();
   const { showToast } = useToast();
@@ -702,6 +704,10 @@ const ChallengePostCard = React.memo(({
   };
 
   const handleDoubleTap = (event) => {
+    if (isSharedPreview) {
+      if (onPress) onPress();
+      return;
+    }
     const now = Date.now();
     if (now - lastTapRef.current < 300) {
       const { pageX, pageY } = event.nativeEvent;

@@ -94,9 +94,24 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
             velocity: e.velocityX,
           });
           currentIndexShared.value = target;
-          runOnJS(syncActiveIndex)(target);
         }),
     [allImageUrls.length, CARD_WIDTH],
+  );
+  const tapGesture = useMemo(
+    () =>
+      Gesture.Tap()
+        .numberOfTaps(1)
+        .onEnd(() => {
+          if (onPress) {
+            runOnJS(onPress)(postId, postData);
+          }
+        }),
+    [onPress, postId, postData]
+  );
+
+  const combinedGesture = useMemo(
+    () => Gesture.Exclusive(carouselGesture, tapGesture),
+    [carouselGesture, tapGesture]
   );
 
   const carouselRowStyle = useAnimatedStyle(() => {
@@ -210,11 +225,7 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
   // For non-media post types, render the full card component in compact mode
   if (postType === "poll") {
     return (
-      <TouchableOpacity
-        style={[styles.container, style]}
-        onPress={() => onPress && onPress(postId, postData)}
-        activeOpacity={0.8}
-      >
+      <View style={[styles.container, style]}>
         <PollPostCard
           post={postData}
           onUserPress={onUserPress || (() => {})}
@@ -226,18 +237,16 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
           currentUserType={null}
           hideEngagement={true}
           showFollowButton={false}
+          isSharedPreview={true}
+          onPress={() => onPress && onPress(postId, postData)}
         />
-      </TouchableOpacity>
+      </View>
     );
   }
 
   if (postType === "challenge") {
     return (
-      <TouchableOpacity
-        style={[styles.container, style]}
-        onPress={() => onPress && onPress(postId, postData)}
-        activeOpacity={0.8}
-      >
+      <View style={[styles.container, style]}>
         <ChallengePostCard
           post={postData}
           onUserPress={onUserPress || (() => {})}
@@ -249,18 +258,16 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
           currentUserType={null}
           hideEngagement={true}
           showFollowButton={false}
+          isSharedPreview={true}
+          onPress={() => onPress && onPress(postId, postData)}
         />
-      </TouchableOpacity>
+      </View>
     );
   }
 
   if (postType === "prompt") {
     return (
-      <TouchableOpacity
-        style={[styles.container, style]}
-        onPress={() => onPress && onPress(postId, postData)}
-        activeOpacity={0.8}
-      >
+      <View style={[styles.container, style]}>
         <PromptPostCard
           post={postData}
           onUserPress={onUserPress || (() => {})}
@@ -272,18 +279,16 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
           currentUserType={null}
           hideEngagement={true}
           showFollowButton={false}
+          isSharedPreview={true}
+          onPress={() => onPress && onPress(postId, postData)}
         />
-      </TouchableOpacity>
+      </View>
     );
   }
 
   if (postType === "qna") {
     return (
-      <TouchableOpacity
-        style={[styles.container, style]}
-        onPress={() => onPress && onPress(postId, postData)}
-        activeOpacity={0.8}
-      >
+      <View style={[styles.container, style]}>
         <QnAPostCard
           post={postData}
           onUserPress={onUserPress || (() => {})}
@@ -295,8 +300,10 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
           currentUserType={null}
           hideEngagement={true}
           showFollowButton={false}
+          isSharedPreview={true}
+          onPress={() => onPress && onPress(postId, postData)}
         />
-      </TouchableOpacity>
+      </View>
     );
   }
 
@@ -378,7 +385,7 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
             {isCarousel ? (
               // ── Carousel (multiple images) ─────────────────────────────────
               <>
-                <GestureDetector gesture={carouselGesture}>
+                <GestureDetector gesture={combinedGesture}>
                   <View style={{ width: CARD_WIDTH, overflow: 'hidden' }}>
                     <AnimatedReanimated.View
                       style={[
@@ -458,7 +465,9 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
               </>
             ) : (
               // ── Single image / video ───────────────────────────────────────
-              <View
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={handleCardPress}
                 style={[
                   styles.mediaContainer,
                   { height: mediaHeight },
@@ -493,24 +502,17 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
                     )}
                   </>
                 ) : null}
-              </View>
+              </TouchableOpacity>
             )}
           </View>
         )}
 
-        {/* Card Tap Area */}
-        <Pressable 
-          onPress={handleCardPress}
-          style={StyleSheet.absoluteFill}
-          // Ensure this doesn't block the Carousel ScrollView
-          pointerEvents="box-none"
-        >
-           {/* This empty view catches taps outside of the carousel/author row if needed, 
-               but since the card is covered by media and content, we use it as a logical overlay */}
-        </Pressable>
-
         {/* Post Content */}
-        <View style={styles.contentContainer}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={handleCardPress}
+          style={styles.contentContainer}
+        >
           {/* Author Info */}
           <TouchableOpacity 
             style={styles.authorRow}
@@ -547,7 +549,7 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
               {truncatedCaption}
             </Text>
           ) : null}
-        </View>
+        </TouchableOpacity>
       </View>
     </View>
   );

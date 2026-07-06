@@ -991,16 +991,17 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     if (route?.params?.postId) {
       scrollToPostIdRef.current = route.params.postId;
     }
-    if (route?.params?.initialTab === "community") {
+    const paramTab = route?.params?.initialTab;
+    if (paramTab && ["posts", "community", "events"].includes(paramTab)) {
       setRenderedPostsLimit(12);
       setRenderedEventsLimit(3);
       setRenderedCommunityLimit(2);
       setRenderedTab(null);
-      setActiveTab("community");
+      setActiveTab(paramTab);
       InteractionManager.runAfterInteractions(() => {
-        setRenderedTab("community");
+        setRenderedTab(paramTab);
       });
-      if (!communityVoiceFetchedRef.current) {
+      if (paramTab === "community" && !communityVoiceFetchedRef.current) {
         communityVoiceFetchedRef.current = true;
         loadCommunityVoicePosts();
       }
@@ -1608,11 +1609,24 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
 
   const renderGridItem = useCallback(({ item, index }) => {
     return (
-      <CommunityPublicPostGridCell
-        item={item}
-        itemSize={ITEM_SIZE}
-        onPress={openPostModal}
-      />
+      <View
+        onLayout={(e) => {
+          if (String(item.id) === String(scrollToPostIdRef.current)) {
+            scrollToPostIdRef.current = null;
+            const itemY = e.nativeEvent.layout.y;
+            const targetY = postsSectionYRef.current + itemY;
+            setTimeout(() => {
+              scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+            }, 100);
+          }
+        }}
+      >
+        <CommunityPublicPostGridCell
+          item={item}
+          itemSize={ITEM_SIZE}
+          onPress={openPostModal}
+        />
+      </View>
     );
   }, [openPostModal]);
 
@@ -2681,17 +2695,30 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 return (
                   <View style={{ paddingTop: 16 }}>
                     {communityEvents.slice(0, renderedEventsLimit).map((item) => (
-                      <EventCard
+                      <View
                         key={item.id}
-                        event={item}
-                        onPress={(eventData) =>
-                          navigation.navigate("EventDetails", {
-                            eventId: item.id,
-                            eventData: item,
-                          })
-                        }
-                        onComment={(id) => openCommentsModal(id, "event")}
-                      />
+                        onLayout={(e) => {
+                          if (String(item.id) === String(scrollToPostIdRef.current)) {
+                            scrollToPostIdRef.current = null;
+                            const itemY = e.nativeEvent.layout.y;
+                            const targetY = postsSectionYRef.current + itemY;
+                            setTimeout(() => {
+                              scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+                            }, 100);
+                          }
+                        }}
+                      >
+                        <EventCard
+                          event={item}
+                          onPress={(eventData) =>
+                            navigation.navigate("EventDetails", {
+                              eventId: item.id,
+                              eventData: item,
+                            })
+                          }
+                          onComment={(id) => openCommentsModal(id, "event")}
+                        />
+                      </View>
                     ))}
                     {renderedEventsLimit < communityEvents.length && (
                       <View style={{ paddingVertical: 20, alignItems: "center" }}>

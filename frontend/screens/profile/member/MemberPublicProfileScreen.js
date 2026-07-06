@@ -634,22 +634,27 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     if (route?.params?.postId) {
       scrollToPostIdRef.current = route.params.postId;
     }
-    if (route?.params?.initialTab === "community") {
+    const paramTab = route?.params?.initialTab;
+    if (paramTab && ["posts", "community", "events"].includes(paramTab)) {
       setRenderedPostsLimit(12);
       setRenderedEventsLimit(3);
       setRenderedCommunityLimit(2);
       setRenderedProfileTab(null);
-      setActiveProfileTab("community");
+      setActiveProfileTab(paramTab);
       InteractionManager.runAfterInteractions(() => {
-        setRenderedProfileTab("community");
+        setRenderedProfileTab(paramTab);
       });
-      if (!communityPostsFetchedRef.current) {
+      if (paramTab === "community" && !communityPostsFetchedRef.current) {
         communityPostsFetchedRef.current = true;
         loadCommunityVoicePosts();
       }
+      if (paramTab === "events" && !eventsFetchedRef.current) {
+        eventsFetchedRef.current = true;
+        loadPublicMemberEvents();
+      }
       navigation.setParams({ initialTab: undefined, postId: undefined });
     }
-  }, [route?.params?.initialTab, route?.params?.postId, loadCommunityVoicePosts, navigation]);
+  }, [route?.params?.initialTab, route?.params?.postId, loadCommunityVoicePosts, loadPublicMemberEvents, navigation]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -1125,13 +1130,26 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 
   const renderGridItem = useCallback(({ item, index }) => {
     return (
-      <MemberPublicPostGridCell
-        item={item}
-        index={index}
-        itemSize={ITEM_SIZE}
-        gap={GAP}
-        onPress={openPostModal}
-      />
+      <View
+        onLayout={(e) => {
+          if (String(item.id) === String(scrollToPostIdRef.current)) {
+            scrollToPostIdRef.current = null;
+            const itemY = e.nativeEvent.layout.y;
+            const targetY = tabContentYRef.current + itemY;
+            setTimeout(() => {
+              scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+            }, 100);
+          }
+        }}
+      >
+        <MemberPublicPostGridCell
+          item={item}
+          index={index}
+          itemSize={ITEM_SIZE}
+          gap={GAP}
+          onPress={openPostModal}
+        />
+      </View>
     );
   }, [openPostModal]);
 
@@ -2078,7 +2096,12 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 
           {/* Posts Tab Content */}
           {renderedProfileTab === 'posts' && (
-            <View style={{ display: 'flex' }}>
+            <View
+              style={{ display: 'flex' }}
+              onLayout={(e) => {
+                tabContentYRef.current = e.nativeEvent.layout.y;
+              }}
+            >
               {(() => {
                 const displayPosts = posts.filter((p) => {
                   if (!profile?.is_creator_mode_enabled) return true;
@@ -2289,7 +2312,12 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 
           {/* Events Tab Content */}
           {renderedProfileTab === 'events' && (
-            <View style={pubTabStyles.eventsContainer}>
+            <View
+              style={pubTabStyles.eventsContainer}
+              onLayout={(e) => {
+                tabContentYRef.current = e.nativeEvent.layout.y;
+              }}
+            >
               {loadingEvents ? (
                 <View style={pubTabStyles.loadingWrap}>
                   <SnooLoader size="large" color={PRIMARY_COLOR} />
@@ -2308,12 +2336,25 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                         {visibleEvents.map((item) => {
                           if (item.itemType === "event") {
                             return (
-                              <EventCard
+                              <View
                                 key={`ev-${item.id}`}
-                                event={item}
-                                onPress={(eventData) => navigation.navigate('EventDetails', { eventId: eventData.id, eventData })}
-                                onComment={(id) => openCommentsModal(id, "event")}
-                              />
+                                onLayout={(e) => {
+                                  if (String(item.id) === String(scrollToPostIdRef.current)) {
+                                    scrollToPostIdRef.current = null;
+                                    const itemY = e.nativeEvent.layout.y;
+                                    const targetY = tabContentYRef.current + itemY;
+                                    setTimeout(() => {
+                                      scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+                                    }, 100);
+                                  }
+                                }}
+                              >
+                                <EventCard
+                                  event={item}
+                                  onPress={(eventData) => navigation.navigate('EventDetails', { eventId: eventData.id, eventData })}
+                                  onComment={(id) => openCommentsModal(id, "event")}
+                                />
+                              </View>
                             );
                           } else {
                             return (
