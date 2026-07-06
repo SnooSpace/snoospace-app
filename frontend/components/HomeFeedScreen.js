@@ -840,9 +840,22 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       setOpportunities(updater);
     };
 
+    const handlePostFollowUpdated = (payload) => {
+      if (!payload?.authorId) return;
+      const updater = (prev) =>
+        prev.map((post) =>
+          post.author_id === payload.authorId
+            ? { ...post, ...payload }
+            : post,
+        );
+      setPosts(updater);
+      setOpportunities(updater);
+    };
+
     const unsubscribeView = EventBus.on("post-view-updated", handlePostViewUpdate);
     const unsubscribeShare = EventBus.on("post-share-updated", handlePostShareUpdate);
     const unsubscribeSave = EventBus.on("post-save-updated", handlePostSaveUpdate);
+    const unsubscribeFollow = EventBus.on("post-follow-updated", handlePostFollowUpdated);
 
     return () => {
       if (unsubscribeLike) unsubscribeLike();
@@ -850,6 +863,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       if (unsubscribeView) unsubscribeView();
       if (unsubscribeShare) unsubscribeShare();
       if (unsubscribeSave) unsubscribeSave();
+      if (unsubscribeFollow) unsubscribeFollow();
     };
   }, []);
 

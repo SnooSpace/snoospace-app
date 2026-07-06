@@ -26,6 +26,22 @@ import PollEditModal from "./PollEditModal";
 import PollVotersModal from "../modals/PollVotersModal";
 import CustomAlertModal from "../ui/CustomAlertModal";
 import { postService } from "../../services/postService";
+import EventBus from "../../utils/EventBus";
+import FollowButton from "../FollowButton";
+import {
+  followMember,
+  unfollowMember,
+  followCreator,
+  unfollowCreator,
+  sendCircleRequest,
+  cancelCircleRequest,
+  getCircleStatus,
+  removeFromCircle,
+  sendCommunityCircleInvite,
+  cancelCommunityCircleInvite,
+  getCommunityCircleStatus,
+  removeMemberFromCommunityCircle,
+} from "../../api/members";
 import {
   Heart,
   MessageCircle,
@@ -44,8 +60,9 @@ import {
   Check,
   BarChart3,
   HatGlasses,
+  UserMinus,
+  Clock,
 } from "lucide-react-native";
-import EventBus from "../../utils/EventBus";
 import CountdownTimer from "../CountdownTimer";
 import { getExtensionBadgeText } from "../../utils/cardTiming";
 import SnooLoader from "../ui/SnooLoader";
@@ -68,6 +85,7 @@ const PollPostCard = React.memo(({
   currentUserType,
   showManagementControls = false,
   hideEngagement = false,
+  showFollowButton = true,
 }) => {
   const { showToast } = useToast();
 
@@ -97,6 +115,152 @@ const PollPostCard = React.memo(({
     icon: null,
     iconColor: "#FF3B30",
   });
+
+  const handleFollowToggle = async () => {
+    const isMemberAuthor = post.author_type === "member";
+    const isCreator = !!post.author_is_creator;
+    const isInCircle = !!post.is_in_circle;
+    const isRequested = !!post.is_circle_requested;
+
+    const isAdd = !isInCircle && !isRequested && (
+      (currentUserType === "member" && isMemberAuthor && !isCreator) ||
+      (currentUserType === "community" && isMemberAuthor)
+    );
+
+    const isFollowing = !isInCircle && !isRequested && !isAdd && !!post.is_following;
+
+    if (isInCircle) {
+      showAlert(
+        "Remove from Circle?",
+        `Are you sure you want to remove ${post.author_name || "this user"} from your circle?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Remove",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                if (currentUserType === "community") {
+                  await removeMemberFromCommunityCircle(post.author_id);
+                } else if (post.author_type === "community") {
+                  await removeMemberFromCommunityCircle(post.author_id);
+                } else {
+                  await removeFromCircle(post.author_id);
+                }
+                HapticsService.triggerImpactLight();
+                const updates = { is_in_circle: false, is_following: false, is_circle_requested: false };
+                if (onPostUpdate) onPostUpdate({ id: post.id, ...updates });
+                EventBus.emit("post-follow-updated", { authorId: post.author_id, ...updates });
+              } catch (error) {
+                console.error("Error removing from circle:", error);
+              }
+            }
+          }
+        ],
+        UserMinus,
+        "#FF3B30"
+      );
+    } else if (isRequested) {
+      showAlert(
+        "Cancel Request?",
+        `Are you sure you want to cancel your circle request to ${post.author_name || "this user"}?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Cancel Request",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                if (currentUserType === "community") {
+                  const statusRes = await getCommunityCircleStatus(post.author_id);
+                  if (statusRes?.invite_id) {
+                    await cancelCommunityCircleInvite(statusRes.invite_id);
+                  }
+                } else {
+                  const statusRes = await getCircleStatus(post.author_id);
+                  if (statusRes?.request_id) {
+                    await cancelCircleRequest(statusRes.request_id);
+                  }
+                }
+                HapticsService.triggerImpactLight();
+                const updates = { is_in_circle: false, is_following: false, is_circle_requested: false };
+                if (onPostUpdate) onPostUpdate({ id: post.id, ...updates });
+                EventBus.emit("post-follow-updated", { authorId: post.author_id, ...updates });
+              } catch (error) {
+                console.error("Error cancelling request:", error);
+              }
+            }
+          }
+        ],
+        Clock,
+        "#FF9500"
+      );
+    } else if (isAdd) {
+      try {
+        let res;
+        if (currentUserType === "community") {
+          res = await sendCommunityCircleInvite(post.author_id);
+        } else {
+          res = await sendCircleRequest(post.author_id);
+        }
+        HapticsService.triggerAddToCircle();
+        const isAuto = !!(res?.auto_accepted || res?.status === "in_circle");
+        const updates = {
+          is_in_circle: isAuto,
+          is_circle_requested: !isAuto,
+        };
+        if (onPostUpdate) onPostUpdate({ id: post.id, ...updates });
+        EventBus.emit("post-follow-updated", { authorId: post.author_id, ...updates });
+      } catch (error) {
+        console.error("Error sending circle request:", error);
+      }
+    } else if (isFollowing) {
+      showAlert(
+        "Unfollow?",
+        `Stop following ${post.author_name || "this account"}?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Unfollow",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                if (isMemberAuthor && isCreator) {
+                  await unfollowCreator(post.author_id);
+                  EventBus.emit("creator:unfollowed", { creatorId: post.author_id });
+                } else {
+                  await unfollowMember(post.author_id);
+                }
+                HapticsService.triggerImpactLight();
+                const updates = { is_following: false };
+                if (onPostUpdate) onPostUpdate({ id: post.id, ...updates });
+                EventBus.emit("post-follow-updated", { authorId: post.author_id, ...updates });
+              } catch (error) {
+                console.error("Error unfollowing:", error);
+              }
+            }
+          }
+        ],
+        UserMinus,
+        "#FF3B30"
+      );
+    } else {
+      try {
+        if (isMemberAuthor && isCreator) {
+          await followCreator(post.author_id);
+          EventBus.emit("creator:followed", { creatorId: post.author_id });
+        } else {
+          await followMember(post.author_id);
+        }
+        HapticsService.triggerFollow();
+        const updates = { is_following: true };
+        if (onPostUpdate) onPostUpdate({ id: post.id, ...updates });
+        EventBus.emit("post-follow-updated", { authorId: post.author_id, ...updates });
+      } catch (error) {
+        console.error("Error following:", error);
+      }
+    }
+  };
 
   const showAlert = (title, message, buttons = null, icon = null, iconColor = null) => {
     if (!buttons || buttons.length === 0) {
@@ -699,35 +863,56 @@ const PollPostCard = React.memo(({
         )}
 
         {/* Author Info */}
-        <TouchableOpacity style={styles.authorRow} onPress={handleUserPress} disabled={isAnon}>
-          {isAnon ? (
-            <View style={styles.anonProfileImage}>
-              <HatGlasses size={18} color={COLORS.primary} strokeWidth={2} />
-            </View>
-          ) : (
-            <Image
-              source={
-                post.author_photo_url
-                  ? { uri: post.author_photo_url }
-                  : { uri: "https://via.placeholder.com/40" }
+        <View style={styles.authorHeaderRow}>
+          <TouchableOpacity style={styles.authorRow} onPress={handleUserPress} disabled={isAnon}>
+            {isAnon ? (
+              <View style={styles.anonProfileImage}>
+                <HatGlasses size={18} color={COLORS.primary} strokeWidth={2} />
+              </View>
+            ) : (
+              <Image
+                source={
+                  post.author_photo_url
+                    ? { uri: post.author_photo_url }
+                    : { uri: "https://via.placeholder.com/40" }
+                }
+                style={styles.profileImage}
+                cachePolicy="memory-disk"
+                contentFit="cover"
+              />
+            )}
+            <Text style={styles.authorName}>
+              {isAnon ? "Anonymous" : (post.author_name || post.author_username)}
+            </Text>
+            <Text style={styles.separator}>•</Text>
+            <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
+            {post.edited_at && (
+              <>
+                <Text style={styles.separator}>•</Text>
+                <Text style={styles.editedLabel}>Edited</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          {showFollowButton && !isOwnPost && !isAnon && (
+            <FollowButton
+              userId={post.author_id}
+              userType={post.author_type}
+              isFollowing={post.is_following}
+              isInCircle={post.is_in_circle}
+              isCircleRequested={post.is_circle_requested}
+              isAdd={
+                !post.is_in_circle &&
+                !post.is_circle_requested &&
+                ((currentUserType === "member" && post.author_type === "member" && !post.author_is_creator) ||
+                 (currentUserType === "community" && post.author_type === "member"))
               }
-              style={styles.profileImage}
-              cachePolicy="memory-disk"
-              contentFit="cover"
+              onFollowChange={handleFollowToggle}
+              style={styles.followButtonInline}
+              textStyle={styles.followButtonInlineText}
+              currentFollowerId={currentUserId}
             />
           )}
-          <Text style={styles.authorName}>
-            {isAnon ? "Anonymous" : (post.author_name || post.author_username)}
-          </Text>
-          <Text style={styles.separator}>•</Text>
-          <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
-          {post.edited_at && (
-            <>
-              <Text style={styles.separator}>•</Text>
-              <Text style={styles.editedLabel}>Edited</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        </View>
 
         {/* Question */}
         <Text style={styles.question}>{typeData.question}</Text>
@@ -1006,10 +1191,26 @@ const styles = StyleSheet.create({
     color: "#DC2626",
     letterSpacing: 0.5,
   },
+  authorHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: SPACING.m,
+  },
   authorRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: SPACING.m,
+    flex: 1,
+    marginRight: 8,
+  },
+  followButtonInline: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    minWidth: 75,
+  },
+  followButtonInlineText: {
+    fontSize: 12,
   },
   profileImage: {
     width: 32,

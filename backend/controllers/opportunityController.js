@@ -489,6 +489,63 @@ const getOpportunityDetail = async (req, res) => {
       }
     }
 
+    // Fetch creator relation status (if authenticated)
+    if (opportunity && userId) {
+      const cId = parseInt(opportunity.creator_id);
+      const isMember = opportunity.creator_type === 'member';
+
+      opportunity.is_following = false;
+      opportunity.is_in_circle = false;
+      opportunity.is_circle_requested = false;
+      opportunity.author_is_creator = false;
+
+      try {
+        if (isMember) {
+          const followRes = await pool.query(
+            "SELECT 1 FROM member_followers WHERE follower_id = $1 AND member_id = $2",
+            [userId, cId]
+          );
+          opportunity.is_following = followRes.rows.length > 0;
+
+          const circleRes = await pool.query(
+            `SELECT 1 FROM circle_connections 
+             WHERE ((member_a_id = $1 AND member_b_id = $2) OR (member_a_id = $2 AND member_b_id = $1)) 
+               AND status = 'connected'`,
+            [userId, cId]
+          );
+          opportunity.is_in_circle = circleRes.rows.length > 0;
+
+          const requestRes = await pool.query(
+            `SELECT 1 FROM circle_connections 
+             WHERE ((member_a_id = $1 AND member_b_id = $2) OR (member_a_id = $2 AND member_b_id = $1)) 
+               AND status = 'pending'`,
+            [userId, cId]
+          );
+          opportunity.is_circle_requested = requestRes.rows.length > 0;
+
+          const creatorRes = await pool.query(
+            "SELECT 1 FROM creators WHERE member_id = $1",
+            [cId]
+          );
+          opportunity.author_is_creator = creatorRes.rows.length > 0;
+        } else if (opportunity.creator_type === 'community') {
+          const followRes = await pool.query(
+            "SELECT 1 FROM follows WHERE follower_id = $1 AND follower_type = 'member' AND following_id = $2 AND following_type = 'community'",
+            [userId, cId]
+          );
+          opportunity.is_following = followRes.rows.length > 0;
+
+          const circleRes = await pool.query(
+            "SELECT 1 FROM community_member_circles WHERE member_id = $1 AND community_id = $2",
+            [userId, cId]
+          );
+          opportunity.is_in_circle = circleRes.rows.length > 0;
+        }
+      } catch (err) {
+        console.error("Error fetching creator relation status:", err);
+      }
+    }
+
     res.json({
       success: true,
       opportunity,
@@ -780,6 +837,9 @@ const discoverOpportunities = async (req, res) => {
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
+    const userId = req.user?.id || null;
+    const userType = req.user?.type || null;
+
     const result = await pool.query(query, params);
 
     // Batch-fetch skill groups for all opportunities in a single query (eliminates N+1)
@@ -799,10 +859,87 @@ const discoverOpportunities = async (req, res) => {
       discoverSGByOpp[sg.opportunity_id].push(sg);
     }
 
-    const opportunities = result.rows.map((opp) => ({
-      ...opp,
-      skill_groups: discoverSGByOpp[opp.id] || [],
-    }));
+    // Batch-fetch circle and follow statuses
+    const memberCreatorIds = [...new Set(result.rows.filter(r => r.creator_type === 'member').map(r => parseInt(r.creator_id)))].filter(Boolean);
+    const communityCreatorIds = [...new Set(result.rows.filter(r => r.creator_type === 'community').map(r => parseInt(r.creator_id)))].filter(Boolean);
+
+    let followedCommunities = new Set();
+    let circleCommunities = new Set();
+    if (communityCreatorIds.length > 0 && userId) {
+      try {
+        const followRes = await pool.query(
+          "SELECT following_id AS community_id FROM follows WHERE follower_id = $1 AND follower_type = 'member' AND following_id = ANY($2) AND following_type = 'community'",
+          [userId, communityCreatorIds]
+        );
+        followedCommunities = new Set(followRes.rows.map(r => r.community_id));
+
+        const circleRes = await pool.query(
+          "SELECT community_id FROM community_member_circles WHERE member_id = $1 AND community_id = ANY($2)",
+          [userId, communityCreatorIds]
+        );
+        circleCommunities = new Set(circleRes.rows.map(r => r.community_id));
+      } catch (err) {
+        console.error("Error fetching community followers/circles:", err);
+      }
+    }
+
+    let followedMembers = new Set();
+    let circleMembers = new Set();
+    let requestedMembers = new Set();
+    let creatorMembers = new Set();
+    
+    if (memberCreatorIds.length > 0 && userId) {
+      try {
+        // follows
+        const followRes = await pool.query(
+          "SELECT member_id FROM member_followers WHERE follower_id = $1 AND member_id = ANY($2)",
+          [userId, memberCreatorIds]
+        );
+        followedMembers = new Set(followRes.rows.map(r => r.member_id));
+
+        // circle connected
+        const circleRes = await pool.query(
+          `SELECT DISTINCT CASE WHEN member_a_id = $1 THEN member_b_id ELSE member_a_id END as other_id 
+           FROM circle_connections 
+           WHERE ((member_a_id = $1 AND member_b_id = ANY($2)) OR (member_a_id = ANY($2) AND member_b_id = $1)) 
+             AND status = 'connected'`,
+          [userId, memberCreatorIds]
+        );
+        circleMembers = new Set(circleRes.rows.map(r => r.other_id));
+
+        // circle requested
+        const requestRes = await pool.query(
+          `SELECT DISTINCT CASE WHEN member_a_id = $1 THEN member_b_id ELSE member_a_id END as other_id 
+           FROM circle_connections 
+           WHERE ((member_a_id = $1 AND member_b_id = ANY($2)) OR (member_a_id = ANY($2) AND member_b_id = $1)) 
+             AND status = 'pending'`,
+          [userId, memberCreatorIds]
+        );
+        requestedMembers = new Set(requestRes.rows.map(r => r.other_id));
+
+        // creator mode check
+        const creatorRes = await pool.query(
+          "SELECT member_id FROM creators WHERE member_id = ANY($1)",
+          [memberCreatorIds]
+        );
+        creatorMembers = new Set(creatorRes.rows.map(r => r.member_id));
+      } catch (err) {
+        console.error("Error fetching member follows/circles:", err);
+      }
+    }
+
+    const opportunities = result.rows.map((opp) => {
+      const cId = parseInt(opp.creator_id);
+      const isMember = opp.creator_type === 'member';
+      return {
+        ...opp,
+        skill_groups: discoverSGByOpp[opp.id] || [],
+        is_following: isMember ? followedMembers.has(cId) : followedCommunities.has(cId),
+        is_in_circle: isMember ? circleMembers.has(cId) : circleCommunities.has(cId),
+        is_circle_requested: isMember ? requestedMembers.has(cId) : false,
+        author_is_creator: isMember ? creatorMembers.has(cId) : false,
+      };
+    });
 
     res.json({
       success: true,
@@ -1251,7 +1388,14 @@ const getFollowedOpportunities = async (req, res) => {
         o.creator_type,
         c.name as creator_name,
         c.logo_url as creator_photo,
-        c.username as creator_username
+        c.username as creator_username,
+        true AS is_following,
+        EXISTS (
+          SELECT 1 FROM community_member_circles cc
+          WHERE cc.community_id = o.creator_id::integer AND cc.member_id = $1
+        ) AS is_in_circle,
+        false AS is_circle_requested,
+        false AS author_is_creator
       FROM opportunities o
       JOIN follows f ON f.following_id = o.creator_id::integer AND f.following_type = 'community'
       JOIN communities c ON o.creator_id::integer = c.id
@@ -1384,10 +1528,19 @@ const getCommunityOpportunities = async (req, res) => {
         CASE WHEN $2::integer IS NOT NULL THEN EXISTS(
           SELECT 1 FROM opportunity_saves os
           WHERE os.opportunity_id = o.id AND os.saver_id = $2 AND os.saver_type = $3
-        ) ELSE false END AS is_saved
+        ) ELSE false END AS is_saved,
+        CASE WHEN $2::integer IS NOT NULL THEN EXISTS(
+          SELECT 1 FROM follows WHERE follower_id = $2 AND follower_type = $3
+            AND following_id = $1::integer AND following_type = 'community'
+        ) ELSE false END AS is_following,
+        CASE WHEN $2::integer IS NOT NULL THEN EXISTS(
+          SELECT 1 FROM community_member_circles WHERE community_id = $1::integer AND member_id = $2
+        ) ELSE false END AS is_in_circle,
+        false AS is_circle_requested,
+        false AS author_is_creator
       FROM opportunities o
       LEFT JOIN communities c ON o.creator_id::integer = c.id
-      WHERE o.creator_id = $1
+      WHERE o.creator_id = $1::text
         AND o.creator_type = 'community'
         AND o.status IN ('active', 'draft')
         AND o.visibility = 'public'

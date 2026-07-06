@@ -50,6 +50,11 @@ import {
   Pencil,
   Trash2,
   Users,
+  UserMinus,
+  TriangleAlert,
+  CheckCircle2,
+  CircleX,
+  Info,
 } from "lucide-react-native";
 import { apiPost, apiDelete } from "../api/client";
 import { closeOpportunity } from "../api/opportunities";
@@ -58,6 +63,22 @@ import CommentsModal from "./CommentsModal";
 import EventBus from "../utils/EventBus";
 import HapticsService from "../services/HapticsService";
 import ContentActionsSheet from "./ContentActionsSheet";
+import CustomAlertModal from "./ui/CustomAlertModal";
+import FollowButton from "./FollowButton";
+import {
+  followMember,
+  unfollowMember,
+  followCreator,
+  unfollowCreator,
+  sendCircleRequest,
+  cancelCircleRequest,
+  getCircleStatus,
+  removeFromCircle,
+  sendCommunityCircleInvite,
+  cancelCommunityCircleInvite,
+  getCommunityCircleStatus,
+  removeMemberFromCommunityCircle,
+} from "../api/members";
 
 // Static Helper Functions (Extracted outside the component scope)
 const formatTimeAgo = (dateStr) => {
@@ -118,9 +139,11 @@ const OpportunityFeedCard = React.memo(({
   onPinToggle,               // Optional: shown only for owner view
   onPostUpdate,              // Optional: called when post is updated
   showManagementControls = false, // When true, shows pin + 3-dot menu for owners (Profile screens only)
+  showFollowButton = true,
 }) => {
   const navigation = useNavigation();
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUserType, setCurrentUserType] = useState(null);
 
   // ── 3-dot menu state ───────────────────────────────────────
   const [menuVisible, setMenuVisible] = useState(false);
@@ -139,12 +162,220 @@ const OpportunityFeedCard = React.memo(({
     setMenuVisible(false);
   }, []);
 
+  // Custom Alert Modal State
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    title: "",
+    message: "",
+    primaryAction: null,
+    secondaryAction: null,
+    icon: null,
+    iconColor: "#FF3B30",
+  });
+
+  const showAlert = useCallback((title, message, buttons = null, icon = null, iconColor = null) => {
+    if (!buttons || buttons.length === 0) {
+      const isSuccess = title.toLowerCase().includes("success") || title.toLowerCase().includes("sent");
+      const isError = title.toLowerCase().includes("error") || title.toLowerCase().includes("fail");
+      setAlertConfig({
+        title,
+        message,
+        primaryAction: {
+          text: "OK",
+          onPress: () => setAlertVisible(false),
+        },
+        secondaryAction: null,
+        icon: icon || (isSuccess ? CheckCircle2 : isError ? CircleX : Info),
+        iconColor: iconColor || (isSuccess ? "#34C759" : isError ? "#FF3B30" : COLORS.primary),
+      });
+      setAlertVisible(true);
+      return;
+    }
+
+    const cancelBtn = buttons.find((b) => b.style === "cancel" || b.text.toLowerCase() === "cancel");
+    const actionBtn = buttons.find((b) => b.style !== "cancel" && b.text.toLowerCase() !== "cancel");
+
+    setAlertConfig({
+      title,
+      message,
+      primaryAction: actionBtn
+        ? {
+            text: actionBtn.text,
+            style: actionBtn.style,
+            onPress: () => {
+              setAlertVisible(false);
+              actionBtn.onPress?.();
+            },
+          }
+        : null,
+      secondaryAction: cancelBtn
+        ? {
+            text: cancelBtn.text,
+            onPress: () => {
+              setAlertVisible(false);
+              cancelBtn.onPress?.();
+            },
+          }
+        : null,
+      icon: icon || (actionBtn?.style === "destructive" ? TriangleAlert : Info),
+      iconColor: iconColor || (actionBtn?.style === "destructive" ? "#FF3B30" : COLORS.primary),
+    });
+    setAlertVisible(true);
+  }, []);
+
+  const handleFollowToggle = useCallback(async () => {
+    const isMemberAuthor = opportunity.creator_type === "member";
+    const isCreatorMode = !!opportunity.author_is_creator;
+    const isInCircle = !!opportunity.is_in_circle;
+    const isRequested = !!opportunity.is_circle_requested;
+
+    const isAdd = !isInCircle && !isRequested && (
+      (currentUserType === "member" && isMemberAuthor && !isCreatorMode) ||
+      (currentUserType === "community" && isMemberAuthor)
+    );
+
+    const isFollowing = !isInCircle && !isRequested && !isAdd && !!opportunity.is_following;
+
+    if (isInCircle) {
+      showAlert(
+        "Remove from Circle?",
+        `Are you sure you want to remove ${opportunity.creator_name || "this user"} from your circle?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Remove",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                if (currentUserType === "community") {
+                  await removeMemberFromCommunityCircle(opportunity.creator_id);
+                } else if (opportunity.creator_type === "community") {
+                  await removeMemberFromCommunityCircle(opportunity.creator_id);
+                } else {
+                  await removeFromCircle(opportunity.creator_id);
+                }
+                HapticsService.triggerImpactLight();
+                const updates = { is_in_circle: false, is_following: false, is_circle_requested: false };
+                if (onPostUpdate) onPostUpdate({ id: opportunity.id, ...updates });
+                EventBus.emit("post-follow-updated", { authorId: opportunity.creator_id, ...updates });
+              } catch (error) {
+                console.error("Error removing from circle:", error);
+              }
+            }
+          }
+        ],
+        UserMinus,
+        "#FF3B30"
+      );
+    } else if (isRequested) {
+      showAlert(
+        "Cancel Request?",
+        `Are you sure you want to cancel your circle request to ${opportunity.creator_name || "this user"}?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Cancel Request",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                if (currentUserType === "community") {
+                  const statusRes = await getCommunityCircleStatus(opportunity.creator_id);
+                  if (statusRes?.invite_id) {
+                    await cancelCommunityCircleInvite(statusRes.invite_id);
+                  }
+                } else {
+                  const statusRes = await getCircleStatus(opportunity.creator_id);
+                  if (statusRes?.request_id) {
+                    await cancelCircleRequest(statusRes.request_id);
+                  }
+                }
+                HapticsService.triggerImpactLight();
+                const updates = { is_in_circle: false, is_following: false, is_circle_requested: false };
+                if (onPostUpdate) onPostUpdate({ id: opportunity.id, ...updates });
+                EventBus.emit("post-follow-updated", { authorId: opportunity.creator_id, ...updates });
+              } catch (error) {
+                console.error("Error cancelling request:", error);
+              }
+            }
+          }
+        ],
+        Clock,
+        "#FF9500"
+      );
+    } else if (isAdd) {
+      try {
+        let res;
+        if (currentUserType === "community") {
+          res = await sendCommunityCircleInvite(opportunity.creator_id);
+        } else {
+          res = await sendCircleRequest(opportunity.creator_id);
+        }
+        HapticsService.triggerAddToCircle();
+        const isAuto = !!(res?.auto_accepted || res?.status === "in_circle");
+        const updates = {
+          is_in_circle: isAuto,
+          is_circle_requested: !isAuto,
+        };
+        if (onPostUpdate) onPostUpdate({ id: opportunity.id, ...updates });
+        EventBus.emit("post-follow-updated", { authorId: opportunity.creator_id, ...updates });
+      } catch (error) {
+        console.error("Error sending circle request:", error);
+      }
+    } else if (isFollowing) {
+      showAlert(
+        "Unfollow?",
+        `Stop following ${opportunity.creator_name || "this account"}?`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Unfollow",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                if (isMemberAuthor && isCreatorMode) {
+                  await unfollowCreator(opportunity.creator_id);
+                  EventBus.emit("creator:unfollowed", { creatorId: opportunity.creator_id });
+                } else {
+                  await unfollowMember(opportunity.creator_id);
+                }
+                HapticsService.triggerImpactLight();
+                const updates = { is_following: false };
+                if (onPostUpdate) onPostUpdate({ id: opportunity.id, ...updates });
+                EventBus.emit("post-follow-updated", { authorId: opportunity.creator_id, ...updates });
+              } catch (error) {
+                console.error("Error unfollowing:", error);
+              }
+            }
+          }
+        ],
+        UserMinus,
+        "#FF3B30"
+      );
+    } else {
+      try {
+        if (isMemberAuthor && isCreatorMode) {
+          await followCreator(opportunity.creator_id);
+          EventBus.emit("creator:followed", { creatorId: opportunity.creator_id });
+        } else {
+          await followMember(opportunity.creator_id);
+        }
+        HapticsService.triggerFollow();
+        const updates = { is_following: true };
+        if (onPostUpdate) onPostUpdate({ id: opportunity.id, ...updates });
+        EventBus.emit("post-follow-updated", { authorId: opportunity.creator_id, ...updates });
+      } catch (error) {
+        console.error("Error following:", error);
+      }
+    }
+  }, [opportunity.creator_type, opportunity.author_is_creator, opportunity.is_in_circle, opportunity.is_circle_requested, opportunity.is_following, opportunity.creator_id, opportunity.creator_name, opportunity.id, currentUserType, onPostUpdate, showAlert]);
+
   // ── Current user detection ─────────────────────────────────────────────────
   useEffect(() => {
     const fetchUser = async () => {
       const account = await getActiveAccount();
       if (account?.id) {
         setCurrentUserId(account.id);
+        setCurrentUserType(account.type || "member");
       }
     };
     fetchUser();
@@ -593,31 +824,52 @@ const OpportunityFeedCard = React.memo(({
         </View>
  
         {/* ── Author Row (tappable → profile) ───────────────────────────── */}
-        <TouchableOpacity
-          style={styles.authorRow}
-          onPress={handleAuthorPress}
-          activeOpacity={0.7}
-        >
-          <Image
-            source={
-              opportunity.creator_photo
-                ? { uri: opportunity.creator_photo }
-                : {
-                    uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                      opportunity.creator_name || "U",
-                    )}&background=E5E7EB&color=6B7280&size=88`,
-                  }
-            }
-            style={styles.authorAvatar}
-          />
-          <Text style={styles.authorUsername} numberOfLines={1}>
-            {opportunity.creator_name || "Anonymous"}
-          </Text>
-          <Text style={styles.separator}>•</Text>
-          <Text style={styles.timestamp}>
-            {formatTimeAgo(opportunity.created_at)}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.authorHeaderRow}>
+          <TouchableOpacity
+            style={styles.authorRow}
+            onPress={handleAuthorPress}
+            activeOpacity={0.7}
+          >
+            <Image
+              source={
+                opportunity.creator_photo
+                  ? { uri: opportunity.creator_photo }
+                  : {
+                      uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                        opportunity.creator_name || "U",
+                      )}&background=E5E7EB&color=6B7280&size=88`,
+                    }
+              }
+              style={styles.authorAvatar}
+            />
+            <Text style={styles.authorUsername} numberOfLines={1}>
+              {opportunity.creator_name || "Anonymous"}
+            </Text>
+            <Text style={styles.separator}>•</Text>
+            <Text style={styles.timestamp}>
+              {formatTimeAgo(opportunity.created_at)}
+            </Text>
+          </TouchableOpacity>
+          {showFollowButton && !isCreator && (
+            <FollowButton
+              userId={opportunity.creator_id}
+              userType={opportunity.creator_type}
+              isFollowing={opportunity.is_following}
+              isInCircle={opportunity.is_in_circle}
+              isCircleRequested={opportunity.is_circle_requested}
+              isAdd={
+                !opportunity.is_in_circle &&
+                !opportunity.is_circle_requested &&
+                ((currentUserType === "member" && opportunity.creator_type === "member" && !opportunity.author_is_creator) ||
+                 (currentUserType === "community" && opportunity.creator_type === "member"))
+              }
+              onFollowChange={handleFollowToggle}
+              style={styles.followButtonInline}
+              textStyle={styles.followButtonInlineText}
+              currentFollowerId={currentUserId}
+            />
+          )}
+        </View>
  
         {/* ── Tappable Middle Content (navigates to details) ──────────────── */}
         <TouchableOpacity ref={cardRef} onPress={handleCardPress} activeOpacity={0.95}>
@@ -945,6 +1197,19 @@ const OpportunityFeedCard = React.memo(({
         navigation={navigation}
       />
     )}
+
+    {alertVisible && (
+      <CustomAlertModal
+        visible={alertVisible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        onClose={() => setAlertVisible(false)}
+        primaryAction={alertConfig.primaryAction}
+        secondaryAction={alertConfig.secondaryAction}
+        icon={alertConfig.icon}
+        iconColor={alertConfig.iconColor}
+      />
+    )}
     </>
   );
 });
@@ -1012,10 +1277,26 @@ const styles = StyleSheet.create({
   },
 
   // ── Author ────────────────────────────────────────────────────────────────
+  authorHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
   authorRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 4,
+    flex: 1,
+    marginRight: 8,
+  },
+  followButtonInline: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 12,
+    minWidth: 75,
+  },
+  followButtonInlineText: {
+    fontSize: 12,
   },
   authorAvatar: {
     width: 24,

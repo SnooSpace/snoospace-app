@@ -561,6 +561,14 @@ const FullscreenVideoModal = ({
                         userId={post?.author_id}
                         userType={post?.author_type}
                         isFollowing={post?.is_following}
+                        isInCircle={post?.is_in_circle}
+                        isCircleRequested={post?.is_circle_requested}
+                        isAdd={
+                          !post?.is_in_circle &&
+                          !post?.is_circle_requested &&
+                          ((currentUserType === "member" && post?.author_type === "member" && !post?.author_is_creator) ||
+                           (currentUserType === "community" && post?.author_type === "member"))
+                        }
                         onFollowChange={onFollow}
                         style={styles.followButton}
                         textStyle={styles.followButtonText}

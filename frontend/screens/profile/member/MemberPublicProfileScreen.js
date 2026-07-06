@@ -1028,15 +1028,34 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       });
     };
 
+    const handlePostFollowUpdated = (payload) => {
+      if (!payload?.authorId) return;
+      setPosts((prev) =>
+        prev.map((post) =>
+          post.author_id === payload.authorId
+            ? { ...post, ...payload }
+            : post,
+        ),
+      );
+      setSelectedPost((prevSelected) => {
+        if (prevSelected && prevSelected.author_id === payload.authorId) {
+          return { ...prevSelected, ...payload };
+        }
+        return prevSelected;
+      });
+    };
+
     const unsubscribeView = EventBus.on("post-view-updated", handlePostViewUpdate);
     const unsubscribeShare = EventBus.on("post-share-updated", handlePostShareUpdate);
     const unsubscribeSave = EventBus.on("post-save-updated", handlePostSaveUpdate);
+    const unsubscribeFollow = EventBus.on("post-follow-updated", handlePostFollowUpdated);
 
     return () => {
       unsubscribe && unsubscribe();
       if (unsubscribeView) unsubscribeView();
       if (unsubscribeShare) unsubscribeShare();
       if (unsubscribeSave) unsubscribeSave();
+      if (unsubscribeFollow) unsubscribeFollow();
     };
   }, []);
 

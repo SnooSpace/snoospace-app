@@ -31,6 +31,7 @@ const PostCard = ({
   currentUserId,
   currentUserType,
   isVideoPlaying = false,
+  showFollowButton = true,
 }) => {
   const postType = post.post_type || "media";
 
@@ -42,6 +43,7 @@ const PostCard = ({
         onPostUpdate={onPostUpdate}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
+        showFollowButton={showFollowButton}
       />
     );
   }
@@ -54,6 +56,7 @@ const PostCard = ({
         onPostUpdate={onPostUpdate}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
+        showFollowButton={showFollowButton}
       />
     );
   }
@@ -66,6 +69,7 @@ const PostCard = ({
         onPostUpdate={onPostUpdate}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
+        showFollowButton={showFollowButton}
       />
     );
   }
@@ -78,6 +82,7 @@ const PostCard = ({
         onPostUpdate={onPostUpdate}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
+        showFollowButton={showFollowButton}
       />
     );
   }
@@ -93,7 +98,7 @@ const PostCard = ({
       currentUserId={currentUserId}
       currentUserType={currentUserType}
       isVideoPlaying={isVideoPlaying}
-      showFollowButton={true}
+      showFollowButton={showFollowButton}
     />
   );
 };

@@ -27,6 +27,9 @@ const FollowButton = ({
   userId,
   userType,
   isFollowing = false,
+  isInCircle = false,
+  isCircleRequested = false,
+  isAdd = false,
   onFollowChange,
   style,
   textStyle,
@@ -46,7 +49,7 @@ const FollowButton = ({
       }
 
       // Track follow intent (non-blocking, fire-and-forget)
-      if (!isFollowing && currentFollowerId) {
+      if (!isFollowing && !isInCircle && !isCircleRequested && !isAdd && currentFollowerId) {
         trackFollow(currentFollowerId, userId, navigationContext);
       }
     } catch (error) {
@@ -56,11 +59,33 @@ const FollowButton = ({
 
   const combinedLoading = externalLoading;
 
+  const getButtonText = () => {
+    if (combinedLoading) return "...";
+    if (isInCircle) return "In Circle";
+    if (isCircleRequested) return "Requested";
+    if (isAdd) return "Add";
+    return isFollowing ? "Following" : "Follow";
+  };
+
+  const getButtonStyle = () => {
+    if (isInCircle) return styles.inCircleButton;
+    if (isCircleRequested) return styles.requestedButton;
+    if (isAdd) return styles.addButton;
+    return isFollowing ? styles.followingButton : styles.followButton;
+  };
+
+  const getTextStyle = () => {
+    if (isInCircle) return styles.inCircleText;
+    if (isCircleRequested) return styles.requestedText;
+    if (isAdd) return styles.addText;
+    return isFollowing ? styles.followingText : styles.followText;
+  };
+
   return (
     <TouchableOpacity
       style={[
         styles.button,
-        isFollowing ? styles.followingButton : styles.followButton,
+        getButtonStyle(),
         style,
         combinedLoading && styles.loadingButton,
       ]}
@@ -70,11 +95,11 @@ const FollowButton = ({
       <Text
         style={[
           styles.buttonText,
-          isFollowing ? styles.followingText : styles.followText,
+          getTextStyle(),
           textStyle,
         ]}
       >
-        {combinedLoading ? "..." : isFollowing ? "Following" : "Follow"}
+        {getButtonText()}
       </Text>
     </TouchableOpacity>
   );
@@ -97,18 +122,40 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  inCircleButton: {
+    backgroundColor: "rgba(68, 138, 255, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(68, 138, 255, 0.2)",
+  },
+  requestedButton: {
+    backgroundColor: "rgba(68, 138, 255, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(68, 138, 255, 0.2)",
+  },
+  addButton: {
+    backgroundColor: "#448AFF",
+  },
   loadingButton: {
     opacity: 0.6,
   },
   buttonText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "Manrope-SemiBold",
   },
   followText: {
     color: COLORS.white,
   },
   followingText: {
     color: COLORS.textDark,
+  },
+  inCircleText: {
+    color: "#448AFF",
+  },
+  requestedText: {
+    color: "#448AFF",
+  },
+  addText: {
+    color: COLORS.white,
   },
 });
 

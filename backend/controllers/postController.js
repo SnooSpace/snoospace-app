@@ -629,6 +629,10 @@ const getFeed = async (req, res) => {
           WHEN p.author_type = 'venue' THEN NULL
         END as author_photo_url,
         CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.is_creator_mode_enabled, false)
+          ELSE false
+        END as author_is_creator,
+        CASE 
           WHEN $4::int IS NOT NULL AND $5::text IS NOT NULL THEN EXISTS (
             SELECT 1 FROM post_likes l
             WHERE l.post_id = p.id AND l.liker_id = $4 AND l.liker_type = $5
@@ -651,7 +655,11 @@ const getFeed = async (req, res) => {
                 AND cf2.is_dormant = false
                 AND cf2.is_superseded_by_circle = false
             ))
-            OR
+          )
+          ELSE false
+        END AS is_following,
+        CASE 
+          WHEN $4::int IS NOT NULL AND $5::text IS NOT NULL THEN (
             ($5 = 'member' AND p.author_type = 'member' AND EXISTS (
               SELECT 1 FROM circles ci
               WHERE (ci.user_a_id = $4 AND ci.user_b_id = p.author_id)
@@ -669,7 +677,21 @@ const getFeed = async (req, res) => {
             ))
           )
           ELSE false
-        END AS is_following,
+        END AS is_in_circle,
+        CASE 
+          WHEN $4::int IS NOT NULL AND $5::text IS NOT NULL THEN (
+            ($5 = 'member' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM circle_requests cr
+              WHERE cr.sender_id = $4 AND cr.receiver_id = p.author_id AND cr.status = 'pending'
+            ))
+            OR
+            ($5 = 'community' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM community_member_circle_invites cci
+              WHERE cci.community_id = $4 AND cci.member_id = p.author_id AND cci.status = 'pending'
+            ))
+          )
+          ELSE false
+        END AS is_circle_requested,
         CASE 
           WHEN $4::int IS NOT NULL AND $5::text IS NOT NULL THEN EXISTS (
             SELECT 1 FROM post_saves ps
@@ -1195,7 +1217,78 @@ const getExplore = async (req, res) => {
           WHEN p.author_type = 'community' THEN c.logo_url
           WHEN p.author_type = 'sponsor' THEN s.logo_url
           WHEN p.author_type = 'venue' THEN NULL
-        END as author_photo_url
+        END as author_photo_url,
+        CASE 
+          WHEN $1::int IS NOT NULL AND $2::text IS NOT NULL THEN EXISTS (
+            SELECT 1 FROM post_likes l
+            WHERE l.post_id = p.id AND l.liker_id = $1 AND l.liker_type = $2
+          )
+          ELSE false
+        END AS is_liked,
+        CASE 
+          WHEN $1::int IS NOT NULL AND $2::text IS NOT NULL THEN EXISTS (
+            SELECT 1 FROM post_saves ps
+            WHERE ps.post_id = p.id AND ps.saver_id = $1 AND ps.saver_type = $2
+          )
+          ELSE false
+        END AS is_saved,
+        CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.is_creator_mode_enabled, false)
+          ELSE false
+        END as author_is_creator,
+        CASE 
+          WHEN $1::int IS NOT NULL AND $2::text IS NOT NULL THEN (
+            EXISTS (
+              SELECT 1 FROM follows f2
+              WHERE f2.follower_id = $1 AND f2.follower_type = $2 
+                AND f2.following_id = p.author_id AND f2.following_type = p.author_type
+                AND f2.is_superseded_by_circle = false
+            )
+            OR
+            (p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM creator_follows cf2
+              WHERE cf2.follower_id = $1 AND cf2.follower_type = $2
+                AND cf2.creator_id = p.author_id
+                AND cf2.is_dormant = false
+                AND cf2.is_superseded_by_circle = false
+            ))
+          )
+          ELSE false
+        END AS is_following,
+        CASE 
+          WHEN $1::int IS NOT NULL AND $2::text IS NOT NULL THEN (
+            ($2 = 'member' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM circles ci
+              WHERE (ci.user_a_id = $1 AND ci.user_b_id = p.author_id)
+                 OR (ci.user_b_id = $1 AND ci.user_a_id = p.author_id)
+            ))
+            OR
+            ($2 = 'community' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc
+              WHERE cc.community_id = $1 AND cc.member_id = p.author_id
+            ))
+            OR
+            ($2 = 'member' AND p.author_type = 'community' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc
+              WHERE cc.community_id = p.author_id AND cc.member_id = $1
+            ))
+          )
+          ELSE false
+        END AS is_in_circle,
+        CASE 
+          WHEN $1::int IS NOT NULL AND $2::text IS NOT NULL THEN (
+            ($2 = 'member' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM circle_requests cr
+              WHERE cr.sender_id = $1 AND cr.receiver_id = p.author_id AND cr.status = 'pending'
+            ))
+            OR
+            ($2 = 'community' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM community_member_circle_invites cci
+              WHERE cci.community_id = $1 AND cci.member_id = p.author_id AND cci.status = 'pending'
+            ))
+          )
+          ELSE false
+        END AS is_circle_requested
       FROM posts p
       LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
       LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
@@ -1582,10 +1675,71 @@ const getPost = async (req, res) => {
           WHEN p.author_type = 'sponsor' THEN s.logo_url
           WHEN p.author_type = 'venue' THEN NULL
         END as author_photo_url,
+        CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.is_creator_mode_enabled, false)
+          ELSE false
+        END as author_is_creator,
         CASE WHEN $2::int IS NOT NULL AND $3::text IS NOT NULL THEN EXISTS (
           SELECT 1 FROM post_likes l
           WHERE l.post_id = p.id AND l.liker_id = $2 AND l.liker_type = $3
-        ) ELSE false END AS is_liked
+        ) ELSE false END AS is_liked,
+        CASE 
+          WHEN $2::int IS NOT NULL AND $3::text IS NOT NULL THEN (
+            EXISTS (
+              SELECT 1 FROM follows f2
+              WHERE f2.follower_id = $2 AND f2.follower_type = $3 
+                AND f2.following_id = p.author_id AND f2.following_type = p.author_type
+                AND f2.is_superseded_by_circle = false
+            )
+            OR
+            (p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM creator_follows cf2
+              WHERE cf2.follower_id = $2 AND cf2.follower_type = $3
+                AND cf2.creator_id = p.author_id
+                AND cf2.is_dormant = false
+                AND cf2.is_superseded_by_circle = false
+            ))
+          )
+          ELSE false
+        END AS is_following,
+        CASE 
+          WHEN $2::int IS NOT NULL AND $3::text IS NOT NULL THEN (
+            ($3 = 'member' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM circles ci
+              WHERE (ci.user_a_id = $2 AND ci.user_b_id = p.author_id)
+                 OR (ci.user_b_id = $2 AND ci.user_a_id = p.author_id)
+            ))
+            OR
+            ($3 = 'community' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc
+              WHERE cc.community_id = $2 AND cc.member_id = p.author_id
+            ))
+            OR
+            ($3 = 'member' AND p.author_type = 'community' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc
+              WHERE cc.community_id = p.author_id AND cc.member_id = $2
+            ))
+          )
+          ELSE false
+        END AS is_in_circle,
+        CASE 
+          WHEN $2::int IS NOT NULL AND $3::text IS NOT NULL THEN (
+            ($3 = 'member' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM circle_requests cr
+              WHERE cr.sender_id = $2 AND cr.receiver_id = p.author_id AND cr.status = 'pending'
+            ))
+            OR
+            ($3 = 'community' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM community_member_circle_invites cci
+              WHERE cci.community_id = $2 AND cci.member_id = p.author_id AND cci.status = 'pending'
+            ))
+          )
+          ELSE false
+        END AS is_circle_requested,
+        CASE WHEN $2::int IS NOT NULL AND $3::text IS NOT NULL THEN EXISTS (
+          SELECT 1 FROM post_saves ps
+          WHERE ps.post_id = p.id AND ps.saver_id = $2 AND ps.saver_type = $3
+        ) ELSE false END AS is_saved
       FROM posts p
       LEFT JOIN members m ON p.author_type = 'member' AND p.author_id = m.id
       LEFT JOIN communities c ON p.author_type = 'community' AND p.author_id = c.id
@@ -1792,12 +1946,69 @@ const getUserPosts = async (req, res) => {
           WHEN p.author_type = 'venue' THEN NULL
         END as author_photo_url,
         CASE 
+          WHEN p.author_type = 'member' THEN COALESCE(m.is_creator_mode_enabled, false)
+          ELSE false
+        END as author_is_creator,
+        CASE 
           WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN EXISTS (
             SELECT 1 FROM post_likes l
             WHERE l.post_id = p.id AND l.liker_id = $3 AND l.liker_type = $4
           )
           ELSE false
         END AS is_liked,
+        CASE 
+          WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN (
+            EXISTS (
+              SELECT 1 FROM follows f2
+              WHERE f2.follower_id = $3 AND f2.follower_type = $4 
+                AND f2.following_id = p.author_id AND f2.following_type = p.author_type
+                AND f2.is_superseded_by_circle = false
+            )
+            OR
+            (p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM creator_follows cf2
+              WHERE cf2.follower_id = $3 AND cf2.follower_type = $4
+                AND cf2.creator_id = p.author_id
+                AND cf2.is_dormant = false
+                AND cf2.is_superseded_by_circle = false
+            ))
+          )
+          ELSE false
+        END AS is_following,
+        CASE 
+          WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN (
+            ($4 = 'member' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM circles ci
+              WHERE (ci.user_a_id = $3 AND ci.user_b_id = p.author_id)
+                 OR (ci.user_b_id = $3 AND ci.user_a_id = p.author_id)
+            ))
+            OR
+            ($4 = 'community' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc
+              WHERE cc.community_id = $3 AND cc.member_id = p.author_id
+            ))
+            OR
+            ($4 = 'member' AND p.author_type = 'community' AND EXISTS (
+              SELECT 1 FROM community_member_circles cc
+              WHERE cc.community_id = p.author_id AND cc.member_id = $3
+            ))
+          )
+          ELSE false
+        END AS is_in_circle,
+        CASE 
+          WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN (
+            ($4 = 'member' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM circle_requests cr
+              WHERE cr.sender_id = $3 AND cr.receiver_id = p.author_id AND cr.status = 'pending'
+            ))
+            OR
+            ($4 = 'community' AND p.author_type = 'member' AND EXISTS (
+              SELECT 1 FROM community_member_circle_invites cci
+              WHERE cci.community_id = $3 AND cci.member_id = p.author_id AND cci.status = 'pending'
+            ))
+          )
+          ELSE false
+        END AS is_circle_requested,
         CASE 
           WHEN $3::int IS NOT NULL AND $4::text IS NOT NULL THEN EXISTS (
             SELECT 1 FROM post_saves ps
