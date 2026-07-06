@@ -1927,83 +1927,31 @@ export default function ChatScreen({ route, navigation }) {
     (postId, postData) => {
       if (!postData) return;
 
-      const isAnon = postData.is_anonymous === true || 
-                     postData.type_data?.is_anonymous === true || 
-                     postData.author_username === "anonymous" ||
-                     postData.author_name === "Anonymous";
+      const pType = postData.post_type || postData.type || "media";
 
-      if (isAnon) {
-        // Since the post is anonymous, do NOT navigate to their profile.
-        // Instead, open their detailed interactive submission/detail view, or open comments.
-        const nav = navigation.getParent()?.getParent() || navigation;
-        const pType = postData.post_type || postData.type;
-        if (pType === "prompt") {
-          nav.navigate("PromptSubmissions", { post: postData });
-        } else if (pType === "qna") {
-          nav.navigate("QnAQuestions", { post: postData });
-        } else if (pType === "challenge") {
-          nav.navigate("ChallengeSubmissions", { post: postData });
-        } else if (pType === "opportunity") {
-          nav.navigate("OpportunityView", {
-            opportunityId: postId || postData.id,
-            opportunity: postData
-          });
-        } else {
-          // Fallback: Open comments modal for polls or media posts
-          setCommentsModalState({ visible: true, postId: postId || postData.id, postType: pType });
-        }
+      if (["media", "video", "image", "editorial", "text"].includes(pType)) {
+        // Open focused full-screen post feed directly
+        setSelectedSharedPost(postData);
+        setSharedPostModalVisible(true);
         return;
       }
 
-      if (postData.post_type === "community_voice" && postData.type_data) {
-        const { target_id, target_type } = postData.type_data;
-        if (target_id && target_type) {
-          const nav = navigation.getParent()?.getParent() || navigation;
-          if (target_type === "community") {
-            nav.navigate("CommunityPublicProfile", {
-              communityId: target_id,
-              viewerRole: "member",
-              initialTab: "community",
-              postId: postId || postData?.id || postData?.postId,
-            });
-          } else if (target_type === "member") {
-            nav.navigate("MemberPublicProfile", {
-              memberId: target_id,
-              initialTab: "community",
-              postId: postId || postData?.id || postData?.postId,
-            });
-          }
-          return;
-        }
-      }
+      const nav = navigation.getParent()?.getParent() || navigation;
 
-      const authorId = postData.author_id || postData.authorId || postData.creator_id;
-      const authorType = postData.author_type || postData.authorType || "member";
-
-      if (authorId) {
-        const pType = postData.post_type || postData.type || "media";
-        let initialTab = "posts";
-        if (["poll", "prompt", "qna", "challenge", "opportunity", "community_voice"].includes(pType)) {
-          initialTab = "community";
-        } else if (pType === "event") {
-          initialTab = "events";
-        }
-
-        const nav = navigation.getParent()?.getParent() || navigation;
-        if (authorType === "community") {
-          nav.navigate("CommunityPublicProfile", {
-            communityId: authorId,
-            viewerRole: "member",
-            initialTab,
-            postId: postId || postData?.id || postData?.postId,
-          });
-        } else {
-          nav.navigate("MemberPublicProfile", {
-            memberId: authorId,
-            initialTab,
-            postId: postId || postData?.id || postData?.postId,
-          });
-        }
+      if (pType === "prompt") {
+        nav.navigate("PromptSubmissions", { post: postData });
+      } else if (pType === "qna") {
+        nav.navigate("QnAQuestions", { post: postData });
+      } else if (pType === "challenge") {
+        nav.navigate("ChallengeSubmissions", { post: postData });
+      } else if (pType === "opportunity") {
+        nav.navigate("OpportunityView", {
+          opportunityId: postId || postData.id,
+          opportunity: postData
+        });
+      } else {
+        // Fallback for polls or voice posts: Open comments modal directly
+        setCommentsModalState({ visible: true, postId: postId || postData.id, postType: pType });
       }
     },
     [navigation],
