@@ -21,6 +21,13 @@ import CreateOpportunityScreen from "../screens/home/community/CreateOpportunity
 import CelebrationScreen from "../screens/signup/CelebrationScreen";
 import PeopleProfilePromptScreen from "../screens/signup/community/PeopleProfilePromptScreen";
 
+import PromptSubmissionsScreen from "../screens/home/PromptSubmissionsScreen";
+import PromptRepliesScreen from "../screens/home/PromptRepliesScreen";
+import QnAQuestionsScreen from "../screens/home/QnAQuestionsScreen";
+import ChallengeSubmissionsScreen from "../screens/home/ChallengeSubmissionsScreen";
+import ChallengeSubmitScreen from "../screens/home/ChallengeSubmitScreen";
+import ChallengeVideoRecorderScreen from "../screens/home/ChallengeVideoRecorderScreen";
+
 import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import ProfileFeedScreen from "../screens/discover/ProfileFeedScreen";
 import TicketSelectionScreen from "../screens/events/TicketSelectionScreen";
@@ -228,6 +235,30 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen
         name="OpportunityView"
         component={OpportunityViewScreen}
+      />
+      <Stack.Screen
+        name="PromptSubmissions"
+        component={PromptSubmissionsScreen}
+      />
+      <Stack.Screen
+        name="PromptReplies"
+        component={PromptRepliesScreen}
+      />
+      <Stack.Screen
+        name="QnAQuestions"
+        component={QnAQuestionsScreen}
+      />
+      <Stack.Screen
+        name="ChallengeSubmissions"
+        component={ChallengeSubmissionsScreen}
+      />
+      <Stack.Screen
+        name="ChallengeSubmit"
+        component={ChallengeSubmitScreen}
+      />
+      <Stack.Screen
+        name="ChallengeVideoRecorder"
+        component={ChallengeVideoRecorderScreen}
       />
       <Stack.Screen
         name="ApplyToOpportunity"
