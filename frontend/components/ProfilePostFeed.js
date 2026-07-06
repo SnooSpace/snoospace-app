@@ -11,7 +11,7 @@ import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
-import EditorialPostCard from "./EditorialPostCard";
+import PostCard from "./PostCard";
 import CommentsModal from "./CommentsModal";
 import ShareModal from "./ShareModal";
 import DeletePostModal from "./DeletePostModal";
@@ -22,7 +22,7 @@ import { COLORS, SPACING } from "../constants/theme";
 // If defined inside, React treats it as a new component type each render,
 // causing full unmount+remount of each card — resetting carousel position,
 // video state, dwell timers, etc.
-const MemoizedPostCard = React.memo(EditorialPostCard, (prev, next) => {
+const MemoizedPostCard = React.memo(PostCard, (prev, next) => {
   return (
     prev.post.id === next.post.id &&
     prev.isVideoPlaying === next.isVideoPlaying &&
