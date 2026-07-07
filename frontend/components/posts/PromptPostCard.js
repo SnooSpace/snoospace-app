@@ -26,7 +26,7 @@ import SwipeableModal from "../modals/SwipeableModal";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import { apiPost, apiGet } from "../../api/client";
+import { apiPost, apiGet, apiDelete } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import {
   COLORS,

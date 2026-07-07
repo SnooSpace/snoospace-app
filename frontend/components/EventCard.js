@@ -1182,7 +1182,7 @@ function EventCard({
           {/* Engagement Row */}
           {!hideEngagement && (
             <View style={styles.engagementRow}>
-              <GHPressable
+              <TouchableOpacity
                 style={styles.engagementBtn}
                 onPress={handleLikePress}
                 disabled={isLiking}
@@ -1201,15 +1201,15 @@ function EventCard({
                 >
                   {likeCount}
                 </Text>
-              </GHPressable>
-              <GHPressable
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={styles.engagementBtn}
                 onPress={handleCommentPress}
               >
                 <MessageCircle size={22} color="#5e8d9b" strokeWidth={2} />
                 <Text style={styles.engagementCount}>{commentCount}</Text>
-              </GHPressable>
-              <GHPressable
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={styles.engagementBtn}
                 onPress={() => HapticsService.triggerView()}
               >
@@ -1219,14 +1219,14 @@ function EventCard({
                   strokeWidth={2}
                 />
                 <Text style={styles.engagementCount}>{viewCount}</Text>
-              </GHPressable>
-              <GHPressable
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={styles.engagementBtn}
                 onPress={handleSharePress}
               >
                 <Send size={22} color="#5e8d9b" strokeWidth={2} />
                 <Text style={styles.engagementCount}>{shareCount}</Text>
-              </GHPressable>
+              </TouchableOpacity>
               <View style={[styles.engagementBtn, { justifyContent: 'center' }]}>
                 <ContentActionsSheet
                   type="event"

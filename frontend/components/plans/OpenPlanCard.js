@@ -564,7 +564,7 @@ const OpenPlanCard = ({
         {/* Engagement row */}
         <View style={styles.engRow}>
           {/* Like */}
-          <GHPressable style={styles.engBtn} onPress={handleLike} disabled={isLiking}>
+          <TouchableOpacity style={styles.engBtn} onPress={handleLike} disabled={isLiking}>
             <Heart
               size={20}
               color={isLiked ? COLORS.error : '#5e8d9b'}
@@ -574,37 +574,37 @@ const OpenPlanCard = ({
             <Text style={[styles.engCount, isLiked && { color: COLORS.error }]}>
               {fmt(likeCount)}
             </Text>
-          </GHPressable>
+          </TouchableOpacity>
 
           {/* Comment */}
-          <GHPressable style={styles.engBtn} onPress={handleComment}>
+          <TouchableOpacity style={styles.engBtn} onPress={handleComment}>
             <MessageCircle size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engCount}>{fmt(commentCount)}</Text>
-          </GHPressable>
+          </TouchableOpacity>
 
           {/* Views */}
-          <GHPressable
+          <TouchableOpacity
             style={styles.engBtn}
             onPress={() => HapticsService.triggerView()}
           >
             <ChartNoAxesCombined size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engCount}>{fmt(viewCount)}</Text>
-          </GHPressable>
+          </TouchableOpacity>
 
           {/* Share */}
-          <GHPressable style={styles.engBtn} onPress={handleShare}>
+          <TouchableOpacity style={styles.engBtn} onPress={handleShare}>
             <Send size={20} color="#5e8d9b" strokeWidth={2} />
-          </GHPressable>
+          </TouchableOpacity>
 
           {/* Bookmark/Save */}
-          <GHPressable style={styles.engBtn} onPress={handleInterest} disabled={isSaving}>
+          <TouchableOpacity style={styles.engBtn} onPress={handleInterest} disabled={isSaving}>
             <Bookmark
               size={20}
               color={isSaved ? COLORS.primary : '#5e8d9b'}
               fill={isSaved ? COLORS.primary : 'transparent'}
               strokeWidth={2}
             />
-          </GHPressable>
+          </TouchableOpacity>
         </View>
 
         {/* Request / Owner section */}
