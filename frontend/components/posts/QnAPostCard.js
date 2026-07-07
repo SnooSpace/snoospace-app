@@ -1121,7 +1121,7 @@ const QnAPostCard = React.memo(({
         {!hideEngagement && (
           <View style={styles.engagementRow}>
           {/* Like */}
-          <GHPressable
+          <TouchableOpacity
             style={styles.engagementButton}
             onPress={handleLike}
             disabled={isLiking}
@@ -1136,10 +1136,10 @@ const QnAPostCard = React.memo(({
             >
               {formatCount(likeCount)}
             </Text>
-          </GHPressable>
+          </TouchableOpacity>
 
           {/* Comment */}
-          <GHPressable
+          <TouchableOpacity
             style={styles.engagementButton}
             onPress={handleCommentPress}
           >
@@ -1147,19 +1147,19 @@ const QnAPostCard = React.memo(({
             <Text style={styles.engagementCount}>
               {formatCount(post.comment_count || 0)}
             </Text>
-          </GHPressable>
+          </TouchableOpacity>
 
           {/* Views */}
-          <GHPressable
+          <TouchableOpacity
             style={styles.engagementButton}
             onPress={() => HapticsService.triggerView()}
           >
             <ChartNoAxesCombined size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
             <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
-          </GHPressable>
+          </TouchableOpacity>
 
           {/* Share */}
-          <GHPressable
+          <TouchableOpacity
             style={styles.engagementButton}
             onPress={handleShare}
           >
@@ -1167,10 +1167,10 @@ const QnAPostCard = React.memo(({
             <Text style={styles.engagementCount}>
               {formatCount(post.share_count || 0)}
             </Text>
-          </GHPressable>
+          </TouchableOpacity>
 
           {/* Bookmark */}
-          <GHPressable
+          <TouchableOpacity
             style={styles.engagementButton}
             onPress={handleSave}
           >
@@ -1184,7 +1184,7 @@ const QnAPostCard = React.memo(({
                 {formatCount(saveCount)}
               </Text>
             )}
-          </GHPressable>
+          </TouchableOpacity>
         </View>
         )}
 

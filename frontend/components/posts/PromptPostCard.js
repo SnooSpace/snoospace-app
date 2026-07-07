@@ -1039,61 +1039,61 @@ const PromptPostCard = React.memo(({
       {/* Engagement Row */}
       {!hideEngagement && (
         <View style={styles.engagementRow}>
-        {/* Like */}
-        <GHPressable
-          style={styles.engagementButton}
-          onPress={handleLike}
-          disabled={isLiking}
-        >
-          <Heart
-            size={EDITORIAL_SPACING.iconSize}
-            color={isLiked ? COLORS.error : COLORS.editorial.textSecondary}
-            fill={isLiked ? COLORS.error : "transparent"}
-          />
-          <Text style={[styles.engagementCount, isLiked && styles.likedCount]}>
-            {formatCount(likeCount)}
-          </Text>
-        </GHPressable>
+          {/* Like */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleLike}
+            disabled={isLiking}
+          >
+            <Heart
+              size={EDITORIAL_SPACING.iconSize}
+              color={isLiked ? COLORS.error : COLORS.editorial.textSecondary}
+              fill={isLiked ? COLORS.error : "transparent"}
+            />
+            <Text style={[styles.engagementCount, isLiked && styles.likedCount]}>
+              {formatCount(likeCount)}
+            </Text>
+          </TouchableOpacity>
 
-        {/* Comment */}
-        <GHPressable
-          style={styles.engagementButton}
-          onPress={handleCommentPress}
-        >
-          <MessageCircle size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
-          <Text style={styles.engagementCount}>
-            {formatCount(post.comment_count || 0)}
-          </Text>
-        </GHPressable>
+          {/* Comment */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={handleCommentPress}
+          >
+            <MessageCircle size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
+            <Text style={styles.engagementCount}>
+              {formatCount(post.comment_count || 0)}
+            </Text>
+          </TouchableOpacity>
 
-        {/* Views */}
-        <GHPressable
-          style={styles.engagementButton}
-          onPress={() => HapticsService.triggerView()}
-        >
-          <ChartNoAxesCombined size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
-          <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
-        </GHPressable>
+          {/* Views */}
+          <TouchableOpacity
+            style={styles.engagementButton}
+            onPress={() => HapticsService.triggerView()}
+          >
+            <ChartNoAxesCombined size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
+            <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
+          </TouchableOpacity>
 
-        {/* Share */}
-        <GHPressable style={styles.engagementButton} onPress={handleShare}>
-          <Send size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
-          <Text style={styles.engagementCount}>
-            {formatCount(post.share_count || 0)}
-          </Text>
-        </GHPressable>
+          {/* Share */}
+          <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>
+            <Send size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
+            <Text style={styles.engagementCount}>
+              {formatCount(post.share_count || 0)}
+            </Text>
+          </TouchableOpacity>
 
-        {/* Bookmark */}
-        <GHPressable style={styles.engagementButton} onPress={handleSave}>
-          <Bookmark
-            size={EDITORIAL_SPACING.iconSize}
-            color={COLORS.editorial.textSecondary}
-            fill={isSaved ? COLORS.editorial.textSecondary : "transparent"}
-          />
-          {saveCount > 0 && (
-            <Text style={styles.engagementCount}>{formatCount(saveCount)}</Text>
-          )}
-        </GHPressable>
+          {/* Bookmark */}
+          <TouchableOpacity style={styles.engagementButton} onPress={handleSave}>
+            <Bookmark
+              size={EDITORIAL_SPACING.iconSize}
+              color={COLORS.editorial.textSecondary}
+              fill={isSaved ? COLORS.editorial.textSecondary : "transparent"}
+            />
+            {saveCount > 0 && (
+              <Text style={styles.engagementCount}>{formatCount(saveCount)}</Text>
+            )}
+          </TouchableOpacity>
       </View>
       )}
 
