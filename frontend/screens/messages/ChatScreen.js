@@ -107,6 +107,7 @@ import CommentsModal from "../../components/CommentsModal";
 import EmptyChatState from "../../components/EmptyChatState";
 import useRealtimeSubscription from "../../hooks/useRealtimeSubscription";
 import { getSocket } from "../../services/socketService";
+import { getPostById } from "../../api/posts";
 
 // ΓöÇΓöÇ Palette ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 const PRIMARY_COLOR = "#3565F2";
@@ -2106,6 +2107,29 @@ export default function ChatScreen({ route, navigation }) {
     };
     init();
   }, [conversationId, recipientId, recipientType]);
+
+  // Fetch fresh post details when shared post modal opens
+  useEffect(() => {
+    const targetPostId = selectedSharedPost?.id || selectedSharedPost?.postId || selectedSharedPost?.post_id;
+    if (sharedPostModalVisible && targetPostId) {
+      let isMounted = true;
+      const loadFreshPost = async () => {
+        try {
+          const response = await getPostById(targetPostId);
+          const post = response.post || response;
+          if (isMounted && post) {
+            setSelectedSharedPost(post);
+          }
+        } catch (err) {
+          console.warn("[ChatScreen] Failed to fetch fresh shared post details:", err?.message);
+        }
+      };
+      loadFreshPost();
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [sharedPostModalVisible, selectedSharedPost?.id, selectedSharedPost?.postId, selectedSharedPost?.post_id]);
 
   useEffect(() => {
     if (firstRenderRef.current && !messagesLoading) {
