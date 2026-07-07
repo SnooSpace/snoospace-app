@@ -1046,8 +1046,8 @@ const PromptPostCard = React.memo(({
           disabled={isLiking}
         >
           <Heart
-            size={22}
-            color={isLiked ? COLORS.error : "#5e8d9b"}
+            size={EDITORIAL_SPACING.iconSize}
+            color={isLiked ? COLORS.error : COLORS.editorial.textSecondary}
             fill={isLiked ? COLORS.error : "transparent"}
           />
           <Text style={[styles.engagementCount, isLiked && styles.likedCount]}>
@@ -1060,7 +1060,7 @@ const PromptPostCard = React.memo(({
           style={styles.engagementButton}
           onPress={handleCommentPress}
         >
-          <MessageCircle size={22} color="#5e8d9b" />
+          <MessageCircle size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
           <Text style={styles.engagementCount}>
             {formatCount(post.comment_count || 0)}
           </Text>
@@ -1071,13 +1071,13 @@ const PromptPostCard = React.memo(({
           style={styles.engagementButton}
           onPress={() => HapticsService.triggerView()}
         >
-          <ChartNoAxesCombined size={22} color="#5e8d9b" />
+          <ChartNoAxesCombined size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
           <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
         </GHPressable>
 
         {/* Share */}
         <GHPressable style={styles.engagementButton} onPress={handleShare}>
-          <Send size={22} color="#5e8d9b" />
+          <Send size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
           <Text style={styles.engagementCount}>
             {formatCount(post.share_count || 0)}
           </Text>
@@ -1086,9 +1086,9 @@ const PromptPostCard = React.memo(({
         {/* Bookmark */}
         <GHPressable style={styles.engagementButton} onPress={handleSave}>
           <Bookmark
-            size={22}
-            color="#5e8d9b"
-            fill={isSaved ? "#5e8d9b" : "transparent"}
+            size={EDITORIAL_SPACING.iconSize}
+            color={COLORS.editorial.textSecondary}
+            fill={isSaved ? COLORS.editorial.textSecondary : "transparent"}
           />
           {saveCount > 0 && (
             <Text style={styles.engagementCount}>{formatCount(saveCount)}</Text>
@@ -1406,7 +1406,7 @@ const styles = StyleSheet.create({
   followButtonInline: {
     paddingHorizontal: 12,
     paddingVertical: 5,
-    borderRadius: 12,
+    borderRadius: 20,
     minWidth: 75,
   },
   followButtonInlineText: {

@@ -1292,7 +1292,7 @@ const styles = StyleSheet.create({
   followButtonInline: {
     paddingHorizontal: 12,
     paddingVertical: 5,
-    borderRadius: 12,
+    borderRadius: 20,
     minWidth: 75,
   },
   followButtonInlineText: {

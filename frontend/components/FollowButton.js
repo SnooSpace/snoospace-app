@@ -12,15 +12,17 @@ import { getAuthToken } from "../api/auth";
 import { trackFollow } from "../utils/followTracker";
 import HapticsService from "../services/HapticsService";
 
+import { COLORS as globalColors } from "../constants/theme";
+
 const COLORS = {
-  primary: "#3B82F6", // Editorial accent blue
-  textDark: "#1A1A1A",
-  textLight: "#6B7280",
+  primary: globalColors.primary, // Brand Blue (#2962FF)
+  textDark: globalColors.editorial.textPrimary, // #1a2d4a
+  textLight: globalColors.editorial.textSecondary, // #6B7280
   background: "#FFFFFF",
   white: "#fff",
-  error: "#FF4444",
-  success: "#00C851",
-  border: "#E5E7EB",
+  error: globalColors.error, // #E53E3E
+  success: globalColors.success, // #34C759
+  border: globalColors.border, // #E5E5EA
 };
 
 const FollowButton = ({
@@ -123,17 +125,17 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   inCircleButton: {
-    backgroundColor: "rgba(68, 138, 255, 0.08)",
+    backgroundColor: "rgba(41, 98, 255, 0.08)", // transparent Brand Blue
     borderWidth: 1,
-    borderColor: "rgba(68, 138, 255, 0.2)",
+    borderColor: "rgba(41, 98, 255, 0.2)",
   },
   requestedButton: {
-    backgroundColor: "rgba(68, 138, 255, 0.1)",
+    backgroundColor: "rgba(41, 98, 255, 0.1)", // transparent Brand Blue
     borderWidth: 1,
-    borderColor: "rgba(68, 138, 255, 0.2)",
+    borderColor: "rgba(41, 98, 255, 0.2)",
   },
   addButton: {
-    backgroundColor: "#448AFF",
+    backgroundColor: COLORS.primary,
   },
   loadingButton: {
     opacity: 0.6,
@@ -149,10 +151,10 @@ const styles = StyleSheet.create({
     color: COLORS.textDark,
   },
   inCircleText: {
-    color: "#448AFF",
+    color: COLORS.primary,
   },
   requestedText: {
-    color: "#448AFF",
+    color: COLORS.primary,
   },
   addText: {
     color: COLORS.white,
