@@ -82,6 +82,7 @@ import {
   SPACING,
   BORDER_RADIUS,
   EDITORIAL_TYPOGRAPHY,
+  EDITORIAL_SPACING,
 } from "../../constants/theme";
 import CountdownTimer from "../CountdownTimer";
 import SnooLoader from "../ui/SnooLoader";
