@@ -1184,6 +1184,12 @@ const QnAPostCard = React.memo(({
             <GradientHeart />
           </Animated.View>
         )}
+      {isSharedPreview && (
+        <Pressable
+          style={StyleSheet.absoluteFillObject}
+          onPress={() => onPress && onPress()}
+        />
+      )}
       </View>
     </TouchableWithoutFeedback>
       {showEditModal && (
