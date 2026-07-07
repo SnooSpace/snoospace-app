@@ -1929,30 +1929,18 @@ export default function ChatScreen({ route, navigation }) {
 
       const pType = postData.post_type || postData.type || "media";
 
-      if (["media", "video", "image", "editorial", "text"].includes(pType)) {
-        // Open focused full-screen post feed directly
-        setSelectedSharedPost(postData);
-        setSharedPostModalVisible(true);
-        return;
-      }
-
-      const nav = navigation.getParent()?.getParent() || navigation;
-
-      if (pType === "prompt") {
-        nav.navigate("PromptSubmissions", { post: postData });
-      } else if (pType === "qna") {
-        nav.navigate("QnAQuestions", { post: postData });
-      } else if (pType === "challenge") {
-        nav.navigate("ChallengeSubmissions", { post: postData });
-      } else if (pType === "opportunity") {
+      if (pType === "opportunity") {
+        const nav = navigation.getParent()?.getParent() || navigation;
         nav.navigate("OpportunityView", {
           opportunityId: postId || postData.id,
           opportunity: postData
         });
-      } else {
-        // Fallback for polls or voice posts: Open comments modal directly
-        setCommentsModalState({ visible: true, postId: postId || postData.id, postType: pType });
+        return;
       }
+
+      // Open focused full-screen post feed directly for all other post types (media, text, prompts, polls, challenges, Q&As, voice posts)
+      setSelectedSharedPost(postData);
+      setSharedPostModalVisible(true);
     },
     [navigation],
   );
