@@ -34,7 +34,10 @@ const MemoizedPostCard = React.memo(PostCard, (prev, next) => {
     prev.post.save_count === next.post.save_count &&
     prev.post.saves_count === next.post.saves_count &&
     prev.post.is_saved === next.post.is_saved &&
-    prev.post.is_pinned === next.post.is_pinned
+    prev.post.is_pinned === next.post.is_pinned &&
+    prev.post.is_following === next.post.is_following &&
+    prev.post.is_in_circle === next.post.is_in_circle &&
+    prev.post.is_circle_requested === next.post.is_circle_requested
   );
 });
 

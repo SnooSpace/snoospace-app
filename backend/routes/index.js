@@ -1077,7 +1077,7 @@ router.get("/community-voice-posts", authMiddleware, CommunityVoiceController.ge
 router.post("/posts", authMiddleware, PostController.createPost);
 router.get("/posts/feed", authMiddleware, PostController.getFeed);
 router.get("/posts/explore", authMiddleware, PostController.getExplore);
-router.get("/posts/:postId", PostController.getPost);
+router.get("/posts/:postId", authMiddleware, PostController.getPost);
 router.get(
   "/posts/user/:userId/:userType",
   authMiddleware,
