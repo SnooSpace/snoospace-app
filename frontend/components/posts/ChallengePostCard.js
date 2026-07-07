@@ -703,13 +703,29 @@ const ChallengePostCard = React.memo(({
     });
   };
 
+  const tapTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (tapTimeoutRef.current) {
+        clearTimeout(tapTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const handleDoubleTap = (event) => {
     if (isSharedPreview) {
       if (onPress) onPress();
       return;
     }
     const now = Date.now();
-    if (now - lastTapRef.current < 300) {
+    const DOUBLE_TAP_DELAY = 300;
+
+    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+      if (tapTimeoutRef.current) {
+        clearTimeout(tapTimeoutRef.current);
+        tapTimeoutRef.current = null;
+      }
       const { pageX, pageY } = event.nativeEvent;
       cardRef.current?.measure((x, y, width, height, cardPageX, cardPageY) => {
         const relativeX = pageX - cardPageX;
@@ -721,8 +737,17 @@ const ChallengePostCard = React.memo(({
       } else {
         HapticsService.triggerImpactLight();
       }
+      lastTapRef.current = 0;
+    } else {
+      lastTapRef.current = now;
+      if (tapTimeoutRef.current) {
+        clearTimeout(tapTimeoutRef.current);
+      }
+      tapTimeoutRef.current = setTimeout(() => {
+        navigation.navigate("ChallengeSubmissions", { post });
+        tapTimeoutRef.current = null;
+      }, DOUBLE_TAP_DELAY);
     }
-    lastTapRef.current = now;
   };
 
   const handleUserPress = () => {
