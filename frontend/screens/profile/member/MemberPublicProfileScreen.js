@@ -270,7 +270,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [renderedPostsLimit, setRenderedPostsLimit] = useState(12);
   const [renderedEventsLimit, setRenderedEventsLimit] = useState(3);
-  const [renderedCommunityLimit, setRenderedCommunityLimit] = useState(2);
+  const [renderedCommunityLimit, setRenderedCommunityLimit] = useState(6);
   const [error, setError] = useState("");
   const [posts, setPosts] = useState([]);
   const [preResolvedConversationId, setPreResolvedConversationId] = useState(null);
@@ -334,6 +334,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [loadingVoicePosts, setLoadingVoicePosts] = useState(false);
   const communityPostsFetchedRef = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [communityFilter, setCommunityFilter] = useState("all"); // 'all' | 'owner' | 'members'
 
   const scrollViewRef = useRef(null);
   const scrollToPostIdRef = useRef(route?.params?.postId);
@@ -638,12 +639,12 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     if (paramTab && ["posts", "community", "events"].includes(paramTab)) {
       setRenderedPostsLimit(12);
       setRenderedEventsLimit(3);
-      setRenderedCommunityLimit(2);
+      setRenderedCommunityLimit(6);
       setRenderedProfileTab(null);
       setActiveProfileTab(paramTab);
-      InteractionManager.runAfterInteractions(() => {
+      setTimeout(() => {
         setRenderedProfileTab(paramTab);
-      });
+      }, 50);
       if (paramTab === "community" && !communityPostsFetchedRef.current) {
         communityPostsFetchedRef.current = true;
         loadCommunityVoicePosts();
@@ -1322,11 +1323,29 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   setRenderedEventsLimit((prev) => prev + 5);
                 }
               } else if (activeProfileTab === "community") {
-                const interactivePostsCount = posts.filter((p) =>
+                const interactivePosts = posts.filter((p) =>
                   ["poll", "prompt", "qna", "challenge", "opportunity"].includes(p.post_type || p.type)
-                ).length;
-                const totalCommunity = interactivePostsCount + voicePosts.length;
-                if (renderedCommunityLimit < totalCommunity) {
+                );
+                const filteredCount = [...interactivePosts, ...voicePosts].filter((item) => {
+                  if (communityFilter === "all") return true;
+
+                  const isInteractive = ["poll", "prompt", "qna", "challenge", "opportunity"].includes(item.post_type || item.type);
+                  const isAnon = item.type_data?.is_anonymous === true || item.is_anonymous === true;
+                  const isOwnerGenerated = isInteractive || (
+                    item.itemType === "voice" &&
+                    !isAnon &&
+                    String(item.author_id) === String(profile?.id) &&
+                    item.author_type === "member"
+                  );
+
+                  if (communityFilter === "owner") {
+                    return isOwnerGenerated;
+                  } else {
+                    return !isOwnerGenerated;
+                  }
+                }).length;
+
+                if (renderedCommunityLimit < filteredCount) {
                   setRenderedCommunityLimit((prev) => prev + 5);
                 }
               }
@@ -2052,23 +2071,23 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   HapticsService.triggerImpactLight();
                   setRenderedPostsLimit(12);
                   setRenderedEventsLimit(3);
-                  setRenderedCommunityLimit(2);
+                  setRenderedCommunityLimit(6);
                   setRenderedProfileTab(null);
                   setActiveProfileTab(tab);
-                  InteractionManager.runAfterInteractions(() => {
+                  setTimeout(() => {
                     setRenderedProfileTab(tab);
-                  });
+                  }, 50);
                   if (tab === 'events' && !eventsFetchedRef.current) {
                     eventsFetchedRef.current = true;
-                    InteractionManager.runAfterInteractions(() => {
+                    setTimeout(() => {
                       loadPublicMemberEvents();
-                    });
+                    }, 50);
                   }
                   if (tab === 'community' && !communityPostsFetchedRef.current) {
                     communityPostsFetchedRef.current = true;
-                    InteractionManager.runAfterInteractions(() => {
+                    setTimeout(() => {
                       loadCommunityVoicePosts();
-                    });
+                    }, 50);
                   }
                 }}
               >
@@ -2190,13 +2209,62 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
 
                 const mappedVoicePosts = voicePosts.map((vp) => ({ ...vp, itemType: "voice" }));
                 const allCommunityItems = [...sortedInteractive, ...mappedVoicePosts];
-                const visibleCommunityItems = allCommunityItems.slice(0, renderedCommunityLimit);
+
+                // Filter items
+                const filteredCommunityItems = allCommunityItems.filter((item) => {
+                  if (communityFilter === "all") return true;
+
+                  // Owner check
+                  const isAnon = item.type_data?.is_anonymous === true || item.is_anonymous === true;
+                  const isOwnerGenerated = item.itemType === "interactive" || (
+                    item.itemType === "voice" &&
+                    !isAnon &&
+                    String(item.author_id) === String(profile?.id) &&
+                    item.author_type === "member"
+                  );
+
+                  if (communityFilter === "owner") {
+                    return isOwnerGenerated;
+                  } else if (communityFilter === "members") {
+                    return !isOwnerGenerated;
+                  }
+                  return true;
+                });
+
+                const visibleCommunityItems = filteredCommunityItems.slice(0, renderedCommunityLimit);
 
                 return (
                   <>
-                    {visibleCommunityItems.map((item) => {
-                      if (item.itemType === "interactive") {
-                        const postType = item.post_type || item.type;
+                    {/* Filter pills */}
+                    <View style={styles.filterContainer}>
+                      {[
+                        { label: "All", value: "all" },
+                        { label: "Creator", value: "owner" },
+                        { label: "Members", value: "members" },
+                      ].map((opt) => {
+                        const isActive = communityFilter === opt.value;
+                        return (
+                          <TouchableOpacity
+                            key={opt.value}
+                            style={[styles.filterPill, isActive && styles.filterPillActive]}
+                            onPress={() => {
+                              HapticsService.triggerImpactLight();
+                              setCommunityFilter(opt.value);
+                              setRenderedCommunityLimit(6); // reset limit
+                            }}
+                          >
+                            <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
+                              {opt.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {visibleCommunityItems.length > 0 ? (
+                      visibleCommunityItems.map((item) => {
+                        if (item.itemType === "interactive") {
+                          const postType = item.post_type || item.type;
                         if (postType === 'opportunity') {
                           return (
                             <View
@@ -2285,13 +2353,22 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                             </View>
                           );
                         }
-                      })}
+                      })
+                      ) : (
+                        allCommunityItems.length > 0 && (
+                          <View style={styles.filterEmptyContainer}>
+                            <Text style={styles.filterEmptyText}>
+                              No posts found in this category.
+                            </Text>
+                          </View>
+                        )
+                      )}
                       {loadingVoicePosts && voicePosts.length === 0 && (
                         <View style={{ paddingVertical: 20, alignItems: 'center' }}>
                           <SnooLoader size="small" color={COLORS.primary} />
                         </View>
                       )}
-                      {renderedCommunityLimit < allCommunityItems.length && (
+                      {renderedCommunityLimit < filteredCommunityItems.length && (
                         <View style={{ paddingVertical: 20, alignItems: "center" }}>
                           <SnooLoader size="small" color={PRIMARY_COLOR} />
                         </View>
@@ -2985,6 +3062,43 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 12,
     color: "#3565F2",
+  },
+  filterContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  filterPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  filterPillActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  filterText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  filterTextActive: {
+    color: "#FFFFFF",
+    fontFamily: FONTS.semiBold,
+  },
+  filterEmptyContainer: {
+    paddingVertical: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterEmptyText: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.textSecondary,
   },
 });
 

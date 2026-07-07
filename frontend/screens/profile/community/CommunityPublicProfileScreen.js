@@ -569,6 +569,43 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#3565F2",
   },
+  filterContainer: {
+    flexDirection: "row",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  filterPill: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  filterPillActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  filterText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  filterTextActive: {
+    color: "#FFFFFF",
+    fontFamily: FONTS.semiBold,
+  },
+  filterEmptyContainer: {
+    paddingVertical: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  filterEmptyText: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+  },
 });
 
 const CommunityPublicPostGridCell = React.memo(({ item, itemSize, onPress }) => {
@@ -954,7 +991,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const [renderedTab, setRenderedTab] = useState("posts");
   const [renderedPostsLimit, setRenderedPostsLimit] = useState(12);
   const [renderedEventsLimit, setRenderedEventsLimit] = useState(3);
-  const [renderedCommunityLimit, setRenderedCommunityLimit] = useState(2);
+  const [renderedCommunityLimit, setRenderedCommunityLimit] = useState(6);
   const [communityEvents, setCommunityEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(false);
 
@@ -962,6 +999,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
   const [voicePosts, setVoicePosts] = useState([]);
   const [loadingVoicePosts, setLoadingVoicePosts] = useState(false);
   const communityVoiceFetchedRef = useRef(false);
+  const [communityFilter, setCommunityFilter] = useState("all"); // 'all' | 'owner' | 'members'
 
   const scrollViewRef = useRef(null);
   const scrollToPostIdRef = useRef(route?.params?.postId);
@@ -995,12 +1033,12 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     if (paramTab && ["posts", "community", "events"].includes(paramTab)) {
       setRenderedPostsLimit(12);
       setRenderedEventsLimit(3);
-      setRenderedCommunityLimit(2);
+      setRenderedCommunityLimit(6);
       setRenderedTab(null);
       setActiveTab(paramTab);
-      InteractionManager.runAfterInteractions(() => {
+      setTimeout(() => {
         setRenderedTab(paramTab);
-      });
+      }, 50);
       if (paramTab === "community" && !communityVoiceFetchedRef.current) {
         communityVoiceFetchedRef.current = true;
         loadCommunityVoicePosts();
@@ -1671,13 +1709,29 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
           setRenderedEventsLimit((prev) => prev + 5);
         }
       } else if (activeTab === "community") {
-        const interactivePostsCount = posts.filter((p) =>
-          ["poll", "prompt", "qna", "challenge", "opportunity"].includes(
-            p.post_type || p.type
-          )
-        ).length;
-        const totalCommunity = interactivePostsCount + voicePosts.length;
-        if (renderedCommunityLimit < totalCommunity) {
+        const interactivePosts = posts.filter((p) =>
+          ["poll", "prompt", "qna", "challenge", "opportunity"].includes(p.post_type || p.type)
+        );
+        const filteredCount = [...interactivePosts, ...voicePosts].filter((item) => {
+          if (communityFilter === "all") return true;
+
+          const isInteractive = ["poll", "prompt", "qna", "challenge", "opportunity"].includes(item.post_type || item.type);
+          const isAnon = item.type_data?.is_anonymous === true || item.is_anonymous === true;
+          const isOwnerGenerated = isInteractive || (
+            item.itemType === "voice" &&
+            !isAnon &&
+            String(item.author_id) === String(profile?.id || communityId) &&
+            item.author_type === "community"
+          );
+
+          if (communityFilter === "owner") {
+            return isOwnerGenerated;
+          } else {
+            return !isOwnerGenerated;
+          }
+        }).length;
+
+        if (renderedCommunityLimit < filteredCount) {
           setRenderedCommunityLimit((prev) => prev + 5);
         }
       }
@@ -1690,6 +1744,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
     communityEvents.length,
     renderedCommunityLimit,
     voicePosts.length,
+    communityFilter,
   ]);
 
   if (loading) {
@@ -2380,18 +2435,19 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                 HapticsService.triggerImpactLight();
                 setRenderedPostsLimit(12);
                 setRenderedEventsLimit(3);
-                setRenderedCommunityLimit(2);
+                setRenderedCommunityLimit(6);
+
                 setRenderedTab(null);
                 setActiveTab(tab);
-                InteractionManager.runAfterInteractions(() => {
+                setTimeout(() => {
                   setRenderedTab(tab);
-                });
+                }, 50);
                 // Lazy-load voice posts when Community tab first opened
                 if (tab === 'community' && !communityVoiceFetchedRef.current) {
                   communityVoiceFetchedRef.current = true;
-                  InteractionManager.runAfterInteractions(() => {
+                  setTimeout(() => {
                     loadCommunityVoicePosts();
-                  });
+                  }, 50);
                 }
               }}
               onLayout={(e) => handleTabLayout(tab, e)}
@@ -2516,7 +2572,29 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                   itemType: "voice",
                 }));
                 const allItems = [...mappedInteractive, ...mappedVoice];
-                const visibleItems = allItems.slice(0, renderedCommunityLimit);
+
+                // Filter items
+                const filteredItems = allItems.filter((item) => {
+                  if (communityFilter === "all") return true;
+
+                  // Owner check
+                  const isAnon = item.type_data?.is_anonymous === true || item.is_anonymous === true;
+                  const isOwnerGenerated = item.itemType === "interactive" || (
+                    item.itemType === "voice" &&
+                    !isAnon &&
+                    String(item.author_id) === String(profile?.id || communityId) &&
+                    item.author_type === "community"
+                  );
+
+                  if (communityFilter === "owner") {
+                    return isOwnerGenerated;
+                  } else if (communityFilter === "members") {
+                    return !isOwnerGenerated;
+                  }
+                  return true;
+                });
+
+                const visibleItems = filteredItems.slice(0, renderedCommunityLimit);
 
                 const visibleInteractive = visibleItems
                   .filter((item) => item.itemType === "interactive")
@@ -2542,6 +2620,40 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                         setVoicePosts((prev) => [newPost, ...prev]);
                       }}
                     />
+
+                    {/* Filter pills */}
+                    <View style={styles.filterContainer}>
+                      {[
+                        { label: "All", value: "all" },
+                        { label: "Community", value: "owner" },
+                        { label: "Members", value: "members" },
+                      ].map((opt) => {
+                        const isActive = communityFilter === opt.value;
+                        return (
+                          <TouchableOpacity
+                            key={opt.value}
+                            style={[styles.filterPill, isActive && styles.filterPillActive]}
+                            onPress={() => {
+                              HapticsService.triggerImpactLight();
+                              setCommunityFilter(opt.value);
+                              setRenderedCommunityLimit(6); // reset limit
+                            }}
+                          >
+                            <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
+                              {opt.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {filteredItems.length === 0 && allItems.length > 0 && (
+                      <View style={styles.filterEmptyContainer}>
+                        <Text style={styles.filterEmptyText}>
+                          No posts found in this category.
+                        </Text>
+                      </View>
+                    )}
 
                     {/* Community's own interactive posts */}
                     {visibleInteractive.length > 0 && (
@@ -2673,7 +2785,7 @@ export default function CommunityPublicProfileScreen({ route, navigation }) {
                     {sortedPosts.length === 0 && voicePosts.length === 0 && !loadingVoicePosts && (
                       <EmptyCommunityState isOwnProfile={false} />
                     )}
-                    {renderedCommunityLimit < allItems.length && (
+                    {renderedCommunityLimit < filteredItems.length && (
                       <View style={{ paddingVertical: 20, alignItems: "center" }}>
                         <SnooLoader size="small" color={PRIMARY_COLOR} />
                       </View>
