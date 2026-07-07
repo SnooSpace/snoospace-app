@@ -16,7 +16,7 @@ import CommentsModal from "./CommentsModal";
 import ShareModal from "./ShareModal";
 import DeletePostModal from "./DeletePostModal";
 import { VideoProvider } from "../context/VideoContext";
-import { COLORS, SPACING } from "../constants/theme";
+import { COLORS, SPACING, FONTS } from "../constants/theme";
 
 // Defined OUTSIDE ProfilePostFeed to prevent recreation on every render.
 // If defined inside, React treats it as a new component type each render,
@@ -214,6 +214,7 @@ const ProfilePostFeed = ({
             viewabilityConfig={viewabilityConfig}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}
+            style={{ backgroundColor: COLORS.background }}
           />
 
           {/* Comments Modal */}
@@ -273,9 +274,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: SPACING.m,
     paddingVertical: SPACING.s,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.background,
     zIndex: 10,
   },
   backButton: {
@@ -283,7 +282,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: "600",
+    fontFamily: FONTS.black,
     color: COLORS.textPrimary,
   },
   listContent: {
