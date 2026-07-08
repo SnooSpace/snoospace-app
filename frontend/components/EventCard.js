@@ -922,13 +922,141 @@ function EventCard({
 
           {/* Clickable Content Area */}
           <View>
-            {/* Title */}
-            <Text
-              style={[styles.title, compact && styles.titleCompact]}
-              numberOfLines={2}
-            >
-              {title}
-            </Text>
+            {/* Title & Attendees Row */}
+            <View style={[styles.titleRow, compact && styles.titleRowCompact]}>
+              <Text
+                style={[styles.title, compact && styles.titleCompact, { flex: 1, marginRight: 8 }]}
+                numberOfLines={2}
+              >
+                {title}
+              </Text>
+              
+              {compact && attendee_count > 0 && (
+                <TouchableOpacity
+                  style={styles.attendeesContainer}
+                  onPress={handleAttendeesPress}
+                  activeOpacity={0.7}
+                >
+                  {(() => {
+                    const hasAvatars =
+                      Array.isArray(event.attendee_avatars) &&
+                      event.attendee_avatars.length > 0;
+                    const shownCount = hasAvatars
+                      ? Math.min(event.attendee_avatars.length, 3)
+                      : Math.min(attendee_count, 3);
+                    const remainingCount = attendee_count - shownCount;
+                    return (
+                      <>
+                        <View
+                          style={[
+                            styles.avatarStack,
+                            styles.avatarStackCompact,
+                          ]}
+                        >
+                          {hasAvatars ? (
+                            event.attendee_avatars
+                              .slice(0, 3)
+                              .map((avatarData, index) => {
+                                const hasPhoto =
+                                  avatarData?.profile_photo_url &&
+                                  /^https?:\/\//.test(
+                                    avatarData.profile_photo_url,
+                                  );
+                                const zIndex = 3 - index;
+                                const marginLeft =
+                                  index > 0 ? -6 : 0;
+                                if (hasPhoto) {
+                                  return (
+                                    <Image
+                                      key={`attendee-avatar-compact-${index}`}
+                                      source={{
+                                        uri: avatarData.profile_photo_url,
+                                      }}
+                                      style={[
+                                        styles.avatar,
+                                        styles.avatarCompact,
+                                        { marginLeft, zIndex },
+                                      ]}
+                                    />
+                                  );
+                                } else {
+                                  const initials = getInitials(
+                                    avatarData?.name || "U",
+                                  );
+                                  const gradientColors = getGradientForName(
+                                    avatarData?.name || "U",
+                                  );
+                                  return (
+                                    <LinearGradient
+                                      key={`attendee-avatar-compact-${index}`}
+                                      colors={gradientColors}
+                                      start={{ x: 0, y: 0 }}
+                                      end={{ x: 1, y: 1 }}
+                                      style={[
+                                        styles.avatar,
+                                        styles.avatarGradient,
+                                        styles.avatarCompact,
+                                        { marginLeft, zIndex },
+                                      ]}
+                                    >
+                                      <Text style={styles.avatarInitials}>
+                                        {initials}
+                                      </Text>
+                                    </LinearGradient>
+                                  );
+                                }
+                              })
+                          ) : (
+                            <>
+                              {attendee_count >= 1 && (
+                                <View
+                                  style={[
+                                    styles.avatar,
+                                    styles.avatarCompact,
+                                    { backgroundColor: "#E5E7EB", zIndex: 3 },
+                                  ]}
+                                />
+                              )}
+                              {attendee_count >= 2 && (
+                                <View
+                                  style={[
+                                    styles.avatar,
+                                    styles.avatarCompact,
+                                    {
+                                      backgroundColor: "#D1D5DB",
+                                      marginLeft: -6,
+                                      zIndex: 2,
+                                    },
+                                  ]}
+                                />
+                              )}
+                              {attendee_count >= 3 && (
+                                <View
+                                  style={[
+                                    styles.avatar,
+                                    styles.avatarCompact,
+                                    {
+                                      backgroundColor: "#9CA3AF",
+                                      marginLeft: -6,
+                                      zIndex: 1,
+                                    },
+                                  ]}
+                                />
+                              )}
+                            </>
+                          )}
+                        </View>
+                        {remainingCount > 0 && (
+                          <Text style={styles.attendeeCount}>
+                            {`+${remainingCount}`}
+                          </Text>
+                        )}
+                      </>
+                    );
+                  })()}
+                </TouchableOpacity>
+              )}
+            </View>
 
             {/* Metadata Grid */}
             {compact ? (
@@ -1006,178 +1134,182 @@ function EventCard({
           )}
 
           {/* Bottom Row: Attendees Stack + RSVP CTA Button */}
-          <View style={[styles.bottomRow, compact && styles.bottomRowCompact]}>
-            {/* Attendee Stack */}
-            <TouchableOpacity
-              style={styles.attendeesContainer}
-              onPress={handleAttendeesPress}
-              activeOpacity={0.7}
-            >
-              {attendee_count > 0 ? (
-                (() => {
-                  const hasAvatars =
-                    Array.isArray(event.attendee_avatars) &&
-                    event.attendee_avatars.length > 0;
-                  const shownCount = hasAvatars
-                    ? Math.min(event.attendee_avatars.length, 3)
-                    : Math.min(attendee_count, 3);
-                  const remainingCount = attendee_count - shownCount;
-                  return (
-                    <>
-                      <View
-                        style={[
-                          styles.avatarStack,
-                          compact && styles.avatarStackCompact,
-                        ]}
-                      >
-                        {hasAvatars ? (
-                          event.attendee_avatars
-                            .slice(0, 3)
-                            .map((avatarData, index) => {
-                              const hasPhoto =
-                                avatarData?.profile_photo_url &&
-                                /^https?:\/\//.test(
-                                  avatarData.profile_photo_url,
-                                );
-                              const zIndex = 3 - index;
-                              const marginLeft =
-                                index > 0 ? (compact ? -6 : -8) : 0;
-                              if (hasPhoto) {
-                                return (
-                                  <Image
-                                    key={`attendee-avatar-${index}`}
-                                    source={{
-                                      uri: avatarData.profile_photo_url,
-                                    }}
+          {(!compact || (userRole !== "community" && !hideRsvp)) && (
+            <View style={[styles.bottomRow, compact && styles.bottomRowCompact]}>
+              {/* Attendee Stack */}
+              {!compact && (
+                <TouchableOpacity
+                  style={styles.attendeesContainer}
+                  onPress={handleAttendeesPress}
+                  activeOpacity={0.7}
+                >
+                  {attendee_count > 0 ? (
+                    (() => {
+                      const hasAvatars =
+                        Array.isArray(event.attendee_avatars) &&
+                        event.attendee_avatars.length > 0;
+                      const shownCount = hasAvatars
+                        ? Math.min(event.attendee_avatars.length, 3)
+                        : Math.min(attendee_count, 3);
+                      const remainingCount = attendee_count - shownCount;
+                      return (
+                        <>
+                          <View
+                            style={[
+                              styles.avatarStack,
+                              compact && styles.avatarStackCompact,
+                            ]}
+                          >
+                            {hasAvatars ? (
+                              event.attendee_avatars
+                                .slice(0, 3)
+                                .map((avatarData, index) => {
+                                  const hasPhoto =
+                                    avatarData?.profile_photo_url &&
+                                    /^https?:\/\//.test(
+                                      avatarData.profile_photo_url,
+                                    );
+                                  const zIndex = 3 - index;
+                                  const marginLeft =
+                                    index > 0 ? (compact ? -6 : -8) : 0;
+                                  if (hasPhoto) {
+                                    return (
+                                      <Image
+                                        key={`attendee-avatar-${index}`}
+                                        source={{
+                                          uri: avatarData.profile_photo_url,
+                                        }}
+                                        style={[
+                                          styles.avatar,
+                                          compact && styles.avatarCompact,
+                                          { marginLeft, zIndex },
+                                        ]}
+                                      />
+                                    );
+                                  } else {
+                                    const initials = getInitials(
+                                      avatarData?.name || "U",
+                                    );
+                                    const gradientColors = getGradientForName(
+                                      avatarData?.name || "U",
+                                    );
+                                    return (
+                                      <LinearGradient
+                                        key={`attendee-avatar-${index}`}
+                                        colors={gradientColors}
+                                        start={{ x: 0, y: 0 }}
+                                        end={{ x: 1, y: 1 }}
+                                        style={[
+                                          styles.avatar,
+                                          styles.avatarGradient,
+                                          compact && styles.avatarCompact,
+                                          { marginLeft, zIndex },
+                                        ]}
+                                      >
+                                        <Text style={styles.avatarInitials}>
+                                          {initials}
+                                        </Text>
+                                      </LinearGradient>
+                                    );
+                                  }
+                                })
+                            ) : (
+                              // Fallback placeholders when no actual attendee profiles are loaded
+                              <>
+                                {attendee_count >= 1 && (
+                                  <View
                                     style={[
                                       styles.avatar,
                                       compact && styles.avatarCompact,
-                                      { marginLeft, zIndex },
+                                      { backgroundColor: "#E5E7EB", zIndex: 3 },
                                     ]}
                                   />
-                                );
-                              } else {
-                                const initials = getInitials(
-                                  avatarData?.name || "U",
-                                );
-                                const gradientColors = getGradientForName(
-                                  avatarData?.name || "U",
-                                );
-                                return (
-                                  <LinearGradient
-                                    key={`attendee-avatar-${index}`}
-                                    colors={gradientColors}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 1 }}
+                                )}
+                                {attendee_count >= 2 && (
+                                  <View
                                     style={[
                                       styles.avatar,
-                                      styles.avatarGradient,
                                       compact && styles.avatarCompact,
-                                      { marginLeft, zIndex },
+                                      {
+                                        backgroundColor: "#D1D5DB",
+                                        marginLeft: compact ? -6 : -8,
+                                        zIndex: 2,
+                                      },
                                     ]}
-                                  >
-                                    <Text style={styles.avatarInitials}>
-                                      {initials}
-                                    </Text>
-                                  </LinearGradient>
-                                );
-                              }
-                            })
-                        ) : (
-                          // Fallback placeholders when no actual attendee profiles are loaded
-                          <>
-                            {attendee_count >= 1 && (
-                              <View
-                                style={[
-                                  styles.avatar,
-                                  compact && styles.avatarCompact,
-                                  { backgroundColor: "#E5E7EB", zIndex: 3 },
-                                ]}
-                              />
+                                  />
+                                )}
+                                {attendee_count >= 3 && (
+                                  <View
+                                    style={[
+                                      styles.avatar,
+                                      compact && styles.avatarCompact,
+                                      {
+                                        backgroundColor: "#9CA3AF",
+                                        marginLeft: compact ? -6 : -8,
+                                        zIndex: 1,
+                                      },
+                                    ]}
+                                  />
+                                )}
+                              </>
                             )}
-                            {attendee_count >= 2 && (
-                              <View
-                                style={[
-                                  styles.avatar,
-                                  compact && styles.avatarCompact,
-                                  {
-                                    backgroundColor: "#D1D5DB",
-                                    marginLeft: compact ? -6 : -8,
-                                    zIndex: 2,
-                                  },
-                                ]}
-                              />
-                            )}
-                            {attendee_count >= 3 && (
-                              <View
-                                style={[
-                                  styles.avatar,
-                                  compact && styles.avatarCompact,
-                                  {
-                                    backgroundColor: "#9CA3AF",
-                                    marginLeft: compact ? -6 : -8,
-                                    zIndex: 1,
-                                  },
-                                ]}
-                              />
-                            )}
-                          </>
-                        )}
-                      </View>
-                      {remainingCount > 0 && (
-                        <Text style={styles.attendeeCount}>
-                          {`+${remainingCount}`}
-                        </Text>
-                      )}
-                    </>
-                  );
-                })()
-              ) : (
-                <View style={{ height: compact ? 20 : 24 }} />
+                          </View>
+                          {remainingCount > 0 && (
+                            <Text style={styles.attendeeCount}>
+                              {`+${remainingCount}`}
+                            </Text>
+                          )}
+                        </>
+                      );
+                    })()
+                  ) : (
+                    <View style={{ height: compact ? 20 : 24 }} />
+                  )}
+                </TouchableOpacity>
               )}
-            </TouchableOpacity>
 
-            {/* Action CTA Button */}
-            {userRole !== "community" && !hideRsvp && (
-              <>
-                {isRegistered ? (
-                  <View style={[styles.interestedButton, styles.goingButton]}>
-                    <CheckCircle2 size={14} color="#16A34A" strokeWidth={2.2} />
-                    <Text style={styles.goingText}>Going</Text>
-                  </View>
-                ) : (
-                  <TouchableOpacity
-                    key={`interest-btn-${isInterested}`}
-                    style={[
-                      styles.interestedButton,
-                      isInterested === true && styles.interestedButtonActive,
-                    ]}
-                    onPress={handleInterestedPress}
-                    disabled={interestLoading}
-                  >
-                    {isInterested === true ? (
-                      <View style={styles.interestedActiveContent}>
-                        <Check size={14} color="#16A34A" strokeWidth={2.2} />
-                        <Text style={styles.interestedActiveText}>
-                          Marked as Interested
-                        </Text>
-                      </View>
-                    ) : (
-                      <LinearGradient
-                        colors={COLORS.primaryGradient}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={styles.interestedGradient}
-                      >
-                        <Star size={14} color="#FFFFFF" strokeWidth={2.2} />
-                        <Text style={styles.interestedText}>Interest?</Text>
-                      </LinearGradient>
-                    )}
-                  </TouchableOpacity>
-                )}
-              </>
-            )}
-          </View>
+              {/* Action CTA Button */}
+              {userRole !== "community" && !hideRsvp && (
+                <>
+                  {isRegistered ? (
+                    <View style={[styles.interestedButton, styles.goingButton]}>
+                      <CheckCircle2 size={14} color="#16A34A" strokeWidth={2.2} />
+                      <Text style={styles.goingText}>Going</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      key={`interest-btn-${isInterested}`}
+                      style={[
+                        styles.interestedButton,
+                        isInterested === true && styles.interestedButtonActive,
+                      ]}
+                      onPress={handleInterestedPress}
+                      disabled={interestLoading}
+                    >
+                      {isInterested === true ? (
+                        <View style={styles.interestedActiveContent}>
+                          <Check size={14} color="#16A34A" strokeWidth={2.2} />
+                          <Text style={styles.interestedActiveText}>
+                            Marked as Interested
+                          </Text>
+                        </View>
+                      ) : (
+                        <LinearGradient
+                          colors={COLORS.primaryGradient}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={styles.interestedGradient}
+                        >
+                          <Star size={14} color="#FFFFFF" strokeWidth={2.2} />
+                          <Text style={styles.interestedText}>Interest?</Text>
+                        </LinearGradient>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
+            </View>
+          )}
 
           {/* Engagement Row */}
           {!hideEngagement && (
@@ -1674,10 +1806,18 @@ const styles = StyleSheet.create({
   communityNameCompact: {
     fontSize: 11,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  titleRowCompact: {
+    marginBottom: 4,
+  },
   titleCompact: {
     fontSize: 15,
     lineHeight: 18,
-    marginBottom: 6,
+    marginBottom: 0,
   },
   metaGridCompact: {
     marginBottom: 8,

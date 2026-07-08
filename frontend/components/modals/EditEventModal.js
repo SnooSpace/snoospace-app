@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Modal,
   View,
@@ -209,6 +209,9 @@ export default function EditEventModal({
   const [highlights, setHighlights] = useState([]);
   const [featuredAccounts, setFeaturedAccounts] = useState([]);
   const [thingsToKnow, setThingsToKnow] = useState([]);
+
+  // UI Scroll Locks
+  const [parentScrollEnabled, setParentScrollEnabled] = useState(true);
 
   // Date picker states
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -569,6 +572,7 @@ export default function EditEventModal({
             ref={scrollViewRef}
             style={styles.stepContent}
             contentContainerStyle={{ paddingBottom: 120 }}
+            scrollEnabled={parentScrollEnabled}
           >
             <View style={styles.sectionHeaderNew}>
               <View style={styles.sectionHeaderTitleRow}>
@@ -1108,6 +1112,7 @@ export default function EditEventModal({
                     scrollViewRef.current?.scrollToEnd({ animated: true });
                   }, 100);
                 }}
+                setParentScrollEnabled={setParentScrollEnabled}
               />
             </View>
           </ScrollView>

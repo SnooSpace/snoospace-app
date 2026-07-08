@@ -13,14 +13,16 @@ import {
   Dumbbell,
   Palette as Art,
   Clapperboard,
-  Utensils,
+  UtensilsCrossed,
   Mountain,
   Gamepad2,
   PartyPopper,
+  Car,
+  PawPrint,
   Zap,
 } from "lucide-react-native";
 
-// Interest Categories Configuration
+// Interest Categories Configuration matching updated "My Vibes" spec
 export const INTEREST_CATEGORIES = {
   LIFESTYLE: {
     label: "Lifestyle",
@@ -28,18 +30,12 @@ export const INTEREST_CATEGORIES = {
     text: "#E65100",
     icon: User,
     keywords: [
-      "lifestyle",
-      "dating",
       "fashion",
-      "volunteer",
-      "cars",
-      "bikes",
-      "driving",
-      "meditation",
-      "apparel",
-      "merch",
-      "clothing",
-      "gear",
+      "volunteering",
+      "beauty & skincare",
+      "minimalism & sustainable living",
+      "home & design",
+      "spirituality"
     ],
   },
   SPORTS: {
@@ -48,19 +44,17 @@ export const INTEREST_CATEGORIES = {
     text: "#1565C0",
     icon: Dumbbell,
     keywords: [
-      "sport",
-      "gym",
-      "run",
+      "sports",
       "fitness",
-      "yoga",
-      "football",
-      "basketball",
-      "cricket",
+      "run club",
       "badminton",
+      "basketball",
+      "football",
       "cycling",
-      "protein",
-      "supplement",
-      "nutrition",
+      "yoga",
+      "gym & weightlifting",
+      "swimming",
+      "martial arts"
     ],
   },
   ARTS: {
@@ -69,15 +63,13 @@ export const INTEREST_CATEGORIES = {
     text: "#C2185B",
     icon: Art,
     keywords: [
-      "art",
-      "design",
-      "creative",
-      "draw",
-      "paint",
-      "write",
-      "photo",
-      "culture",
-      "history",
+      "art & culture",
+      "photography",
+      "theatre & drama",
+      "poetry & writing",
+      "dance",
+      "design & architecture",
+      "crafts & diy"
     ],
   },
   ENTERTAINMENT: {
@@ -86,36 +78,29 @@ export const INTEREST_CATEGORIES = {
     text: "#7B1FA2",
     icon: Clapperboard,
     keywords: [
-      "movie",
-      "film",
       "music",
-      "concert",
-      "book",
-      "read",
-      "netflix",
-      "cinema",
-      "show",
-      "anime",
-      "manga",
+      "movies",
+      "books",
+      "tv & streaming",
+      "anime & comics",
+      "board games",
+      "stand-up comedy",
+      "k-pop"
     ],
   },
   FOOD: {
     label: "Food & Drink",
     bg: "#FFF8E1", // Amber
     text: "#F57F17",
-    icon: Utensils,
+    icon: UtensilsCrossed,
     keywords: [
-      "food",
-      "cook",
-      "bake",
-      "drink",
-      "coffee",
-      "cafe",
-      "bar",
-      "wine",
-      "beer",
-      "dining",
-      "energy drink",
+      "food & drink",
+      "bar hopping",
+      "cafe hopping",
+      "foodie",
+      "drinks",
+      "home cooking & baking",
+      "vegan & vegetarian"
     ],
   },
   OUTDOORS: {
@@ -124,14 +109,13 @@ export const INTEREST_CATEGORIES = {
     text: "#2E7D32",
     icon: Mountain,
     keywords: [
-      "nature",
-      "hike",
-      "camp",
       "travel",
       "adventure",
-      "explore",
-      "mountain",
-      "beach",
+      "camping",
+      "hiking & trekking",
+      "backpacking",
+      "road trips",
+      "beach & water sports"
     ],
   },
   TECH: {
@@ -140,18 +124,12 @@ export const INTEREST_CATEGORIES = {
     text: "#006064",
     icon: Gamepad2,
     keywords: [
-      "tech",
-      "game",
+      "technology",
       "gaming",
-      "code",
-      "ai",
-      "pc",
-      "console",
-      "science",
-      "data",
-      "hardware",
-      "software",
-      "web3",
+      "esports",
+      "ai & data science",
+      "startups & entrepreneurship",
+      "vr & ar"
     ],
   },
   SOCIAL: {
@@ -160,14 +138,36 @@ export const INTEREST_CATEGORIES = {
     text: "#4527A0",
     icon: PartyPopper,
     keywords: [
-      "social",
-      "party",
-      "club",
-      "event",
-      "meetup",
-      "chat",
-      "friends",
       "networking",
+      "making friends",
+      "coffee chats",
+      "public speaking",
+      "language exchange",
+      "speed friending",
+      "dating"
+    ],
+  },
+  AUTOMOTIVE: {
+    label: "Automotive",
+    bg: "#F1F5F9", // Slate grey
+    text: "#475569",
+    icon: Car,
+    keywords: [
+      "cars",
+      "bikes",
+      "motorsport fandom",
+      "ev & sustainable mobility"
+    ],
+  },
+  PETS: {
+    label: "Pets & Animals",
+    bg: "#ECFDF5", // Light emerald
+    text: "#047857",
+    icon: PawPrint,
+    keywords: [
+      "dog owner",
+      "cat owner",
+      "pet adoption & rescue"
     ],
   },
   DEFAULT: {
@@ -181,18 +181,13 @@ export const INTEREST_CATEGORIES = {
 
 export const getInterestStyle = (interest) => {
   if (!interest) return INTEREST_CATEGORIES.DEFAULT;
-  const lower = interest.toLowerCase();
-
-  // Special overrides
-  if (lower.includes("bar hopping") || lower.includes("cafe"))
-    return INTEREST_CATEGORIES.FOOD;
-  if (lower.includes("run")) return INTEREST_CATEGORIES.SPORTS;
+  const lower = interest.toLowerCase().trim();
 
   for (const key in INTEREST_CATEGORIES) {
     const category = INTEREST_CATEGORIES[key];
     if (
       category.keywords.some((k) => lower.includes(k)) ||
-      key === interest.toUpperCase()
+      key === interest.toUpperCase().trim()
     ) {
       return category;
     }

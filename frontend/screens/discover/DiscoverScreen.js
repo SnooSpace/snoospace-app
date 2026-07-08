@@ -21,7 +21,6 @@ import {
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width * 0.75;
-const PEOPLE_CARD_WIDTH = width * 0.4;
 const COMMUNITY_CARD_WIDTH = width * 0.35;
 
 const EDGES = ["top"];
@@ -92,6 +91,20 @@ export default function DiscoverScreen({ navigation }) {
             role: "Marketing Head",
             interests: ["Growth", "Brand"],
             image: "https://i.pravatar.cc/150?u=maya",
+          },
+          {
+            id: 4,
+            name: "Alex Rivera",
+            role: "Designer",
+            interests: ["UI", "UX"],
+            image: "https://i.pravatar.cc/150?u=alex",
+          },
+          {
+            id: 5,
+            name: "Jordan Taylor",
+            role: "Engineer",
+            interests: ["Mobile", "React"],
+            image: "https://i.pravatar.cc/150?u=jordan",
           },
         ]);
         hasLoadedRef.current = true;
@@ -252,6 +265,7 @@ export default function DiscoverScreen({ navigation }) {
           <DiscoverScreenPersonCard
             key={person.id}
             person={person}
+            onPress={() => navigation.navigate("MemberPublicProfile", { memberId: person.id })}
           />
         ))}
       </ScrollView>
@@ -391,25 +405,13 @@ const TribeCard = React.memo(({ community, onPress }) => (
   </TouchableOpacity>
 ));
 
-const DiscoverScreenPersonCard = React.memo(({ person }) => (
+const DiscoverScreenPersonCard = React.memo(({ person, onPress }) => (
   <TouchableOpacity
-    style={styles.personCard}
-    activeOpacity={0.9}
+    style={styles.personCircleContainer}
+    activeOpacity={0.8}
+    onPress={onPress}
   >
-    <Image source={{ uri: person.image }} style={styles.personImage} cachePolicy="memory-disk" />
-    <Text style={styles.personName} numberOfLines={1}>
-      {person.name}
-    </Text>
-    <Text style={styles.personRole} numberOfLines={1}>
-      {person.role}
-    </Text>
-    <View style={styles.interestsContainer}>
-      {person.interests.map((interest, index) => (
-        <View key={index} style={styles.interestTag}>
-          <Text style={styles.interestText}>#{interest}</Text>
-        </View>
-      ))}
-    </View>
+    <Image source={{ uri: person.image }} style={styles.personCircleImage} cachePolicy="memory-disk" />
   </TouchableOpacity>
 ));
 
@@ -578,54 +580,16 @@ const styles = StyleSheet.create({
   },
 
   // People Section
-  personCard: {
-    width: PEOPLE_CARD_WIDTH,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.xl,
-    padding: SPACING.m,
+  personCircleContainer: {
     alignItems: "center",
-    ...SHADOWS.sm,
-    marginVertical: 4, // Space for shadow
-  },
-  personImage: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    marginBottom: SPACING.s,
-    backgroundColor: COLORS.textMuted,
-  },
-  personName: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 14,
-    color: COLORS.textPrimary,
-    textAlign: "center",
-    marginBottom: 2,
-  },
-  personRole: {
-    fontFamily: FONTS.regular,
-    fontSize: 11,
-    color: COLORS.textSecondary,
-    textAlign: "center",
-    marginBottom: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  interestsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     justifyContent: "center",
-    gap: 6,
+    marginVertical: 4,
   },
-  interestTag: {
-    backgroundColor: "#F3F4F6",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  interestText: {
-    fontFamily: FONTS.medium,
-    fontSize: 10,
-    color: COLORS.textSecondary,
+  personCircleImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: COLORS.textMuted,
   },
 
   // Recommended Events Section

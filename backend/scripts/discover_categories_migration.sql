@@ -1,16 +1,12 @@
 -- ============================================
--- DISCOVER CATEGORIES & ADMIN SYSTEM MIGRATION
--- Run this script in pgAdmin Query Tool
+-- DISCOVER CATEGORIES MIGRATION
 -- ============================================
 
--- ============================================
--- 1. DISCOVER CATEGORIES (Admin-managed)
--- ============================================
 CREATE TABLE IF NOT EXISTS discover_categories (
   id BIGSERIAL PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,           -- "Christmas Parties", "New Year Events"
   slug TEXT NOT NULL UNIQUE,           -- "christmas-parties" (URL-friendly)
-  icon_name TEXT,                      -- Ionicons name for display
+  icon_name TEXT,                      -- Ionicons or Lucide name for display
   description TEXT,
   display_order INTEGER DEFAULT 0,     -- Admin-controlled order
   is_active BOOLEAN DEFAULT true,
@@ -23,250 +19,242 @@ CREATE TABLE IF NOT EXISTS discover_categories (
 CREATE INDEX IF NOT EXISTS idx_discover_categories_active ON discover_categories(is_active, display_order);
 CREATE INDEX IF NOT EXISTS idx_discover_categories_visibility ON discover_categories(visible_from, visible_until);
 
--- ============================================
--- 2. EVENT CATEGORIES (Many-to-Many Junction)
--- ============================================
-CREATE TABLE IF NOT EXISTS event_discover_categories (
-  id BIGSERIAL PRIMARY KEY,
-  event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
-  category_id BIGINT NOT NULL REFERENCES discover_categories(id) ON DELETE CASCADE,
-  is_featured BOOLEAN DEFAULT false,   -- Admin can feature in category
-  display_order INTEGER DEFAULT 0,     -- Order within category
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(event_id, category_id)
-);
-CREATE INDEX IF NOT EXISTS idx_event_discover_categories_event ON event_discover_categories(event_id);
-CREATE INDEX IF NOT EXISTS idx_event_discover_categories_category ON event_discover_categories(category_id);
-CREATE INDEX IF NOT EXISTS idx_event_discover_categories_featured ON event_discover_categories(is_featured) WHERE is_featured = true;
+-- Deactivate existing categories before updating active ones
+UPDATE discover_categories SET is_active = false;
 
--- ============================================
--- 3. SIGNUP INTERESTS (Dynamic, Admin-managed)
--- ============================================
-CREATE TABLE IF NOT EXISTS signup_interests (
-  id BIGSERIAL PRIMARY KEY,
-  label TEXT NOT NULL UNIQUE,
-  icon_name TEXT,
-  display_order INTEGER DEFAULT 0,
-  is_active BOOLEAN DEFAULT true,
-  user_type TEXT DEFAULT 'all',        -- 'member', 'sponsor', 'venue', 'all'
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Seed with current hardcoded interests
-INSERT INTO signup_interests (label, display_order) VALUES
-  ('Sports', 1), ('Music', 2), ('Technology', 3), ('Travel', 4),
-  ('Food & Drink', 5), ('Art & Culture', 6), ('Fitness', 7), ('Gaming', 8),
-  ('Movies', 9), ('Books', 10), ('Fashion', 11), ('Photography', 12),
-  ('Outdoors', 13), ('Volunteering', 14), ('Networking', 15)
-ON CONFLICT (label) DO NOTHING;
-
--- ============================================
--- 4. ADMIN USERS
--- ============================================
-CREATE TABLE IF NOT EXISTS admins (
-  id BIGSERIAL PRIMARY KEY,
-  email TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  name TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'moderator', -- 'super_admin', 'moderator', 'analytics_viewer'
-  is_active BOOLEAN DEFAULT true,
-  last_login_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_admins_email ON admins(email);
-
--- ============================================
--- 5. ADMIN AUDIT LOG
--- ============================================
-CREATE TABLE IF NOT EXISTS admin_audit_log (
-  id BIGSERIAL PRIMARY KEY,
-  admin_id BIGINT REFERENCES admins(id),
-  action TEXT NOT NULL,           -- 'user_ban', 'category_create', 'event_feature'
-  target_type TEXT,                    -- 'member', 'community', 'event', 'category'
-  target_id BIGINT,
-  details JSONB,                       -- Additional context
-  ip_address TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_audit_log_admin ON admin_audit_log(admin_id);
-CREATE INDEX IF NOT EXISTS idx_audit_log_action ON admin_audit_log(action);
-CREATE INDEX IF NOT EXISTS idx_audit_log_target ON admin_audit_log(target_type, target_id);
-CREATE INDEX IF NOT EXISTS idx_audit_log_created ON admin_audit_log(created_at DESC);
-
--- ============================================
--- 6. ANALYTICS: User Sessions
--- ============================================
-CREATE TABLE IF NOT EXISTS user_sessions (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL,
-  user_type TEXT NOT NULL,
-  device_id TEXT,
-  device_type TEXT,                    -- 'ios', 'android'
-  app_version TEXT,
-  started_at TIMESTAMPTZ DEFAULT NOW(),
-  ended_at TIMESTAMPTZ,
-  duration_seconds INTEGER,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id, user_type);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_started ON user_sessions(started_at);
-
--- ============================================
--- 7. ANALYTICS: User Events (Actions)
--- ============================================
-CREATE TABLE IF NOT EXISTS user_events (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL,
-  user_type TEXT NOT NULL,
-  session_id BIGINT REFERENCES user_sessions(id),
-  event_type TEXT NOT NULL,            -- 'screen_view', 'button_click', 'search', etc.
-  event_name TEXT NOT NULL,            -- 'home_feed_viewed', 'event_purchased', etc.
-  properties JSONB,                    -- Event-specific data
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_user_events_user ON user_events(user_id, user_type);
-CREATE INDEX IF NOT EXISTS idx_user_events_type ON user_events(event_type);
-CREATE INDEX IF NOT EXISTS idx_user_events_name ON user_events(event_name);
-CREATE INDEX IF NOT EXISTS idx_user_events_created ON user_events(created_at);
-
--- ============================================
--- 8. ANALYTICS: Daily Aggregates
--- ============================================
-CREATE TABLE IF NOT EXISTS analytics_daily (
-  id BIGSERIAL PRIMARY KEY,
-  date DATE NOT NULL UNIQUE,
-  dau INTEGER DEFAULT 0,               -- Daily Active Users
-  new_users INTEGER DEFAULT 0,
-  new_members INTEGER DEFAULT 0,
-  new_communities INTEGER DEFAULT 0,
-  new_sponsors INTEGER DEFAULT 0,
-  new_venues INTEGER DEFAULT 0,
-  posts_created INTEGER DEFAULT 0,
-  events_created INTEGER DEFAULT 0,
-  tickets_sold INTEGER DEFAULT 0,
-  revenue DECIMAL(12,2) DEFAULT 0,
-  avg_session_duration INTEGER DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_analytics_daily_date ON analytics_daily(date DESC);
-
--- ============================================
--- 9. MODERATION: Reports
--- ============================================
-CREATE TABLE IF NOT EXISTS reports (
-  id BIGSERIAL PRIMARY KEY,
-  reporter_id BIGINT NOT NULL,
-  reporter_type TEXT NOT NULL,
-  target_type TEXT NOT NULL,           -- 'post', 'comment', 'event', 'member', 'community'
-  target_id BIGINT NOT NULL,
-  reason TEXT NOT NULL,
-  description TEXT,
-  status TEXT DEFAULT 'pending',       -- 'pending', 'reviewed', 'actioned', 'dismissed'
-  reviewed_by BIGINT REFERENCES admins(id),
-  reviewed_at TIMESTAMPTZ,
-  action_taken TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
-CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(reported_type, reported_id);
-CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at DESC);
-
--- ============================================
--- 10. MODERATION: User Bans
--- ============================================
-CREATE TABLE IF NOT EXISTS user_bans (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL,
-  user_type TEXT NOT NULL,
-  ban_type TEXT NOT NULL,              -- 'warning', 'temporary', 'permanent'
-  reason TEXT NOT NULL,
-  banned_by BIGINT REFERENCES admins(id),
-  expires_at TIMESTAMPTZ,              -- NULL for permanent
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_user_bans_user ON user_bans(user_id, user_type, is_active);
-CREATE INDEX IF NOT EXISTS idx_user_bans_active ON user_bans(is_active) WHERE is_active = true;
-
--- ============================================
--- 11. PUSH NOTIFICATION TOKENS
--- ============================================
-CREATE TABLE IF NOT EXISTS push_tokens (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL,
-  user_type TEXT NOT NULL,
-  expo_push_token TEXT NOT NULL,
-  device_id TEXT,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user_id, user_type, device_id)
-);
-CREATE INDEX IF NOT EXISTS idx_push_tokens_user ON push_tokens(user_id, user_type);
-CREATE INDEX IF NOT EXISTS idx_push_tokens_active ON push_tokens(is_active) WHERE is_active = true;
-
--- ============================================
--- 12. SUBSCRIPTIONS (for tracking)
--- ============================================
-CREATE TABLE IF NOT EXISTS subscriptions (
-  id BIGSERIAL PRIMARY KEY,
-  user_id BIGINT NOT NULL,
-  user_type TEXT NOT NULL,
-  plan_name TEXT NOT NULL,
-  price DECIMAL(10,2) NOT NULL,
-  started_at TIMESTAMPTZ NOT NULL,
-  expires_at TIMESTAMPTZ NOT NULL,
-  is_active BOOLEAN DEFAULT true,
-  payment_provider TEXT,               -- 'razorpay', 'stripe', etc.
-  payment_id TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id, user_type);
-CREATE INDEX IF NOT EXISTS idx_subscriptions_active ON subscriptions(is_active, expires_at);
-
--- ============================================
--- 13. SEED INITIAL DISCOVER CATEGORIES
--- ============================================
+-- Insert or reactivate discover categories
 INSERT INTO discover_categories (name, slug, icon_name, display_order, is_active) VALUES
-  ('Christmas Parties', 'christmas-parties', 'gift-outline', 1, true),
-  ('New Year Parties', 'new-year-parties', 'sparkles-outline', 2, true),
-  ('Music Events', 'music-events', 'musical-notes-outline', 3, true),
-  ('Food & Dining', 'food-dining', 'restaurant-outline', 4, true),
-  ('Sports & Fitness', 'sports-fitness', 'fitness-outline', 5, true),
-  ('Art & Culture', 'art-culture', 'color-palette-outline', 6, true),
-  ('Tech & Networking', 'tech-networking', 'code-slash-outline', 7, true),
-  ('Gaming', 'gaming', 'game-controller-outline', 8, true),
-  ('Outdoor Adventures', 'outdoor-adventures', 'trail-sign-outline', 9, true),
-  ('Workshops & Learning', 'workshops-learning', 'school-outline', 10, true)
-ON CONFLICT (name) DO NOTHING;
+  -- Seasonal & Holiday
+  ('Christmas Parties', 'christmas-parties', 'gift', 1, true),
+  ('New Year Parties', 'new-year-parties', 'sparkles', 2, true),
+  ('Diwali Celebrations', 'diwali-celebrations', 'flame', 3, true),
+  ('Holi Celebrations', 'holi-celebrations', 'droplets', 4, true),
+  ('Halloween Parties', 'halloween-parties', 'ghost', 5, true),
+  ('Valentine''s Day Events', 'valentines-day-events', 'heart', 6, true),
+  ('Onam Celebrations', 'onam-celebrations', 'flower-2', 7, true),
+  ('Ganesh Chaturthi', 'ganesh-chaturthi', 'landmark', 8, true),
+  ('Eid Celebrations', 'eid-celebrations', 'moon-star', 9, true),
+  ('Navratri & Garba Nights', 'navratri-garba-nights', 'disc-3', 10, true),
+  ('Christmas Markets', 'christmas-markets', 'shopping-bag', 11, true),
+  ('Summer Festivals', 'summer-festivals', 'sun', 12, true),
+  ('Pongal & Sankranti', 'pongal-sankranti', 'sun', 13, true),
+  ('Durga Puja', 'durga-puja', 'flame', 14, true),
+  ('Baisakhi', 'baisakhi', 'wheat', 15, true),
+  ('Ugadi & Gudi Padwa', 'ugadi-gudi-padwa', 'flower-2', 16, true),
+  ('Ramzan & Iftar Gatherings', 'ramzan-iftar-gatherings', 'moon-star', 17, true),
 
--- ============================================
--- VERIFICATION QUERY
--- ============================================
-SELECT 
-  'discover_categories' as table_name,
-  COUNT(*) as row_count
-FROM discover_categories
+  -- Music
+  ('Music Events', 'music-events', 'music', 18, true),
+  ('Live Concerts', 'live-concerts', 'mic-2', 19, true),
+  ('Open Mic Nights', 'open-mic-nights', 'mic', 20, true),
+  ('DJ Nights', 'dj-nights', 'disc', 21, true),
+  ('EDM & Electronic', 'edm-electronic', 'waves', 22, true),
+  ('Indie & Alternative', 'indie-alternative', 'guitar', 23, true),
+  ('Classical & Fusion', 'classical-fusion', 'music-4', 24, true),
+  ('Karaoke Nights', 'karaoke-nights', 'mic-vocal', 25, true),
+  ('Battle of Bands', 'battle-of-bands', 'swords', 26, true),
 
-UNION ALL
+  -- Food & Dining
+  ('Food & Dining', 'food-dining', 'utensils-crossed', 27, true),
+  ('Food Festivals', 'food-festivals', 'soup', 28, true),
+  ('Wine & Spirits Tasting', 'wine-spirits-tasting', 'wine', 29, true),
+  ('Coffee & Cafe Meetups', 'coffee-cafe-meetups', 'coffee', 30, true),
+  ('Cooking Classes', 'cooking-classes', 'chef-hat', 31, true),
+  ('Pop-up Restaurants', 'pop-up-restaurants', 'store', 32, true),
+  ('Street Food Walks', 'street-food-walks', 'cookie', 33, true),
+  ('Brunches & Potlucks', 'brunches-potlucks', 'sandwich', 34, true),
 
-SELECT 
-  'signup_interests' as table_name,
-  COUNT(*) as row_count
-FROM signup_interests
+  -- Sports & Fitness
+  ('Sports & Fitness', 'sports-fitness', 'heart-pulse', 35, true),
+  ('Run Clubs', 'run-clubs', 'footprints', 36, true),
+  ('Cycling Groups', 'cycling-groups', 'bike', 37, true),
+  ('Yoga & Meditation', 'yoga-meditation', 'flower', 38, true),
+  ('CrossFit & HIIT', 'crossfit-hiit', 'dumbbell', 39, true),
+  ('Football & Cricket Meetups', 'football-cricket-meetups', 'trophy', 40, true),
+  ('Adventure Sports', 'adventure-sports', 'mountain-snow', 41, true),
+  ('Swimming & Water Sports', 'swimming-water-sports', 'waves', 42, true),
+  ('Marathons & Fitness Challenges', 'marathons-fitness-challenges', 'medal', 43, true),
 
-UNION ALL
+  -- Tech & Startup
+  ('Tech & Networking', 'tech-networking', 'code', 44, true),
+  ('Hackathons', 'hackathons', 'terminal', 45, true),
+  ('Startup Meetups', 'startup-meetups', 'rocket', 46, true),
+  ('AI & ML Meetups', 'ai-ml-meetups', 'brain-circuit', 47, true),
+  ('Web3 & Blockchain', 'web3-blockchain', 'link', 48, true),
+  ('Product & Design Meetups', 'product-design-meetups', 'pen-tool', 49, true),
+  ('Developer Conferences', 'developer-conferences', 'laptop', 50, true),
+  ('Women in Tech', 'women-in-tech', 'users', 51, true),
 
-SELECT 
-  'admins' as table_name,
-  COUNT(*) as row_count
-FROM admins;
+  -- Gaming & Esports
+  ('Gaming', 'gaming', 'gamepad-2', 52, true),
+  ('LAN Parties', 'lan-parties', 'server', 53, true),
+  ('Esports Tournaments', 'esports-tournaments', 'trophy', 54, true),
+  ('Board Game Nights', 'board-game-nights', 'dice-5', 55, true),
+  ('Tabletop RPG', 'tabletop-rpg', 'swords', 56, true),
+  ('VR & AR Experiences', 'vr-ar-experiences', 'glasses', 57, true),
+  ('Mobile Gaming Meetups', 'mobile-gaming-meetups', 'smartphone', 58, true),
 
--- ============================================
--- EXPECTED RESULTS:
--- discover_categories: 10 rows (seeded categories)
--- signup_interests: 15 rows (seeded interests)
--- admins: 0 rows (will be created via admin panel)
--- ============================================
+  -- Outdoors & Adventure
+  ('Outdoor Adventures', 'outdoor-adventures', 'tent', 59, true),
+  ('Hiking & Trekking', 'hiking-trekking', 'mountain', 60, true),
+  ('Camping', 'camping', 'tent', 61, true),
+  ('Road Trips', 'road-trips', 'car', 62, true),
+  ('Nature Walks', 'nature-walks', 'trees', 63, true),
+  ('Rock Climbing', 'rock-climbing', 'mountain-snow', 64, true),
+  ('Cycling Expeditions', 'cycling-expeditions', 'bike', 65, true),
+
+  -- Arts & Culture
+  ('Art & Culture', 'art-culture', 'palette', 66, true),
+  ('Art Exhibitions', 'art-exhibitions', 'image', 67, true),
+  ('Poetry & Spoken Word', 'poetry-spoken-word', 'book-open', 68, true),
+  ('Dance Performances', 'dance-performances', 'activity', 69, true),
+  ('Theatre & Drama', 'theatre-drama', 'clapperboard', 70, true),
+  ('Photography Walks', 'photography-walks', 'camera', 71, true),
+  ('Craft & DIY Workshops', 'craft-diy-workshops', 'scissors', 72, true),
+  ('Museum Tours', 'museum-tours', 'landmark', 73, true),
+
+  -- Education & Workshops
+  ('Workshops & Learning', 'workshops-learning', 'graduation-cap', 74, true),
+  ('Skill-building Workshops', 'skill-building-workshops', 'wrench', 75, true),
+  ('Language Exchange', 'language-exchange', 'languages', 76, true),
+  ('Book Clubs', 'book-clubs', 'book', 77, true),
+  ('Public Speaking & Toastmasters', 'public-speaking-toastmasters', 'mic', 78, true),
+  ('Finance & Investing Talks', 'finance-investing-talks', 'line-chart', 79, true),
+
+  -- Nightlife & Parties
+  ('Nightlife & Parties', 'nightlife-parties', 'martini', 80, true),
+  ('Club Nights', 'club-nights', 'disc', 81, true),
+  ('House Parties', 'house-parties', 'home', 82, true),
+  ('Rooftop Parties', 'rooftop-parties', 'building', 83, true),
+  ('Themed Costume Parties', 'themed-costume-parties', 'drama', 84, true),
+  ('Silent Discos', 'silent-discos', 'headphones', 85, true),
+  ('Pool Parties', 'pool-parties', 'waves', 86, true),
+  ('Beach Parties', 'beach-parties', 'sun', 87, true),
+
+  -- Wellness & Mindfulness
+  ('Wellness & Mindfulness', 'wellness-mindfulness', 'heart-handshake', 88, true),
+  ('Meditation Retreats', 'meditation-retreats', 'flower', 89, true),
+  ('Sound Healing', 'sound-healing', 'waves', 90, true),
+  ('Mental Health Support Circles', 'mental-health-support-circles', 'hand-heart', 91, true),
+  ('Spa & Self-care Days', 'spa-self-care-days', 'sparkles', 92, true),
+
+  -- Networking & Professional
+  ('Networking Mixers', 'networking-mixers', 'users', 93, true),
+  ('Career Fairs', 'career-fairs', 'briefcase', 94, true),
+  ('Industry Conferences', 'industry-conferences', 'presentation', 95, true),
+  ('Panel Discussions', 'panel-discussions', 'mic', 96, true),
+  ('Alumni Meetups', 'alumni-meetups', 'school', 97, true),
+  ('Freelancer Meetups', 'freelancer-meetups', 'laptop', 98, true),
+
+  -- Community & Social Causes
+  ('Volunteering & Charity', 'volunteering-charity', 'hand-heart', 99, true),
+  ('Environmental Clean-ups', 'environmental-clean-ups', 'leaf', 100, true),
+  ('Fundraisers', 'fundraisers', 'piggy-bank', 101, true),
+  ('Blood Donation Drives', 'blood-donation-drives', 'droplet', 102, true),
+  ('Awareness Campaigns', 'awareness-campaigns', 'megaphone', 103, true),
+  ('Community Service', 'community-service', 'users', 104, true),
+
+  -- Family & Kids
+  ('Family & Kids Events', 'family-kids-events', 'baby', 105, true),
+  ('Parenting Meetups', 'parenting-meetups', 'users', 106, true),
+  ('Kids'' Workshops', 'kids-workshops', 'puzzle', 107, true),
+  ('Family Picnics', 'family-picnics', 'sandwich', 108, true),
+  ('School Events', 'school-events', 'school', 109, true),
+  ('Summer Camps', 'summer-camps', 'tent', 110, true),
+  ('Story-time & Reading Sessions', 'story-time-reading-sessions', 'book-open', 111, true),
+
+  -- Hobbies & Clubs
+  ('Photography Clubs', 'photography-clubs', 'camera', 112, true),
+  ('Chess Clubs', 'chess-clubs', 'crown', 113, true),
+  ('Gardening Meetups', 'gardening-meetups', 'sprout', 114, true),
+  ('Pottery & Crafts', 'pottery-crafts', 'hammer', 115, true),
+  ('Knitting & Sewing Circles', 'knitting-sewing-circles', 'scissors', 116, true),
+  ('Astronomy & Stargazing', 'astronomy-stargazing', 'telescope', 117, true),
+
+  -- Comedy & Entertainment
+  ('Comedy Shows', 'comedy-shows', 'laugh', 118, true),
+  ('Stand-up Open Mics', 'stand-up-open-mics', 'mic', 119, true),
+  ('Improv Nights', 'improv-nights', 'drama', 120, true),
+  ('Trivia Nights', 'trivia-nights', 'brain', 121, true),
+  ('Magic Shows', 'magic-shows', 'wand-2', 122, true),
+
+  -- Film & Media
+  ('Film Screenings', 'film-screenings', 'clapperboard', 123, true),
+  ('Film Festivals', 'film-festivals', 'film', 124, true),
+  ('Podcast Recordings & Live Shows', 'podcast-recordings-live-shows', 'podcast', 125, true),
+  ('Content Creator Meetups', 'content-creator-meetups', 'video', 126, true),
+
+  -- Fashion & Lifestyle
+  ('Fashion Shows', 'fashion-shows', 'shirt', 127, true),
+  ('Styling Workshops', 'styling-workshops', 'scissors', 128, true),
+  ('Beauty Pop-ups', 'beauty-pop-ups', 'sparkles', 129, true),
+  ('Thrift & Swap Meets', 'thrift-swap-meets', 'shopping-bag', 130, true),
+
+  -- Travel & Exploration
+  ('Travel Meetups', 'travel-meetups', 'plane', 131, true),
+  ('Backpacking Groups', 'backpacking-groups', 'backpack', 132, true),
+  ('City Exploration Walks', 'city-exploration-walks', 'map', 133, true),
+  ('Weekend Getaways', 'weekend-getaways', 'compass', 134, true),
+
+  -- Religious & Spiritual
+  ('Religious Gatherings', 'religious-gatherings', 'church', 135, true),
+  ('Satsangs', 'satsangs', 'flame', 136, true),
+  ('Spiritual Retreats', 'spiritual-retreats', 'mountain', 137, true),
+  ('Interfaith Dialogues', 'interfaith-dialogues', 'users', 138, true),
+
+  -- College & Campus
+  ('College Fests', 'college-fests', 'school', 139, true),
+  ('Campus Hackathons', 'campus-hackathons', 'terminal', 140, true),
+  ('Freshers'' Parties', 'freshers-parties', 'party-popper', 141, true),
+  ('Farewell Parties', 'farewell-parties', 'heart', 142, true),
+  ('Cultural Fests', 'cultural-fests', 'drama', 143, true),
+
+  -- Pets & Animals
+  ('Pet Meetups', 'pet-meetups', 'paw-print', 144, true),
+  ('Dog Park Meetups', 'dog-park-meetups', 'footprints', 145, true),
+  ('Dog Walking Groups', 'dog-walking-groups', 'footprints', 146, true),
+  ('Cat Meetups', 'cat-meetups', 'paw-print', 147, true),
+  ('Pet Adoption Drives', 'pet-adoption-drives', 'heart', 148, true),
+  ('Pet-friendly Cafes & Events', 'pet-friendly-cafes-events', 'coffee', 149, true),
+  ('Pet Training Workshops', 'pet-training-workshops', 'graduation-cap', 150, true),
+  ('Animal Shelter Volunteering', 'animal-shelter-volunteering', 'hand-heart', 151, true),
+  ('Pet Shows & Expos', 'pet-shows-expos', 'trophy', 152, true),
+
+  -- Automotive & Motorsports
+  ('Car Meetups', 'car-meetups', 'car', 153, true),
+  ('Bike Rallies', 'bike-rallies', 'bike', 154, true),
+  ('Motorsport Watch Parties', 'motorsport-watch-parties', 'flag', 155, true),
+
+  -- Markets & Pop-ups
+  ('Flea Markets', 'flea-markets', 'shopping-bag', 156, true),
+  ('Night Markets', 'night-markets', 'moon', 157, true),
+  ('Artisan Pop-ups', 'artisan-pop-ups', 'store', 158, true),
+  ('Farmers Markets', 'farmers-markets', 'carrot', 159, true),
+
+  -- Casual Meetups & Making Friends
+  ('Casual Hangouts', 'casual-hangouts', 'users', 160, true),
+  ('Coffee Chats & 1:1 Meetups', 'coffee-chats-1-1-meetups', 'coffee', 161, true),
+  ('Speed Friending', 'speed-friending', 'shuffle', 162, true),
+  ('Singles Mixers', 'singles-mixers', 'heart', 163, true),
+  ('Speed Dating', 'speed-dating', 'clock', 164, true),
+  ('Blind Date Events', 'blind-date-events', 'eye-off', 165, true),
+  ('Newcomer & Relocation Meetups', 'newcomer-relocation-meetups', 'map-pin', 166, true),
+  ('Study & Co-working Sessions', 'study-co-working-sessions', 'book-open-check', 167, true),
+  ('Icebreaker Socials', 'icebreaker-socials', 'snowflake', 168, true),
+
+  -- Celebrations & Milestones (New Group)
+  ('Birthday Parties', 'birthday-parties', 'gift', 169, true),
+  ('Anniversary Celebrations', 'anniversary-celebrations', 'heart', 170, true),
+  ('Baby Showers', 'baby-showers', 'baby', 171, true),
+  ('Engagement Parties', 'engagement-parties', 'gem', 172, true),
+  ('Bachelor & Bachelorette Parties', 'bachelor-bachelorette-parties', 'party-popper', 173, true),
+  ('Retirement Parties', 'retirement-parties', 'briefcase', 174, true),
+  ('Reunions', 'reunions', 'users', 175, true),
+
+  -- Business & Corporate (New Group)
+  ('Product Launches', 'product-launches', 'rocket', 176, true),
+  ('Trade Shows & Expos', 'trade-shows-expos', 'store', 177, true),
+  ('Corporate Team Outings', 'corporate-team-outings', 'users', 178, true),
+  ('Corporate Training', 'corporate-training', 'graduation-cap', 179, true),
+  ('Award Ceremonies', 'award-ceremonies', 'trophy', 180, true)
+ON CONFLICT (name) DO UPDATE SET is_active = true, display_order = EXCLUDED.display_order, slug = EXCLUDED.slug, icon_name = EXCLUDED.icon_name;

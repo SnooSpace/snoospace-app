@@ -39,7 +39,7 @@ import EmailChangeModal from "../../../components/EmailChangeModal";
 import LocationPicker from "../../../components/LocationPicker/LocationPicker";
 import ActionSheet from "../../../components/modals/ActionSheet";
 import {
-  COMMUNITY_CATEGORIES_CONFIG,
+  COMMUNITY_CATEGORIES_HIERARCHY,
   getCategoryStyle,
 } from "./EditCommunityProfileConstants";
 
@@ -75,21 +75,121 @@ if (
 
 
 const CATEGORIES = [
-  "Sports",
   "Music",
-  "Technology",
-  "Travel",
-  "Food & Drink",
   "Art & Culture",
-  "Fitness",
-  "Gaming",
   "Movies",
   "Books",
-  "Fashion",
   "Photography",
+  "Theatre & Drama",
+  "Poetry & Writing",
+  "Dance",
+  "Design & Architecture",
+  "Crafts & DIY",
+  "Fashion & Style",
+  "Beauty & Skincare",
+  "Streetwear & Sneakers",
+  "Luxury & Design",
+  "Thrifting & Vintage",
+  "Modeling",
   "Outdoors",
+  "Wellness & Mindfulness",
+  "Spirituality",
+  "Minimalism & Sustainable Living",
+  "Sports",
+  "Fitness",
+  "Gaming",
+  "Running",
+  "Cycling",
+  "Yoga",
+  "Esports",
+  "Adventure Sports",
+  "Gym & Weightlifting",
+  "Bodybuilding",
+  "CrossFit & HIIT",
+  "Calisthenics",
+  "Martial Arts",
+  "Swimming",
+  "Technology",
   "Volunteering",
-  "Networking",
+  "Entrepreneurship & Startups",
+  "Finance & Investing",
+  "Marketing & Growth",
+  "Product & UX Design",
+  "Career Development",
+  "AI & Data Science",
+  "Consulting",
+  "Real Estate",
+  "Legal & Policy",
+  "Casual Hangouts",
+  "Making Friends",
+  "Coffee Chats",
+  "Language Exchange",
+  "Newcomers & Relocation",
+  "Study & Co-working",
+  "Singles & Dating",
+  "Speed Friending",
+  "Expats & International Community",
+  "Neighborhood & Local Community",
+  "College Life",
+  "Study Groups",
+  "Research & Academia",
+  "Competitive Exams",
+  "Skill Development",
+  "Public Speaking",
+  "Test Prep (GRE, GMAT, CAT)",
+  "Higher Education Abroad",
+  "Women's Community",
+  "Men's Community",
+  "LGBTQ+",
+  "Cultural & Regional Groups",
+  "Faith & Religion",
+  "Parents & Family",
+  "Alumni Networks",
+  "Differently-abled Community",
+  "Senior & 50+ Community",
+  "Anime & Comics",
+  "Board Games",
+  "TV & Streaming",
+  "Music Fandom",
+  "Sports Fandom",
+  "K-pop",
+  "Cosplay",
+  "Streaming & Content Creation",
+  "Environment & Sustainability",
+  "Social Impact",
+  "Animal Welfare",
+  "Civic Engagement",
+  "Human Rights",
+  "Education Access",
+  "Car Enthusiasts",
+  "Bike & Motorcycle",
+  "Motorsport Fandom",
+  "EV & Sustainable Mobility",
+  "Road Trips & Rallies",
+  "Detailing & Modification",
+  "Foodies & Restaurants",
+  "Home Cooking & Baking",
+  "Wine & Spirits",
+  "Coffee Culture",
+  "Vegan & Vegetarian",
+  "Food Blogging & Reviewing",
+  "Backpacking",
+  "Solo Travel",
+  "Luxury Travel",
+  "Road Trips",
+  "Digital Nomads",
+  "Travel Photography",
+  "Dog Owners",
+  "Cat Lovers",
+  "Pet Adoption & Rescue",
+  "Exotic Pets",
+  "Pet Training",
+  "Pet-friendly Meetups",
+  "Mental Health Support",
+  "Chronic Illness Support",
+  "Nutrition & Diet",
+  "Sober & Recovery Community",
+  "New Parents Support"
 ];
 
 export default function EditCommunityProfileScreen({ route, navigation }) {
@@ -754,46 +854,39 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
             {/* Category Groups */}
             <View style={styles.categoriesContainer}>
-              {Object.keys(COMMUNITY_CATEGORIES_CONFIG)
-                .filter((key) => key !== "DEFAULT")
-                .map((key) => {
-                  const categoryConfig = COMMUNITY_CATEGORIES_CONFIG[key];
-                  const isExpanded = expandedCategory === key;
-                  const Icon = categoryConfig.icon;
+              {COMMUNITY_CATEGORIES_HIERARCHY.map((group) => {
+                  const groupKey = group.group;
+                  const isExpanded = expandedCategory === groupKey;
+                  const Icon = group.icon;
 
                   // Filter predefined categories (basic list + matches)
                   const categoryItems = CATEGORIES.filter((c) => {
-                    const style = getCategoryStyle(c);
-                    // Match if style matches current config block, excluding already selected
-                    return (
-                      style.label === categoryConfig.label &&
-                      !categories.includes(c)
-                    );
+                    const inGroup = group.tags.some((t) => t.name.toLowerCase() === c.toLowerCase().trim());
+                    return inGroup && !categories.includes(c);
                   });
 
                   const hasAnyItems = CATEGORIES.some((c) => {
-                    const style = getCategoryStyle(c);
-                    return style.label === categoryConfig.label;
+                    return group.tags.some((t) => t.name.toLowerCase() === c.toLowerCase().trim());
                   });
 
                   if (!hasAnyItems) return null;
 
                   return (
-                    <View key={key} style={styles.categoryRow}>
+                    <View key={groupKey} style={styles.categoryRow}>
                       <TouchableOpacity
                         activeOpacity={0.7}
                         onPress={() => {
                           LayoutAnimation.configureNext(
                             LayoutAnimation.Presets.easeInEaseOut,
                           );
-                          setExpandedCategory(isExpanded ? null : key);
+                          setExpandedCategory(isExpanded ? null : groupKey);
                         }}
                         style={[
                           styles.categoryHeader,
                           isExpanded && styles.categoryHeaderExpanded,
                           {
                             backgroundColor: isExpanded
-                              ? categoryConfig.bg
+                              ? group.bg
                               : "transparent",
                           },
                         ]}
@@ -802,21 +895,21 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
                           <View
                             style={[
                               styles.categoryIcon,
-                              { backgroundColor: categoryConfig.bg },
+                              { backgroundColor: group.bg },
                             ]}
                           >
-                            <Icon size={14} color={categoryConfig.text} />
+                            <Icon size={14} color={group.text} />
                           </View>
                           <Text
                             style={[
                               styles.categoryTitle,
                               isExpanded && {
-                                color: categoryConfig.text,
+                                color: group.text,
                                 fontWeight: "600",
                               },
                             ]}
                           >
-                            {categoryConfig.label}
+                            {group.group}
                           </Text>
                         </View>
                         {isExpanded ? (

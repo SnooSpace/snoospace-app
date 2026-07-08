@@ -20,6 +20,7 @@ export function getCategoryColor(slug, id) {
   if (CATEGORY_COLORS[cleanSlug]) {
     return CATEGORY_COLORS[cleanSlug];
   }
-  const index = (id || 0) % DEFAULT_COLORS.length;
+  const parsedId = parseInt(id, 10);
+  const index = (isNaN(parsedId) ? 0 : Math.abs(parsedId)) % DEFAULT_COLORS.length;
   return DEFAULT_COLORS[index];
 }

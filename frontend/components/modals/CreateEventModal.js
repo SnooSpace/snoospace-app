@@ -290,6 +290,7 @@ const CreateEventModal = ({
   const [mapPickerVisible, setMapPickerVisible] = useState(false);
 
   // UI States
+  const [parentScrollEnabled, setParentScrollEnabled] = useState(true);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
@@ -802,6 +803,7 @@ const CreateEventModal = ({
             ref={scrollViewRef}
             style={styles.stepContent}
             contentContainerStyle={{ paddingBottom: 120 }}
+            scrollEnabled={parentScrollEnabled}
           >
             <View style={styles.sectionHeaderNew}>
               <View style={styles.sectionHeaderTitleRow}>
@@ -1557,6 +1559,7 @@ const CreateEventModal = ({
                     scrollViewRef.current?.scrollToEnd({ animated: true });
                   }, 100);
                 }}
+                setParentScrollEnabled={setParentScrollEnabled}
               />
             </Animated.View>
           </ScrollView>
