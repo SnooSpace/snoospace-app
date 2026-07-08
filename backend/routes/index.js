@@ -22,6 +22,7 @@ const MessageController = require("../controllers/messageController");
 const SearchController = require("../controllers/searchController");
 const DiscoverController = require("../controllers/discoverController");
 const CategoryController = require("../controllers/categoryController");
+const ExploreController = require("../controllers/exploreController");
 const PollController = require("../controllers/pollController");
 const PromptController = require("../controllers/promptController");
 const QnAController = require("../controllers/qnaController");
@@ -58,6 +59,7 @@ const verificationsRouter = require('./verifications');
 const BlocksController = require('../controllers/blocksController');
 const spotifyRouter = require('./spotify');
 const locationRouter = require('./location');
+const communityHostsRouter = require('./communityHosts');
 
 const router = express.Router();
 
@@ -587,6 +589,9 @@ router.patch("/members/signup/draft/:id", MemberController.updateDraft);
 router.get("/members/signup/resume", MemberController.resumeSignup);
 router.post("/members/signup/complete/:id", MemberController.completeSignup);
 
+// ── Community Hosts (multi-host management) ────────────────────────────────
+router.use('/', communityHostsRouter);
+
 // Communities
 router.post("/communities/signup", CommunityController.signup);
 router.get(
@@ -790,6 +795,19 @@ router.get("/venues/search", authMiddleware, VenueController.searchVenues);
 
 // Global Search
 router.get("/search/global", authMiddleware, SearchController.globalSearch);
+router.get("/search", authMiddleware, SearchController.unifiedSearch);
+
+// Explore
+router.get(
+  "/explore/feed",
+  authMiddleware,
+  ExploreController.getExploreFeed,
+);
+router.patch(
+  "/explore/opportunities/dismiss",
+  authMiddleware,
+  ExploreController.dismissCreatorOpportunities,
+);
 
 // Discover
 router.get(

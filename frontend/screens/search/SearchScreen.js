@@ -5,7 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { View, TextInput, FlatList, Text, TouchableOpacity, StyleSheet, Keyboard, ScrollView, InteractionManager } from "react-native";
+import { View, TextInput, FlatList, Text, TouchableOpacity, StyleSheet, Keyboard, ScrollView, InteractionManager, Animated } from "react-native";
 import { Image } from "expo-image"; // ── PERF: memory-disk cache for search avatars
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -25,12 +25,13 @@ import { getDiscoverFeed, getSuggestedCommunities } from "../../api/discover";
 import { searchCommunities } from "../../api/communities";
 import { followMember, unfollowMember } from "../../api/members";
 import { followCommunity, unfollowCommunity } from "../../api/communities";
+import { getExploreFeed, dismissOpportunitiesBanner, unifiedSearch } from "../../api/explore";
 
 import EventBus from "../../utils/EventBus";
 import { getActiveAccount } from "../../api/auth";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 import { COLORS, BORDER_RADIUS, FONTS } from "../../constants/theme";
-import { DiscoverFeedV2 } from "../../components/discover";
+import { Explore } from "../../components/discover";
 import SuggestedCommunityCard from "../../components/SuggestedCommunityCard";
 import SnooLoader from "../../components/ui/SnooLoader";
 import CollegeChip from "../../components/CollegeChip";
@@ -59,19 +60,18 @@ export default function SearchScreen({ navigation }) {
   const [recents, setRecents] = useState([]);
   const [userId, setUserId] = useState(null);
   const [userType, setUserType] = useState(null);
-  const [activeFilter, setActiveFilter] = useState("all"); // 'all', 'member', 'community', 'sponsor', 'venue', 'event'
+  const [activeFilter, setActiveFilter] = useState("events"); // 'events', 'people', 'communities', 'creators'
   const [eventResults, setEventResults] = useState([]); // Separate state for event results
 
-  // Discover grid state
-  const [discoverItems, setDiscoverItems] = useState([]);
-  const [discoverLoading, setDiscoverLoading] = useState(false);
-  const [discoverOffset, setDiscoverOffset] = useState(0);
-  const [discoverHasMore, setDiscoverHasMore] = useState(true);
+  // Explore feed state
+  const [exploreFeedData, setExploreFeedData] = useState({});
+  const [exploreFeedLoading, setExploreFeedLoading] = useState(true);
+  const [exploreFeedRefreshing, setExploreFeedRefreshing] = useState(false);
 
-  // Community suggestions state
-  const [suggestions, setSuggestions] = useState([]);
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
-  const suggestionsCache = useRef(null); // Cache to avoid refetching
+  // Rotating placeholder state
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const placeholderOpacity = useRef(new Animated.Value(1)).current;
+  const placeholders = ["events", "people", "communities", "creators"];
 
   const canSearch = query.trim().length >= 2;
   const showDiscoverGrid = !focused && !canSearch;
@@ -107,58 +107,60 @@ export default function SearchScreen({ navigation }) {
     [userId],
   );
 
-  // Load discover feed for grid view
-  const loadDiscoverFeed = useCallback(
-    async (reset = false) => {
-      if (discoverLoading && !reset) return;
-
-      setDiscoverLoading(true);
-      try {
-        const nextOffset = reset ? 0 : discoverOffset;
-        const response = await getDiscoverFeed({
-          limit: 30,
-          offset: nextOffset,
-        });
-
-        if (response?.items) {
-          if (reset) {
-            setDiscoverItems(response.items);
-          } else {
-            setDiscoverItems((prev) => [...prev, ...response.items]);
-          }
-          setDiscoverOffset(nextOffset + response.items.length);
-          setDiscoverHasMore(response.hasMore);
-        }
-      } catch (error) {
-        console.error("[Discover] Error loading feed:", error);
-      } finally {
-        setDiscoverLoading(false);
-      }
-    },
-    [discoverOffset, discoverLoading],
-  );
-
-  // Load community suggestions (cached)
-  const loadSuggestions = useCallback(async (forceRefresh = false) => {
-    // Use cache if available and not forcing refresh
-    if (!forceRefresh && suggestionsCache.current) {
-      setSuggestions(suggestionsCache.current);
-      return;
-    }
-
-    setSuggestionsLoading(true);
+  // Load explore feed
+  const loadExploreFeed = useCallback(async (isRefresh = false) => {
     try {
-      const response = await getSuggestedCommunities(10);
-      if (response?.suggestions) {
-        setSuggestions(response.suggestions);
-        suggestionsCache.current = response.suggestions; // Cache for reuse
+      if (isRefresh) {
+        setExploreFeedRefreshing(true);
+      } else {
+        setExploreFeedLoading(true);
       }
-    } catch (error) {
-      console.error("[Discover] Error loading suggestions:", error);
+      const res = await getExploreFeed();
+      if (res?.success) {
+        setExploreFeedData(res);
+      }
+    } catch (err) {
+      console.error("Error loading explore feed:", err);
     } finally {
-      setSuggestionsLoading(false);
+      setExploreFeedLoading(false);
+      setExploreFeedRefreshing(false);
     }
   }, []);
+
+  // Dismiss creator opportunities banner
+  const handleDismissOpportunities = async () => {
+    try {
+      setExploreFeedData(prev => ({
+        ...prev,
+        creatorOpportunities: null
+      }));
+      await dismissOpportunitiesBanner();
+    } catch (err) {
+      console.error("Error dismissing opportunities banner:", err);
+    }
+  };
+
+  // Rotating placeholder animation
+  useEffect(() => {
+    if (focused || query.length > 0) return;
+
+    const interval = setInterval(() => {
+      Animated.timing(placeholderOpacity, {
+        toValue: 0,
+        duration: 150,
+        useNativeDriver: true,
+      }).start(() => {
+        setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
+        Animated.timing(placeholderOpacity, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }).start();
+      });
+    }, 1800);
+
+    return () => clearInterval(interval);
+  }, [focused, query]);
 
   const doSearch = useCallback(
     async (reset = false) => {
@@ -175,68 +177,29 @@ export default function SearchScreen({ navigation }) {
       setLoading(true);
       setError("");
 
-      // If filter is 'event', use event-specific search
-      if (activeFilter === "event") {
-        try {
-          const eventsData = await searchEvents(query.trim(), {
-            limit: 20,
-            offset: nextOffset,
-          });
-
-          const newEventResults = reset
-            ? eventsData.events || []
-            : [...eventResults, ...(eventsData.events || [])];
-          setEventResults(newEventResults);
-          setResults([]); // Clear regular results
-          setOffset(nextOffset + (eventsData.events?.length || 0));
-          setHasMore(!!eventsData.hasMore);
-          setLoading(false);
-        } catch (err) {
-          console.error("Event search error:", err);
-          setError("Failed to search events");
-          setLoading(false);
-        }
-        return;
-      }
-
-      // Use global search for all entity types
       try {
-        const globalData = await globalSearch(query.trim(), {
-          limit: 20,
-          offset: nextOffset,
-        });
+        const response = await unifiedSearch(query.trim(), activeFilter, 20, nextOffset);
 
-        // Filter results based on active filter
-        let filteredResults = globalData.results || [];
-        if (activeFilter !== "all") {
-          filteredResults = filteredResults.filter(
-            (r) => r.type === activeFilter,
-          );
+        if (response?.success) {
+          const list = response.results || [];
+          if (activeFilter === "events") {
+            const newList = reset ? list : [...eventResults, ...list];
+            setEventResults(newList);
+            setResults([]);
+          } else {
+            const newList = reset ? list : [...results, ...list];
+            setResults(newList);
+            setEventResults([]);
+          }
+          setOffset(nextOffset + list.length);
+          setHasMore(!!response.hasMore);
+        } else {
+          setError("Failed to fetch search results");
         }
-
-        const newResults = reset
-          ? filteredResults
-          : [...results, ...filteredResults];
-        setResults(newResults);
-        setEventResults([]); // Clear event results
-
-        // initialize following map from payload
-        setFollowing((prev) => {
-          const copy = { ...prev };
-          filteredResults.forEach((r) => {
-            if (typeof r.is_following === "boolean")
-              copy[r.id] = r.is_following;
-          });
-          return copy;
-        });
-
-        const totalResults = filteredResults.length;
-        setOffset(nextOffset + totalResults);
-        setHasMore(!!globalData.hasMore);
-        setLoading(false);
       } catch (err) {
         console.error("Search error:", err);
         setError("Failed to search");
+      } finally {
         setLoading(false);
       }
     },
@@ -281,11 +244,10 @@ export default function SearchScreen({ navigation }) {
     }, [loadUserId]),
   );
 
-  // Load discover feed and suggestions on mount
+  // Load explore feed on mount
   useEffect(() => {
     const task = InteractionManager.runAfterInteractions(() => {
-      loadDiscoverFeed(true);
-      loadSuggestions();
+      loadExploreFeed(true);
     });
     return () => task.cancel();
   }, []);
@@ -295,6 +257,56 @@ export default function SearchScreen({ navigation }) {
       loadRecents();
     }
   }, [userId, loadRecents]);
+
+  // Hide bottom tab bar dynamically when search bar is focused
+  useEffect(() => {
+    const parent = navigation.getParent();
+    const grandparent = parent ? parent.getParent() : null;
+    
+    if (focused) {
+      EventBus.emit("disable-tab-swipe");
+    } else {
+      EventBus.emit("enable-tab-swipe");
+    }
+    
+    if (parent) {
+      if (focused) {
+        parent.setOptions({
+          tabBarStyle: { display: "none" },
+        });
+      } else {
+        parent.setOptions({
+          tabBarStyle: undefined,
+        });
+      }
+    }
+    
+    if (grandparent) {
+      if (focused) {
+        grandparent.setOptions({
+          tabBarStyle: { display: "none" },
+        });
+      } else {
+        grandparent.setOptions({
+          tabBarStyle: undefined,
+        });
+      }
+    }
+    
+    return () => {
+      EventBus.emit("enable-tab-swipe");
+      if (parent) {
+        parent.setOptions({
+          tabBarStyle: undefined,
+        });
+      }
+      if (grandparent) {
+        grandparent.setOptions({
+          tabBarStyle: undefined,
+        });
+      }
+    };
+  }, [focused, navigation]);
 
   // Listen for follow updates from other screens (profile pages)
   useEffect(() => {
@@ -676,18 +688,21 @@ export default function SearchScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* Header with Search Title - Always Visible */}
-      <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>
-          {showDiscoverGrid ? "Discover" : "Search"}
-        </Text>
-      </View>
+      {/* Header with Explore Title - Only visible when not searching */}
+      {!focused && (
+        <View style={styles.headerContainer}>
+          <Text style={[styles.headerTitle, { fontFamily: "Manrope-Medium", color: COLORS.textPrimary, fontWeight: "normal" }]}>
+            Explore
+          </Text>
+        </View>
+      )}
 
       {/* Search Input Box */}
       <View
         style={[
           styles.searchContainer,
           focused && styles.searchContainerFocused,
+          focused && { paddingTop: 60 } // Align when header is hidden
         ]}
       >
         {focused && (
@@ -700,7 +715,7 @@ export default function SearchScreen({ navigation }) {
             }}
             style={styles.backButton}
           >
-            <ArrowLeft size={24} color="#1D1D1F" />
+            <ArrowLeft size={24} color="#2C2C2A" />
           </TouchableOpacity>
         )}
         <View style={[styles.searchBox, focused && { flex: 1 }]}>
@@ -708,7 +723,7 @@ export default function SearchScreen({ navigation }) {
           <TextInput
             ref={inputRef}
             style={styles.input}
-            placeholder="Search members, communities, sponsors, venues..."
+            placeholder=""
             placeholderTextColor="#8E8E93"
             value={query}
             onChangeText={setQuery}
@@ -717,6 +732,19 @@ export default function SearchScreen({ navigation }) {
             returnKeyType="search"
             onFocus={() => setFocused(true)}
           />
+          {(!focused && query.length === 0) && (
+            <View style={styles.placeholderOverlay} pointerEvents="none">
+              <Text style={styles.placeholderText}>Search </Text>
+              <Animated.Text
+                style={[
+                  styles.placeholderText,
+                  { opacity: placeholderOpacity }
+                ]}
+              >
+                {placeholders[placeholderIndex]}
+              </Animated.Text>
+            </View>
+          )}
           {query.length > 0 && (
             <TouchableOpacity
               onPress={() => setQuery("")}
@@ -736,7 +764,7 @@ export default function SearchScreen({ navigation }) {
           contentContainerStyle={styles.filterContent}
           style={{ flexGrow: 0 }} // Added to prevent expansion
         >
-          {["all", "member", "community", "sponsor", "venue", "event"].map(
+          {["events", "people", "communities", "creators"].map(
             (filter) => (
               <TouchableOpacity
                 key={filter}
@@ -757,17 +785,13 @@ export default function SearchScreen({ navigation }) {
                     activeFilter === filter && styles.filterTabTextActive,
                   ]}
                 >
-                  {filter === "all"
-                    ? "All"
-                    : filter === "member"
-                      ? "Members"
-                      : filter === "community"
+                  {filter === "events"
+                    ? "Events"
+                    : filter === "people"
+                      ? "People"
+                      : filter === "communities"
                         ? "Communities"
-                        : filter === "sponsor"
-                          ? "Sponsors"
-                          : filter === "venue"
-                            ? "Venues"
-                            : "Events"}
+                        : "Creators"}
                 </Text>
               </TouchableOpacity>
             ),
@@ -788,7 +812,7 @@ export default function SearchScreen({ navigation }) {
               marginBottom: 8,
             }}
           >
-            <Text style={{ fontWeight: "600", color: "#1D1D1F", fontSize: 18 }}>
+            <Text style={{ fontWeight: "600", color: "#2C2C2A", fontSize: 18, fontFamily: "BasicCommercial-Bold" }}>
               Recent
             </Text>
             {recents.length > 0 && (
@@ -798,7 +822,7 @@ export default function SearchScreen({ navigation }) {
                   await saveRecents([]);
                 }}
               >
-                <Text style={{ color: "#6A0DAD", fontWeight: "600" }}>
+                <Text style={{ color: COLORS.primary, fontWeight: "600", fontFamily: "Manrope-SemiBold" }}>
                   Clear all
                 </Text>
               </TouchableOpacity>
@@ -826,16 +850,16 @@ export default function SearchScreen({ navigation }) {
       {canSearch && (
         <View style={styles.contentContainer}>
           <FlatList
-            data={activeFilter === "event" ? eventResults : results}
+            data={activeFilter === "events" ? eventResults : results}
             keyExtractor={(item) => String(item.id)}
-            renderItem={activeFilter === "event" ? renderEventItem : renderItem}
+            renderItem={activeFilter === "events" ? renderEventItem : renderItem}
             onEndReached={onEndReached}
             onEndReachedThreshold={0.6}
             ListEmptyComponent={
               canSearch && !loading ? (
                 <View style={styles.helper}>
                   <Text style={styles.helperText}>
-                    {activeFilter === "event"
+                    {activeFilter === "events"
                       ? "No events found"
                       : "No results found"}
                   </Text>
@@ -843,7 +867,7 @@ export default function SearchScreen({ navigation }) {
               ) : null
             }
             contentContainerStyle={
-              (activeFilter === "event" ? eventResults : results).length === 0
+              (activeFilter === "events" ? eventResults : results).length === 0
                 ? { flexGrow: 1 }
                 : null
             }
@@ -851,60 +875,16 @@ export default function SearchScreen({ navigation }) {
         </View>
       )}
 
-      {/* Discover Feed V2 - Category-based event carousels */}
+      {/* Explore Feed */}
       {showDiscoverGrid && (
-        <DiscoverFeedV2
-          navigation={navigation}
+        <Explore
+          feedData={exploreFeedData}
+          loading={exploreFeedLoading}
+          refreshing={exploreFeedRefreshing}
+          onRefresh={() => loadExploreFeed(true)}
           onEventPress={handleDiscoverItemPress}
-          ListHeaderComponent={
-            suggestions.length > 0 ? (
-              <View style={styles.suggestionsSection}>
-                {/* Header with See All */}
-                <View style={styles.suggestionsHeader}>
-                  <Text style={styles.suggestionsTitle}>
-                    Based on your Interests
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => navigation.navigate("ExploreCommunities")}
-                  >
-                    <Text style={styles.seeAllLink}>See All</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {/* Horizontal Scroll of Community Cards */}
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.suggestionsScroll}
-                >
-                  {suggestions.map((community) => (
-                    <SuggestedCommunityCard
-                      key={community.id}
-                      community={community}
-                      onPress={(c) =>
-                        navigation.navigate("CommunityPublicProfile", {
-                          communityId: c.id,
-                          viewerRole: "member",
-                        })
-                      }
-                      onJoin={(c) => {
-                        // Remove from suggestions after joining
-                        setSuggestions((prev) =>
-                          prev.filter((s) => s.id !== c.id),
-                        );
-                        if (suggestionsCache.current) {
-                          suggestionsCache.current =
-                            suggestionsCache.current.filter(
-                              (s) => s.id !== c.id,
-                            );
-                        }
-                      }}
-                    />
-                  ))}
-                </ScrollView>
-              </View>
-            ) : null
-          }
+          onDismissOpportunities={handleDismissOpportunities}
+          navigation={navigation}
         />
       )}
     </View>
@@ -912,7 +892,7 @@ export default function SearchScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  container: { flex: 1, backgroundColor: COLORS.screenBackground },
   contentContainer: {
     flex: 1,
   },
@@ -923,8 +903,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: "700",
-    color: "#1D1D1F",
+    color: COLORS.textPrimary,
   },
   searchContainer: {
     paddingHorizontal: 20,
@@ -942,12 +921,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    backgroundColor: "#F2F2F7",
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: "#D3D1C7",
     height: 50,
     gap: 12,
+    position: "relative"
   },
-  input: { flex: 1, fontSize: 16, color: "#1D1D1F" },
+  placeholderOverlay: {
+    position: "absolute",
+    left: 48,
+    flexDirection: "row",
+    alignItems: "center"
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: "#8E8E93",
+    fontFamily: "Manrope-Medium"
+  },
+  input: { flex: 1, fontSize: 16, color: "#2C2C2A" },
   helper: { alignItems: "center", paddingVertical: 24 },
   helperText: { color: "#8E8E93" },
   errorText: { color: "#FF3B30" },

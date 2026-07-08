@@ -7,6 +7,7 @@ const {
 } = require("../config/cloudinary");
 const path = require("path");
 const fs = require("fs");
+const { isAuthorizedForCommunity } = require('../utils/communityAuthHelper');
 
 // Ensure the local resume upload directory exists
 const RESUME_DIR = path.join(__dirname, "../uploads/resumes");
@@ -62,13 +63,16 @@ const uploadResume = async (req, res) => {
  */
 const uploadEventBanner = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    const userType = req.user?.type;
+    const pool = req.app.locals.pool;
+    const communityId = req.body.communityId;
 
-    if (!userId || userType !== "community") {
-      return res
-        .status(403)
-        .json({ error: "Only communities can upload event banners" });
+    if (!communityId) {
+      return res.status(400).json({ error: 'communityId is required' });
+    }
+
+    const { authorized } = await isAuthorizedForCommunity(req, communityId, pool, ['owner', 'host', 'moderator']);
+    if (!authorized) {
+      return res.status(403).json({ error: 'Only community hosts can upload event banners' });
     }
 
     if (!req.body.image) {
@@ -104,13 +108,16 @@ const uploadEventBanner = async (req, res) => {
  */
 const uploadEventGallery = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    const userType = req.user?.type;
+    const pool = req.app.locals.pool;
+    const communityId = req.body.communityId;
 
-    if (!userId || userType !== "community") {
-      return res
-        .status(403)
-        .json({ error: "Only communities can upload event gallery images" });
+    if (!communityId) {
+      return res.status(400).json({ error: 'communityId is required' });
+    }
+
+    const { authorized } = await isAuthorizedForCommunity(req, communityId, pool, ['owner', 'host', 'moderator']);
+    if (!authorized) {
+      return res.status(403).json({ error: 'Only community hosts can upload event gallery images' });
     }
 
     if (!req.body.images || !Array.isArray(req.body.images)) {
@@ -154,13 +161,16 @@ const uploadEventGallery = async (req, res) => {
  */
 const uploadPerformerPhoto = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    const userType = req.user?.type;
+    const pool = req.app.locals.pool;
+    const communityId = req.body.communityId;
 
-    if (!userId || userType !== "community") {
-      return res
-        .status(403)
-        .json({ error: "Only communities can upload performer photos" });
+    if (!communityId) {
+      return res.status(400).json({ error: 'communityId is required' });
+    }
+
+    const { authorized } = await isAuthorizedForCommunity(req, communityId, pool, ['owner', 'host', 'moderator']);
+    if (!authorized) {
+      return res.status(403).json({ error: 'Only community hosts can upload performer photos' });
     }
 
     if (!req.body.image) {
@@ -233,14 +243,18 @@ const uploadPlanBanner = async (req, res) => {
 
 const deleteUploadedImage = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    const userType = req.user?.type;
+    const pool = req.app.locals.pool;
     const { publicId } = req.params;
+    // communityId can be passed as query param ?communityId=X or in body
+    const communityId = req.query.communityId || req.body?.communityId;
 
-    if (!userId || userType !== "community") {
-      return res
-        .status(403)
-        .json({ error: "Only communities can delete images" });
+    if (!communityId) {
+      return res.status(400).json({ error: 'communityId is required' });
+    }
+
+    const { authorized } = await isAuthorizedForCommunity(req, communityId, pool, ['owner', 'host', 'moderator']);
+    if (!authorized) {
+      return res.status(403).json({ error: 'Only community hosts can delete images' });
     }
 
     if (!publicId) {

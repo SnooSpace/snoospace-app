@@ -10,6 +10,7 @@ import {
   Dimensions,
   Pressable,
   Platform,
+  TouchableOpacity,
 } from "react-native";
 import SwipeableModal from "./SwipeableModal";
 import RemoveAccountModal from "./RemoveAccountModal";
@@ -18,7 +19,7 @@ import {
   Pressable as GHPressable,
 } from "react-native-gesture-handler";
 import { BlurView } from "expo-blur";
-import { CheckCircle2, CircleX, PlusCircle } from "lucide-react-native";
+import { CheckCircle2, CircleX, PlusCircle, Building2, Crown, Shield, Users } from "lucide-react-native";
 import PropTypes from "prop-types";
 import { getAllAccounts, switchAccount, validateToken } from "../../api/auth";
 import * as accountManager from "../../utils/accountManager";
@@ -26,6 +27,7 @@ import hapticsService from "../../services/HapticsService";
 import SnooLoader from "../ui/SnooLoader";
 import EventBus from "../../utils/EventBus";
 import { COLORS, FONTS } from "../../constants/theme";
+import { getMyHostedCommunities } from "../../api/communities";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -41,8 +43,10 @@ export default function AccountSwitcherModal({
   onLoginRequired, // Callback when logged-out account is clicked
   currentAccountId,
   currentProfile, // Add this prop to get current user data
+  navigation,      // For navigating to CommunityHostManagementScreen
 }) {
   const [accounts, setAccounts] = useState([]);
+  const [hostedCommunities, setHostedCommunities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [switchingTo, setSwitchingTo] = useState(null);
   const [accountToRemove, setAccountToRemove] = useState(null);
@@ -54,6 +58,12 @@ export default function AccountSwitcherModal({
     if (visible) {
       loadAccounts();
       setShowCurrentAccountSubtitle(false);
+      // Only fetch hosted communities for Member accounts
+      if (currentProfile?.type === 'member' || currentProfile?.role === 'member') {
+        loadHostedCommunities();
+      } else {
+        setHostedCommunities([]);
+      }
     }
   }, [visible]);
 
@@ -104,6 +114,17 @@ export default function AccountSwitcherModal({
       setAccounts(allAccounts);
     } catch (error) {
       console.error("Error loading accounts:", error);
+    }
+  }
+
+  async function loadHostedCommunities() {
+    try {
+      const result = await getMyHostedCommunities();
+      setHostedCommunities(result?.communities || []);
+    } catch (err) {
+      // Non-fatal — just don't show the hosting section
+      console.warn("[AccountSwitcher] Failed to load hosted communities:", err?.message);
+      setHostedCommunities([]);
     }
   }
 
@@ -375,6 +396,52 @@ export default function AccountSwitcherModal({
 
   const canAddMore = accounts.length < 5;
 
+  // Role display config for hosted community rows
+  const ROLE_CONFIG = {
+    owner:     { label: 'Owner',     icon: Crown,   color: '#F59E0B' },
+    host:      { label: 'Host',      icon: Building2, color: COLORS.primary },
+    moderator: { label: 'Mod',       icon: Shield,  color: '#6B7280' },
+  };
+
+  function renderHostedCommunityItem(community) {
+    const roleCfg = ROLE_CONFIG[community.role] || ROLE_CONFIG.host;
+    const RoleIcon = roleCfg.icon;
+    return (
+      <GHPressable
+        key={String(community.community_id)}
+        style={({ pressed }) => [
+          styles.hostRow,
+          { opacity: pressed ? 0.6 : 1 },
+        ]}
+        onPress={() => {
+          hapticsService.triggerUsernameSwitcherPress?.();
+          onClose();
+          if (navigation) {
+            navigation.navigate('CommunityHostManagement', {
+              communityId: community.community_id,
+              communityName: community.name,
+              communityLogo: community.logo_url,
+              role: community.role,
+            });
+          }
+        }}
+      >
+        <Image
+          source={{ uri: community.logo_url || 'https://via.placeholder.com/50' }}
+          style={styles.hostAvatar}
+        />
+        <View style={styles.hostInfo}>
+          <Text style={styles.hostCommunityName} numberOfLines={1}>{community.name}</Text>
+          <Text style={styles.hostUsername} numberOfLines={1}>@{community.username}</Text>
+        </View>
+        <View style={[styles.roleBadge, { backgroundColor: roleCfg.color + '1A' }]}>
+          <RoleIcon size={11} color={roleCfg.color} />
+          <Text style={[styles.roleBadgeText, { color: roleCfg.color }]}>{roleCfg.label}</Text>
+        </View>
+      </GHPressable>
+    );
+  }
+
   return (
     <>
       <SwipeableModal
@@ -401,6 +468,17 @@ export default function AccountSwitcherModal({
           style={styles.accountList}
           contentContainerStyle={styles.listContent}
         />
+
+        {/* ── Hosting Section ── */}
+        {hostedCommunities.length > 0 && (
+          <View style={styles.hostingSection}>
+            <View style={styles.hostingSectionHeader}>
+              <Users size={13} color="#8E8E93" />
+              <Text style={styles.hostingSectionLabel}>Hosting</Text>
+            </View>
+            {hostedCommunities.map(renderHostedCommunityItem)}
+          </View>
+        )}
 
         {/* Add Account Button */}
         <GHPressable
@@ -591,6 +669,65 @@ const styles = StyleSheet.create({
     padding: 8,
     marginLeft: 8,
   },
+  // ── Hosting Section ──────────────────────────────────────────────────────
+  hostingSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5EA',
+    marginTop: 4,
+    paddingTop: 4,
+    paddingHorizontal: 20,
+  },
+  hostingSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 8,
+  },
+  hostingSectionLabel: {
+    fontSize: 11,
+    fontFamily: FONTS.medium,
+    color: '#8E8E93',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  hostRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    gap: 12,
+  },
+  hostAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 10,
+    backgroundColor: '#E5E5EA',
+  },
+  hostInfo: {
+    flex: 1,
+  },
+  hostCommunityName: {
+    fontSize: 15,
+    fontFamily: FONTS.semiBold,
+    color: '#1D1D1F',
+  },
+  hostUsername: {
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    color: '#8E8E93',
+    marginTop: 1,
+  },
+  roleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  roleBadgeText: {
+    fontSize: 11,
+    fontFamily: FONTS.semiBold,
+  },
 });
 
 AccountSwitcherModal.propTypes = {
@@ -601,4 +738,5 @@ AccountSwitcherModal.propTypes = {
   onLoginRequired: PropTypes.func, // Called when logged-out account is clicked
   currentAccountId: PropTypes.string,
   currentProfile: PropTypes.object, // Current user profile data
+  navigation: PropTypes.object,     // React Navigation object for hosting screen nav
 };

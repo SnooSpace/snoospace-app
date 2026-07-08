@@ -11,20 +11,28 @@ const {
 } = require("../services/emailService");
 const { sendTicketMessage } = require("./messageController");
 const { checkForDummyAccountRsvps } = require("../utils/communityFraudDetector");
+const { isAuthorizedForCommunity } = require('../utils/communityAuthHelper');
 
 const pool = createPool();
 
 // Create a new event
 const createEvent = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    const userType = req.user?.type;
+    const pool = req.app.locals.pool;
+    // communityId: from JWT for Community accounts, or from body for Member-hosts
+    const communityId = req.user?.type === 'community'
+      ? req.user?.id
+      : (req.body.communityId || req.body.community_id);
 
-    // Only communities can create events
-    if (!userId || userType !== "community") {
-      return res
-        .status(403)
-        .json({ error: "Only communities can create events" });
+    if (!communityId) {
+      return res.status(400).json({ error: 'communityId required (pass in body for host accounts)' });
+    }
+
+    const { authorized, actingCommunityId: userId } = await isAuthorizedForCommunity(
+      req, communityId, pool, ['owner', 'host']
+    );
+    if (!authorized) {
+      return res.status(403).json({ error: 'Only community hosts can create events' });
     }
 
     const {
@@ -358,10 +366,21 @@ const createEvent = async (req, res) => {
 // Get events created by a community (with all related data)
 const getCommunityEvents = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    const userType = req.user?.type;
-    if (!userId || userType !== "community") {
-      return res.status(401).json({ error: "Authentication required" });
+    const pool = req.app.locals.pool;
+    // communityId: from JWT for Community accounts, or from query param for Member-hosts
+    const communityId = req.user?.type === 'community'
+      ? req.user?.id
+      : (req.query.communityId || req.query.community_id);
+
+    if (!communityId) {
+      return res.status(401).json({ error: 'communityId required' });
+    }
+
+    const { authorized, actingCommunityId: userId } = await isAuthorizedForCommunity(
+      req, communityId, pool, ['owner', 'host', 'moderator']
+    );
+    if (!authorized) {
+      return res.status(401).json({ error: 'Authentication required' });
     }
 
     // Get main events
@@ -1591,20 +1610,28 @@ const searchEvents = async (req, res) => {
  */
 const updateEvent = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    const userType = req.user?.type;
+    const pool = req.app.locals.pool;
     const { eventId } = req.params;
 
-    // Only communities can edit events
-    if (!userId || userType !== "community") {
-      return res
-        .status(403)
-        .json({ error: "Only communities can edit events" });
+    // Resolve communityId via dual-path auth
+    const rawCommunityId = req.user?.type === 'community'
+      ? req.user?.id
+      : (req.body?.communityId || req.body?.community_id);
+
+    if (!rawCommunityId) {
+      return res.status(400).json({ error: 'communityId required in body for host accounts' });
+    }
+
+    const { authorized, actingCommunityId: userId } = await isAuthorizedForCommunity(
+      req, rawCommunityId, pool, ['owner', 'host']
+    );
+    if (!authorized) {
+      return res.status(403).json({ error: 'Only community hosts can edit events' });
     }
 
     // Verify event exists and belongs to this community
     const existingResult = await pool.query(
-      "SELECT * FROM events WHERE id = $1 AND creator_id = $2",
+      "SELECT * FROM events WHERE id = $1 AND (creator_id = $2 OR community_id = $2)",
       [eventId, userId],
     );
 
@@ -2749,20 +2776,27 @@ const getEventById = async (req, res) => {
  */
 const deleteEvent = async (req, res) => {
   try {
-    const userId = req.user?.id;
-    const userType = req.user?.type;
     const { eventId } = req.params;
 
-    // Only communities can delete events
-    if (!userId || userType !== "community") {
-      return res
-        .status(403)
-        .json({ error: "Only communities can delete events" });
+    // Resolve communityId via dual-path auth (communityId from query or body)
+    const rawCommunityId = req.user?.type === 'community'
+      ? req.user?.id
+      : (req.body?.communityId || req.query.communityId);
+
+    if (!rawCommunityId) {
+      return res.status(400).json({ error: 'communityId required for host accounts' });
+    }
+
+    const { authorized, actingCommunityId: userId } = await isAuthorizedForCommunity(
+      req, rawCommunityId, pool, ['owner', 'host']
+    );
+    if (!authorized) {
+      return res.status(403).json({ error: 'Only community hosts can delete events' });
     }
 
     // Verify event exists and belongs to this community
     const eventResult = await pool.query(
-      `SELECT e.id, e.title, e.start_datetime, e.end_datetime, e.creator_id,
+      `SELECT e.id, e.title, e.start_datetime, e.end_datetime, e.creator_id, e.community_id,
               (SELECT COUNT(*) FROM event_registrations WHERE event_id = e.id) as attendee_count
        FROM events e
        WHERE e.id = $1`,
@@ -2771,21 +2805,23 @@ const deleteEvent = async (req, res) => {
 
     if (eventResult.rows.length === 0) {
       return res.status(404).json({ error: "Event not found" });
+
     }
 
     const event = eventResult.rows[0];
 
-    // Check ownership - ensure both are compared as integers
+    // Check ownership — accept either creator_id OR community_id matching userId (actingCommunityId)
     const creatorId = parseInt(event.creator_id);
+    const eventCommunityId = parseInt(event.community_id);
     const requestUserId = parseInt(userId);
 
     console.log(
-      `[deleteEvent] Checking ownership: creator_id=${creatorId}, userId=${requestUserId}, userType=${userType}`,
+      `[deleteEvent] Checking ownership: creator_id=${creatorId}, community_id=${eventCommunityId}, actingCommunityId=${requestUserId}`,
     );
 
-    if (creatorId !== requestUserId) {
+    if (creatorId !== requestUserId && eventCommunityId !== requestUserId) {
       console.log(
-        `[deleteEvent] Permission denied: creator_id (${creatorId}) !== userId (${requestUserId})`,
+        `[deleteEvent] Permission denied: neither creator_id (${creatorId}) nor community_id (${eventCommunityId}) match actingCommunityId (${requestUserId})`,
       );
       return res.status(403).json({
         error: "You don't have permission to delete this event",

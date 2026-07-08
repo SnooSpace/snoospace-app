@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { View, Dimensions } from "react-native";
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
 import { useNavigation } from "@react-navigation/native";
+import EventBus from "../../utils/EventBus";
 
 // Define the default order of bottom tabs (Member)
 const DEFAULT_TABS = ["Home", "Search", "Discover", "YourEvents", "Profile"];
@@ -13,6 +14,20 @@ export default function TabSwipeHandler({
   tabs = DEFAULT_TABS,
 }) {
   const navigation = useNavigation();
+  const [swipeEnabled, setSwipeEnabled] = useState(true);
+
+  useEffect(() => {
+    const unsubDisable = EventBus.on("disable-tab-swipe", () => {
+      setSwipeEnabled(false);
+    });
+    const unsubEnable = EventBus.on("enable-tab-swipe", () => {
+      setSwipeEnabled(true);
+    });
+    return () => {
+      if (unsubDisable) unsubDisable();
+      if (unsubEnable) unsubEnable();
+    };
+  }, []);
 
   const handleSwipe = (direction) => {
     const currentIndex = tabs.indexOf(currentTab);
@@ -32,6 +47,7 @@ export default function TabSwipeHandler({
   };
 
   const pan = Gesture.Pan()
+    .enabled(swipeEnabled)
     .hitSlop({ left: 40 })
     // Require a significant horizontal movement (40px) before activating.
     // This allows child ScrollViews and FlatLists (like Carousels) to consume the gesture first.

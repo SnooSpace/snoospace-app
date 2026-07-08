@@ -461,4 +461,146 @@ const searchAccounts = async (req, res) => {
   }
 };
 
-module.exports = { globalSearch, searchAccounts };
+async function unifiedSearch(req, res) {
+  try {
+    const userId = req.user?.id;
+    const userType = req.user?.type;
+
+    if (!userId || !userType) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const q = (req.query.q || req.query.query || "").trim();
+    const type = req.query.type || "events"; // 'events' | 'people' | 'communities' | 'creators'
+    const limit = Math.min(parseInt(req.query.limit || "20", 10), 50);
+    const offset = Math.max(parseInt(req.query.offset || "0", 10), 0);
+
+    if (q.length < 2) {
+      return res.json({
+        success: true,
+        results: [],
+        hasMore: false,
+      });
+    }
+
+    const pool = req.app.locals.pool;
+    const likeParam = `%${q}%`;
+    let results = [];
+
+    if (type === "events") {
+      const query = `
+        SELECT 
+          e.id, 
+          e.title as name, 
+          e.title,
+          e.description, 
+          e.banner_url as logo_url,
+          e.banner_url,
+          e.start_datetime as event_date,
+          COALESCE(
+            (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'),
+            0
+          )::int as attendee_count,
+          'event' as type
+        FROM events e
+        WHERE LOWER(e.title) LIKE LOWER($1)
+          AND e.is_published = true
+          AND e.is_cancelled IS NOT TRUE
+        ORDER BY e.start_datetime ASC
+        LIMIT $2 OFFSET $3
+      `;
+      const resData = await pool.query(query, [likeParam, limit, offset]);
+      results = resData.rows;
+    } else if (type === "people") {
+      const query = `
+        SELECT 
+          m.id, 
+          m.username, 
+          m.name as name,
+          m.name as full_name,
+          m.profile_photo_url as logo_url, 
+          m.profile_photo_url,
+          m.bio,
+          'member' as type,
+          EXISTS(
+            SELECT 1 FROM follows f
+            WHERE f.follower_id = $2 AND f.follower_type = $3
+              AND f.following_id = m.id AND f.following_type = 'member'
+            LIMIT 1
+          ) as is_following
+        FROM members m
+        WHERE (LOWER(COALESCE(m.username, '')) LIKE LOWER($1) OR LOWER(m.name) LIKE LOWER($1))
+          AND m.id <> $2
+        ORDER BY m.name ASC
+        LIMIT $4 OFFSET $5
+      `;
+      const resData = await pool.query(query, [likeParam, userId, userType, limit, offset]);
+      results = resData.rows;
+    } else if (type === "communities") {
+      const query = `
+        SELECT 
+          c.id, 
+          c.username, 
+          c.name,
+          c.name as full_name,
+          c.logo_url, 
+          c.logo_url as logo_url,
+          c.bio,
+          c.category,
+          'community' as type,
+          EXISTS(
+            SELECT 1 FROM follows f
+            WHERE f.follower_id = $2 AND f.follower_type = $3
+              AND f.following_id = c.id AND f.following_type = 'community'
+            LIMIT 1
+          ) as is_following
+        FROM communities c
+        WHERE (LOWER(COALESCE(c.username, '')) LIKE LOWER($1) OR LOWER(c.name) LIKE LOWER($1))
+        ORDER BY c.name ASC
+        LIMIT $4 OFFSET $5
+      `;
+      const resData = await pool.query(query, [likeParam, userId, userType, limit, offset]);
+      results = resData.rows;
+    } else if (type === "creators") {
+      const query = `
+        SELECT 
+          m.id, 
+          m.username, 
+          m.name as name,
+          m.name as full_name,
+          m.profile_photo_url as logo_url, 
+          m.profile_photo_url,
+          m.bio,
+          'member' as type,
+          EXISTS(
+            SELECT 1 FROM follows f
+            WHERE f.follower_id = $2 AND f.follower_type = $3
+              AND f.following_id = m.id AND f.following_type = 'member'
+            LIMIT 1
+          ) as is_following
+        FROM members m
+        WHERE m.is_creator_mode_enabled = true
+          AND (LOWER(COALESCE(m.username, '')) LIKE LOWER($1) OR LOWER(m.name) LIKE LOWER($1))
+          AND m.id <> $2
+        ORDER BY m.name ASC
+        LIMIT $4 OFFSET $5
+      `;
+      const resData = await pool.query(query, [likeParam, userId, userType, limit, offset]);
+      results = resData.rows;
+    }
+
+    const hasMore = results.length === limit;
+
+    res.json({
+      success: true,
+      results,
+      hasMore,
+    });
+  } catch (error) {
+    console.error("Error in unifiedSearch:", error);
+    res.status(500).json({ error: "Failed to perform search" });
+  }
+}
+
+module.exports = { globalSearch, searchAccounts, unifiedSearch };
+

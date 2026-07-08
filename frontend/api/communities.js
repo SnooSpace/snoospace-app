@@ -120,3 +120,34 @@ export async function removeCommunityFollower(followerId, followerType = 'member
   return apiDelete(`/follow/followers/${followerId}/${followerType}`, null, 15000, token);
 }
 
+// ── Community Hosts API ────────────────────────────────────────────────────
+
+export async function getMyHostedCommunities() {
+  const token = await getAuthToken();
+  return apiGet('/users/me/hosted-communities', 15000, token);
+}
+
+export async function getCommunityHosts(communityId) {
+  const token = await getAuthToken();
+  return apiGet(`/communities/${communityId}/hosts`, 15000, token);
+}
+
+export async function inviteCommunityHost(communityId, { userId, role }) {
+  const token = await getAuthToken();
+  return apiPost(`/communities/${communityId}/hosts/invite`, { userId, role }, 15000, token);
+}
+
+export async function updateCommunityHostRole(communityId, hostUserId, role) {
+  const token = await getAuthToken();
+  return apiPatch(`/communities/${communityId}/hosts/${hostUserId}/role`, { role }, 15000, token);
+}
+
+export async function removeCommunityHost(communityId, hostUserId) {
+  const token = await getAuthToken();
+  return apiDelete(`/communities/${communityId}/hosts/${hostUserId}`, null, 15000, token);
+}
+
+export async function transferCommunityOwnership(communityId, newOwnerUserId) {
+  const token = await getAuthToken();
+  return apiPost(`/communities/${communityId}/transfer-ownership`, { newOwnerUserId }, 15000, token);
+}

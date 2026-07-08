@@ -18,6 +18,7 @@
 
 const pushService = require('../services/pushService');
 const { shouldSuppressNotifications } = require('../services/notificationService');
+const { isAuthorizedForCommunity } = require('../utils/communityAuthHelper');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -77,10 +78,19 @@ async function notifyMemberOfInvite(pool, communityId, memberId) {
 const sendInvite = async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    const communityId = req.user?.id;
-    const userType = req.user?.type;
+    // communityId: from JWT for Community accounts, or from body for Member-hosts
+    const communityId = req.user?.type === 'community'
+      ? req.user?.id
+      : (req.body.community_id || req.body.communityId);
 
-    if (!communityId || userType !== 'community') {
+    if (!communityId) {
+      return res.status(400).json({ error: 'community_id is required (for member hosts)' });
+    }
+
+    const { authorized, actingCommunityId } = await isAuthorizedForCommunity(
+      req, communityId, pool, ['owner', 'host', 'moderator']
+    );
+    if (!authorized) {
       return res.status(401).json({ error: 'Community authentication required' });
     }
 
@@ -134,13 +144,6 @@ const sendInvite = async (req, res) => {
 const cancelInvite = async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    const communityId = req.user?.id;
-    const userType = req.user?.type;
-
-    if (!communityId || userType !== 'community') {
-      return res.status(401).json({ error: 'Community authentication required' });
-    }
-
     const { inviteId } = req.params;
 
     const inviteRes = await pool.query(
@@ -149,6 +152,14 @@ const cancelInvite = async (req, res) => {
     if (inviteRes.rows.length === 0) return res.status(404).json({ error: 'Invite not found' });
 
     const invite = inviteRes.rows[0];
+    const communityId = invite.community_id;
+
+    const { authorized, actingCommunityId } = await isAuthorizedForCommunity(
+      req, communityId, pool, ['owner', 'host', 'moderator']
+    );
+    if (!authorized) {
+      return res.status(401).json({ error: 'Community authentication required' });
+    }
     if (String(invite.community_id) !== String(communityId)) {
       return res.status(403).json({ error: 'You can only cancel invites you sent' });
     }
@@ -233,14 +244,22 @@ const respondToInvite = async (req, res) => {
 const getStatusForCommunity = async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    const communityId = req.user?.id;
-    const userType = req.user?.type;
+    const { memberId } = req.params;
+    // communityId: from JWT for community accounts, or from query for Member-hosts
+    const communityId = req.user?.type === 'community'
+      ? req.user?.id
+      : (req.query.communityId || req.query.community_id);
 
-    if (!communityId || userType !== 'community') {
-      return res.status(401).json({ error: 'Community authentication required' });
+    if (!communityId) {
+      return res.status(400).json({ error: 'communityId query param required for member hosts' });
     }
 
-    const { memberId } = req.params;
+    const { authorized, actingCommunityId } = await isAuthorizedForCommunity(
+      req, communityId, pool, ['owner', 'host', 'moderator']
+    );
+    if (!authorized) {
+      return res.status(401).json({ error: 'Community authentication required' });
+    }
 
     // Check circle first
     const circleRes = await pool.query(
