@@ -27,9 +27,9 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
-  Animated,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import SwipeableModal from '../../../components/modals/SwipeableModal';
 import {
   ArrowLeft,
   UserPlus,
@@ -43,7 +43,7 @@ import {
   User,
   ChevronRight,
 } from 'lucide-react-native';
-import { COLORS, FONTS } from '../../../constants/theme';
+import { COLORS, FONTS, SHADOWS } from '../../../constants/theme';
 import {
   getCommunityHosts,
   inviteCommunityHost,
@@ -51,7 +51,7 @@ import {
   updateCommunityHostRole,
   transferCommunityOwnership,
 } from '../../../api/communities';
-import { apiGet, apiDelete } from '../../../api/client';
+import { apiGet } from '../../../api/client';
 import { getAuthToken } from '../../../api/auth';
 import SnooLoader from '../../../components/ui/SnooLoader';
 import HapticsService from '../../../services/HapticsService';
@@ -60,7 +60,7 @@ import HapticsService from '../../../services/HapticsService';
 const ROLE_CONFIG = {
   owner:     { label: 'Owner',     icon: Crown,     color: '#F59E0B', canEdit: false },
   host:      { label: 'Host',      icon: Building2, color: COLORS.primary, canEdit: true },
-  moderator: { label: 'Moderator', icon: Shield,    color: '#6B7280', canEdit: true },
+  moderator: { label: 'Moderator', icon: Shield,    color: '#9333EA', canEdit: true },
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -92,7 +92,18 @@ export default function CommunityHostManagementScreen({ route, navigation }) {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [modalLoading, setModalLoading] = useState(false);
   const searchTimer = useRef(null);
+
+  // Custom alert / confirmation modal state
+  const [confirmModal, setConfirmModal] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    btnLabel: '',
+    isDestructive: false,
+    onConfirm: null,
+  });
 
   // ── Data loading ──────────────────────────────────────────────────────────
   const loadHosts = useCallback(async () => {
@@ -169,28 +180,24 @@ export default function CommunityHostManagementScreen({ route, navigation }) {
   }, [communityId, inviteRole, hosts, submitting, loadHosts]);
 
   // ── Remove host ───────────────────────────────────────────────────────────
-  const handleRemove = useCallback(async (host) => {
+  const handleRemove = useCallback((host) => {
     setActionMenuHost(null);
-    Alert.alert(
-      'Remove Host',
-      `Remove ${host.name || host.username} from this community's hosts?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await removeCommunityHost(communityId, host.user_id);
-              HapticsService.triggerImpactMedium();
-              await loadHosts();
-            } catch (err) {
-              Alert.alert('Error', err?.message || 'Failed to remove host');
-            }
-          },
-        },
-      ],
-    );
+    setConfirmModal({
+      visible: true,
+      title: 'Remove Host',
+      message: `Remove ${host.name || host.username} from this community's hosts?`,
+      btnLabel: 'REMOVE',
+      isDestructive: true,
+      onConfirm: async () => {
+        try {
+          await removeCommunityHost(communityId, host.user_id);
+          HapticsService.triggerImpactMedium();
+          await loadHosts();
+        } catch (err) {
+          Alert.alert('Error', err?.message || 'Failed to remove host');
+        }
+      },
+    });
   }, [communityId, loadHosts]);
 
   // ── Role change ───────────────────────────────────────────────────────────
@@ -207,30 +214,26 @@ export default function CommunityHostManagementScreen({ route, navigation }) {
   }, [communityId, loadHosts]);
 
   // ── Transfer ownership ────────────────────────────────────────────────────
-  const handleTransferOwnership = useCallback(async (host) => {
+  const handleTransferOwnership = useCallback((host) => {
     setActionMenuHost(null);
-    Alert.alert(
-      'Transfer Ownership',
-      `Transfer ownership of this community to ${host.name || host.username}? You will become a Host.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Transfer',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await transferCommunityOwnership(communityId, host.user_id);
-              HapticsService.triggerNotificationSuccess();
-              await loadHosts();
-              // Navigate back since current user is no longer owner
-              navigation.goBack();
-            } catch (err) {
-              Alert.alert('Error', err?.message || 'Failed to transfer ownership');
-            }
-          },
-        },
-      ],
-    );
+    setConfirmModal({
+      visible: true,
+      title: 'Transfer Ownership',
+      message: `Transfer ownership of this community to ${host.name || host.username}? You will become a Host.`,
+      btnLabel: 'TRANSFER',
+      isDestructive: true,
+      onConfirm: async () => {
+        try {
+          await transferCommunityOwnership(communityId, host.user_id);
+          HapticsService.triggerNotificationSuccess();
+          await loadHosts();
+          // Navigate back since current user is no longer owner
+          navigation.goBack();
+        } catch (err) {
+          Alert.alert('Error', err?.message || 'Failed to transfer ownership');
+        }
+      },
+    });
   }, [communityId, navigation, loadHosts]);
 
   // ── Render host row ───────────────────────────────────────────────────────
@@ -241,69 +244,40 @@ export default function CommunityHostManagementScreen({ route, navigation }) {
     const canManage = isOwner && item.role !== 'owner';
 
     return (
-      <View style={styles.hostRow}>
-        <Image
-          source={{ uri: item.avatar_url || 'https://via.placeholder.com/50' }}
-          style={styles.avatar}
-        />
-        <View style={styles.hostMeta}>
-          <Text style={styles.hostName} numberOfLines={1}>
-            {item.name || item.username}
-          </Text>
-          <Text style={styles.hostUsername} numberOfLines={1}>@{item.username}</Text>
-        </View>
-
-        <View style={[styles.rolePill, { backgroundColor: cfg.color + '18' }]}>
-          <RoleIcon size={11} color={cfg.color} />
-          <Text style={[styles.rolePillText, { color: cfg.color }]}>{cfg.label}</Text>
-        </View>
-
-        {canManage && (
-          <TouchableOpacity
-            style={styles.moreBtn}
-            onPress={() => {
-              HapticsService.triggerSelection();
-              setActionMenuHost(isMenuOpen ? null : item);
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <MoreHorizontal size={20} color={COLORS.textSecondary} />
-          </TouchableOpacity>
-        )}
-
-        {/* Action menu (inline, below row) */}
-        {isMenuOpen && (
-          <View style={styles.actionMenu}>
-            <TouchableOpacity
-              style={styles.actionMenuItem}
-              onPress={() => handleRoleChange(item, item.role === 'host' ? 'moderator' : 'host')}
-            >
-              <Shield size={15} color={COLORS.textPrimary} />
-              <Text style={styles.actionMenuText}>
-                {item.role === 'host' ? 'Make Moderator' : 'Make Host'}
-              </Text>
-            </TouchableOpacity>
-            <View style={styles.actionMenuDivider} />
-            <TouchableOpacity
-              style={styles.actionMenuItem}
-              onPress={() => handleTransferOwnership(item)}
-            >
-              <Crown size={15} color='#F59E0B' />
-              <Text style={[styles.actionMenuText, { color: '#F59E0B' }]}>Transfer Ownership</Text>
-            </TouchableOpacity>
-            <View style={styles.actionMenuDivider} />
-            <TouchableOpacity
-              style={styles.actionMenuItem}
-              onPress={() => handleRemove(item)}
-            >
-              <Trash2 size={15} color={COLORS.error} />
-              <Text style={[styles.actionMenuText, { color: COLORS.error }]}>Remove from Hosts</Text>
-            </TouchableOpacity>
+      <View style={styles.hostRowContainer}>
+        <View style={styles.hostRow}>
+          <Image
+            source={{ uri: item.avatar_url || 'https://via.placeholder.com/50' }}
+            style={styles.avatar}
+          />
+          <View style={styles.hostMeta}>
+            <Text style={styles.hostName} numberOfLines={1}>
+              {item.name || item.username}
+            </Text>
+            <Text style={styles.hostUsername} numberOfLines={1}>@{item.username}</Text>
           </View>
-        )}
+
+          <View style={[styles.rolePill, { backgroundColor: cfg.color + '18' }]}>
+            <RoleIcon size={11} color={cfg.color} />
+            <Text style={[styles.rolePillText, { color: cfg.color }]}>{cfg.label}</Text>
+          </View>
+
+          {canManage && (
+            <TouchableOpacity
+              style={styles.moreBtn}
+              onPress={() => {
+                HapticsService.triggerSelection();
+                setActionMenuHost(item);
+              }}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <MoreHorizontal size={20} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     );
-  }, [actionMenuHost, isOwner, handleRoleChange, handleTransferOwnership, handleRemove]);
+  }, [actionMenuHost, isOwner]);
 
   // ── Render invite panel (inside modal) ────────────────────────────────────
   const renderInvitePanel = () => (
@@ -347,7 +321,7 @@ export default function CommunityHostManagementScreen({ route, navigation }) {
                   activeOpacity={0.75}
                 >
                   <RoleIcon size={14} color={selected ? cfg.color : COLORS.textSecondary} />
-                  <Text style={[styles.roleOptionText, selected && { color: cfg.color, fontFamily: FONTS.semiBold }]}>
+                  <Text style={[styles.roleOptionText, selected && { color: cfg.color }]}>
                     {cfg.label}
                   </Text>
                 </TouchableOpacity>
@@ -410,6 +384,87 @@ export default function CommunityHostManagementScreen({ route, navigation }) {
     </Modal>
   );
 
+  // ── Render action menu modal (bottom sheet) ───────────────────────────────
+  const renderActionMenuModal = () => {
+    if (!actionMenuHost) return null;
+    const cfg = ROLE_CONFIG[actionMenuHost.role] || ROLE_CONFIG.host;
+    const isMod = actionMenuHost.role === 'moderator';
+
+    return (
+      <SwipeableModal
+        visible={!!actionMenuHost}
+        onClose={() => setActionMenuHost(null)}
+        sheetStyle={styles.sheetContent}
+        header={
+          <View style={styles.sheetHeaderWrapper}>
+            <View style={styles.sheetHandle} />
+          </View>
+        }
+      >
+        <View style={{ paddingBottom: insets.bottom + 20 }}>
+          {/* Header info */}
+          <View style={styles.sheetHeaderInfo}>
+            <Image
+              source={{ uri: actionMenuHost.avatar_url || 'https://via.placeholder.com/50' }}
+              style={styles.sheetHeaderAvatar}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sheetHeaderTitle}>{actionMenuHost.name || actionMenuHost.username}</Text>
+              <Text style={styles.sheetHeaderSubtitle}>@{actionMenuHost.username} • {cfg.label}</Text>
+            </View>
+          </View>
+
+          {/* Menu Options */}
+          <View style={styles.sheetMenu}>
+            <TouchableOpacity
+              style={styles.sheetMenuItem}
+              onPress={() => handleRoleChange(actionMenuHost, isMod ? 'host' : 'moderator')}
+            >
+              <View style={[styles.sheetMenuIconWrap, { backgroundColor: COLORS.primary + '12' }]}>
+                <Shield size={18} color={COLORS.primary} />
+              </View>
+              <Text style={styles.sheetMenuText}>
+                {isMod ? 'Make Host' : 'Make Moderator'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sheetMenuItem}
+              onPress={() => handleTransferOwnership(actionMenuHost)}
+            >
+              <View style={[styles.sheetMenuIconWrap, { backgroundColor: '#F59E0B' + '12' }]}>
+                <Crown size={18} color='#F59E0B' />
+              </View>
+              <Text style={[styles.sheetMenuText, { color: '#F59E0B' }]}>
+                Transfer Ownership
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sheetMenuItem}
+              onPress={() => handleRemove(actionMenuHost)}
+            >
+              <View style={[styles.sheetMenuIconWrap, { backgroundColor: COLORS.error + '12' }]}>
+                <Trash2 size={18} color={COLORS.error} />
+              </View>
+              <Text style={[styles.sheetMenuText, { color: COLORS.error }]}>
+                Remove from Hosts
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Cancel Button */}
+          <TouchableOpacity
+            style={styles.sheetCancelBtn}
+            onPress={() => setActionMenuHost(null)}
+          >
+            <Text style={styles.sheetCancelBtnText}>CANCEL</Text>
+          </TouchableOpacity>
+        </View>
+      </SwipeableModal>
+    );
+  };
+
   // ── Main render ───────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -450,6 +505,8 @@ export default function CommunityHostManagementScreen({ route, navigation }) {
           data={hosts}
           keyExtractor={h => `${h.community_id}_${h.user_id}`}
           renderItem={renderHostRow}
+          style={styles.list}
+          ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
           contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 24 }]}
           ListEmptyComponent={
             <View style={styles.emptyState}>
@@ -501,6 +558,56 @@ export default function CommunityHostManagementScreen({ route, navigation }) {
       )}
 
       {renderInvitePanel()}
+
+      {renderActionMenuModal()}
+
+      {/* Custom Confirmation Modal */}
+      <Modal
+        visible={confirmModal.visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmModal(prev => ({ ...prev, visible: false }))}
+        statusBarTranslucent
+      >
+        <Pressable
+          style={styles.alertOverlay}
+          onPress={() => setConfirmModal(prev => ({ ...prev, visible: false }))}
+        >
+          <Pressable style={styles.alertContainer} onPress={(e) => e.stopPropagation()}>
+            <Text style={styles.confirmTitle}>{confirmModal.title}</Text>
+            <Text style={styles.confirmMessage}>{confirmModal.message}</Text>
+            <View style={styles.alertActionsRow}>
+              <TouchableOpacity
+                style={styles.alertBtnCancel}
+                onPress={() => setConfirmModal(prev => ({ ...prev, visible: false }))}
+              >
+                <Text style={styles.alertBtnTextCancel}>CANCEL</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  confirmModal.isDestructive ? styles.alertBtnDestructive : styles.alertBtnPrimary,
+                  modalLoading && { opacity: 0.6 }
+                ]}
+                disabled={modalLoading}
+                onPress={async () => {
+                  if (confirmModal.onConfirm) {
+                    setModalLoading(true);
+                    await confirmModal.onConfirm();
+                    setModalLoading(false);
+                  }
+                  setConfirmModal(prev => ({ ...prev, visible: false }));
+                }}
+              >
+                {modalLoading ? (
+                  <SnooLoader size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.confirmBtnText}>{confirmModal.btnLabel}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -509,7 +616,11 @@ export default function CommunityHostManagementScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#FFFFFF', // Updated white background to go all the way up
+  },
+  list: {
+    flex: 1,
+    backgroundColor: '#FAFAFA', // clean light background for the scroll area
   },
   header: {
     flexDirection: 'row',
@@ -517,8 +628,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    // Removed bottom separation line
   },
   backBtn: {
     width: 36,
@@ -541,12 +651,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 15,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.black, // Used BasicCommercialBlack once for screen title
     color: COLORS.textPrimary,
   },
   headerSubtitle: {
     fontSize: 11,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.regular, // Manrope-Regular
     color: COLORS.textSecondary,
     marginTop: 1,
   },
@@ -570,28 +680,23 @@ const styles = StyleSheet.create({
   },
   listHeaderText: {
     fontSize: 13,
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.primary, // BasicCommercialBold for section titles
     color: COLORS.textSecondary,
   },
   ownerNote: {
     fontSize: 12,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.regular, // Manrope-Regular
     color: COLORS.textSecondary,
     marginTop: 2,
+  },
+  hostRowContainer: {
+    width: '100%',
   },
   hostRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
-    flexWrap: 'wrap',
+    backgroundColor: 'transparent', // Removed card styling (shadows, borders, bg)
+    paddingVertical: 12,
   },
   avatar: {
     width: 44,
@@ -606,12 +711,12 @@ const styles = StyleSheet.create({
   },
   hostName: {
     fontSize: 15,
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
     color: COLORS.textPrimary,
   },
   hostUsername: {
     fontSize: 12,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.regular, // Manrope-Regular
     color: COLORS.textSecondary,
     marginTop: 2,
   },
@@ -626,34 +731,94 @@ const styles = StyleSheet.create({
   },
   rolePillText: {
     fontSize: 11,
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
   },
   moreBtn: {
     padding: 4,
   },
-  actionMenu: {
-    width: '100%',
-    marginTop: 10,
-    backgroundColor: '#F5F5F7',
-    borderRadius: 12,
-    overflow: 'hidden',
+  sheetOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
   },
-  actionMenuItem: {
+  sheetContent: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  sheetHeaderWrapper: {
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    paddingTop: 14,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  sheetHandle: {
+    width: 36,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#E5E5EA',
+    alignSelf: 'center',
+    marginBottom: 10,
+  },
+  sheetHeaderInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    gap: 12,
+    marginBottom: 24,
   },
-  actionMenuText: {
-    fontSize: 14,
-    fontFamily: FONTS.medium,
+  sheetHeaderAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#E5E5EA',
+  },
+  sheetHeaderTitle: {
+    fontSize: 16,
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
     color: COLORS.textPrimary,
   },
-  actionMenuDivider: {
-    height: 1,
-    backgroundColor: '#E5E5EA',
-    marginHorizontal: 14,
+  sheetHeaderSubtitle: {
+    fontSize: 12,
+    fontFamily: FONTS.regular, // Manrope-Regular
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  sheetMenu: {
+    gap: 8,
+    marginBottom: 16,
+  },
+  sheetMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 12,
+  },
+  sheetMenuIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetMenuText: {
+    fontSize: 15,
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold for interactive menu options
+    color: COLORS.textPrimary,
+  },
+  sheetCancelBtn: {
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+  sheetCancelBtnText: {
+    fontSize: 14,
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold for cancel button
+    color: '#475569',
   },
   emptyState: {
     alignItems: 'center',
@@ -662,12 +827,12 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 17,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.primary, // BasicCommercialBold
     color: COLORS.textPrimary,
   },
   emptySubtitle: {
     fontSize: 14,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.regular, // Manrope-Regular
     color: COLORS.textSecondary,
     textAlign: 'center',
     paddingHorizontal: 32,
@@ -675,14 +840,12 @@ const styles = StyleSheet.create({
   },
   legend: {
     backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
     paddingTop: 12,
     paddingHorizontal: 16,
   },
   legendTitle: {
     fontSize: 11,
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.primary, // BasicCommercialBold
     color: COLORS.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
@@ -700,11 +863,11 @@ const styles = StyleSheet.create({
   },
   legendItemText: {
     fontSize: 12,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.medium, // Manrope-Medium
   },
   legendNote: {
     fontSize: 11,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.regular, // Manrope-Regular
     color: COLORS.textSecondary,
     lineHeight: 16,
   },
@@ -725,7 +888,7 @@ const styles = StyleSheet.create({
   },
   inviteTitle: {
     fontSize: 18,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.primary, // BasicCommercialBold
     color: COLORS.textPrimary,
   },
   roleSelectorRow: {
@@ -747,7 +910,7 @@ const styles = StyleSheet.create({
   },
   roleOptionText: {
     fontSize: 13,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold for interactive role selector
     color: COLORS.textSecondary,
   },
   searchInput: {
@@ -758,14 +921,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F7',
     borderRadius: 12,
     fontSize: 15,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.regular, // Manrope-Regular
     color: COLORS.textPrimary,
   },
   hint: {
     textAlign: 'center',
     marginTop: 24,
     fontSize: 14,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.regular, // Manrope-Regular
     color: COLORS.textSecondary,
     paddingHorizontal: 24,
   },
@@ -788,12 +951,12 @@ const styles = StyleSheet.create({
   },
   searchName: {
     fontSize: 15,
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
     color: COLORS.textPrimary,
   },
   searchUsername: {
     fontSize: 12,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.regular, // Manrope-Regular
     color: COLORS.textSecondary,
     marginTop: 1,
   },
@@ -801,5 +964,81 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#F0F0F5',
     marginLeft: 72,
+  },
+  listSeparator: {
+    height: 1,
+    backgroundColor: '#F0F0F5',
+    marginLeft: 56, // aligned with text start (avatar is 44 + margin 12)
+  },
+
+  // ── Custom Alert Modal Styles ─────────────────────────────────────────────
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  alertContainer: {
+    width: '85%',
+    maxWidth: 320,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    ...SHADOWS.md,
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontFamily: FONTS.primary, // BasicCommercialBold
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  confirmMessage: {
+    fontSize: 14,
+    fontFamily: FONTS.regular, // Manrope-Regular
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  alertActionsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  alertBtnCancel: {
+    flex: 1,
+    height: 46,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: '#F1F5F9',
+  },
+  alertBtnTextCancel: {
+    fontSize: 14,
+    color: '#475569',
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold for interactive button
+  },
+  alertBtnPrimary: {
+    flex: 1,
+    height: 46,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: COLORS.primary,
+  },
+  alertBtnDestructive: {
+    flex: 1,
+    height: 46,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: COLORS.error,
+  },
+  confirmBtnText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold for interactive button
   },
 });

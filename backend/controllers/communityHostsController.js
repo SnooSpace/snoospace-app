@@ -165,7 +165,7 @@ const inviteHost = async (req, res) => {
 
     await writeAuditLog(pool, {
       communityId,
-      actorUserId: actorMemberId || communityId, // best effort
+      actorUserId: actorMemberId || null, // NULL-safe: community accounts have no member row
       action: 'host_invited',
       targetUserId,
       metadata: { role: invitedRole },
@@ -230,7 +230,7 @@ const updateHostRole = async (req, res) => {
     const actorMemberId = req.user.type === 'member' ? req.user.id : null;
     await writeAuditLog(pool, {
       communityId,
-      actorUserId: actorMemberId || communityId,
+      actorUserId: actorMemberId || null, // NULL-safe: community accounts have no member row
       action: 'role_changed',
       targetUserId: hostUserId,
       metadata: { from_role: fromRole, to_role: newRole },
@@ -288,7 +288,7 @@ const removeHost = async (req, res) => {
     const actorMemberId = requesterType === 'member' ? requesterId : null;
     await writeAuditLog(pool, {
       communityId,
-      actorUserId: actorMemberId || communityId,
+      actorUserId: actorMemberId || null, // NULL-safe: community accounts have no member row
       action: 'host_removed',
       targetUserId: hostUserId,
       metadata: { removed_role: targetRole, self_removal: isSelfRemoval },
@@ -360,13 +360,15 @@ const transferOwnership = async (req, res) => {
         [communityId, newOwnerUserId]
       );
 
-      // Audit inside the transaction so it rolls back on failure
+      // Audit inside the transaction so it rolls back on failure.
+      // actor_user_id is NULL when the actor is a Community account (no members row) —
+      // passing communityId as a fallback would violate the FK that references members.
       await client.query(
         `INSERT INTO community_host_audit_log (community_id, actor_user_id, action, target_user_id, metadata)
          VALUES ($1, $2, 'ownership_transferred', $3, $4)`,
         [
           communityId,
-          currentOwnerId || communityId,
+          currentOwnerId || null,   // NULL-safe: community accounts have no member row
           newOwnerUserId,
           JSON.stringify({ from_user_id: currentOwnerId, to_user_id: newOwnerUserId }),
         ]

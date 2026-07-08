@@ -42,6 +42,7 @@ import {
   Trophy,
   MessageCircle,
   Sparkles,
+  Building2,
 } from "lucide-react-native";
 import {
   COLORS,
@@ -523,6 +524,32 @@ export default function SettingsScreen({ route, navigation }) {
                   onPress={() =>
                     navigation.navigate("CommunityMonetization", { profile })
                   }
+                  isFirst
+                  isLast
+                />
+              </Card>
+            </>
+          )}
+
+          {/* ── COMMUNITY (community accounts only) ── */}
+          {isCommunity && (
+            <>
+              <SectionLabel title="Community" />
+              <Card>
+                <SettingsRow
+                  icon={Building2}
+                  iconColor={COLORS.primary}
+                  label="Manage Hosts"
+                  sublabel="Invite or remove co-hosts for this community"
+                  onPress={() => {
+                    HapticsService.triggerImpactLight();
+                    navigation.navigate("CommunityHostManagement", {
+                      communityId: profile?.id,
+                      communityName: profile?.name,
+                      communityLogo: profile?.logo_url,
+                      role: 'owner',
+                    });
+                  }}
                   isFirst
                   isLast
                 />
