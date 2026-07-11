@@ -30,8 +30,14 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
+# local env files — ALL .env files (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Google Services — contains API keys, never commit
+google-services.json
+GoogleService-Info.plist
 
 # typescript
 *.tsbuildinfo
