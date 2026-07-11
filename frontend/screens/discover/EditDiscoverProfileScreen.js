@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal, Animated, TouchableWithoutFeedback, InteractionManager, StatusBar, LayoutAnimation, UIManager } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal, Animated, TouchableWithoutFeedback, InteractionManager, StatusBar, LayoutAnimation, UIManager, Keyboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Svg, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { getAuthToken } from "../../api/auth";
@@ -123,7 +123,6 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   // Custom spark creation state
   const [customGoal, setCustomGoal] = useState("");
   const [showCustomGoalInput, setShowCustomGoalInput] = useState(false);
-  const [customInputY, setCustomInputY] = useState(0);
   const [customGoalSuggestions, setCustomGoalSuggestions] = useState([]);
   const [showCustomGoalSuggestions, setShowCustomGoalSuggestions] = useState(false);
   // Travel location + date picker state (one active panel at a time)
@@ -161,6 +160,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   // Scroll and validation tracking
   const scrollViewRef = useRef(null);
   const sectionCoords = useRef({});
+  const customInputTextRef = useRef(null);
   const [validationErrors, setValidationErrors] = useState({
     photos: false,
     sparks: false,
@@ -350,6 +350,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
 
   // Handle back button with unsaved changes confirmation
   const handleBackPress = useCallback(() => {
+    Keyboard.dismiss();
     if (hasChanges()) {
       setUnsavedModalVisible(true);
       return true; // Prevent default back behavior
@@ -367,6 +368,20 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     navigation,
     hasChanges,
   ]);
+
+  useEffect(() => {
+    const unsubscribeBlur = navigation.addListener("blur", () => {
+      Keyboard.dismiss();
+    });
+    const unsubscribeRemove = navigation.addListener("beforeRemove", () => {
+      Keyboard.dismiss();
+    });
+    return () => {
+      unsubscribeBlur();
+      unsubscribeRemove();
+      Keyboard.dismiss();
+    };
+  }, [navigation]);
 
   // Handle Android hardware back button
   useEffect(() => {
@@ -468,6 +483,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
 
       if (autoExit) {
         setShowSuccess(true);
+        Keyboard.dismiss();
         setTimeout(() => {
           setShowSuccess(false);
           navigation.goBack();
@@ -499,6 +515,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   ]);
 
   const handleSave = useCallback(async () => {
+    Keyboard.dismiss();
     // Reset validation errors
     setValidationErrors({ photos: false, sparks: false, openers: false });
 
@@ -626,6 +643,16 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     );
   }, []);
 
+  // Programmatic manual focus after mounting the custom input container
+  useEffect(() => {
+    if (showCustomGoalInput) {
+      const timer = setTimeout(() => {
+        customInputTextRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [showCustomGoalInput]);
+
   // Custom spark creation (calls API, handles dedup suggestions)
   const handleCustomSparkSubmit = useCallback(async (category = 'social') => {
     const trimmed = customGoal.trim();
@@ -646,6 +673,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         return;
       }
       if (result?.success && result?.spark) {
+        Keyboard.dismiss();
         setGoalBadges((prev) => [
           ...prev,
           { id: result.spark.id, label: result.spark.label, category: result.spark.category, requires_date_range: false },
@@ -669,6 +697,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     try {
       const result = await createCustomSpark(trimmed, category, true);
       if (result?.success && result?.spark) {
+        Keyboard.dismiss();
         setGoalBadges((prev) => [
           ...prev,
           { id: result.spark.id, label: result.spark.label, category: result.spark.category, requires_date_range: false },
@@ -1295,18 +1324,15 @@ export default function EditDiscoverProfileScreen({ navigation }) {
 
               {/* Custom spark input */}
               {showCustomGoalInput ? (
-                <View 
-                  onLayout={(e) => setCustomInputY(e.nativeEvent.layout.y)}
-                  style={styles.customGoalInputContainer}
-                >
+                <View style={styles.customGoalInputContainer}>
                   <TextInput
+                    ref={customInputTextRef}
                     style={styles.customGoalInput}
                     placeholder="Enter custom spark..."
                     placeholderTextColor={CONSTANTS_COLORS.textSecondary}
                     value={customGoal}
                     onChangeText={setCustomGoal}
                     maxLength={40}
-                    autoFocus
                   />
                   <TouchableOpacity
                     style={styles.customGoalAddButton}
@@ -1318,6 +1344,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                   <TouchableOpacity
                     style={styles.customGoalCancelButton}
                     onPress={() => {
+                      Keyboard.dismiss();
                       setShowCustomGoalInput(false);
                       setCustomGoal('');
                       setShowCustomGoalSuggestions(false);
@@ -1358,6 +1385,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                               : styles.goalChipUnselected,
                           ]}
                           onPress={() => {
+                            Keyboard.dismiss();
                             toggleSpark(spark);
                             setShowCustomGoalSuggestions(false);
                             setShowCustomGoalInput(false);

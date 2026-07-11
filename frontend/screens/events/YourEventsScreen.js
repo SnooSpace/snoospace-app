@@ -411,48 +411,10 @@ export default function YourEventsScreen({ navigation }) {
   const tabUnderlineX = React.useRef(new Animated.Value(0)).current;
   const tabUnderlineScale = React.useRef(new Animated.Value(0)).current;
 
-  // List transition animation
-  const listOpacity = React.useRef(new Animated.Value(0)).current;
-  const listTranslateY = React.useRef(new Animated.Value(10)).current;
-
   const tabWidths = React.useRef({}).current;
   const tabOffsets = React.useRef({}).current;
 
   useEffect(() => {
-    // Initial reveal of list
-    if (!loading) {
-      Animated.parallel([
-        Animated.timing(listOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(listTranslateY, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [loading]);
-
-  useEffect(() => {
-    // Trigger transition animation on tab change
-    listOpacity.setValue(0);
-    listTranslateY.setValue(10);
-    Animated.parallel([
-      Animated.timing(listOpacity, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(listTranslateY, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
     // Underline sliding animation
     if (tabOffsets[activeTab] !== undefined) {
       Animated.parallel([
@@ -815,11 +777,9 @@ export default function YourEventsScreen({ navigation }) {
           <SnooLoader size="large" color={PRIMARY_COLOR} />
         </View>
       ) : (
-        <Animated.View
+        <View
           style={{
             flex: 1,
-            opacity: listOpacity,
-            transform: [{ translateY: listTranslateY }],
           }}
         >
           <FlatList
@@ -890,7 +850,7 @@ export default function YourEventsScreen({ navigation }) {
                 : { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 100 }
             }
           />
-        </Animated.View>
+        </View>
       )}
       <CommentsModal
         visible={commentsModalState.visible}
