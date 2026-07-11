@@ -51,7 +51,6 @@ import NotificationPreferencesScreen from "../screens/profile/member/Notificatio
 import LinkedAccountsScreen from "../screens/profile/member/LinkedAccountsScreen";
 import BlockedAccountsScreen from "../screens/profile/member/BlockedAccountsScreen";
 import CommunityMonetizationScreen from "../screens/profile/community/CommunityMonetizationScreen";
-import CommunityHostManagementScreen from "../screens/profile/community/CommunityHostManagementScreen";
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
 import ApplicantsListScreen from "../screens/home/community/ApplicantsListScreen";
 import ApplicantDetailScreen from "../screens/home/community/ApplicantDetailScreen";
@@ -333,7 +332,6 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
       <Stack.Screen name="CreatorMonetization" component={CommunityMonetizationScreen} />
       <Stack.Screen name="CommunityMonetization" component={CommunityMonetizationScreen} />
-      <Stack.Screen name="CommunityHostManagement" component={CommunityHostManagementScreen} />
     </Stack.Navigator>
   );
 }

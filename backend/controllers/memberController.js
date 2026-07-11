@@ -1097,18 +1097,30 @@ async function changeUsernameEndpoint(req, res) {
       return res.status(409).json({ error: "Username is already taken" });
     }
 
-    await pool.query(`UPDATE members SET username = $1 WHERE id = $2`, [
-      sanitized,
-      userId,
-    ]);
+    try {
+      await pool.query(`UPDATE members SET username = $1 WHERE id = $2`, [
+        sanitized,
+        userId,
+      ]);
+    } catch (pgErr) {
+      if (pgErr.code === '23505' && pgErr.constraint?.includes('username')) {
+        const { generateCandidates } = require('../services/username/suggestionEngine');
+        return res.status(409).json({
+          error: 'username_taken',
+          message: 'That username was just taken. Try one of these instead.',
+          suggestions: generateCandidates(sanitized),
+        });
+      }
+      throw pgErr;
+    }
 
     res.json({ success: true, username: sanitized });
   } catch (err) {
     console.error(
-      "/members/username POST error:",
+      '/members/username POST error:',
       err && err.stack ? err.stack : err
     );
-    res.status(500).json({ error: "Failed to update username" });
+    res.status(500).json({ error: 'Failed to update username' });
   }
 }
 
@@ -1544,16 +1556,31 @@ async function completeSignup(req, res) {
       });
     }
 
-    // Complete the signup
-    const result = await pool.query(
-      `UPDATE members 
-       SET username = $1, signup_status = 'ACTIVE', last_completed_step = 'complete'
-       WHERE id = $2
-       RETURNING *`,
-      [sanitizedUsername, profileId]
-    );
+    // Complete the signup — the lower(username) unique index will reject a
+    // race-condition write (someone else grabbed this username between check & submit)
+    let result;
+    try {
+      result = await pool.query(
+        `UPDATE members 
+         SET username = $1, signup_status = 'ACTIVE', last_completed_step = 'complete'
+         WHERE id = $2
+         RETURNING *`,
+        [sanitizedUsername, profileId]
+      );
+    } catch (pgErr) {
+      // 23505 = unique_violation — username was taken between check and submit
+      if (pgErr.code === '23505' && pgErr.constraint?.includes('username')) {
+        const { generateCandidates } = require('../services/username/suggestionEngine');
+        return res.status(409).json({
+          error: 'username_taken',
+          message: 'That username was just taken. Try one of these instead.',
+          suggestions: generateCandidates(sanitizedUsername),
+        });
+      }
+      throw pgErr; // re-throw unexpected errors
+    }
 
-    console.log("[MemberSignup] Signup completed for:", sanitizedUsername);
+    console.log('[MemberSignup] Signup completed for:', sanitizedUsername);
 
     res.json({
       success: true,
@@ -1561,10 +1588,10 @@ async function completeSignup(req, res) {
     });
   } catch (err) {
     console.error(
-      "/members/signup/complete error:",
+      '/members/signup/complete error:',
       err && err.stack ? err.stack : err
     );
-    res.status(500).json({ error: "Failed to complete signup" });
+    res.status(500).json({ error: 'Failed to complete signup' });
   }
 }
 

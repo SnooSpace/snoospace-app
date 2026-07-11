@@ -11,7 +11,6 @@ const {
 } = require("../services/emailService");
 const { sendTicketMessage } = require("./messageController");
 const { checkForDummyAccountRsvps } = require("../utils/communityFraudDetector");
-const { isAuthorizedForCommunity } = require('../utils/communityAuthHelper');
 
 const pool = createPool();
 
@@ -19,20 +18,10 @@ const pool = createPool();
 const createEvent = async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    // communityId: from JWT for Community accounts, or from body for Member-hosts
-    const communityId = req.user?.type === 'community'
-      ? req.user?.id
-      : (req.body.communityId || req.body.community_id);
+    const userId = req.user?.id;
 
-    if (!communityId) {
-      return res.status(400).json({ error: 'communityId required (pass in body for host accounts)' });
-    }
-
-    const { authorized, actingCommunityId: userId } = await isAuthorizedForCommunity(
-      req, communityId, pool, ['owner', 'host']
-    );
-    if (!authorized) {
-      return res.status(403).json({ error: 'Only community hosts can create events' });
+    if (!userId || req.user?.type !== 'community') {
+      return res.status(403).json({ error: 'Only community accounts can create events' });
     }
 
     const {
@@ -367,19 +356,9 @@ const createEvent = async (req, res) => {
 const getCommunityEvents = async (req, res) => {
   try {
     const pool = req.app.locals.pool;
-    // communityId: from JWT for Community accounts, or from query param for Member-hosts
-    const communityId = req.user?.type === 'community'
-      ? req.user?.id
-      : (req.query.communityId || req.query.community_id);
+    const userId = req.user?.id;
 
-    if (!communityId) {
-      return res.status(401).json({ error: 'communityId required' });
-    }
-
-    const { authorized, actingCommunityId: userId } = await isAuthorizedForCommunity(
-      req, communityId, pool, ['owner', 'host', 'moderator']
-    );
-    if (!authorized) {
+    if (!userId || req.user?.type !== 'community') {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
@@ -1613,20 +1592,10 @@ const updateEvent = async (req, res) => {
     const pool = req.app.locals.pool;
     const { eventId } = req.params;
 
-    // Resolve communityId via dual-path auth
-    const rawCommunityId = req.user?.type === 'community'
-      ? req.user?.id
-      : (req.body?.communityId || req.body?.community_id);
+    const userId = req.user?.id;
 
-    if (!rawCommunityId) {
-      return res.status(400).json({ error: 'communityId required in body for host accounts' });
-    }
-
-    const { authorized, actingCommunityId: userId } = await isAuthorizedForCommunity(
-      req, rawCommunityId, pool, ['owner', 'host']
-    );
-    if (!authorized) {
-      return res.status(403).json({ error: 'Only community hosts can edit events' });
+    if (!userId || req.user?.type !== 'community') {
+      return res.status(403).json({ error: 'Only community accounts can edit events' });
     }
 
     // Verify event exists and belongs to this community
@@ -2778,20 +2747,10 @@ const deleteEvent = async (req, res) => {
   try {
     const { eventId } = req.params;
 
-    // Resolve communityId via dual-path auth (communityId from query or body)
-    const rawCommunityId = req.user?.type === 'community'
-      ? req.user?.id
-      : (req.body?.communityId || req.query.communityId);
+    const userId = req.user?.id;
 
-    if (!rawCommunityId) {
-      return res.status(400).json({ error: 'communityId required for host accounts' });
-    }
-
-    const { authorized, actingCommunityId: userId } = await isAuthorizedForCommunity(
-      req, rawCommunityId, pool, ['owner', 'host']
-    );
-    if (!authorized) {
-      return res.status(403).json({ error: 'Only community hosts can delete events' });
+    if (!userId || req.user?.type !== 'community') {
+      return res.status(403).json({ error: 'Only community accounts can delete events' });
     }
 
     // Verify event exists and belongs to this community

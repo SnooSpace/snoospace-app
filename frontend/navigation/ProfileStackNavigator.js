@@ -5,7 +5,6 @@ import MemberProfileScreen from "../screens/profile/member/MemberProfileScreen";
 
 import EditProfileScreen from "../screens/profile/member/EditProfileScreen";
 import CreatePostScreen from "../components/CreatePostScreen";
-import CommunityHostManagementScreen from "../screens/profile/community/CommunityHostManagementScreen";
 
 import OpportunityView from "../screens/home/member/OpportunityViewScreen";
 // [VIDEO INSIGHTS - DEFERRED] import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
@@ -29,7 +28,6 @@ export default function ProfileStackNavigator() {
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />
 
       <Stack.Screen name="OpportunityView" component={OpportunityView} />
-      <Stack.Screen name="CommunityHostManagement" component={CommunityHostManagementScreen} />
       {/* [VIDEO INSIGHTS - DEFERRED] <Stack.Screen name="VideoInsights" component={VideoInsightsScreen} options={{ headerShown: false }} /> */}
     </Stack.Navigator>
   );

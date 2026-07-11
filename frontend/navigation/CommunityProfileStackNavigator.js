@@ -5,7 +5,6 @@ import CommunityProfileScreen from "../screens/profile/community/CommunityProfil
 
 import EditCommunityProfileScreen from "../screens/profile/community/EditCommunityProfileScreen";
 import CommunityHostsScreen from "../screens/profile/community/CommunityHostsScreen";
-import CommunityHostManagementScreen from "../screens/profile/community/CommunityHostManagementScreen";
 
 import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen";
 import CommunityEventsListScreen from "../screens/home/community/CommunityEventsListScreen";
@@ -33,10 +32,6 @@ export default function CommunityProfileStackNavigator() {
       <Stack.Screen
         name="CommunityHosts"
         component={CommunityHostsScreen}
-      />
-      <Stack.Screen
-        name="CommunityHostManagement"
-        component={CommunityHostManagementScreen}
       />
 
       <Stack.Screen name="OpportunityView" component={OpportunityViewScreen} />

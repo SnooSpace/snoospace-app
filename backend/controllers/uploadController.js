@@ -7,7 +7,6 @@ const {
 } = require("../config/cloudinary");
 const path = require("path");
 const fs = require("fs");
-const { isAuthorizedForCommunity } = require('../utils/communityAuthHelper');
 
 // Ensure the local resume upload directory exists
 const RESUME_DIR = path.join(__dirname, "../uploads/resumes");
@@ -70,9 +69,8 @@ const uploadEventBanner = async (req, res) => {
       return res.status(400).json({ error: 'communityId is required' });
     }
 
-    const { authorized } = await isAuthorizedForCommunity(req, communityId, pool, ['owner', 'host', 'moderator']);
-    if (!authorized) {
-      return res.status(403).json({ error: 'Only community hosts can upload event banners' });
+    if (!req.user?.id || req.user?.type !== 'community') {
+      return res.status(403).json({ error: 'Only community accounts can upload event banners' });
     }
 
     if (!req.body.image) {
@@ -115,9 +113,8 @@ const uploadEventGallery = async (req, res) => {
       return res.status(400).json({ error: 'communityId is required' });
     }
 
-    const { authorized } = await isAuthorizedForCommunity(req, communityId, pool, ['owner', 'host', 'moderator']);
-    if (!authorized) {
-      return res.status(403).json({ error: 'Only community hosts can upload event gallery images' });
+    if (!req.user?.id || req.user?.type !== 'community') {
+      return res.status(403).json({ error: 'Only community accounts can upload event gallery images' });
     }
 
     if (!req.body.images || !Array.isArray(req.body.images)) {
@@ -168,9 +165,8 @@ const uploadPerformerPhoto = async (req, res) => {
       return res.status(400).json({ error: 'communityId is required' });
     }
 
-    const { authorized } = await isAuthorizedForCommunity(req, communityId, pool, ['owner', 'host', 'moderator']);
-    if (!authorized) {
-      return res.status(403).json({ error: 'Only community hosts can upload performer photos' });
+    if (!req.user?.id || req.user?.type !== 'community') {
+      return res.status(403).json({ error: 'Only community accounts can upload performer photos' });
     }
 
     if (!req.body.image) {
@@ -252,9 +248,8 @@ const deleteUploadedImage = async (req, res) => {
       return res.status(400).json({ error: 'communityId is required' });
     }
 
-    const { authorized } = await isAuthorizedForCommunity(req, communityId, pool, ['owner', 'host', 'moderator']);
-    if (!authorized) {
-      return res.status(403).json({ error: 'Only community hosts can delete images' });
+    if (!req.user?.id || req.user?.type !== 'community') {
+      return res.status(403).json({ error: 'Only community accounts can delete images' });
     }
 
     if (!publicId) {

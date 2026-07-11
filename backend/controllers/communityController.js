@@ -1,4 +1,3 @@
-const { isAuthorizedForCommunity } = require('../utils/communityAuthHelper');
 
 async function signup(req, res) {
   try {
@@ -331,24 +330,12 @@ async function getProfile(req, res) {
     });
 
     const pool = req.app.locals.pool;
-    // communityId: from JWT for Community accounts, or from query param for Member-hosts
-    const communityId = req.user?.type === 'community'
-      ? req.user?.id
-      : (req.query.communityId || req.query.community_id);
+    const userId = req.user?.id;
 
-    if (!communityId) {
-      console.error("Auth failed: userId=", req.user?.id, "type=", req.user?.type);
-      return res.status(401).json({ error: 'communityId required (pass ?communityId=X for host accounts)' });
-    }
-
-    const { authorized, actingCommunityId } = await isAuthorizedForCommunity(
-      req, communityId, pool, ['owner', 'host', 'moderator']
-    );
-    if (!authorized) {
+    if (!userId || req.user?.type !== 'community') {
       console.error("Auth failed: userId=", req.user?.id, "type=", req.user?.type);
       return res.status(401).json({ error: 'Authentication required' });
     }
-    const userId = actingCommunityId;
 
     // Single query: community profile + denormalized follow counts + live event/post counts
     const communityResult = await pool.query(
@@ -558,19 +545,9 @@ async function getProfile(req, res) {
 async function patchProfile(req, res) {
   try {
     const pool = req.app.locals.pool;
-    // communityId: from JWT for Community accounts, or from body for Member-hosts
-    const communityId = req.user?.type === 'community'
-      ? req.user?.id
-      : (req.body?.communityId || req.body?.community_id);
+    const userId = req.user?.id;
 
-    if (!communityId) {
-      return res.status(401).json({ error: 'communityId required in body for host accounts' });
-    }
-
-    const { authorized, actingCommunityId: userId } = await isAuthorizedForCommunity(
-      req, communityId, pool, ['owner', 'host']
-    );
-    if (!authorized) {
+    if (!userId || req.user?.type !== 'community') {
       return res.status(401).json({ error: 'Authentication required' });
     }
 

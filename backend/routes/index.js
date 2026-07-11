@@ -47,6 +47,7 @@ const videoInsightsRouter = require('./videoInsights');
 const { adminAuthMiddleware } = require("../middleware/adminAuth");
 const { requireBehavioralConsent, requireBrandConsent, requireBrandAcknowledgment, checkCreatorEventConsent } = require("../middleware/consentGate");
 const { trackingRateLimit, followTrackingRateLimit, aqiCalculationRateLimit } = require("../middleware/rateLimiter");
+const { usernameCheckRateLimiter } = require("../middleware/usernameCheckRateLimiter");
 const { getCommunityHealthScore } = AudienceIntelligenceController;
 
 // ── Open Plans feature routers ──
@@ -59,7 +60,7 @@ const verificationsRouter = require('./verifications');
 const BlocksController = require('../controllers/blocksController');
 const spotifyRouter = require('./spotify');
 const locationRouter = require('./location');
-const communityHostsRouter = require('./communityHosts');
+
 
 const router = express.Router();
 
@@ -287,6 +288,8 @@ router.get("/api/categories", CategoryController.getDiscoverCategories);
 router.get("/api/interests", CategoryController.getSignupInterests);
 router.get("/api/pronouns", PronounController.getParamPronouns); // New Route
 router.get("/api/users/check", UsernameController.checkUsername);
+// Username availability check with auto-suggestions (debounce-friendly, rate-limited)
+router.get("/api/username/check", usernameCheckRateLimiter, UsernameController.checkUsernameWithSuggestions);
 
 // ============================================
 // ADMIN USER MANAGEMENT (Protected)
@@ -589,8 +592,7 @@ router.patch("/members/signup/draft/:id", MemberController.updateDraft);
 router.get("/members/signup/resume", MemberController.resumeSignup);
 router.post("/members/signup/complete/:id", MemberController.completeSignup);
 
-// ── Community Hosts (multi-host management) ────────────────────────────────
-router.use('/', communityHostsRouter);
+
 
 // Communities
 router.post("/communities/signup", CommunityController.signup);
