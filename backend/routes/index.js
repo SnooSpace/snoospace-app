@@ -22,6 +22,7 @@ const MessageController = require("../controllers/messageController");
 const SearchController = require("../controllers/searchController");
 const DiscoverController = require("../controllers/discoverController");
 const SparksController = require("../controllers/sparksController");
+const RecommendationsController = require("../controllers/recommendationsController");
 const CategoryController = require("../controllers/categoryController");
 const ExploreController = require("../controllers/exploreController");
 const PollController = require("../controllers/pollController");
@@ -295,6 +296,11 @@ router.get("/api/username/check", usernameCheckRateLimiter, UsernameController.c
 // ── Sparks catalog (public — no auth required for browsing) ──────────────────
 router.get("/api/sparks", SparksController.getSystemSparks);
 router.get("/api/sparks/search", authMiddleware, SparksController.searchSparks);
+
+// ── People You Should Meet — Recommendations ──────────────────────────────────
+router.get("/api/recommendations", authMiddleware, RecommendationsController.getRecommendations);
+router.post("/api/recommendations/:candidateId/dismiss", authMiddleware, RecommendationsController.dismissRecommendation);
+router.post("/admin/recommendations/trigger", adminAuthMiddleware, RecommendationsController.triggerRecommendationsJob);
 
 // ============================================
 // ADMIN USER MANAGEMENT (Protected)

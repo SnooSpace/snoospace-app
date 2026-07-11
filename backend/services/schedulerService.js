@@ -11,6 +11,7 @@ const notificationService = require("./notificationService");
 const pushService = require("./pushService");
 const { runDemographicLearningJob } = require("../jobs/learnDemographicScores");
 const { runBehaviorEventRetention } = require("../jobs/behaviorEventRetention");
+const { runRecommendationsJob } = require("../jobs/computeRecommendations");
 const {
   resolvePostEventAttendance,
   analysePostEventEcho,
@@ -54,6 +55,16 @@ const init = (dbPool) => {
   cron.schedule("0 4 * * 0", async () => {
     console.log("[Scheduler] Running behavior event retention job...");
     await runBehaviorEventRetention(pool);
+  });
+
+  // ── Daily at 5am: compute "People You Should Meet" recommendations ─────────
+  // Runs after the weekly learning job (Sunday) or independently on other days.
+  // Generates candidates, scores them, upserts into recommended_matches,
+  // and caches top 30 per user in Redis (TTL 24h).
+  cron.schedule("0 5 * * *", async () => {
+    if (!pool) return;
+    console.log("[Scheduler] Running daily recommendations job...");
+    await runRecommendationsJob(pool);
   });
 
   // ── Hourly: resolve attendance for events that ended in the last 1–3 hours ──

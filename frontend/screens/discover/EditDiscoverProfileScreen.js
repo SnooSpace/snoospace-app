@@ -857,7 +857,6 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           style={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          scrollEnabled={!showCustomGoalInput}
         >
         {/* SECTION 1: Photos (Edge-to-Edge Editorial) */}
         <Animated.View
