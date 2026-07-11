@@ -136,10 +136,10 @@ export default function DiscoverScreen({ navigation }) {
         const profile = response.profile || response;
         // Minimum requirements: 3 discover photos, 1+ Spark, 1+ opener
         const photos = Array.isArray(profile.discover_photos) ? profile.discover_photos : [];
-        const badges = Array.isArray(profile.intent_badges) ? profile.intent_badges : [];
+        const sparks = Array.isArray(profile.sparks) ? profile.sparks : [];
         const openers = Array.isArray(profile.openers) ? profile.openers : [];
         setProfileComplete(
-          photos.length >= 3 && badges.length >= 1 && openers.length >= 1
+          photos.length >= 3 && sparks.length >= 1 && openers.length >= 1
         );
       }
     } catch (error) {

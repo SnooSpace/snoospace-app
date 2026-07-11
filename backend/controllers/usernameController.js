@@ -16,6 +16,27 @@ const pool = createPool();
 // ─── Tables that hold usernames ───────────────────────────────────────────────
 const USERNAME_TABLES = ['members', 'communities', 'sponsors', 'venues'];
 
+// ─── Tiny in-process cache (TTL 15 s, max 50 entries) ─────────────────────────
+// Prevents hammering the DB when the user types the same username repeatedly.
+const CHECK_CACHE_TTL_MS = 15_000;
+const CHECK_CACHE_MAX    = 50;
+const _checkCache = new Map(); // key: lowerUsername → { available, suggestions, ts }
+
+function cacheGet(key) {
+  const hit = _checkCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.ts > CHECK_CACHE_TTL_MS) { _checkCache.delete(key); return null; }
+  return hit;
+}
+
+function cacheSet(key, value) {
+  if (_checkCache.size >= CHECK_CACHE_MAX) {
+    // Evict oldest entry
+    _checkCache.delete(_checkCache.keys().next().value);
+  }
+  _checkCache.set(key, { ...value, ts: Date.now() });
+}
+
 /**
  * Helper: check whether a lowercase username is taken across all user tables.
  * Uses UNION ALL so it hits the DB in a single round-trip.
@@ -24,15 +45,16 @@ const USERNAME_TABLES = ['members', 'communities', 'sponsors', 'venues'];
  * @returns {Promise<boolean>}
  */
 async function isUsernameTaken(lowerUsername) {
-  // Check each table with EXISTS — stops at first hit, uses the lower() index
-  for (const table of USERNAME_TABLES) {
-    const { rows } = await pool.query(
-      `SELECT 1 FROM ${table} WHERE lower(username) = $1 LIMIT 1`,
-      [lowerUsername]
-    );
-    if (rows.length > 0) return true;
-  }
-  return false;
+  // Fire all 4 table checks in parallel — total time ≈ slowest single query
+  const results = await Promise.all(
+    USERNAME_TABLES.map(table =>
+      pool.query(
+        `SELECT 1 FROM ${table} WHERE lower(username) = $1 LIMIT 1`,
+        [lowerUsername]
+      )
+    )
+  );
+  return results.some(r => r.rows.length > 0);
 }
 
 /**
@@ -77,27 +99,44 @@ const checkUsernameWithSuggestions = async (req, res) => {
       return res.status(400).json({ error: 'Username must be at most 30 characters' });
     }
 
-    // Reserved word — immediately unavailable, generate alternatives
+    // Reserved word — immediately unavailable, no DB hit needed for the base,
+    // but DO filter candidates through the DB so we only suggest available ones.
     if (RESERVED_WORDS.includes(desired)) {
-      return res.json({ available: false, suggestions: generateCandidates(desired) });
+      const candidates = generateCandidates(desired);
+      const takenSet = candidates.length > 0 ? await batchGetTakenUsernames(candidates) : new Set();
+      const suggestions = candidates.filter(c => !takenSet.has(c)).slice(0, 5);
+      return res.json({ available: false, suggestions });
     }
 
+    // ── Cache hit ────────────────────────────────────────────────────────────
+    const cached = cacheGet(desired);
+    if (cached) {
+      return res.json({ available: cached.available, suggestions: cached.suggestions });
+    }
+
+    // ── DB check (all 4 tables in parallel) ──────────────────────────────────
     const taken = await isUsernameTaken(desired);
 
     if (!taken) {
-      return res.json({ available: true, suggestions: [] });
+      const payload = { available: true, suggestions: [] };
+      cacheSet(desired, payload);
+      return res.json(payload);
     }
 
     // Username taken — batch-check all candidates in ONE query
     const candidates = generateCandidates(desired);
     if (candidates.length === 0) {
-      return res.json({ available: false, suggestions: [] });
+      const payload = { available: false, suggestions: [] };
+      cacheSet(desired, payload);
+      return res.json(payload);
     }
 
     const takenSet = await batchGetTakenUsernames(candidates);
     const suggestions = candidates.filter(c => !takenSet.has(c)).slice(0, 5);
 
-    return res.json({ available: false, suggestions });
+    const payload = { available: false, suggestions };
+    cacheSet(desired, payload);
+    return res.json(payload);
   } catch (err) {
     console.error('[username-check] error:', err);
     return res.status(500).json({ error: 'Internal error checking username' });

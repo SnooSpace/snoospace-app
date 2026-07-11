@@ -34,9 +34,9 @@ export default function DiscoverPeopleScreen({ route, navigation }) {
         const profileRes = await apiGet("/members/profile", 15000, token);
         const profile = profileRes.profile || profileRes;
         const ownPhotos = Array.isArray(profile.discover_photos) ? profile.discover_photos : [];
-        const ownBadges = Array.isArray(profile.intent_badges) ? profile.intent_badges : [];
+        const ownSparks = Array.isArray(profile.sparks) ? profile.sparks : [];
         const ownOpeners = Array.isArray(profile.openers) ? profile.openers : [];
-        const isComplete = ownPhotos.length >= 3 && ownBadges.length >= 1 && ownOpeners.length >= 1;
+        const isComplete = ownPhotos.length >= 3 && ownSparks.length >= 1 && ownOpeners.length >= 1;
         setProfileComplete(isComplete);
 
         if (isComplete) {
@@ -213,10 +213,10 @@ const PersonCard = React.memo(({ attendee, onPress, lightTextColor }) => {
             ? attendee.pronouns
             : "they/them"}
         </Text>
-        {attendee.intent_badges?.[0] && (
+        {attendee.sparks?.[0] && (
           <View style={styles.intentBadgeSmall}>
             <Text style={styles.intentBadgeSmallText} numberOfLines={1}>
-              {attendee.intent_badges[0]}
+              {attendee.sparks[0].label}
             </Text>
           </View>
         )}

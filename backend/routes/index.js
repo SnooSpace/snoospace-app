@@ -21,6 +21,7 @@ const CatalogController = require("../controllers/catalogController");
 const MessageController = require("../controllers/messageController");
 const SearchController = require("../controllers/searchController");
 const DiscoverController = require("../controllers/discoverController");
+const SparksController = require("../controllers/sparksController");
 const CategoryController = require("../controllers/categoryController");
 const ExploreController = require("../controllers/exploreController");
 const PollController = require("../controllers/pollController");
@@ -291,6 +292,10 @@ router.get("/api/users/check", UsernameController.checkUsername);
 // Username availability check with auto-suggestions (debounce-friendly, rate-limited)
 router.get("/api/username/check", usernameCheckRateLimiter, UsernameController.checkUsernameWithSuggestions);
 
+// ── Sparks catalog (public — no auth required for browsing) ──────────────────
+router.get("/api/sparks", SparksController.getSystemSparks);
+router.get("/api/sparks/search", authMiddleware, SparksController.searchSparks);
+
 // ============================================
 // ADMIN USER MANAGEMENT (Protected)
 // ============================================
@@ -504,6 +509,12 @@ router.get("/members/profile", authMiddleware, MemberController.getProfile);
 router.patch("/members/profile", authMiddleware, MemberController.patchProfile);
 // Creator Mode toggle — must be before any /members/:id wildcard routes
 router.patch("/members/me/creator-mode", authMiddleware, MemberController.toggleCreatorMode);
+
+// ── Sparks — MUST be before /members/:id wildcard routes ─────────────────────
+router.get("/members/me/sparks", authMiddleware, SparksController.getUserSparks);
+router.post("/members/me/sparks", authMiddleware, SparksController.addUserSpark);
+router.delete("/members/me/sparks/:sparkId", authMiddleware, SparksController.removeUserSpark);
+router.post("/sparks/custom", authMiddleware, SparksController.createCustomSpark);
 router.post(
   "/members/profile/photo",
   authMiddleware,

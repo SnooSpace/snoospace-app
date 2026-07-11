@@ -165,7 +165,6 @@ async function getPendingRequests(req, res) {
         m.name as from_member_name,
         m.profile_photo_url as from_member_photo,
         m.bio as from_member_bio,
-        m.intent_badges,
         e.title as event_title
        FROM connection_requests cr
        JOIN members m ON m.id = cr.from_member_id
@@ -303,7 +302,6 @@ async function getConnections(req, res) {
         m.name as member_name,
         m.profile_photo_url as member_photo,
         m.bio as member_bio,
-        m.intent_badges,
         e.title as event_title
        FROM connection_requests cr
        JOIN members m ON m.id = CASE 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import {
   getDraftData,
 } from "../../../utils/signupDraftManager";
 import { triggerInputValidHaptic } from "../../../hooks/useCelebrationHaptics";
+import { useUsernameCheck } from "../../../hooks/useUsernameCheck";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 
 const { width, height } = Dimensions.get("window");
@@ -47,11 +48,12 @@ const FONT_SIZES = {
 
 const MemberUsernameScreen = ({ navigation, route }) => {
   const [username, setUsername] = useState("");
-  const [isChecking, setIsChecking] = useState(false);
-  const [isAvailable, setIsAvailable] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // useUsernameCheck drives all availability state (debounced, abort-safe)
+  const { status: checkStatus, suggestions } = useUsernameCheck(username);
 
   // Animation values
   const buttonScale = useSharedValue(1);
@@ -60,16 +62,16 @@ const MemberUsernameScreen = ({ navigation, route }) => {
     transform: [{ scale: buttonScale.value }],
   }));
 
-  // Trigger button bounce when validity changes to true (isAvailable === true)
+  // Trigger haptic + button bounce when username becomes available
   useEffect(() => {
-    if (isAvailable === true) {
+    if (checkStatus === 'available') {
       triggerInputValidHaptic();
       buttonScale.value = withSequence(
         withSpring(1.05, { damping: 10, stiffness: 100 }),
         withSpring(1, { damping: 12, stiffness: 90 })
       );
     }
-  }, [isAvailable === true]);
+  }, [checkStatus]);
 
   const { userData, accessToken, refreshToken, fromCommunitySignup } = route.params;
 
@@ -113,32 +115,6 @@ const MemberUsernameScreen = ({ navigation, route }) => {
     }
   };
 
-  // Debounced username availability check
-  useEffect(() => {
-    if (username.length >= 3) {
-      const timeoutId = setTimeout(() => {
-        checkUsernameAvailability();
-      }, 500);
-      return () => clearTimeout(timeoutId);
-    } else {
-      setIsAvailable(null);
-    }
-  }, [username]);
-
-  const checkUsernameAvailability = async () => {
-    if (username.length < 3) return;
-
-    setIsChecking(true);
-    try {
-      const response = await apiPost("/username/check", { username });
-      setIsAvailable(response.available);
-    } catch (error) {
-      console.error("Error checking username:", error);
-      Alert.alert("Error", "Failed to check username availability");
-    } finally {
-      setIsChecking(false);
-    }
-  };
 
   const validateUsername = (text) => {
     // Keyboard suggestions often add trailing spaces. Rather than rejecting
@@ -156,7 +132,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
       return;
     }
 
-    if (isAvailable !== true) {
+    if (checkStatus !== 'available') {
       Alert.alert("Username Taken", "Please choose a different username");
       return;
     }
@@ -269,6 +245,15 @@ const MemberUsernameScreen = ({ navigation, route }) => {
       });
     } catch (error) {
       console.error("Error completing signup:", error);
+      // Race-condition: username was taken between check and submit
+      if (error?.code === 'username_taken' || error?.message === 'username_taken') {
+        // suggestions come from the server error payload
+        Alert.alert(
+          "Username Taken",
+          "That username was just taken. Try one of the suggestions below."
+        );
+        return;
+      }
       Alert.alert(
         "Error",
         error?.message || "Failed to complete signup. Please try again.",
@@ -279,23 +264,23 @@ const MemberUsernameScreen = ({ navigation, route }) => {
   };
 
   const getUsernameStatus = () => {
-    if (isChecking) return { text: "Checking...", color: COLORS.textSecondary, icon: null };
+    if (checkStatus === 'checking') return { text: "Checking...", color: COLORS.textSecondary, icon: null };
     if (username.length < 3)
       return {
         text: "Username must be at least 3 characters",
         color: COLORS.textSecondary,
         icon: null,
       };
-    if (isAvailable === true)
+    if (checkStatus === 'available')
       return {
         text: "Username is available",
-        color: "#16A34A", // Premium green
+        color: "#16A34A",
         icon: <Check size={16} color="#16A34A" strokeWidth={3} />,
       };
-    if (isAvailable === false)
+    if (checkStatus === 'taken')
       return { 
         text: "Username is already taken", 
-        color: "#DC2626", // Premium red
+        color: "#DC2626",
         icon: <X size={16} color="#DC2626" strokeWidth={3} />
       };
     return { text: "", color: COLORS.textSecondary, icon: null };
@@ -303,7 +288,7 @@ const MemberUsernameScreen = ({ navigation, route }) => {
 
   const status = getUsernameStatus();
   const isButtonDisabled =
-    !username || username.length < 3 || !isAvailable || isSubmitting;
+    !username || username.length < 3 || checkStatus !== 'available' || isSubmitting;
 
   const handleBack = () => {
     if (navigation.canGoBack()) {
@@ -413,6 +398,25 @@ const MemberUsernameScreen = ({ navigation, route }) => {
                           </Text>
                         </View>
                       ) : null}
+
+                      {/* Suggestion chips — shown when username is taken */}
+                      {checkStatus === 'taken' && suggestions.length > 0 && (
+                        <View style={styles.suggestionsContainer}>
+                          <Text style={styles.suggestionsLabel}>Try one of these:</Text>
+                          <View style={styles.chipsRow}>
+                            {suggestions.map((s) => (
+                              <TouchableOpacity
+                                key={s}
+                                style={styles.chip}
+                                onPress={() => validateUsername(s)}
+                                activeOpacity={0.7}
+                              >
+                                <Text style={styles.chipText}>@{s}</Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                      )}
                     </View>
 
                     <View style={styles.rulesContainer}>
@@ -578,6 +582,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     marginLeft: 4,
+  },
+
+  // --- Suggestion Chips ---
+  suggestionsContainer: {
+    marginTop: 12,
+  },
+  suggestionsLabel: {
+    fontSize: 12,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+  },
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  chip: {
+    backgroundColor: "rgba(255, 255, 255, 0.75)",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+  },
+  chipText: {
+    fontSize: 13,
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.textPrimary,
   },
 
   // --- Rules Container Styles ---

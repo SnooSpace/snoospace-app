@@ -153,6 +153,24 @@ const init = (dbPool) => {
     }
   });
 
+  // ── Daily at 2am: expire travel sparks past their end_date ─────────────────
+  cron.schedule("0 2 * * *", async () => {
+    if (!pool) return;
+    try {
+      const result = await pool.query(`
+        UPDATE user_sparks
+        SET is_expired = true
+        WHERE end_date < CURRENT_DATE
+          AND is_expired = false
+      `);
+      if (result.rowCount > 0) {
+        console.log(`[Scheduler] Expired ${result.rowCount} travel spark(s)`);
+      }
+    } catch (err) {
+      console.error("[Scheduler] Travel spark expiry error:", err.message);
+    }
+  });
+
   console.log("[Scheduler] Scheduler service initialized");
 };
 

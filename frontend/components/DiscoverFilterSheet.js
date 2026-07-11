@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -7,10 +7,10 @@ import {
   TextInput,
   Platform,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { Search, ChevronDown, ChevronUp, X } from "lucide-react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 import SwipeableModal from "./modals/SwipeableModal";
 import { COLORS, SPACING, BORDER_RADIUS, FONTS } from "../constants/theme";
 import HapticsService from "../services/HapticsService";
@@ -19,68 +19,44 @@ import {
   INTEREST_CATEGORIES,
 } from "../screens/profile/member/EditProfileConstants";
 import RangeSlider from "./RangeSlider";
+import { getSystemSparks, searchSparks } from "../api/sparks";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-// Spark Color Logic (Semantic Grouping)
-const GOAL_COLORS = {
-  "looking for study partners": { bg: "#E0F2FE", text: "#075985" }, // Blue
-  "new to the city": { bg: "#ECFDF5", text: "#065F46" }, // Mint
-  "exploring opportunities": { bg: "#FFF7ED", text: "#9A3412" }, // Orange
-  "seeking mentorship": { bg: "#F3E5F5", text: "#7B1FA2" }, // Purple
-  "looking for a co-founder": { bg: "#E0F7FA", text: "#006064" }, // Cyan
-  default: { bg: "#F3F4F6", text: "#374151" }, // Neutral
+// ── Spark colour helper ───────────────────────────────────────────────────────
+const CATEGORY_COLORS = {
+  professional: { bg: "#EFF6FF", text: "#1D4ED8" },
+  social:       { bg: "#F0FDF4", text: "#15803D" },
+  activity:     { bg: "#FFF7ED", text: "#C2410C" },
+  learning:     { bg: "#F5F3FF", text: "#6D28D9" },
+  travel:       { bg: "#E0F2FE", text: "#0369A1" },
+  default:      { bg: "#F3F4F6", text: "#374151" },
 };
 
-const getGoalStyle = (goal) => {
-  const lower = goal?.toLowerCase() || "";
-  for (const key in GOAL_COLORS) {
-    if (lower.includes(key)) return GOAL_COLORS[key];
-  }
-  return GOAL_COLORS.default;
-};
+const getSparkStyle = (category) =>
+  CATEGORY_COLORS[category] || CATEGORY_COLORS.default;
 
-// Spark Presets
-const GOAL_BADGE_PRESETS = [
-  "Looking for a co-founder",
-  "Seeking mentorship",
-  "Open to collaborations",
-  "Exploring opportunities",
-  "Open to friendships",
-  "New to the city",
-  "Wants to play sports",
-  "Looking for study partners",
-  "Here to learn",
-  "Just curious",
-  "Looking for teammates",
-];
+// ── Category display labels ───────────────────────────────────────────────────
+const CATEGORY_LABELS = {
+  professional: "Professional",
+  social:       "Social",
+  activity:     "Activity",
+  learning:     "Learning",
+  travel:       "Travel",
+};
 
 const GENDER_OPTIONS = ["Men", "Women", "Non-binary"];
 
-// Gender Chip Styles (Matching Pronouns in EditProfile)
 const GENDER_STYLES = {
-  Men: {
-    bg: "#E2E8F1", // Deepened Cool slate
-    text: "#2F3A55",
-  },
-  Women: {
-    bg: "#F2E2E6", // Deepened Muted rose
-    text: "#5A2F3C",
-  },
-  "Non-binary": {
-    bg: "#E2EFED", // Deepened Soft teal-sage
-    text: "#1F4E4A",
-  },
-  default: {
-    bg: "#F3F4F6",
-    text: "#374151",
-  },
+  Men:           { bg: "#E2E8F1", text: "#2F3A55" },
+  Women:         { bg: "#F2E2E6", text: "#5A2F3C" },
+  "Non-binary":  { bg: "#E2EFED", text: "#1F4E4A" },
+  default:       { bg: "#F3F4F6", text: "#374151" },
 };
 
-const getGenderStyle = (gender) => {
-  return GENDER_STYLES[gender] || GENDER_STYLES.default;
-};
+const getGenderStyle = (gender) => GENDER_STYLES[gender] || GENDER_STYLES.default;
 
+// ── Component ─────────────────────────────────────────────────────────────────
 const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
   visible,
   onClose,
@@ -96,71 +72,125 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
     `[DiscoverFilterSheet] Render #${++renderCount.current} (visible: ${visible})`,
   );
 
-  const [selectedBadges, setSelectedBadges] = useState(
-    initialFilters.badges || [],
+  // ── Sparks state ────────────────────────────────────────────────────────────
+  const [sparksLoading, setSparksLoading] = useState(false);
+  const [categories, setCategories] = useState([]); // [{ category, sparks: [...] }]
+  const [sparkSearch, setSparkSearch] = useState("");
+  const [sparkSearchResults, setSparkSearchResults] = useState([]);
+  const [sparkSearchLoading, setSparkSearchLoading] = useState(false);
+  const sparkSearchTimer = useRef(null);
+
+  // selectedSparkIds tracks { id, label, category } objects (for display + apply)
+  const [selectedSparks, setSelectedSparks] = useState(
+    initialFilters.selectedSparks || [],
   );
 
-  // Interests now stored as simple array of strings, same as before
+  // ── Interests / gender / age state ─────────────────────────────────────────
   const [selectedInterests, setSelectedInterests] = useState(
     initialFilters.interests || [],
   );
-
   const [selectedGenders, setSelectedGenders] = useState(
     initialFilters.genders || [],
   );
-
   const [interestSearch, setInterestSearch] = useState("");
   const [expandedCategory, setExpandedCategory] = useState(null);
-
-  // Age states for slider
   const [ageMin, setAgeMin] = useState(initialFilters.ageMin || 18);
   const [ageMax, setAgeMax] = useState(initialFilters.ageMax || 30);
 
+  // ── Load system sparks once on mount ───────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setSparksLoading(true);
+      try {
+        const data = await getSystemSparks();
+        if (!cancelled) setCategories(data);
+      } catch (e) {
+        console.warn("[DiscoverFilterSheet] Failed to load sparks:", e.message);
+      } finally {
+        if (!cancelled) setSparksLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ── Re-sync when sheet opens ────────────────────────────────────────────────
   useEffect(() => {
     if (visible) {
-      setSelectedBadges(initialFilters.badges || []);
+      setSelectedSparks(initialFilters.selectedSparks || []);
       setSelectedInterests(initialFilters.interests || []);
       setSelectedGenders(initialFilters.genders || []);
       setAgeMin(initialFilters.ageMin || 18);
       setAgeMax(initialFilters.ageMax || 30);
       setExpandedCategory(null);
       setInterestSearch("");
+      setSparkSearch("");
+      setSparkSearchResults([]);
     }
   }, [visible, initialFilters]);
 
-  const toggleBadge = (badge) => {
-    HapticsService.triggerSelection();
-    setSelectedBadges((prev) =>
-      prev.includes(badge) ? prev.filter((b) => b !== badge) : [...prev, badge],
-    );
-  };
+  // ── Spark search (debounced) ────────────────────────────────────────────────
+  useEffect(() => {
+    if (sparkSearchTimer.current) clearTimeout(sparkSearchTimer.current);
+    const q = sparkSearch.trim();
+    if (q.length < 2) {
+      setSparkSearchResults([]);
+      return;
+    }
+    setSparkSearchLoading(true);
+    sparkSearchTimer.current = setTimeout(async () => {
+      try {
+        const results = await searchSparks(q);
+        setSparkSearchResults(results);
+      } catch (e) {
+        setSparkSearchResults([]);
+      } finally {
+        setSparkSearchLoading(false);
+      }
+    }, 300);
+    return () => { if (sparkSearchTimer.current) clearTimeout(sparkSearchTimer.current); };
+  }, [sparkSearch]);
 
-  const toggleInterest = (interest) => {
+  // ── Toggle helpers ──────────────────────────────────────────────────────────
+  const toggleSpark = useCallback((spark) => {
+    HapticsService.triggerSelection();
+    setSelectedSparks((prev) => {
+      const exists = prev.some((s) => s.id === spark.id);
+      return exists
+        ? prev.filter((s) => s.id !== spark.id)
+        : [...prev, { id: spark.id, label: spark.label, category: spark.category }];
+    });
+  }, []);
+
+  const removeSpark = useCallback((sparkId) => {
+    HapticsService.triggerSelection();
+    setSelectedSparks((prev) => prev.filter((s) => s.id !== sparkId));
+  }, []);
+
+  const toggleInterest = useCallback((interest) => {
     HapticsService.triggerSelection();
     setSelectedInterests((prev) =>
-      prev.includes(interest)
-        ? prev.filter((i) => i !== interest)
-        : [...prev, interest],
+      prev.includes(interest) ? prev.filter((i) => i !== interest) : [...prev, interest],
     );
-  };
+  }, []);
 
-  const toggleGender = (gender) => {
+  const toggleGender = useCallback((gender) => {
     HapticsService.triggerSelection();
     setSelectedGenders((prev) =>
-      prev.includes(gender)
-        ? prev.filter((g) => g !== gender)
-        : [...prev, gender],
+      prev.includes(gender) ? prev.filter((g) => g !== gender) : [...prev, gender],
     );
-  };
+  }, []);
 
-  const removeInterest = (interest) => {
+  const removeInterest = useCallback((interest) => {
     HapticsService.triggerSelection();
     setSelectedInterests((prev) => prev.filter((i) => i !== interest));
-  };
+  }, []);
 
+  // ── Reset / Apply ──────────────────────────────────────────────────────────
   const handleReset = () => {
     HapticsService.triggerImpactLight();
-    setSelectedBadges([]);
+    setSelectedSparks([]);
     setSelectedInterests([]);
     setSelectedGenders([]);
     setAgeMin(18);
@@ -170,44 +200,191 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
   const handleApply = () => {
     HapticsService.triggerImpactMedium();
     const filters = {
-      badges: selectedBadges.length > 0 ? selectedBadges : null,
+      // Pass spark IDs for the API query param
+      spark_ids: selectedSparks.length > 0 ? selectedSparks.map((s) => s.id) : null,
+      // Keep selectedSparks objects so the sheet can restore them
+      selectedSparks: selectedSparks.length > 0 ? selectedSparks : [],
       interests: selectedInterests.length > 0 ? selectedInterests : null,
       genders: selectedGenders.length > 0 ? selectedGenders : null,
-      ageMin: ageMin,
-      ageMax: ageMax,
+      ageMin,
+      ageMax,
     };
     onApply(filters);
     onClose();
   };
 
   const hasActiveFilters =
-    selectedBadges.length > 0 ||
+    selectedSparks.length > 0 ||
     selectedInterests.length > 0 ||
     selectedGenders.length > 0 ||
     ageMin !== 18 ||
     ageMax !== 30;
 
-  // Render Categorized Interests
+  // ── Render Sparks section ──────────────────────────────────────────────────
+  const renderSparksSection = () => {
+    const isSearching = sparkSearch.trim().length >= 2;
+
+    // Show selected spark pills
+    const selectedPills = selectedSparks.length > 0 && (
+      <View style={styles.selectedWrapper}>
+        {selectedSparks.map((spark) => {
+          const style = getSparkStyle(spark.category);
+          return (
+            <TouchableOpacity
+              key={`sel-${spark.id}`}
+              style={[styles.selectedChip, { backgroundColor: style.bg }]}
+              onPress={() => removeSpark(spark.id)}
+            >
+              <Text style={[styles.selectedChipText, { color: style.text }]}>
+                {spark.label}
+              </Text>
+              <X size={14} color={style.text} />
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+
+    // Search bar
+    const searchBar = (
+      <View style={styles.searchContainer}>
+        <Search size={18} color={COLORS.textSecondary} style={{ marginRight: 8 }} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search sparks..."
+          placeholderTextColor={COLORS.textSecondary}
+          value={sparkSearch}
+          onChangeText={setSparkSearch}
+        />
+        {sparkSearch.length > 0 && (
+          <TouchableOpacity
+            onPress={() => { HapticsService.triggerImpactLight(); setSparkSearch(""); }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={{ marginLeft: 8 }}
+          >
+            <X size={18} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+
+    // Search results
+    if (isSearching) {
+      return (
+        <View>
+          {selectedPills}
+          {searchBar}
+          {sparkSearchLoading ? (
+            <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: 8 }} />
+          ) : sparkSearchResults.length === 0 ? (
+            <Text style={styles.emptySearchText}>No sparks found for "{sparkSearch}"</Text>
+          ) : (
+            <View style={styles.chipGrid}>
+              {sparkSearchResults.map((spark) => {
+                const style = getSparkStyle(spark.category);
+                const isSelected = selectedSparks.some((s) => s.id === spark.id);
+                return (
+                  <TouchableOpacity
+                    key={spark.id}
+                    style={[
+                      styles.goalChip,
+                      {
+                        backgroundColor: isSelected ? style.bg : "#FFFFFF",
+                        borderColor: isSelected ? style.text : "#F3F4F6",
+                      },
+                    ]}
+                    onPress={() => toggleSpark(spark)}
+                  >
+                    <Text
+                      style={[
+                        styles.goalChipText,
+                        { color: isSelected ? style.text : COLORS.textPrimary },
+                      ]}
+                    >
+                      {spark.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      );
+    }
+
+    // Default: grouped by category
+    if (sparksLoading) {
+      return (
+        <View>
+          {selectedPills}
+          {searchBar}
+          <ActivityIndicator size="small" color={COLORS.primary} style={{ marginTop: 16 }} />
+        </View>
+      );
+    }
+
+    return (
+      <View>
+        {selectedPills}
+        {searchBar}
+        {categories.map(({ category, sparks }) => {
+          const catStyle = getSparkStyle(category);
+          const catLabel = CATEGORY_LABELS[category] || category;
+          return (
+            <View key={category} style={styles.sparkCategoryGroup}>
+              <Text style={[styles.sparkCategoryLabel, { color: catStyle.text }]}>
+                {catLabel}
+              </Text>
+              <View style={styles.chipGrid}>
+                {sparks.map((spark) => {
+                  const isSelected = selectedSparks.some((s) => s.id === spark.id);
+                  return (
+                    <TouchableOpacity
+                      key={spark.id}
+                      style={[
+                        styles.goalChip,
+                        {
+                          backgroundColor: isSelected ? catStyle.bg : "#FFFFFF",
+                          borderColor: isSelected ? catStyle.text : "#F3F4F6",
+                        },
+                      ]}
+                      onPress={() => toggleSpark(spark)}
+                    >
+                      <Text
+                        style={[
+                          styles.goalChipText,
+                          { color: isSelected ? catStyle.text : COLORS.textPrimary },
+                        ]}
+                      >
+                        {spark.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+
+  // ── Render categorized interests ───────────────────────────────────────────
   const renderInterests = () => {
     const query = interestSearch.toLowerCase().trim();
     const isSearching = query.length > 0;
-
-    // Convert INTEREST_CATEGORIES object to array
-    const categories = Object.values(INTEREST_CATEGORIES).filter(
+    const interestCategories = Object.values(INTEREST_CATEGORIES).filter(
       (cat) => cat.keywords.length > 0,
     );
 
-    // If searching, show flattened results or filtered list
     if (isSearching) {
       return (
         <View style={styles.chipGrid}>
-          {categories
+          {interestCategories
             .flatMap((cat) => cat.keywords)
             .filter((k) => k.toLowerCase().includes(query))
             .map((interest) => {
-              // Capitalize
-              const display =
-                interest.charAt(0).toUpperCase() + interest.slice(1);
+              const display = interest.charAt(0).toUpperCase() + interest.slice(1);
               const style = getInterestStyle(display);
               const isSelected = selectedInterests.includes(display);
               return (
@@ -223,13 +400,7 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
                   ]}
                   onPress={() => toggleInterest(display)}
                 >
-                  <Text
-                    style={[
-                      styles.interestChipText,
-                      { color: style.text },
-                      isSelected && styles.interestChipTextSelected,
-                    ]}
-                  >
+                  <Text style={[styles.interestChipText, { color: style.text }]}>
                     {display}
                   </Text>
                 </TouchableOpacity>
@@ -239,11 +410,9 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
       );
     }
 
-    // Default Accordion View
-    return categories.map((category) => {
+    return interestCategories.map((category) => {
       const isExpanded = expandedCategory === category.label;
       const Icon = category.icon;
-
       return (
         <View key={category.label} style={styles.categoryWrapper}>
           <TouchableOpacity
@@ -254,13 +423,7 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
             }}
           >
             <View style={styles.categoryHeaderLeft}>
-              {/* Category Icon */}
-              <View
-                style={[
-                  styles.categoryIconContainer,
-                  { backgroundColor: category.bg },
-                ]}
-              >
+              <View style={[styles.categoryIconContainer, { backgroundColor: category.bg }]}>
                 {Icon && <Icon size={18} color={category.text} />}
               </View>
               <Text style={styles.categoryTitle}>{category.label}</Text>
@@ -292,13 +455,7 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
                       ]}
                       onPress={() => toggleInterest(display)}
                     >
-                      <Text
-                        style={[
-                          styles.interestChipText,
-                          { color: style.text },
-                          // Removed conditional fontFamily/fontWeight for layout stability
-                        ]}
-                      >
+                      <Text style={[styles.interestChipText, { color: style.text }]}>
                         {display}
                       </Text>
                     </TouchableOpacity>
@@ -312,6 +469,7 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
     });
   };
 
+  // ── JSX ───────────────────────────────────────────────────────────────────
   return (
     <SwipeableModal
       visible={visible}
@@ -342,53 +500,20 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
         contentContainerStyle={{ paddingBottom: 20 }}
         bottomOffset={Platform.OS === "ios" ? 40 : 20}
       >
-        {/* GOALS SECTION */}
+        {/* SPARKS SECTION */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Sparks</Text>
           <Text style={styles.sectionSubtitle}>
             Find people with specific sparks
           </Text>
-          <View style={styles.chipGrid}>
-            {GOAL_BADGE_PRESETS.map((badge) => {
-              const goalStyle = getGoalStyle(badge);
-              const isSelected = selectedBadges.includes(badge);
-              return (
-                <TouchableOpacity
-                  key={badge}
-                  style={[
-                    styles.goalChip,
-                    {
-                      backgroundColor: isSelected ? goalStyle.bg : "#FFFFFF",
-                      borderColor: isSelected ? goalStyle.text : "#F3F4F6", // Constant border color visual or unselected
-                    },
-                  ]}
-                  onPress={() => toggleBadge(badge)}
-                >
-                  <Text
-                    style={[
-                      styles.goalChipText,
-                      {
-                        color: isSelected ? goalStyle.text : COLORS.textPrimary,
-                        fontFamily: FONTS.semiBold, // Unified weight to prevent shift
-                      },
-                    ]}
-                  >
-                    {badge}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {renderSparksSection()}
         </View>
 
         {/* INTERESTS SECTION */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Interests</Text>
-          <Text style={styles.sectionSubtitle}>
-            Find people with shared interests
-          </Text>
+          <Text style={styles.sectionSubtitle}>Find people with shared interests</Text>
 
-          {/* Selected Interests Display */}
           {selectedInterests.length > 0 && (
             <View style={styles.selectedWrapper}>
               {selectedInterests.map((interest) => {
@@ -399,9 +524,7 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
                     style={[styles.selectedChip, { backgroundColor: style.bg }]}
                     onPress={() => removeInterest(interest)}
                   >
-                    <Text
-                      style={[styles.selectedChipText, { color: style.text }]}
-                    >
+                    <Text style={[styles.selectedChipText, { color: style.text }]}>
                       {interest}
                     </Text>
                     <X size={14} color={style.text} />
@@ -411,13 +534,8 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
             </View>
           )}
 
-          {/* Search Bar */}
           <View style={styles.searchContainer}>
-            <Search
-              size={18}
-              color={COLORS.textSecondary}
-              style={{ marginRight: 8 }}
-            />
+            <Search size={18} color={COLORS.textSecondary} style={{ marginRight: 8 }} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search interests..."
@@ -427,10 +545,7 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
             />
             {interestSearch.length > 0 && (
               <TouchableOpacity
-                onPress={() => {
-                  HapticsService.triggerImpactLight();
-                  setInterestSearch("");
-                }}
+                onPress={() => { HapticsService.triggerImpactLight(); setInterestSearch(""); }}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 style={{ marginLeft: 8 }}
               >
@@ -439,7 +554,6 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
             )}
           </View>
 
-          {/* Categorized List */}
           <View style={styles.categoriesWrapper}>{renderInterests()}</View>
         </View>
 
@@ -451,7 +565,6 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
             {GENDER_OPTIONS.map((gender) => {
               const isSelected = selectedGenders.includes(gender);
               const style = getGenderStyle(gender);
-
               return (
                 <TouchableOpacity
                   key={gender}
@@ -459,9 +572,7 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
                     styles.goalChip,
                     {
                       backgroundColor: isSelected ? style.bg : "#FFFFFF",
-                      borderColor: isSelected
-                        ? style.bg // Match background for a clean "pill" look
-                        : "#F3F4F6",
+                      borderColor: isSelected ? style.bg : "#F3F4F6",
                     },
                   ]}
                   onPress={() => toggleGender(gender)}
@@ -491,7 +602,6 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
               {ageMin} - {ageMax}
             </Text>
           </View>
-
           <View style={styles.sliderContainer}>
             <RangeSlider
               min={18}
@@ -511,9 +621,7 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
         <TouchableOpacity
           style={[
             styles.applyButton,
-            {
-              backgroundColor: hasActiveFilters ? COLORS.primary : "#E5E7EB",
-            },
+            { backgroundColor: hasActiveFilters ? COLORS.primary : "#E5E7EB" },
           ]}
           onPress={handleApply}
           disabled={!hasActiveFilters}
@@ -521,9 +629,7 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
           <Text
             style={[
               styles.applyButtonText,
-              {
-                color: hasActiveFilters ? "#FFFFFF" : COLORS.textSecondary,
-              },
+              { color: hasActiveFilters ? "#FFFFFF" : COLORS.textSecondary },
             ]}
           >
             Apply Filters
@@ -531,7 +637,7 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
               <Text>
                 {" "}
                 (
-                {selectedBadges.length +
+                {selectedSparks.length +
                   selectedInterests.length +
                   selectedGenders.length +
                   (ageMin !== 18 || ageMax !== 30 ? 1 : 0)}
@@ -548,14 +654,6 @@ const DiscoverFilterSheet = React.memo(function DiscoverFilterSheet({
 export default DiscoverFilterSheet;
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  backdrop: {
-    flex: 1,
-  },
   sheet: {
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 24,
@@ -613,31 +711,50 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
-  // Goals
+  // ── Sparks ────────────────────────────────────────────────────────────────
+  sparkCategoryGroup: {
+    marginBottom: 16,
+  },
+  sparkCategoryLabel: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  emptySearchText: {
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    marginTop: 8,
+    textAlign: "center",
+  },
+
+  // Chip grid (shared by sparks + gender)
   chipGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
   },
   goalChip: {
-    height: 38, // Slightly taller
+    height: 38,
     borderRadius: 999,
     paddingHorizontal: 16,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2, // Constant border width to prevent jumping
+    borderWidth: 2,
   },
   goalChipText: {
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.semiBold,
     fontSize: 14,
   },
 
-  // Interests
+  // ── Selected pills ────────────────────────────────────────────────────────
   selectedWrapper: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   selectedChip: {
     flexDirection: "row",
@@ -651,6 +768,8 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 13,
   },
+
+  // ── Search bar ────────────────────────────────────────────────────────────
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -666,6 +785,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.textPrimary,
   },
+
+  // ── Interests accordion ───────────────────────────────────────────────────
   categoriesWrapper: {
     gap: 0,
   },
@@ -719,7 +840,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  // Age
+  // ── Age ───────────────────────────────────────────────────────────────────
   ageHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -736,7 +857,7 @@ const styles = StyleSheet.create({
     height: 60,
   },
 
-  // Footer
+  // ── Footer ────────────────────────────────────────────────────────────────
   footer: {
     padding: 20,
     paddingBottom: 34,

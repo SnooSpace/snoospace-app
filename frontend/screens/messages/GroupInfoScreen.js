@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, Alert, ScrollView, ActivityIndicator, Switch,
+  StyleSheet, Alert, ScrollView, ActivityIndicator, Switch, Keyboard,
 } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -447,6 +447,20 @@ export default function GroupInfoScreen({ route, navigation }) {
 
   const showAlert = (config) => setAlertConfig({ ...config, visible: true });
   const hideAlert = () => setAlertConfig((prev) => ({ ...prev, visible: false }));
+
+  useEffect(() => {
+    const unsubscribeBlur = navigation.addListener("blur", () => {
+      Keyboard.dismiss();
+    });
+    const unsubscribeRemove = navigation.addListener("beforeRemove", () => {
+      Keyboard.dismiss();
+    });
+    return () => {
+      unsubscribeBlur();
+      unsubscribeRemove();
+      Keyboard.dismiss();
+    };
+  }, [navigation]);
 
   // ── Load current user ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -995,7 +1009,7 @@ export default function GroupInfoScreen({ route, navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
+          <TouchableOpacity onPress={() => { Keyboard.dismiss(); navigation.goBack(); }} style={styles.iconBtn}>
             <ArrowLeft size={22} color={TEXT} strokeWidth={2} />
           </TouchableOpacity>
           <Text style={styles.title}>Group Info</Text>
@@ -1011,7 +1025,7 @@ export default function GroupInfoScreen({ route, navigation }) {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
+        <TouchableOpacity onPress={() => { Keyboard.dismiss(); navigation.goBack(); }} style={styles.iconBtn}>
           <ArrowLeft size={22} color={TEXT} strokeWidth={2} />
         </TouchableOpacity>
         <Text style={styles.title}>Group Info</Text>

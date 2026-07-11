@@ -73,7 +73,7 @@ export function useUsernameCheck(username) {
           setStatus('error');
         }
       }
-    }, 450); // 450 ms debounce — snappy but avoids hammering on fast typing
+    }, 300); // 300 ms debounce — fast feedback, still safe above key-repeat rate
 
     return () => {
       clearTimeout(debounceRef.current);

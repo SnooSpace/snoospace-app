@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, Image, Modal, LayoutAnimation, UIManager, ImageBackground, KeyboardAvoidingView } from "react-native";
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, Image, Modal, LayoutAnimation, UIManager, ImageBackground, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import PillShape from "../../../assets/PillShape.jpeg";
 import { ScrollView } from "react-native";
@@ -21,7 +21,11 @@ import {
   Check,
   GraduationCap,
   Search,
+  AtSign,
+  CircleCheck,
+  CircleX,
 } from "lucide-react-native";
+import { useUsernameCheck } from "../../../hooks/useUsernameCheck";
 
 
 import { getAuthToken } from "../../../api/auth";
@@ -253,9 +257,12 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
   const [expandedCategory, setExpandedCategory] = useState(null);
   const [location, setLocation] = useState(profile?.location || null);
 
-  const [usernameAvailable, setUsernameAvailable] = useState(null);
-  const [usernameChecking, setUsernameChecking] = useState(false);
+  const [usernameInputFocused, setUsernameInputFocused] = useState(false);
   const [emailChangeModalVisible, setEmailChangeModalVisible] = useState(false);
+
+  // Only run useUsernameCheck when username differs from the saved original
+  const usernameToCheck = username !== (profileRef.current?.username || profile?.username || '') ? username : '';
+  const { status: usernameStatus, suggestions: usernameSuggestions } = useUsernameCheck(usernameToCheck);
   const [locationPickerVisible, setLocationPickerVisible] = useState(false);
   const [locationActionsModalVisible, setLocationActionsModalVisible] =
     useState(false);
@@ -283,6 +290,8 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
   const allowLeaveRef = useRef(false);
   const scrollViewRef = useRef(null);
+  const primaryPhoneInputRef = useRef(null);
+  const secondaryPhoneInputRef = useRef(null);
 
 
   useEffect(() => {
@@ -301,6 +310,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      Keyboard.dismiss();
       if (!hasChanges || isSaving || allowLeaveRef.current) {
         return;
       }
@@ -314,6 +324,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
             text: "Yes",
             style: "destructive",
             onPress: () => {
+              Keyboard.dismiss();
               allowLeaveRef.current = true;
               navigation.dispatch(e.data.action);
             },
@@ -323,6 +334,13 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     });
     return unsubscribe;
   }, [navigation, hasChanges, isSaving]);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("blur", () => {
+      Keyboard.dismiss();
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const checkForChanges = () => {
     const sourceProfile = profileRef.current || {};
@@ -355,48 +373,10 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
     setHasChanges(!!changed);
   };
 
-  const checkUsernameAvailability = useCallback(async (value) => {
-    if (!value || value === profileRef.current?.username) {
-      setUsernameAvailable(null);
-      return;
-    }
-
-    if (!/^[a-z0-9._]{3,30}$/.test(value.toLowerCase())) {
-      setUsernameAvailable(false);
-      return;
-    }
-
-    setUsernameChecking(true);
-    try {
-      const token = await getAuthToken();
-      const { apiPost } = await import("../../../api/client");
-      const result = await apiPost(
-        "/username/check",
-        { username: value },
-        10000,
-        token,
-      );
-      setUsernameAvailable(result?.available === true);
-    } catch (error) {
-      setUsernameAvailable(false);
-    } finally {
-      setUsernameChecking(false);
-    }
-  }, []);
-
   const handleUsernameChange = useCallback((value) => {
     const sanitized = value.toLowerCase().replace(/[^a-z0-9._]/g, "");
     setUsername(sanitized);
-    if (sanitized.length >= 3) {
-      const timeoutId = setTimeout(
-        () => checkUsernameAvailability(sanitized),
-        500,
-      );
-      return () => clearTimeout(timeoutId);
-    } else {
-      setUsernameAvailable(null);
-    }
-  }, [checkUsernameAvailability]);
+  }, []);
 
   const handlePrimaryPhoneChange = useCallback((val) => {
     setPrimaryPhone(sanitizePhoneValue(val));
@@ -564,7 +544,21 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
       await updateCommunityProfile(updates, token);
 
       if (username !== (profileRef.current?.username || profile?.username)) {
-        await changeUsername(username, token);
+        if (usernameStatus === 'taken' || usernameStatus === 'checking') {
+          Alert.alert('Username not available', 'Please choose a different username or wait for the check to finish.');
+          setIsSaving(false);
+          return;
+        }
+        try {
+          await changeUsername(username, token);
+        } catch (err) {
+          if (err?.response?.data?.error === 'username_taken') {
+            Alert.alert('Username taken', 'That username was just taken. Try one of the suggestions below.');
+            setIsSaving(false);
+            return;
+          }
+          throw err;
+        }
       }
 
       try {
@@ -581,6 +575,7 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
       HapticsService.triggerNotificationSuccess();
       allowLeaveRef.current = true;
       setHasChanges(false);
+      Keyboard.dismiss();
       navigation.navigate("Profile", { refreshProfile: true });
     } catch (error) {
       Alert.alert("Error", error?.message || "Failed to update profile.");
@@ -659,7 +654,10 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
         {/* Header Matches EditProfileScreen exactly */}
         <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            Keyboard.dismiss();
+            navigation.goBack();
+          }}
           style={styles.headerButtonLeft}
           hitSlop={{ top: 30, bottom: 30, left: 30, right: 30 }}
         >
@@ -752,34 +750,85 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
             />
           </View>
           <View style={styles.inputGroupLast}>
-            <Text style={styles.inputLabel}>USERNAME</Text>
-            <View style={[styles.input, styles.rowInput]}>
-              <Text style={styles.prefix}>@</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={styles.inputLabel}>USERNAME</Text>
+              {usernameToCheck.length >= 3 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  {usernameStatus === 'checking' && (
+                    <Text style={[styles.helperText, { marginTop: 0, marginLeft: 0, fontFamily: 'Manrope-SemiBold', color: TEXT_SECONDARY }]}>Checking…</Text>
+                  )}
+                  {usernameStatus === 'available' && (
+                    <>
+                      <Check size={12} color="#16A34A" strokeWidth={3} />
+                      <Text style={[styles.helperText, { marginTop: 0, marginLeft: 0, fontFamily: 'Manrope-SemiBold', color: '#16A34A' }]}>Available</Text>
+                    </>
+                  )}
+                  {usernameStatus === 'taken' && (
+                    <>
+                      <X size={12} color="#DC2626" strokeWidth={3} />
+                      <Text style={[styles.helperText, { marginTop: 0, marginLeft: 0, fontFamily: 'Manrope-SemiBold', color: '#DC2626' }]}>Taken</Text>
+                    </>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* Input */}
+            <View style={[
+              styles.input,
+              styles.rowInput,
+              usernameInputFocused && { borderWidth: 1.5, borderColor: ACCENT_COLOR },
+            ]}>
+              <AtSign size={15} color={TEXT_SECONDARY} style={{ marginRight: 4 }} />
               <FormTextInput
                 style={styles.flexInput}
                 value={username}
                 onChangeText={handleUsernameChange}
                 autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
                 placeholder="username"
                 placeholderTextColor={TEXT_SECONDARY}
+                onFocus={() => setUsernameInputFocused(true)}
+                onBlur={() => setUsernameInputFocused(false)}
               />
-              {usernameChecking && (
+              {usernameStatus === 'checking' && usernameToCheck && (
                 <SnooLoader size="small" color={ACCENT_COLOR} />
               )}
-              {!usernameChecking && usernameAvailable === true && (
-                <View style={[styles.indicator, { marginLeft: 8 }]}>
-                  <Check size={16} color="#10B981" strokeWidth={3} />
-                </View>
+              {usernameStatus === 'available' && usernameToCheck && (
+                <CircleCheck size={18} color="#16A34A" />
               )}
-              {!usernameChecking &&
-                usernameAvailable === false &&
-                username !== profile?.username && (
-                  <X size={16} color="#EF4444" strokeWidth={3} />
-                )}
+              {usernameStatus === 'taken' && usernameToCheck && (
+                <TouchableOpacity
+                  onPress={() => handleUsernameChange(profileRef.current?.username || profile?.username || '')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  activeOpacity={0.6}
+                >
+                  <CircleX size={18} color="#DC2626" />
+                </TouchableOpacity>
+              )}
             </View>
-            <Text style={styles.helperText}>
-              This will be your unique handle.
-            </Text>
+
+            {/* Helper / suggestion chips */}
+            {usernameStatus === 'taken' && usernameSuggestions.length > 0 ? (
+              <View style={{ marginTop: 8 }}>
+                <Text style={[styles.helperText, { marginTop: 0, marginBottom: 6 }]}>Try one of these:</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                  {usernameSuggestions.map((s) => (
+                    <TouchableOpacity
+                      key={s}
+                      onPress={() => handleUsernameChange(s)}
+                      activeOpacity={0.7}
+                      style={styles.suggestionChip}
+                    >
+                      <Text style={styles.suggestionChipText}>@{s}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <Text style={styles.helperText}>Tap to edit · your public @handle</Text>
+            )}
           </View>
         </View>
 
@@ -964,53 +1013,69 @@ export default function EditCommunityProfileScreen({ route, navigation }) {
           {renderSectionHeader("CONTACT DETAILS", Phone)}
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>EMAIL</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={styles.inputLabel}>EMAIL</Text>
+              <Text style={[styles.helperText, { marginTop: 0, marginLeft: 0, color: ACCENT_COLOR, fontFamily: 'Manrope-SemiBold' }]}>Tap to change</Text>
+            </View>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => setEmailChangeModalVisible(true)}
-              style={[styles.input, styles.rowInput]}
+              style={[styles.input, styles.rowInput, { backgroundColor: INPUT_BG, borderWidth: 1, borderColor: 'rgba(41,98,255,0.18)' }]}
             >
-              <Mail size={16} color={"#8B95A5"} style={{ marginRight: 10 }} />
+              <Mail size={16} color={ACCENT_COLOR} style={{ marginRight: 10 }} />
               <TextInput
                 style={[styles.flexInput, { color: TEXT_SECONDARY }]}
                 value={email}
                 editable={false}
                 pointerEvents="none"
               />
+              <ChevronRight size={16} color={ACCENT_COLOR} style={{ marginLeft: 4 }} />
             </TouchableOpacity>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={styles.helperText}>Only visible to you</Text>
-              <TouchableOpacity 
-                onPress={() => setEmailChangeModalVisible(true)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.helperText, { color: ACCENT_COLOR, fontFamily: 'Manrope-SemiBold' }]}>Tap to change →</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.helperText}>Private · only visible to you</Text>
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>PRIMARY PHONE</Text>
-            <FormTextInput
-              style={styles.input}
-              value={primaryPhone}
-              onChangeText={handlePrimaryPhoneChange}
-              keyboardType="phone-pad"
-              placeholder="+1 (555) 000-0000"
-              placeholderTextColor={TEXT_SECONDARY}
-            />
+            <TouchableWithoutFeedback onPress={() => primaryPhoneInputRef.current?.focus()}>
+              <View style={[
+                styles.input,
+                styles.rowInput,
+                { backgroundColor: INPUT_BG }
+              ]}>
+                <Phone size={16} color={ACCENT_COLOR} style={{ marginRight: 10 }} />
+                <FormTextInput
+                  ref={primaryPhoneInputRef}
+                  style={[styles.flexInput, { color: TEXT_SECONDARY }]}
+                  value={primaryPhone}
+                  onChangeText={handlePrimaryPhoneChange}
+                  keyboardType="phone-pad"
+                  placeholder="+1 (555) 000-0000"
+                  placeholderTextColor={TEXT_SECONDARY}
+                />
+              </View>
+            </TouchableWithoutFeedback>
           </View>
 
           <View style={styles.inputGroupLast}>
             <Text style={styles.inputLabel}>SECONDARY PHONE</Text>
-            <FormTextInput
-              style={styles.input}
-              value={secondaryPhone}
-              onChangeText={handleSecondaryPhoneChange}
-              keyboardType="phone-pad"
-              placeholder="Optional"
-              placeholderTextColor={TEXT_SECONDARY}
-            />
+            <TouchableWithoutFeedback onPress={() => secondaryPhoneInputRef.current?.focus()}>
+              <View style={[
+                styles.input,
+                styles.rowInput,
+                { backgroundColor: INPUT_BG }
+              ]}>
+                <Phone size={16} color={ACCENT_COLOR} style={{ marginRight: 10 }} />
+                <FormTextInput
+                  ref={secondaryPhoneInputRef}
+                  style={[styles.flexInput, { color: TEXT_SECONDARY }]}
+                  value={secondaryPhone}
+                  onChangeText={handleSecondaryPhoneChange}
+                  keyboardType="phone-pad"
+                  placeholder="Optional secondary phone"
+                  placeholderTextColor={TEXT_SECONDARY}
+                />
+              </View>
+            </TouchableWithoutFeedback>
           </View>
         </View>
 
@@ -1548,6 +1613,19 @@ const styles = StyleSheet.create({
     color: TEXT_SECONDARY,
     marginTop: 6,
     marginLeft: 4,
+  },
+  suggestionChip: {
+    backgroundColor: 'rgba(41, 98, 255, 0.08)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(41, 98, 255, 0.18)',
+  },
+  suggestionChipText: {
+    fontSize: 13,
+    fontFamily: 'Manrope-SemiBold',
+    color: ACCENT_COLOR,
   },
   charCount: {
     textAlign: "right",

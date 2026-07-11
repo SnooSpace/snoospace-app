@@ -42,7 +42,9 @@ import {
   Check,
   Trash2,
   Music,
+  AtSign,
 } from "lucide-react-native";
+import { useUsernameCheck } from "../../../hooks/useUsernameCheck";
 import SpotifyConnectorWidget from "../../../components/SpotifyConnectorWidget";
 
 import { getAuthToken } from "../../../api/auth";
@@ -193,9 +195,12 @@ export default function EditProfileScreen({ route, navigation }) {
   // 'education' = non-student education card, 'student' = student occupation sub-field
   const [degreePickerTarget, setDegreePickerTarget] = useState('education');
 
-  const [usernameAvailable, setUsernameAvailable] = useState(null);
-  const [usernameChecking, setUsernameChecking] = useState(false);
+  const [usernameInputFocused, setUsernameInputFocused] = useState(false);
   const [emailChangeModalVisible, setEmailChangeModalVisible] = useState(false);
+
+  // Only run useUsernameCheck when username differs from the original
+  const usernameToCheck = username !== (profile?.username || '') ? username : '';
+  const { status: usernameStatus, suggestions: usernameSuggestions } = useUsernameCheck(usernameToCheck);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [interestsCatalog, setInterestsCatalog] = useState([]);
@@ -248,6 +253,7 @@ export default function EditProfileScreen({ route, navigation }) {
 
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      Keyboard.dismiss();
       if (!hasChanges || saving || allowLeaveRef.current) {
         return;
       }
@@ -258,7 +264,15 @@ export default function EditProfileScreen({ route, navigation }) {
     return unsubscribe;
   }, [navigation, hasChanges, saving]);
 
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("blur", () => {
+      Keyboard.dismiss();
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   const handleDiscardChanges = () => {
+    Keyboard.dismiss();
     setShowUnsavedModal(false);
     allowLeaveRef.current = true;
     if (pendingActionRef.current) {
@@ -367,51 +381,10 @@ export default function EditProfileScreen({ route, navigation }) {
     setHasChanges(!!changed);
   };
 
-  const checkUsernameAvailability = useCallback(
-    async (value) => {
-      if (!value || value === profile?.username) {
-        setUsernameAvailable(null);
-        return;
-      }
-
-      if (!/^[a-z0-9._]{3,30}$/.test(value.toLowerCase())) {
-        setUsernameAvailable(false);
-        return;
-      }
-
-      setUsernameChecking(true);
-      try {
-        const token = await getAuthToken();
-        const { apiPost } = await import("../../../api/client");
-        const result = await apiPost(
-          "/username/check",
-          { username: value },
-          10000,
-          token,
-        );
-        setUsernameAvailable(result?.available === true);
-      } catch (error) {
-        setUsernameAvailable(false);
-      } finally {
-        setUsernameChecking(false);
-      }
-    },
-    [profile?.username],
-  );
-
   const handleUsernameChange = useCallback((value) => {
     const sanitized = value.toLowerCase().replace(/[^a-z0-9._]/g, "");
     setUsername(sanitized);
-    if (sanitized.length >= 3) {
-      const timeoutId = setTimeout(
-        () => checkUsernameAvailability(sanitized),
-        500,
-      );
-      return () => clearTimeout(timeoutId);
-    } else {
-      setUsernameAvailable(null);
-    }
-  }, [checkUsernameAvailability]);
+  }, []);
 
   const handleOccupationDetailChange = useCallback((text, key) => {
     setOccupationDetails((prev) => ({ ...prev, [key]: text }));
@@ -506,7 +479,23 @@ export default function EditProfileScreen({ route, navigation }) {
       await updateMemberProfile(updates, token);
 
       if (username !== profile?.username) {
-        await changeUsername(username, token);
+        // Guard: don't submit if hook says still taken/checking
+        if (usernameStatus === 'taken' || usernameStatus === 'checking') {
+          Alert.alert('Username not available', 'Please choose a different username or wait for the check to finish.');
+          setSaving(false);
+          return;
+        }
+        try {
+          await changeUsername(username, token);
+        } catch (err) {
+          // Race-condition: someone took it between check and save
+          if (err?.response?.data?.error === 'username_taken') {
+            Alert.alert('Username taken', 'That username was just taken. Try one of the suggestions below.');
+            setSaving(false);
+            return;
+          }
+          throw err;
+        }
       }
 
       if (finalPhotoUrl) {
@@ -532,6 +521,7 @@ export default function EditProfileScreen({ route, navigation }) {
       HapticsService.triggerNotificationSuccess();
       allowLeaveRef.current = true;
       setHasChanges(false);
+      Keyboard.dismiss();
       navigation.navigate("Profile", { refreshProfile: true });
     } catch (error) {
       console.error("Error saving profile:", error);
@@ -620,7 +610,10 @@ export default function EditProfileScreen({ route, navigation }) {
         {/* Header */}
         <View style={styles.header}>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            Keyboard.dismiss();
+            navigation.goBack();
+          }}
           style={styles.headerButtonLeft}
           hitSlop={{ top: 30, bottom: 30, left: 30, right: 30 }}
         >
@@ -688,30 +681,85 @@ export default function EditProfileScreen({ route, navigation }) {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>USERNAME</Text>
-            <View style={[styles.input, styles.rowInput]}>
-              <Text style={styles.prefix}>@</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={styles.inputLabel}>USERNAME</Text>
+              {usernameToCheck.length >= 3 && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  {usernameStatus === 'checking' && (
+                    <Text style={[styles.helperText, { marginTop: 0, marginLeft: 0, fontFamily: 'Manrope-SemiBold', color: TEXT_SECONDARY }]}>Checking…</Text>
+                  )}
+                  {usernameStatus === 'available' && (
+                    <>
+                      <Check size={12} color="#16A34A" strokeWidth={3} />
+                      <Text style={[styles.helperText, { marginTop: 0, marginLeft: 0, fontFamily: 'Manrope-SemiBold', color: '#16A34A' }]}>Available</Text>
+                    </>
+                  )}
+                  {usernameStatus === 'taken' && (
+                    <>
+                      <X size={12} color="#DC2626" strokeWidth={3} />
+                      <Text style={[styles.helperText, { marginTop: 0, marginLeft: 0, fontFamily: 'Manrope-SemiBold', color: '#DC2626' }]}>Taken</Text>
+                    </>
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* Input */}
+            <View style={[
+              styles.input,
+              styles.rowInput,
+              usernameInputFocused && { borderWidth: 1.5, borderColor: ACCENT_COLOR },
+            ]}>
+              <AtSign size={15} color={TEXT_SECONDARY} style={{ marginRight: 4 }} />
               <FormTextInput
                 style={styles.flexInput}
                 value={username}
                 onChangeText={handleUsernameChange}
                 autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
                 placeholder="username"
                 placeholderTextColor={TEXT_SECONDARY}
+                onFocus={() => setUsernameInputFocused(true)}
+                onBlur={() => setUsernameInputFocused(false)}
               />
-              {usernameChecking && (
+              {usernameStatus === 'checking' && usernameToCheck && (
                 <SnooLoader size="small" color={ACCENT_COLOR} />
               )}
-              {!usernameChecking && usernameAvailable === true && (
-                <CircleCheck size={18} color="green" />
+              {usernameStatus === 'available' && usernameToCheck && (
+                <CircleCheck size={18} color="#16A34A" />
               )}
-              {!usernameChecking &&
-                usernameAvailable === false &&
-                username !== profile?.username && (
-                  <CircleX size={18} color="red" />
-                )}
+              {usernameStatus === 'taken' && usernameToCheck && (
+                <TouchableOpacity
+                  onPress={() => handleUsernameChange(profile?.username || '')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  activeOpacity={0.6}
+                >
+                  <CircleX size={18} color="#DC2626" />
+                </TouchableOpacity>
+              )}
             </View>
-            <Text style={styles.helperText}>Your public handle</Text>
+
+            {/* Helper / suggestion chips */}
+            {usernameStatus === 'taken' && usernameSuggestions.length > 0 ? (
+              <View style={{ marginTop: 8 }}>
+                <Text style={[styles.helperText, { marginTop: 0, marginBottom: 6 }]}>Try one of these:</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                  {usernameSuggestions.map((s) => (
+                    <TouchableOpacity
+                      key={s}
+                      onPress={() => handleUsernameChange(s)}
+                      activeOpacity={0.7}
+                      style={styles.suggestionChip}
+                    >
+                      <Text style={styles.suggestionChipText}>@{s}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              <Text style={styles.helperText}>Tap to edit · your public @handle</Text>
+            )}
           </View>
 
           <View style={styles.inputGroupLast}>
@@ -1454,33 +1502,29 @@ export default function EditProfileScreen({ route, navigation }) {
           {renderSectionHeader("PRIVATE DETAILS", Lock)}
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>EMAIL</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <Text style={styles.inputLabel}>EMAIL</Text>
+              <Text style={[styles.helperText, { marginTop: 0, marginLeft: 0, color: ACCENT_COLOR, fontFamily: 'Manrope-SemiBold' }]}>Tap to change</Text>
+            </View>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => setEmailChangeModalVisible(true)}
               style={[
                 styles.input,
                 styles.rowInput,
-                { backgroundColor: INPUT_BG },
+                { backgroundColor: INPUT_BG, borderWidth: 1, borderColor: 'rgba(41,98,255,0.18)' },
               ]}
             >
-              <Mail size={16} color={"#8B95A5"} style={{ marginRight: 10 }} />
+              <Mail size={16} color={ACCENT_COLOR} style={{ marginRight: 10 }} />
               <TextInput
                 style={[styles.flexInput, { color: TEXT_SECONDARY }]}
                 value={email}
                 editable={false}
                 pointerEvents="none"
               />
+              <ChevronRight size={16} color={ACCENT_COLOR} style={{ marginLeft: 4 }} />
             </TouchableOpacity>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={styles.helperText}>Only visible to you</Text>
-              <TouchableOpacity 
-                onPress={() => setEmailChangeModalVisible(true)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.helperText, { color: ACCENT_COLOR, fontFamily: 'Manrope-SemiBold' }]}>Tap to change →</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.helperText}>Private · only visible to you</Text>
           </View>
 
           <View style={styles.inputGroupLast}>
@@ -1491,7 +1535,7 @@ export default function EditProfileScreen({ route, navigation }) {
                 styles.rowInput,
                 { backgroundColor: INPUT_BG }
               ]}>
-                <Phone size={16} color={"#8B95A5"} style={{ marginRight: 10 }} />
+                <Phone size={16} color={ACCENT_COLOR} style={{ marginRight: 10 }} />
                 <FormTextInput
                   ref={phoneInputRef}
                   style={[styles.flexInput, { color: TEXT_SECONDARY }]}
@@ -1794,6 +1838,19 @@ const styles = StyleSheet.create({
     color: TEXT_SECONDARY,
     marginTop: 6,
     marginLeft: 4,
+  },
+  suggestionChip: {
+    backgroundColor: 'rgba(41, 98, 255, 0.08)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(41, 98, 255, 0.18)',
+  },
+  suggestionChipText: {
+    fontSize: 13,
+    fontFamily: 'Manrope-SemiBold',
+    color: ACCENT_COLOR,
   },
 
   // Pronouns

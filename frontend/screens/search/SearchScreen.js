@@ -253,6 +253,20 @@ export default function SearchScreen({ navigation }) {
   }, []);
 
   useEffect(() => {
+    const unsubscribeBlur = navigation.addListener("blur", () => {
+      Keyboard.dismiss();
+    });
+    const unsubscribeRemove = navigation.addListener("beforeRemove", () => {
+      Keyboard.dismiss();
+    });
+    return () => {
+      unsubscribeBlur();
+      unsubscribeRemove();
+      Keyboard.dismiss();
+    };
+  }, [navigation]);
+
+  useEffect(() => {
     if (userId) {
       loadRecents();
     }
@@ -374,6 +388,7 @@ export default function SearchScreen({ navigation }) {
 
   const onPressProfile = async (item, fromRecent = false) => {
     const entityType = item.type || "member";
+    Keyboard.dismiss();
 
     // Navigate to appropriate profile
     if (entityType === "community") {
@@ -427,6 +442,7 @@ export default function SearchScreen({ navigation }) {
         style={styles.eventRow}
         onPress={() => {
           // Navigate to event details
+          Keyboard.dismiss();
           navigation.navigate("EventDetails", {
             eventId: item.id,
             eventData: item,
@@ -679,6 +695,7 @@ export default function SearchScreen({ navigation }) {
   const handleDiscoverItemPress = (event) => {
     // Navigate to EventDetails screen
     if (event.id) {
+      Keyboard.dismiss();
       navigation.navigate("EventDetails", {
         eventId: event.id,
         eventData: event,

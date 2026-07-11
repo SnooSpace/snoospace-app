@@ -1545,6 +1545,20 @@ export default function ChatScreen({ route, navigation }) {
   useEffect(() => {
     isChatInputFocusedShared.value = isChatInputFocused;
   }, [isChatInputFocused]);
+
+  useEffect(() => {
+    const unsubscribeBlur = navigation.addListener("blur", () => {
+      Keyboard.dismiss();
+    });
+    const unsubscribeRemove = navigation.addListener("beforeRemove", () => {
+      Keyboard.dismiss();
+    });
+    return () => {
+      unsubscribeBlur();
+      unsubscribeRemove();
+      Keyboard.dismiss();
+    };
+  }, [navigation]);
   const [recipient, setRecipient] = useState(() => {
     if (recipientId && recipientName) {
       return {
@@ -2965,7 +2979,10 @@ export default function ChatScreen({ route, navigation }) {
         <View style={{ height: insets.top, backgroundColor: "#FFFFFF" }} />
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              Keyboard.dismiss();
+              navigation.goBack();
+            }}
             style={styles.backButton}
             hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
           >
@@ -2989,7 +3006,10 @@ export default function ChatScreen({ route, navigation }) {
           <View style={{ height: insets.top }} />
           <View style={styles.header}>
             <TouchableOpacity
-              onPress={() => navigation.goBack()}
+              onPress={() => {
+                Keyboard.dismiss();
+                navigation.goBack();
+              }}
               style={styles.backButton}
               hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
             >

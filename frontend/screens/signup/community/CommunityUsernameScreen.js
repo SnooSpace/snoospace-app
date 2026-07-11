@@ -31,14 +31,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
+import { useUsernameCheck } from "../../../hooks/useUsernameCheck";
 
 const CommunityUsernameScreen = ({ navigation, route }) => {
   const [username, setUsername] = useState(route.params?.username || "");
-  const [isChecking, setIsChecking] = useState(false);
-  const [isAvailable, setIsAvailable] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // useUsernameCheck drives all availability state (debounced, abort-safe)
+  const { status: checkStatus, suggestions } = useUsernameCheck(username);
 
   // Support both organization flow (userData object) and non-org flow (direct params)
   const routeParams = route.params || {};
@@ -175,39 +177,12 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
     community_type: params?.community_type,
   });
 
-  // Debounced username availability check
-  useEffect(() => {
-    if (username.length >= 3) {
-      const timeoutId = setTimeout(() => {
-        checkUsernameAvailability();
-      }, 500);
-      return () => clearTimeout(timeoutId);
-    } else {
-      setIsAvailable(null);
-    }
-  }, [username]);
-
   // Trigger haptic when username becomes available
   useEffect(() => {
-    if (isAvailable === true) {
+    if (checkStatus === 'available') {
       triggerInputValidHaptic();
     }
-  }, [isAvailable]);
-
-  const checkUsernameAvailability = async () => {
-    if (username.length < 3) return;
-
-    setIsChecking(true);
-    try {
-      const response = await apiPost("/username/check", { username });
-      setIsAvailable(response.available);
-    } catch (error) {
-      console.error("Error checking username:", error);
-      // Don't show alert for debounced check failures to avoid UX interruption
-    } finally {
-      setIsChecking(false);
-    }
-  };
+  }, [checkStatus]);
 
   const validateUsername = (text) => {
     // Keyboard suggestions often add trailing spaces. Rather than rejecting
@@ -217,20 +192,20 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
   };
 
   const getUsernameStatus = () => {
-    if (isChecking) return { text: "Checking...", color: COLORS.textSecondary, icon: null };
+    if (checkStatus === 'checking') return { text: "Checking...", color: COLORS.textSecondary, icon: null };
     if (username.length < 3)
       return {
         text: "Username must be at least 3 characters",
         color: COLORS.textSecondary,
         icon: null,
       };
-    if (isAvailable === true)
+    if (checkStatus === 'available')
       return {
         text: "Username is available",
         color: "#16A34A",
         icon: <Check size={16} color="#16A34A" strokeWidth={3} />,
       };
-    if (isAvailable === false)
+    if (checkStatus === 'taken')
       return { 
         text: "Username is already taken", 
         color: "#DC2626",
@@ -241,7 +216,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
 
   const status = getUsernameStatus();
   const isButtonDisabled =
-    !username || username.length < 3 || !isAvailable || isSubmitting;
+    !username || username.length < 3 || checkStatus !== 'available' || isSubmitting;
 
   const handleBack = () => {
     navigation.goBack();
@@ -256,7 +231,7 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
       return;
     }
 
-    if (isAvailable !== true) {
+    if (checkStatus !== 'available') {
       Alert.alert("Username Taken", "Please choose a different username");
       return;
     }
@@ -487,6 +462,25 @@ const CommunityUsernameScreen = ({ navigation, route }) => {
                       </Text>
                     </View>
                   ) : null}
+
+                  {/* Suggestion chips — shown when username is taken */}
+                  {checkStatus === 'taken' && suggestions.length > 0 && (
+                    <View style={styles.suggestionsContainer}>
+                      <Text style={styles.suggestionsLabel}>Try one of these:</Text>
+                      <View style={styles.chipsRow}>
+                        {suggestions.map((s) => (
+                          <TouchableOpacity
+                            key={s}
+                            style={styles.chip}
+                            onPress={() => validateUsername(s)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={styles.chipText}>@{s}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  )}
                 </View>
 
                 <View style={styles.rulesContainer}>
@@ -644,6 +638,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     marginLeft: 4,
+  },
+
+  // --- Suggestion Chips ---
+  suggestionsContainer: {
+    marginTop: 12,
+  },
+  suggestionsLabel: {
+    fontSize: 12,
+    fontFamily: "Manrope-Medium",
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+  },
+  chipsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  chip: {
+    backgroundColor: "rgba(255, 255, 255, 0.75)",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+  },
+  chipText: {
+    fontSize: 13,
+    fontFamily: "Manrope-SemiBold",
+    color: COLORS.textPrimary,
   },
 
   // --- Rules Container Styles ---

@@ -1,7 +1,7 @@
-﻿import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, Alert, KeyboardAvoidingView, Platform,
+  StyleSheet, Alert, KeyboardAvoidingView, Platform, Keyboard,
 } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -123,6 +123,20 @@ export default function CreateGroupScreen({ navigation }) {
   const hideAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
 
   useEffect(() => {
+    const unsubscribeBlur = navigation.addListener("blur", () => {
+      Keyboard.dismiss();
+    });
+    const unsubscribeRemove = navigation.addListener("beforeRemove", () => {
+      Keyboard.dismiss();
+    });
+    return () => {
+      unsubscribeBlur();
+      unsubscribeRemove();
+      Keyboard.dismiss();
+    };
+  }, [navigation]);
+
+  useEffect(() => {
     (async () => {
       try {
         const token = await getAuthToken();
@@ -180,6 +194,7 @@ export default function CreateGroupScreen({ navigation }) {
         groupName: groupName.trim(),
         participants: selected.map((u) => ({ id: u.id, type: u.type || "member" })),
       });
+      Keyboard.dismiss();
       navigation.replace("Chat", {
         conversationId: res.conversationId,
         isGroup: true,
@@ -196,13 +211,13 @@ export default function CreateGroupScreen({ navigation }) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.iconBtn}>
+          <TouchableOpacity onPress={() => { Keyboard.dismiss(); navigation.goBack(); }} style={styles.iconBtn}>
             <ArrowLeft size={22} color={TEXT} strokeWidth={2} />
           </TouchableOpacity>
           <Text style={styles.title}>New Group</Text>
           <TouchableOpacity
             style={[styles.nextBtn, selected.length < 2 && styles.nextBtnDisabled]}
-            onPress={() => { if (selected.length >= 2) setStep(2); }}
+            onPress={() => { Keyboard.dismiss(); if (selected.length >= 2) setStep(2); }}
             disabled={selected.length < 2}
           >
             <Text style={[styles.nextText, selected.length < 2 && { opacity: 0.4 }]}>
@@ -276,7 +291,7 @@ export default function CreateGroupScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => setStep(1)} style={styles.iconBtn}>
+          <TouchableOpacity onPress={() => { Keyboard.dismiss(); setStep(1); }} style={styles.iconBtn}>
             <ArrowLeft size={22} color={TEXT} strokeWidth={2} />
           </TouchableOpacity>
           <Text style={styles.title}>Group Name</Text>

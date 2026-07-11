@@ -34,7 +34,9 @@ function sanitizeBase(input) {
  */
 function generateCandidates(rawBase) {
   const base = sanitizeBase(rawBase);
-  if (!base || base.length < 2 || RESERVED_WORDS.includes(base)) return [];
+  // Return empty only when the base is genuinely unusable (too short after sanitization).
+  // Reserved-word check lives in the controller — suggestions are still helpful there.
+  if (!base || base.length < 2) return [];
 
   const currentYear = new Date().getFullYear();
   const candidates = new Set();

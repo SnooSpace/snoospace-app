@@ -756,7 +756,7 @@ const getEventAttendees = async (req, res) => {
     const userType = req.user?.type;
 
     // Filter parameters
-    const { badges, interests, ageMin, ageMax, genders } = req.query;
+    const { spark_ids, interests, ageMin, ageMax, genders } = req.query;
 
     if (!userId || userType !== "member") {
       return res.status(401).json({ error: "Authentication required" });
@@ -795,12 +795,19 @@ const getEventAttendees = async (req, res) => {
       paramIndex++;
     }
 
-    // Badges filter (intent_badges array overlap)
-    if (badges) {
-      const badgeArray = badges.split(",").map((b) => b.trim());
-      filterConditions.push(`m.intent_badges && $${paramIndex}::text[]`);
-      filterParams.push(badgeArray);
-      paramIndex++;
+    // Spark filter (user_sparks relational join)
+    if (spark_ids) {
+      const sparkIdArray = spark_ids.split(',').map((id) => parseInt(id.trim(), 10)).filter(Boolean);
+      if (sparkIdArray.length > 0) {
+        filterConditions.push(`EXISTS (
+          SELECT 1 FROM user_sparks us
+          WHERE us.user_id = m.id
+            AND us.spark_id = ANY($${paramIndex}::bigint[])
+            AND us.is_expired = false
+        )`);
+        filterParams.push(sparkIdArray);
+        paramIndex++;
+      }
     }
 
     // Interests filter (interests array overlap)
@@ -841,13 +848,29 @@ const getEventAttendees = async (req, res) => {
         m.interests,
         m.profile_photo_url,
         m.username,
-        m.intent_badges,
         m.pronouns,
         m.show_pronouns,
         m.discover_photos,
         m.openers,
         m.spotify_connected,
         m.spotify_top_artists,
+        -- Fetch sparks via subquery
+        COALESCE((
+          SELECT json_agg(json_build_object(
+            'id', s.id,
+            'label', s.label,
+            'category', s.category,
+            'spark_type', s.spark_type,
+            'requires_date_range', s.requires_date_range,
+            'requires_location', s.requires_location,
+            'start_date', us2.start_date,
+            'end_date', us2.end_date,
+            'target_city', us2.target_city
+          ))
+          FROM user_sparks us2
+          JOIN sparks s ON s.id = us2.spark_id
+          WHERE us2.user_id = m.id AND us2.is_expired = false
+        ), '[]'::json) AS sparks,
         COALESCE(
           json_agg(
             json_build_object(
@@ -866,7 +889,10 @@ const getEventAttendees = async (req, res) => {
         AND er.registration_status IN ('registered', 'attended', 'confirmed')
         AND m.appear_in_discover IS NOT FALSE
         AND jsonb_array_length(COALESCE(m.discover_photos::jsonb, '[]'::jsonb)) >= 3
-        AND array_length(m.intent_badges, 1) >= 1
+        AND EXISTS (
+          SELECT 1 FROM user_sparks us_gate
+          WHERE us_gate.user_id = m.id AND us_gate.is_expired = false
+        )
         AND jsonb_array_length(COALESCE(m.openers::jsonb, '[]'::jsonb)) >= 1
         -- Bidirectional block filter: hide blocked users from each other's feed
         AND NOT EXISTS (
@@ -875,7 +901,7 @@ const getEventAttendees = async (req, res) => {
              OR (ub.blocker_id = m.id AND ub.blocked_id = $2)
         )
         ${filterClause}
-      GROUP BY m.id, m.name, m.nickname, m.dob, m.gender, m.bio, m.interests, m.profile_photo_url, m.username, m.intent_badges, m.pronouns, m.show_pronouns, m.discover_photos, m.openers
+      GROUP BY m.id, m.name, m.nickname, m.dob, m.gender, m.bio, m.interests, m.profile_photo_url, m.username, m.pronouns, m.show_pronouns, m.discover_photos, m.openers
       ORDER BY m.name
     `;
 
@@ -947,7 +973,7 @@ const getEventAttendees = async (req, res) => {
         ...attendee,
         age,
         pronouns: pronounsDisplay,
-        intent_badges: attendee.intent_badges || [],
+        sparks: attendee.sparks || [],
         discover_photos: discoverPhotos,
         openers: openers,
         photos:
@@ -969,7 +995,7 @@ const getEventAttendees = async (req, res) => {
       success: true,
       attendees,
       filters: {
-        badges: badges ? badges.split(",") : null,
+        spark_ids: spark_ids ? spark_ids.split(',').map(Number) : null,
         interests: interests ? interests.split(",") : null,
         ageMin: ageMin ? parseInt(ageMin) : null,
         ageMax: ageMax ? parseInt(ageMax) : null,

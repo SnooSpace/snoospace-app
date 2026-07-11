@@ -401,6 +401,20 @@ export default function ConversationsListScreen({ navigation }) {
     activeAccountRef.current = activeAccount;
   }, [activeAccount]);
 
+  useEffect(() => {
+    const unsubscribeBlur = navigation.addListener("blur", () => {
+      Keyboard.dismiss();
+    });
+    const unsubscribeRemove = navigation.addListener("beforeRemove", () => {
+      Keyboard.dismiss();
+    });
+    return () => {
+      unsubscribeBlur();
+      unsubscribeRemove();
+      Keyboard.dismiss();
+    };
+  }, [navigation]);
+
   // ── Load account info ────────────────────────────────────────────────────────
   const loadAccountInfo = useCallback(async () => {
     try {
@@ -656,6 +670,7 @@ export default function ConversationsListScreen({ navigation }) {
 
   // ── Navigate to chat ──────────────────────────────────────────────────────────
   const openConversation = useCallback((conv) => {
+    Keyboard.dismiss();
     if (conv.isGroup) {
       navigation.navigate("Chat", {
         conversationId:      conv.id,
@@ -681,6 +696,7 @@ export default function ConversationsListScreen({ navigation }) {
   }, [navigation]);
 
   const openUserChat = useCallback((user) => {
+    Keyboard.dismiss();
     navigation.navigate("Chat", {
       recipientId: user.id,
       recipientType: user.type || "member",
@@ -737,10 +753,10 @@ export default function ConversationsListScreen({ navigation }) {
       <SafeAreaView style={styles.container}>
         {/* ── Header ── */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => { HapticsService.triggerBack(); navigation.goBack(); }}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => { HapticsService.triggerBack(); Keyboard.dismiss(); navigation.goBack(); }}>
             <ArrowLeft size={24} color={TEXT_PRIMARY} strokeWidth={2.5} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.accountBtn} onPress={() => { HapticsService.triggerUsernameSwitcherPress(); setShowAccountSwitcher(true); }} activeOpacity={0.75}>
+          <TouchableOpacity style={styles.accountBtn} onPress={() => { HapticsService.triggerUsernameSwitcherPress(); Keyboard.dismiss(); setShowAccountSwitcher(true); }} activeOpacity={0.75}>
             <Text style={styles.accountName} numberOfLines={1}>{displayName}</Text>
             <ChevronDown size={26} color="#3B82F6" style={{ marginLeft: -2 }} />
           </TouchableOpacity>

@@ -166,7 +166,7 @@ async function getProfile(req, res) {
     // Get member profile — includes denormalized follower/following counts
     const memberResult = await pool.query(
       `SELECT id, name, nickname, email, phone, dob, gender, interests, username, bio, profile_photo_url, pronouns, location, created_at,
-              intent_badges, available_today, available_this_week, prompt_question, prompt_answer, appear_in_discover,
+              available_today, available_this_week, prompt_question, prompt_answer, appear_in_discover,
               discover_photos, openers, show_pronouns, occupation, campus_id, show_college,
               occupation_details, occupation_category, portfolio_link, education,
               follower_count, following_count, instagram_username,
@@ -260,7 +260,6 @@ async function getProfile(req, res) {
       pronouns: parsePgTextArray(member.pronouns),
       location,
       // Discover profile fields
-      intent_badges: parsePgTextArray(member.intent_badges) || [],
       available_today: member.available_today || false,
       available_this_week: member.available_this_week || false,
       prompt_question: member.prompt_question || "",
@@ -307,6 +306,20 @@ async function getProfile(req, res) {
           ? JSON.parse(member.spotify_top_artists)
           : member.spotify_top_artists || [],
     };
+
+    // Fetch user sparks from relational table
+    const sparksResult = await pool.query(`
+      SELECT
+        s.id, s.label, s.category, s.spark_type,
+        s.requires_date_range, s.requires_location,
+        us.start_date, us.end_date, us.target_city, us.is_expired, us.added_at
+      FROM user_sparks us
+      JOIN sparks s ON s.id = us.spark_id
+      WHERE us.user_id = $1
+        AND us.is_expired = false
+      ORDER BY us.added_at ASC
+    `, [userId]);
+    profileData.sparks = sparksResult.rows;
 
     // Fetch college info if member has campus_id
     let collegeInfo = null;
@@ -661,7 +674,6 @@ async function patchProfile(req, res) {
       interests,
       location,
       // Discovery profile fields
-      intent_badges,
       available_today,
       available_this_week,
       prompt_question,
@@ -795,15 +807,10 @@ async function patchProfile(req, res) {
     }
 
     // Discovery profile fields
-    if (intent_badges !== undefined) {
-      if (Array.isArray(intent_badges)) {
-        const sanitized = intent_badges
-          .filter((b) => typeof b === "string" && b.trim().length > 0)
-          .slice(0, 3); // Max 3 badges
-        updates.push(`intent_badges = $${paramIndex++}::text[]`);
-        values.push(sanitized);
-      }
-    }
+    // Note: intent_badges is now managed via the user_sparks table.
+    // The /members/me/sparks endpoints handle spark add/remove.
+    // This patchProfile handler no longer writes to intent_badges.
+
 
     if (available_today !== undefined) {
       updates.push(`available_today = $${paramIndex++}`);

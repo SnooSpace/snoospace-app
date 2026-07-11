@@ -105,14 +105,14 @@ export default function ProfileFeedScreen({ route, navigation }) {
       if (token) {
         // Build query string based on filters
         const params = [];
-        if (filters?.badges && filters.badges.length > 0) {
-          params.push(`badges=${encodeURIComponent(filters.badges.join(","))}`);
+        if (filters?.spark_ids && filters.spark_ids.length > 0) {
+          params.push(`spark_ids=${encodeURIComponent(filters.spark_ids.join(','))}`);
         }
         if (filters?.interests && filters.interests.length > 0) {
-          params.push(`interests=${encodeURIComponent(filters.interests.join(","))}`);
+          params.push(`interests=${encodeURIComponent(filters.interests.join(','))}`);
         }
         if (filters?.genders && filters.genders.length > 0) {
-          params.push(`genders=${encodeURIComponent(filters.genders.join(","))}`);
+          params.push(`genders=${encodeURIComponent(filters.genders.join(','))}`);
         }
         if (filters?.ageMin !== undefined) {
           params.push(`ageMin=${filters.ageMin}`);
@@ -164,13 +164,13 @@ export default function ProfileFeedScreen({ route, navigation }) {
       const profileRes = await apiGet("/members/profile", 15000, token);
       const profile = profileRes.profile || profileRes;
       const ownPhotos = Array.isArray(profile.discover_photos) ? profile.discover_photos : [];
-      const ownBadges = Array.isArray(profile.intent_badges) ? profile.intent_badges : [];
+      const ownSparks = Array.isArray(profile.sparks) ? profile.sparks : [];
       const ownOpeners = Array.isArray(profile.openers) ? profile.openers : [];
-      const isComplete = ownPhotos.length >= 3 && ownBadges.length >= 1 && ownOpeners.length >= 1;
+      const isComplete = ownPhotos.length >= 3 && ownSparks.length >= 1 && ownOpeners.length >= 1;
 
       setProfileProgress({
         photos: ownPhotos.length,
-        sparks: ownBadges.length,
+        sparks: ownSparks.length,
         icebreakers: ownOpeners.length,
       });
 
@@ -259,7 +259,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
   }, [currentAttendee?.pronouns]);
 
   console.log("[ProfileFeedScreen] Render attendee:", name, "Age:", age, "Gender:", gender, "Pronouns:", pronouns);
-  const goalBadges = currentAttendee?.intent_badges || [];
+  const goalBadges = currentAttendee?.sparks || [];
   const interests = currentAttendee?.interests || [];
   const openers = currentAttendee?.openers || [];
 
@@ -695,7 +695,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
           </SafeAreaView>
         </LinearGradient>
       );
-    }    const hasFilters = (activeFilters.badges?.length > 0) || 
+    }    const hasFilters = (activeFilters.spark_ids?.length > 0) || 
                        (activeFilters.interests?.length > 0) || 
                        (activeFilters.genders?.length > 0) || 
                        (activeFilters.ageMin !== undefined && activeFilters.ageMin !== 18) || 
@@ -825,16 +825,17 @@ export default function ProfileFeedScreen({ route, navigation }) {
               <Text style={styles.sectionLabel}>Sparks</Text>
               <View style={styles.vitalsRow}>
                 {goalBadges.map((badge, i) => {
-                  const goalStyle = getGoalStyle(badge);
+                  const label = badge.label || badge;
+                  const goalStyle = getGoalStyle(label);
                   return (
                     <TouchableOpacity
-                      key={`goal-${i}`}
+                      key={badge.id ? `goal-${badge.id}` : `goal-${i}`}
                       style={[
                         styles.chip,
                         styles.goalChip,
                         { backgroundColor: goalStyle.bg },
                       ]}
-                      onPress={() => handleOpenCommentModal({ type: "spark", label: badge })}
+                      onPress={() => handleOpenCommentModal({ type: "spark", label })}
                       activeOpacity={0.8}
                     >
                       <Text
@@ -844,7 +845,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
                           { color: goalStyle.text },
                         ]}
                       >
-                        {badge}
+                        {label}
                       </Text>
                     </TouchableOpacity>
                   );

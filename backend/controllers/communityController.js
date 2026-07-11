@@ -1127,18 +1127,30 @@ async function changeUsernameEndpoint(req, res) {
       return res.status(409).json({ error: "Username is already taken" });
     }
 
-    await pool.query(`UPDATE communities SET username = $1 WHERE id = $2`, [
-      sanitized,
-      userId,
-    ]);
+    try {
+      await pool.query(`UPDATE communities SET username = $1 WHERE id = $2`, [
+        sanitized,
+        userId,
+      ]);
+    } catch (pgErr) {
+      if (pgErr.code === '23505' && pgErr.constraint?.includes('username')) {
+        const { generateCandidates } = require('../services/username/suggestionEngine');
+        return res.status(409).json({
+          error: 'username_taken',
+          message: 'That username was just taken. Try one of these instead.',
+          suggestions: generateCandidates(sanitized),
+        });
+      }
+      throw pgErr;
+    }
 
     res.json({ success: true, username: sanitized });
   } catch (err) {
     console.error(
-      "/communities/username POST error:",
+      '/communities/username POST error:',
       err && err.stack ? err.stack : err,
     );
-    res.status(500).json({ error: "Failed to update username" });
+    res.status(500).json({ error: 'Failed to update username' });
   }
 }
 

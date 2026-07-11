@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal, Animated, TouchableWithoutFeedback, InteractionManager, StatusBar } from "react-native";
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Image, Alert, BackHandler, Platform, TextInput, Modal, Animated, TouchableWithoutFeedback, InteractionManager, StatusBar, LayoutAnimation, UIManager } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Svg, Circle, Defs, LinearGradient, Stop } from "react-native-svg";
 import { getAuthToken } from "../../api/auth";
 import { apiGet } from "../../api/client";
-import { updateMemberProfile, fetchPronouns } from "../../api/members";
+import { updateMemberProfile, fetchPronouns, fetchInterests } from "../../api/members";
+import { getSystemSparks, searchSparks, addUserSpark, removeUserSpark, createCustomSpark } from "../../api/sparks";
 import { uploadMultipleImages } from "../../api/cloudinary";
 import {
   COLORS,
@@ -29,10 +30,32 @@ import {
   AlertCircle,
   ChevronRight,
   Music,
+  ChevronDown,
+  Search as SearchIcon,
+  RollerCoaster,
+  Dumbbell,
+  Palette as Art,
+  Clapperboard,
+  UtensilsCrossed,
+  Mountain,
+  Gamepad2,
+  PartyPopper,
+  Car,
+  PawPrint,
+  Zap,
 } from "lucide-react-native";
-import { INTEREST_CATEGORIES } from "../profile/member/EditProfileConstants";
+import { INTEREST_CATEGORIES, getInterestStyle } from "../profile/member/EditProfileConstants";
+import { useLocationSearch } from "../../services/location/useLocationSearch";
 import SnooLoader from "../../components/ui/SnooLoader";
 import SpotifyConnectorWidget from "../../components/SpotifyConnectorWidget";
+
+// Enable LayoutAnimation for Android
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 // STRICT CONSTANTS - ITERATION 2
 const CONSTANTS_COLORS = {
@@ -53,22 +76,26 @@ const TEXT_COLOR = CONSTANTS_COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = CONSTANTS_COLORS.textSecondary;
 const PRIMARY_COLOR = CONSTANTS_COLORS.primaryBlue;
 
-// Spark Presets
-const GOAL_BADGE_PRESETS = [
-  "Looking for a co-founder",
-  "Seeking mentorship",
-  "Open to collaborations",
-  "Exploring opportunities",
-  "Open to friendships",
-  "New to the city",
-  "Wants to play sports",
-  "Looking for study partners",
-  "Here to learn",
-  "Just curious",
-  "Looking for teammates",
-];
-
 const EDGES = ["top"];
+
+// ── Category colour palette for spark chips ───────────────────────────────────
+const CATEGORY_COLORS = {
+  professional: { bg: "#EFF6FF", text: "#1D4ED8" },
+  social:       { bg: "#F0FDF4", text: "#15803D" },
+  activity:     { bg: "#FFF7ED", text: "#C2410C" },
+  learning:     { bg: "#F5F3FF", text: "#6D28D9" },
+  travel:       { bg: "#E0F2FE", text: "#0369A1" },
+  default:      { bg: "#F3F4F6", text: "#374151" },
+};
+const getSparkStyle = (category) => CATEGORY_COLORS[category] || CATEGORY_COLORS.default;
+
+const CATEGORY_LABELS = {
+  professional: "Professional",
+  social:       "Social",
+  activity:     "Activity",
+  learning:     "Learning",
+  travel:       "Travel",
+};
 
 export default function EditDiscoverProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -82,19 +109,49 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   const [name, setName] = useState("");
   const [nickname, setNickname] = useState("");
   const [age, setAge] = useState(null);
-  const [gender, setGender] = useState(""); // Added Gender
+  const [gender, setGender] = useState("");
   const [pronouns, setPronouns] = useState([]);
   const [showPronouns, setShowPronouns] = useState(true);
   const [showPronounsModal, setShowPronounsModal] = useState(false);
   const [pronounPresets, setPronounPresets] = useState(["He/Him", "She/Her", "They/Them"]);
   const [photos, setPhotos] = useState([]);
+  // goalBadges: array of { id, label, category, requires_date_range, requires_location,
+  //                         start_date?, end_date?, target_city? }
   const [goalBadges, setGoalBadges] = useState([]);
   const [openers, setOpeners] = useState([]);
   const [appearInDiscover, setAppearInDiscover] = useState(true);
+  // Custom spark creation state
   const [customGoal, setCustomGoal] = useState("");
   const [showCustomGoalInput, setShowCustomGoalInput] = useState(false);
+  const [customInputY, setCustomInputY] = useState(0);
+  const [customGoalSuggestions, setCustomGoalSuggestions] = useState([]);
+  const [showCustomGoalSuggestions, setShowCustomGoalSuggestions] = useState(false);
+  // Travel location + date picker state (one active panel at a time)
+  const [travelDatePickerSparkId, setTravelDatePickerSparkId] = useState(null);
+  const [travelStartDate, setTravelStartDate] = useState("");
+  const [travelEndDate, setTravelEndDate] = useState("");
+  // City autocomplete for the active travel spark
+  const {
+    query: cityQuery,
+    setQuery: setCityQuery,
+    results: cityResults,
+    loading: citySearchLoading,
+    clearResults: clearCityResults,
+  } = useLocationSearch({ debounceMs: 350 });
   const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [spotifyTopArtists, setSpotifyTopArtists] = useState([]);
+  const [interests, setInterests] = useState([]);
+  const [interestsCatalog, setInterestsCatalog] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [expandedCategory, setExpandedCategory] = useState(null);
+  const [showAllSelected, setShowAllSelected] = useState(false);
+  // System sparks catalog
+  const [sparkCategories, setSparkCategories] = useState([]); // [{ category, sparks }]
+  const [sparksLoading, setSparksLoading] = useState(false);
+  const [sparkSearch, setSparkSearch] = useState("");
+  const [sparkSearchResults, setSparkSearchResults] = useState([]);
+  const [sparkSearchLoading, setSparkSearchLoading] = useState(false);
+  const sparkSearchTimer = useRef(null);
 
   // Initial state for change detection
   const [initialState, setInitialState] = useState(null);
@@ -174,15 +231,17 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           name: profile.name || "",
           nickname: profile.nickname || "",
           age: calculatedAge,
-          gender: profile.gender || "Not Specified", // Handle Gender
+          gender: profile.gender || "Not Specified",
           pronouns: profile.pronouns || [],
           showPronouns: profile.show_pronouns !== false,
           photos: profile.discover_photos || [],
-          goalBadges: profile.intent_badges || [],
+          // sparks: array of { id, label, category, requires_date_range, start_date, end_date }
+          goalBadges: Array.isArray(profile.sparks) ? profile.sparks : [],
           openers: profile.openers || [],
           appearInDiscover: profile.appear_in_discover !== false,
           spotifyConnected: !!profile.spotify_connected,
           spotifyTopArtists: profile.spotify_top_artists || [],
+          interests: profile.interests || [],
         };
 
         setName(loadedState.name);
@@ -197,6 +256,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         setAppearInDiscover(loadedState.appearInDiscover);
         setSpotifyConnected(loadedState.spotifyConnected);
         setSpotifyTopArtists(loadedState.spotifyTopArtists);
+        setInterests(loadedState.interests);
         setInitialState(loadedState);
       }
     } catch (error) {
@@ -217,20 +277,76 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     }
   }, [loadProfile]);
 
+  useEffect(() => {
+    const loadCatalog = async () => {
+      try {
+        const catalog = await fetchInterests();
+        setInterestsCatalog(catalog || []);
+      } catch (err) {
+        console.error("Error loading interests catalog:", err);
+      }
+    };
+    loadCatalog();
+  }, []);
+
+  // Load system sparks catalog once on mount
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setSparksLoading(true);
+      try {
+        const data = await getSystemSparks();
+        if (!cancelled) setSparkCategories(data);
+      } catch (e) {
+        console.warn("[EditDiscoverProfile] Failed to load sparks:", e.message);
+      } finally {
+        if (!cancelled) setSparksLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Debounced spark search
+  useEffect(() => {
+    if (sparkSearchTimer.current) clearTimeout(sparkSearchTimer.current);
+    const q = sparkSearch.trim();
+    if (q.length < 2) {
+      setSparkSearchResults([]);
+      return;
+    }
+    setSparkSearchLoading(true);
+    sparkSearchTimer.current = setTimeout(async () => {
+      try {
+        const results = await searchSparks(q);
+        setSparkSearchResults(results);
+      } catch (e) {
+        setSparkSearchResults([]);
+      } finally {
+        setSparkSearchLoading(false);
+      }
+    }, 300);
+    return () => { if (sparkSearchTimer.current) clearTimeout(sparkSearchTimer.current); };
+  }, [sparkSearch]);
+
   const hasChanges = useCallback(() => {
     if (!initialState) return false;
+    // Compare spark IDs (not full objects) for change detection
+    const currentSparkIds = goalBadges.map((s) => s.id).sort().join(',');
+    const initialSparkIds = (initialState.goalBadges || []).map((s) => s.id).sort().join(',');
     return (
       JSON.stringify(photos) !== JSON.stringify(initialState.photos) ||
-      JSON.stringify(goalBadges) !== JSON.stringify(initialState.goalBadges) ||
+      currentSparkIds !== initialSparkIds ||
       JSON.stringify(openers) !== JSON.stringify(initialState.openers) ||
       showPronouns !== initialState.showPronouns ||
       appearInDiscover !== initialState.appearInDiscover ||
       JSON.stringify(pronouns) !== JSON.stringify(initialState.pronouns) ||
       nickname !== initialState.nickname ||
       spotifyConnected !== initialState.spotifyConnected ||
-      JSON.stringify(spotifyTopArtists) !== JSON.stringify(initialState.spotifyTopArtists)
+      JSON.stringify(spotifyTopArtists) !== JSON.stringify(initialState.spotifyTopArtists) ||
+      JSON.stringify(interests) !== JSON.stringify(initialState.interests)
     );
-  }, [photos, goalBadges, openers, showPronouns, appearInDiscover, pronouns, nickname, spotifyConnected, spotifyTopArtists, initialState]);
+  }, [photos, goalBadges, openers, showPronouns, appearInDiscover, pronouns, nickname, spotifyConnected, spotifyTopArtists, interests, initialState]);
 
   // Handle back button with unsaved changes confirmation
   const handleBackPress = useCallback(() => {
@@ -246,8 +362,10 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     openers,
     showPronouns,
     appearInDiscover,
+    interests,
     initialState,
     navigation,
+    hasChanges,
   ]);
 
   // Handle Android hardware back button
@@ -295,9 +413,29 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       // Combine: keep existing Cloudinary URLs and add new uploaded ones
       const finalPhotos = [...cloudinaryPhotos, ...uploadedUrls];
 
+      // ── Spark diff: add/remove only what changed ────────────────────────────
+      const initialSparkIds = new Set((initialState?.goalBadges || []).map((s) => s.id));
+      const currentSparkIds = new Set(goalBadges.map((s) => s.id));
+
+      const sparksToAdd = goalBadges.filter((s) => !initialSparkIds.has(s.id));
+      const sparksToRemove = (initialState?.goalBadges || []).filter((s) => !currentSparkIds.has(s.id));
+
+      await Promise.all([
+        ...sparksToAdd.map((s) =>
+          addUserSpark(s.id, {
+            start_date: s.start_date || undefined,
+            end_date: s.end_date || undefined,
+            target_city: s.target_city || undefined,
+          }).catch((e) => console.warn('addUserSpark failed for', s.id, e.message))
+        ),
+        ...sparksToRemove.map((s) =>
+          removeUserSpark(s.id).catch((e) => console.warn('removeUserSpark failed for', s.id, e.message))
+        ),
+      ]);
+      // ── End spark diff ──────────────────────────────────────────────────────
+
       await updateMemberProfile({
         discover_photos: finalPhotos,
-        intent_badges: goalBadges,
         openers: openers,
         show_pronouns: showPronouns,
         appear_in_discover: appearInDiscover,
@@ -305,6 +443,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         nickname: nickname.trim() || null,
         spotify_connected: spotifyConnected,
         spotify_top_artists: spotifyTopArtists,
+        interests: interests.length > 0 ? interests : [],
       });
       HapticsService.triggerNotificationSuccess();
 
@@ -324,6 +463,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         appearInDiscover,
         spotifyConnected,
         spotifyTopArtists,
+        interests,
       });
 
       if (autoExit) {
@@ -352,6 +492,9 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     goalBadges,
     openers,
     appearInDiscover,
+    spotifyConnected,
+    spotifyTopArtists,
+    interests,
     navigation,
   ]);
 
@@ -436,46 +579,111 @@ export default function EditDiscoverProfileScreen({ navigation }) {
     HapticsService.triggerSelection();
   }, []);
 
-  const toggleGoal = useCallback((goal) => {
+  // Toggle a system spark on/off (uses spark object {id, label, category, requires_date_range})
+  const toggleSpark = useCallback((spark) => {
     HapticsService.triggerSelection();
     setGoalBadges((prev) => {
+      const alreadySelected = prev.some((g) => g.id === spark.id);
       let next;
-      if (prev.includes(goal)) {
-        next = prev.filter((g) => g !== goal);
+      if (alreadySelected) {
+        next = prev.filter((g) => g.id !== spark.id);
       } else {
-        if (prev.length >= 3) {
-          Alert.alert("Limit Reached", "You can select up to 3 Sparks.");
+        if (prev.length >= 5) {
+          Alert.alert("Limit Reached", "You can select up to 5 Sparks.");
           return prev;
         }
-        next = [...prev, goal];
+        next = [...prev, { ...spark }];
       }
       if (next.length > 0) {
         setValidationErrors((prevErrors) => ({ ...prevErrors, sparks: false }));
+      }
+      // Auto scroll to the Sparks section / travel inputs to make them visible
+      if (!alreadySelected && (spark.category === 'travel' || spark.requires_date_range || spark.requires_location)) {
+        setTimeout(() => {
+          if (scrollViewRef.current && sectionCoords.current.sparks) {
+            scrollViewRef.current.scrollTo({
+              y: Math.max(0, sectionCoords.current.sparks - 10),
+              animated: true,
+            });
+          }
+        }, 100);
       }
       return next;
     });
   }, []);
 
-  const handleAddCustomGoal = useCallback(() => {
+  // Update travel dates on an already-selected spark
+  const updateSparkDates = useCallback((sparkId, start_date, end_date) => {
+    setGoalBadges((prev) =>
+      prev.map((g) => g.id === sparkId ? { ...g, start_date, end_date } : g)
+    );
+  }, []);
+
+  // Update target_city on an already-selected spark
+  const updateSparkCity = useCallback((sparkId, target_city) => {
+    setGoalBadges((prev) =>
+      prev.map((g) => g.id === sparkId ? { ...g, target_city } : g)
+    );
+  }, []);
+
+  // Custom spark creation (calls API, handles dedup suggestions)
+  const handleCustomSparkSubmit = useCallback(async (category = 'social') => {
+    const trimmed = customGoal.trim();
+    if (!trimmed || trimmed.length < 3) {
+      Alert.alert('Too Short', 'Spark must be at least 3 characters.');
+      return;
+    }
+    if (goalBadges.length >= 5) {
+      Alert.alert('Limit Reached', 'You can select up to 5 Sparks.');
+      return;
+    }
+    try {
+      const result = await createCustomSpark(trimmed, category);
+      if (result?.action === 'suggest') {
+        // Show suggestions
+        setCustomGoalSuggestions(result.suggestions || []);
+        setShowCustomGoalSuggestions(true);
+        return;
+      }
+      if (result?.success && result?.spark) {
+        setGoalBadges((prev) => [
+          ...prev,
+          { id: result.spark.id, label: result.spark.label, category: result.spark.category, requires_date_range: false },
+        ]);
+        setValidationErrors((prev) => ({ ...prev, sparks: false }));
+        setCustomGoal('');
+        setShowCustomGoalInput(false);
+        setShowCustomGoalSuggestions(false);
+        setCustomGoalSuggestions([]);
+        HapticsService.triggerNotificationSuccess();
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to create custom spark. Please try again.');
+    }
+  }, [customGoal, goalBadges]);
+
+  // Force-create custom spark (user dismissed suggestions)
+  const handleForceCreateSpark = useCallback(async (category = 'social') => {
     const trimmed = customGoal.trim();
     if (!trimmed) return;
-    if (goalBadges.includes(trimmed)) {
-      Alert.alert("Already Added", "This Spark is already selected.");
-      return;
+    try {
+      const result = await createCustomSpark(trimmed, category, true);
+      if (result?.success && result?.spark) {
+        setGoalBadges((prev) => [
+          ...prev,
+          { id: result.spark.id, label: result.spark.label, category: result.spark.category, requires_date_range: false },
+        ]);
+        setValidationErrors((prev) => ({ ...prev, sparks: false }));
+        setCustomGoal('');
+        setShowCustomGoalInput(false);
+        setShowCustomGoalSuggestions(false);
+        setCustomGoalSuggestions([]);
+        HapticsService.triggerNotificationSuccess();
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to create custom spark. Please try again.');
     }
-    if (goalBadges.length >= 3) {
-      Alert.alert("Limit Reached", "You can select up to 3 Sparks.");
-      return;
-    }
-    setGoalBadges((prev) => {
-      const next = [...prev, trimmed];
-      setValidationErrors((prevErrors) => ({ ...prevErrors, sparks: false }));
-      return next;
-    });
-    setCustomGoal("");
-    setShowCustomGoalInput(false);
-    HapticsService.triggerSelection();
-  }, [customGoal, goalBadges]);
+  }, [customGoal]);
 
   const getCompletionPercentage = useCallback(() => {
     let pct = 0;
@@ -648,6 +856,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           ref={scrollViewRef}
           style={styles.content}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
         {/* SECTION 1: Photos (Edge-to-Edge Editorial) */}
         <Animated.View
@@ -877,57 +1086,231 @@ export default function EditDiscoverProfileScreen({ navigation }) {
             </Text>
 
             <View style={styles.cardContent}>
-              {/* Wrapped in surface light container, no border */}
-              <View style={styles.chipsContainerSoft}>
-                {GOAL_BADGE_PRESETS.map((goal, index) => {
-                  const isSelected = goalBadges.includes(goal);
 
-                  return (
-                     <TouchableOpacity
-                       key={goal}
-                       onPress={() => toggleGoal(goal)}
-                       activeOpacity={0.7}
-                       style={[
-                         styles.goalChip,
-                         isSelected
-                           ? styles.goalChipSelected
-                           : styles.goalChipUnselected,
-                       ]}
-                     >
-                       <Text style={styles.goalChipText}>
-                         {goal}
-                       </Text>
-                     </TouchableOpacity>
-                   );
-                 })}
-                 {goalBadges.filter(g => !GOAL_BADGE_PRESETS.includes(g)).map((goal) => (
-                   <TouchableOpacity
-                     key={goal}
-                     onPress={() => toggleGoal(goal)}
-                     activeOpacity={0.7}
-                     style={[styles.goalChip, styles.goalChipSelected]}
-                   >
-                     <Text style={styles.goalChipText}>
-                       {goal}
-                     </Text>
-                   </TouchableOpacity>
-                 ))}
+              {/* Selected sparks summary strip */}
+              {goalBadges.length > 0 && (
+                <View style={styles.selectedSparksStrip}>
+                  {goalBadges.map((spark) => {
+                    const catStyle = getSparkStyle(spark.category);
+                    return (
+                      <TouchableOpacity
+                        key={`sel-${spark.id}`}
+                        style={[styles.selectedSparkChip, { backgroundColor: catStyle.bg }]}
+                        onPress={() => toggleSpark(spark)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.selectedSparkChipText, { color: catStyle.text }]}>
+                          {spark.label}
+                        </Text>
+                        <X size={12} color={catStyle.text} strokeWidth={3} />
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Travel expansion panel: city autocomplete + date range */}
+              {goalBadges
+                .filter((s) => s.requires_date_range || s.requires_location || s.category === 'travel')
+                .map((spark) => (
+                  <View key={`travel-${spark.id}`} style={styles.travelDatesRow}>
+                    <Text style={styles.travelDatesLabel}>
+                      📍 {spark.label}{spark.target_city ? ` · ${spark.target_city}` : ''}
+                    </Text>
+
+                    {/* City autocomplete — only for requires_location sparks */}
+                    {spark.requires_location !== false && (
+                      <View style={{ marginBottom: 8 }}>
+                        <View style={styles.citySearchBar}>
+                          <SearchIcon size={14} color={CONSTANTS_COLORS.textSecondary} style={{ marginRight: 6 }} />
+                          <TextInput
+                            style={styles.citySearchInput}
+                            placeholder="Search city or area..."
+                            placeholderTextColor={CONSTANTS_COLORS.textSecondary}
+                            value={spark.target_city || cityQuery}
+                            onChangeText={(v) => {
+                              // Clear stored city when user retypes
+                              updateSparkCity(spark.id, '');
+                              setCityQuery(v);
+                            }}
+                            onFocus={() => setCityQuery('')}
+                          />
+                          {(spark.target_city || cityQuery.length > 0) && (
+                            <TouchableOpacity
+                              onPress={() => {
+                                updateSparkCity(spark.id, '');
+                                setCityQuery('');
+                                clearCityResults();
+                              }}
+                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            >
+                              <X size={14} color={CONSTANTS_COLORS.textSecondary} />
+                            </TouchableOpacity>
+                          )}
+                        </View>
+
+                        {/* Autocomplete dropdown */}
+                        {citySearchLoading && !spark.target_city && (
+                          <Text style={styles.cityLoadingText}>Searching...</Text>
+                        )}
+                        {!spark.target_city && cityResults.length > 0 && (
+                          <View style={styles.cityDropdown}>
+                            {cityResults.slice(0, 5).map((place) => (
+                              <TouchableOpacity
+                                key={place.placeId}
+                                style={styles.cityDropdownItem}
+                                onPress={() => {
+                                  updateSparkCity(spark.id, place.name);
+                                  setCityQuery(place.name);
+                                  clearCityResults();
+                                  HapticsService.triggerSelection();
+                                }}
+                              >
+                                <Text style={styles.cityDropdownName}>{place.name}</Text>
+                                <Text style={styles.cityDropdownAddress} numberOfLines={1}>
+                                  {place.shortAddress}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Date range inputs */}
+                    {spark.requires_date_range !== false && (
+                      <View style={styles.travelDateInputs}>
+                        <TextInput
+                          style={styles.travelDateInput}
+                          placeholder="From  YYYY-MM-DD"
+                          placeholderTextColor={CONSTANTS_COLORS.textSecondary}
+                          value={spark.start_date || ''}
+                          onChangeText={(v) => updateSparkDates(spark.id, v, spark.end_date || '')}
+                          maxLength={10}
+                          keyboardType="numeric"
+                        />
+                        <TextInput
+                          style={styles.travelDateInput}
+                          placeholder="To  YYYY-MM-DD"
+                          placeholderTextColor={CONSTANTS_COLORS.textSecondary}
+                          value={spark.end_date || ''}
+                          onChangeText={(v) => updateSparkDates(spark.id, spark.start_date || '', v)}
+                          maxLength={10}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                    )}
+                  </View>
+                ))}
+
+              {/* Spark search bar */}
+              <View style={styles.sparkSearchBar}>
+                <SearchIcon size={16} color={CONSTANTS_COLORS.textSecondary} style={{ marginRight: 8 }} />
+                <TextInput
+                  style={styles.sparkSearchInput}
+                  placeholder="Search sparks..."
+                  placeholderTextColor={CONSTANTS_COLORS.textSecondary}
+                  value={sparkSearch}
+                  onChangeText={setSparkSearch}
+                />
+                {sparkSearch.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => { setSparkSearch(''); setSparkSearchResults([]); }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <X size={16} color={CONSTANTS_COLORS.textSecondary} />
+                  </TouchableOpacity>
+                )}
               </View>
 
+              {/* Search results */}
+              {sparkSearch.trim().length >= 2 ? (
+                sparkSearchLoading ? (
+                  <Text style={styles.sparkLoadingText}>Searching...</Text>
+                ) : sparkSearchResults.length === 0 ? (
+                  <Text style={styles.sparkEmptyText}>No sparks found for "{sparkSearch}"</Text>
+                ) : (
+                  <View style={styles.chipsContainerSoft}>
+                    {sparkSearchResults.map((spark) => {
+                      const isSelected = goalBadges.some((g) => g.id === spark.id);
+                      const catStyle = getSparkStyle(spark.category);
+                      return (
+                        <TouchableOpacity
+                          key={spark.id}
+                          onPress={() => toggleSpark(spark)}
+                          activeOpacity={0.7}
+                          style={[
+                            styles.goalChip,
+                            isSelected ? { backgroundColor: catStyle.bg, borderColor: catStyle.text } : styles.goalChipUnselected,
+                          ]}
+                        >
+                          <Text style={[styles.goalChipText, isSelected && { color: catStyle.text }]}>
+                            {spark.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )
+              ) : (
+                /* Grouped catalog */
+                sparksLoading ? (
+                  <Text style={styles.sparkLoadingText}>Loading sparks...</Text>
+                ) : (
+                  sparkCategories.map(({ category, sparks }) => {
+                    const catStyle = getSparkStyle(category);
+                    const catLabel = CATEGORY_LABELS[category] || category;
+                    return (
+                      <View key={category} style={styles.sparkCategoryGroup}>
+                        <Text style={[styles.sparkCategoryLabel, { color: catStyle.text }]}>
+                          {catLabel}
+                        </Text>
+                        <View style={styles.chipsContainerSoft}>
+                          {sparks.map((spark) => {
+                            const isSelected = goalBadges.some((g) => g.id === spark.id);
+                            return (
+                              <TouchableOpacity
+                                key={spark.id}
+                                onPress={() => toggleSpark(spark)}
+                                activeOpacity={0.7}
+                                style={[
+                                  styles.goalChip,
+                                  isSelected
+                                    ? { backgroundColor: catStyle.bg, borderColor: catStyle.text }
+                                    : styles.goalChipUnselected,
+                                ]}
+                              >
+                                <Text style={[styles.goalChipText, isSelected && { color: catStyle.text }]}>
+                                  {spark.label}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    );
+                  })
+                )
+              )}
+
+              {/* Custom spark input */}
               {showCustomGoalInput ? (
-                <View style={styles.customGoalInputContainer}>
+                <View 
+                  onLayout={(e) => setCustomInputY(e.nativeEvent.layout.y)}
+                  style={styles.customGoalInputContainer}
+                >
                   <TextInput
                     style={styles.customGoalInput}
                     placeholder="Enter custom spark..."
                     placeholderTextColor={CONSTANTS_COLORS.textSecondary}
                     value={customGoal}
                     onChangeText={setCustomGoal}
-                    maxLength={25}
+                    maxLength={40}
                     autoFocus
                   />
                   <TouchableOpacity
                     style={styles.customGoalAddButton}
-                    onPress={handleAddCustomGoal}
+                    onPress={() => handleCustomSparkSubmit('social')}
                   >
                     <Plus size={16} color="#FFFFFF" strokeWidth={3} />
                     <Text style={styles.customGoalAddButtonText}>Add</Text>
@@ -936,7 +1319,9 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                     style={styles.customGoalCancelButton}
                     onPress={() => {
                       setShowCustomGoalInput(false);
-                      setCustomGoal("");
+                      setCustomGoal('');
+                      setShowCustomGoalSuggestions(false);
+                      setCustomGoalSuggestions([]);
                     }}
                   >
                     <X size={18} color={CONSTANTS_COLORS.textSecondary} />
@@ -955,13 +1340,49 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                 </TouchableOpacity>
               )}
 
+              {/* Dedup suggestions */}
+              {showCustomGoalSuggestions && customGoalSuggestions.length > 0 && (
+                <View style={styles.dedupeContainer}>
+                  <Text style={styles.dedupeTitle}>Similar sparks already exist:</Text>
+                  <View style={styles.chipsContainerSoft}>
+                    {customGoalSuggestions.map((spark) => {
+                      const catStyle = getSparkStyle(spark.category);
+                      const isSelected = goalBadges.some((g) => g.id === spark.id);
+                      return (
+                        <TouchableOpacity
+                          key={spark.id}
+                          style={[
+                            styles.goalChip,
+                            isSelected
+                              ? { backgroundColor: catStyle.bg, borderColor: catStyle.text }
+                              : styles.goalChipUnselected,
+                          ]}
+                          onPress={() => {
+                            toggleSpark(spark);
+                            setShowCustomGoalSuggestions(false);
+                            setShowCustomGoalInput(false);
+                            setCustomGoal('');
+                          }}
+                        >
+                          <Text style={[styles.goalChipText, isSelected && { color: catStyle.text }]}>
+                            {spark.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <TouchableOpacity
+                    style={styles.forceCreateButton}
+                    onPress={() => handleForceCreateSpark('social')}
+                  >
+                    <Text style={styles.forceCreateButtonText}>None of these — create mine</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {goalBadges.length === 0 && (
                 <View style={styles.inlineWarning}>
-                  <AlertCircle
-                    size={16}
-                    color={CONSTANTS_COLORS.error}
-                    strokeWidth={2}
-                  />
+                  <AlertCircle size={16} color={CONSTANTS_COLORS.error} strokeWidth={2} />
                   <Text style={styles.inlineWarningText}>
                     Select at least 1 Spark
                   </Text>
@@ -970,6 +1391,271 @@ export default function EditDiscoverProfileScreen({ navigation }) {
             </View>
           </View>
         </Animated.View>
+
+        {/* SECTION 3.5: My Vibes (Rounded Card) */}
+        <View style={styles.section}>
+          <View style={styles.sectionCardRounded}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderLeft}>
+                <View
+                  style={[
+                    styles.sectionIconContainer,
+                    { backgroundColor: "rgba(229, 62, 62, 0.08)" },
+                  ]}
+                >
+                  <RollerCoaster size={18} color="#E53E3E" />
+                </View>
+                <Text style={styles.cardTitle}>My Vibes</Text>
+              </View>
+            </View>
+            <Text style={styles.sectionHint}>
+              Select your interests or search to add custom ones.
+            </Text>
+
+            <View style={styles.cardContent}>
+              {/* 1. Selected Vibes (Pinned Top) */}
+              {interests.length > 0 && (
+                <View style={styles.selectedVibesSection}>
+                  <View style={styles.vibesContainer}>
+                    {interests
+                      .slice(0, showAllSelected ? undefined : 8)
+                      .map((interest) => {
+                        const style = getInterestStyle(interest);
+                        const Icon = style.icon || RollerCoaster;
+                        return (
+                          <TouchableOpacity
+                            key={interest}
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              LayoutAnimation.configureNext(
+                                LayoutAnimation.Presets.easeInEaseOut,
+                              );
+                              setInterests(
+                                interests.filter((i) => i !== interest),
+                              );
+                              HapticsService.triggerSelection();
+                            }}
+                            style={[
+                              styles.vibeChip,
+                              { backgroundColor: style.bg, paddingRight: 8 },
+                            ]}
+                          >
+                            <View style={styles.vibeContent}>
+                              <Icon
+                                size={14}
+                                color={style.text}
+                                strokeWidth={2.5}
+                              />
+                              <Text
+                                style={[styles.vibeText, { color: style.text }]}
+                              >
+                                {interest}
+                              </Text>
+                            </View>
+                            <View style={styles.removeIconContainer}>
+                              <X size={12} color={style.text} strokeWidth={3} />
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    {interests.length > 8 && !showAllSelected && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          LayoutAnimation.configureNext(
+                            LayoutAnimation.Presets.easeInEaseOut,
+                          );
+                          setShowAllSelected(true);
+                        }}
+                        style={styles.moreCountChip}
+                      >
+                        <Text style={styles.moreCountText}>
+                          +{interests.length - 8} more
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    {showAllSelected && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          LayoutAnimation.configureNext(
+                            LayoutAnimation.Presets.easeInEaseOut,
+                          );
+                          setShowAllSelected(false);
+                        }}
+                        style={styles.moreCountChip}
+                      >
+                        <Text style={styles.moreCountText}>Show less</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <View style={styles.divider} />
+                </View>
+              )}
+
+              {/* 2. Search & Add */}
+              <View style={styles.searchContainer}>
+                <SearchIcon
+                  size={16}
+                  color={CONSTANTS_COLORS.textSecondary}
+                  style={styles.searchIcon}
+                />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search interests..."
+                  placeholderTextColor={CONSTANTS_COLORS.textSecondary}
+                  value={searchQuery}
+                  onChangeText={(text) => {
+                    LayoutAnimation.configureNext(
+                      LayoutAnimation.Presets.easeInEaseOut,
+                    );
+                    setSearchQuery(text);
+                    if (text) setExpandedCategory(null); // Close categories when searching
+                  }}
+                />
+              </View>
+
+              {/* 3. Categories or Search Results */}
+              <View style={styles.categoriesContainer}>
+                {searchQuery ? (
+                  // Search Results
+                  <View style={styles.vibesContainer}>
+                    {interestsCatalog
+                      .filter(
+                        (i) =>
+                          !interests.includes(i) &&
+                          i.toLowerCase().includes(searchQuery.toLowerCase()),
+                      )
+                      .map((interest) => (
+                        <TouchableOpacity
+                          key={interest}
+                          onPress={() => {
+                            setInterests([...interests, interest]);
+                            setSearchQuery(""); // Clear search after add
+                            HapticsService.triggerSelection();
+                          }}
+                          style={styles.optionChip}
+                        >
+                          <Text style={styles.optionText}>{interest}</Text>
+                          <Plus size={14} color={CONSTANTS_COLORS.textSecondary} />
+                        </TouchableOpacity>
+                      ))}
+                    {/* Add Custom Interest in Search */}
+                    {searchQuery.trim().length > 0 && (
+                      <TouchableOpacity
+                        onPress={() => {
+                          const trimmed = searchQuery.trim();
+                          if (trimmed && !interests.includes(trimmed)) {
+                            setInterests([...interests, trimmed]);
+                            setSearchQuery("");
+                            HapticsService.triggerSelection();
+                          }
+                        }}
+                        style={styles.addCustomSearchResult}
+                      >
+                        <Plus size={14} color={PRIMARY_COLOR} />
+                        <Text style={[styles.optionText, { color: PRIMARY_COLOR, fontFamily: FONTS.medium }]}>
+                          Add "{searchQuery.trim()}"
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ) : (
+                  // Category List
+                  Object.keys(INTEREST_CATEGORIES)
+                    .filter((key) => key !== "DEFAULT")
+                    .map((key) => {
+                      const category = INTEREST_CATEGORIES[key];
+                      const isExpanded = expandedCategory === key;
+                      const Icon = category.icon || RollerCoaster;
+
+                      // Filter interests for this category
+                      const categoryInterests = interestsCatalog.filter(
+                        (i) =>
+                          !interests.includes(i) &&
+                          category.keywords.some((k) =>
+                            i.toLowerCase().includes(k),
+                          ),
+                      );
+
+                      const hasAnyInterests = interestsCatalog.some(
+                        (i) => category.keywords.some((k) => i.toLowerCase().includes(k))
+                      );
+
+                      if (!hasAnyInterests) return null;
+
+                      return (
+                        <View key={key} style={styles.categoryRow}>
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              LayoutAnimation.configureNext(
+                                LayoutAnimation.Presets.easeInEaseOut,
+                              );
+                              setExpandedCategory(isExpanded ? null : key);
+                            }}
+                            style={[
+                              styles.categoryHeader,
+                              isExpanded && styles.categoryHeaderExpanded,
+                              {
+                                backgroundColor: isExpanded
+                                  ? category.bg
+                                  : "transparent",
+                              },
+                            ]}
+                          >
+                            <View style={styles.categoryHeaderLeft}>
+                              <View
+                                style={[
+                                  styles.categoryIcon,
+                                  { backgroundColor: category.bg },
+                                ]}
+                              >
+                                <Icon size={14} color={category.text} />
+                              </View>
+                              <Text style={styles.categoryTitle}>
+                                {category.label}
+                              </Text>
+                            </View>
+                            {isExpanded ? (
+                              <ChevronDown size={16} color={CONSTANTS_COLORS.textSecondary} />
+                            ) : (
+                              <ChevronRight size={16} color={CONSTANTS_COLORS.textSecondary} />
+                            )}
+                          </TouchableOpacity>
+
+                          {isExpanded && (
+                            <View style={styles.categoryContent}>
+                              <View style={styles.vibesContainer}>
+                                {categoryInterests.map((interest) => (
+                                  <TouchableOpacity
+                                    key={interest}
+                                    onPress={() => {
+                                      setInterests([...interests, interest]);
+                                      HapticsService.triggerSelection();
+                                    }}
+                                    style={styles.optionChip}
+                                  >
+                                    <Text style={styles.optionText}>
+                                      {interest}
+                                    </Text>
+                                    <Plus size={14} color={CONSTANTS_COLORS.textSecondary} />
+                                  </TouchableOpacity>
+                                ))}
+                                {categoryInterests.length === 0 && (
+                                  <Text style={[styles.optionText, { color: CONSTANTS_COLORS.textSecondary, fontStyle: 'italic', paddingLeft: 4 }]}>
+                                    All selected
+                                  </Text>
+                                )}
+                              </View>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })
+                )}
+              </View>
+            </View>
+          </View>
+        </View>
 
         {/* SECTION 4: Conversation Starters (Rounded Card) */}
         <Animated.View
@@ -1597,6 +2283,165 @@ const styles = StyleSheet.create({
     color: CONSTANTS_COLORS.textPrimary,
   },
 
+  // ── Sparks UI new styles ──────────────────────────────────────────────────
+  selectedSparksStrip: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
+  },
+  selectedSparkChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  selectedSparkChipText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+  },
+  sparkSearchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: CONSTANTS_COLORS.surfaceNeutral,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 42,
+    marginBottom: 12,
+  },
+  sparkSearchInput: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: 14,
+    color: CONSTANTS_COLORS.textPrimary,
+  },
+  sparkLoadingText: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: CONSTANTS_COLORS.textSecondary,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  sparkEmptyText: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: CONSTANTS_COLORS.textSecondary,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  sparkCategoryGroup: {
+    marginBottom: 14,
+  },
+  sparkCategoryLabel: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+    letterSpacing: 0.6,
+    textTransform: "uppercase",
+    marginBottom: 8,
+  },
+  // Travel date inputs
+  travelDatesRow: {
+    backgroundColor: "#E0F2FE",
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+  },
+  travelDatesLabel: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: "#0369A1",
+    marginBottom: 8,
+  },
+  travelDateInputs: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  travelDateInput: {
+    flex: 1,
+    height: 38,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: CONSTANTS_COLORS.textPrimary,
+  },
+  // City autocomplete
+  citySearchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    height: 40,
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+  },
+  citySearchInput: {
+    flex: 1,
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: CONSTANTS_COLORS.textPrimary,
+  },
+  cityLoadingText: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: "#0369A1",
+    marginTop: 4,
+    paddingLeft: 4,
+  },
+  cityDropdown: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    overflow: "hidden",
+  },
+  cityDropdownItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0F9FF",
+  },
+  cityDropdownName: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: CONSTANTS_COLORS.textPrimary,
+  },
+  cityDropdownAddress: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: CONSTANTS_COLORS.textSecondary,
+    marginTop: 2,
+  },
+  // Dedup suggestion UI
+  dedupeContainer: {
+    backgroundColor: "#FFFBEB",
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  dedupeTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: "#92400E",
+    marginBottom: 10,
+  },
+  forceCreateButton: {
+    marginTop: 12,
+    alignSelf: "flex-start",
+  },
+  forceCreateButtonText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: PRIMARY_COLOR,
+  },
+
   // Icebreakers / Openers
   openerCardFormatted: {
     backgroundColor: "#F8FAFC",
@@ -1871,5 +2716,145 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 16,
     paddingVertical: 4,
+  },
+
+  // Selected Vibes (Interests) Section
+  selectedVibesSection: {
+    marginBottom: 8,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#F1F5F9",
+    marginVertical: 12,
+  },
+  vibesContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  vibeChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingLeft: 12,
+    paddingRight: 10,
+    borderRadius: 999, // Full pill
+    marginBottom: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  vibeContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginRight: 6,
+  },
+  vibeText: {
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+  },
+  removeIconContainer: {
+    opacity: 0.5,
+  },
+  moreCountChip: {
+    backgroundColor: "#F1F5F9",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  moreCountText: {
+    fontSize: 13,
+    color: CONSTANTS_COLORS.textSecondary,
+    fontFamily: FONTS.regular,
+  },
+
+  // Search
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: FONTS.regular,
+    color: CONSTANTS_COLORS.textPrimary,
+  },
+  addCustomSearchResult: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    gap: 8,
+    marginTop: 8,
+  },
+
+  // Categories Accordion
+  categoriesContainer: {
+    gap: 4,
+  },
+  categoryRow: {
+    overflow: "hidden",
+  },
+  categoryHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  categoryHeaderExpanded: {},
+  categoryHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  categoryIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  categoryTitle: {
+    fontSize: 15,
+    fontFamily: FONTS.regular,
+    color: CONSTANTS_COLORS.textPrimary,
+  },
+  categoryContent: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+  },
+  optionChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    marginBottom: 4,
+    gap: 6,
+  },
+  optionText: {
+    fontSize: 14,
+    fontFamily: FONTS.regular,
+    color: CONSTANTS_COLORS.textPrimary,
   },
 });
