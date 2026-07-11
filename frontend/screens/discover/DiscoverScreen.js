@@ -77,8 +77,10 @@ export default function DiscoverScreen({ navigation }) {
         setPeople(
           recs.map(rec => ({
             id: rec.candidate_id,
-            name: rec.profile?.name,
-            image: rec.profile?.profile_photo_url || `https://i.pravatar.cc/150?u=${rec.candidate_id}`,
+            name: rec.profile?.name || null,
+            occupation: rec.profile?.occupation || null,
+            image: rec.profile?.profile_photo_url || null,
+            top_reasons: Array.isArray(rec.top_reasons) ? rec.top_reasons : [],
           }))
         );
         hasLoadedRef.current = true;
@@ -382,15 +384,61 @@ const TribeCard = React.memo(({ community, onPress }) => (
   </TouchableOpacity>
 ));
 
-const DiscoverScreenPersonCard = React.memo(({ person, onPress }) => (
-  <TouchableOpacity
-    style={styles.personCircleContainer}
-    activeOpacity={0.8}
-    onPress={onPress}
-  >
-    <Image source={{ uri: person.image }} style={styles.personCircleImage} cachePolicy="memory-disk" />
-  </TouchableOpacity>
-));
+/** Maps a top_reasons entry to a human-readable sentence. */
+function formatReason(reason) {
+  if (!reason) return null;
+  const { type, label } = reason;
+  switch (type) {
+    case 'shared_event':      return `You both went to ${label}`;
+    case 'shared_community':  return `You're both in ${label}`;
+    case 'shared_spark':      return label; // backend already formats: spark label OR "Compatible professional goals"
+    case 'shared_interest':   return `You both like ${label}`;
+    case 'same_college':      return `Both from ${label}`;
+    case 'mutual_circles':    return label; // backend formats: "{N} mutual connection(s)"
+    default:                  return label || null;
+  }
+}
+
+const DiscoverScreenPersonCard = React.memo(({ person, onPress }) => {
+  // Pick the first valid reason; fall back to a neutral tag
+  const reasonText = (person.top_reasons || [])
+    .map(formatReason)
+    .find(Boolean) || 'Active this week';
+
+  const displayName = person.name || person.occupation || '';
+
+  return (
+    <TouchableOpacity
+      style={styles.personCard}
+      activeOpacity={0.82}
+      onPress={onPress}
+    >
+      {/* Avatar */}
+      {person.image ? (
+        <Image
+          source={{ uri: person.image }}
+          style={styles.personCardImage}
+          cachePolicy="memory-disk"
+        />
+      ) : (
+        <View style={[styles.personCardImage, styles.personCardImageFallback]}>
+          <User size={26} color="#94A3B8" strokeWidth={1.8} />
+        </View>
+      )}
+
+      {/* Text block */}
+      <View style={styles.personCardContent}>
+        {!!displayName && (
+          <Text style={styles.personCardName} numberOfLines={1}>{displayName}</Text>
+        )}
+        {/* Reason tag */}
+        <View style={styles.personCardReasonTag}>
+          <Text style={styles.personCardReasonText} numberOfLines={2}>{reasonText}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+});
 
 
 
@@ -556,17 +604,52 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
   },
 
-  // People Section
-  personCircleContainer: {
-    alignItems: "center",
-    justifyContent: "center",
+  // People You Should Meet — card
+  personCard: {
+    width: 148,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
+    overflow: "hidden",
     marginVertical: 4,
   },
-  personCircleImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.textMuted,
+  personCardImage: {
+    width: "100%",
+    height: 148,
+    backgroundColor: "#F1F5F9",
+  },
+  personCardImageFallback: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  personCardContent: {
+    paddingHorizontal: 10,
+    paddingTop: 8,
+    paddingBottom: 10,
+    gap: 6,
+  },
+  personCardName: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: "#0F172A",
+    lineHeight: 18,
+  },
+  personCardReasonTag: {
+    alignSelf: "flex-start",
+    backgroundColor: "#F0F4FF",
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  personCardReasonText: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: "#2962FF",
+    lineHeight: 15,
   },
 
   // Recommended Events Section
