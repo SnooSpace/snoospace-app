@@ -53,7 +53,7 @@ export default function DiscoverScreen({ navigation }) {
       const token = await getAuthToken();
 
       if (token) {
-        const [eventsResponse, exploreResponse, suggestionsResponse] =
+        const [eventsResponse, exploreResponse, suggestionsResponse, recommendationsResponse] =
           await Promise.all([
             apiGet("/events/my-events", 15000, token).catch(() => ({
               events: [],
@@ -64,49 +64,23 @@ export default function DiscoverScreen({ navigation }) {
             apiGet("/discover/suggestions", 15000, token).catch(() => ({
               suggestions: [],
             })),
+            apiGet("/api/recommendations", 15000, token).catch(() => ({
+              recommendations: [],
+            })),
           ]);
 
         setEvents(eventsResponse.events || []);
         setExploreEvents(exploreResponse.events || []);
         setSuggestedCommunities(suggestionsResponse.suggestions || []);
 
-        setPeople([
-          {
-            id: 1,
-            name: "Sarah Jenkins",
-            role: "Product Lead",
-            interests: ["SaaS", "Product"],
-            image: "https://i.pravatar.cc/150?u=sarah",
-          },
-          {
-            id: 2,
-            name: "David Chen",
-            role: "Investor",
-            interests: ["AI", "Tech"],
-            image: "https://i.pravatar.cc/150?u=david",
-          },
-          {
-            id: 3,
-            name: "Maya Ross",
-            role: "Marketing Head",
-            interests: ["Growth", "Brand"],
-            image: "https://i.pravatar.cc/150?u=maya",
-          },
-          {
-            id: 4,
-            name: "Alex Rivera",
-            role: "Designer",
-            interests: ["UI", "UX"],
-            image: "https://i.pravatar.cc/150?u=alex",
-          },
-          {
-            id: 5,
-            name: "Jordan Taylor",
-            role: "Engineer",
-            interests: ["Mobile", "React"],
-            image: "https://i.pravatar.cc/150?u=jordan",
-          },
-        ]);
+        const recs = recommendationsResponse.recommendations || [];
+        setPeople(
+          recs.map(rec => ({
+            id: rec.candidate_id,
+            name: rec.profile?.name,
+            image: rec.profile?.profile_photo_url || `https://i.pravatar.cc/150?u=${rec.candidate_id}`,
+          }))
+        );
         hasLoadedRef.current = true;
       }
     } catch (error) {
@@ -250,27 +224,30 @@ export default function DiscoverScreen({ navigation }) {
     );
   };
 
-  const renderPeopleSection = () => (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitleContainer}>People You Should Meet</Text>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.horizontalList}
-        onScrollBeginDrag={() => EventBus.emit("disable-tab-swipe")}
-        onScrollEndDrag={() => EventBus.emit("enable-tab-swipe")}
-        onMomentumScrollEnd={() => EventBus.emit("enable-tab-swipe")}
-      >
-        {people.map((person) => (
-          <DiscoverScreenPersonCard
-            key={person.id}
-            person={person}
-            onPress={() => navigation.navigate("MemberPublicProfile", { memberId: person.id })}
-          />
-        ))}
-      </ScrollView>
-    </View>
-  );
+  const renderPeopleSection = () => {
+    if (people.length === 0) return null;
+    return (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitleContainer}>People You Should Meet</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.horizontalList}
+          onScrollBeginDrag={() => EventBus.emit("disable-tab-swipe")}
+          onScrollEndDrag={() => EventBus.emit("enable-tab-swipe")}
+          onMomentumScrollEnd={() => EventBus.emit("enable-tab-swipe")}
+        >
+          {people.map((person) => (
+            <DiscoverScreenPersonCard
+              key={person.id}
+              person={person}
+              onPress={() => navigation.navigate("MemberPublicProfile", { memberId: person.id })}
+            />
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
 
   const renderEventsSection = () => {
     if (slicedExploreEvents.length === 0) return null;
