@@ -1151,6 +1151,11 @@ export default function SearchScreen({ navigation }) {
               <Text style={styles.name} numberOfLines={1}>
                 {displayName}
               </Text>
+              {isCreator && (
+                <View style={styles.creatorBadgeInline}>
+                  <Text style={styles.creatorBadgeInlineText}>Creator</Text>
+                </View>
+              )}
               {activeFilter === "all" && (
                 <View
                   style={[
@@ -1161,7 +1166,9 @@ export default function SearchScreen({ navigation }) {
                         ? styles.typeBadgeSponsor
                         : entityType === "venue"
                           ? styles.typeBadgeVenue
-                          : styles.typeBadgeMember,
+                          : isCreator
+                            ? styles.typeBadgeCreator
+                            : styles.typeBadgeMember,
                   ]}
                 >
                   <Text style={styles.typeBadgeText}>
@@ -1171,7 +1178,9 @@ export default function SearchScreen({ navigation }) {
                         ? "S"
                         : entityType === "venue"
                           ? "V"
-                          : "M"}
+                          : isCreator
+                            ? "CR"
+                            : "M"}
                   </Text>
                 </View>
               )}
@@ -1675,10 +1684,29 @@ const styles = StyleSheet.create({
   typeBadgeVenue: {
     backgroundColor: "#E8F5E9",
   },
+  typeBadgeCreator: {
+    backgroundColor: "#F3E8FF",
+    borderWidth: 0.5,
+    borderColor: "#D8B4FE",
+  },
   typeBadgeText: {
     fontSize: 10,
     fontWeight: "700",
     color: "#1D1D1F",
+  },
+  creatorBadgeInline: {
+    backgroundColor: "#F3E8FF",
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
+    borderWidth: 0.5,
+    borderColor: "#D8B4FE",
+  },
+  creatorBadgeInlineText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 9,
+    color: "#7E22CE",
+    textTransform: "uppercase",
   },
   ticketCard: {
     flexDirection: "row",

@@ -284,7 +284,19 @@ const OpenPlanCard = ({
   const spotsLeft   = maxAccepted - acceptedN;
   const isFull      = spotsLeft <= 0;
   const scheduledAt = plan?.scheduled_at;
-  const location    = plan?.location_public;
+  let location = plan?.location_public;
+  if (location && location.toLowerCase() === 'current location') {
+    location = 'Location TBD';
+    if (plan?.location_private) {
+      try {
+        const parsed = JSON.parse(plan.location_private);
+        location = parsed.short_address || parsed.city || parsed.address || 'Location TBD';
+        if (location.toLowerCase() === 'current location') {
+          location = 'Location TBD';
+        }
+      } catch {}
+    }
+  }
 
   const isOwner   = currentUserId && (plan?.created_by === currentUserId || plan?.created_by === String(currentUserId));
   const reqStatus = plan?.my_request_status ?? plan?.request_status ?? null;
@@ -645,15 +657,7 @@ const OpenPlanCard = ({
             <Send size={20} color="#5e8d9b" strokeWidth={2} />
           </TouchableOpacity>
 
-          {/* Bookmark/Save */}
-          <TouchableOpacity style={[styles.engBtn, compact && { minWidth: 28, minHeight: 28 }]} onPress={handleInterest} disabled={isSaving}>
-            <Bookmark
-              size={20}
-              color={isSaved ? COLORS.primary : '#5e8d9b'}
-              fill={isSaved ? COLORS.primary : 'transparent'}
-              strokeWidth={2}
-            />
-          </TouchableOpacity>
+
         </View>
 
         {/* Request / Owner section */}

@@ -208,7 +208,9 @@ export default function PlanDetailScreen({ navigation, route }) {
   const costCfg = COST_LABELS[plan.cost_type] || COST_LABELS.free;
   const costLabel = plan.cost_type === 'entry_fee'
     ? (plan.cost_amount_paise ? `₹${plan.cost_amount_paise / 100} entry` : 'Entry fee')
-    : costCfg.label;
+    : plan.cost_type === 'split'
+      ? (plan.cost_amount_paise ? `~₹${Math.round(plan.cost_amount_paise / 100)} split` : 'We split')
+      : costCfg.label;
 
   const reqStatus = plan.my_request_status;
   const btnCfg = REQUEST_BUTTON[reqStatus] || REQUEST_BUTTON['null'];
@@ -326,41 +328,91 @@ export default function PlanDetailScreen({ navigation, route }) {
                 <Clock size={13} color={COLORS.textSecondary} strokeWidth={2} />
                 <Text style={styles.metaText}>{formatScheduled(plan.scheduled_at)}</Text>
               </View>
-              {plan.location_public ? (
-                <View style={[styles.metaItem, { marginLeft: 14 }]}>
-                  <MapPin size={13} color={COLORS.textSecondary} strokeWidth={2} />
-                  <Text style={styles.metaText} numberOfLines={1}>{plan.location_public}</Text>
-                </View>
-              ) : null}
+              {(() => {
+                let publicLoc = plan.location_public;
+                if (publicLoc && publicLoc.toLowerCase() === 'current location') {
+                  publicLoc = 'Location TBD';
+                  if (plan.location_private) {
+                    try {
+                      const parsed = JSON.parse(plan.location_private);
+                      publicLoc = parsed.short_address || parsed.city || parsed.address || 'Location TBD';
+                      if (publicLoc.toLowerCase() === 'current location') {
+                        publicLoc = 'Location TBD';
+                      }
+                    } catch {}
+                  }
+                }
+                if (!publicLoc) return null;
+                return (
+                  <View style={[styles.metaItem, { marginLeft: 14 }]}>
+                    <MapPin size={13} color={COLORS.textSecondary} strokeWidth={2} />
+                    <Text style={styles.metaText} numberOfLines={1}>{publicLoc}</Text>
+                  </View>
+                );
+              })()}
             </View>
 
-            {/* Private location */}
-            {showPrivateLocation && plan.location_private ? (() => {
-              let locLabel = plan.location_private;
-              try {
-                const parsed = JSON.parse(plan.location_private);
-                locLabel = parsed.name || parsed.address || parsed.short_address || plan.location_private;
-              } catch {}
-              return (
-                <View style={styles.privateLocationBox}>
-                  <Lock size={13} color="#2962FF" strokeWidth={2} />
-                  <Text style={styles.privateLocationText}>{locLabel}</Text>
-                </View>
-              );
-            })() : null}
+            {/* Private location & Locked pill */}
+            {(() => {
+              if (showPrivateLocation) {
+                if (!plan.location_private) return null;
+                
+                let locLabel = plan.location_private;
+                try {
+                  const parsed = JSON.parse(plan.location_private);
+                  const name = (parsed.name || '').trim();
+                  const address = (parsed.address || '').trim();
+                  const shortAddress = (parsed.short_address || '').trim();
+                  
+                  if (name && name.toLowerCase() !== 'current location') {
+                    locLabel = name;
+                  } else if (address) {
+                    locLabel = address;
+                  } else if (shortAddress) {
+                    locLabel = shortAddress;
+                  } else {
+                    locLabel = name || plan.location_private;
+                  }
+                } catch {}
 
+                return (
+                  <View style={styles.privateLocationBox}>
+                    <Lock size={13} color="#2962FF" strokeWidth={2} />
+                    <Text style={styles.privateLocationText}>{locLabel}</Text>
+                    {isOwner && (
+                      <View style={styles.locationHiddenTag}>
+                        <Text style={styles.locationHiddenTagText}>Hidden for others</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              } else {
+                // Non-approved user: show the locked pill in place of location
+                return (
+                  <View style={[styles.privateLocationBox, styles.privateLocationLocked]}>
+                    <Lock size={13} color="#6B7280" strokeWidth={2} />
+                    <Text style={styles.privateLocationTextLocked}>
+                      Exact location shared after host approves
+                    </Text>
+                  </View>
+                );
+              }
+            })()}
 
-            {/* Acceptance bar */}
-            <View style={styles.acceptanceRow}>
-              <Text style={styles.acceptanceLabel}>
-                <Text style={styles.acceptanceBold}>{plan.accepted_count ?? 0} / {plan.max_accepted}</Text> accepted
-              </Text>
+            {/* Redesigned Acceptance Section */}
+            <View style={styles.compactAcceptanceRow}>
+              <View style={styles.compactAcceptanceLeft}>
+                <Users size={16} color={COLORS.primary} strokeWidth={2.2} />
+                <Text style={styles.compactAcceptanceText}>
+                  <Text style={styles.compactAcceptanceBold}>{plan.accepted_count ?? 0} / {plan.max_accepted}</Text> spots filled
+                </Text>
+              </View>
               {isOwner && plan.pending_count > 0 && (
-                <Text style={styles.pendingText}>{plan.pending_count} pending</Text>
+                <View style={styles.pendingBadgeInline}>
+                  <View style={styles.pendingBadgeDot} />
+                  <Text style={styles.pendingBadgeText}>{plan.pending_count} pending</Text>
+                </View>
               )}
-            </View>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
             </View>
 
             {/* Shared community pill */}
@@ -440,10 +492,7 @@ export default function PlanDetailScreen({ navigation, route }) {
               </TouchableOpacity>
             )}
 
-            {/* Fine print */}
-            {!isOwner && (
-              <Text style={styles.finePrint}>Exact location shared only after host approves</Text>
-            )}
+            {/* Fine print removed (relocated to locked location pill) */}
 
           </View>
 
@@ -655,39 +704,76 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#2962FF',
   },
+  locationHiddenTag: {
+    backgroundColor: '#F3E8FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginLeft: 'auto',
+  },
+  locationHiddenTagText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 9,
+    color: '#7E22CE',
+    textTransform: 'uppercase',
+  },
+  privateLocationLocked: {
+    backgroundColor: '#F3F4F6',
+  },
+  privateLocationTextLocked: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: '#6B7280',
+  },
 
-  // Acceptance
-  acceptanceRow: {
+  // Acceptance (Redesigned compact styles)
+  compactAcceptanceRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
-  acceptanceLabel: {
-    fontFamily: FONTS.regular,
+  compactAcceptanceLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  compactAcceptanceText: {
+    fontFamily: FONTS.medium,
     fontSize: 13,
     color: COLORS.textSecondary,
   },
-  acceptanceBold: {
-    fontFamily: FONTS.semiBold,
+  compactAcceptanceBold: {
+    fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
   },
-  pendingText: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-    color: '#E65100',
+  pendingBadgeInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF7ED',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 4,
+    borderWidth: 0.5,
+    borderColor: '#FFEDD5',
   },
-  progressTrack: {
-    height: 5,
-    backgroundColor: '#EEF2FF',
+  pendingBadgeDot: {
+    width: 6,
+    height: 6,
     borderRadius: 3,
-    marginBottom: 12,
-    overflow: 'hidden',
+    backgroundColor: '#EA580C',
   },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#2962FF',
-    borderRadius: 3,
+  pendingBadgeText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+    color: '#C2410C',
   },
 
   // Shared community pill
