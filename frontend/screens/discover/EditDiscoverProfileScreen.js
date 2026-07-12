@@ -601,6 +601,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   // Toggle a system spark on/off (uses spark object {id, label, category, requires_date_range})
   const toggleSpark = useCallback((spark) => {
     HapticsService.triggerSelection();
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setGoalBadges((prev) => {
       const alreadySelected = prev.some((g) => g.id === spark.id);
       let next;
@@ -676,6 +677,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       }
       if (result?.success && result?.spark) {
         Keyboard.dismiss();
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setGoalBadges((prev) => [
           ...prev,
           { id: result.spark.id, label: result.spark.label, category: result.spark.category, requires_date_range: false },
@@ -700,6 +702,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       const result = await createCustomSpark(trimmed, category, true);
       if (result?.success && result?.spark) {
         Keyboard.dismiss();
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
         setGoalBadges((prev) => [
           ...prev,
           { id: result.spark.id, label: result.spark.label, category: result.spark.category, requires_date_range: false },
@@ -1118,6 +1121,26 @@ export default function EditDiscoverProfileScreen({ navigation }) {
 
             <View style={styles.cardContent}>
 
+              {/* Spark search bar */}
+              <View style={styles.sparkSearchBar}>
+                <SearchIcon size={16} color={CONSTANTS_COLORS.textSecondary} style={{ marginRight: 8 }} />
+                <TextInput
+                  style={styles.sparkSearchInput}
+                  placeholder="Search sparks..."
+                  placeholderTextColor={CONSTANTS_COLORS.textSecondary}
+                  value={sparkSearch}
+                  onChangeText={setSparkSearch}
+                />
+                {sparkSearch.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => { setSparkSearch(''); setSparkSearchResults([]); }}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <X size={16} color={CONSTANTS_COLORS.textSecondary} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
               {/* Selected sparks summary strip */}
               {goalBadges.length > 0 && (
                 <View style={styles.selectedSparksStrip}>
@@ -1233,26 +1256,6 @@ export default function EditDiscoverProfileScreen({ navigation }) {
                     )}
                   </View>
                 ))}
-
-              {/* Spark search bar */}
-              <View style={styles.sparkSearchBar}>
-                <SearchIcon size={16} color={CONSTANTS_COLORS.textSecondary} style={{ marginRight: 8 }} />
-                <TextInput
-                  style={styles.sparkSearchInput}
-                  placeholder="Search sparks..."
-                  placeholderTextColor={CONSTANTS_COLORS.textSecondary}
-                  value={sparkSearch}
-                  onChangeText={setSparkSearch}
-                />
-                {sparkSearch.length > 0 && (
-                  <TouchableOpacity
-                    onPress={() => { setSparkSearch(''); setSparkSearchResults([]); }}
-                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  >
-                    <X size={16} color={CONSTANTS_COLORS.textSecondary} />
-                  </TouchableOpacity>
-                )}
-              </View>
 
               {/* Search results */}
               {sparkSearch.trim().length >= 2 ? (
