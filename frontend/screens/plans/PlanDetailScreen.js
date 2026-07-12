@@ -330,6 +330,7 @@ export default function PlanDetailScreen({ navigation, route }) {
                     <Text style={[styles.pillText, { color: genderBadgeStyle.text }]}>{genderBadgeStyle.label}</Text>
                   </View>
                 )}
+              </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <View style={[styles.pill, { backgroundColor: costCfg.bg }]}>
                   <Text style={[styles.pillText, { color: costCfg.text }]}>{costPillLabel}</Text>
