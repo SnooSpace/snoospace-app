@@ -306,6 +306,7 @@ export default function DiscoverScreen({ navigation }) {
             <TouchableOpacity
               onPress={handleEditProfilePress}
               hitSlop={AVATAR_HITSLOP}
+              style={{ position: "relative" }}
             >
               <View style={styles.avatarContainer}>
                 {userPhoto ? (
@@ -317,8 +318,8 @@ export default function DiscoverScreen({ navigation }) {
                 ) : (
                   <User size={22} color={COLORS.editorial.textSecondary} />
                 )}
-                {!profileComplete && <View style={styles.profileBadge} />}
               </View>
+              {!profileComplete && <View style={styles.profileBadge} />}
             </TouchableOpacity>
           </View>
         </View>
