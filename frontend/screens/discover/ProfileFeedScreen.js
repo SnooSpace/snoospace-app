@@ -816,6 +816,8 @@ export default function ProfileFeedScreen({ route, navigation }) {
               gender={gender}
               pronouns={pronouns}
               onCommentPress={() => handleOpenCommentModal({ type: "photo", url: photos[0].url })}
+              memberId={currentAttendee?.id}
+              memberName={name}
             />
           )}
 
@@ -861,11 +863,15 @@ export default function ProfileFeedScreen({ route, navigation }) {
                 <PromptCard
                   item={item}
                   onCommentPress={() => handleOpenCommentModal({ type: "prompt", prompt: item.data.prompt, response: item.data.response })}
+                  memberId={currentAttendee?.id}
+                  memberName={name}
                 />
               ) : (
                 <PhotoCard
                   url={item.data.url}
                   onCommentPress={() => handleOpenCommentModal({ type: "photo", url: item.data.url })}
+                  memberId={currentAttendee?.id}
+                  memberName={name}
                 />
               )}
             </View>
@@ -945,22 +951,6 @@ export default function ProfileFeedScreen({ route, navigation }) {
               </View>
             </View>
           </TouchableOpacity>
-
-          {/* 3-dot report button */}
-          {currentAttendee?.id && (
-            <View
-              style={styles.reportDotButton}
-            >
-              <ContentActionsSheet
-                type="member"
-                targetId={currentAttendee.id}
-                targetName={name}
-                label="Person"
-                iconColor="#64748B"
-                iconSize={20}
-              />
-            </View>
-          )}
         </View>
 
         <DiscoverFilterSheet
@@ -1344,7 +1334,7 @@ const ContentCard = React.memo(({ children, onPress, style, innerStyle, variant,
 });
 
 
-const PromptCard = React.memo(({ item, onCommentPress }) => (
+const PromptCard = React.memo(({ item, onCommentPress, memberId, memberName }) => (
   <ContentCard onPress={onCommentPress} style={styles.promptCardContainer} variant="prompt">
     <View style={styles.promptContent}>
       <Text style={styles.promptLabel}>{item.data.prompt}</Text>
@@ -1357,10 +1347,22 @@ const PromptCard = React.memo(({ item, onCommentPress }) => (
     >
       <MessageCircle size={20} color={COLORS.primary} strokeWidth={2} />
     </TouchableOpacity>
+    {memberId && (
+      <View style={styles.cardReportButton}>
+        <ContentActionsSheet
+          type="member"
+          targetId={memberId}
+          targetName={memberName}
+          label="Person"
+          iconColor="#64748B"
+          iconSize={20}
+        />
+      </View>
+    )}
   </ContentCard>
 ));
 
-const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, onCommentPress }) => (
+const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, onCommentPress, memberId, memberName }) => (
   <ContentCard
     onPress={onCommentPress}
     style={styles.photoCardContainer}
@@ -1409,6 +1411,18 @@ const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, onComm
     >
       <MessageCircle size={20} color={COLORS.primary} strokeWidth={2} />
     </TouchableOpacity>
+    {memberId && (
+      <View style={styles.cardReportButton}>
+        <ContentActionsSheet
+          type="member"
+          targetId={memberId}
+          targetName={memberName}
+          label="Person"
+          iconColor="#64748B"
+          iconSize={20}
+        />
+      </View>
+    )}
   </ContentCard>
 ));
 
@@ -2617,5 +2631,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(100,116,139,0.15)",
     marginLeft: 8,
+  },
+  cardReportButton: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.75)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    zIndex: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
 });

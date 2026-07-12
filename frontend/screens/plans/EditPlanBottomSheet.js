@@ -207,7 +207,11 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
           <Text style={styles.fieldLabel}>Banner</Text>
           <View style={styles.bannerPreviewWrap}>
             {/* Preset or custom preview */}
-            <View style={styles.bannerPreview} pointerEvents="none">
+            <TouchableOpacity
+              style={styles.bannerPreview}
+              onPress={pickBanner}
+              activeOpacity={0.8}
+            >
               {bannerUri ? (
                 <Image
                   source={{ uri: bannerUri }}
@@ -223,7 +227,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
               ) : (
                 <PlanCropImage activityType={plan?.activity_type || 'other'} containerW={CONTAINER_WIDTH} height={130} />
               )}
-            </View>
+            </TouchableOpacity>
 
             {/* Overlay buttons */}
             <View style={styles.bannerActions}>
@@ -245,7 +249,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
               )}
             </View>
             {(bannerUri || (existingBannerUrl && !bannerRemoved)) && (
-              <View style={styles.bannerCustomBadge}>
+              <View style={styles.bannerCustomBadge} pointerEvents="none">
                 <Text style={styles.bannerCustomBadgeText}>Custom</Text>
               </View>
             )}

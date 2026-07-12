@@ -345,12 +345,17 @@ function EventCard({
     if (event?.share_count !== undefined) setShareCount(event.share_count);
   }, [event?.share_count]);
 
+  const [currentUserAccount, setCurrentUserAccount] = useState(null);
+
   // Fetch current user role
   useEffect(() => {
     getActiveAccount()
       .then((account) => {
-        if (account?.type) {
-          setUserRole(account.type);
+        if (account) {
+          setCurrentUserAccount(account);
+          if (account.type) {
+            setUserRole(account.type);
+          }
         }
       })
       .catch((err) =>
@@ -509,6 +514,10 @@ function EventCard({
   const locationName = shouldHideLocation
     ? null
     : event.location_name || rawLocationName;
+
+  const isEventOwner =
+    currentUserAccount?.type === "community" &&
+    String(currentUserAccount?.id) === String(community_id);
 
   const hasValidPhoto = community_logo && /^https?:\/\//.test(community_logo);
 
@@ -815,6 +824,20 @@ function EventCard({
             </Text>
           </View>
 
+          {/* Report Button overlay — top-right */}
+          {!isEventOwner && (
+            <View style={[styles.reportBubble, compact && styles.reportBubbleCompact]}>
+              <ContentActionsSheet
+                type="event"
+                targetId={id}
+                targetName={title}
+                label="Event"
+                iconColor="#1E293B"
+                iconSize={compact ? 14 : 20}
+              />
+            </View>
+          )}
+
           {/* Status Badge overlay inside image container */}
           {showStatusLabel && (
             <View
@@ -822,6 +845,7 @@ function EventCard({
                 styles.statusBadge,
                 compact && styles.statusBadgeCompact,
                 isPast ? styles.pastBadge : styles.upcomingBadge,
+                { right: isEventOwner ? (compact ? 8 : 12) : (compact ? 40 : 56) },
               ]}
               pointerEvents="none"
             >
@@ -1359,16 +1383,6 @@ function EventCard({
                 <Send size={22} color="#5e8d9b" strokeWidth={2} />
                 <Text style={styles.engagementCount}>{shareCount}</Text>
               </TouchableOpacity>
-              <View style={[styles.engagementBtn, { justifyContent: 'center' }]}>
-                <ContentActionsSheet
-                  type="event"
-                  targetId={id}
-                  targetName={title}
-                  label="Event"
-                  iconColor="#5e8d9b"
-                  iconSize={22}
-                />
-              </View>
             </View>
           )}
 
@@ -1499,6 +1513,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: FONTS.primary,
     color: COLORS.textPrimary,
+  },
+  reportBubble: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+  },
+  reportBubbleCompact: {
+    top: 8,
+    right: 8,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
   },
   imageOverlay: {
     position: "absolute",
@@ -1641,8 +1674,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
   },
   attendeesContainer: {
     flexDirection: "row",
@@ -1835,8 +1866,6 @@ const styles = StyleSheet.create({
   },
   bottomRowCompact: {
     paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
   },
   avatarStackCompact: {
     // Add any adjustments for compact avatar stack if needed

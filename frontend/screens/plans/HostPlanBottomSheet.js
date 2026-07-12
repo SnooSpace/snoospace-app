@@ -359,7 +359,11 @@ export default function HostPlanBottomSheet({
           <Text style={styles.fieldLabel}>Banner</Text>
           <View style={styles.bannerPreviewWrap}>
             {/* Preset or custom preview */}
-            <View style={styles.bannerPreview} pointerEvents="none">
+            <TouchableOpacity
+              style={styles.bannerPreview}
+              onPress={pickBanner}
+              activeOpacity={0.8}
+            >
               {bannerUri ? (
                 <Image
                   source={{ uri: bannerUri }}
@@ -369,7 +373,7 @@ export default function HostPlanBottomSheet({
               ) : (
                 <PlanCropImage activityType={activityType} containerW={CONTAINER_WIDTH} height={130} />
               )}
-            </View>
+            </TouchableOpacity>
 
             {/* Overlay buttons */}
             <View style={styles.bannerActions}>
@@ -396,7 +400,7 @@ export default function HostPlanBottomSheet({
               )}
             </View>
             {bannerUri && (
-              <View style={styles.bannerCustomBadge}>
+              <View style={styles.bannerCustomBadge} pointerEvents="none">
                 <Text style={styles.bannerCustomBadgeText}>Custom</Text>
               </View>
             )}

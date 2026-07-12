@@ -32,6 +32,7 @@ import {
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { useNavigation } from '@react-navigation/native';
 import CommentsModal from '../CommentsModal';
+import ContentActionsSheet from '../ContentActionsSheet';
 import HapticsService from '../../services/HapticsService';
 import { recordView, togglePlanInterest } from '../../api/plans';
 import { getAuthToken } from '../../api/auth';
@@ -492,13 +493,27 @@ const OpenPlanCard = ({
       <View style={styles.heroContainer}>
         <CropImage activityType={activityKey} containerW={cardW} />
 
-        {/* Attendee count overlay — top-right */}
+        {/* Attendee count overlay — top-left */}
         <View style={styles.attendeeBubble}>
           <Users size={12} color="#FFF" strokeWidth={2.2} />
           <Text style={styles.attendeeText}>
             {acceptedN} / {maxAccepted}
           </Text>
         </View>
+
+        {/* Report Button overlay — top-right */}
+        {!isOwner && (
+          <View style={styles.reportBubble}>
+            <ContentActionsSheet
+              type="open_plan"
+              targetId={plan?.id}
+              targetName={hostName}
+              label="Open Plan"
+              iconColor="#1E293B"
+              iconSize={20}
+            />
+          </View>
+        )}
 
         {/* Activity pill overlay — bottom-left */}
         <View style={[styles.activityPill, { backgroundColor: pillColors.bg }]}>
@@ -705,7 +720,7 @@ const styles = StyleSheet.create({
   attendeeBubble: {
     position: 'absolute',
     top: 12,
-    right: 12,
+    left: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -713,6 +728,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
+  },
+  reportBubble: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
   },
   attendeeText: {
     fontFamily: FONTS.semiBold,
