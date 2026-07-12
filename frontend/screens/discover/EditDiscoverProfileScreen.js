@@ -47,6 +47,7 @@ import {
 import { INTEREST_CATEGORIES, getInterestStyle } from "../profile/member/EditProfileConstants";
 import { useLocationSearch } from "../../services/location/useLocationSearch";
 import SnooLoader from "../../components/ui/SnooLoader";
+import { useToast } from "../../context/ToastContext";
 import SpotifyConnectorWidget from "../../components/SpotifyConnectorWidget";
 
 // Enable LayoutAnimation for Android
@@ -98,6 +99,7 @@ const CATEGORY_LABELS = {
 };
 
 export default function EditDiscoverProfileScreen({ navigation }) {
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -606,7 +608,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
         next = prev.filter((g) => g.id !== spark.id);
       } else {
         if (prev.length >= 5) {
-          Alert.alert("Limit Reached", "You can select up to 5 Sparks.");
+          showToast("Limit Reached", "You can select up to 5 Sparks.", "error");
           return prev;
         }
         next = [...prev, { ...spark }];
@@ -661,7 +663,7 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       return;
     }
     if (goalBadges.length >= 5) {
-      Alert.alert('Limit Reached', 'You can select up to 5 Sparks.');
+      showToast('Limit Reached', 'You can select up to 5 Sparks.', 'error');
       return;
     }
     try {
