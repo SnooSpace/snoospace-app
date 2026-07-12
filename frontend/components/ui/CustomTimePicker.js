@@ -15,6 +15,7 @@ import {
 import { Clock } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import SwipeableModal from "../modals/SwipeableModal";
 
 // Brand System Colors - Strictly Enforced
 const BRAND = {
@@ -243,186 +244,187 @@ const CustomTimePicker = ({ visible, onClose, time, onChange, minTime }) => {
   });
 
   return (
-    <Modal
+    <SwipeableModal
       visible={visible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={onClose}
-      statusBarTranslucent={true}
-    >
-      <View style={styles.backdrop}>
-        <TouchableWithoutFeedback onPress={onClose}>
-          <View style={StyleSheet.absoluteFill} />
-        </TouchableWithoutFeedback>
-
-        <View style={styles.modalContainer}>
-          {/* Header */}
+      onClose={onClose}
+      sheetStyle={styles.modalContainer}
+      header={
+        <View collapsable={false}>
+          <View style={styles.handle} />
           <View style={styles.header}>
             <Text style={styles.title}>Select Time</Text>
           </View>
+        </View>
+      }
+    >
+      {/* Wheels Container */}
+      <View style={styles.wheelsContainer}>
+        {/* Selection Highlight (Background) */}
+        <View style={styles.selectionOverlay} pointerEvents="none" />
 
-          {/* Wheels Container */}
-          <View style={styles.wheelsContainer}>
-            {/* Selection Highlight (Background) */}
-            <View style={styles.selectionOverlay} pointerEvents="none" />
+        {/* Hours */}
+        <View style={styles.column}>
+          <FlatList
+            ref={hoursRef}
+            data={INFINITE_HOURS}
+            keyExtractor={(item, idx) => `h-${item}-${idx}`}
+            renderItem={({ item, index }) =>
+              renderItem({
+                item,
+                index,
+                type: "hour",
+                selectedValue: selectedHour,
+              })
+            }
+            snapToInterval={ITEM_HEIGHT}
+            decelerationRate="fast"
+            showsVerticalScrollIndicator={false}
+            style={{ width: "100%" }}
+            contentContainerStyle={{
+              paddingTop: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
+              paddingBottom: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
+            }}
+            onScroll={(ev) => handleScroll(ev, lastHapticIndexHours)}
+            scrollEventThrottle={16}
+            onMomentumScrollEnd={(ev) => handleScrollEnd(ev, "hour")}
+            onScrollEndDrag={(ev) => handleScrollEnd(ev, "hour")}
+            getItemLayout={getItemLayout}
+            initialNumToRender={36}
+            maxToRenderPerBatch={36}
+            windowSize={5}
+          />
+        </View>
 
-            {/* Hours */}
-            <View style={styles.column}>
-              <FlatList
-                ref={hoursRef}
-                data={INFINITE_HOURS}
-                keyExtractor={(item, idx) => `h-${item}-${idx}`}
-                renderItem={({ item, index }) =>
-                  renderItem({
-                    item,
-                    index,
-                    type: "hour",
-                    selectedValue: selectedHour,
-                  })
-                }
-                snapToInterval={ITEM_HEIGHT}
-                decelerationRate="fast"
-                showsVerticalScrollIndicator={false}
-                style={{ width: "100%" }}
-                contentContainerStyle={{
-                  paddingTop: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
-                  paddingBottom: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
-                }}
-                onScroll={(ev) => handleScroll(ev, lastHapticIndexHours)}
-                scrollEventThrottle={16}
-                onMomentumScrollEnd={(ev) => handleScrollEnd(ev, "hour")}
-                onScrollEndDrag={(ev) => handleScrollEnd(ev, "hour")}
-                getItemLayout={getItemLayout}
-                initialNumToRender={36}
-                maxToRenderPerBatch={36}
-                windowSize={5}
-              />
+        {/* Minutes */}
+        <View style={styles.column}>
+          <FlatList
+            ref={minutesRef}
+            data={INFINITE_MINUTES}
+            keyExtractor={(item, idx) => `m-${item}-${idx}`}
+            renderItem={({ item, index }) =>
+              renderItem({
+                item,
+                index,
+                type: "minute",
+                selectedValue: selectedMinute,
+              })
+            }
+            snapToInterval={ITEM_HEIGHT}
+            decelerationRate="fast"
+            showsVerticalScrollIndicator={false}
+            style={{ width: "100%" }}
+            contentContainerStyle={{
+              paddingTop: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
+              paddingBottom: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
+            }}
+            onScroll={(ev) => handleScroll(ev, lastHapticIndexMinutes)}
+            scrollEventThrottle={16}
+            onMomentumScrollEnd={(ev) => handleScrollEnd(ev, "minute")}
+            onScrollEndDrag={(ev) => handleScrollEnd(ev, "minute")}
+            getItemLayout={getItemLayout}
+            initialNumToRender={180}
+            maxToRenderPerBatch={60}
+            windowSize={11}
+          />
+        </View>
+
+        {/* Period */}
+        <View style={styles.column}>
+          <FlatList
+            ref={periodRef}
+            data={PERIODS}
+            keyExtractor={(item) => `p-${item}`}
+            renderItem={({ item, index }) =>
+              renderItem({
+                item,
+                index,
+                type: "period",
+                selectedValue: selectedPeriod,
+              })
+            }
+            snapToInterval={ITEM_HEIGHT}
+            decelerationRate="fast"
+            showsVerticalScrollIndicator={false}
+            style={{ width: "100%" }}
+            contentContainerStyle={{
+              paddingTop: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
+              paddingBottom: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
+            }}
+            onScroll={(ev) => handleScroll(ev, lastHapticIndexPeriod)}
+            scrollEventThrottle={16}
+            onMomentumScrollEnd={(ev) => handleScrollEnd(ev, "period")}
+            onScrollEndDrag={(ev) => handleScrollEnd(ev, "period")}
+            getItemLayout={getItemLayout}
+          />
+        </View>
+      </View>
+
+      {/* Confirm Button */}
+      <View style={styles.confirmButtonContainer}>
+        <TouchableOpacity onPress={handleConfirm}>
+          <LinearGradient
+            colors={BRAND.primaryGradient}
+            style={styles.confirmButton}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+          >
+            <Text style={styles.confirmButtonText}>Confirm Time</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+
+      {/* Custom Error Modal Overlay */}
+      {showError && (
+        <View style={styles.errorOverlay}>
+          <View style={styles.errorContainer}>
+            <View style={styles.errorIconContainer}>
+              <Clock size={32} color={BRAND.primary} />
             </View>
+            <Text style={styles.errorTitle}>Invalid Time</Text>
+            <Text style={styles.errorText}>
+              The selected time is in the past. We've adjusted it for you.
+            </Text>
 
-            {/* Minutes */}
-            <View style={styles.column}>
-              <FlatList
-                ref={minutesRef}
-                data={INFINITE_MINUTES}
-                keyExtractor={(item, idx) => `m-${item}-${idx}`}
-                renderItem={({ item, index }) =>
-                  renderItem({
-                    item,
-                    index,
-                    type: "minute",
-                    selectedValue: selectedMinute,
-                  })
-                }
-                snapToInterval={ITEM_HEIGHT}
-                decelerationRate="fast"
-                showsVerticalScrollIndicator={false}
-                style={{ width: "100%" }}
-                contentContainerStyle={{
-                  paddingTop: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
-                  paddingBottom: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
-                }}
-                onScroll={(ev) => handleScroll(ev, lastHapticIndexMinutes)}
-                scrollEventThrottle={16}
-                onMomentumScrollEnd={(ev) => handleScrollEnd(ev, "minute")}
-                onScrollEndDrag={(ev) => handleScrollEnd(ev, "minute")}
-                getItemLayout={getItemLayout}
-                initialNumToRender={180}
-                maxToRenderPerBatch={60}
-                windowSize={11}
-              />
-            </View>
-
-            {/* Period */}
-            <View style={styles.column}>
-              <FlatList
-                ref={periodRef}
-                data={PERIODS}
-                keyExtractor={(item) => `p-${item}`}
-                renderItem={({ item, index }) =>
-                  renderItem({
-                    item,
-                    index,
-                    type: "period",
-                    selectedValue: selectedPeriod,
-                  })
-                }
-                snapToInterval={ITEM_HEIGHT}
-                decelerationRate="fast"
-                showsVerticalScrollIndicator={false}
-                style={{ width: "100%" }}
-                contentContainerStyle={{
-                  paddingTop: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
-                  paddingBottom: (CONTAINER_HEIGHT - ITEM_HEIGHT) / 2,
-                }}
-                onScroll={(ev) => handleScroll(ev, lastHapticIndexPeriod)}
-                scrollEventThrottle={16}
-                onMomentumScrollEnd={(ev) => handleScrollEnd(ev, "period")}
-                onScrollEndDrag={(ev) => handleScrollEnd(ev, "period")}
-                getItemLayout={getItemLayout}
-              />
-            </View>
-          </View>
-
-          {/* Confirm Button */}
-          <View style={styles.confirmButtonContainer}>
-            <TouchableOpacity onPress={handleConfirm}>
+            <TouchableOpacity
+              style={styles.errorConfirmButton}
+              onPress={handleAutoCorrect}
+            >
               <LinearGradient
                 colors={BRAND.primaryGradient}
-                style={styles.confirmButton}
+                style={styles.gradientButton}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
               >
-                <Text style={styles.confirmButtonText}>Confirm Time</Text>
+                <Text style={styles.errorConfirmButtonText}>
+                  Use Earliest Available Time
+                </Text>
               </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.errorCancelButton}
+              onPress={() => setShowError(false)}
+            >
+              <Text style={styles.errorCancelButtonText}>
+                Select Another Time
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
-
-        {/* Custom Error Modal Overlay */}
-        {showError && (
-          <View style={styles.errorOverlay}>
-            <View style={styles.errorContainer}>
-              <View style={styles.errorIconContainer}>
-                <Clock size={32} color={BRAND.primary} />
-              </View>
-              <Text style={styles.errorTitle}>Invalid Time</Text>
-              <Text style={styles.errorText}>
-                The selected time is in the past. We've adjusted it for you.
-              </Text>
-
-              <TouchableOpacity
-                style={styles.errorConfirmButton}
-                onPress={handleAutoCorrect}
-              >
-                <LinearGradient
-                  colors={BRAND.primaryGradient}
-                  style={styles.gradientButton}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                >
-                  <Text style={styles.errorConfirmButtonText}>
-                    Use Earliest Available Time
-                  </Text>
-                </LinearGradient>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.errorCancelButton}
-                onPress={() => setShowError(false)}
-              >
-                <Text style={styles.errorCancelButtonText}>
-                  Select Another Time
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-      </View>
-    </Modal>
+      )}
+    </SwipeableModal>
   );
 };
 
 const styles = StyleSheet.create({
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: BRAND.border,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",

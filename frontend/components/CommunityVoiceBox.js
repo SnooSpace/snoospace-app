@@ -55,6 +55,7 @@ import KeyboardAwareToolbar from "./KeyboardAwareToolbar";
 import CustomImagePicker from "./CustomImagePicker";
 import EventBus from "../utils/EventBus";
 import ShareModal from "./ShareModal";
+import ContentActionsSheet from "./ContentActionsSheet";
 
 // Cloudinary direct upload helper
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
@@ -109,6 +110,26 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
   const [viewCount, setViewCount] = useState(post?.public_view_count || post?.view_count || 0);
   const [shareCount, setShareCount] = useState(post?.share_count || 0);
   const [shareModalVisible, setShareModalVisible] = useState(false);
+
+  // Active account tracking for ownership
+  const [currentUserAccount, setCurrentUserAccount] = useState(null);
+
+  useEffect(() => {
+    getActiveAccount()
+      .then((account) => {
+        if (account) {
+          setCurrentUserAccount(account);
+        }
+      })
+      .catch((err) =>
+        console.error("[VoicePostCard] Error fetching account:", err),
+      );
+  }, []);
+
+  const isOwnPost =
+    currentUserAccount &&
+    String(post?.author_id) === String(currentUserAccount.id) &&
+    post?.author_type === currentUserAccount.type;
 
   const lastTapRef = useRef(0);
   const cardRef = useRef(null);
@@ -329,6 +350,20 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
             </Text>
             <Text style={cardStyles.timestamp}>{timeAgo(post.created_at)}</Text>
           </View>
+
+          {/* Ellipsis Menu / ContentActionsSheet */}
+          {!isOwnPost && (
+            <View style={cardStyles.ellipsisButton}>
+              <ContentActionsSheet
+                type="post"
+                targetId={post.id}
+                targetName={isAnon ? "Anonymous" : post.author_name}
+                label="Post"
+                iconColor={COLORS.textSecondary}
+                iconSize={20}
+              />
+            </View>
+          )}
         </View>
 
         {/* Content */}
@@ -1150,5 +1185,8 @@ const cardStyles = StyleSheet.create({
   },
   likedCount: {
     color: COLORS.error,
+  },
+  ellipsisButton: {
+    padding: 6,
   },
 });

@@ -1158,12 +1158,12 @@ const DefaultEditorialPostCard = ({
           >
             <Ellipsis size={20} color={COLORS.editorial.textSecondary} />
           </TouchableOpacity>
-        ) : !isOwnPost && !isAnon ? (
+        ) : !isOwnPost ? (
           <View style={styles.ellipsisButton}>
             <ContentActionsSheet
               type="post"
               targetId={post.id}
-              targetName={post.author_name || post.author_username}
+              targetName={isAnon ? "Anonymous" : (post.author_name || post.author_username)}
               label="Post"
               iconColor={COLORS.editorial.textSecondary}
               iconSize={20}

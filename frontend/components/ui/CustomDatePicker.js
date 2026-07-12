@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import SwipeableModal from "../modals/SwipeableModal";
 
 // ─── Brand Tokens ────────────────────────────────────────────────────────────
 const BRAND = {
@@ -369,155 +370,154 @@ const CustomDatePicker = ({
 
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
-    <Modal
+    <SwipeableModal
       visible={visible}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={onClose}
-      statusBarTranslucent={true}
-    >
-      <View style={styles.backdrop}>
-        <TouchableWithoutFeedback onPress={onClose}>
-          <View style={StyleSheet.absoluteFill} />
-        </TouchableWithoutFeedback>
-
-        <TouchableWithoutFeedback>
-          <View style={styles.modalContainer}>
-            {/* Header */}
-            <View style={styles.header}>
-              <Text style={styles.title}>{headerTitle}</Text>
-            </View>
-
-            {/* Month Navigation */}
-            <View style={styles.calendarControls}>
-              <TouchableOpacity
-                onPress={handlePrevMonth}
-                style={[styles.chevron, !canGoPrev && { opacity: 0.3 }]}
-                disabled={!canGoPrev}
-              >
-                <ChevronLeft size={20} color={BRAND.textPrimary} />
-              </TouchableOpacity>
-              <Text style={styles.monthTitle}>
-                {MONTH_NAMES[currentMonth.getMonth()]}{" "}
-                {currentMonth.getFullYear()}
-              </Text>
-              <TouchableOpacity
-                onPress={handleNextMonth}
-                style={[styles.chevron, !canGoNext && { opacity: 0.3 }]}
-                disabled={!canGoNext}
-              >
-                <ChevronRight size={20} color={BRAND.textPrimary} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Day-of-week header */}
-            <View style={styles.weekRow}>
-              {DAYS_OF_WEEK.map((d) => (
-                <Text key={d} style={styles.weekDayText}>
-                  {d}
-                </Text>
-              ))}
-            </View>
-
-            {/* Days Grid */}
-            <View style={styles.daysGrid}>
-              {calendarDays.map((day, index) => {
-                if (!day) {
-                  return <View key={`empty-${index}`} style={styles.dayCell} />;
-                }
-
-                const {
-                  isCurrentDay,
-                  isDisabled,
-                  isStart,
-                  isEnd,
-                  isInRange,
-                  isSingleDayRange,
-                } = getDayState(day);
-
-                const isEndpoint = isStart || isEnd;
-
-                const isRangeMode = selectionMode === "range";
-                // Range tracking logic
-                const showFullRange = isRangeMode && isInRange;
-                const showLeftHalf = isRangeMode && !isSingleDayRange && isEnd;
-                const showRightHalf =
-                  isRangeMode && !isSingleDayRange && isStart;
-
-                return (
-                  <TouchableOpacity
-                    key={day.toISOString()}
-                    style={[styles.dayCell, isDisabled && { opacity: 0.4 }]}
-                    onPress={() => handleSelectDate(day)}
-                    disabled={isDisabled}
-                  >
-                    {/* Range strip backgrounds (behind circle) */}
-                    {showFullRange && <View style={styles.rangeFull} />}
-                    {showLeftHalf && <View style={styles.rangeHalfLeft} />}
-                    {showRightHalf && <View style={styles.rangeHalfRight} />}
-
-                    {/* Circle */}
-                    {isEndpoint ? (
-                      <LinearGradient
-                        colors={BRAND.primaryGradient}
-                        style={styles.selectedDay}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                      >
-                        <Text style={styles.selectedDayText}>
-                          {day.getDate()}
-                        </Text>
-                      </LinearGradient>
-                    ) : (
-                      <View
-                        style={[
-                          styles.dayCircle,
-                          isCurrentDay && styles.todayBorder,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.dayText,
-                            isDisabled && { color: BRAND.textMuted },
-                            isInRange && styles.inRangeText,
-                          ]}
-                        >
-                          {day.getDate()}
-                        </Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Confirm Button */}
-            <TouchableOpacity
-              style={styles.confirmButtonContainer}
-              onPress={handleConfirm}
-              disabled={confirmDisabled}
-            >
-              <LinearGradient
-                colors={
-                  confirmDisabled
-                    ? ["#C4C4C4", "#C4C4C4"]
-                    : BRAND.primaryGradient
-                }
-                style={styles.confirmButton}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-              >
-                <Text style={styles.confirmButtonText}>{buttonLabel}</Text>
-              </LinearGradient>
-            </TouchableOpacity>
+      onClose={onClose}
+      sheetStyle={styles.modalContainer}
+      header={
+        <View collapsable={false}>
+          <View style={styles.handle} />
+          <View style={styles.header}>
+            <Text style={styles.title}>{headerTitle}</Text>
           </View>
-        </TouchableWithoutFeedback>
+        </View>
+      }
+    >
+      {/* Month Navigation */}
+      <View style={styles.calendarControls}>
+        <TouchableOpacity
+          onPress={handlePrevMonth}
+          style={[styles.chevron, !canGoPrev && { opacity: 0.3 }]}
+          disabled={!canGoPrev}
+        >
+          <ChevronLeft size={20} color={BRAND.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.monthTitle}>
+          {MONTH_NAMES[currentMonth.getMonth()]}{" "}
+          {currentMonth.getFullYear()}
+        </Text>
+        <TouchableOpacity
+          onPress={handleNextMonth}
+          style={[styles.chevron, !canGoNext && { opacity: 0.3 }]}
+          disabled={!canGoNext}
+        >
+          <ChevronRight size={20} color={BRAND.textPrimary} />
+        </TouchableOpacity>
       </View>
-    </Modal>
+
+      {/* Day-of-week header */}
+      <View style={styles.weekRow}>
+        {DAYS_OF_WEEK.map((d) => (
+          <Text key={d} style={styles.weekDayText}>
+            {d}
+          </Text>
+        ))}
+      </View>
+
+      {/* Days Grid */}
+      <View style={styles.daysGrid}>
+        {calendarDays.map((day, index) => {
+          if (!day) {
+            return <View key={`empty-${index}`} style={styles.dayCell} />;
+          }
+
+          const {
+            isCurrentDay,
+            isDisabled,
+            isStart,
+            isEnd,
+            isInRange,
+            isSingleDayRange,
+          } = getDayState(day);
+
+          const isEndpoint = isStart || isEnd;
+
+          const isRangeMode = selectionMode === "range";
+          // Range tracking logic
+          const showFullRange = isRangeMode && isInRange;
+          const showLeftHalf = isRangeMode && !isSingleDayRange && isEnd;
+          const showRightHalf =
+            isRangeMode && !isSingleDayRange && isStart;
+
+          return (
+            <TouchableOpacity
+              key={day.toISOString()}
+              style={[styles.dayCell, isDisabled && { opacity: 0.4 }]}
+              onPress={() => handleSelectDate(day)}
+              disabled={isDisabled}
+            >
+              {/* Range strip backgrounds (behind circle) */}
+              {showFullRange && <View style={styles.rangeFull} />}
+              {showLeftHalf && <View style={styles.rangeHalfLeft} />}
+              {showRightHalf && <View style={styles.rangeHalfRight} />}
+
+              {/* Circle */}
+              {isEndpoint ? (
+                <LinearGradient
+                  colors={BRAND.primaryGradient}
+                  style={styles.selectedDay}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Text style={styles.selectedDayText}>
+                    {day.getDate()}
+                  </Text>
+                </LinearGradient>
+              ) : (
+                <View
+                  style={[
+                    styles.dayCircle,
+                    isCurrentDay && styles.todayBorder,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.dayText,
+                      isDisabled && { color: BRAND.textMuted },
+                      isInRange && styles.inRangeText,
+                    ]}
+                  >
+                    {day.getDate()}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      {/* Confirm Button */}
+      <TouchableOpacity
+        style={styles.confirmButtonContainer}
+        onPress={handleConfirm}
+        disabled={confirmDisabled}
+      >
+        <LinearGradient
+          colors={
+            confirmDisabled
+              ? ["#C4C4C4", "#C4C4C4"]
+              : BRAND.primaryGradient
+          }
+          style={styles.confirmButton}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+        >
+          <Text style={styles.confirmButtonText}>{buttonLabel}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </SwipeableModal>
   );
 };
 
 const styles = StyleSheet.create({
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: BRAND.border,
+    alignSelf: "center",
+    marginBottom: 16,
+  },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.6)",
