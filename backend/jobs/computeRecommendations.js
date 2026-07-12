@@ -58,10 +58,13 @@ function proximityDecay(distKm) {
  *   - Not blocked (either direction)
  *   - Not dismissed within DISMISSAL_COOLDOWN_DAYS
  *   - Not a creator-mode account (those use a separate follow model)
+ *   - Not a profile belonging to the same account-switcher group as the
+ *     requesting user (identified by shared email across members/communities/
+ *     sponsors/venues — the same email the client-side switcher uses)
  *
  * Returns up to CANDIDATE_POOL_LIMIT rows ordered by most-recently-active.
  */
-async function fetchCandidates(pool, userId, userCity) {
+async function fetchCandidates(pool, userId, userCity, userEmail) {
   const { rows } = await pool.query(
     `
     SELECT
@@ -87,6 +90,9 @@ async function fetchCandidates(pool, userId, userCity) {
       AND LOWER(TRIM(m.location->>'city')) = LOWER(TRIM($3))
       -- Not a creator-mode account
       AND (m.is_creator_mode_enabled IS NULL OR m.is_creator_mode_enabled = false)
+      -- Account-switcher group gate: exclude any member profile that shares
+      -- the requesting user's email (same real-world person, different profile type)
+      AND LOWER(TRIM(m.email)) != LOWER(TRIM($6))
       -- Not already in circle (either direction)
       AND NOT EXISTS (
         SELECT 1 FROM circles c
@@ -122,6 +128,7 @@ async function fetchCandidates(pool, userId, userCity) {
       userCity,
       cfg.DISMISSAL_COOLDOWN_DAYS,
       cfg.CANDIDATE_POOL_LIMIT,
+      userEmail || '',   // $6 — switcher-group email exclusion
     ]
   );
 
@@ -355,9 +362,10 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
     eventAttendeeCounts,  // Map<eventId, attendeeCount>
     communityMemberCounts, // Map<communityId, memberCount>
     userCity,
+    userEmail,             // email — switcher-group gate
   } = sharedData;
 
-  const candidates = await fetchCandidates(pool, userId, userCity);
+  const candidates = await fetchCandidates(pool, userId, userCity, sharedData.userEmail);
   if (candidates.length === 0) return 0;
 
   let scored = 0;
@@ -593,6 +601,7 @@ async function runRecommendationsJob(pool) {
   const { rows: activeUsers } = await pool.query(
     `SELECT DISTINCT
        m.id,
+       m.email,
        m.occupation,
        m.campus_id,
        m.verification_tier,
@@ -646,6 +655,7 @@ async function runRecommendationsJob(pool) {
         eventAttendeeCounts,
         communityMemberCounts,
         userCity: user.city,
+        userEmail: user.email,   // switcher-group gate
       };
 
       // Score all candidates for this user
