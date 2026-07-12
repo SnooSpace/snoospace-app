@@ -3158,71 +3158,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
   },
-});
-
-const trustStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 10,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-  },
-  pillText: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-    color: COLORS.textSecondary,
-  },
-});
-
-const menuStyles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 40,
-  },
-  handle: {
-    width: 40, height: 4, borderRadius: 2,
-    backgroundColor: '#E0E0E0',
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-  },
-  iconBox: {
-    width: 44, height: 44, borderRadius: 12,
-    backgroundColor: 'rgba(229,57,53,0.08)',
-    alignItems: 'center', justifyContent: 'center',
-    marginRight: 14,
-  },
-  rowText: { flex: 1 },
-  rowLabel: {
-    fontFamily: 'Manrope-SemiBold',
-    fontSize: 16,
-    color: '#E53935',
-  },
-  rowSub: {
-    fontFamily: 'Manrope-Regular',
-    fontSize: 12,
-    color: '#8FA1B8',
-    marginTop: 2,
-  },
   commSheet: {
     backgroundColor: COLORS.surface,
     borderTopLeftRadius: 24,
@@ -3286,6 +3221,71 @@ const menuStyles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 12,
     color: COLORS.textMuted,
+    marginTop: 2,
+  },
+});
+
+const trustStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  pillText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+});
+
+const menuStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 40,
+  },
+  handle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: '#E0E0E0',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  iconBox: {
+    width: 44, height: 44, borderRadius: 12,
+    backgroundColor: 'rgba(229,57,53,0.08)',
+    alignItems: 'center', justifyContent: 'center',
+    marginRight: 14,
+  },
+  rowText: { flex: 1 },
+  rowLabel: {
+    fontFamily: 'Manrope-SemiBold',
+    fontSize: 16,
+    color: '#E53935',
+  },
+  rowSub: {
+    fontFamily: 'Manrope-Regular',
+    fontSize: 12,
+    color: '#8FA1B8',
     marginTop: 2,
   },
 });
