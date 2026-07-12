@@ -3223,6 +3223,71 @@ const menuStyles = StyleSheet.create({
     color: '#8FA1B8',
     marginTop: 2,
   },
+  commSheet: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: Dimensions.get('window').height * 0.7,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  commSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  commSheetTitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 20,
+    color: COLORS.textPrimary,
+    marginBottom: 16,
+  },
+  commSheetList: {
+    paddingBottom: 20,
+  },
+  commItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+    gap: 12,
+  },
+  commAvatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#EEF2FF',
+  },
+  commAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  commAvatarFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commInfo: {
+    flex: 1,
+  },
+  commName: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  commSub: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
 });
 
 const blockBannerStyles = StyleSheet.create({
@@ -3331,71 +3396,6 @@ const circleCTAStyles = StyleSheet.create({
     fontFamily: 'Manrope-SemiBold',
     fontSize: 15,
     color: '#3C3C43',
-  },
-  commSheet: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: Dimensions.get('window').height * 0.7,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
-  },
-  commSheetHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.border,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  commSheetTitle: {
-    fontFamily: FONTS.primary,
-    fontSize: 20,
-    color: COLORS.textPrimary,
-    marginBottom: 16,
-  },
-  commSheetList: {
-    paddingBottom: 20,
-  },
-  commItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: COLORS.border,
-    gap: 12,
-  },
-  commAvatarContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: '#EEF2FF',
-  },
-  commAvatar: {
-    width: '100%',
-    height: '100%',
-  },
-  commAvatarFallback: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  commInfo: {
-    flex: 1,
-  },
-  commName: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 15,
-    color: COLORS.textPrimary,
-  },
-  commSub: {
-    fontFamily: FONTS.medium,
-    fontSize: 12,
-    color: COLORS.textMuted,
-    marginTop: 2,
   },
 });
 
