@@ -3,7 +3,7 @@ import React, {
 } from "react";
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  TextInput, RefreshControl, Animated, Pressable, Alert, InteractionManager,
+  TextInput, RefreshControl, Animated, Pressable, Alert, InteractionManager, Keyboard,
 } from "react-native";
 import { Image } from "expo-image"; // ── PERF: expo-image provides memory+disk caching for avatars
 import { useFocusEffect } from "@react-navigation/native";
