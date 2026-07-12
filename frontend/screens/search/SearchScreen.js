@@ -5,7 +5,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { View, TextInput, FlatList, Text, TouchableOpacity, StyleSheet, Keyboard, ScrollView, InteractionManager, Animated } from "react-native";
+import { View, TextInput, FlatList, Text, TouchableOpacity, StyleSheet, Keyboard, ScrollView, InteractionManager, Animated, Alert } from "react-native";
 import { Image } from "expo-image"; // ── PERF: memory-disk cache for search avatars
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
@@ -16,6 +16,7 @@ import {
   Calendar,
   Clock,
   Users,
+  Ticket,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
@@ -23,7 +24,19 @@ import { searchMembers, globalSearch } from "../../api/search";
 import { searchEvents } from "../../api/events";
 import { getDiscoverFeed, getSuggestedCommunities } from "../../api/discover";
 import { searchCommunities } from "../../api/communities";
-import { followMember, unfollowMember } from "../../api/members";
+import {
+  followMember,
+  unfollowMember,
+  sendCircleRequest,
+  cancelCircleRequest,
+  removeFromCircle,
+  sendCommunityCircleInvite,
+  cancelCommunityCircleInvite,
+  removeMemberFromCommunityCircle,
+  respondToCommunityCircleInvite,
+  followCreator,
+  unfollowCreator,
+} from "../../api/members";
 import { followCommunity, unfollowCommunity } from "../../api/communities";
 import { getExploreFeed, dismissOpportunitiesBanner, unifiedSearch } from "../../api/explore";
 
@@ -43,12 +56,17 @@ const hexToRgba = (hex, alpha) => {
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
+
+const CIRCLE_COLOR = "#448AFF";
 const DEBOUNCE_MS = 300;
 
 export default function SearchScreen({ navigation }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [following, setFollowing] = useState({}); // id -> boolean
+  const [inCircle, setInCircle] = useState({}); // id -> boolean
+  const [circleRequested, setCircleRequested] = useState({}); // id -> boolean
+  const [circleRequestIdMap, setCircleRequestIdMap] = useState({}); // id -> string (request_id or invite_id)
   const [pending, setPending] = useState({}); // id -> boolean
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -62,6 +80,7 @@ export default function SearchScreen({ navigation }) {
   const [userType, setUserType] = useState(null);
   const [activeFilter, setActiveFilter] = useState("events"); // 'events', 'people', 'communities', 'creators'
   const [eventResults, setEventResults] = useState([]); // Separate state for event results
+  const [eventSubFilter, setEventSubFilter] = useState("all"); // 'all', 'upcoming', 'live', 'past'
 
   // Explore feed state
   const [exploreFeedData, setExploreFeedData] = useState({});
@@ -178,7 +197,13 @@ export default function SearchScreen({ navigation }) {
       setError("");
 
       try {
-        const response = await unifiedSearch(query.trim(), activeFilter, 20, nextOffset);
+        const response = await unifiedSearch(
+          query.trim(),
+          activeFilter,
+          20,
+          nextOffset,
+          activeFilter === "events" ? eventSubFilter : "all"
+        );
 
         if (response?.success) {
           const list = response.results || [];
@@ -190,6 +215,30 @@ export default function SearchScreen({ navigation }) {
             const newList = reset ? list : [...results, ...list];
             setResults(newList);
             setEventResults([]);
+
+            // Populate relationship maps for accounts
+            const nextFollowing = {};
+            const nextInCircle = {};
+            const nextCircleRequested = {};
+            const nextCircleRequestId = {};
+            list.forEach((item) => {
+              nextFollowing[item.id] = !!item.is_following;
+              nextInCircle[item.id] = !!item.in_circle;
+              nextCircleRequested[item.id] = !!item.circle_requested;
+              nextCircleRequestId[item.id] = item.circle_request_id || null;
+            });
+
+            if (reset) {
+              setFollowing(nextFollowing);
+              setInCircle(nextInCircle);
+              setCircleRequested(nextCircleRequested);
+              setCircleRequestIdMap(nextCircleRequestId);
+            } else {
+              setFollowing((prev) => ({ ...prev, ...nextFollowing }));
+              setInCircle((prev) => ({ ...prev, ...nextInCircle }));
+              setCircleRequested((prev) => ({ ...prev, ...nextCircleRequested }));
+              setCircleRequestIdMap((prev) => ({ ...prev, ...nextCircleRequestId }));
+            }
           }
           setOffset(nextOffset + list.length);
           setHasMore(!!response.hasMore);
@@ -203,13 +252,13 @@ export default function SearchScreen({ navigation }) {
         setLoading(false);
       }
     },
-    [query, offset, results, eventResults, canSearch, activeFilter],
+    [query, offset, results, eventResults, canSearch, activeFilter, eventSubFilter],
   );
 
   useEffect(() => {
     const h = setTimeout(() => doSearch(true), DEBOUNCE_MS);
     return () => clearTimeout(h);
-  }, [query, activeFilter]); // Trigger search when filter changes
+  }, [query, activeFilter, eventSubFilter]); // Trigger search when filter changes
 
   // Load user ID from active account - refresh on focus to handle account switches
   const loadUserId = useCallback(async () => {
@@ -322,23 +371,41 @@ export default function SearchScreen({ navigation }) {
     };
   }, [focused, navigation]);
 
-  // Listen for follow updates from other screens (profile pages)
+  // Listen for follow/circle updates from other screens (profile pages)
   useEffect(() => {
     const handleFollowUpdate = (data) => {
-      // Update following state for the entity that was followed/unfollowed
-      const entityId =
-        data?.memberId || data?.communityId || data?.sponsorId || data?.venueId;
-      if (entityId && typeof data?.isFollowing === "boolean") {
-        setFollowing((prev) => ({
-          ...prev,
-          [entityId]: data.isFollowing,
-        }));
+      const entityId = data?.id || data?.memberId || data?.communityId || data?.sponsorId || data?.venueId || data?.creatorId;
+      if (!entityId) return;
+
+      if (typeof data?.isFollowing === "boolean") {
+        setFollowing((prev) => ({ ...prev, [entityId]: data.isFollowing }));
+      }
+      if (typeof data?.inCircle === "boolean") {
+        setInCircle((prev) => ({ ...prev, [entityId]: data.inCircle }));
+      }
+      if (typeof data?.circleRequested === "boolean") {
+        setCircleRequested((prev) => ({ ...prev, [entityId]: data.circleRequested }));
       }
     };
 
-    const unsubscribe = EventBus.on("follow-updated", handleFollowUpdate);
+    const handleCircleRemoved = (data) => {
+      const memberId = data?.memberId || data?.creatorId;
+      if (memberId) {
+        setInCircle((prev) => ({ ...prev, [memberId]: false }));
+        if (data?.alsoUnfollow) {
+          setFollowing((prev) => ({ ...prev, [memberId]: false }));
+        }
+      }
+    };
+
+    const unsubscribeFollow = EventBus.on("follow-updated", handleFollowUpdate);
+    const unsubscribeCircleLeft = EventBus.on("circle:left", handleCircleRemoved);
+    const unsubscribeCircleRemoved = EventBus.on("my:circle-member-removed", handleCircleRemoved);
+
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribeFollow) unsubscribeFollow();
+      if (unsubscribeCircleLeft) unsubscribeCircleLeft();
+      if (unsubscribeCircleRemoved) unsubscribeCircleRemoved();
     };
   }, []);
 
@@ -347,42 +414,405 @@ export default function SearchScreen({ navigation }) {
     doSearch(false);
   }, [loading, hasMore, doSearch]);
 
-  const toggleFollow = async (entityId, entityType = "member") => {
+  const toggleFollow = async (item) => {
+    const entityId = item.id;
+    const entityType = item.type || "member";
+    const isCreator = !!(item.is_creator_mode_enabled || item.isCreator);
+
     if (pending[entityId]) return;
-    const isFollowing = !!following[entityId];
-    setFollowing((prev) => ({ ...prev, [entityId]: !isFollowing }));
-    setPending((prev) => ({ ...prev, [entityId]: true }));
-    try {
-      if (entityType === "member") {
-        if (isFollowing) {
-          await unfollowMember(entityId);
+
+    // A. Regular Member
+    if (entityType === "member" && !isCreator) {
+      if (userType === "member") {
+        // Member-to-Member circle flow
+        const isInCircle = !!inCircle[entityId];
+        const isRequested = !!circleRequested[entityId];
+        const requestId = circleRequestIdMap[entityId];
+
+        if (isInCircle) {
+          Alert.alert(
+            "Remove from Circle?",
+            `Are you sure you want to remove ${item.full_name || item.name || "this user"} from your circle?`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Remove",
+                style: "destructive",
+                onPress: async () => {
+                  setPending((prev) => ({ ...prev, [entityId]: true }));
+                  try {
+                    await removeFromCircle(entityId);
+                    setInCircle((prev) => ({ ...prev, [entityId]: false }));
+                    EventBus.emit("follow-updated", { id: entityId, isFollowing: false });
+                  } catch (e) {
+                    console.error("Failed to remove from circle:", e);
+                  } finally {
+                    setPending((prev) => ({ ...prev, [entityId]: false }));
+                  }
+                },
+              },
+            ]
+          );
+        } else if (isRequested) {
+          Alert.alert(
+            "Cancel Request?",
+            "Withdraw your circle request?",
+            [
+              { text: "Keep", style: "cancel" },
+              {
+                text: "Cancel Request",
+                style: "destructive",
+                onPress: async () => {
+                  setPending((prev) => ({ ...prev, [entityId]: true }));
+                  try {
+                    if (requestId) {
+                      await cancelCircleRequest(requestId);
+                    }
+                    setCircleRequested((prev) => ({ ...prev, [entityId]: false }));
+                    setCircleRequestIdMap((prev) => ({ ...prev, [entityId]: null }));
+                  } catch (e) {
+                    console.error("Failed to cancel circle request:", e);
+                  } finally {
+                    setPending((prev) => ({ ...prev, [entityId]: false }));
+                  }
+                },
+              },
+            ]
+          );
         } else {
-          await followMember(entityId);
+          // Send Request
+          setPending((prev) => ({ ...prev, [entityId]: true }));
+          try {
+            const res = await sendCircleRequest(entityId);
+            if (res?.auto_accepted) {
+              setInCircle((prev) => ({ ...prev, [entityId]: true }));
+              EventBus.emit("follow-updated", { id: entityId, isFollowing: true });
+            } else {
+              setCircleRequested((prev) => ({ ...prev, [entityId]: true }));
+              if (res?.request_id) {
+                setCircleRequestIdMap((prev) => ({ ...prev, [entityId]: res.request_id }));
+              }
+            }
+          } catch (e) {
+            console.error("Failed to send circle request:", e);
+          } finally {
+            setPending((prev) => ({ ...prev, [entityId]: false }));
+          }
         }
-        EventBus.emit("follow-updated", {
-          memberId: entityId,
-          isFollowing: !isFollowing,
-          followerId: userId || null,
-          followerType: userType || null,
-        });
-      } else if (entityType === "community") {
-        if (isFollowing) {
-          await unfollowCommunity(entityId);
+      } else if (userType === "community") {
+        // Community-to-Member circle flow
+        const isInCircle = !!inCircle[entityId];
+        const isRequested = !!circleRequested[entityId];
+        const inviteId = circleRequestIdMap[entityId];
+
+        if (isInCircle) {
+          Alert.alert(
+            "Remove from Circle?",
+            `${item.full_name || item.name || "This person"} will be removed from your circle.`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Remove",
+                style: "destructive",
+                onPress: async () => {
+                  setPending((prev) => ({ ...prev, [entityId]: true }));
+                  try {
+                    await removeMemberFromCommunityCircle(entityId);
+                    setInCircle((prev) => ({ ...prev, [entityId]: false }));
+                  } catch (e) {
+                    console.error("Failed to remove member from community circle:", e);
+                  } finally {
+                    setPending((prev) => ({ ...prev, [entityId]: false }));
+                  }
+                },
+              },
+            ]
+          );
+        } else if (isRequested) {
+          Alert.alert(
+            "Cancel Invite?",
+            "Withdraw your circle invite to this member?",
+            [
+              { text: "Keep", style: "cancel" },
+              {
+                text: "Cancel Invite",
+                style: "destructive",
+                onPress: async () => {
+                  setPending((prev) => ({ ...prev, [entityId]: true }));
+                  try {
+                    if (inviteId) {
+                      await cancelCommunityCircleInvite(inviteId);
+                    }
+                    setCircleRequested((prev) => ({ ...prev, [entityId]: false }));
+                    setCircleRequestIdMap((prev) => ({ ...prev, [entityId]: null }));
+                  } catch (e) {
+                    console.error("Failed to cancel community circle invite:", e);
+                  } finally {
+                    setPending((prev) => ({ ...prev, [entityId]: false }));
+                  }
+                },
+              },
+            ]
+          );
         } else {
-          await followCommunity(entityId);
+          // Send Invite
+          setPending((prev) => ({ ...prev, [entityId]: true }));
+          try {
+            const res = await sendCommunityCircleInvite(entityId);
+            setCircleRequested((prev) => ({ ...prev, [entityId]: true }));
+            if (res?.invite_id) {
+              setCircleRequestIdMap((prev) => ({ ...prev, [entityId]: res.invite_id }));
+            }
+          } catch (e) {
+            console.error("Failed to send community circle invite:", e);
+          } finally {
+            setPending((prev) => ({ ...prev, [entityId]: false }));
+          }
         }
-        EventBus.emit("follow-updated", {
-          communityId: entityId,
-          isFollowing: !isFollowing,
-          followerId: userId || null,
-          followerType: userType || null,
-        });
       }
-    } catch (e) {
-      // rollback on error
-      setFollowing((prev) => ({ ...prev, [entityId]: isFollowing }));
-    } finally {
-      setPending((prev) => ({ ...prev, [entityId]: false }));
+    }
+    // B. Creator Mode Member
+    else if (entityType === "member" && isCreator) {
+      const isInCircle = !!inCircle[entityId];
+      const isFollowing = !!following[entityId];
+
+      if (isInCircle) {
+        Alert.alert(
+          "Remove from Circle?",
+          `Are you sure you want to remove ${item.full_name || item.name || "this creator"} from your circle?`,
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Remove",
+              style: "destructive",
+              onPress: async () => {
+                setPending((prev) => ({ ...prev, [entityId]: true }));
+                try {
+                  await removeFromCircle(entityId, false); // keep follow, remove from circle
+                  setInCircle((prev) => ({ ...prev, [entityId]: false }));
+                  setFollowing((prev) => ({ ...prev, [entityId]: true })); // Follow is restored
+                  EventBus.emit("follow-updated", { id: entityId, isFollowing: true });
+                } catch (e) {
+                  console.error("Failed to remove creator from circle:", e);
+                } finally {
+                  setPending((prev) => ({ ...prev, [entityId]: false }));
+                }
+              },
+            },
+          ]
+        );
+      } else {
+        // Follow / Unfollow Creator
+        if (isFollowing) {
+          Alert.alert(
+            "Unfollow?",
+            `Stop following ${item.full_name || item.name || "this creator"}?`,
+            [
+              { text: "Keep Following", style: "cancel" },
+              {
+                text: "Unfollow",
+                style: "destructive",
+                onPress: async () => {
+                  setPending((prev) => ({ ...prev, [entityId]: true }));
+                  try {
+                    await unfollowCreator(entityId);
+                    setFollowing((prev) => ({ ...prev, [entityId]: false }));
+                    EventBus.emit("follow-updated", { id: entityId, isFollowing: false });
+                  } catch (e) {
+                    console.error("Failed to unfollow creator:", e);
+                  } finally {
+                    setPending((prev) => ({ ...prev, [entityId]: false }));
+                  }
+                },
+              },
+            ]
+          );
+        } else {
+          setPending((prev) => ({ ...prev, [entityId]: true }));
+          try {
+            await followCreator(entityId);
+            setFollowing((prev) => ({ ...prev, [entityId]: true }));
+            EventBus.emit("follow-updated", { id: entityId, isFollowing: true });
+          } catch (e) {
+            console.error("Failed to follow creator:", e);
+          } finally {
+            setPending((prev) => ({ ...prev, [entityId]: false }));
+          }
+        }
+      }
+    }
+    // C. Other Entity Types (community, sponsor, venue)
+    else {
+      if (entityType === "community" && userType === "member") {
+        const isInCircle = !!inCircle[entityId];
+        const isRequested = !!circleRequested[entityId];
+        const inviteId = circleRequestIdMap[entityId];
+        const isFollowing = !!following[entityId];
+
+        if (isInCircle) {
+          Alert.alert(
+            "Remove from Circle?",
+            `Are you sure you want to remove ${item.full_name || item.name || "this community"} from your circle?`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Remove",
+                style: "destructive",
+                onPress: async () => {
+                  setPending((prev) => ({ ...prev, [entityId]: true }));
+                  try {
+                    await removeMemberFromCommunityCircle(entityId);
+                    setInCircle((prev) => ({ ...prev, [entityId]: false }));
+                    setFollowing((prev) => ({ ...prev, [entityId]: true })); // Follow is restored on removal
+                    EventBus.emit("follow-updated", { communityId: entityId, isFollowing: true });
+                  } catch (e) {
+                    console.error("Failed to remove community from circle:", e);
+                  } finally {
+                    setPending((prev) => ({ ...prev, [entityId]: false }));
+                  }
+                },
+              },
+            ]
+          );
+        } else if (isRequested) {
+          Alert.alert(
+            "Circle Invite",
+            `${item.full_name || item.name || "This community"} invited you to connect.`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Decline",
+                style: "destructive",
+                onPress: async () => {
+                  setPending((prev) => ({ ...prev, [entityId]: true }));
+                  try {
+                    if (inviteId) {
+                      await respondToCommunityCircleInvite(inviteId, 'declined');
+                    }
+                    setCircleRequested((prev) => ({ ...prev, [entityId]: false }));
+                    setCircleRequestIdMap((prev) => ({ ...prev, [entityId]: null }));
+                  } catch (e) {
+                    console.error("Failed to decline community invite:", e);
+                  } finally {
+                    setPending((prev) => ({ ...prev, [entityId]: false }));
+                  }
+                },
+              },
+              {
+                text: "Accept",
+                onPress: async () => {
+                  setPending((prev) => ({ ...prev, [entityId]: true }));
+                  try {
+                    if (inviteId) {
+                      await respondToCommunityCircleInvite(inviteId, 'accepted');
+                    }
+                    setCircleRequested((prev) => ({ ...prev, [entityId]: false }));
+                    setInCircle((prev) => ({ ...prev, [entityId]: true }));
+                  } catch (e) {
+                    console.error("Failed to accept community invite:", e);
+                  } finally {
+                    setPending((prev) => ({ ...prev, [entityId]: false }));
+                  }
+                },
+              },
+            ]
+          );
+        } else {
+          // Standard Follow / Unfollow Community
+          if (isFollowing) {
+            Alert.alert(
+              "Unfollow?",
+              `Are you sure you want to unfollow ${item.full_name || item.name || "this community"}?`,
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Unfollow",
+                  style: "destructive",
+                  onPress: async () => {
+                    setPending((prev) => ({ ...prev, [entityId]: true }));
+                    try {
+                      await unfollowCommunity(entityId);
+                      setFollowing((prev) => ({ ...prev, [entityId]: false }));
+                      EventBus.emit("follow-updated", { communityId: entityId, isFollowing: false });
+                    } catch (e) {
+                      console.error("Failed to unfollow community:", e);
+                    } finally {
+                      setPending((prev) => ({ ...prev, [entityId]: false }));
+                    }
+                  },
+                },
+              ]
+            );
+          } else {
+            setPending((prev) => ({ ...prev, [entityId]: true }));
+            try {
+              await followCommunity(entityId);
+              setFollowing((prev) => ({ ...prev, [entityId]: true }));
+              EventBus.emit("follow-updated", { communityId: entityId, isFollowing: true });
+            } catch (e) {
+              console.error("Failed to follow community:", e);
+            } finally {
+              setPending((prev) => ({ ...prev, [entityId]: false }));
+            }
+          }
+        }
+      } else {
+        // Sponsor, Venue, or Community-to-Community follows
+        const isFollowing = !!following[entityId];
+
+        if (isFollowing) {
+          Alert.alert(
+            "Unfollow?",
+            `Are you sure you want to unfollow ${item.full_name || item.name || "this account"}?`,
+            [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: "Unfollow",
+                style: "destructive",
+                onPress: async () => {
+                  setPending((prev) => ({ ...prev, [entityId]: true }));
+                  try {
+                    if (entityType === "community") {
+                      await unfollowCommunity(entityId);
+                    } else {
+                      await unfollowMember(entityId);
+                    }
+                    setFollowing((prev) => ({ ...prev, [entityId]: false }));
+                    EventBus.emit("follow-updated", {
+                      memberId: entityType !== "community" ? entityId : undefined,
+                      communityId: entityType === "community" ? entityId : undefined,
+                      isFollowing: false,
+                    });
+                  } catch (e) {
+                    console.error("Failed to unfollow entity:", e);
+                  } finally {
+                    setPending((prev) => ({ ...prev, [entityId]: false }));
+                  }
+                },
+              },
+            ]
+          );
+        } else {
+          setPending((prev) => ({ ...prev, [entityId]: true }));
+          try {
+            if (entityType === "community") {
+              await followCommunity(entityId);
+            } else {
+              await followMember(entityId);
+            }
+            setFollowing((prev) => ({ ...prev, [entityId]: true }));
+            EventBus.emit("follow-updated", {
+              memberId: entityType !== "community" ? entityId : undefined,
+              communityId: entityType === "community" ? entityId : undefined,
+              isFollowing: true,
+            });
+          } catch (e) {
+            console.error("Failed to follow entity:", e);
+          } finally {
+            setPending((prev) => ({ ...prev, [entityId]: false }));
+          }
+        }
+      }
     }
   };
 
@@ -431,94 +861,141 @@ export default function SearchScreen({ navigation }) {
     return String(name).split(/\r?\n/)[0];
   };
 
-  // Render event item for search results
+  const formatEventDate = (dateString) => {
+    if (!dateString) return { dateLabel: "EVT", timeLabel: "", isSpecial: false };
+    const date = new Date(dateString);
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const isToday = date.toDateString() === now.toDateString();
+    const isTomorrow = date.toDateString() === tomorrow.toDateString();
+
+    let dateLabel = date
+      .toLocaleDateString(undefined, { month: "short", day: "numeric" })
+      .toUpperCase();
+    let isSpecial = false;
+
+    if (isToday) {
+      dateLabel = "TODAY";
+      isSpecial = true;
+    } else if (isTomorrow) {
+      dateLabel = "TOMORROW";
+      isSpecial = true;
+    }
+
+    const timeLabel = date.toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    return { dateLabel, timeLabel, isSpecial };
+  };
+
+  const getEventStatusTag = (startDateStr, endDateStr) => {
+    if (!startDateStr) return { label: "Upcoming", color: "#3B82F6", bg: "#EFF6FF" };
+    const now = new Date();
+    const start = new Date(startDateStr);
+    const end = endDateStr 
+      ? new Date(endDateStr) 
+      : new Date(start.getTime() + 2 * 60 * 60 * 1000); // 2h fallback
+
+    if (now > end) {
+      return { label: "Past", color: "#8E8E93", bg: "#F2F2F7" };
+    } else if (now >= start && now <= end) {
+      return { label: "Live", color: "#10B981", bg: "#ECFDF5" };
+    } else {
+      return { label: "Upcoming", color: "#3B82F6", bg: "#EFF6FF" };
+    }
+  };
+
+  // Render event item for search results (dashboard ticket card style)
   const renderEventItem = ({ item }) => {
-    const displayImage = item.banner_url;
-    const hasValidPhoto =
-      item.community_logo && /^https?:\/\//.test(item.community_logo);
+    const { dateLabel, timeLabel, isSpecial } = formatEventDate(
+      item.event_date,
+    );
+
+    // Compute real sold / capacity from ticket_types returned by the API
+    const tickets = item.ticket_types || [];
+    const ticketsSold =
+      tickets.length > 0
+        ? tickets.reduce((sum, t) => sum + (t.sold_count || 0), 0)
+        : parseInt(item.attendee_count || 0, 10);
+    const rawCapacity = tickets.reduce(
+      (sum, t) => (t.total_quantity != null ? sum + t.total_quantity : sum),
+      0,
+    );
+    // rawCapacity is 0 if all tickets are unlimited — fall back to max_attendees
+    const ticketCapacity =
+      rawCapacity > 0
+        ? rawCapacity
+        : parseInt(item.max_attendees || 0, 10) || null;
+
+    const statusTag = getEventStatusTag(item.event_date, item.end_datetime);
 
     return (
       <TouchableOpacity
-        style={styles.eventRow}
+        style={styles.ticketCard}
         onPress={() => {
-          // Navigate to event details
           Keyboard.dismiss();
           navigation.navigate("EventDetails", {
             eventId: item.id,
             eventData: item,
           });
         }}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
       >
-        {/* Event Image */}
-        <View style={styles.eventImageContainer}>
-          {displayImage ? (
-            <Image source={{ uri: displayImage }} style={styles.eventImage} />
-          ) : (
-            <LinearGradient
-              colors={COLORS.primaryGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[
-                styles.eventImage,
-                { justifyContent: "center", alignItems: "center" },
-              ]}
-            >
-              <Calendar
-                size={24}
-                color="rgba(255,255,255,0.8)"
-              />
-            </LinearGradient>
-          )}
-          {/* Date Badge */}
-          <View style={styles.eventDateBadge}>
-            <Text style={styles.eventDateBadgeText}>{item.formatted_date}</Text>
-          </View>
-        </View>
-
-        {/* Event Info */}
-        <View style={styles.eventInfo}>
-          <Text style={styles.eventTitle} numberOfLines={2}>
-            {item.title}
-          </Text>
-          <View style={styles.eventCommunityRow}>
-            {hasValidPhoto ? (
-              <Image
-                source={{ uri: item.community_logo }}
-                style={styles.eventCommunityAvatar}
-              />
-            ) : (
-              <LinearGradient
-                colors={getGradientForName(item.community_name || "Community")}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+        <Image
+          source={{
+            uri:
+              item.banner_url ||
+              "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=200",
+          }}
+          style={styles.ticketImage}
+        />
+        <View style={styles.ticketContent}>
+          <View style={styles.ticketTextSection}>
+            <View style={styles.ticketHeaderRow}>
+              <View
                 style={[
-                  styles.eventCommunityAvatar,
-                  { justifyContent: "center", alignItems: "center" },
+                  styles.ticketDatePill,
+                  isSpecial && styles.ticketDatePillSpecial,
                 ]}
               >
-                <Text style={{ fontSize: 8, fontWeight: "700", color: "#fff" }}>
-                  {getInitials(item.community_name || "C")}
+                <Text
+                  style={[
+                    styles.ticketDateText,
+                    isSpecial && styles.ticketDateTextSpecial,
+                  ]}
+                >
+                  {dateLabel}
                 </Text>
-              </LinearGradient>
-            )}
-            <Text style={styles.eventCommunityName} numberOfLines={1}>
-              {item.community_name}
+              </View>
+              <Text style={styles.ticketTimeText}>{timeLabel}</Text>
+              
+              <View style={[styles.statusTag, { backgroundColor: statusTag.bg }]}>
+                <Text style={[styles.statusTagText, { color: statusTag.color }]}>
+                  {statusTag.label}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.ticketTitle} numberOfLines={2}>
+              {item.title || item.name}
             </Text>
-          </View>
-          <View style={styles.eventMeta}>
-            <Clock size={12} color="#8E8E93" />
-            <Text style={styles.eventMetaText}>{item.formatted_time}</Text>
-            {item.attendee_count > 0 && (
-              <>
-                <Users
-                  size={12}
-                  color="#8E8E93"
-                  style={{ marginLeft: 8 }}
-                />
-                <Text style={styles.eventMetaText}>{item.attendee_count}</Text>
-              </>
-            )}
+
+            <View style={styles.ticketFooterRow}>
+              <Ticket
+                size={14}
+                color={COLORS.textSecondary}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.ticketMetricText}>
+                {ticketCapacity != null
+                  ? `${ticketsSold}/${ticketCapacity} sold`
+                  : `${ticketsSold} sold`}
+              </Text>
+            </View>
           </View>
         </View>
       </TouchableOpacity>
@@ -533,6 +1010,107 @@ export default function SearchScreen({ navigation }) {
     );
     const photoUrl = item.profile_photo_url || item.logo_url;
     const hasValidPhoto = photoUrl && /^https?:\/\//.test(photoUrl);
+
+    const isCreator = !!(item.is_creator_mode_enabled || item.isCreator);
+    const isSelf = userId === `${entityType}_${item.id}`;
+
+    const renderActionButton = () => {
+      if (isSelf) return null;
+
+      let btnText = "Follow";
+      let btnStyle = [styles.followBtn, styles.followBtnPrimary];
+      let txtStyle = [styles.followText, styles.followTextPrimary];
+
+      // A. Regular Member
+      if (entityType === "member" && !isCreator) {
+        const isInCircle = !!inCircle[item.id];
+        const isRequested = !!circleRequested[item.id];
+
+        if (isInCircle) {
+          btnText = "In Circle";
+          btnStyle = [styles.followBtn, styles.inCircleBtn];
+          txtStyle = [styles.followText, styles.inCircleText];
+        } else if (isRequested) {
+          btnText = userType === "community" ? "Invited" : "Requested";
+          btnStyle = [styles.followBtn, styles.requestedBtn];
+          txtStyle = [styles.followText, styles.requestedText];
+        } else {
+          btnText = "Add";
+          btnStyle = [styles.followBtn, styles.addBtn];
+          txtStyle = [styles.followText, styles.addText];
+        }
+      }
+      // B. Creator Mode Member
+      else if (entityType === "member" && isCreator) {
+        const isInCircle = !!inCircle[item.id];
+        const isFollowing = !!following[item.id];
+
+        if (isInCircle) {
+          btnText = "In Circle";
+          btnStyle = [styles.followBtn, styles.inCircleBtn];
+          txtStyle = [styles.followText, styles.inCircleText];
+        } else if (isFollowing) {
+          btnText = "Following";
+          btnStyle = [styles.followBtn, styles.followingBtn];
+          txtStyle = [styles.followText, styles.followingText];
+        } else {
+          btnText = "Follow";
+          btnStyle = [styles.followBtn, styles.followBtnPrimary];
+          txtStyle = [styles.followText, styles.followTextPrimary];
+        }
+      }
+      // C. Other Entity Types (community, sponsor, venue)
+      else {
+        const isInCircle = !!inCircle[item.id];
+        const isRequested = !!circleRequested[item.id];
+        const isFollowing = !!following[item.id];
+
+        if (entityType === "community" && userType === "member") {
+          if (isInCircle) {
+            btnText = "In Circle";
+            btnStyle = [styles.followBtn, styles.inCircleBtn];
+            txtStyle = [styles.followText, styles.inCircleText];
+          } else if (isRequested) {
+            btnText = "Invited";
+            btnStyle = [styles.followBtn, styles.requestedBtn];
+            txtStyle = [styles.followText, styles.requestedText];
+          } else if (isFollowing) {
+            btnText = "Following";
+            btnStyle = [styles.followBtn, styles.followingBtn];
+            txtStyle = [styles.followText, styles.followingText];
+          } else {
+            btnText = "Follow";
+            btnStyle = [styles.followBtn, styles.followBtnPrimary];
+            txtStyle = [styles.followText, styles.followTextPrimary];
+          }
+        } else {
+          if (isFollowing) {
+            btnText = "Following";
+            btnStyle = [styles.followBtn, styles.followingBtn];
+            txtStyle = [styles.followText, styles.followingText];
+          } else {
+            btnText = "Follow";
+            btnStyle = [styles.followBtn, styles.followBtnPrimary];
+            txtStyle = [styles.followText, styles.followTextPrimary];
+          }
+        }
+      }
+
+      return (
+        <TouchableOpacity
+          disabled={!!pending[item.id]}
+          style={[
+            btnStyle,
+            pending[item.id] ? { opacity: 0.6 } : null,
+          ]}
+          onPress={() => toggleFollow(item)}
+        >
+          <Text style={txtStyle}>
+            {btnText}
+          </Text>
+        </TouchableOpacity>
+      );
+    };
 
     return (
       <View style={styles.row}>
@@ -616,26 +1194,7 @@ export default function SearchScreen({ navigation }) {
             )}
           </View>
         </TouchableOpacity>
-        <TouchableOpacity
-          disabled={!!pending[item.id]}
-          style={[
-            styles.followBtn,
-            following[item.id] ? styles.followingBtn : styles.followBtnPrimary,
-            pending[item.id] ? { opacity: 0.6 } : null,
-          ]}
-          onPress={() => toggleFollow(item.id, entityType)}
-        >
-          <Text
-            style={[
-              styles.followText,
-              following[item.id]
-                ? styles.followingText
-                : styles.followTextPrimary,
-            ]}
-          >
-            {following[item.id] ? "Following" : "Follow"}
-          </Text>
-        </TouchableOpacity>
+        {renderActionButton()}
       </View>
     );
   };
@@ -775,45 +1334,87 @@ export default function SearchScreen({ navigation }) {
 
       {/* Filter Tabs - Only show when search is focused */}
       {focused && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterContent}
-          style={{ flexGrow: 0 }} // Added to prevent expansion
-        >
-          {["events", "people", "communities", "creators"].map(
-            (filter) => (
-              <TouchableOpacity
-                key={filter}
-                style={[
-                  styles.filterTab,
-                  activeFilter === filter && styles.filterTabActive,
-                ]}
-                onPress={() => {
-                  setActiveFilter(filter);
-                  setResults([]);
-                  setEventResults([]);
-                  setOffset(0);
-                }}
-              >
-                <Text
+        <View style={{ flexGrow: 0 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterContent}
+            style={{ flexGrow: 0 }} // Added to prevent expansion
+          >
+            {["events", "people", "communities", "creators"].map(
+              (filter) => (
+                <TouchableOpacity
+                  key={filter}
                   style={[
-                    styles.filterTabText,
-                    activeFilter === filter && styles.filterTabTextActive,
+                    styles.filterTab,
+                    activeFilter === filter && styles.filterTabActive,
                   ]}
+                  onPress={() => {
+                    setActiveFilter(filter);
+                    setResults([]);
+                    setEventResults([]);
+                    setOffset(0);
+                  }}
                 >
-                  {filter === "events"
-                    ? "Events"
-                    : filter === "people"
-                      ? "People"
-                      : filter === "communities"
-                        ? "Communities"
-                        : "Creators"}
-                </Text>
-              </TouchableOpacity>
-            ),
+                  <Text
+                    style={[
+                      styles.filterTabText,
+                      activeFilter === filter && styles.filterTabTextActive,
+                    ]}
+                  >
+                    {filter === "events"
+                      ? "Events"
+                      : filter === "people"
+                        ? "People"
+                        : filter === "communities"
+                          ? "Communities"
+                          : "Creators"}
+                  </Text>
+                </TouchableOpacity>
+              ),
+            )}
+          </ScrollView>
+
+          {/* Event Sub-filters - Only show when activeFilter is 'events' */}
+          {activeFilter === "events" && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.subFilterContent}
+              style={{ flexGrow: 0, marginTop: 10, marginBottom: 4 }}
+            >
+              {["all", "upcoming", "live", "past"].map((subFilter) => (
+                <TouchableOpacity
+                  key={subFilter}
+                  style={[
+                    styles.subFilterTab,
+                    eventSubFilter === subFilter && styles.subFilterTabActive,
+                  ]}
+                  onPress={() => {
+                    setEventSubFilter(subFilter);
+                    setEventResults([]);
+                    setOffset(0);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.subFilterTabText,
+                      eventSubFilter === subFilter && styles.subFilterTabTextActive,
+                    ]}
+                  >
+                    {subFilter === "all"
+                      ? "All"
+                      : subFilter === "upcoming"
+                      ? "Upcoming"
+                      : subFilter === "live"
+                      ? "Live"
+                      : "Past"}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           )}
-        </ScrollView>
+        </View>
       )}
 
       {focused && query.trim().length === 0 ? (
@@ -1009,13 +1610,27 @@ const styles = StyleSheet.create({
     backgroundColor: hexToRgba(COLORS.primary, 0.12),
     borderColor: hexToRgba(COLORS.primary, 0.2),
   },
+  inCircleBtn: {
+    backgroundColor: hexToRgba(CIRCLE_COLOR, 0.08),
+    borderColor: hexToRgba(CIRCLE_COLOR, 0.2),
+  },
+  requestedBtn: {
+    backgroundColor: hexToRgba(CIRCLE_COLOR, 0.1),
+    borderColor: hexToRgba(CIRCLE_COLOR, 0.2),
+  },
+  addBtn: {
+    backgroundColor: CIRCLE_COLOR,
+    borderColor: CIRCLE_COLOR,
+  },
   followText: {
     fontSize: 12,
-    fontWeight: "500",
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.semiBold,
   },
   followTextPrimary: { color: "#FFFFFF" },
   followingText: { color: COLORS.primary },
+  inCircleText: { color: CIRCLE_COLOR },
+  requestedText: { color: CIRCLE_COLOR },
+  addText: { color: "#FFFFFF" },
   // Filter tabs
   filterContent: {
     paddingHorizontal: 20,
@@ -1026,10 +1641,9 @@ const styles = StyleSheet.create({
   },
   filterTab: {
     paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     backgroundColor: "#F2F2F7",
-    height: 32,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1037,8 +1651,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
   },
   filterTabText: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 16,
+    fontFamily: FONTS.semiBold,
     color: "#8E8E93",
   },
   filterTabTextActive: {
@@ -1066,80 +1680,121 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1D1D1F",
   },
-  // Event search result styles
-  eventRow: {
+  ticketCard: {
     flexDirection: "row",
-    padding: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#F0F0F0",
+    alignItems: "center",
+    height: 120,
     marginHorizontal: 16,
     marginVertical: 6,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 2,
   },
-  eventImageContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 10,
-    overflow: "hidden",
-    position: "relative",
+  ticketImage: {
+    width: 88,
+    height: 88,
+    borderRadius: 16,
+    backgroundColor: "#F0F0F0",
   },
-  eventImage: {
-    width: "100%",
+  ticketContent: {
+    flex: 1,
+    marginLeft: 16,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  ticketTextSection: {
+    flex: 1,
     height: "100%",
+    justifyContent: "space-between",
   },
-  eventDateBadge: {
-    position: "absolute",
-    bottom: 4,
-    left: 4,
-    backgroundColor: "rgba(0,0,0,0.7)",
+  ticketHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  ticketDatePill: {
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  ticketDatePillSpecial: {
+    backgroundColor: "#EDE7F6",
+  },
+  ticketDateText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 10,
+    color: COLORS.textSecondary,
+  },
+  ticketDateTextSpecial: {
+    color: COLORS.primary,
+  },
+  ticketTimeText: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: COLORS.textSecondary,
+  },
+  ticketTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+    lineHeight: 18,
+    marginVertical: 4,
+  },
+  ticketFooterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  ticketMetricText: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+  },
+  subFilterContent: {
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  subFilterTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  subFilterTabActive: {
+    backgroundColor: "#F2F2F7",
+    borderColor: "#D1D1D6",
+  },
+  subFilterTabText: {
+    fontSize: 13,
+    fontFamily: FONTS.medium,
+    color: "#636366",
+  },
+  subFilterTabTextActive: {
+    fontFamily: FONTS.semiBold,
+    color: COLORS.primary,
+  },
+  statusTag: {
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 4,
+    borderRadius: 6,
+    marginLeft: "auto",
   },
-  eventDateBadgeText: {
+  statusTagText: {
+    fontFamily: FONTS.semiBold,
     fontSize: 9,
-    fontWeight: "600",
-    color: "#FFFFFF",
-  },
-  eventInfo: {
-    flex: 1,
-    marginLeft: 12,
-    justifyContent: "center",
-  },
-  eventTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1D1D1F",
-    marginBottom: 4,
-  },
-  eventCommunityRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 4,
-  },
-  eventCommunityAvatar: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    marginRight: 6,
-  },
-  eventCommunityName: {
-    fontSize: 12,
-    color: "#8E8E93",
-    flex: 1,
-  },
-  eventMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  eventMetaText: {
-    fontSize: 11,
-    color: "#8E8E93",
+    textTransform: "uppercase",
   },
   // Suggestions section styles
   suggestionsSection: {

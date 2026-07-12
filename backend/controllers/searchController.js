@@ -475,6 +475,8 @@ async function unifiedSearch(req, res) {
     const limit = Math.min(parseInt(req.query.limit || "20", 10), 50);
     const offset = Math.max(parseInt(req.query.offset || "0", 10), 0);
 
+    const eventSubFilter = (req.query.eventSubFilter || "all").toLowerCase();
+
     if (q.length < 2) {
       return res.json({
         success: true,
@@ -488,6 +490,15 @@ async function unifiedSearch(req, res) {
     let results = [];
 
     if (type === "events") {
+      let filterClause = "";
+      if (eventSubFilter === "upcoming") {
+        filterClause = "AND e.start_datetime > NOW()";
+      } else if (eventSubFilter === "past") {
+        filterClause = "AND COALESCE(e.end_datetime, e.start_datetime + INTERVAL '2 hours') < NOW()";
+      } else if (eventSubFilter === "live") {
+        filterClause = "AND NOW() >= e.start_datetime AND NOW() <= COALESCE(e.end_datetime, e.start_datetime + INTERVAL '2 hours')";
+      }
+
       const query = `
         SELECT 
           e.id, 
@@ -497,15 +508,27 @@ async function unifiedSearch(req, res) {
           e.banner_url as logo_url,
           e.banner_url,
           e.start_datetime as event_date,
+          e.end_datetime,
+          e.max_attendees,
           COALESCE(
             (SELECT COUNT(*) FROM event_registrations er WHERE er.event_id = e.id AND er.registration_status = 'registered'),
             0
           )::int as attendee_count,
+          (
+            SELECT json_agg(json_build_object(
+              'base_price', tt.base_price,
+              'total_quantity', tt.total_quantity,
+              'sold_count', tt.sold_count
+            ))
+            FROM ticket_types tt 
+            WHERE tt.event_id = e.id
+          ) as ticket_types,
           'event' as type
         FROM events e
         WHERE LOWER(e.title) LIKE LOWER($1)
           AND e.is_published = true
           AND e.is_cancelled IS NOT TRUE
+          ${filterClause}
         ORDER BY e.start_datetime ASC
         LIMIT $2 OFFSET $3
       `;
@@ -522,12 +545,54 @@ async function unifiedSearch(req, res) {
           m.profile_photo_url,
           m.bio,
           'member' as type,
+          m.is_creator_mode_enabled,
           EXISTS(
             SELECT 1 FROM follows f
             WHERE f.follower_id = $2 AND f.follower_type = $3
               AND f.following_id = m.id AND f.following_type = 'member'
+              AND f.is_superseded_by_circle = false
             LIMIT 1
-          ) as is_following
+          ) as is_following,
+          CASE 
+            WHEN $3 = 'member' THEN EXISTS(
+              SELECT 1 FROM circles c
+              WHERE (c.user_a_id = $2 AND c.user_b_id = m.id)
+                 OR (c.user_b_id = $2 AND c.user_a_id = m.id)
+              LIMIT 1
+            )
+            WHEN $3 = 'community' THEN EXISTS(
+              SELECT 1 FROM community_member_circles cc
+              WHERE cc.community_id = $2 AND cc.member_id = m.id
+              LIMIT 1
+            )
+            ELSE false
+          END as in_circle,
+          CASE 
+            WHEN $3 = 'member' THEN EXISTS(
+              SELECT 1 FROM circle_requests cr
+              WHERE cr.sender_id = $2 AND cr.receiver_id = m.id AND cr.status = 'pending'
+              LIMIT 1
+            )
+            WHEN $3 = 'community' THEN EXISTS(
+              SELECT 1 FROM community_member_circle_invites cci
+              WHERE cci.community_id = $2 AND cci.member_id = m.id AND cci.status = 'pending'
+              LIMIT 1
+            )
+            ELSE false
+          END as circle_requested,
+          CASE 
+            WHEN $3 = 'member' THEN (
+              SELECT cr.id::text FROM circle_requests cr
+              WHERE cr.sender_id = $2 AND cr.receiver_id = m.id AND cr.status = 'pending'
+              LIMIT 1
+            )
+            WHEN $3 = 'community' THEN (
+              SELECT cci.id::text FROM community_member_circle_invites cci
+              WHERE cci.community_id = $2 AND cci.member_id = m.id AND cci.status = 'pending'
+              LIMIT 1
+            )
+            ELSE NULL
+          END as circle_request_id
         FROM members m
         WHERE (LOWER(COALESCE(m.username, '')) LIKE LOWER($1) OR LOWER(m.name) LIKE LOWER($1))
           AND m.id <> $2
@@ -552,8 +617,33 @@ async function unifiedSearch(req, res) {
             SELECT 1 FROM follows f
             WHERE f.follower_id = $2 AND f.follower_type = $3
               AND f.following_id = c.id AND f.following_type = 'community'
+              AND f.is_superseded_by_circle = false
             LIMIT 1
-          ) as is_following
+          ) as is_following,
+          CASE 
+            WHEN $3 = 'member' THEN EXISTS(
+              SELECT 1 FROM community_member_circles cc
+              WHERE cc.community_id = c.id AND cc.member_id = $2
+              LIMIT 1
+            )
+            ELSE false
+          END as in_circle,
+          CASE 
+            WHEN $3 = 'member' THEN EXISTS(
+              SELECT 1 FROM community_member_circle_invites cci
+              WHERE cci.community_id = c.id AND cci.member_id = $2 AND cci.status = 'pending'
+              LIMIT 1
+            )
+            ELSE false
+          END as circle_requested,
+          CASE 
+            WHEN $3 = 'member' THEN (
+              SELECT cci.id::text FROM community_member_circle_invites cci
+              WHERE cci.community_id = c.id AND cci.member_id = $2 AND cci.status = 'pending'
+              LIMIT 1
+            )
+            ELSE NULL
+          END as circle_request_id
         FROM communities c
         WHERE (LOWER(COALESCE(c.username, '')) LIKE LOWER($1) OR LOWER(c.name) LIKE LOWER($1))
         ORDER BY c.name ASC
@@ -572,12 +662,54 @@ async function unifiedSearch(req, res) {
           m.profile_photo_url,
           m.bio,
           'member' as type,
+          m.is_creator_mode_enabled,
           EXISTS(
             SELECT 1 FROM follows f
             WHERE f.follower_id = $2 AND f.follower_type = $3
               AND f.following_id = m.id AND f.following_type = 'member'
+              AND f.is_superseded_by_circle = false
             LIMIT 1
-          ) as is_following
+          ) as is_following,
+          CASE 
+            WHEN $3 = 'member' THEN EXISTS(
+              SELECT 1 FROM circles c
+              WHERE (c.user_a_id = $2 AND c.user_b_id = m.id)
+                 OR (c.user_b_id = $2 AND c.user_a_id = m.id)
+              LIMIT 1
+            )
+            WHEN $3 = 'community' THEN EXISTS(
+              SELECT 1 FROM community_member_circles cc
+              WHERE cc.community_id = $2 AND cc.member_id = m.id
+              LIMIT 1
+            )
+            ELSE false
+          END as in_circle,
+          CASE 
+            WHEN $3 = 'member' THEN EXISTS(
+              SELECT 1 FROM circle_requests cr
+              WHERE cr.sender_id = $2 AND cr.receiver_id = m.id AND cr.status = 'pending'
+              LIMIT 1
+            )
+            WHEN $3 = 'community' THEN EXISTS(
+              SELECT 1 FROM community_member_circle_invites cci
+              WHERE cci.community_id = $2 AND cci.member_id = m.id AND cci.status = 'pending'
+              LIMIT 1
+            )
+            ELSE false
+          END as circle_requested,
+          CASE 
+            WHEN $3 = 'member' THEN (
+              SELECT cr.id::text FROM circle_requests cr
+              WHERE cr.sender_id = $2 AND cr.receiver_id = m.id AND cr.status = 'pending'
+              LIMIT 1
+            )
+            WHEN $3 = 'community' THEN (
+              SELECT cci.id::text FROM community_member_circle_invites cci
+              WHERE cci.community_id = $2 AND cci.member_id = m.id AND cci.status = 'pending'
+              LIMIT 1
+            )
+            ELSE NULL
+          END as circle_request_id
         FROM members m
         WHERE m.is_creator_mode_enabled = true
           AND (LOWER(COALESCE(m.username, '')) LIKE LOWER($1) OR LOWER(m.name) LIKE LOWER($1))
