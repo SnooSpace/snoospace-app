@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Share, Image, Pressable, Dimensions,
+  Share, Image, Pressable, Dimensions, Linking, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft, BadgeCheck, MapPin, Clock, Users, Lock,
-  Heart, MessageCircle, ChartNoAxesCombined, Send, Pencil, MoreHorizontal,
+  Heart, MessageCircle, ChartNoAxesCombined, Send, Pencil, MoreHorizontal, MoveRight,
 } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { getAuthToken, getActiveAccount } from '../../api/auth';
@@ -165,6 +165,42 @@ export default function PlanDetailScreen({ navigation, route }) {
     }
   }, [plan?.title]);
 
+  const handleOpenMap = useCallback(() => {
+    if (!plan?.location_private) return;
+    try {
+      const parsed = JSON.parse(plan.location_private);
+      const { lat, lng, name, address } = parsed;
+
+      let url = '';
+      if (lat && lng) {
+        const label = encodeURIComponent(name || address || 'Meetup Point');
+        url = Platform.select({
+          ios: `maps://?q=${label}&ll=${lat},${lng}`,
+          android: `geo:${lat},${lng}?q=${lat},${lng}(${label})`,
+        });
+      } else {
+        const query = encodeURIComponent(name || address || plan.location_private);
+        url = Platform.select({
+          ios: `maps://?q=${query}`,
+          android: `geo:0,0?q=${query}`,
+        });
+      }
+      Linking.openURL(url).catch(() => {
+        const fallbackUrl = `https://www.google.com/maps/search/?api=1&query=${
+          lat && lng ? `${lat},${lng}` : encodeURIComponent(name || address || plan.location_private)
+        }`;
+        Linking.openURL(fallbackUrl);
+      });
+    } catch {
+      const query = encodeURIComponent(plan.location_private);
+      const url = Platform.select({
+        ios: `maps://?q=${query}`,
+        android: `geo:0,0?q=${query}`,
+      });
+      Linking.openURL(url);
+    }
+  }, [plan?.location_private]);
+
   // ─── Loading / error states ────────────────────────────────────────────────
 
   if (loading) {
@@ -206,10 +242,17 @@ export default function PlanDetailScreen({ navigation, route }) {
     : (ACTIVITY_LABELS[plan.activity_type] || plan.activity_type.charAt(0).toUpperCase() + plan.activity_type.slice(1));
 
   const costCfg = COST_LABELS[plan.cost_type] || COST_LABELS.free;
-  const costLabel = plan.cost_type === 'entry_fee'
-    ? (plan.cost_amount_paise ? `₹${plan.cost_amount_paise / 100} entry` : 'Entry fee')
+  let priceText = null;
+  if (plan.cost_type === 'split' && plan.cost_amount_paise) {
+    priceText = `~₹${Math.round(plan.cost_amount_paise / 100)} split`;
+  } else if (plan.cost_type === 'entry_fee' && plan.cost_amount_paise) {
+    priceText = `₹${Math.round(plan.cost_amount_paise / 100)}`;
+  }
+
+  const costPillLabel = plan.cost_type === 'entry_fee'
+    ? 'Entry fee'
     : plan.cost_type === 'split'
-      ? (plan.cost_amount_paise ? `~₹${Math.round(plan.cost_amount_paise / 100)} split` : 'We split')
+      ? 'We split'
       : costCfg.label;
 
   const reqStatus = plan.my_request_status;
@@ -287,9 +330,13 @@ export default function PlanDetailScreen({ navigation, route }) {
                     <Text style={[styles.pillText, { color: genderBadgeStyle.text }]}>{genderBadgeStyle.label}</Text>
                   </View>
                 )}
-              </View>
-              <View style={[styles.pill, { backgroundColor: costCfg.bg }]}>
-                <Text style={[styles.pillText, { color: costCfg.text }]}>{costLabel}</Text>
+              <View style={{ alignItems: 'flex-end' }}>
+                <View style={[styles.pill, { backgroundColor: costCfg.bg }]}>
+                  <Text style={[styles.pillText, { color: costCfg.text }]}>{costPillLabel}</Text>
+                </View>
+                {priceText ? (
+                  <Text style={styles.costPriceBelow}>{priceText}</Text>
+                ) : null}
               </View>
             </View>
 
@@ -376,15 +423,22 @@ export default function PlanDetailScreen({ navigation, route }) {
                 } catch {}
 
                 return (
-                  <View style={styles.privateLocationBox}>
+                const displayLabel = isOwner ? 'View Location' : locLabel;
+
+                return (
+                  <TouchableOpacity
+                    style={styles.privateLocationBox}
+                    onPress={handleOpenMap}
+                    activeOpacity={0.7}
+                  >
                     <Lock size={13} color="#2962FF" strokeWidth={2} />
-                    <Text style={styles.privateLocationText}>{locLabel}</Text>
+                    <Text style={styles.privateLocationText}>{displayLabel}</Text>
                     {isOwner && (
                       <View style={styles.locationHiddenTag}>
                         <Text style={styles.locationHiddenTagText}>Hidden for others</Text>
                       </View>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 );
               } else {
                 // Non-approved user: show the locked pill in place of location
@@ -477,6 +531,7 @@ export default function PlanDetailScreen({ navigation, route }) {
                     <Text style={styles.manageBadgeText}>{plan.pending_count}</Text>
                   </View>
                 )}
+                <MoveRight size={16} color="#FFFFFF" strokeWidth={2} style={{ marginLeft: 8 }} />
               </TouchableOpacity>
             )}
 
@@ -840,6 +895,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   manageBadgeText: { fontFamily: FONTS.semiBold, fontSize: 12, color: COLORS.primary },
+  costPriceBelow: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+    marginTop: 4,
+  },
 
   // Request button
   requestBtn: {
