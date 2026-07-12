@@ -819,11 +819,6 @@ export default function ProfileFeedScreen({ route, navigation }) {
               age={age}
               gender={gender}
               pronouns={pronouns}
-              shared_communities={currentAttendee?.shared_communities}
-              onCommunitiesPress={() => {
-                setSelectedAttendeeCommunities(currentAttendee?.shared_communities || []);
-                setSharedCommSheetOpen(true);
-              }}
               onCommentPress={() => handleOpenCommentModal({ type: "photo", url: photos[0].url })}
               memberId={currentAttendee?.id}
               memberName={name}
@@ -914,6 +909,49 @@ export default function ProfileFeedScreen({ route, navigation }) {
                   </TouchableOpacity>
                 ))}
               </View>
+            </View>
+          )}
+
+          {/* Shared Communities Card (Creative Bottom section) */}
+          {Array.isArray(currentAttendee?.shared_communities) && currentAttendee.shared_communities.length > 0 && (
+            <View style={styles.sharedCommGlassContainer}>
+              <View style={styles.sharedCommHeaderRow}>
+                <Users size={18} color="#4F46E5" strokeWidth={2.5} />
+                <Text style={styles.sharedCommSectionLabel}>Shared Communities</Text>
+              </View>
+              <Text style={styles.sharedCommInfoText}>
+                You both belong to {currentAttendee.shared_communities.length === 1 ? 'this community' : 'these communities'}:
+              </Text>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false} 
+                contentContainerStyle={styles.sharedCommHorizontalList}
+              >
+                {currentAttendee.shared_communities.map((comm) => (
+                  <TouchableOpacity
+                    key={comm.id}
+                    style={styles.sharedCommCard}
+                    onPress={() => {
+                      navigation.navigate('CommunityPublicProfile', { communityId: comm.id, communityName: comm.name });
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.sharedCommCardLogoContainer}>
+                      {comm.logo_url ? (
+                        <Image source={{ uri: comm.logo_url }} style={styles.sharedCommCardLogo} />
+                      ) : (
+                        <View style={styles.sharedCommCardLogoFallback}>
+                          <Users size={20} color="#4F46E5" />
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.sharedCommCardName} numberOfLines={1}>
+                      {comm.name}
+                    </Text>
+                    <Text style={styles.sharedCommCardSub}>View profile</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
           )}
 
@@ -2775,5 +2813,87 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textSecondary || '#64748B',
     marginTop: 2,
+  },
+  sharedCommGlassContainer: {
+    backgroundColor: "rgba(255, 255, 255, 0.75)",
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.8)",
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: "#4F46E5",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  sharedCommHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  sharedCommSectionLabel: {
+    fontFamily: FONTS.primary,
+    fontSize: 16,
+    color: "#4F46E5",
+    letterSpacing: 0.2,
+  },
+  sharedCommInfoText: {
+    fontFamily: FONTS.regular,
+    fontSize: 13,
+    color: COLORS.textSecondary || "#64748B",
+    marginBottom: 16,
+  },
+  sharedCommHorizontalList: {
+    gap: 12,
+    paddingRight: 10,
+  },
+  sharedCommCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#EEF2FF",
+    padding: 12,
+    alignItems: 'center',
+    width: 110,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  sharedCommCardLogoContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  sharedCommCardLogo: {
+    width: '100%',
+    height: '100%',
+  },
+  sharedCommCardLogoFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sharedCommCardName: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    width: '100%',
+    marginBottom: 2,
+  },
+  sharedCommCardSub: {
+    fontFamily: FONTS.medium,
+    fontSize: 10,
+    color: '#4F46E5',
   },
 });
