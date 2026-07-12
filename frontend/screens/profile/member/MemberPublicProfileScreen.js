@@ -419,6 +419,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
     secondaryAction: null,
   });
 
+  const [sharedCommSheetOpen, setSharedCommSheetOpen] = useState(false);
+
   const showAlert = useCallback((config) => setAlertConfig({ ...config, visible: true }), []);
   const hideAlert = useCallback(() => setAlertConfig((p) => ({ ...p, visible: false })), []);
 
@@ -1422,9 +1424,12 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   icon: Ticket,
                   label: `${profile.events_attended_count} ${profile.events_attended_count === 1 ? "event" : "events"}`,
                 },
-                profile?.communities_count > 0 && {
+                (circleStatus === 'self' ? (profile?.communities_count > 0) : (profile?.shared_communities?.length > 0)) && {
                   icon: Users,
-                  label: `${profile.communities_count} ${profile.communities_count === 1 ? "community" : "communities"}`,
+                  label: circleStatus === 'self' 
+                    ? `${profile.communities_count} ${profile.communities_count === 1 ? "community" : "communities"}`
+                    : `${profile.shared_communities.length} ${profile.shared_communities.length === 1 ? "shared community" : "shared communities"}`,
+                  onPress: circleStatus !== 'self' ? () => setSharedCommSheetOpen(true) : null
                 },
               ].filter(Boolean);
 
@@ -1461,12 +1466,25 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   ) : null}
                   {trustSignals.length > 0 && (
                     <View style={trustStyles.row}>
-                      {trustSignals.map((sig, idx) => (
-                        <View key={idx} style={trustStyles.pill}>
-                          <sig.icon size={11} color={COLORS.textSecondary} strokeWidth={2} />
-                          <Text style={trustStyles.pillText}>{sig.label}</Text>
-                        </View>
-                      ))}
+                      {trustSignals.map((sig, idx) => {
+                        const Container = sig.onPress ? TouchableOpacity : View;
+                        return (
+                          <Container
+                            key={idx}
+                            style={[
+                              trustStyles.pill,
+                              sig.onPress && { backgroundColor: '#EEF2FF', borderColor: '#D0D7FF' }
+                            ]}
+                            onPress={sig.onPress}
+                            activeOpacity={0.7}
+                          >
+                            <sig.icon size={11} color={sig.onPress ? '#4F46E5' : COLORS.textSecondary} strokeWidth={2} />
+                            <Text style={[trustStyles.pillText, sig.onPress && { color: '#4F46E5', fontFamily: FONTS.semiBold }]}>
+                              {sig.label}
+                            </Text>
+                          </Container>
+                        );
+                      })}
                     </View>
                   )}
                 </View>
@@ -2636,6 +2654,46 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
       )}
 
       <CustomAlertModal onClose={hideAlert} {...alertConfig} />
+
+      <SwipeableModal
+        visible={sharedCommSheetOpen}
+        onClose={() => setSharedCommSheetOpen(false)}
+        sheetStyle={styles.commSheet}
+        header={
+          <View>
+            <View style={styles.commSheetHandle} />
+            <Text style={styles.commSheetTitle}>Shared Communities</Text>
+          </View>
+        }
+      >
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.commSheetList}>
+          {profile?.shared_communities?.map((comm) => (
+            <TouchableOpacity
+              key={comm.id}
+              style={styles.commItem}
+              onPress={() => {
+                setSharedCommSheetOpen(false);
+                navigation.navigate('CommunityPublicProfile', { communityId: comm.id, communityName: comm.name });
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.commAvatarContainer}>
+                {comm.logo_url ? (
+                  <Image source={{ uri: comm.logo_url }} style={styles.commAvatar} />
+                ) : (
+                  <View style={styles.commAvatarFallback}>
+                    <Users size={16} color="#4F46E5" />
+                  </View>
+                )}
+              </View>
+              <View style={styles.commInfo}>
+                <Text style={styles.commName}>{comm.name}</Text>
+                <Text style={styles.commSub}>Tap to view community</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </SwipeableModal>
     </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -3273,6 +3331,71 @@ const circleCTAStyles = StyleSheet.create({
     fontFamily: 'Manrope-SemiBold',
     fontSize: 15,
     color: '#3C3C43',
+  },
+  commSheet: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: Dimensions.get('window').height * 0.7,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  commSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  commSheetTitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 20,
+    color: COLORS.textPrimary,
+    marginBottom: 16,
+  },
+  commSheetList: {
+    paddingBottom: 20,
+  },
+  commItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+    gap: 12,
+  },
+  commAvatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#EEF2FF',
+  },
+  commAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  commAvatarFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commInfo: {
+    flex: 1,
+  },
+  commName: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  commSub: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 2,
   },
 });
 

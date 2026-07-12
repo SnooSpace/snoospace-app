@@ -613,7 +613,28 @@ async function getPublicMember(req, res) {
           ? JSON.parse(profile.spotify_top_artists)
           : profile.spotify_top_artists || [],
       college_info: null, // populated below if show_college is true
+      shared_communities: [],
     };
+
+    // Fetch shared communities if viewer is not target
+    if (authUserId && String(authUserId) !== String(targetId)) {
+      try {
+        const sharedR = await pool.query(
+          `SELECT c.id, c.name, c.logo_url FROM follows f1
+           JOIN follows f2
+             ON f1.following_id = f2.following_id
+            AND f1.following_type = 'community'
+            AND f2.following_type = 'community'
+           JOIN communities c ON c.id = f1.following_id
+           WHERE f1.follower_id = $1 AND f1.follower_type = 'member'
+             AND f2.follower_id = $2 AND f2.follower_type = 'member'`,
+          [authUserId, targetId]
+        );
+        responseData.shared_communities = sharedR.rows;
+      } catch (sharedErr) {
+        console.error('[PublicMember] Failed to fetch shared communities:', sharedErr);
+      }
+    }
 
     // Fetch college info if member has campus_id AND show_college is true
     if (profile.campus_id && profile.show_college !== false) {

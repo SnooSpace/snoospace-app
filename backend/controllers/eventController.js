@@ -854,6 +854,22 @@ const getEventAttendees = async (req, res) => {
         m.openers,
         m.spotify_connected,
         m.spotify_top_artists,
+        -- Fetch shared communities via subquery
+        COALESCE((
+          SELECT json_agg(json_build_object(
+            'id', c.id,
+            'name', c.name,
+            'logo_url', c.logo_url
+          ))
+          FROM follows f1
+          JOIN follows f2
+            ON f1.following_id = f2.following_id
+           AND f1.following_type = 'community'
+           AND f2.following_type = 'community'
+          JOIN communities c ON c.id = f1.following_id
+          WHERE f1.follower_id = $2 AND f1.follower_type = 'member'
+            AND f2.follower_id = m.id AND f2.follower_type = 'member'
+        ), '[]'::json) AS shared_communities,
         -- Fetch sparks via subquery
         COALESCE((
           SELECT json_agg(json_build_object(

@@ -16,6 +16,7 @@ import {
   UserPlus,
   ChevronsRight,
   Undo2,
+  Users,
 } from "lucide-react-native";
 import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
@@ -29,6 +30,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Svg, { Path, Circle, Rect, G, Defs, LinearGradient as SvgLinearGradient, Stop } from "react-native-svg";
 import { SpotifyArtistsCard } from "../../components/profile/SpotifyArtistsCard";
 import ContentActionsSheet from "../../components/ContentActionsSheet";
+import SwipeableModal from "../../components/modals/SwipeableModal";
 
 const { width } = Dimensions.get("window");
 const CARD_RADIUS = 24;
@@ -84,6 +86,8 @@ export default function ProfileFeedScreen({ route, navigation }) {
     sparks: 0,
     icebreakers: 0,
   });
+  const [sharedCommSheetOpen, setSharedCommSheetOpen] = useState(false);
+  const [selectedAttendeeCommunities, setSelectedAttendeeCommunities] = useState([]);
 
   const renderCount = useRef(0);
   useEffect(() => {
@@ -815,6 +819,11 @@ export default function ProfileFeedScreen({ route, navigation }) {
               age={age}
               gender={gender}
               pronouns={pronouns}
+              shared_communities={currentAttendee?.shared_communities}
+              onCommunitiesPress={() => {
+                setSelectedAttendeeCommunities(currentAttendee?.shared_communities || []);
+                setSharedCommSheetOpen(true);
+              }}
               onCommentPress={() => handleOpenCommentModal({ type: "photo", url: photos[0].url })}
               memberId={currentAttendee?.id}
               memberName={name}
@@ -1190,6 +1199,46 @@ export default function ProfileFeedScreen({ route, navigation }) {
             </View>
           </Animated.View>
         )}
+
+        <SwipeableModal
+          visible={sharedCommSheetOpen}
+          onClose={() => setSharedCommSheetOpen(false)}
+          sheetStyle={styles.commSheet}
+          header={
+            <View>
+              <View style={styles.commSheetHandle} />
+              <Text style={styles.commSheetTitle}>Shared Communities</Text>
+            </View>
+          }
+        >
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.commSheetList}>
+            {selectedAttendeeCommunities.map((comm) => (
+              <TouchableOpacity
+                key={comm.id}
+                style={styles.commItem}
+                onPress={() => {
+                  setSharedCommSheetOpen(false);
+                  navigation.navigate('CommunityPublicProfile', { communityId: comm.id, communityName: comm.name });
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.commAvatarContainer}>
+                  {comm.logo_url ? (
+                    <Image source={{ uri: comm.logo_url }} style={styles.commAvatar} />
+                  ) : (
+                    <View style={styles.commAvatarFallback}>
+                      <Users size={16} color="#4F46E5" />
+                    </View>
+                  )}
+                </View>
+                <View style={styles.commInfo}>
+                  <Text style={styles.commName}>{comm.name}</Text>
+                  <Text style={styles.commSub}>Tap to view community</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </SwipeableModal>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -1362,7 +1411,7 @@ const PromptCard = React.memo(({ item, onCommentPress, memberId, memberName }) =
   </ContentCard>
 ));
 
-const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, onCommentPress, memberId, memberName }) => (
+const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, shared_communities, onCommunitiesPress, onCommentPress, memberId, memberName }) => (
   <ContentCard
     onPress={onCommentPress}
     style={styles.photoCardContainer}
@@ -1400,6 +1449,17 @@ const PhotoCard = React.memo(({ url, isHero, name, age, gender, pronouns, onComm
             <View style={styles.heroGenderChip}>
               <Text style={styles.heroGenderText}>{pronouns}</Text>
             </View>
+          )}
+          {Array.isArray(shared_communities) && shared_communities.length > 0 && (
+            <TouchableOpacity
+              style={[styles.heroGenderChip, { backgroundColor: 'rgba(99, 102, 241, 0.85)', borderColor: 'rgba(129, 140, 248, 0.5)', borderWidth: 1 }]}
+              onPress={onCommunitiesPress}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.heroGenderText, { color: '#FFFFFF', fontWeight: '600' }]}>
+                👥 {shared_communities.length} {shared_communities.length === 1 ? 'shared community' : 'shared communities'}
+              </Text>
+            </TouchableOpacity>
           )}
         </View>
       </View>
@@ -2650,5 +2710,70 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+  },
+  commSheet: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: Dimensions.get('window').height * 0.7,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  commSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border || '#E2E8F0',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  commSheetTitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 20,
+    color: COLORS.textPrimary,
+    marginBottom: 16,
+  },
+  commSheetList: {
+    paddingBottom: 20,
+  },
+  commItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border || '#E2E8F0',
+    gap: 12,
+  },
+  commAvatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#EEF2FF',
+  },
+  commAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  commAvatarFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commInfo: {
+    flex: 1,
+  },
+  commName: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  commSub: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textSecondary || '#64748B',
+    marginTop: 2,
   },
 });
