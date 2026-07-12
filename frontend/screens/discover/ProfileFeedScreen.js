@@ -922,7 +922,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
             return (
               <View style={styles.sharedCommGlassContainer}>
                 <View style={styles.sharedCommHeaderRow}>
-                  <Users size={16} color="#4F46E5" strokeWidth={2.5} />
+                  <Users size={16} color="#0891B2" strokeWidth={2.5} />
                   <Text style={styles.sharedCommSectionLabel}>Shared Communities</Text>
                 </View>
                 <Text style={styles.sharedCommInfoText}>
@@ -944,7 +944,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
                           <Image source={{ uri: comm.logo_url }} style={styles.sharedCommGridLogo} />
                         ) : (
                           <View style={styles.sharedCommGridLogoFallback}>
-                            <Users size={20} color="#4F46E5" />
+                            <Users size={20} color="#0891B2" />
                           </View>
                         )}
                       </View>
@@ -966,7 +966,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
                       <View style={[styles.sharedCommGridLogoContainer, styles.sharedCommViewAllContainer]}>
                         <Text style={styles.sharedCommViewAllText}>+{list.length - (limit - 1)}</Text>
                       </View>
-                      <Text style={[styles.sharedCommGridName, { color: '#4F46E5', fontFamily: FONTS.semiBold }]} numberOfLines={1}>
+                      <Text style={[styles.sharedCommGridName, { color: '#0891B2', fontFamily: FONTS.semiBold }]} numberOfLines={1}>
                         View All
                       </Text>
                     </TouchableOpacity>
@@ -2836,13 +2836,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   sharedCommGlassContainer: {
-    backgroundColor: "rgba(99, 102, 241, 0.12)", // Premium soft indigo tinted glass
+    backgroundColor: "rgba(8, 145, 178, 0.12)", // Premium soft cyan/teal tinted glass
     borderWidth: 1.5,
-    borderColor: "rgba(99, 102, 241, 0.28)", // Tinted matching border
+    borderColor: "rgba(8, 145, 178, 0.28)", // Tinted matching border
     borderRadius: 20, // Match Interests/Sparks exactly
     padding: 16,
     marginBottom: 24, // spacing between components
-    shadowColor: "#4F46E5",
+    shadowColor: "#0891B2",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
     shadowRadius: 8,
@@ -2882,7 +2882,7 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: 'rgba(99, 102, 241, 0.2)',
+    borderColor: 'rgba(8, 145, 178, 0.2)',
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
@@ -2907,12 +2907,12 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   sharedCommViewAllContainer: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#4F46E5',
+    backgroundColor: '#ECFEFF', // Light Cyan 50
+    borderColor: '#0891B2',
   },
   sharedCommViewAllText: {
     fontFamily: FONTS.semiBold,
     fontSize: 12,
-    color: '#4F46E5',
+    color: '#0891B2',
   },
 });
