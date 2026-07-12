@@ -64,6 +64,8 @@ const ACTIVITIES = [
   { key: "creative", label: "🎨 Creative" },
   { key: "study", label: "📚 Study / Co-work" },
   { key: "pet_friendly", label: "🐾 Pet Friendly" },
+  { key: "house_party", label: "🏡 House Party" },
+  { key: "club", label: "🪩 Club" },
   { key: "other", label: "＋ Other…" },
 ];
 

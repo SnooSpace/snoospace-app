@@ -40,34 +40,28 @@ import { getAuthToken } from '../../api/auth';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 32;  // 16px padding each side
 
-// ─── Master illustration asset ──────────────────────────────────────────────
+// ─── Activity Illustration Assets ──────────────────────────────────────────
 
-const MASTER_IMAGE = require('../../assets/Open_Plans.webp');
-const MASTER_SIZE  = 1254; // pixel width & height of the source image
-
-/**
- * Crop map: each entry is { left, top, right, bottom } in source-image pixels.
- * These were verified visually against the 1254×1254 illustration.
- */
-const CROP_MAP = {
-  sports:       { l: 130, t: 130, r: 470, b: 348 },
-  movies:       { l: 360, t:  10, r: 720, b: 240 },
-  bar:          { l: 870, t:   0, r: 1200, b: 200 },
-  food:         { l: 810, t: 310, r: 1150, b: 530 },
-  cafe:         { l: 330, t: 290, r: 670,  b: 490 },
-  yoga:         { l: 480, t: 420, r: 820,  b: 650 },
-  gym:          { l: 910, t: 545, r: 1240, b: 745 },
-  walk:         { l:  10, t: 620, r: 350,  b: 870 },
-  rides:        { l: 520, t: 910, r: 870,  b: 1120 },
-  live_music:   { l: 580, t: 280, r: 880,  b: 450 },
-  study:        { l: 900, t: 680, r: 1230, b: 920 },
-  creative:     { l: 230, t: 820, r: 580,  b: 1060 },
-  games:        { l: 130, t: 440, r: 470,  b: 690 },
-  gaming:       { l: 130, t: 440, r: 470,  b: 690 },  // alias for gaming key
-  pet_friendly: { l: 140, t: 680, r: 490,  b: 900 },
-  hangout:      { l: 450, t: 570, r: 790,  b: 790 },
-  // fallback / other
-  other:        { l: 300, t: 350, r: 660,  b: 570 },
+const ACTIVITY_IMAGES = {
+  sports:       require('../../assets/Sports.webp'),
+  bar:          require('../../assets/Bar.webp'),
+  food:         require('../../assets/Food.webp'),
+  cafe:         require('../../assets/Cafe.webp'),
+  yoga:         require('../../assets/Yoga.webp'),
+  gym:          require('../../assets/Gym.webp'),
+  walk:         require('../../assets/walk.webp'),
+  rides:        require('../../assets/ride.webp'),
+  live_music:   require('../../assets/Music.webp'),
+  study:        require('../../assets/Co-work_Study.webp'),
+  creative:     require('../../assets/Creative.webp'),
+  games:        require('../../assets/Gaming.webp'),
+  gaming:       require('../../assets/Gaming.webp'),
+  hangout:      require('../../assets/Hangout.webp'),
+  pet_friendly: require('../../assets/Pet_Friendly.webp'),
+  movies:       require('../../assets/Movie.webp'),
+  other:        require('../../assets/Other.webp'),
+  house_party:  require('../../assets/HouseParty.webp'),
+  club:         require('../../assets/Party.webp'),
 };
 
 // ─── Activity colour palette (muted, instantly recognisable) ─────────────────
@@ -89,6 +83,8 @@ const PILL_COLORS = {
   gaming:       { bg: '#E1F5FE', text: '#01579B' },
   pet_friendly: { bg: '#F1F8E9', text: '#33691E' },
   hangout:      { bg: '#E8F5E9', text: '#1B5E20' },
+  house_party:  { bg: '#FBE9E7', text: '#D84315' },
+  club:         { bg: '#EDE7F6', text: '#5E35B1' },
   other:        { bg: '#F5F5F5', text: '#424242' },
 };
 
@@ -109,6 +105,8 @@ const ACTIVITY_LABELS = {
   gaming:       'Games',
   pet_friendly: 'Pet Friendly',
   hangout:      'Hangout',
+  house_party:  'House Party',
+  club:         'Club',
   other:        null,  // falls back to custom_activity_label
 };
 
@@ -129,6 +127,8 @@ const ACTIVITY_EMOJIS = {
   creative:     '🎨',
   study:        '📚',
   pet_friendly: '🐾',
+  house_party:  '🏡',
+  club:         '🪩',
   other:        '＋',
 };
 
@@ -177,44 +177,25 @@ function fmt(n) {
 // ─── CropImage ────────────────────────────────────────────────────────────────
 
 /**
- * Renders the master illustration cropped to a given bounding box,
- * scaled to fill containerW × 240px exactly (cover-fill semantics).
+ * Renders the default banner image for the activity,
+ * scaled to fill containerW × height exactly.
  */
 function CropImage({ activityType, containerW, height = 240 }) {
-  const H     = height;
-  if (activityType === 'other') {
+  const H = height;
+  const imageSource = ACTIVITY_IMAGES[activityType];
+
+  if (!imageSource) {
+    // Return a clean premium neutral placeholder background for missing assets
     return (
-      <View style={{ width: containerW, height: H, overflow: 'hidden' }}>
-        <Image
-          source={MASTER_IMAGE}
-          style={{ width: '100%', height: '100%' }}
-          resizeMode="cover"
-        />
-      </View>
+      <View style={{ width: containerW, height: H, backgroundColor: '#F1F5F9' }} />
     );
   }
-  const box   = CROP_MAP[activityType] || CROP_MAP.other;
-  const boxW  = box.r - box.l;
-  const boxH  = box.b - box.t;
-
-  const scale   = Math.max(containerW / boxW, H / boxH);
-  const imgSize = MASTER_SIZE * scale;
-
-  // Centre the crop inside the container
-  const offsetX = -(box.l * scale) + (containerW - boxW * scale) / 2;
-  const offsetY = -(box.t * scale) + (H - boxH * scale) / 2;
 
   return (
     <View style={{ width: containerW, height: H, overflow: 'hidden' }}>
       <Image
-        source={MASTER_IMAGE}
-        style={{
-          position: 'absolute',
-          width:  imgSize,
-          height: imgSize,
-          left:   offsetX,
-          top:    offsetY,
-        }}
+        source={imageSource}
+        style={{ width: '100%', height: '100%' }}
         resizeMode="cover"
       />
     </View>
@@ -521,15 +502,18 @@ const OpenPlanCard = ({
       <View style={[styles.heroContainer, compact && { height: 110 }]}>
         <CropImage activityType={activityKey} containerW={cardW} height={compact ? 110 : 240} />
 
-        {/* Top Right Row (Attendee count + Status Chip + Report Button overlay) */}
-        <View style={[styles.topRightRow, compact && { top: 8, right: 8 }]}>
+        {/* Top Left Row (Attendee count overlay) */}
+        <View style={[styles.topLeftRow, compact && { top: 8, left: 8 }]}>
           <View style={[styles.attendeeBubble, compact && { paddingHorizontal: 6, paddingVertical: 3 }]}>
             <Users size={compact ? 10 : 12} color="#FFF" strokeWidth={2.2} />
             <Text style={[styles.attendeeText, compact && { fontSize: 10 }]}>
               {acceptedN} / {maxAccepted}
             </Text>
           </View>
+        </View>
 
+        {/* Top Right Row (Status Chip + Report Button overlay) */}
+        <View style={[styles.topRightRow, compact && { top: 8, right: 8 }]}>
           {statusChip && (
             <View style={[styles.statusChipBubble, { backgroundColor: statusChip.bg }, compact && { paddingHorizontal: 8, paddingVertical: 3 }]}>
               <Text style={[styles.statusChipText, { color: statusChip.text }, compact && { fontSize: 10 }]}>
@@ -746,6 +730,13 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 240,
     position: 'relative',
+  },
+
+  topLeftRow: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    zIndex: 10,
   },
 
   topRightRow: {
