@@ -351,10 +351,24 @@ async function updatePlan(req, res) {
     const userId = req.user.id;
     const planId = parseInt(req.params.planId, 10);
 
-    const stringFields = ['title', 'custom_activity_label', 'cost_type', 'location_public', 'location_private', 'banner_image_url'];
+    const stringFields = ['title', 'custom_activity_label', 'cost_type', 'location_public', 'location_private', 'banner_image_url', 'visibility', 'gender_preference'];
     const updates = [];
     const values = [];
     let idx = 1;
+
+    // Validate visibility and gender if provided
+    if (req.body.visibility !== undefined) {
+      const validVisibilities = ['community_members', 'everyone'];
+      if (!validVisibilities.includes(req.body.visibility)) {
+        return res.status(400).json({ error: `visibility must be one of: ${validVisibilities.join(', ')}` });
+      }
+    }
+    if (req.body.gender_preference !== undefined) {
+      const validGenders = ['all', 'Female', 'Male', 'Non-binary'];
+      if (!validGenders.includes(req.body.gender_preference)) {
+        return res.status(400).json({ error: `gender_preference must be one of: ${validGenders.join(', ')}` });
+      }
+    }
 
     // --- Simple string / nullable fields ---
     for (const field of stringFields) {

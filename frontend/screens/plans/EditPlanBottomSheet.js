@@ -22,6 +22,8 @@ import {
   RefreshCw,
   Image as ImageIcon,
   X,
+  Globe,
+  Users,
 } from 'lucide-react-native';
 import { COLORS, FONTS, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { getAuthToken } from '../../api/auth';
@@ -32,6 +34,19 @@ import PlanCropImage from './PlanCropImage';
 import { useCrop } from '../../components/MediaCrop';
 import CustomDatePicker from '../../components/ui/CustomDatePicker';
 import CustomTimePicker from '../../components/ui/CustomTimePicker';
+
+const COST_OPTS = [
+  { key: 'free', label: 'Free' },
+  { key: 'self_pay', label: 'Self-pay' },
+  { key: 'split', label: 'We split' },
+  { key: 'entry_fee', label: 'Entry fee' },
+];
+
+const GENDER_OPTS = [
+  { key: 'all', label: 'Everyone' },
+  { key: 'Female', label: 'Women only' },
+  { key: 'Male', label: 'Men only' },
+];
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CONTAINER_WIDTH = SCREEN_WIDTH - 40;
@@ -57,6 +72,12 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
   const [cancelConfirming, setCancelConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
+  // New fields state
+  const [costType, setCostType] = useState('free');
+  const [costAmount, setCostAmount] = useState('');
+  const [visibility, setVisibility] = useState('community_members');
+  const [genderPref, setGenderPref] = useState('all');
+
   // Banner state
   const [bannerUri, setBannerUri] = useState(null);       // local URI if newly picked
   const [bannerBase64, setBannerBase64] = useState(null); // base64 for upload
@@ -77,6 +98,12 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
     setErrors({});
     setCancelConfirming(false);
     setCancelling(false);
+
+    // New fields pre-fill
+    setCostType(plan.cost_type || 'free');
+    setCostAmount(plan.cost_amount_paise ? String(Math.round(plan.cost_amount_paise / 100)) : '');
+    setVisibility(plan.visibility || 'community_members');
+    setGenderPref(plan.gender_preference || 'all');
 
     // Banner pre-fill
     setExistingBannerUrl(plan.banner_image_url || null);
@@ -150,6 +177,10 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
         recurrence_interval: isRecurring ? 'weekly' : null,
         scheduled_at: scheduledAt,
         banner_image_url: finalBannerUrl,
+        cost_type: costType,
+        cost_amount_paise: ['entry_fee', 'split'].includes(costType) && costAmount.trim() ? Math.round(parseFloat(costAmount) * 100) : null,
+        visibility: visibility,
+        gender_preference: genderPref,
       };
       const data = await updatePlan(plan.id, body, token);
       onPlanUpdated(data.plan);
@@ -277,6 +308,49 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
             onChangeText={setLocationPublic}
           />
 
+          {/* Cost */}
+          <Text style={styles.fieldLabel}>Cost</Text>
+          <View style={styles.chipRow}>
+            {COST_OPTS.map((c) => (
+              <TouchableOpacity
+                key={c.key}
+                style={[styles.chip, costType === c.key && styles.chipActive]}
+                onPress={() => setCostType(c.key)}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    costType === c.key && styles.chipTextActive,
+                  ]}
+                >
+                  {c.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {['entry_fee', 'split'].includes(costType) && (
+            <View style={[styles.input, styles.inputRow, { marginTop: 12 }]}>
+              <Text
+                style={{
+                  fontFamily: FONTS.medium,
+                  fontSize: 16,
+                  color: COLORS.textPrimary,
+                  marginLeft: 2,
+                }}
+              >
+                ₹
+              </Text>
+              <TextInput
+                style={styles.inputInner}
+                placeholder="Approx. cost per person (optional)"
+                placeholderTextColor={COLORS.textMuted}
+                keyboardType="numeric"
+                value={costAmount}
+                onChangeText={setCostAmount}
+              />
+            </View>
+          )}
+
           {/* Date, Time & Stepper side-by-side */}
           <View style={styles.twoColRow}>
             <View style={{ flex: 1 }}>
@@ -359,6 +433,90 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
                 </TouchableOpacity>
               </View>
             </View>
+          </View>
+
+          {/* Visibility */}
+          <Text style={styles.fieldLabel}>Who can discover this?</Text>
+          <View style={styles.visibilityRow}>
+            <TouchableOpacity
+              style={[
+                styles.visCard,
+                visibility === 'community_members' && styles.visCardActive,
+              ]}
+              onPress={() => setVisibility('community_members')}
+            >
+              <Users
+                size={18}
+                color={
+                  visibility === 'community_members'
+                    ? COLORS.primary
+                    : COLORS.textSecondary
+                }
+                strokeWidth={1.8}
+              />
+              <Text
+                style={[
+                  styles.visCardTitle,
+                  visibility === 'community_members' && {
+                    color: COLORS.primary,
+                  },
+                ]}
+              >
+                Community members
+              </Text>
+              <Text style={styles.visCardSub}>
+                People who share a community with you
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.visCard,
+                visibility === 'everyone' && styles.visCardActive,
+              ]}
+              onPress={() => setVisibility('everyone')}
+            >
+              <Globe
+                size={18}
+                color={
+                  visibility === 'everyone'
+                    ? COLORS.primary
+                    : COLORS.textSecondary
+                }
+                strokeWidth={1.8}
+              />
+              <Text
+                style={[
+                  styles.visCardTitle,
+                  visibility === 'everyone' && { color: COLORS.primary },
+                ]}
+              >
+                Everyone
+              </Text>
+              <Text style={styles.visCardSub}>
+                Visible to all SnooSpace users
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Gender */}
+          <Text style={styles.fieldLabel}>Gender preference</Text>
+          <View style={styles.chipRow}>
+            {GENDER_OPTS.map((g) => (
+              <TouchableOpacity
+                key={g.key}
+                style={[styles.chip, genderPref === g.key && styles.chipActive]}
+                onPress={() => setGenderPref(g.key)}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    genderPref === g.key && styles.chipTextActive,
+                  ]}
+                >
+                  {g.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           {/* Repeat Settings */}
@@ -722,5 +880,69 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 11,
     color: '#FFFFFF',
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  chipActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: '#EEF2FF',
+  },
+  chipText: {
+    fontFamily: FONTS.medium,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  chipTextActive: {
+    color: COLORS.primary,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 0,
+  },
+  inputInner: {
+    flex: 1,
+    paddingVertical: 12,
+    fontFamily: FONTS.regular,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+  },
+  visibilityRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  visCard: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    padding: 12,
+    gap: 4,
+  },
+  visCardActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: '#F0F4FF',
+  },
+  visCardTitle: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
+    color: COLORS.textSecondary,
+  },
+  visCardSub: {
+    fontFamily: FONTS.regular,
+    fontSize: 11,
+    color: COLORS.textMuted,
   },
 });
