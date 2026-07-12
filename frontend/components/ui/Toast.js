@@ -60,7 +60,7 @@ const Toast = ({ title, message, type = "success", onDismiss }) => {
       exiting={FadeOutUp.duration(300)}
       style={[
         styles.container,
-        { top: insets.top + 12 },
+        { top: insets.top + 70 },
         animatedStyle
       ]}
     >
