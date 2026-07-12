@@ -22,6 +22,7 @@ import SnooLoader from "../../components/ui/SnooLoader";
 import EventCard from "../../components/EventCard";
 import CommentsModal from "../../components/CommentsModal";
 import OpenPlanCard from "../../components/plans/OpenPlanCard";
+import ShareModal from "../../components/ShareModal";
 
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
@@ -245,6 +246,8 @@ export default function YourEventsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [sharingPlan, setSharingPlan] = useState(null);
 
   useEffect(() => {
     getActiveAccount()
@@ -590,12 +593,9 @@ export default function YourEventsScreen({ navigation }) {
           compact={true}
           onPress={() => navigation.navigate("HostRequests", { planId: item.id, planTitle: item.title })}
           onLike={handlePlanLike}
-          onShare={async (plan) => {
-            try {
-              await Share.share({
-                message: `Check out this open plan "${plan?.title || 'Open Plan'}" on SnooSpace!`,
-              });
-            } catch (_) {}
+          onShare={(plan) => {
+            setSharingPlan(plan);
+            setShareModalVisible(true);
           }}
           onComment={(planId) => openCommentsModal(planId, "plan")}
           navigation={navigation}
@@ -612,12 +612,9 @@ export default function YourEventsScreen({ navigation }) {
           isInterested={item.is_interested || isPlanInterested}
           onPress={(planId) => navigation.navigate('PlanDetail', { planId })}
           onLike={handlePlanLike}
-          onShare={async (plan) => {
-            try {
-              await Share.share({
-                message: `Check out this open plan "${plan?.title || 'Open Plan'}" on SnooSpace!`,
-              });
-            } catch (_) {}
+          onShare={(plan) => {
+            setSharingPlan(plan);
+            setShareModalVisible(true);
           }}
           onInterest={async () => {
             await handleTogglePlanInterest(item);
@@ -840,6 +837,11 @@ export default function YourEventsScreen({ navigation }) {
           }
         }}
         navigation={navigation}
+      />
+      <ShareModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        post={sharingPlan}
       />
     </View>
   );

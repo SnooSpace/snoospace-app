@@ -101,6 +101,7 @@ import TicketMessageCard from "../../components/TicketMessageCard";
 import SharedPostCard from "../../components/SharedPostCard";
 import SharedOpportunityCard from "../../components/SharedOpportunityCard";
 import SharedEventCard from "../../components/SharedEventCard";
+import SharedPlanCard from "../../components/SharedPlanCard";
 import SnooLoader from "../../components/ui/SnooLoader";
 import ProfilePostFeed from "../../components/ProfilePostFeed";
 import CommentsModal from "../../components/CommentsModal";
@@ -1143,6 +1144,7 @@ const MessageRow = React.memo(
     onPressUser,
     onPressOpportunity,
     onPressEvent,
+    onPressPlan,
     onPressReplyQuote,
     navigation,
   }) => {
@@ -1423,6 +1425,44 @@ const MessageRow = React.memo(
                 />
               ) : null}
               <SharedEventCard metadata={msg.metadata} onPress={onPressEvent} />
+            </View>
+          </SwipeableMessage>
+        </View>
+      );
+    }
+
+    if (msg.messageType === "plan_share" && msg.metadata) {
+      return (
+        <View
+          style={[
+            styles.messageContainer,
+            isMyMessage
+              ? styles.myMessageContainer
+              : styles.otherMessageContainer,
+          ]}
+        >
+          {avatarEl}
+          <SwipeableMessage
+            messageId={msg.id}
+            highlightedIdSV={highlightedIdSV}
+            isMyMessage={isMyMessage}
+            onReply={() => onReply(msg, isMyMessage)}
+            onLongPress={() => onLongPress(msg)}
+          >
+            <View collapsable={false}>
+              {showSenderName && (
+                <Text style={styles.groupSenderName}>
+                  {msg.senderName || "Unknown"}
+                </Text>
+              )}
+              {msg.replyToMessageId && msg.replyPreview ? (
+                <ReplyQuote
+                  replyPreview={msg.replyPreview}
+                  isMyMessage={isMyMessage}
+                  onPress={() => onPressReplyQuote(msg.replyToMessageId)}
+                />
+              ) : null}
+              <SharedPlanCard metadata={msg.metadata} onPress={onPressPlan} />
             </View>
           </SwipeableMessage>
         </View>
@@ -1990,6 +2030,14 @@ export default function ChatScreen({ route, navigation }) {
     (eventId) => {
       const nav = navigation.getParent()?.getParent() || navigation;
       nav.navigate("EventDetails", { eventId });
+    },
+    [navigation],
+  );
+
+  const handlePressPlan = useCallback(
+    (planId) => {
+      const nav = navigation.getParent()?.getParent() || navigation;
+      nav.navigate("PlanDetail", { planId });
     },
     [navigation],
   );
@@ -2942,6 +2990,7 @@ export default function ChatScreen({ route, navigation }) {
           onPressUser={handlePressUser}
           onPressOpportunity={handlePressOpportunity}
           onPressEvent={handlePressEvent}
+          onPressPlan={handlePressPlan}
           onPressReplyQuote={scrollToMessage}
           navigation={navigation}
         />
@@ -2967,6 +3016,7 @@ export default function ChatScreen({ route, navigation }) {
       handlePressUser,
       handlePressOpportunity,
       handlePressEvent,
+      handlePressPlan,
       scrollToMessage,
       navigation,
     ],

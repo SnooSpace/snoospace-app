@@ -12,6 +12,7 @@ import HostPlanBottomSheet from './HostPlanBottomSheet';
 import OpenPlanCard from '../../components/plans/OpenPlanCard';
 import RequestBottomSheet from './RequestBottomSheet';
 import CommentsModal from '../../components/CommentsModal';
+import ShareModal from '../../components/ShareModal';
 
 // Matches OpenPlanCard PILL_COLORS — all 16 activity types
 const ACTIVITY_COLORS = {
@@ -129,6 +130,8 @@ export default function MyPlansScreen({ navigation }) {
   const [hostSheetOpen, setHostSheetOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [requestSheet, setRequestSheet] = useState(null);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [sharingPlan, setSharingPlan] = useState(null);
 
   // Screen-level comments modal state and callbacks
   const [commentsModalState, setCommentsModalState] = useState({
@@ -177,12 +180,9 @@ export default function MyPlansScreen({ navigation }) {
     else await unlikePlan(planId, token);
   }, []);
 
-  const handleShare = useCallback(async (plan) => {
-    try {
-      await Share.share({
-        message: `Check out this open plan "${plan?.title || 'Open Plan'}" on SnooSpace!`,
-      });
-    } catch (_) {}
+  const handleShare = useCallback((plan) => {
+    setSharingPlan(plan);
+    setShareModalVisible(true);
   }, []);
 
   const currentData = activeTab === 'Hosted' ? hostedPlans : attendingPlans;
@@ -308,6 +308,11 @@ export default function MyPlansScreen({ navigation }) {
           }
         }}
         navigation={navigation}
+      />
+      <ShareModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        post={sharingPlan}
       />
     </View>
   );

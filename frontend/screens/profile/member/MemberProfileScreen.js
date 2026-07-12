@@ -115,6 +115,7 @@ import { useToast } from "../../../context/ToastContext";
 import ActionModal from "../../../components/modals/ActionModal";
 import OpenPlanCard from "../../../components/plans/OpenPlanCard";
 import RequestBottomSheet from "../../plans/RequestBottomSheet";
+import ShareModal from "../../../components/ShareModal";
 import InstagramRow from "../../../components/InstagramRow";
 import EditorialPostCard from "../../../components/EditorialPostCard";
 import OpportunityFeedCard from "../../../components/OpportunityFeedCard";
@@ -633,12 +634,15 @@ export default function MemberProfileScreen({ navigation }) {
   const [planRequestSheet, setPlanRequestSheet] = useState(null);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const eventsFetchedRef = useRef(false);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [sharingPlan, setSharingPlan] = useState(null);
 
   // Community Posts tab state (Creator Mode)
   const [voicePosts, setVoicePosts] = useState([]);
   const [loadingVoicePosts, setLoadingVoicePosts] = useState(false);
   const communityPostsFetchedRef = useRef(false);
   const [communityFilter, setCommunityFilter] = useState("all"); // 'all' | 'owner' | 'members'
+  const [eventsFilter, setEventsFilter] = useState("all"); // 'all' | 'events' | 'plans'
 
   const scrollViewRef = useRef(null);
   const scrollToPostIdRef = useRef(route?.params?.postId);
@@ -2550,86 +2554,127 @@ export default function MemberProfileScreen({ navigation }) {
             )}
 
           {/* Events Tab Content */}
-          {renderedProfileTab === "events" && (
-            <View style={profileTabStyles.eventsContainer}>
-              {loadingEvents ? (
-                <View style={profileTabStyles.loadingWrap}>
-                  <SnooLoader size="large" color={PRIMARY_COLOR} />
-                </View>
-              ) : (
-                <>
-                  {(() => {
-                    const allEventsAndPlans = [
-                      ...profileEvents.map((ev) => ({ ...ev, itemType: "event" })),
-                      ...[...profilePlans.hosted, ...profilePlans.attending].map((plan) => ({ ...plan, itemType: "plan" }))
-                    ];
-                    const visibleEvents = allEventsAndPlans.slice(0, renderedEventsLimit);
+          {renderedProfileTab === "events" && (() => {
+            const allEventsAndPlans = [
+              ...profileEvents.map((ev) => ({ ...ev, itemType: "event" })),
+              ...[...profilePlans.hosted, ...profilePlans.attending].map((plan) => ({ ...plan, itemType: "plan" }))
+            ];
+            const filteredEventsAndPlans = allEventsAndPlans.filter((item) => {
+              if (eventsFilter === "all") return true;
+              if (eventsFilter === "events") return item.itemType === "event";
+              if (eventsFilter === "plans") return item.itemType === "plan";
+              return true;
+            });
+            const visibleEvents = filteredEventsAndPlans.slice(0, renderedEventsLimit);
 
+            return (
+              <View style={profileTabStyles.eventsContainer}>
+                {/* Filter pills */}
+                <View style={styles.filterContainer}>
+                  {[
+                    { label: "All", value: "all" },
+                    { label: "Events", value: "events" },
+                    { label: "Open Plans", value: "plans" },
+                  ].map((opt) => {
+                    const isActive = eventsFilter === opt.value;
                     return (
-                      <>
-                        {visibleEvents.map((item) => {
-                          if (item.itemType === "event") {
-                            return (
-                              <EventCard
-                                key={`ev-${item.id}`}
-                                event={item}
-                                onPress={(eventData) =>
-                                  navigation.navigate("EventDetails", {
-                                    eventId: eventData.id,
-                                    eventData,
-                                  })
-                                }
-                                onComment={(id) => openCommentsModal(id, "event")}
-                              />
-                            );
-                          } else {
-                            return (
-                              <View
-                                key={`plan-${item.id}-${item.role}`}
-                                style={{ paddingHorizontal: 16 }}
-                              >
-                                <OpenPlanCard
-                                  plan={item}
-                                  currentUserId={profile?.id}
-                                  onPress={(id) =>
-                                    navigation.navigate("PlanDetail", {
-                                      planId: id,
-                                    })
-                                  }
-                                  onRequestPress={(id) =>
-                                    setPlanRequestSheet({
-                                      visible: true,
-                                      planId: id,
-                                    })
-                                  }
-                                />
-                              </View>
-                            );
-                          }
-                        })}
-                        {renderedEventsLimit < allEventsAndPlans.length && (
-                          <View style={{ paddingVertical: 20, alignItems: "center" }}>
-                            <SnooLoader size="small" color={PRIMARY_COLOR} />
-                          </View>
-                        )}
-                      </>
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={[styles.filterPill, isActive && styles.filterPillActive]}
+                        onPress={() => {
+                          HapticsService.triggerImpactLight();
+                          setEventsFilter(opt.value);
+                        }}
+                      >
+                        <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
                     );
-                  })()}
+                  })}
+                </View>
 
-                  {/* Empty state */}
-                  {profileEvents.length === 0 &&
-                    profilePlans.hosted.length === 0 &&
-                    profilePlans.attending.length === 0 && (
+                {loadingEvents ? (
+                  <View style={profileTabStyles.loadingWrap}>
+                    <SnooLoader size="large" color={PRIMARY_COLOR} />
+                  </View>
+                ) : (
+                  <>
+                    {visibleEvents.map((item) => {
+                      if (item.itemType === "event") {
+                        return (
+                          <EventCard
+                            key={`ev-${item.id}`}
+                            event={item}
+                            onPress={(eventData) =>
+                              navigation.navigate("EventDetails", {
+                                eventId: eventData.id,
+                                eventData,
+                              })
+                            }
+                            onComment={(id) => openCommentsModal(id, "event")}
+                          />
+                        );
+                      } else {
+                        return (
+                          <View
+                            key={`plan-${item.id}-${item.role}`}
+                            style={{ paddingHorizontal: 16 }}
+                          >
+                            <OpenPlanCard
+                              plan={item}
+                              currentUserId={profile?.id}
+                              onPress={(id) =>
+                                navigation.navigate("PlanDetail", {
+                                  planId: id,
+                                })
+                              }
+                              onRequestPress={(id) =>
+                                setPlanRequestSheet({
+                                  visible: true,
+                                  planId: id,
+                                })
+                              }
+                              onShare={(plan) => {
+                                setSharingPlan(plan);
+                                setShareModalVisible(true);
+                              }}
+                            />
+                          </View>
+                        );
+                      }
+                    })}
+                    {renderedEventsLimit < filteredEventsAndPlans.length && (
+                      <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                        <SnooLoader size="small" color={PRIMARY_COLOR} />
+                      </View>
+                    )}
+
+                    {/* Empty state */}
+                    {filteredEventsAndPlans.length === 0 && (
                       <EmptyEventsState
                         isOwnProfile={isOwnProfile}
-                        title="No events yet"
-                        subtitle="Events and plans you host or attend will show here."
+                        title={
+                          eventsFilter === "events"
+                            ? "No events found"
+                            : eventsFilter === "plans"
+                            ? "No open plans found"
+                            : "No events yet"
+                        }
+                        subtitle={
+                          eventsFilter === "events"
+                            ? "You aren't attending or hosting any events."
+                            : eventsFilter === "plans"
+                            ? "You aren't attending or hosting any open plans."
+                            : "Events and plans you host or attend will show here."
+                        }
                       />
                     )}
-                </>
-              )}
-            </View>
-          )}
+                  </>
+                )}
+              </View>
+            );
+          })()}
 
           {planRequestSheet && (
             <RequestBottomSheet
@@ -2862,6 +2907,12 @@ export default function MemberProfileScreen({ navigation }) {
             // IMPORTANT: Modal should remain open - don't change commentsModalState
           }}
           navigation={navigation}
+        />
+
+        <ShareModal
+          visible={shareModalVisible}
+          onClose={() => setShareModalVisible(false)}
+          post={sharingPlan}
         />
 
         <AccountSwitcherModal

@@ -20,6 +20,7 @@ import PlanCropImage from './PlanCropImage';
 import SnooLoader from '../../components/ui/SnooLoader';
 import ReportSheet from '../../components/ReportSheet';
 import SwipeableModal from '../../components/modals/SwipeableModal';
+import ShareModal from '../../components/ShareModal';
 
 const CARD_PADDING = 16;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -114,6 +115,7 @@ export default function PlanDetailScreen({ navigation, route }) {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [reportSheetVisible, setReportSheetVisible] = useState(false);
   const [sharedCommSheetOpen, setSharedCommSheetOpen] = useState(false);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
 
   const loadPlan = useCallback(async () => {
     try {
@@ -157,15 +159,9 @@ export default function PlanDetailScreen({ navigation, route }) {
     }
   }, [isLiked, likeCount, planId]);
 
-  const handleShare = useCallback(async () => {
-    try {
-      await Share.share({
-        message: `Check out this open plan "${plan?.title || 'Open Plan'}" on SnooSpace!`,
-      });
-    } catch (err) {
-      console.error('[PlanDetailScreen] Share error:', err.message);
-    }
-  }, [plan?.title]);
+  const handleShare = useCallback(() => {
+    setShareModalVisible(true);
+  }, []);
 
   const handleOpenMap = useCallback(() => {
     if (!plan?.location_private) return;
@@ -312,29 +308,67 @@ export default function PlanDetailScreen({ navigation, route }) {
                 <PlanCropImage
                   activityType={plan.activity_type}
                   containerW={CARD_WIDTH}
-                  height={160}
+                  height={240}
                 />
               )}
-            </View>
-
-
-            {/* Top row: activity tag + gender + cost */}
-            <View style={styles.topRow}>
-
-              <View style={styles.topRowLeft}>
-                <View style={[styles.pill, { backgroundColor: activityStyle.bg }]}>
-                  <Text style={[styles.pillText, { color: activityStyle.text }]}>
+              {/* Activity & Gender overlays — bottom-left */}
+              <View style={styles.bannerOverlaysBottomLeft}>
+                <View style={[styles.activityPillOverlay, { backgroundColor: activityStyle.bg }]}>
+                  <Text style={[styles.activityPillText, { color: activityStyle.text }]}>
                     {`${ACTIVITY_EMOJIS[activityKey] || ACTIVITY_EMOJIS.other} ${activityLabel}`}
                   </Text>
                 </View>
                 {showGenderBadge && (
-                  <View style={[styles.pill, { backgroundColor: genderBadgeStyle.bg, marginLeft: 6 }]}>
-                    <Text style={[styles.pillText, { color: genderBadgeStyle.text }]}>{genderBadgeStyle.label}</Text>
+                  <View style={[styles.genderPillOverlay, { backgroundColor: genderBadgeStyle.bg }]}>
+                    <Text style={[styles.genderPillText, { color: genderBadgeStyle.text }]}>
+                      {genderBadgeStyle.label}
+                    </Text>
                   </View>
                 )}
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <View style={[styles.pill, { backgroundColor: costCfg.bg }]}>
+            </View>
+
+            {/* Main Row: Left Info Column + Right Cost Container */}
+            <View style={styles.topInfoRow}>
+              {/* Left Column: Title + Host details */}
+              <View style={styles.leftInfoCol}>
+                <Text style={styles.title} numberOfLines={2}>{plan.title}</Text>
+
+                {/* Host row — inline with avatar */}
+                <TouchableOpacity
+                  style={styles.hostRowInline}
+                  onPress={() => {
+                    if (plan.created_by) {
+                      navigation.navigate("MemberPublicProfile", { memberId: plan.created_by });
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  {plan.host_profile?.profile_photo_url ? (
+                    <Image
+                      source={{ uri: plan.host_profile.profile_photo_url }}
+                      style={styles.hostAvatar}
+                    />
+                  ) : (
+                    <View style={styles.hostAvatarFallback}>
+                      <Text style={styles.hostInitial}>
+                        {(plan.host_profile?.name || '?')[0].toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                  <Text style={styles.hostedByText}>
+                    Hosted by{' '}
+                    <Text style={styles.hostNameBold}>{plan.host_profile?.name || 'Someone'}</Text>
+                  </Text>
+                  {plan.host_profile?.is_verified && (
+                    <BadgeCheck size={14} color="#2962FF" strokeWidth={2} style={{ marginLeft: 4 }} />
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* Right Cost Column */}
+              <View style={styles.costContainer}>
+                <View style={[styles.costPill, { backgroundColor: costCfg.bg }]}>
                   <Text style={[styles.pillText, { color: costCfg.text }]}>{costPillLabel}</Text>
                 </View>
                 {priceText ? (
@@ -342,43 +376,6 @@ export default function PlanDetailScreen({ navigation, route }) {
                 ) : null}
               </View>
             </View>
-
-            {/* Title */}
-            <Text style={styles.title}>{plan.title}</Text>
-
-            {/* Host row — inline with avatar */}
-            <TouchableOpacity
-              style={styles.hostRow}
-              onPress={() => {
-                if (plan.created_by) {
-                  navigation.navigate("MemberPublicProfile", { memberId: plan.created_by });
-                }
-              }}
-              activeOpacity={0.7}
-            >
-              {plan.host_profile?.profile_photo_url ? (
-                <Image
-                  source={{ uri: plan.host_profile.profile_photo_url }}
-                  style={styles.hostAvatar}
-                />
-              ) : (
-                <View style={styles.hostAvatarFallback}>
-                  <Text style={styles.hostInitial}>
-                    {(plan.host_profile?.name || '?')[0].toUpperCase()}
-                  </Text>
-                </View>
-              )}
-              <Text style={styles.hostedByText}>
-                Hosted by{' '}
-                <Text style={styles.hostNameBold}>{plan.host_profile?.name || 'Someone'}</Text>
-              </Text>
-              {plan.host_profile?.is_verified && (
-                <BadgeCheck size={14} color="#2962FF" strokeWidth={2} style={{ marginLeft: 4 }} />
-              )}
-            </TouchableOpacity>
-
-            {/* Divider */}
-            <View style={styles.divider} />
 
             {/* Time & location — inline */}
             <View style={styles.metaRow}>
@@ -524,31 +521,31 @@ export default function PlanDetailScreen({ navigation, route }) {
               {/* Like */}
               <Pressable onPress={handleLike} style={styles.engItem}>
                 <Heart
-                  size={18}
-                  color={isLiked ? '#E53E3E' : '#6B7280'}
-                  fill={isLiked ? '#E53E3E' : 'transparent'}
+                  size={22}
+                  color={isLiked ? COLORS.error : '#5e8d9b'}
+                  fill={isLiked ? COLORS.error : 'transparent'}
                   strokeWidth={2}
                 />
-                <Text style={[styles.engCount, isLiked && styles.likedCount]}>
+                <Text style={[styles.engCount, isLiked && { color: COLORS.error }]}>
                   {formatCount(likeCount)}
                 </Text>
               </Pressable>
 
               {/* Comment */}
               <Pressable onPress={() => setCommentsModalVisible(true)} style={styles.engItem}>
-                <MessageCircle size={18} color="#6B7280" strokeWidth={2} />
+                <MessageCircle size={22} color="#5e8d9b" strokeWidth={2} />
                 <Text style={styles.engCount}>{formatCount(plan.comment_count)}</Text>
               </Pressable>
 
               {/* Views */}
               <View style={styles.engItem}>
-                <ChartNoAxesCombined size={18} color="#6B7280" strokeWidth={2} />
+                <ChartNoAxesCombined size={22} color="#5e8d9b" strokeWidth={2} />
                 <Text style={styles.engCount}>{formatCount(plan.view_count)}</Text>
               </View>
 
               {/* Share */}
               <Pressable onPress={handleShare} style={styles.engItem}>
-                <Send size={18} color="#6B7280" strokeWidth={2} />
+                <Send size={22} color="#5e8d9b" strokeWidth={2} />
               </Pressable>
             </View>
 
@@ -673,6 +670,12 @@ export default function PlanDetailScreen({ navigation, route }) {
           ))}
         </ScrollView>
       </SwipeableModal>
+
+      <ShareModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        post={plan}
+      />
     </SafeAreaView>
   );
 }
@@ -712,31 +715,72 @@ const styles = StyleSheet.create({
   // Banner section at top of card
   bannerContainer: {
     marginHorizontal: -CARD_PADDING,
-    marginBottom: 14,
+    marginBottom: 10,
     overflow: 'hidden',
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
+    position: 'relative',
   },
   bannerImage: {
     width: CARD_WIDTH,
-    height: 160,
+    height: 240,
+  },
+  bannerOverlaysBottomLeft: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    zIndex: 10,
+  },
+  activityPillOverlay: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  activityPillText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
+  },
+  genderPillOverlay: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  genderPillText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
   },
 
-  // Top row
-  topRow: {
+  // Combined Info Row (Title + Host on left, Cost on right)
+  topInfoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    marginTop: 10,
     marginBottom: 10,
+    gap: 16,
   },
-  topRowLeft: {
+  leftInfoCol: {
+    flex: 1,
+  },
+  title: {
+    fontFamily: FONTS.primary,
+    fontSize: 17,
+    color: COLORS.textPrimary,
+    lineHeight: 23,
+  },
+  hostRowInline: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
-    flexWrap: 'wrap',
-    gap: 6,
+    marginTop: 4,
   },
-  pill: {
+  costContainer: {
+    alignItems: 'flex-end',
+    flexShrink: 0,
+  },
+  costPill: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
@@ -745,42 +789,35 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 12,
   },
-
-  // Title
-  title: {
-    fontFamily: FONTS.primary,
-    fontSize: 17,
+  costPriceBelow: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
     color: COLORS.textPrimary,
-    lineHeight: 23,
-    marginBottom: 8,
-  },
-
-  // Host row — inline style matching image 1
-  hostRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+    marginTop: 2,
   },
   hostAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 6,
-    overflow: 'hidden',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2.5,
+    borderColor: COLORS.primary,
+    marginRight: 8,
   },
   hostAvatarFallback: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#EEF2FF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 6,
+    marginRight: 8,
+    borderWidth: 2.5,
+    borderColor: COLORS.primary,
   },
   hostInitial: {
     fontFamily: FONTS.semiBold,
-    fontSize: 11,
-    color: '#2962FF',
+    fontSize: 13,
+    color: COLORS.primary,
   },
   hostedByText: {
     fontFamily: FONTS.regular,
@@ -796,14 +833,14 @@ const styles = StyleSheet.create({
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: COLORS.border,
-    marginVertical: 12,
+    marginVertical: 10,
   },
 
   // Meta row — time + location inline
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
     flexWrap: 'wrap',
   },
   metaItem: {
@@ -825,7 +862,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF2FF',
     borderRadius: 10,
     padding: 10,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   privateLocationText: {
     fontFamily: FONTS.semiBold,

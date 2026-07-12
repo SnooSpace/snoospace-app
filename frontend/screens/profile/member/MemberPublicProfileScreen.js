@@ -80,6 +80,7 @@ import EmptyEventsState from "../../../components/EmptyEventsState";
 import CollegeChip from "../../../components/CollegeChip";
 import OpenPlanCard from "../../../components/plans/OpenPlanCard";
 import RequestBottomSheet from "../../plans/RequestBottomSheet";
+import ShareModal from "../../../components/ShareModal";
 import CommunityVoiceBox, { VoicePostCard } from "../../../components/CommunityVoiceBox";
 import EmptyCommunityState from "../../../components/EmptyCommunityState";
 import OpportunityFeedCard from "../../../components/OpportunityFeedCard";
@@ -328,6 +329,8 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const [planRequestSheet, setPlanRequestSheet] = useState(null);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const eventsFetchedRef = useRef(false);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [sharingPlan, setSharingPlan] = useState(null);
 
   // Community Posts tab state (Creator Mode)
   const [voicePosts, setVoicePosts] = useState([]);
@@ -335,6 +338,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
   const communityPostsFetchedRef = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
   const [communityFilter, setCommunityFilter] = useState("all"); // 'all' | 'owner' | 'members'
+  const [eventsFilter, setEventsFilter] = useState("all"); // 'all' | 'events' | 'plans'
 
   const scrollViewRef = useRef(null);
   const scrollToPostIdRef = useRef(route?.params?.postId);
@@ -2406,92 +2410,135 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           )}
 
           {/* Events Tab Content */}
-          {renderedProfileTab === 'events' && (
-            <View
-              style={pubTabStyles.eventsContainer}
-              onLayout={(e) => {
-                tabContentYRef.current = e.nativeEvent.layout.y;
-              }}
-            >
-              {loadingEvents ? (
-                <View style={pubTabStyles.loadingWrap}>
-                  <SnooLoader size="large" color={PRIMARY_COLOR} />
-                </View>
-              ) : (
-                <>
-                  {(() => {
-                    const allEventsAndPlans = [
-                      ...profileEvents.map((ev) => ({ ...ev, itemType: "event" })),
-                      ...[...profilePlans.hosted, ...profilePlans.attending].map((plan) => ({ ...plan, itemType: "plan" }))
-                    ];
-                    const visibleEvents = allEventsAndPlans.slice(0, renderedEventsLimit);
+          {renderedProfileTab === 'events' && (() => {
+            const allEventsAndPlans = [
+              ...profileEvents.map((ev) => ({ ...ev, itemType: "event" })),
+              ...[...profilePlans.hosted, ...profilePlans.attending].map((plan) => ({ ...plan, itemType: "plan" }))
+            ];
+            const filteredEventsAndPlans = allEventsAndPlans.filter((item) => {
+              if (eventsFilter === "all") return true;
+              if (eventsFilter === "events") return item.itemType === "event";
+              if (eventsFilter === "plans") return item.itemType === "plan";
+              return true;
+            });
+            const visibleEvents = filteredEventsAndPlans.slice(0, renderedEventsLimit);
 
+            return (
+              <View
+                style={pubTabStyles.eventsContainer}
+                onLayout={(e) => {
+                  tabContentYRef.current = e.nativeEvent.layout.y;
+                }}
+              >
+                {/* Filter pills */}
+                <View style={styles.filterContainer}>
+                  {[
+                    { label: "All", value: "all" },
+                    { label: "Events", value: "events" },
+                    { label: "Open Plans", value: "plans" },
+                  ].map((opt) => {
+                    const isActive = eventsFilter === opt.value;
                     return (
-                      <>
-                        {visibleEvents.map((item) => {
-                          if (item.itemType === "event") {
-                            return (
-                              <View
-                                key={`ev-${item.id}`}
-                                onLayout={(e) => {
-                                  if (String(item.id) === String(scrollToPostIdRef.current)) {
-                                    scrollToPostIdRef.current = null;
-                                    const itemY = e.nativeEvent.layout.y;
-                                    const targetY = tabContentYRef.current + itemY;
-                                    setTimeout(() => {
-                                      scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
-                                    }, 100);
-                                  }
-                                }}
-                              >
-                                <EventCard
-                                  event={item}
-                                  onPress={(eventData) => navigation.navigate('EventDetails', { eventId: eventData.id, eventData })}
-                                  onComment={(id) => openCommentsModal(id, "event")}
-                                />
-                              </View>
-                            );
-                          } else {
-                            return (
-                              <View key={`plan-${item.id}-${item.role ?? 'member'}`} style={{ paddingHorizontal: 16 }}>
-                                <OpenPlanCard
-                                  plan={item}
-                                  currentUserId={viewerId}
-                                  onPress={(id) => navigation.navigate('PlanDetail', { planId: id })}
-                                  onRequestPress={(id) => setPlanRequestSheet({ planId: id, planTitle: item.title })}
-                                  onLike={async (planId, liked) => {
-                                    const token = await getAuthToken();
-                                    if (liked) await likePlan(planId, token);
-                                    else await unlikePlan(planId, token);
-                                  }}
-                                  onComment={(id) => openCommentsModal(id, "plan")}
-                                  navigation={navigation}
-                                />
-                              </View>
-                            );
-                          }
-                        })}
-                        {renderedEventsLimit < allEventsAndPlans.length && (
-                          <View style={{ paddingVertical: 20, alignItems: "center" }}>
-                            <SnooLoader size="small" color={PRIMARY_COLOR} />
-                          </View>
-                        )}
-                      </>
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={[styles.filterPill, isActive && styles.filterPillActive]}
+                        onPress={() => {
+                          HapticsService.triggerImpactLight();
+                          setEventsFilter(opt.value);
+                        }}
+                      >
+                        <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
                     );
-                  })()}
+                  })}
+                </View>
 
-                  {/* Empty state */}
-                  {profileEvents.length === 0 && profilePlans.hosted.length === 0 && profilePlans.attending.length === 0 && (
-                    <EmptyEventsState
-                      isOwnProfile={false}
-                      title="No events yet"
-                      subtitle="Events and plans this member attends will show here."
-                    />
-                  )}
-                </>
-              )}
-            </View>
-          )}
+                {loadingEvents ? (
+                  <View style={pubTabStyles.loadingWrap}>
+                    <SnooLoader size="large" color={PRIMARY_COLOR} />
+                  </View>
+                ) : (
+                  <>
+                    {visibleEvents.map((item) => {
+                      if (item.itemType === "event") {
+                        return (
+                          <View
+                            key={`ev-${item.id}`}
+                            onLayout={(e) => {
+                              if (String(item.id) === String(scrollToPostIdRef.current)) {
+                                scrollToPostIdRef.current = null;
+                                const itemY = e.nativeEvent.layout.y;
+                                const targetY = tabContentYRef.current + itemY;
+                                setTimeout(() => {
+                                  scrollViewRef.current?.scrollTo({ y: Math.max(0, targetY - 60), animated: true });
+                                }, 100);
+                              }
+                            }}
+                          >
+                            <EventCard
+                              event={item}
+                              onPress={(eventData) => navigation.navigate('EventDetails', { eventId: eventData.id, eventData })}
+                              onComment={(id) => openCommentsModal(id, "event")}
+                            />
+                          </View>
+                        );
+                      } else {
+                        return (
+                          <View key={`plan-${item.id}-${item.role ?? 'member'}`} style={{ paddingHorizontal: 16 }}>
+                            <OpenPlanCard
+                              plan={item}
+                              currentUserId={viewerId}
+                              onPress={(id) => navigation.navigate('PlanDetail', { planId: id })}
+                              onRequestPress={(id) => setPlanRequestSheet({ planId: id, planTitle: item.title })}
+                              onLike={async (planId, liked) => {
+                                const token = await getAuthToken();
+                                if (liked) await likePlan(planId, token);
+                                else await unlikePlan(planId, token);
+                              }}
+                              onComment={(id) => openCommentsModal(id, "plan")}
+                              onShare={(plan) => {
+                                setSharingPlan(plan);
+                                setShareModalVisible(true);
+                              }}
+                              navigation={navigation}
+                            />
+                          </View>
+                        );
+                      }
+                    })}
+                    {renderedEventsLimit < filteredEventsAndPlans.length && (
+                      <View style={{ paddingVertical: 20, alignItems: "center" }}>
+                        <SnooLoader size="small" color={PRIMARY_COLOR} />
+                      </View>
+                    )}
+
+                    {/* Empty state */}
+                    {filteredEventsAndPlans.length === 0 && (
+                      <EmptyEventsState
+                        isOwnProfile={false}
+                        title={
+                          eventsFilter === "events"
+                            ? "No events found"
+                            : eventsFilter === "plans"
+                            ? "No open plans found"
+                            : "No events yet"
+                        }
+                        subtitle={
+                          eventsFilter === "events"
+                            ? "This member isn't attending or hosting any events."
+                            : eventsFilter === "plans"
+                            ? "This member isn't attending or hosting any open plans."
+                            : "Events and plans this member attends will show here."
+                        }
+                      />
+                    )}
+                  </>
+                )}
+              </View>
+            );
+          })()}
         </ScrollView>
       )}
 
@@ -2652,6 +2699,12 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
           navigation={navigation}
         />
       )}
+
+      <ShareModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        post={sharingPlan}
+      />
 
       <CustomAlertModal onClose={hideAlert} {...alertConfig} />
 

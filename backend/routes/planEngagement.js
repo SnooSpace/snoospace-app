@@ -10,5 +10,6 @@ router.post('/interest', authMiddleware, planEngagementController.togglePlanInte
 router.get('/comments', authMiddleware, planEngagementController.getComments);
 router.post('/comments', authMiddleware, planEngagementController.addComment);
 router.delete('/comments/:cmtId', authMiddleware, planEngagementController.deleteComment);
+router.post('/share', authMiddleware, planEngagementController.sharePlan);
 
 module.exports = router;

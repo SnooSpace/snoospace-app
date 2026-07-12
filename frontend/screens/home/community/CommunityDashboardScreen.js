@@ -269,19 +269,7 @@ export default function CommunityDashboardScreen({ navigation }) {
     }
   };
   const handleInviteMembers = () => {
-    setModalConfig({
-      visible: true,
-      title: "Invite Members",
-      message: "Feature coming soon!",
-      actions: [
-        {
-          text: "OK",
-          style: "primary",
-          onPress: () =>
-            setModalConfig((prev) => ({ ...prev, visible: false })),
-        },
-      ],
-    });
+    navigation.navigate('InviteMembers');
   };
 
   const handleScanTickets = () => {

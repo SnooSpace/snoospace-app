@@ -1777,39 +1777,85 @@ async function getMemberPublicPlans(req, res) {
     const hostedResult = await pool.query(
       `SELECT
          op.id,
+         op.created_by,
          op.title,
          op.activity_type,
          op.custom_activity_label,
+         op.cost_type,
+         op.cost_amount_paise,
+         op.max_accepted,
          op.scheduled_at,
          op.location_public,
          op.status,
-         'host' AS role
+         'host' AS role,
+         COALESCE(op.like_count, 0) AS like_count,
+         COALESCE(op.comment_count, 0) AS comment_count,
+         COALESCE(op.view_count, 0) AS view_count,
+         (SELECT COUNT(*)::int FROM open_plan_requests WHERE plan_id = op.id AND status = 'approved') as accepted_count,
+         (SELECT COUNT(*)::int FROM open_plan_requests WHERE plan_id = op.id AND status = 'pending') as pending_count,
+         json_build_object(
+           'id', m.id,
+           'name', m.name,
+           'is_verified', m.is_verified,
+           'profile_photo_url', m.profile_photo_url
+         ) as host_profile,
+         CASE WHEN EXISTS (
+           SELECT 1 FROM open_plan_likes opl WHERE opl.plan_id = op.id AND opl.user_id = $2
+         ) THEN true ELSE false END AS is_liked,
+         CASE WHEN EXISTS (
+           SELECT 1 FROM open_plan_interests opi WHERE opi.plan_id = op.id AND opi.user_id = $2
+         ) THEN true ELSE false END AS is_interested,
+         (SELECT status FROM open_plan_requests WHERE plan_id = op.id AND requester_id = $2 LIMIT 1) as my_request_status
        FROM open_plans op
+       JOIN members m ON m.id = op.created_by
        WHERE op.created_by = $1
        ORDER BY op.scheduled_at DESC
        LIMIT 30`,
-      [targetId]
+      [targetId, authUserId]
     );
 
     // Attending plans (approved requests, not their own)
     const attendingResult = await pool.query(
       `SELECT
          op.id,
+         op.created_by,
          op.title,
          op.activity_type,
          op.custom_activity_label,
+         op.cost_type,
+         op.cost_amount_paise,
+         op.max_accepted,
          op.scheduled_at,
          op.location_public,
          op.status,
-         'attendee' AS role
+         'attendee' AS role,
+         COALESCE(op.like_count, 0) AS like_count,
+         COALESCE(op.comment_count, 0) AS comment_count,
+         COALESCE(op.view_count, 0) AS view_count,
+         (SELECT COUNT(*)::int FROM open_plan_requests WHERE plan_id = op.id AND status = 'approved') as accepted_count,
+         (SELECT COUNT(*)::int FROM open_plan_requests WHERE plan_id = op.id AND status = 'pending') as pending_count,
+         json_build_object(
+           'id', m.id,
+           'name', m.name,
+           'is_verified', m.is_verified,
+           'profile_photo_url', m.profile_photo_url
+         ) as host_profile,
+         CASE WHEN EXISTS (
+           SELECT 1 FROM open_plan_likes opl WHERE opl.plan_id = op.id AND opl.user_id = $2
+         ) THEN true ELSE false END AS is_liked,
+         CASE WHEN EXISTS (
+           SELECT 1 FROM open_plan_interests opi WHERE opi.plan_id = op.id AND opi.user_id = $2
+         ) THEN true ELSE false END AS is_interested,
+         (SELECT status FROM open_plan_requests WHERE plan_id = op.id AND requester_id = $2 LIMIT 1) as my_request_status
        FROM open_plan_requests opr
        JOIN open_plans op ON op.id = opr.plan_id
+       JOIN members m ON m.id = op.created_by
        WHERE opr.requester_id = $1
          AND opr.status = 'approved'
          AND op.created_by != $1
        ORDER BY op.scheduled_at DESC
        LIMIT 30`,
-      [targetId]
+      [targetId, authUserId]
     );
 
     res.json({

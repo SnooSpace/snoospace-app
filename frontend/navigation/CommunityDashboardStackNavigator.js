@@ -9,6 +9,7 @@ import EventDetailsScreen from "../screens/events/EventDetailsScreen";
 import ShareTicketScreen from "../screens/events/ShareTicketScreen";
 import AudienceIntelligenceScreen from "../screens/home/community/AudienceIntelligenceScreen";
 import EventQualityScreen from "../screens/home/community/EventQualityScreen";
+import InviteMembersScreen from "../screens/home/community/InviteMembersScreen";
 
 
 import TabSwipeHandler from "../components/navigation/TabSwipeHandler";
@@ -77,6 +78,7 @@ export default function CommunityDashboardStackNavigator() {
       <Stack.Screen name="ShareTicket" component={ShareTicketScreen} />
       <Stack.Screen name="AudienceIntelligence" component={AudienceIntelligenceScreen} />
       <Stack.Screen name="EventQuality" component={EventQualityScreen} />
+      <Stack.Screen name="InviteMembers" component={InviteMembersScreen} />
 
     </Stack.Navigator>
   );

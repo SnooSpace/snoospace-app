@@ -258,7 +258,7 @@ const OpenPlanCard = ({
   const [isSaving,      setIsSaving]      = useState(false);
 
   // Layout width for CropImage
-  const [cardW, setCardW] = useState(CARD_WIDTH);
+  const [cardW, setCardW] = useState(compact ? (SCREEN_WIDTH - 48) / 2 : CARD_WIDTH);
 
   // ── Derived plan fields ──────────────────────────────────────────────────
 

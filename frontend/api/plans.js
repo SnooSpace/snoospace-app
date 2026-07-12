@@ -95,6 +95,10 @@ export async function togglePlanInterest(planId, token) {
   return apiPost(`/plans/${planId}/interest`, {}, 10000, token);
 }
 
+export async function sharePlan(planId, recipients, shareType, message, token) {
+  return apiPost(`/plans/${planId}/share`, { recipients, shareType, message }, 15000, token);
+}
+
 // ─── Blocks ─────────────────────────────────────────────────────────────────
 
 export async function blockUser(userId, token) {

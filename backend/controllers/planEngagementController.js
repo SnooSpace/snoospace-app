@@ -337,4 +337,183 @@ async function getInterestedPlans(req, res) {
   }
 }
 
-module.exports = { likePlan, unlikePlan, recordView, getComments, addComment, deleteComment, togglePlanInterest, getInterestedPlans };
+// ---------------------------------------------------------------------------
+// POST /plans/:planId/share
+// ---------------------------------------------------------------------------
+async function sharePlan(req, res) {
+  try {
+    const pool = req.app.locals.pool;
+    const planId = parseInt(req.params.planId, 10);
+    const { recipients, shareType, message } = req.body;
+    const userId = req.user.id;
+    const userType = req.user.type;
+
+    if (!['internal', 'copy_link'].includes(shareType)) {
+      return res.status(400).json({ error: 'Invalid share type' });
+    }
+
+    // Ensure share_count column exists (self-healing)
+    await pool.query(`ALTER TABLE open_plans ADD COLUMN IF NOT EXISTS share_count INTEGER NOT NULL DEFAULT 0`).catch(() => {});
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS open_plan_shares (
+        id SERIAL PRIMARY KEY,
+        plan_id INTEGER REFERENCES open_plans(id) ON DELETE CASCADE,
+        sharer_id INTEGER NOT NULL,
+        sharer_type TEXT NOT NULL,
+        share_type TEXT NOT NULL,
+        recipient_id INTEGER,
+        recipient_type TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `).catch(() => {});
+
+    // Verify plan exists
+    const planCheck = await pool.query(
+      `SELECT op.id, op.title, op.activity_type, op.custom_activity_label, op.scheduled_at,
+              op.location_public, op.created_by,
+              m.name AS host_name, m.profile_photo_url AS host_photo
+       FROM open_plans op
+       INNER JOIN members m ON op.created_by = m.id
+       WHERE op.id = $1`,
+      [planId]
+    );
+
+    if (planCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+
+    const plan = planCheck.rows[0];
+
+    if (shareType === 'copy_link') {
+      await pool.query(
+        `INSERT INTO open_plan_shares (plan_id, sharer_id, sharer_type, share_type)
+         VALUES ($1, $2, $3, $4)`,
+        [planId, userId, userType, 'copy_link']
+      );
+
+      await pool.query(
+        `UPDATE open_plans SET share_count = COALESCE(share_count, 0) + 1 WHERE id = $1`,
+        [planId]
+      );
+
+      const updated = await pool.query('SELECT share_count FROM open_plans WHERE id = $1', [planId]);
+      return res.json({ success: true, shareCount: updated.rows[0]?.share_count || 1 });
+    }
+
+    if (!recipients || !Array.isArray(recipients) || recipients.length === 0) {
+      return res.status(400).json({ error: 'Recipients required for internal sharing' });
+    }
+
+    const planPreview = {
+      planId: plan.id,
+      title: plan.title,
+      activityType: plan.activity_type,
+      customActivityLabel: plan.custom_activity_label,
+      scheduledAt: plan.scheduled_at,
+      locationPublic: plan.location_public,
+      hostName: plan.host_name,
+      hostPhoto: plan.host_photo,
+      created_by: plan.created_by,
+    };
+
+    const getOrCreateConversation = async (p1Id, p1Type, p2Id, p2Type) => {
+      const id1 = Number(p1Id); const id2 = Number(p2Id);
+      let a1Id, a1Type, a2Id, a2Type;
+      if (id1 < id2 || (id1 === id2 && p1Type < p2Type)) {
+        a1Id = p1Id; a1Type = p1Type; a2Id = p2Id; a2Type = p2Type;
+      } else {
+        a1Id = p2Id; a1Type = p2Type; a2Id = p1Id; a2Type = p1Type;
+      }
+      const ins = await pool.query(
+        `INSERT INTO conversations (participant1_id, participant1_type, participant2_id, participant2_type)
+         VALUES ($1, $2, $3, $4) ON CONFLICT (participant1_id, participant1_type, participant2_id, participant2_type) DO NOTHING RETURNING id`,
+        [a1Id, a1Type, a2Id, a2Type]
+      );
+      if (ins.rows.length > 0) return ins.rows[0].id;
+      const sel = await pool.query(
+        `SELECT id FROM conversations WHERE participant1_id=$1 AND participant1_type=$2
+         AND participant2_id=$3 AND participant2_type=$4`,
+        [a1Id, a1Type, a2Id, a2Type]
+      );
+      return sel.rows[0].id;
+    };
+
+    const blockedRecipients = [];
+    const messageText = message || 'Shared a plan';
+
+    for (const recipient of recipients) {
+      if (recipient.type === 'group') {
+        const convId = recipient.conversationId;
+        if (!convId) { blockedRecipients.push(recipient.id); continue; }
+        const cpCheck = await pool.query(
+          `SELECT cp.role, c.messaging_restricted FROM conversations c
+           JOIN conversation_participants cp ON cp.conversation_id = c.id
+             AND cp.participant_id = $1 AND cp.participant_type = $2
+           WHERE c.id = $3 AND c.is_group = true`,
+          [userId, userType, convId]
+        );
+        if (cpCheck.rows.length === 0) { blockedRecipients.push(recipient.id); continue; }
+        const { role, messaging_restricted } = cpCheck.rows[0];
+        if (messaging_restricted && role !== 'admin') { blockedRecipients.push(recipient.id); continue; }
+        await pool.query(
+          `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type, metadata)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [convId, userId, userType, messageText, 'plan_share', JSON.stringify(planPreview)]
+        );
+        await pool.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1`, [convId]);
+        await pool.query(
+          `INSERT INTO open_plan_shares (plan_id, sharer_id, sharer_type, share_type, recipient_id, recipient_type)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [planId, userId, userType, 'internal', convId, 'group']
+        );
+        continue;
+      }
+
+      const conversationId = await getOrCreateConversation(userId, userType, recipient.id, recipient.type);
+      await pool.query(`UPDATE conversations SET last_message_at = NOW() WHERE id = $1`, [conversationId]);
+      await pool.query(
+        `INSERT INTO messages (conversation_id, sender_id, sender_type, message_text, message_type, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [conversationId, userId, userType, messageText, 'plan_share', JSON.stringify(planPreview)]
+      );
+      await pool.query(
+        `INSERT INTO open_plan_shares (plan_id, sharer_id, sharer_type, share_type, recipient_id, recipient_type)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [planId, userId, userType, 'internal', recipient.id, recipient.type]
+      );
+    }
+
+    const successCount = recipients.length - blockedRecipients.length;
+    if (successCount === 0) {
+      return res.status(403).json({ error: 'Sharing is restricted. Only admins can share here.' });
+    }
+
+    await pool.query(
+      `UPDATE open_plans SET share_count = COALESCE(share_count, 0) + $1 WHERE id = $2`,
+      [successCount, planId]
+    );
+    const updated = await pool.query('SELECT share_count FROM open_plans WHERE id = $1', [planId]);
+
+    res.json({
+      success: true,
+      shareCount: updated.rows[0]?.share_count || successCount,
+      recipientCount: successCount,
+      blockedCount: blockedRecipients.length,
+    });
+  } catch (e) {
+    console.error('Error sharing plan:', e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+module.exports = {
+  likePlan,
+  unlikePlan,
+  recordView,
+  getComments,
+  addComment,
+  deleteComment,
+  togglePlanInterest,
+  getInterestedPlans,
+  sharePlan,
+};

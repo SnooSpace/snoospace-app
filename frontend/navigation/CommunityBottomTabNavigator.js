@@ -147,6 +147,7 @@ const getTabBarStyle = (route, customHiddenRoutes = []) => {
     "CommunityCreatePost",
     "CircleList",
     "CircleRequests",
+    "InviteMembers",
   ];
   const allHiddenRoutes = [...baseHiddenRoutes, ...customHiddenRoutes];
   
