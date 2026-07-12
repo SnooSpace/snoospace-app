@@ -57,7 +57,7 @@ async function getSharedCommunityName(pool, memberId1, memberId2) {
 // ---------------------------------------------------------------------------
 async function getSharedCommunities(pool, memberId1, memberId2) {
   const r = await pool.query(
-    `SELECT c.id, c.name FROM follows f1
+    `SELECT c.id, c.name, c.logo_url FROM follows f1
      JOIN follows f2
        ON f1.following_id = f2.following_id
       AND f1.following_type = 'community'

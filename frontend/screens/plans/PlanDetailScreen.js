@@ -648,8 +648,14 @@ export default function PlanDetailScreen({ navigation, route }) {
               }}
               activeOpacity={0.7}
             >
-              <View style={styles.commAvatarFallback}>
-                <Users size={16} color="#4F46E5" />
+              <View style={styles.commAvatarContainer}>
+                {comm.logo_url ? (
+                  <Image source={{ uri: comm.logo_url }} style={styles.commAvatar} />
+                ) : (
+                  <View style={styles.commAvatarFallback}>
+                    <Users size={16} color="#4F46E5" />
+                  </View>
+                )}
               </View>
               <View style={styles.commInfo}>
                 <Text style={styles.commName}>{comm.name}</Text>
@@ -1033,11 +1039,20 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.border,
     gap: 12,
   },
-  commAvatarFallback: {
+  commAvatarContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    overflow: 'hidden',
     backgroundColor: '#EEF2FF',
+  },
+  commAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  commAvatarFallback: {
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
