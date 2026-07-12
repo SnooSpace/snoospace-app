@@ -40,6 +40,7 @@ const EventListCard = ({
       event={item}
       onPress={onPress}
       onComment={onComment}
+      compact={true}
       style={{ marginBottom: 20 }}
     />
   );
@@ -81,101 +82,7 @@ const HOSTED_STATUS_COLORS = {
 
 
 
-// ─── AttendingPlanCard ────────────────────────────────────────────────────────
-const FULL_ACTIVITY_COLORS = {
-  sports:       { bg: '#FFF3E0', text: '#E65100' },
-  movies:       { bg: '#F3E5F5', text: '#6A1B9A' },
-  bar:          { bg: '#E8EAF6', text: '#303F9F' },
-  food:         { bg: '#FFF8E1', text: '#F57F17' },
-  cafe:         { bg: '#EFEBE9', text: '#4E342E' },
-  yoga:         { bg: '#E8F5E9', text: '#2E7D32' },
-  gym:          { bg: '#FCE4EC', text: '#880E4F' },
-  walk:         { bg: '#E0F2F1', text: '#00695C' },
-  rides:        { bg: '#E3F2FD', text: '#1565C0' },
-  live_music:   { bg: '#FCE4EC', text: '#C62828' },
-  study:        { bg: '#EDE7F6', text: '#4527A0' },
-  creative:     { bg: '#FFF9C4', text: '#F57F17' },
-  games:        { bg: '#E1F5FE', text: '#01579B' },
-  gaming:       { bg: '#E1F5FE', text: '#01579B' },
-  pet_friendly: { bg: '#F1F8E9', text: '#33691E' },
-  hangout:      { bg: '#E8F5E9', text: '#1B5E20' },
-  other:        { bg: '#F5F5F5', text: '#424242' },
-};
 
-const AttendingPlanCard = ({ item, onPress, onToggleInterest, isInterested }) => {
-  const actKey = FULL_ACTIVITY_COLORS[item.activity_type] ? item.activity_type : 'other';
-  const actStyle = FULL_ACTIVITY_COLORS[actKey];
-  const emoji = ACTIVITY_EMOJIS[item.activity_type] || ACTIVITY_EMOJIS.other;
-  const actLabel = item.activity_type === 'other'
-    ? (item.custom_activity_label || 'Other')
-    : item.activity_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-
-  const d = new Date(item.scheduled_at);
-  const isPast = d < new Date();
-  const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) +
-    ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
-
-  const hostName = item.host_profile?.name || item.host_name || 'Host';
-
-  const getCostLabel = () => {
-    if (item.cost_type === 'free') return 'Free';
-    if (item.cost_type === 'self_pay') return 'Self-pay';
-    if (item.cost_type === 'split') return item.cost_amount_paise ? `~₹${Math.round(item.cost_amount_paise / 100)} split` : 'Split';
-    if (item.cost_type === 'entry_fee') return item.cost_amount_paise ? `₹${Math.round(item.cost_amount_paise / 100)}` : 'Entry fee';
-    return null;
-  };
-  const costLabel = getCostLabel();
-
-  return (
-    <TouchableOpacity style={planCardStyles.card} onPress={() => onPress(item)} activeOpacity={0.88}>
-      <View style={planCardStyles.cardTop}>
-        <View style={planCardStyles.pillRow}>
-          <View style={[planCardStyles.pill, { backgroundColor: actStyle.bg }]}>
-            <Text style={[planCardStyles.pillText, { color: actStyle.text }]}>{`${emoji} ${actLabel}`}</Text>
-          </View>
-          {isPast && (
-            <View style={[planCardStyles.pill, { backgroundColor: '#F5F5F5' }]}>
-              <Text style={[planCardStyles.pillText, { color: '#616161' }]}>Past</Text>
-            </View>
-          )}
-        </View>
-        <TouchableOpacity onPress={() => onToggleInterest(item)} hitSlop={10} style={planCardStyles.bookmarkBtn}>
-          <Bookmark
-            size={18}
-            color={isInterested ? COLORS.primary : COLORS.textMuted}
-            fill={isInterested ? COLORS.primary : 'transparent'}
-            strokeWidth={2}
-          />
-        </TouchableOpacity>
-      </View>
-      <Text style={planCardStyles.title} numberOfLines={2}>{item.title}</Text>
-      <Text style={planCardStyles.meta}>{dateStr}{item.location_public ? ` · ${item.location_public}` : ''}</Text>
-      <View style={planCardStyles.footer}>
-        <Text style={planCardStyles.host}>Hosted by <Text style={planCardStyles.hostName}>{hostName}</Text></Text>
-        {costLabel ? <Text style={planCardStyles.cost}>{costLabel}</Text> : null}
-      </View>
-    </TouchableOpacity>
-  );
-};
-
-const planCardStyles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.surface, borderRadius: 16, padding: 14,
-    marginBottom: 12, ...SHADOWS.md, shadowOpacity: 0.05,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 },
-  pillRow: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', flex: 1 },
-  pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  pillText: { fontFamily: FONTS.medium, fontSize: 11 },
-  bookmarkBtn: { padding: 4, marginLeft: 8 },
-  title: { fontFamily: FONTS.semiBold, fontSize: 15, color: COLORS.textPrimary, marginBottom: 4 },
-  meta: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textSecondary, marginBottom: 6 },
-  footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  host: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textMuted, flex: 1 },
-  hostName: { fontFamily: FONTS.medium, color: COLORS.textSecondary },
-  cost: { fontFamily: FONTS.semiBold, fontSize: 13, color: COLORS.textPrimary },
-});
 
 // Card styles
 const cardStyles = StyleSheet.create({
@@ -648,6 +555,32 @@ export default function YourEventsScreen({ navigation }) {
     }
   }, [interestedPlans]);
 
+  const handlePlanLike = useCallback(async (planId, liked) => {
+    try {
+      const token = await getAuthToken();
+      if (liked) {
+        await likePlan(planId, token);
+      } else {
+        await unlikePlan(planId, token);
+      }
+      const updateState = (prev) =>
+        prev.map((p) =>
+          p.id === planId
+            ? {
+                ...p,
+                is_liked: liked,
+                like_count: Math.max(0, (p.like_count || 0) + (liked ? 1 : -1)),
+              }
+            : p
+        );
+      setHostedPlans(updateState);
+      setInterestedPlans(updateState);
+      setAttendingPlans(updateState);
+    } catch (error) {
+      console.error("Error toggling like on plan:", error);
+    }
+  }, []);
+
   const renderEvent = useCallback(({ item }) => {
     if (activeTab === "Hosted") {
       return (
@@ -656,25 +589,7 @@ export default function YourEventsScreen({ navigation }) {
           currentUserId={currentUserId}
           compact={true}
           onPress={() => navigation.navigate("HostRequests", { planId: item.id, planTitle: item.title })}
-          onLike={async (planId, liked) => {
-            const token = await getAuthToken();
-            if (liked) {
-              await likePlan(planId, token);
-            } else {
-              await unlikePlan(planId, token);
-            }
-            setHostedPlans((prev) =>
-              prev.map((p) =>
-                p.id === planId
-                  ? {
-                      ...p,
-                      is_liked: liked,
-                      like_count: Math.max(0, (p.like_count || 0) + (liked ? 1 : -1)),
-                    }
-                  : p
-              )
-            );
-          }}
+          onLike={handlePlanLike}
           onShare={async (plan) => {
             try {
               await Share.share({
@@ -690,11 +605,25 @@ export default function YourEventsScreen({ navigation }) {
     if (item._type === 'plan') {
       const isPlanInterested = interestedPlans.some(p => p.id === item.id);
       return (
-        <AttendingPlanCard
-          item={item}
+        <OpenPlanCard
+          plan={item}
+          currentUserId={currentUserId}
+          compact={true}
           isInterested={item.is_interested || isPlanInterested}
-          onPress={(plan) => navigation.navigate('PlanDetail', { planId: plan.id })}
-          onToggleInterest={handleTogglePlanInterest}
+          onPress={(planId) => navigation.navigate('PlanDetail', { planId })}
+          onLike={handlePlanLike}
+          onShare={async (plan) => {
+            try {
+              await Share.share({
+                message: `Check out this open plan "${plan?.title || 'Open Plan'}" on SnooSpace!`,
+              });
+            } catch (_) {}
+          }}
+          onInterest={async () => {
+            await handleTogglePlanInterest(item);
+          }}
+          onComment={(planId) => openCommentsModal(planId, "plan")}
+          navigation={navigation}
         />
       );
     }
@@ -711,7 +640,7 @@ export default function YourEventsScreen({ navigation }) {
         onComment={(id) => openCommentsModal(id, "event")}
       />
     );
-  }, [handleEventPress, handleRemoveInterest, handleTogglePlanInterest, interestedPlans, activeTab, navigation, openCommentsModal, currentUserId]);
+  }, [handleEventPress, handleRemoveInterest, handleTogglePlanInterest, interestedPlans, activeTab, navigation, openCommentsModal, currentUserId, handlePlanLike]);
 
   const filteredEvents = getFilteredEvents();
 

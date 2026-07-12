@@ -509,8 +509,8 @@ const OpenPlanCard = ({
       <View style={[styles.heroContainer, compact && { height: 110 }]}>
         <CropImage activityType={activityKey} containerW={cardW} height={compact ? 110 : 240} />
 
-        {/* Top Left Row (Attendee count + Status Chip) */}
-        <View style={[styles.topLeftRow, compact && { top: 8, left: 8 }]}>
+        {/* Top Right Row (Attendee count + Status Chip + Report Button overlay) */}
+        <View style={[styles.topRightRow, compact && { top: 8, right: 8 }]}>
           <View style={[styles.attendeeBubble, compact && { paddingHorizontal: 6, paddingVertical: 3 }]}>
             <Users size={compact ? 10 : 12} color="#FFF" strokeWidth={2.2} />
             <Text style={[styles.attendeeText, compact && { fontSize: 10 }]}>
@@ -525,21 +525,20 @@ const OpenPlanCard = ({
               </Text>
             </View>
           )}
-        </View>
 
-        {/* Report Button overlay — top-right */}
-        {!isOwner && (
-          <View style={[styles.reportBubble, compact && { top: 8, right: 8, width: 26, height: 26, borderRadius: 13 }]}>
-            <ContentActionsSheet
-              type="open_plan"
-              targetId={plan?.id}
-              targetName={hostName}
-              label="Open Plan"
-              iconColor="#1E293B"
-              iconSize={compact ? 14 : 20}
-            />
-          </View>
-        )}
+          {!isOwner && (
+            <View style={[styles.reportBubble, compact && { width: 26, height: 26, borderRadius: 13 }]}>
+              <ContentActionsSheet
+                type="open_plan"
+                targetId={plan?.id}
+                targetName={hostName}
+                label="Open Plan"
+                iconColor="#1E293B"
+                iconSize={compact ? 14 : 20}
+              />
+            </View>
+          )}
+        </View>
 
         {/* Activity pill overlay — bottom-left */}
         <View style={[styles.activityPill, { backgroundColor: pillColors.bg }, compact && { bottom: 8, left: 8, paddingHorizontal: 8, paddingVertical: 4 }]}>
@@ -745,10 +744,10 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
 
-  topLeftRow: {
+  topRightRow: {
     position: 'absolute',
     top: 12,
-    left: 12,
+    right: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -775,16 +774,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   reportBubble: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: 'rgba(255, 255, 255, 0.85)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 10,
   },
   attendeeText: {
     fontFamily: FONTS.semiBold,
