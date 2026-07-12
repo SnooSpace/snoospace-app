@@ -347,7 +347,15 @@ export default function PlanDetailScreen({ navigation, route }) {
             <Text style={styles.title}>{plan.title}</Text>
 
             {/* Host row — inline with avatar */}
-            <View style={styles.hostRow}>
+            <TouchableOpacity
+              style={styles.hostRow}
+              onPress={() => {
+                if (plan.created_by) {
+                  navigation.navigate("MemberPublicProfile", { memberId: plan.created_by });
+                }
+              }}
+              activeOpacity={0.7}
+            >
               {plan.host_profile?.profile_photo_url ? (
                 <Image
                   source={{ uri: plan.host_profile.profile_photo_url }}
@@ -367,7 +375,7 @@ export default function PlanDetailScreen({ navigation, route }) {
               {plan.host_profile?.is_verified && (
                 <BadgeCheck size={14} color="#2962FF" strokeWidth={2} style={{ marginLeft: 4 }} />
               )}
-            </View>
+            </TouchableOpacity>
 
             {/* Divider */}
             <View style={styles.divider} />
