@@ -64,7 +64,7 @@ const Toast = ({ title, message, type = "success", onDismiss }) => {
         animatedStyle
       ]}
     >
-      <BlurView intensity={70} tint="light" style={styles.blurWrapper}>
+      <View style={styles.toastWrapper}>
         <View style={styles.content}>
           <View style={[styles.iconContainer, { backgroundColor: bgColor }]}>
             <IconComponent size={20} color={mainColor} strokeWidth={2.5} />
@@ -86,7 +86,7 @@ const Toast = ({ title, message, type = "success", onDismiss }) => {
         
         {/* Subtle bottom indicator */}
         <View style={[styles.indicator, { backgroundColor: mainColor }]} />
-      </BlurView>
+      </View>
     </Animated.View>
   );
 };
@@ -101,11 +101,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 20,
   },
-  blurWrapper: {
+  toastWrapper: {
+    backgroundColor: "#FFFFFF",
     borderRadius: 20,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.9)",
+    borderColor: "#E5E7EB",
   },
   content: {
     flexDirection: "row",
