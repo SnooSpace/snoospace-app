@@ -433,11 +433,14 @@ export default function PlanDetailScreen({ navigation, route }) {
                   >
                     <Lock size={13} color="#2962FF" strokeWidth={2} />
                     <Text style={styles.privateLocationText}>{displayLabel}</Text>
-                    {isOwner && (
-                      <View style={styles.locationHiddenTag}>
-                        <Text style={styles.locationHiddenTagText}>Hidden for others</Text>
-                      </View>
-                    )}
+                    {isOwner ? (
+                      <>
+                        <MoveRight size={13} color="#2962FF" strokeWidth={2} style={{ marginLeft: 4 }} />
+                        <View style={styles.locationHiddenTag}>
+                          <Text style={styles.locationHiddenTagText}>Hidden for others</Text>
+                        </View>
+                      </>
+                    ) : null}
                   </TouchableOpacity>
                 );
               } else {
@@ -531,7 +534,6 @@ export default function PlanDetailScreen({ navigation, route }) {
                     <Text style={styles.manageBadgeText}>{plan.pending_count}</Text>
                   </View>
                 )}
-                <MoveRight size={16} color="#FFFFFF" strokeWidth={2} style={{ marginLeft: 8 }} />
               </TouchableOpacity>
             )}
 
