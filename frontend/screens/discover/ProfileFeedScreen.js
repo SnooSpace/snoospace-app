@@ -2836,58 +2836,57 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   sharedCommGlassContainer: {
-    backgroundColor: "rgba(255, 255, 255, 0.75)",
-    borderWidth: 1,
-    borderColor: "rgba(226, 232, 240, 0.8)",
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 24,
+    backgroundColor: "rgba(99, 102, 241, 0.12)", // Premium soft indigo tinted glass
+    borderWidth: 1.5,
+    borderColor: "rgba(99, 102, 241, 0.28)", // Tinted matching border
+    borderRadius: 20, // Match Interests/Sparks exactly
+    padding: 16,
+    marginBottom: 24, // spacing between components
     shadowColor: "#4F46E5",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 0,
   },
   sharedCommHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   sharedCommSectionLabel: {
-    fontFamily: FONTS.primary,
-    fontSize: 16,
-    color: "#4F46E5",
-    letterSpacing: 0.2,
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 15, // Match section labels of Sparks/Interests
+    color: "#1e2d4a",
+    letterSpacing: -0.3,
   },
   sharedCommInfoText: {
     fontFamily: FONTS.regular,
-    fontSize: 13,
+    fontSize: 12,
     color: COLORS.textSecondary || "#64748B",
-    marginBottom: 16,
+    marginBottom: 14,
   },
   sharedCommGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 8,
     justifyContent: 'flex-start',
-    marginTop: 8,
   },
   sharedCommGridItem: {
     width: '30%',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
   },
   sharedCommGridLogoContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 40, // Reduced even more as requested!
+    height: 40,
+    borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
+    borderColor: 'rgba(99, 102, 241, 0.2)',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
     overflow: 'hidden',
   },
   sharedCommGridLogo: {
@@ -2902,7 +2901,7 @@ const styles = StyleSheet.create({
   },
   sharedCommGridName: {
     fontFamily: FONTS.medium,
-    fontSize: 11,
+    fontSize: 10, // Small & clean
     color: COLORS.textPrimary,
     textAlign: 'center',
     width: '100%',
@@ -2913,7 +2912,7 @@ const styles = StyleSheet.create({
   },
   sharedCommViewAllText: {
     fontFamily: FONTS.semiBold,
-    fontSize: 14,
+    fontSize: 12,
     color: '#4F46E5',
   },
 });
