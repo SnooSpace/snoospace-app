@@ -922,7 +922,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
             return (
               <View style={styles.sharedCommGlassContainer}>
                 <View style={styles.sharedCommHeaderRow}>
-                  <Users size={16} color="#0891B2" strokeWidth={2.5} />
+                  <Users size={16} color="#B45309" strokeWidth={2.5} />
                   <Text style={styles.sharedCommSectionLabel}>Shared Communities</Text>
                 </View>
                 <Text style={styles.sharedCommInfoText}>
@@ -944,7 +944,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
                           <Image source={{ uri: comm.logo_url }} style={styles.sharedCommGridLogo} />
                         ) : (
                           <View style={styles.sharedCommGridLogoFallback}>
-                            <Users size={20} color="#0891B2" />
+                            <Users size={20} color="#B45309" />
                           </View>
                         )}
                       </View>
@@ -966,7 +966,7 @@ export default function ProfileFeedScreen({ route, navigation }) {
                       <View style={[styles.sharedCommGridLogoContainer, styles.sharedCommViewAllContainer]}>
                         <Text style={styles.sharedCommViewAllText}>+{list.length - (limit - 1)}</Text>
                       </View>
-                      <Text style={[styles.sharedCommGridName, { color: '#0891B2', fontFamily: FONTS.semiBold }]} numberOfLines={1}>
+                      <Text style={[styles.sharedCommGridName, { color: '#B45309', fontFamily: FONTS.semiBold }]} numberOfLines={1}>
                         View All
                       </Text>
                     </TouchableOpacity>
@@ -2828,6 +2828,201 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.semiBold,
     fontSize: 15,
     color: COLORS.textPrimary,
+    fontFamily: FONTS.regular, // Manrope-Regular
+    fontSize: 14,
+    color: "#64748B",
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: 24,
+    paddingHorizontal: 12,
+  },
+  revisitButtonContainer: {
+    width: "100%",
+    height: 48,
+    borderRadius: 24,
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  revisitButtonGradient: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 24,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  revisitButtonText: {
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
+    fontSize: 16,
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
+  },
+  toastContainer: {
+    position: "absolute",
+    top: 90, // Just below the header
+    left: 20,
+    right: 20,
+    alignItems: "center",
+    zIndex: 999, // Ensure it's on top of everything
+  },
+  toastInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+    gap: 10,
+  },
+  toastIconBg: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "#10B981", // Growth green circle
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  toastText: {
+    fontFamily: FONTS.medium, // Manrope-Medium
+    fontSize: 14,
+    color: "#0F172A",
+  },
+  emptyFiltersIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#FEE2E2",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  clearFiltersButton: {
+    backgroundColor: "#EF4444",
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    marginTop: 8,
+    width: "100%",
+    shadowColor: "#EF4444",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  clearFiltersButtonText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 16,
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
+  },
+  filterLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255, 255, 255, 0.45)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
+  },
+  reportDotButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.75)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(100,116,139,0.15)",
+    marginLeft: 8,
+  },
+  cardReportButton: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.75)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.9)",
+    zIndex: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  commSheet: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: Dimensions.get('window').height * 0.7,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  commSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border || '#E2E8F0',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  commSheetTitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 20,
+    color: COLORS.textPrimary,
+    marginBottom: 16,
+  },
+  commSheetList: {
+    paddingBottom: 20,
+  },
+  commItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border || '#E2E8F0',
+    gap: 12,
+  },
+  commAvatarContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#EEF2FF',
+  },
+  commAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  commAvatarFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commInfo: {
+    flex: 1,
+  },
+  commName: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
   },
   commSub: {
     fontFamily: FONTS.medium,
@@ -2836,13 +3031,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   sharedCommGlassContainer: {
-    backgroundColor: "rgba(8, 145, 178, 0.12)", // Premium soft cyan/teal tinted glass
+    backgroundColor: "rgba(217, 119, 6, 0.08)", // Premium soft creamish amber tinted glass
     borderWidth: 1.5,
-    borderColor: "rgba(8, 145, 178, 0.28)", // Tinted matching border
+    borderColor: "rgba(217, 119, 6, 0.22)", // Tinted matching border
     borderRadius: 20, // Match Interests/Sparks exactly
     padding: 16,
     marginBottom: 24, // spacing between components
-    shadowColor: "#0891B2",
+    shadowColor: "#B45309",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
     shadowRadius: 8,
@@ -2878,11 +3073,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sharedCommGridLogoContainer: {
-    width: 40, // Reduced even more as requested!
+    width: 40,
     height: 40,
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: 'rgba(8, 145, 178, 0.2)',
+    borderColor: 'rgba(217, 119, 6, 0.2)',
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
@@ -2907,12 +3102,12 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   sharedCommViewAllContainer: {
-    backgroundColor: '#ECFEFF', // Light Cyan 50
-    borderColor: '#0891B2',
+    backgroundColor: '#FEF3C7', // Light Amber 100
+    borderColor: '#B45309',
   },
   sharedCommViewAllText: {
     fontFamily: FONTS.semiBold,
     fontSize: 12,
-    color: '#0891B2',
+    color: '#B45309',
   },
 });
