@@ -289,6 +289,21 @@ const OpenPlanCard = ({
   const isOwner   = currentUserId && (plan?.created_by === currentUserId || plan?.created_by === String(currentUserId));
   const reqStatus = plan?.my_request_status ?? plan?.request_status ?? null;
 
+  const scheduledTime = plan?.scheduled_at ? new Date(plan.scheduled_at).getTime() : 0;
+  const nowTime = Date.now();
+  const threeHours = 3 * 60 * 60 * 1000;
+
+  let statusChip = null;
+  if (plan?.status === 'cancelled') {
+    statusChip = { label: 'Cancelled', bg: '#FFEBEE', text: '#C62828' };
+  } else if (plan?.status === 'completed' || (scheduledTime && nowTime > scheduledTime + threeHours)) {
+    statusChip = { label: 'Past', bg: '#F5F5F5', text: '#616161' };
+  } else if (scheduledTime && nowTime >= scheduledTime && nowTime <= scheduledTime + threeHours) {
+    statusChip = { label: 'Live', bg: '#E8F5E9', text: '#2E7D32' };
+  } else {
+    statusChip = { label: 'Upcoming', bg: '#E3F2FD', text: '#1565C0' };
+  }
+
   // ── Like handler ─────────────────────────────────────────────────────────
 
   const handleLike = useCallback(async () => {
@@ -494,12 +509,22 @@ const OpenPlanCard = ({
       <View style={[styles.heroContainer, compact && { height: 110 }]}>
         <CropImage activityType={activityKey} containerW={cardW} height={compact ? 110 : 240} />
 
-        {/* Attendee count overlay — top-left */}
-        <View style={[styles.attendeeBubble, compact && { top: 8, left: 8, paddingHorizontal: 6, paddingVertical: 3 }]}>
-          <Users size={compact ? 10 : 12} color="#FFF" strokeWidth={2.2} />
-          <Text style={[styles.attendeeText, compact && { fontSize: 10 }]}>
-            {acceptedN} / {maxAccepted}
-          </Text>
+        {/* Top Left Row (Attendee count + Status Chip) */}
+        <View style={[styles.topLeftRow, compact && { top: 8, left: 8 }]}>
+          <View style={[styles.attendeeBubble, compact && { paddingHorizontal: 6, paddingVertical: 3 }]}>
+            <Users size={compact ? 10 : 12} color="#FFF" strokeWidth={2.2} />
+            <Text style={[styles.attendeeText, compact && { fontSize: 10 }]}>
+              {acceptedN} / {maxAccepted}
+            </Text>
+          </View>
+
+          {statusChip && (
+            <View style={[styles.statusChipBubble, { backgroundColor: statusChip.bg }, compact && { paddingHorizontal: 8, paddingVertical: 3 }]}>
+              <Text style={[styles.statusChipText, { color: statusChip.text }, compact && { fontSize: 10 }]}>
+                {statusChip.label}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Report Button overlay — top-right */}
@@ -720,10 +745,16 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
 
-  attendeeBubble: {
+  topLeftRow: {
     position: 'absolute',
     top: 12,
     left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    zIndex: 10,
+  },
+  attendeeBubble: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -731,6 +762,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
+  },
+  statusChipBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  statusChipText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 12,
   },
   reportBubble: {
     position: 'absolute',
