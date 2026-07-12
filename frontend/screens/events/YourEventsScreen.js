@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, Animated, Pressable, Platform, InteractionManager } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, Animated, Pressable, Platform, InteractionManager, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Calendar, Heart, Bookmark } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { apiGet } from "../../api/client";
-import { getAuthToken } from "../../api/auth";
+import { getAuthToken, getActiveAccount } from "../../api/auth";
 import { getInterestedEvents, toggleEventInterest } from "../../api/events";
-import { getHostedPlans, getAttendingPlans, getInterestedPlans, togglePlanInterest } from "../../api/plans";
+import { getHostedPlans, getAttendingPlans, getInterestedPlans, togglePlanInterest, likePlan, unlikePlan } from "../../api/plans";
 import HapticsService from "../../services/HapticsService";
 import EventBus from "../../utils/EventBus";
 import {
@@ -21,6 +21,7 @@ import { useLocationName } from "../../utils/locationNameCache";
 import SnooLoader from "../../components/ui/SnooLoader";
 import EventCard from "../../components/EventCard";
 import CommentsModal from "../../components/CommentsModal";
+import OpenPlanCard from "../../components/plans/OpenPlanCard";
 
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;
@@ -78,60 +79,7 @@ const HOSTED_STATUS_COLORS = {
   cancelled: { bg: '#FFEBEE', text: '#C62828' },
 };
 
-const HostedPlanRow = ({ item, onPress }) => {
-  const actKey = HOSTED_ACTIVITY_COLORS[item.activity_type] ? item.activity_type : 'other';
-  const actStyle = HOSTED_ACTIVITY_COLORS[actKey];
-  const actLabel = item.activity_type === 'other'
-    ? (item.custom_activity_label || 'Other')
-    : item.activity_type.charAt(0).toUpperCase() + item.activity_type.slice(1);
-  const stStyle = HOSTED_STATUS_COLORS[item.status] || HOSTED_STATUS_COLORS.active;
-  const statusLabel = item.status.charAt(0).toUpperCase() + item.status.slice(1);
-  const d = new Date(item.scheduled_at);
-  const dateStr = d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) +
-    ' · ' + d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
 
-  const emoji = ACTIVITY_EMOJIS[item.activity_type] || ACTIVITY_EMOJIS.other;
-
-  return (
-    <TouchableOpacity style={hostedStyles.row} onPress={onPress} activeOpacity={0.85}>
-      <View style={hostedStyles.rowLeft}>
-        <View style={hostedStyles.pillRow}>
-          <View style={[hostedStyles.pill, { backgroundColor: actStyle.bg }]}>
-            <Text style={[hostedStyles.pillText, { color: actStyle.text }]}>{`${emoji} ${actLabel}`}</Text>
-          </View>
-          <View style={[hostedStyles.pill, { backgroundColor: stStyle.bg }]}>
-            <Text style={[hostedStyles.pillText, { color: stStyle.text }]}>{statusLabel}</Text>
-          </View>
-        </View>
-        <Text style={hostedStyles.title} numberOfLines={1}>{item.title}</Text>
-        <Text style={hostedStyles.meta}>{dateStr}{item.location_public ? ` · ${item.location_public}` : ''}</Text>
-      </View>
-      <View style={hostedStyles.rowRight}>
-        <Text style={hostedStyles.accepted}>{item.accepted_count ?? 0}/{item.max_accepted} accepted</Text>
-        {(item.pending_count ?? 0) > 0 && (
-          <Text style={hostedStyles.pending}>{item.pending_count} pending</Text>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
-};
-
-const hostedStyles = StyleSheet.create({
-  row: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: COLORS.surface, borderRadius: 16, padding: 14,
-    marginBottom: 10, ...SHADOWS.md, shadowOpacity: 0.04,
-  },
-  rowLeft: { flex: 1, gap: 4 },
-  rowRight: { alignItems: 'flex-end', gap: 4, marginLeft: 8 },
-  pillRow: { flexDirection: 'row', gap: 6, marginBottom: 2 },
-  pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  pillText: { fontFamily: FONTS.medium, fontSize: 11 },
-  title: { fontFamily: FONTS.semiBold, fontSize: 15, color: COLORS.textPrimary },
-  meta: { fontFamily: FONTS.regular, fontSize: 12, color: COLORS.textSecondary },
-  accepted: { fontFamily: FONTS.semiBold, fontSize: 13, color: COLORS.primary },
-  pending: { fontFamily: FONTS.medium, fontSize: 12, color: '#E65100' },
-});
 
 // ─── AttendingPlanCard ────────────────────────────────────────────────────────
 const FULL_ACTIVITY_COLORS = {
@@ -389,6 +337,17 @@ export default function YourEventsScreen({ navigation }) {
   const [interestedPlans, setInterestedPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  useEffect(() => {
+    getActiveAccount()
+      .then((account) => {
+        if (account?.id) {
+          setCurrentUserId(account.id);
+        }
+      })
+      .catch((err) => console.error("Error loading account in YourEventsScreen:", err));
+  }, []);
 
   // Screen-level comments modal state and callbacks
   const [commentsModalState, setCommentsModalState] = useState({
@@ -691,7 +650,41 @@ export default function YourEventsScreen({ navigation }) {
 
   const renderEvent = useCallback(({ item }) => {
     if (activeTab === "Hosted") {
-      return <HostedPlanRow item={item} onPress={() => navigation.navigate("HostRequests", { planId: item.id, planTitle: item.title })} />;
+      return (
+        <OpenPlanCard
+          plan={item}
+          currentUserId={currentUserId}
+          onPress={() => navigation.navigate("HostRequests", { planId: item.id, planTitle: item.title })}
+          onLike={async (planId, liked) => {
+            const token = await getAuthToken();
+            if (liked) {
+              await likePlan(planId, token);
+            } else {
+              await unlikePlan(planId, token);
+            }
+            setHostedPlans((prev) =>
+              prev.map((p) =>
+                p.id === planId
+                  ? {
+                      ...p,
+                      is_liked: liked,
+                      like_count: Math.max(0, (p.like_count || 0) + (liked ? 1 : -1)),
+                    }
+                  : p
+              )
+            );
+          }}
+          onShare={async (plan) => {
+            try {
+              await Share.share({
+                message: `Check out this open plan "${plan?.title || 'Open Plan'}" on SnooSpace!`,
+              });
+            } catch (_) {}
+          }}
+          onComment={(planId) => openCommentsModal(planId, "plan")}
+          navigation={navigation}
+        />
+      );
     }
     if (item._type === 'plan') {
       const isPlanInterested = interestedPlans.some(p => p.id === item.id);
@@ -717,7 +710,7 @@ export default function YourEventsScreen({ navigation }) {
         onComment={(id) => openCommentsModal(id, "event")}
       />
     );
-  }, [handleEventPress, handleRemoveInterest, handleTogglePlanInterest, interestedPlans, activeTab, navigation, openCommentsModal]);
+  }, [handleEventPress, handleRemoveInterest, handleTogglePlanInterest, interestedPlans, activeTab, navigation, openCommentsModal, currentUserId]);
 
   const filteredEvents = getFilteredEvents();
 
@@ -860,6 +853,8 @@ export default function YourEventsScreen({ navigation }) {
             ? "/opportunities"
             : commentsModalState.postType === "event"
             ? "/events"
+            : commentsModalState.postType === "plan"
+            ? "/plans"
             : "/posts"
         }
         replyBaseRoute={
@@ -867,25 +862,51 @@ export default function YourEventsScreen({ navigation }) {
             ? "/opportunity-comments"
             : commentsModalState.postType === "event"
             ? "/event-comments"
+            : commentsModalState.postType === "plan"
+            ? null
             : "/comments"
         }
         onClose={closeCommentsModal}
         onCommentCountChange={(newCount) => {
           if (commentsModalState.postId) {
-            setEvents((prev) =>
-              prev.map((e) =>
-                e.id === commentsModalState.postId
-                  ? { ...e, comment_count: newCount }
-                  : e,
-              ),
-            );
-            setInterestedEvents((prev) =>
-              prev.map((e) =>
-                e.id === commentsModalState.postId
-                  ? { ...e, comment_count: newCount }
-                  : e,
-              ),
-            );
+            if (commentsModalState.postType === "plan") {
+              setHostedPlans((prev) =>
+                prev.map((p) =>
+                  p.id === commentsModalState.postId
+                    ? { ...p, comment_count: newCount }
+                    : p,
+                ),
+              );
+              setInterestedPlans((prev) =>
+                prev.map((p) =>
+                  p.id === commentsModalState.postId
+                    ? { ...p, comment_count: newCount }
+                    : p,
+                ),
+              );
+              setAttendingPlans((prev) =>
+                prev.map((p) =>
+                  p.id === commentsModalState.postId
+                    ? { ...p, comment_count: newCount }
+                    : p,
+                ),
+              );
+            } else {
+              setEvents((prev) =>
+                prev.map((e) =>
+                  e.id === commentsModalState.postId
+                    ? { ...e, comment_count: newCount }
+                    : e,
+                ),
+              );
+              setInterestedEvents((prev) =>
+                prev.map((e) =>
+                  e.id === commentsModalState.postId
+                    ? { ...e, comment_count: newCount }
+                    : e,
+                ),
+              );
+            }
           }
         }}
         navigation={navigation}
