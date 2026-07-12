@@ -19,6 +19,7 @@ import EditPlanBottomSheet from './EditPlanBottomSheet';
 import PlanCropImage from './PlanCropImage';
 import SnooLoader from '../../components/ui/SnooLoader';
 import ReportSheet from '../../components/ReportSheet';
+import SwipeableModal from '../../components/modals/SwipeableModal';
 
 const CARD_PADDING = 16;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -112,6 +113,7 @@ export default function PlanDetailScreen({ navigation, route }) {
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [reportSheetVisible, setReportSheetVisible] = useState(false);
+  const [sharedCommSheetOpen, setSharedCommSheetOpen] = useState(false);
 
   const loadPlan = useCallback(async () => {
     try {
@@ -456,34 +458,55 @@ export default function PlanDetailScreen({ navigation, route }) {
               }
             })()}
 
-            {/* Redesigned Acceptance Section */}
-            <View style={styles.compactAcceptanceRow}>
-              <View style={styles.compactAcceptanceLeft}>
-                <Users size={16} color={COLORS.primary} strokeWidth={2.2} />
-                <Text style={styles.compactAcceptanceText}>
-                  <Text style={styles.compactAcceptanceBold}>{plan.accepted_count ?? 0} / {plan.max_accepted}</Text> spots filled
-                </Text>
-              </View>
-              {isOwner && plan.pending_count > 0 && (
-                <View style={styles.pendingBadgeInline}>
-                  <View style={styles.pendingBadgeDot} />
-                  <Text style={styles.pendingBadgeText}>{plan.pending_count} pending</Text>
-                </View>
-              )}
-            </View>
+            {/* Redesigned Acceptance & Shared Communities Section */}
+            {(() => {
+              const hasShared = !isOwner && plan.shared_communities?.length > 0;
+              
+              if (hasShared) {
+                const count = plan.shared_communities.length;
+                const communityLabel = count === 1 ? '1 shared community' : `${count} shared communities`;
+                
+                return (
+                  <View style={styles.compactAcceptanceRowSplit}>
+                    <View style={styles.compactAcceptanceCardHalf}>
+                      <Users size={16} color={COLORS.primary} strokeWidth={2.2} />
+                      <Text style={styles.compactAcceptanceText} numberOfLines={1}>
+                        <Text style={styles.compactAcceptanceBold}>{plan.accepted_count ?? 0}/{plan.max_accepted}</Text> filled
+                      </Text>
+                    </View>
+                    
+                    <TouchableOpacity
+                      style={styles.compactAcceptanceCardHalf}
+                      onPress={() => setSharedCommSheetOpen(true)}
+                      activeOpacity={0.7}
+                    >
+                      <Users size={16} color="#6366F1" strokeWidth={2.2} />
+                      <Text style={[styles.compactAcceptanceText, { color: '#4F46E5' }]} numberOfLines={1}>
+                        {communityLabel}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              }
 
-            {/* Shared community pill */}
-            {!isOwner && plan.shared_communities?.length > 0 && (
-              <View style={styles.sharedPill}>
-                <Users size={12} color="#2962FF" strokeWidth={2} />
-                <Text style={styles.sharedText}>
-                  Shared community:{' '}
-                  <Text style={{ color: '#2962FF' }}>
-                    {plan.shared_communities.map(c => c.name).join(', ')}
-                  </Text>
-                </Text>
-              </View>
-            )}
+              // Default full-width row for host or when no shared communities exist
+              return (
+                <View style={styles.compactAcceptanceRow}>
+                  <View style={styles.compactAcceptanceLeft}>
+                    <Users size={16} color={COLORS.primary} strokeWidth={2.2} />
+                    <Text style={styles.compactAcceptanceText}>
+                      <Text style={styles.compactAcceptanceBold}>{plan.accepted_count ?? 0} / {plan.max_accepted}</Text> spots filled
+                    </Text>
+                  </View>
+                  {isOwner && plan.pending_count > 0 && (
+                    <View style={styles.pendingBadgeInline}>
+                      <View style={styles.pendingBadgeDot} />
+                      <Text style={styles.pendingBadgeText}>{plan.pending_count} pending</Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })()}
 
             {/* Divider */}
             <View style={styles.divider} />
@@ -602,6 +625,40 @@ export default function PlanDetailScreen({ navigation, route }) {
         targetId={plan.id}
         targetName={plan.title}
       />
+
+      <SwipeableModal
+        visible={sharedCommSheetOpen}
+        onClose={() => setSharedCommSheetOpen(false)}
+        sheetStyle={styles.commSheet}
+        header={
+          <View>
+            <View style={styles.commSheetHandle} />
+            <Text style={styles.commSheetTitle}>Shared Communities</Text>
+          </View>
+        }
+      >
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.commSheetList}>
+          {plan?.shared_communities?.map((comm) => (
+            <TouchableOpacity
+              key={comm.id}
+              style={styles.commItem}
+              onPress={() => {
+                setSharedCommSheetOpen(false);
+                navigation.navigate('CommunityPublicProfile', { communityId: comm.id, communityName: comm.name });
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={styles.commAvatarFallback}>
+                <Users size={16} color="#4F46E5" />
+              </View>
+              <View style={styles.commInfo}>
+                <Text style={styles.commName}>{comm.name}</Text>
+                <Text style={styles.commSub}>Tap to view community</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </SwipeableModal>
     </SafeAreaView>
   );
 }
@@ -923,5 +980,79 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: COLORS.textSecondary,
     textAlign: 'center',
+  },
+  compactAcceptanceRowSplit: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  compactAcceptanceCardHalf: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  commSheet: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: Dimensions.get('window').height * 0.7,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  commSheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  commSheetTitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 20,
+    color: COLORS.textPrimary,
+    marginBottom: 16,
+  },
+  commSheetList: {
+    paddingBottom: 20,
+  },
+  commItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: COLORS.border,
+    gap: 12,
+  },
+  commAvatarFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commInfo: {
+    flex: 1,
+  },
+  commName: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  commSub: {
+    fontFamily: FONTS.medium,
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 2,
   },
 });
