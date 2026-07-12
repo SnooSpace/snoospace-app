@@ -41,6 +41,7 @@ export default function DiscoverScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [profileComplete, setProfileComplete] = useState(true);
+  const [userPhoto, setUserPhoto] = useState(null);
   const hasLoadedRef = useRef(false);
 
 
@@ -112,6 +113,11 @@ export default function DiscoverScreen({ navigation }) {
         const profile = response.profile || response;
         // Minimum requirements: 3 discover photos, 1+ Spark, 1+ opener
         const photos = Array.isArray(profile.discover_photos) ? profile.discover_photos : [];
+        if (photos.length > 0) {
+          setUserPhoto(photos[0]);
+        } else {
+          setUserPhoto(null);
+        }
         const sparks = Array.isArray(profile.sparks) ? profile.sparks : [];
         const openers = Array.isArray(profile.openers) ? profile.openers : [];
         setProfileComplete(
@@ -302,7 +308,15 @@ export default function DiscoverScreen({ navigation }) {
               hitSlop={AVATAR_HITSLOP}
             >
               <View style={styles.avatarContainer}>
-                <User size={22} color={COLORS.editorial.textSecondary} />
+                {userPhoto ? (
+                  <Image
+                    source={{ uri: userPhoto }}
+                    style={styles.avatarImage}
+                    cachePolicy="memory-disk"
+                  />
+                ) : (
+                  <User size={22} color={COLORS.editorial.textSecondary} />
+                )}
                 {!profileComplete && <View style={styles.profileBadge} />}
               </View>
             </TouchableOpacity>
@@ -483,6 +497,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: COLORS.border,
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
   },
   profileBadge: {
     position: "absolute",
