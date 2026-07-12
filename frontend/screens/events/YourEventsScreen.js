@@ -654,6 +654,7 @@ export default function YourEventsScreen({ navigation }) {
         <OpenPlanCard
           plan={item}
           currentUserId={currentUserId}
+          compact={true}
           onPress={() => navigation.navigate("HostRequests", { planId: item.id, planTitle: item.title })}
           onLike={async (planId, liked) => {
             const token = await getAuthToken();

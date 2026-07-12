@@ -180,8 +180,8 @@ function fmt(n) {
  * Renders the master illustration cropped to a given bounding box,
  * scaled to fill containerW × 240px exactly (cover-fill semantics).
  */
-function CropImage({ activityType, containerW }) {
-  const H     = 240;
+function CropImage({ activityType, containerW, height = 240 }) {
+  const H     = height;
   if (activityType === 'other') {
     return (
       <View style={{ width: containerW, height: H, overflow: 'hidden' }}>
@@ -234,6 +234,7 @@ const OpenPlanCard = ({
   isInterested: isInterestedProp = false,
   onInterest,
   navigation: navProp,
+  compact = false,
 }) => {
   const navHook = useNavigation();
   const navigation = navProp || navHook;
@@ -490,131 +491,131 @@ const OpenPlanCard = ({
       onLayout={(e) => setCardW(e.nativeEvent.layout.width)}
     >
       {/* ── Hero Illustration ─────────────────────────────────────────── */}
-      <View style={styles.heroContainer}>
-        <CropImage activityType={activityKey} containerW={cardW} />
+      <View style={[styles.heroContainer, compact && { height: 110 }]}>
+        <CropImage activityType={activityKey} containerW={cardW} height={compact ? 110 : 240} />
 
         {/* Attendee count overlay — top-left */}
-        <View style={styles.attendeeBubble}>
-          <Users size={12} color="#FFF" strokeWidth={2.2} />
-          <Text style={styles.attendeeText}>
+        <View style={[styles.attendeeBubble, compact && { top: 8, left: 8, paddingHorizontal: 6, paddingVertical: 3 }]}>
+          <Users size={compact ? 10 : 12} color="#FFF" strokeWidth={2.2} />
+          <Text style={[styles.attendeeText, compact && { fontSize: 10 }]}>
             {acceptedN} / {maxAccepted}
           </Text>
         </View>
 
         {/* Report Button overlay — top-right */}
         {!isOwner && (
-          <View style={styles.reportBubble}>
+          <View style={[styles.reportBubble, compact && { top: 8, right: 8, width: 26, height: 26, borderRadius: 13 }]}>
             <ContentActionsSheet
               type="open_plan"
               targetId={plan?.id}
               targetName={hostName}
               label="Open Plan"
               iconColor="#1E293B"
-              iconSize={20}
+              iconSize={compact ? 14 : 20}
             />
           </View>
         )}
 
         {/* Activity pill overlay — bottom-left */}
-        <View style={[styles.activityPill, { backgroundColor: pillColors.bg }]}>
-          <Text style={[styles.activityPillText, { color: pillColors.text }]}>
+        <View style={[styles.activityPill, { backgroundColor: pillColors.bg }, compact && { bottom: 8, left: 8, paddingHorizontal: 8, paddingVertical: 4 }]}>
+          <Text style={[styles.activityPillText, { color: pillColors.text }, compact && { fontSize: 10 }]}>
             {`${ACTIVITY_EMOJIS[activityKey] || ACTIVITY_EMOJIS.other} ${activityLabel}`}
           </Text>
         </View>
 
         {/* Spots-full / spots-left warning — bottom-right */}
         {spotsText && (
-          <View style={[styles.spotsBubble, isFull && styles.spotsBubbleFull]}>
-            <Text style={styles.spotsText}>{spotsText}</Text>
+          <View style={[styles.spotsBubble, isFull && styles.spotsBubbleFull, compact && { bottom: 8, right: 8, paddingHorizontal: 8, paddingVertical: 4 }]}>
+            <Text style={[styles.spotsText, compact && { fontSize: 9 }]}>{spotsText}</Text>
           </View>
         )}
       </View>
 
       {/* ── Content area ─────────────────────────────────────────────── */}
-      <View style={styles.content}>
+      <View style={[styles.content, compact && { paddingHorizontal: 10, paddingTop: 8, paddingBottom: 2 }]}>
 
         {/* Title */}
-        <Text style={styles.title} numberOfLines={2}>{plan?.title}</Text>
+        <Text style={[styles.title, compact && { fontSize: 15, lineHeight: 20, marginBottom: 4 }]} numberOfLines={compact ? 1 : 2}>{plan?.title}</Text>
 
         {/* Location row */}
         {location ? (
-          <View style={styles.metaRow}>
-            <MapPin size={13} color={COLORS.textSecondary} strokeWidth={2} />
-            <Text style={styles.metaText} numberOfLines={1}>{location}</Text>
+          <View style={[styles.metaRow, compact && { marginBottom: 3 }]}>
+            <MapPin size={compact ? 12 : 13} color={COLORS.textSecondary} strokeWidth={2} />
+            <Text style={[styles.metaText, compact && { fontSize: 12 }]} numberOfLines={1}>{location}</Text>
           </View>
         ) : null}
 
         {/* Date + cost row (inline) */}
-        <View style={styles.dateRow}>
+        <View style={[styles.dateRow, compact && { marginBottom: 3 }]}>
           <View style={styles.dateLeft}>
-            <Calendar size={13} color={COLORS.textSecondary} strokeWidth={2} />
-            <Text style={styles.metaText}>
+            <Calendar size={compact ? 12 : 13} color={COLORS.textSecondary} strokeWidth={2} />
+            <Text style={[styles.metaText, compact && { fontSize: 12 }]}>
               {scheduledAt ? formatScheduled(scheduledAt) : '—'}
             </Text>
           </View>
           {costLabel ? (
-            <Text style={styles.costText}>{costLabel}</Text>
+            <Text style={[styles.costText, compact && { fontSize: 13 }]}>{costLabel}</Text>
           ) : null}
         </View>
 
         {/* Host row */}
-        <View style={styles.hostRow}>
-          <View style={styles.hostAvatarContainer}>
+        <View style={[styles.hostRow, compact && { marginBottom: 6 }]}>
+          <View style={[styles.hostAvatarContainer, compact && { width: 24, height: 24, borderRadius: 12 }]}>
             {hostPhoto ? (
               <Image source={{ uri: hostPhoto }} style={styles.hostAvatar} />
             ) : (
               <View style={styles.hostAvatarFallback}>
-                <User size={16} color={COLORS.textSecondary} strokeWidth={2.2} />
+                <User size={compact ? 12 : 16} color={COLORS.textSecondary} strokeWidth={2.2} />
               </View>
             )}
           </View>
-          <Text style={styles.hostText}>
-            Hosted by <Text style={styles.hostName}>{hostName}</Text>
+          <Text style={[styles.hostText, compact && { fontSize: 12 }]}>
+            Hosted by <Text style={[styles.hostName, compact && { fontSize: 12 }]}>{hostName}</Text>
           </Text>
         </View>
 
         {/* Engagement divider */}
-        <View style={styles.divider} />
+        <View style={[styles.divider, compact && { marginBottom: 6 }]} />
 
         {/* Engagement row */}
-        <View style={styles.engRow}>
+        <View style={[styles.engRow, compact && { marginBottom: 6 }]}>
           {/* Like */}
-          <TouchableOpacity style={styles.engBtn} onPress={handleLike} disabled={isLiking}>
+          <TouchableOpacity style={[styles.engBtn, compact && { minWidth: 28, minHeight: 28 }]} onPress={handleLike} disabled={isLiking}>
             <Heart
-              size={20}
+              size={compact ? 16 : 20}
               color={isLiked ? COLORS.error : '#5e8d9b'}
               fill={isLiked ? COLORS.error : 'transparent'}
               strokeWidth={2}
             />
-            <Text style={[styles.engCount, isLiked && { color: COLORS.error }]}>
+            <Text style={[styles.engCount, compact && { fontSize: 11 }, isLiked && { color: COLORS.error }]}>
               {fmt(likeCount)}
             </Text>
           </TouchableOpacity>
 
           {/* Comment */}
-          <TouchableOpacity style={styles.engBtn} onPress={handleComment}>
-            <MessageCircle size={20} color="#5e8d9b" strokeWidth={2} />
-            <Text style={styles.engCount}>{fmt(commentCount)}</Text>
+          <TouchableOpacity style={[styles.engBtn, compact && { minWidth: 28, minHeight: 28 }]} onPress={handleComment}>
+            <MessageCircle size={compact ? 16 : 20} color="#5e8d9b" strokeWidth={2} />
+            <Text style={[styles.engCount, compact && { fontSize: 11 }]}>{fmt(commentCount)}</Text>
           </TouchableOpacity>
 
           {/* Views */}
           <TouchableOpacity
-            style={styles.engBtn}
+            style={[styles.engBtn, compact && { minWidth: 28, minHeight: 28 }]}
             onPress={() => HapticsService.triggerView()}
           >
-            <ChartNoAxesCombined size={20} color="#5e8d9b" strokeWidth={2} />
-            <Text style={styles.engCount}>{fmt(viewCount)}</Text>
+            <ChartNoAxesCombined size={compact ? 16 : 20} color="#5e8d9b" strokeWidth={2} />
+            <Text style={[styles.engCount, compact && { fontSize: 11 }]}>{fmt(viewCount)}</Text>
           </TouchableOpacity>
 
           {/* Share */}
-          <TouchableOpacity style={styles.engBtn} onPress={handleShare}>
-            <Send size={20} color="#5e8d9b" strokeWidth={2} />
+          <TouchableOpacity style={[styles.engBtn, compact && { minWidth: 28, minHeight: 28 }]} onPress={handleShare}>
+            <Send size={compact ? 16 : 20} color="#5e8d9b" strokeWidth={2} />
           </TouchableOpacity>
 
           {/* Bookmark/Save */}
-          <TouchableOpacity style={styles.engBtn} onPress={handleInterest} disabled={isSaving}>
+          <TouchableOpacity style={[styles.engBtn, compact && { minWidth: 28, minHeight: 28 }]} onPress={handleInterest} disabled={isSaving}>
             <Bookmark
-              size={20}
+              size={compact ? 16 : 20}
               color={isSaved ? COLORS.primary : '#5e8d9b'}
               fill={isSaved ? COLORS.primary : 'transparent'}
               strokeWidth={2}
@@ -623,14 +624,14 @@ const OpenPlanCard = ({
         </View>
 
         {/* Request / Owner section */}
-        <View style={styles.actionSection}>
+        <View style={[styles.actionSection, compact && { marginBottom: 2 }]}>
           {isOwner ? (
             <TouchableOpacity
-              style={styles.ownerBadge}
+              style={[styles.ownerBadge, compact && { height: 32, borderRadius: 8, marginBottom: 4 }]}
               onPress={() => navigation.navigate('HostRequests', { planId: plan?.id, planTitle: plan?.title })}
               activeOpacity={0.82}
             >
-              <Text style={styles.ownerBadgeText}>Your plan →</Text>
+              <Text style={[styles.ownerBadgeText, compact && { fontSize: 13 }]}>Your plan →</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
@@ -638,6 +639,7 @@ const OpenPlanCard = ({
                 styles.requestBtn,
                 { backgroundColor: btnCfg.bg },
                 btnCfg.disabled && styles.requestBtnDisabled,
+                compact && { height: 36, borderRadius: 10, marginBottom: 4 }
               ]}
               onPress={() => !btnCfg.disabled && onRequestPress?.(plan?.id)}
               disabled={btnCfg.disabled}
@@ -645,21 +647,21 @@ const OpenPlanCard = ({
             >
               {reqStatus === 'approved' ? (
                 <View style={styles.approvedBtnContent}>
-                  <View style={styles.CircleCheck}>
-                    <Check size={10} color="#FFF" strokeWidth={3} />
+                  <View style={[styles.CircleCheck, compact && { width: 16, height: 16, borderRadius: 8 }]}>
+                    <Check size={compact ? 8 : 10} color="#FFF" strokeWidth={3} />
                   </View>
-                  <Text style={[styles.requestBtnText, { color: btnCfg.color }]}>
+                  <Text style={[styles.requestBtnText, { color: btnCfg.color }, compact && { fontSize: 13 }]}>
                     {btnCfg.label}
                   </Text>
                 </View>
               ) : (
-                <Text style={[styles.requestBtnText, { color: btnCfg.color }]}>
+                <Text style={[styles.requestBtnText, { color: btnCfg.color }, compact && { fontSize: 13 }]}>
                   {btnCfg.label}
                 </Text>
               )}
             </TouchableOpacity>
           )}
-          <Text style={styles.finePrint}>
+          <Text style={[styles.finePrint, compact && { fontSize: 10 }]}>
             Exact location shared only after host approves
           </Text>
         </View>
