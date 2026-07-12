@@ -422,7 +422,6 @@ export default function PlanDetailScreen({ navigation, route }) {
                   }
                 } catch {}
 
-                return (
                 const displayLabel = isOwner ? 'View Location' : locLabel;
 
                 return (
