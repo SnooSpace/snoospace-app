@@ -559,7 +559,16 @@ const OpenPlanCard = ({
         </View>
 
         {/* Host row */}
-        <View style={[styles.hostRow, compact && { marginBottom: 6 }]}>
+        <TouchableOpacity
+          style={[styles.hostRow, compact && { marginBottom: 6 }]}
+          onPress={(e) => {
+            e.stopPropagation();
+            if (plan?.created_by) {
+              navigation.navigate("MemberPublicProfile", { memberId: plan.created_by });
+            }
+          }}
+          activeOpacity={0.7}
+        >
           <View style={[styles.hostAvatarContainer, compact && { width: 24, height: 24, borderRadius: 12 }]}>
             {hostPhoto ? (
               <Image source={{ uri: hostPhoto }} style={styles.hostAvatar} />
@@ -572,7 +581,7 @@ const OpenPlanCard = ({
           <Text style={[styles.hostText, compact && { fontSize: 12 }]}>
             Hosted by <Text style={[styles.hostName, compact && { fontSize: 12 }]}>{hostName}</Text>
           </Text>
-        </View>
+        </TouchableOpacity>
 
         {/* Engagement divider */}
         <View style={[styles.divider, compact && { marginBottom: 6 }]} />
@@ -582,20 +591,20 @@ const OpenPlanCard = ({
           {/* Like */}
           <TouchableOpacity style={[styles.engBtn, compact && { minWidth: 28, minHeight: 28 }]} onPress={handleLike} disabled={isLiking}>
             <Heart
-              size={compact ? 16 : 20}
+              size={20}
               color={isLiked ? COLORS.error : '#5e8d9b'}
               fill={isLiked ? COLORS.error : 'transparent'}
               strokeWidth={2}
             />
-            <Text style={[styles.engCount, compact && { fontSize: 11 }, isLiked && { color: COLORS.error }]}>
+            <Text style={[styles.engCount, isLiked && { color: COLORS.error }]}>
               {fmt(likeCount)}
             </Text>
           </TouchableOpacity>
 
           {/* Comment */}
           <TouchableOpacity style={[styles.engBtn, compact && { minWidth: 28, minHeight: 28 }]} onPress={handleComment}>
-            <MessageCircle size={compact ? 16 : 20} color="#5e8d9b" strokeWidth={2} />
-            <Text style={[styles.engCount, compact && { fontSize: 11 }]}>{fmt(commentCount)}</Text>
+            <MessageCircle size={20} color="#5e8d9b" strokeWidth={2} />
+            <Text style={styles.engCount}>{fmt(commentCount)}</Text>
           </TouchableOpacity>
 
           {/* Views */}
@@ -603,19 +612,19 @@ const OpenPlanCard = ({
             style={[styles.engBtn, compact && { minWidth: 28, minHeight: 28 }]}
             onPress={() => HapticsService.triggerView()}
           >
-            <ChartNoAxesCombined size={compact ? 16 : 20} color="#5e8d9b" strokeWidth={2} />
-            <Text style={[styles.engCount, compact && { fontSize: 11 }]}>{fmt(viewCount)}</Text>
+            <ChartNoAxesCombined size={20} color="#5e8d9b" strokeWidth={2} />
+            <Text style={styles.engCount}>{fmt(viewCount)}</Text>
           </TouchableOpacity>
 
           {/* Share */}
           <TouchableOpacity style={[styles.engBtn, compact && { minWidth: 28, minHeight: 28 }]} onPress={handleShare}>
-            <Send size={compact ? 16 : 20} color="#5e8d9b" strokeWidth={2} />
+            <Send size={20} color="#5e8d9b" strokeWidth={2} />
           </TouchableOpacity>
 
           {/* Bookmark/Save */}
           <TouchableOpacity style={[styles.engBtn, compact && { minWidth: 28, minHeight: 28 }]} onPress={handleInterest} disabled={isSaving}>
             <Bookmark
-              size={compact ? 16 : 20}
+              size={20}
               color={isSaved ? COLORS.primary : '#5e8d9b'}
               fill={isSaved ? COLORS.primary : 'transparent'}
               strokeWidth={2}
@@ -624,16 +633,8 @@ const OpenPlanCard = ({
         </View>
 
         {/* Request / Owner section */}
-        <View style={[styles.actionSection, compact && { marginBottom: 2 }]}>
-          {isOwner ? (
-            <TouchableOpacity
-              style={[styles.ownerBadge, compact && { height: 32, borderRadius: 8, marginBottom: 4 }]}
-              onPress={() => navigation.navigate('HostRequests', { planId: plan?.id, planTitle: plan?.title })}
-              activeOpacity={0.82}
-            >
-              <Text style={[styles.ownerBadgeText, compact && { fontSize: 13 }]}>Your plan →</Text>
-            </TouchableOpacity>
-          ) : (
+        {!isOwner && (
+          <View style={[styles.actionSection, compact && { marginBottom: 2 }]}>
             <TouchableOpacity
               style={[
                 styles.requestBtn,
@@ -660,11 +661,11 @@ const OpenPlanCard = ({
                 </Text>
               )}
             </TouchableOpacity>
-          )}
-          <Text style={[styles.finePrint, compact && { fontSize: 10 }]}>
-            Exact location shared only after host approves
-          </Text>
-        </View>
+            <Text style={[styles.finePrint, compact && { fontSize: 10 }]}>
+              Exact location shared only after host approves
+            </Text>
+          </View>
+        )}
       </View>
 
       {showHeart && (
