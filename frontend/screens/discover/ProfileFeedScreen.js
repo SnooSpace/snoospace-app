@@ -913,47 +913,68 @@ export default function ProfileFeedScreen({ route, navigation }) {
           )}
 
           {/* Shared Communities Card (Creative Bottom section) */}
-          {Array.isArray(currentAttendee?.shared_communities) && currentAttendee.shared_communities.length > 0 && (
-            <View style={styles.sharedCommGlassContainer}>
-              <View style={styles.sharedCommHeaderRow}>
-                <Users size={18} color="#4F46E5" strokeWidth={2.5} />
-                <Text style={styles.sharedCommSectionLabel}>Shared Communities</Text>
+          {Array.isArray(currentAttendee?.shared_communities) && currentAttendee.shared_communities.length > 0 && (() => {
+            const list = currentAttendee.shared_communities;
+            const limit = 6;
+            const hasMore = list.length > limit;
+            const displayList = hasMore ? list.slice(0, limit - 1) : list;
+            
+            return (
+              <View style={styles.sharedCommGlassContainer}>
+                <View style={styles.sharedCommHeaderRow}>
+                  <Users size={16} color="#4F46E5" strokeWidth={2.5} />
+                  <Text style={styles.sharedCommSectionLabel}>Shared Communities</Text>
+                </View>
+                <Text style={styles.sharedCommInfoText}>
+                  You both belong to {list.length === 1 ? 'this community' : 'these communities'}:
+                </Text>
+                
+                <View style={styles.sharedCommGrid}>
+                  {displayList.map((comm) => (
+                    <TouchableOpacity
+                      key={comm.id}
+                      style={styles.sharedCommGridItem}
+                      onPress={() => {
+                        navigation.navigate('CommunityPublicProfile', { communityId: comm.id, communityName: comm.name });
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.sharedCommGridLogoContainer}>
+                        {comm.logo_url ? (
+                          <Image source={{ uri: comm.logo_url }} style={styles.sharedCommGridLogo} />
+                        ) : (
+                          <View style={styles.sharedCommGridLogoFallback}>
+                            <Users size={20} color="#4F46E5" />
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.sharedCommGridName} numberOfLines={1}>
+                        {comm.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  
+                  {hasMore && (
+                    <TouchableOpacity
+                      style={styles.sharedCommGridItem}
+                      onPress={() => {
+                        setSelectedAttendeeCommunities(list);
+                        setSharedCommSheetOpen(true);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.sharedCommGridLogoContainer, styles.sharedCommViewAllContainer]}>
+                        <Text style={styles.sharedCommViewAllText}>+{list.length - (limit - 1)}</Text>
+                      </View>
+                      <Text style={[styles.sharedCommGridName, { color: '#4F46E5', fontFamily: FONTS.semiBold }]} numberOfLines={1}>
+                        View All
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-              <Text style={styles.sharedCommInfoText}>
-                You both belong to {currentAttendee.shared_communities.length === 1 ? 'this community' : 'these communities'}:
-              </Text>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false} 
-                contentContainerStyle={styles.sharedCommHorizontalList}
-              >
-                {currentAttendee.shared_communities.map((comm) => (
-                  <TouchableOpacity
-                    key={comm.id}
-                    style={styles.sharedCommCard}
-                    onPress={() => {
-                      navigation.navigate('CommunityPublicProfile', { communityId: comm.id, communityName: comm.name });
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.sharedCommCardLogoContainer}>
-                      {comm.logo_url ? (
-                        <Image source={{ uri: comm.logo_url }} style={styles.sharedCommCardLogo} />
-                      ) : (
-                        <View style={styles.sharedCommCardLogoFallback}>
-                          <Users size={20} color="#4F46E5" />
-                        </View>
-                      )}
-                    </View>
-                    <Text style={styles.sharedCommCardName} numberOfLines={1}>
-                      {comm.name}
-                    </Text>
-                    <Text style={styles.sharedCommCardSub}>View profile</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
+            );
+          })()}
 
           <View style={styles.bottomSpacer} />
         </ScrollView>
@@ -2845,55 +2866,54 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary || "#64748B",
     marginBottom: 16,
   },
-  sharedCommHorizontalList: {
+  sharedCommGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
-    paddingRight: 10,
+    justifyContent: 'flex-start',
+    marginTop: 8,
   },
-  sharedCommCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#EEF2FF",
-    padding: 12,
+  sharedCommGridItem: {
+    width: '30%',
     alignItems: 'center',
-    width: 110,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
+    marginBottom: 16,
   },
-  sharedCommCardLogoContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    overflow: 'hidden',
-    backgroundColor: '#EEF2FF',
-    alignItems: 'center',
+  sharedCommGridLogoContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 8,
+    overflow: 'hidden',
   },
-  sharedCommCardLogo: {
+  sharedCommGridLogo: {
     width: '100%',
     height: '100%',
   },
-  sharedCommCardLogoFallback: {
+  sharedCommGridLogoFallback: {
     width: '100%',
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  sharedCommCardName: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 12,
+  sharedCommGridName: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
     color: COLORS.textPrimary,
     textAlign: 'center',
     width: '100%',
-    marginBottom: 2,
   },
-  sharedCommCardSub: {
-    fontFamily: FONTS.medium,
-    fontSize: 10,
+  sharedCommViewAllContainer: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#4F46E5',
+  },
+  sharedCommViewAllText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
     color: '#4F46E5',
   },
 });
