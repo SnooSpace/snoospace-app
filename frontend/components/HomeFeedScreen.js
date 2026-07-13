@@ -305,10 +305,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  // Attendance confirmation state
-  const [pendingAttendanceEvent, setPendingAttendanceEvent] = useState(null);
-  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
-  const [attendanceLoading, setAttendanceLoading] = useState(false);
+
 
   // Delete modal state
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
@@ -886,31 +883,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }, [loadNotifications]),
   );
 
-  // Check for pending attendance confirmation on focus
-  useFocusEffect(
-    React.useCallback(() => {
-      const task = InteractionManager.runAfterInteractions(() => {
-        checkPendingAttendance();
-      });
-      return () => task.cancel();
-    }, []),
-  );
 
-  const checkPendingAttendance = async () => {
-    try {
-      // Skip for non-member accounts - this endpoint is member-only
-      if (role !== "member") {
-        return;
-      }
-      const response = await getPendingAttendanceEvent();
-      if (response?.event) {
-        setPendingAttendanceEvent(response.event);
-        setShowAttendanceModal(true);
-      }
-    } catch (error) {
-      console.warn("[HomeFeed] Error checking pending attendance:", error);
-    }
-  };
+
+
 
   const loadMessageUnreadCount = async () => {
     try {
@@ -921,21 +896,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }
   };
 
-  const handleConfirmAttendance = async (attended) => {
-    if (!pendingAttendanceEvent?.id) return;
-    try {
-      setAttendanceLoading(true);
-      HapticsService.triggerImpactMedium();
-      await confirmAttendance(pendingAttendanceEvent.id, attended);
-      setShowAttendanceModal(false);
-      setPendingAttendanceEvent(null);
-    } catch (error) {
-      console.error("Error confirming attendance:", error);
-      Alert.alert("Error", "Failed to confirm attendance. Please try again.");
-    } finally {
-      setAttendanceLoading(false);
-    }
-  };
+
 
   const loadFeed = async (reset = true, skipSetLoading = false) => {
     // Prevent duplicate calls while loading
@@ -1656,15 +1617,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         }}
       />
 
-      {/* Attendance Confirmation Modal */}
-      {showAttendanceModal && (
-        <AttendanceConfirmationModal
-          visible={showAttendanceModal}
-          eventTitle={pendingAttendanceEvent?.title}
-          onConfirmAttendance={handleConfirmAttendance}
-          loading={attendanceLoading}
-        />
-      )}
+
 
       {/* Delete Post Modal */}
       {deleteModalVisible && (

@@ -374,3 +374,22 @@ export async function trackEventShare(eventId) {
     // Non-fatal
   }
 }
+
+/**
+ * Get event verifications for the current user
+ * @returns {Promise<Object>} Verification status records
+ */
+export async function getEventVerifications() {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiGet("/events/verifications", 15000, token);
+}
+
+/**
+ * Update event verification status (upsert)
+ * @param {Object} payload - { eventId, type, status, nextPromptAt }
+ * @returns {Promise<Object>} Updated verification record
+ */
+export async function updateEventVerification(payload) {
+  const token = await (await import("./auth")).getAuthToken();
+  return apiPost("/events/verifications", payload, 15000, token);
+}

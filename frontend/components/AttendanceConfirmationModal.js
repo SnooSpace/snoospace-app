@@ -1,19 +1,20 @@
 import React, { useState } from "react";
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { HelpCircle, XCircle, CheckCircle2, X } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS } from "../constants/theme";
 import SnooLoader from "./ui/SnooLoader";
 
 /**
- * Blocking modal for attendance confirmation
- * Cannot be dismissed via back button, backdrop, or swipe
+ * Attendance confirmation modal
+ * Can be blocking or dismissible if onClose callback is provided
  */
 export default function AttendanceConfirmationModal({
   visible,
   eventTitle,
   onConfirmAttendance,
   loading = false,
+  onClose,
 }) {
   const [selectedOption, setSelectedOption] = useState(null);
 
@@ -27,14 +28,24 @@ export default function AttendanceConfirmationModal({
       visible={visible}
       transparent
       animationType="fade"
-      onRequestClose={() => {}} // Prevent back button dismiss
+      onRequestClose={onClose ? onClose : () => {}} // Prevent back button dismiss if no onClose callback
       statusBarTranslucent={true}
     >
       <View style={styles.overlay}>
         <View style={styles.container}>
+          {onClose && (
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={onClose}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <X size={24} color="#6B7280" />
+            </TouchableOpacity>
+          )}
+
           {/* Icon */}
           <View style={styles.iconContainer}>
-            <Ionicons name="help-circle" size={56} color={COLORS.primary} />
+            <HelpCircle size={56} color={COLORS.primary} strokeWidth={1.8} />
           </View>
 
           {/* Title */}
@@ -61,12 +72,10 @@ export default function AttendanceConfirmationModal({
                 <SnooLoader size="small" color="#666" />
               ) : (
                 <>
-                  <Ionicons
-                    name="close-circle-outline"
-                    size={20}
-                    color="#666"
-                  />
-                  <Text style={[styles.noButtonText, { fontFamily: 'Manrope-SemiBold' }]}>No, I didn't attend</Text>
+                  <XCircle size={20} color="#666" strokeWidth={2.2} />
+                  <Text style={[styles.noButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
+                    No, I didn't attend
+                  </Text>
                 </>
               )}
             </TouchableOpacity>
@@ -86,8 +95,10 @@ export default function AttendanceConfirmationModal({
                   <SnooLoader size="small" color="#FFF" />
                 ) : (
                   <>
-                    <Ionicons name="checkmark-circle" size={20} color="#FFF" />
-                    <Text style={[styles.yesButtonText, { fontFamily: 'Manrope-SemiBold' }]}>Yes, I attended</Text>
+                    <CheckCircle2 size={20} color="#FFF" strokeWidth={2.2} />
+                    <Text style={[styles.yesButtonText, { fontFamily: 'Manrope-SemiBold' }]}>
+                      Yes, I attended
+                    </Text>
                   </>
                 )}
               </LinearGradient>
@@ -114,6 +125,14 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 340,
     alignItems: "center",
+    position: "relative",
+  },
+  closeButton: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    padding: 4,
+    zIndex: 10,
   },
   iconContainer: {
     marginBottom: 16,

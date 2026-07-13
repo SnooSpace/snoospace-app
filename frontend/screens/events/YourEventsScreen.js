@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, Animated, Pressable, Platform, InteractionManager, Share } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, Animated, Pressable, Platform, InteractionManager, Share, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Calendar, Heart, Bookmark } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { apiGet } from "../../api/client";
 import { getAuthToken, getActiveAccount } from "../../api/auth";
-import { getInterestedEvents, toggleEventInterest } from "../../api/events";
+import { getInterestedEvents, toggleEventInterest, confirmAttendance } from "../../api/events";
+import AttendanceConfirmationModal from "../../components/AttendanceConfirmationModal";
 import { getHostedPlans, getAttendingPlans, getInterestedPlans, togglePlanInterest, likePlan, unlikePlan } from "../../api/plans";
 import HapticsService from "../../services/HapticsService";
 import EventBus from "../../utils/EventBus";
@@ -35,14 +36,16 @@ const EventListCard = ({
   onPress,
   isPast,
   onComment,
+  onAttendancePress,
 }) => {
   return (
     <EventCard
       event={item}
       onPress={onPress}
       onComment={onComment}
-      compact={true}
-      style={{ marginBottom: 20 }}
+      compact={false}
+      onAttendancePress={onAttendancePress}
+      style={{ marginHorizontal: 0, marginBottom: 20 }}
     />
   );
 };
@@ -250,6 +253,9 @@ export default function YourEventsScreen({ navigation }) {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [sharingPlan, setSharingPlan] = useState(null);
+  const [selectedVerifyEvent, setSelectedVerifyEvent] = useState(null);
+  const [attendanceModalVisible, setAttendanceModalVisible] = useState(false);
+  const [attendanceConfirmLoading, setAttendanceConfirmLoading] = useState(false);
 
   useEffect(() => {
     getActiveAccount()
@@ -259,6 +265,27 @@ export default function YourEventsScreen({ navigation }) {
         }
       })
       .catch((err) => console.error("Error loading account in YourEventsScreen:", err));
+  }, []);
+
+  // Subscribe to global event-status-updated updates to keep our local events list in sync
+  useEffect(() => {
+    const unsubscribe = EventBus.on("event-status-updated", ({ eventId, status, confirmedAt }) => {
+      setEvents((prevEvents) =>
+        prevEvents.map((evt) =>
+          parseInt(evt.id) === parseInt(eventId)
+            ? { ...evt, attendance_status: status, attendance_confirmed_at: confirmedAt }
+            : evt
+        )
+      );
+      setInterestedEvents((prevEvents) =>
+        prevEvents.map((evt) =>
+          parseInt(evt.id) === parseInt(eventId)
+            ? { ...evt, attendance_status: status, attendance_confirmed_at: confirmedAt }
+            : evt
+        )
+      );
+    });
+    return unsubscribe;
   }, []);
 
   // Screen-level comments modal state and callbacks
@@ -277,6 +304,51 @@ export default function YourEventsScreen({ navigation }) {
   const closeCommentsModal = useCallback(() => {
     setCommentsModalState({ visible: false, postId: null, postType: "post" });
   }, []);
+
+  const handleOpenAttendanceModal = useCallback((event) => {
+    setSelectedVerifyEvent(event);
+    setAttendanceModalVisible(true);
+  }, []);
+
+  const handleConfirmAttendance = useCallback(async (attended) => {
+    if (!selectedVerifyEvent) return;
+    try {
+      setAttendanceConfirmLoading(true);
+      const response = await confirmAttendance(selectedVerifyEvent.id, attended);
+      if (response?.success) {
+        const newStatus = attended ? "attended" : "did_not_attend";
+        
+        // Update local events state
+        setEvents((prevEvents) =>
+          prevEvents.map((evt) =>
+            evt.id === selectedVerifyEvent.id
+              ? { ...evt, attendance_status: newStatus, attendance_confirmed_at: new Date().toISOString() }
+              : evt
+          )
+        );
+        
+        // Update local interestedEvents state
+        setInterestedEvents((prevEvents) =>
+          prevEvents.map((evt) =>
+            evt.id === selectedVerifyEvent.id
+              ? { ...evt, attendance_status: newStatus, attendance_confirmed_at: new Date().toISOString() }
+              : evt
+          )
+        );
+        
+        setAttendanceModalVisible(false);
+        setSelectedVerifyEvent(null);
+        HapticsService.triggerImpactLight();
+      } else {
+        Alert.alert("Error", response?.error || "Failed to update attendance");
+      }
+    } catch (error) {
+      console.error("Error confirming attendance:", error);
+      Alert.alert("Error", "Something went wrong. Please try again.");
+    } finally {
+      setAttendanceConfirmLoading(false);
+    }
+  }, [selectedVerifyEvent]);
 
   // Tab underline animation
   const tabUnderlineX = React.useRef(new Animated.Value(0)).current;
@@ -637,9 +709,10 @@ export default function YourEventsScreen({ navigation }) {
         showRemoveButton={activeTab === "Interested"}
         isPast={activeTab === "Past"}
         onComment={(id) => openCommentsModal(id, "event")}
+        onAttendancePress={handleOpenAttendanceModal}
       />
     );
-  }, [handleEventPress, handleRemoveInterest, handleTogglePlanInterest, interestedPlans, activeTab, navigation, openCommentsModal, currentUserId, handlePlanLike]);
+  }, [handleEventPress, handleRemoveInterest, handleTogglePlanInterest, interestedPlans, activeTab, navigation, openCommentsModal, currentUserId, handlePlanLike, handleOpenAttendanceModal]);
 
   const filteredEvents = getFilteredEvents();
 
@@ -844,6 +917,17 @@ export default function YourEventsScreen({ navigation }) {
         visible={shareModalVisible}
         onClose={() => setShareModalVisible(false)}
         post={sharingPlan}
+      />
+
+      <AttendanceConfirmationModal
+        visible={attendanceModalVisible}
+        eventTitle={selectedVerifyEvent?.title}
+        onConfirmAttendance={handleConfirmAttendance}
+        loading={attendanceConfirmLoading}
+        onClose={() => {
+          setAttendanceModalVisible(false);
+          setSelectedVerifyEvent(null);
+        }}
       />
     </View>
   );

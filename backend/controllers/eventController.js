@@ -660,6 +660,8 @@ const getMyEvents = async (req, res) => {
         v.name AS venue_name,
         -- Registration
         er.registration_status,
+        er.attendance_status,
+        er.attendance_confirmed_at,
         er.created_at AS registration_date,
         true AS is_registered,
         -- Lowest ticket price
@@ -5323,7 +5325,7 @@ const confirmAttendance = async (req, res) => {
 
     // Check if user is registered for this event
     const registrationCheck = await pool.query(
-      "SELECT id, attendance_status FROM event_registrations WHERE event_id = $1 AND member_id = $2 AND registration_status IN ('registered', 'attended', 'confirmed')",
+      "SELECT id, attendance_status, attendance_confirmed_at FROM event_registrations WHERE event_id = $1 AND member_id = $2 AND registration_status IN ('registered', 'attended', 'confirmed')",
       [eventId, userId],
     );
 
@@ -5331,13 +5333,17 @@ const confirmAttendance = async (req, res) => {
       return res.status(404).json({ error: "Registration not found" });
     }
 
-    // Check if already confirmed
-    if (registrationCheck.rows[0].attendance_status) {
-      return res.status(400).json({
-        error: "Attendance already confirmed",
-        attendance_status: registrationCheck.rows[0].attendance_status,
-      });
+    if (registrationCheck.rows[0].attendance_status && registrationCheck.rows[0].attendance_confirmed_at) {
+      const confirmedTime = new Date(registrationCheck.rows[0].attendance_confirmed_at).getTime();
+      const elapsed = Date.now() - confirmedTime;
+      if (elapsed > 3 * 60 * 1000) {
+        return res.status(400).json({
+          error: "Attendance modification window (3 minutes) has expired",
+          attendance_status: registrationCheck.rows[0].attendance_status,
+        });
+      }
     }
+
 
     // Update attendance status
     const attendanceStatus = attended ? "attended" : "did_not_attend";
@@ -5822,6 +5828,8 @@ module.exports = {
   confirmAttendance,
   getPendingAttendanceEvents,
   organiserConfirmAttendance,
+  getEventVerifications,
+  updateEventVerification,
   // Ticket reservations
   reserveTickets,
   releaseReservation,
@@ -6600,3 +6608,92 @@ async function unpinEventComment(req, res) {
     res.status(500).json({ error: "Internal server error" });
   }
 }
+
+async function getEventVerifications(req, res) {
+  const userId = req.user.userId;
+  try {
+    const result = await pool.query(
+      "SELECT event_id, type, status, next_prompt_at, dismiss_count, answered_at FROM event_verifications WHERE member_id = $1",
+      [userId]
+    );
+    return res.status(200).json({ success: true, verifications: result.rows });
+  } catch (error) {
+    console.error("Error fetching event verifications:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+
+async function updateEventVerification(req, res) {
+  const userId = req.user.userId;
+  const { eventId, type, status, nextPromptAt } = req.body;
+
+  if (!eventId || !type || !status) {
+    return res.status(400).json({ error: "eventId, type, and status are required" });
+  }
+
+  if (!["going", "attendance"].includes(type)) {
+    return res.status(400).json({ error: "Invalid verification type" });
+  }
+
+  if (!["confirmed", "dont_going", "did_not_attend", "ask_later"].includes(status)) {
+    return res.status(400).json({ error: "Invalid verification status" });
+  }
+
+  try {
+    // 1. Check if user is registered for this event
+    const registrationCheck = await pool.query(
+      "SELECT id FROM event_registrations WHERE event_id = $1 AND member_id = $2 AND registration_status IN ('registered', 'attended', 'confirmed')",
+      [eventId, userId]
+    );
+
+    if (registrationCheck.rows.length === 0) {
+      return res.status(404).json({ error: "Registration not found" });
+    }
+
+    const isDismiss = status === "ask_later";
+    const answeredAtVal = isDismiss ? null : new Date();
+
+    // 2. Perform Upsert on event_verifications
+    const query = `
+      INSERT INTO event_verifications (event_id, member_id, type, status, next_prompt_at, dismiss_count, answered_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, CASE WHEN $6 = true THEN 1 ELSE 0 END, $7, NOW())
+      ON CONFLICT (event_id, member_id, type)
+      DO UPDATE SET 
+        status = EXCLUDED.status,
+        next_prompt_at = EXCLUDED.next_prompt_at,
+        dismiss_count = CASE WHEN $6 = true THEN event_verifications.dismiss_count + 1 ELSE event_verifications.dismiss_count END,
+        answered_at = EXCLUDED.answered_at,
+        updated_at = NOW()
+      RETURNING event_id, type, status, next_prompt_at, dismiss_count, answered_at;
+    `;
+
+    const nextPromptAtVal = nextPromptAt ? new Date(nextPromptAt) : null;
+
+    const result = await pool.query(query, [
+      eventId,
+      userId,
+      type,
+      status,
+      nextPromptAtVal,
+      isDismiss,
+      answeredAtVal,
+    ]);
+
+    // 3. If type is 'attendance' and status is answered, also update event_registrations.attendance_status!
+    if (type === "attendance" && !isDismiss) {
+      const attendanceStatus = status === "confirmed" ? "attended" : "did_not_attend";
+      await pool.query(
+        `UPDATE event_registrations 
+         SET attendance_status = $1, attendance_confirmed_at = NOW(), updated_at = NOW()
+         WHERE event_id = $2 AND member_id = $3`,
+        [attendanceStatus, eventId, userId]
+      );
+    }
+
+    return res.status(200).json({ success: true, verification: result.rows[0] });
+  } catch (error) {
+    console.error("Error updating event verification:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
+

@@ -128,6 +128,7 @@ function EventCard({
   showStatusLabel = false,
   onAttendeesPress,
   compact = false,
+  onAttendancePress,
 }) {
   const [isInterested, setIsInterested] = useState(
     Boolean(event?.is_interested),
@@ -296,6 +297,12 @@ function EventCard({
       }
     };
   }, []);
+
+  const handleAttendancePress = () => {
+    if (onAttendancePress) {
+      onAttendancePress(event);
+    }
+  };
 
   const handleCardPress = (e) => {
     const now = Date.now();
@@ -702,6 +709,13 @@ function EventCard({
   const { month, day } = parseDisplayDate(displayDate);
   const eventDateObj = event_date ? new Date(event_date) : null;
   const isPast = eventDateObj ? eventDateObj.getTime() < Date.now() : false;
+
+  const canModifyAttendance = useMemo(() => {
+    if (!event?.attendance_status || !event?.attendance_confirmed_at) return true;
+    const confirmedTime = new Date(event.attendance_confirmed_at).getTime();
+    const elapsed = Date.now() - confirmedTime;
+    return elapsed < 3 * 60 * 1000; // 3 minutes in milliseconds
+  }, [event?.attendance_status, event?.attendance_confirmed_at]);
 
   return (
     <View style={[styles.container, compact && styles.containerCompact, style]}>
@@ -1296,10 +1310,39 @@ function EventCard({
               {userRole !== "community" && !hideRsvp && (
                 <>
                   {isRegistered ? (
-                    <View style={[styles.interestedButton, styles.goingButton]}>
-                      <CheckCircle2 size={14} color="#16A34A" strokeWidth={2.2} />
-                      <Text style={styles.goingText}>Going</Text>
-                    </View>
+                    isPast ? (
+                      event.attendance_status === "attended" ? (
+                        <TouchableOpacity
+                          style={[styles.interestedButton, styles.goingButton]}
+                          onPress={handleAttendancePress}
+                          disabled={!onAttendancePress || !canModifyAttendance}
+                        >
+                          <CheckCircle2 size={14} color="#16A34A" strokeWidth={2.2} />
+                          <Text style={styles.goingText}>Attended</Text>
+                        </TouchableOpacity>
+                      ) : event.attendance_status === "did_not_attend" ? (
+                        <TouchableOpacity
+                          style={[styles.interestedButton, styles.didNotAttendButton]}
+                          onPress={handleAttendancePress}
+                          disabled={!onAttendancePress || !canModifyAttendance}
+                        >
+                          <Text style={styles.didNotAttendText}>Didn't Attend</Text>
+                        </TouchableOpacity>
+                      ) : (
+                        <TouchableOpacity
+                          style={[styles.interestedButton, styles.verifyButton]}
+                          onPress={handleAttendancePress}
+                          disabled={!onAttendancePress}
+                        >
+                          <Text style={styles.verifyText}>Verify Attendance</Text>
+                        </TouchableOpacity>
+                      )
+                    ) : (
+                      <View style={[styles.interestedButton, styles.goingButton]}>
+                        <CheckCircle2 size={14} color="#16A34A" strokeWidth={2.2} />
+                        <Text style={styles.goingText}>Going</Text>
+                      </View>
+                    )
                   ) : (
                     <TouchableOpacity
                       key={`interest-btn-${isInterested}`}
@@ -1875,6 +1918,38 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 1,
+  },
+  didNotAttendButton: {
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  didNotAttendText: {
+    fontSize: 13,
+    fontFamily: FONTS.semiBold,
+    color: "#6B7280",
+  },
+  verifyButton: {
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "rgba(37, 99, 235, 0.2)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  verifyText: {
+    fontSize: 13,
+    fontFamily: FONTS.semiBold,
+    color: "#2563EB",
   },
 });
 

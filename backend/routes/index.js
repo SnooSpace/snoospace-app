@@ -1797,6 +1797,16 @@ router.post(
   authMiddleware,
   EventController.confirmAttendance,
 );
+router.get(
+  "/events/verifications",
+  authMiddleware,
+  EventController.getEventVerifications,
+);
+router.post(
+  "/events/verifications",
+  authMiddleware,
+  EventController.updateEventVerification,
+);
 
 // ============================================
 // TICKET GIFTING SYSTEM

@@ -41,6 +41,8 @@ import { useAppResume } from "./hooks/useAppResume";
 
 import { ToastProvider } from "./context/ToastContext";
 import AccountSwitchOverlay from "./components/ui/AccountSwitchOverlay";
+import { EventVerificationProvider } from "./context/EventVerificationContext";
+import EventVerificationOverlay from "./components/EventVerificationOverlay";
 
 // NOTE: Notifications.setNotificationHandler is configured at module level
 // in services/pushNotificationService.js. No duplicate call needed here.
@@ -254,6 +256,7 @@ function AppContent() {
         onDismiss={() => setCurrentBanner(null)}
       />
       <AccountSwitchOverlay />
+      <EventVerificationOverlay />
     </>
   );
 }
@@ -288,7 +291,9 @@ export default function App() {
                 <NotificationsProvider>
                   <VideoProvider>
                     <ToastProvider>
-                      <AppContent />
+                      <EventVerificationProvider>
+                        <AppContent />
+                      </EventVerificationProvider>
                     </ToastProvider>
                     
                     {!isSplashAnimationComplete && (

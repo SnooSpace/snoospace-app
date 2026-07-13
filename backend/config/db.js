@@ -1313,6 +1313,21 @@ async function ensureTables(pool) {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         UNIQUE (comment_id, liker_id, liker_type)
       );
+
+      CREATE TABLE IF NOT EXISTS event_verifications (
+        id BIGSERIAL PRIMARY KEY,
+        event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        member_id BIGINT NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        type VARCHAR(20) NOT NULL CHECK (type IN ('going', 'attendance')),
+        status VARCHAR(20) NOT NULL CHECK (status IN ('confirmed', 'dont_going', 'did_not_attend', 'ask_later')),
+        next_prompt_at TIMESTAMPTZ,
+        dismiss_count INTEGER DEFAULT 0,
+        answered_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (event_id, member_id, type)
+      );
+      CREATE INDEX IF NOT EXISTS idx_event_verifications_member ON event_verifications(member_id);
     `);
     console.log("✅ Ensured all tables");
   } catch (err) {
