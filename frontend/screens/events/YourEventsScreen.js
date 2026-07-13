@@ -10,6 +10,7 @@ import AttendanceConfirmationModal from "../../components/AttendanceConfirmation
 import { getHostedPlans, getAttendingPlans, getInterestedPlans, togglePlanInterest, likePlan, unlikePlan } from "../../api/plans";
 import HapticsService from "../../services/HapticsService";
 import EventBus from "../../utils/EventBus";
+import PromoteSheet from "../../components/posts/PromoteSheet";
 import {
   COLORS,
   FONTS,
@@ -256,6 +257,10 @@ export default function YourEventsScreen({ navigation }) {
   const [selectedVerifyEvent, setSelectedVerifyEvent] = useState(null);
   const [attendanceModalVisible, setAttendanceModalVisible] = useState(false);
   const [attendanceConfirmLoading, setAttendanceConfirmLoading] = useState(false);
+
+  // Promote plan state
+  const [showPromoteSheet, setShowPromoteSheet] = useState(false);
+  const [promotingPlan, setPromotingPlan] = useState(null);
 
   useEffect(() => {
     getActiveAccount()
@@ -672,6 +677,10 @@ export default function YourEventsScreen({ navigation }) {
             setShareModalVisible(true);
           }}
           onComment={(planId) => openCommentsModal(planId, "plan")}
+          onPromote={(plan) => {
+            setPromotingPlan(plan);
+            setShowPromoteSheet(true);
+          }}
           navigation={navigation}
         />
       );
@@ -928,6 +937,22 @@ export default function YourEventsScreen({ navigation }) {
           setAttendanceModalVisible(false);
           setSelectedVerifyEvent(null);
         }}
+      />
+
+      {/* Promote Plan Sheet — owner only, Poll + Q&A restricted */}
+      <PromoteSheet
+        visible={showPromoteSheet}
+        onClose={() => {
+          setShowPromoteSheet(false);
+          setPromotingPlan(null);
+        }}
+        onSuccess={() => {
+          setShowPromoteSheet(false);
+          setPromotingPlan(null);
+        }}
+        sourceType="plan"
+        sourceData={promotingPlan}
+        allowedEngagementTypes={['poll', 'qna']}
       />
     </View>
   );

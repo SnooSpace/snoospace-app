@@ -35,6 +35,7 @@ import {
   BarChart3,
   Users,
   ChevronRight,
+  Megaphone,
 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -49,6 +50,8 @@ import Svg, {
 import CreateEventModal from "../../../components/modals/CreateEventModal";
 import EditEventModal from "../../../components/modals/EditEventModal";
 import ActionModal from "../../../components/modals/ActionModal";
+import PromoteSheet from "../../../components/posts/PromoteSheet";
+import { getEventPromoteState } from "../../../utils/promoteUtils";
 
 import { COLORS, SHADOWS, FONTS } from "../../../constants/theme";
 import {
@@ -200,6 +203,10 @@ export default function CommunityDashboardScreen({ navigation }) {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [activeTab, setActiveTab] = useState("upcoming");
   const [audienceStats, setAudienceStats] = useState(null);
+
+  // Promote state
+  const [showPromoteSheet, setShowPromoteSheet] = useState(false);
+  const [promotingEvent, setPromotingEvent] = useState(null);
 
   // Scroll Animation
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -641,6 +648,35 @@ export default function CommunityDashboardScreen({ navigation }) {
             </View>
           </View>
 
+          {/* Promote button — purple Megaphone, with date/time gating */}
+          {(() => {
+            const { canPromote, reason } = getEventPromoteState(item);
+            return (
+              <GHPressable
+                style={({ pressed }) => [
+                  styles.ticketPromoteButton,
+                  !canPromote && styles.ticketPromoteButtonDisabled,
+                  pressed && canPromote && { opacity: 0.7 },
+                ]}
+                onPress={(e) => {
+                  e.stopPropagation?.();
+                  if (!canPromote) {
+                    Alert.alert('Cannot Promote', reason);
+                    return;
+                  }
+                  setPromotingEvent(item);
+                  setShowPromoteSheet(true);
+                }}
+              >
+                <Megaphone
+                  size={18}
+                  color={canPromote ? '#7C3AED' : '#C4B5FD'}
+                  strokeWidth={2}
+                />
+              </GHPressable>
+            );
+          })()}
+
           <GHPressable
             style={({ pressed }) => [styles.ticketMenuButton, pressed && { opacity: 0.7 }]}
             onPress={() => handleEventLongPress(item)}
@@ -1016,6 +1052,22 @@ export default function CommunityDashboardScreen({ navigation }) {
           }
         />
       )}
+
+      {/* Promote Event Sheet */}
+      <PromoteSheet
+        visible={showPromoteSheet}
+        onClose={() => {
+          setShowPromoteSheet(false);
+          setPromotingEvent(null);
+        }}
+        onSuccess={() => {
+          setShowPromoteSheet(false);
+          setPromotingEvent(null);
+        }}
+        sourceType="event"
+        sourceData={promotingEvent}
+        allowedEngagementTypes={['poll', 'qna', 'prompt', 'opportunity']}
+      />
 
       {/* Draft Prompt Modal (shown on Dashboard) */}
       {showDraftPrompt && (
@@ -1507,6 +1559,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: "#F7F8FA",
     borderRadius: 12,
+  },
+  ticketPromoteButton: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3EFFE',
+    borderRadius: 12,
+    marginRight: 6,
+  },
+  ticketPromoteButtonDisabled: {
+    backgroundColor: '#F5F5F5',
   },
   itemSeparator: {
     height: 0, // No separator for card style

@@ -1114,6 +1114,8 @@ router.get("/community-voice-posts", authMiddleware, CommunityVoiceController.ge
 router.post("/posts", authMiddleware, PostController.createPost);
 router.get("/posts/feed", authMiddleware, PostController.getFeed);
 router.get("/posts/explore", authMiddleware, PostController.getExplore);
+// IMPORTANT: /posts/promote-quota must be BEFORE /posts/:postId to avoid shadowing
+router.get("/posts/promote-quota", authMiddleware, PostController.getPromoteQuota);
 router.get("/posts/:postId", authMiddleware, PostController.getPost);
 router.get(
   "/posts/user/:userId/:userType",
@@ -1691,6 +1693,17 @@ router.get(
 );
 router.get("/events/discover", authMiddleware, EventController.discoverEvents);
 router.get("/events/search", authMiddleware, EventController.searchEvents);
+// Verifications must be declared BEFORE :eventId wildcards
+router.get(
+  "/events/verifications",
+  authMiddleware,
+  EventController.getEventVerifications,
+);
+router.post(
+  "/events/verifications",
+  authMiddleware,
+  EventController.updateEventVerification,
+);
 router.get(
   "/events/:eventId/attendees",
   authMiddleware,
@@ -1797,16 +1810,7 @@ router.post(
   authMiddleware,
   EventController.confirmAttendance,
 );
-router.get(
-  "/events/verifications",
-  authMiddleware,
-  EventController.getEventVerifications,
-);
-router.post(
-  "/events/verifications",
-  authMiddleware,
-  EventController.updateEventVerification,
-);
+
 
 // ============================================
 // TICKET GIFTING SYSTEM

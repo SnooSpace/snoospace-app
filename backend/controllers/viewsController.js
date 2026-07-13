@@ -112,11 +112,14 @@ async function submitViewsBatch(req, res) {
           }
         }
       } else if (type === "repeat") {
-        // Log repeat/engaged view (no unique constraint)
+        // Log repeat/engaged view.
+        // Uses ON CONFLICT DO NOTHING so duplicate PKs are silently skipped
+        // rather than throwing a 23505 error that aborts the whole transaction.
         try {
           await client.query(
             `INSERT INTO repeat_view_events (post_id, user_id, user_type, engagement_type, dwell_time_ms)
-             VALUES ($1, $2, $3, $4, $5)`,
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT DO NOTHING`,
             [
               postId,
               userId,
@@ -127,6 +130,9 @@ async function submitViewsBatch(req, res) {
           );
           repeatLogged.push(postId);
         } catch (e) {
+          // Unexpected error — log but do not let it abort the transaction
+          const savepointName = `sp_repeat_${postId}`;
+          try { await client.query(`ROLLBACK TO SAVEPOINT ${savepointName}`); } catch (_) {}
           console.error(
             `[ViewsController] Error logging repeat view for post ${postId}:`,
             e,

@@ -82,6 +82,7 @@ import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
 import HapticsService from "../../services/HapticsService";
 import ContentActionsSheet from "../ContentActionsSheet";
+import PromoSourceBanner, { PromoTopRow, PlanPreviewCard } from "./PromoSourceBanner";
 
 const QnAPostCard = React.memo(({
   post,
@@ -104,7 +105,15 @@ const QnAPostCard = React.memo(({
 }) => {
   const navigation = useNavigation();
   const { showToast } = useToast();
-  const typeData = post.type_data || {};
+  const typeData    = post.type_data || {};
+  const isPromoPost = !!typeData.promo_source_type;
+  const promoNavHandler = () => {
+    const src = typeData.promo_source_type;
+    const id  = typeData.promo_source_id;
+    if (!src || !id) return;
+    if (src === 'plan')  navigation.navigate('PlanDetail',   { planId:  id });
+    if (src === 'event') navigation.navigate('EventDetails', { eventId: id });
+  };
   const [userQuestionCount, setUserQuestionCount] = useState(
     post.user_question_count || 0,
   );
@@ -827,101 +836,181 @@ const QnAPostCard = React.memo(({
     <>
       <TouchableWithoutFeedback onPress={handleDoubleTap}>
       <View ref={cardRef} style={styles.container}>
-        {/* Header Row: Q&A Badge + Avatar Stack + Question Icon */}
-        <View style={styles.headerRow}>
-          <View style={styles.leftHeaderContent}>
-            <View style={styles.qnaBadge}>
-              <Text style={styles.qnaBadgeText}>Q&A</Text>
-            </View>
-            {/* Resolved Badge (if any question resolved) */}
-            {post.has_resolved_questions && (
-              <View style={styles.resolvedBadge}>
-                <Text style={styles.resolvedBadgeText}>✓ Resolved</Text>
+        {/* ── PROMO LAYOUT: unified single card ─────────────────────────── */}
+        {isPromoPost && (
+          <View style={styles.promoAuthorRow}>
+            {/* Author info */}
+            <TouchableOpacity style={styles.promoAuthorLeft} onPress={handleUserPress} activeOpacity={0.7}>
+              <Image
+                source={{ uri: post.author_photo_url || 'https://via.placeholder.com/36' }}
+                style={styles.promoAvatar}
+                cachePolicy="memory-disk"
+                contentFit="cover"
+              />
+              <View style={styles.promoAuthorMeta}>
+                <View style={styles.promoAuthorNameRow}>
+                  <Text style={styles.promoAuthorName} numberOfLines={1}>
+                    {post.author_name || post.author_username}
+                  </Text>
+                  <Text style={styles.promoSep}>•</Text>
+                  <Text style={styles.promoTimestamp}>{formatTimeAgo(post.created_at)}</Text>
+                </View>
+                {/* Promoted pill sits directly below name */}
+                <PromoTopRow sourceType={typeData.promo_source_type} />
               </View>
-            )}
-          </View>
-
-          <View style={styles.rightHeaderContent}>
-            {showManagementControls && onPinToggle && (
-              <View style={{ overflow: "visible" }}>
+            </TouchableOpacity>
+            {/* 3-dot menu, right-aligned */}
+            <View style={styles.promoMenuSlot}>
+              {isOwnPost && (onEdit || onDelete) ? (
                 <TouchableOpacity
-                  style={[
-                    styles.pinButton,
-                    post.is_pinned && styles.pinButtonPinned,
-                  ]}
-                  onPress={() => onPinToggle(post, true)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
-                    <Pin
-                      size={14}
-                      color={post.is_pinned ? "#10B981" : "#9CA3AF"}
-                      strokeWidth={2}
-                      fill={post.is_pinned ? "#10B981" : "none"}
-                    />
-                  </View>
-                </TouchableOpacity>
-              </View>
-            )}
-            {isOwnPost && (onEdit || onDelete) && (
-              <TouchableOpacity
-                style={styles.ellipsisButton}
-                onPress={(e) => {
-                  const { pageX, pageY } = e.nativeEvent;
-                  const screenWidth = Dimensions.get("window").width;
-                  setMenuPosition({
-                    x: screenWidth - pageX - 10,
-                    y: pageY + 12,
-                  });
-                  setShowMenu(true);
-                }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ellipsis size={20} color="#5B6B7C" />
-              </TouchableOpacity>
-            )}
-            {!isOwnPost && (
-              <View style={styles.ellipsisButton}>
-                <ContentActionsSheet
-                  type="post"
-                  targetId={post.id}
-                  targetName={post.author_name || post.author_username}
-                  label="Q&A"
-                  iconColor="#5B6B7C"
-                  iconSize={20}
-                />
-              </View>
-            )}
-            <View style={styles.avatarStack}>
-              {participants.slice(0, 2).map((participant, index) => (
-                <Image
-                  key={index}
-                  source={{
-                    uri:
-                      participant.photo_url || "https://via.placeholder.com/24",
+                  style={styles.ellipsisButton}
+                  onPress={(e) => {
+                    const { pageX, pageY } = e.nativeEvent;
+                    const screenWidth = Dimensions.get('window').width;
+                    setMenuPosition({ x: screenWidth - pageX - 10, y: pageY + 12 });
+                    setShowMenu(true);
                   }}
-                  style={[
-                    styles.stackAvatar,
-                    { marginLeft: index > 0 ? -8 : 0, zIndex: 3 - index },
-                  ]}
-                  cachePolicy="memory-disk"
-                  contentFit="cover"
-                />
-              ))}
-              {participantCount > 2 && (
-                <View
-                  style={[styles.countBadge, { marginLeft: -8, zIndex: 1 }]}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Text style={styles.countText}>+{participantCount - 2}</Text>
+                  <Ellipsis size={20} color="#5B6B7C" />
+                </TouchableOpacity>
+              ) : !isOwnPost ? (
+                <View style={styles.ellipsisButton}>
+                  <ContentActionsSheet
+                    type="post"
+                    targetId={post.id}
+                    targetName={post.author_name || post.author_username}
+                    label="Q&A"
+                    iconColor="#5B6B7C"
+                    iconSize={20}
+                  />
+                </View>
+              ) : null}
+            </View>
+          </View>
+        )}
+
+        {/* ── NON-PROMO: original Q&A badge + menu header row ──────────── */}
+        {!isPromoPost && (
+          <View style={styles.headerRow}>
+            <View style={styles.leftHeaderContent}>
+              <View style={styles.qnaBadge}>
+                <Text style={styles.qnaBadgeText}>Q&A</Text>
+              </View>
+              {/* Resolved Badge (if any question resolved) */}
+              {post.has_resolved_questions && (
+                <View style={styles.resolvedBadge}>
+                  <Text style={styles.resolvedBadgeText}>✓ Resolved</Text>
                 </View>
               )}
             </View>
 
-            <View style={styles.questionIconContainer}>
-              <CircleQuestionMark size={28} color="#334456" />
+            <View style={styles.rightHeaderContent}>
+              {showManagementControls && onPinToggle && (
+                <View style={{ overflow: "visible" }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.pinButton,
+                      post.is_pinned && styles.pinButtonPinned,
+                    ]}
+                    onPress={() => onPinToggle(post, true)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <View style={{ transform: [{ rotate: "27deg" }], overflow: "visible" }}>
+                      <Pin
+                        size={14}
+                        color={post.is_pinned ? "#10B981" : "#9CA3AF"}
+                        strokeWidth={2}
+                        fill={post.is_pinned ? "#10B981" : "none"}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              )}
+              {isOwnPost && (onEdit || onDelete) && (
+                <TouchableOpacity
+                  style={styles.ellipsisButton}
+                  onPress={(e) => {
+                    const { pageX, pageY } = e.nativeEvent;
+                    const screenWidth = Dimensions.get("window").width;
+                    setMenuPosition({
+                      x: screenWidth - pageX - 10,
+                      y: pageY + 12,
+                    });
+                    setShowMenu(true);
+                  }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ellipsis size={20} color="#5B6B7C" />
+                </TouchableOpacity>
+              )}
+              {!isOwnPost && (
+                <View style={styles.ellipsisButton}>
+                  <ContentActionsSheet
+                    type="post"
+                    targetId={post.id}
+                    targetName={post.author_name || post.author_username}
+                    label="Q&A"
+                    iconColor="#5B6B7C"
+                    iconSize={20}
+                  />
+                </View>
+              )}
+              <View style={styles.avatarStack}>
+                {participants.slice(0, 2).map((participant, index) => (
+                  <Image
+                    key={index}
+                    source={{
+                      uri: participant.photo_url || "https://via.placeholder.com/24",
+                    }}
+                    style={[
+                      styles.stackAvatar,
+                      { marginLeft: index > 0 ? -8 : 0, zIndex: 3 - index },
+                    ]}
+                    cachePolicy="memory-disk"
+                    contentFit="cover"
+                  />
+                ))}
+                {participantCount > 2 && (
+                  <View style={[styles.countBadge, { marginLeft: -8, zIndex: 1 }]}>
+                    <Text style={styles.countText}>+{participantCount - 2}</Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.questionIconContainer}>
+                <CircleQuestionMark size={28} color="#334456" />
+              </View>
             </View>
           </View>
-        </View>
+        )}
+
+
+        {/* Promo caption — shown only on promo posts, between header and Q&A widget */}
+        {isPromoPost && !!typeData.promo_text && (
+          <Text style={styles.promoCaptionText}>{typeData.promo_text}</Text>
+        )}
+
+        {/* Q&A badge row — always shown (serves as section divider in promo mode) */}
+        {isPromoPost && (
+          <View style={[styles.headerRow, { marginTop: 10 }]}>
+            <View style={styles.leftHeaderContent}>
+              <View style={styles.qnaBadge}>
+                <Text style={styles.qnaBadgeText}>Q&A</Text>
+              </View>
+              {post.has_resolved_questions && (
+                <View style={styles.resolvedBadge}>
+                  <Text style={styles.resolvedBadgeText}>✓ Resolved</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.rightHeaderContent}>
+              <View style={styles.questionIconContainer}>
+                <CircleQuestionMark size={28} color="#334456" />
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Edit/Delete Menu */}
         {showMenu && isOwnPost && (
@@ -985,7 +1074,8 @@ const QnAPostCard = React.memo(({
           </Modal>
         )}
 
-        {/* Author Row */}
+        {/* Author Row — only in non-promo layout */}
+        {!isPromoPost && (
         <View style={styles.authorHeaderRow}>
           <TouchableOpacity
             style={styles.authorRow}
@@ -1032,6 +1122,7 @@ const QnAPostCard = React.memo(({
             />
           )}
         </View>
+        )}
 
         {/* Question Text */}
         <Text style={styles.questionText} numberOfLines={4}>
@@ -1116,6 +1207,11 @@ const QnAPostCard = React.memo(({
             )}
           </TouchableOpacity>
         </View>
+
+        {/* Plan / Event preview card — only in promo layout, shown BEFORE engagement */}
+        {isPromoPost && (
+          <PlanPreviewCard typeData={typeData} onPress={promoNavHandler} />
+        )}
 
         {/* Engagement Row */}
         {!hideEngagement && (
@@ -1258,6 +1354,62 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
+
+  // ── Promo unified layout styles ──────────────────────────────────────────
+  promoAuthorRow: {
+    flexDirection:  'row',
+    alignItems:     'flex-start',
+    justifyContent: 'space-between',
+    marginBottom:   12,
+  },
+  promoAuthorLeft: {
+    flexDirection: 'row',
+    alignItems:    'flex-start',
+    flex:          1,
+    gap:           10,
+  },
+  promoAvatar: {
+    width:        36,
+    height:       36,
+    borderRadius: 18,
+  },
+  promoAuthorMeta: {
+    flex:    1,
+    gap:     4,
+  },
+  promoAuthorNameRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    flexWrap:      'wrap',
+    gap:           4,
+  },
+  promoAuthorName: {
+    fontFamily: FONTS.semiBold,
+    fontSize:   14,
+    color:      COLORS.textPrimary,
+  },
+  promoSep: {
+    fontFamily: FONTS.regular,
+    fontSize:   12,
+    color:      COLORS.textSecondary,
+  },
+  promoTimestamp: {
+    fontFamily: FONTS.regular,
+    fontSize:   12,
+    color:      COLORS.textSecondary,
+  },
+  promoMenuSlot: {
+    marginLeft: 4,
+  },
+  promoCaptionText: {
+    fontFamily:   FONTS.regular,
+    fontSize:     14,
+    color:        COLORS.textPrimary,
+    lineHeight:   21,
+    marginBottom: 4,
+  },
+  // ─────────────────────────────────────────────────────────────────────────
+
   qnaBadge: {
     backgroundColor: "#EAF1FF",
     paddingHorizontal: 10,

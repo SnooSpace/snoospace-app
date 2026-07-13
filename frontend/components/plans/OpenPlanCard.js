@@ -21,13 +21,13 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Image,
-  Dimensions, Share, Animated,
+  Dimensions, Share, Animated, Alert,
 } from 'react-native';
 import { Pressable as GHPressable } from 'react-native-gesture-handler';
 import { GradientHeart } from '../ui/GradientHeart';
 import {
   Users, User, Check, MapPin, Calendar, Heart, MessageCircle,
-  ChartNoAxesCombined, Send, Bookmark,
+  ChartNoAxesCombined, Send, Bookmark, Megaphone,
 } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { useNavigation } from '@react-navigation/native';
@@ -36,6 +36,7 @@ import ContentActionsSheet from '../ContentActionsSheet';
 import HapticsService from '../../services/HapticsService';
 import { recordView, togglePlanInterest } from '../../api/plans';
 import { getAuthToken } from '../../api/auth';
+import { getPlanPromoteState } from '../../utils/promoteUtils';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 32;  // 16px padding each side
@@ -214,6 +215,7 @@ const OpenPlanCard = ({
   onComment,
   isInterested: isInterestedProp = false,
   onInterest,
+  onPromote,
   navigation: navProp,
   compact = false,
 }) => {
@@ -641,7 +643,32 @@ const OpenPlanCard = ({
             <Send size={20} color="#5e8d9b" strokeWidth={2} />
           </TouchableOpacity>
 
-
+          {/* Promote — only for owner, with date/time gating */}
+          {isOwner && onPromote && (() => {
+            const { canPromote, reason } = getPlanPromoteState(plan);
+            return (
+              <TouchableOpacity
+                style={[
+                  styles.engBtn,
+                  compact && { minWidth: 28, minHeight: 28 },
+                ]}
+                onPress={() => {
+                  HapticsService.triggerImpactLight();
+                  if (!canPromote) {
+                    Alert.alert('Cannot Promote', reason);
+                    return;
+                  }
+                  onPromote(plan);
+                }}
+              >
+                <Megaphone
+                  size={20}
+                  color={canPromote ? '#7C3AED' : '#C4B5FD'}
+                  strokeWidth={2}
+                />
+              </TouchableOpacity>
+            );
+          })()}
         </View>
 
         {/* Request / Owner section */}

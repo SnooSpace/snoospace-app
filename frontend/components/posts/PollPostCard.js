@@ -1,10 +1,11 @@
-/**
+﻿/**
  * PollPostCard
  * Displays a poll post with voting functionality
  */
 
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, Dimensions, TouchableWithoutFeedback, Animated, Switch } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import { Pressable as GHPressable } from "react-native-gesture-handler";
 import { Image } from "expo-image";
 import { GradientHeart } from "../ui/GradientHeart";
@@ -69,6 +70,7 @@ import SnooLoader from "../ui/SnooLoader";
 import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
 import ContentActionsSheet from "../ContentActionsSheet";
+import PromoSourceBanner, { PromoTopRow, PlanPreviewCard } from "./PromoSourceBanner";
 
 const PollPostCard = React.memo(({
   post,
@@ -89,9 +91,17 @@ const PollPostCard = React.memo(({
   isSharedPreview = false,
   onPress,
 }) => {
+  const navigation = useNavigation();
   const { showToast } = useToast();
-
-  const typeData = post.type_data || {};
+  const typeData    = post.type_data || {};
+  const isPromoPost = !!typeData.promo_source_type;
+  const promoNavHandler = () => {
+    const src = typeData.promo_source_type;
+    const id  = typeData.promo_source_id;
+    if (!src || !id) return;
+    if (src === 'plan')  navigation.navigate('PlanDetail',   { planId:  id });
+    if (src === 'event') navigation.navigate('EventDetails', { eventId: id });
+  };
   const [hasVoted, setHasVoted] = useState(post.has_voted || false);
   const [votedIndexes, setVotedIndexes] = useState(post.voted_indexes || []);
   const [options, setOptions] = useState(typeData.options || []);
@@ -351,7 +361,7 @@ const PollPostCard = React.memo(({
     setSaveCount(post.save_count || post.saves_count || 0);
   }, [post.is_liked, post.like_count, post.is_saved, post.save_count, post.saves_count]);
 
-  // ── View Tracking ──────────────────────────────────────────────────────────
+  // â”€â”€ View Tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const [viewCount, setViewCount] = useState(post.public_view_count || post.view_count || 0);
   const dwellTimerRef = useRef(null);
 
@@ -451,7 +461,7 @@ const PollPostCard = React.memo(({
       if (onSave) onSave(post.id, newSaveState);
     } catch (error) {
       console.error("Failed to save/unsave post:", error);
-      // If server says "already saved", our local state was wrong — correct it
+      // If server says "already saved", our local state was wrong â€” correct it
       if (error?.message?.toLowerCase().includes("already saved")) {
         setIsSaved(true);
         setSaveCount(prevSaveCount);
@@ -770,7 +780,80 @@ const PollPostCard = React.memo(({
     <>
       <TouchableWithoutFeedback onPress={handleDoubleTap}>
         <View ref={cardRef} style={styles.container}>
-        {/* Header with Type Indicator & Ellipsis Menu */}
+        {/* â”€â”€ PROMO: unified author+promo header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {isPromoPost && (
+          <View style={styles.promoAuthorRow}>
+            <TouchableOpacity style={styles.promoAuthorLeft} onPress={handleUserPress} activeOpacity={0.7}>
+              <Image
+                source={post.author_photo_url ? { uri: post.author_photo_url } : { uri: 'https://via.placeholder.com/36' }}
+                style={styles.promoAvatar}
+                cachePolicy="memory-disk"
+                contentFit="cover"
+              />
+              <View style={styles.promoAuthorMeta}>
+                <View style={styles.promoAuthorNameRow}>
+                  <Text style={styles.promoAuthorName} numberOfLines={1}>
+                    {post.author_name || post.author_username}
+                  </Text>
+                  <Text style={styles.promoSep}>â€¢</Text>
+                  <Text style={styles.promoTimestamp}>{formatTimeAgo(post.created_at)}</Text>
+                </View>
+                <PromoTopRow sourceType={typeData.promo_source_type} />
+              </View>
+            </TouchableOpacity>
+            <View style={styles.promoMenuSlot}>
+              {isOwnPost ? (
+                <TouchableOpacity
+                  style={styles.ellipsisButton}
+                  onPress={(e) => {
+                    const { pageX, pageY } = e.nativeEvent;
+                    const screenWidth = Dimensions.get('window').width;
+                    setMenuPosition({ x: screenWidth - pageX - 10, y: pageY + 12 });
+                    setShowMenu(true);
+                  }}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <Ellipsis size={20} color="#5B6B7C" />
+                </TouchableOpacity>
+              ) : !isAnon ? (
+                <View style={styles.ellipsisButton}>
+                  <ContentActionsSheet
+                    type="post"
+                    targetId={post.id}
+                    targetName={post.author_name || post.author_username}
+                    label="Poll"
+                    iconColor="#5B6B7C"
+                    iconSize={20}
+                  />
+                </View>
+              ) : null}
+            </View>
+          </View>
+        )}
+
+        {/* Promo caption */}
+        {isPromoPost && !!typeData.promo_text && (
+          <Text style={styles.promoCaptionText}>{typeData.promo_text}</Text>
+        )}
+
+        {/* Poll badge row for promo mode */}
+        {isPromoPost && (
+          <View style={[styles.headerRow, { marginTop: 10 }]}>
+            <View style={styles.pollBadge}>
+              <Text style={styles.pollBadgeText}>POLL</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.pollIconContainer}
+              onPress={() => setShowVotersModal(true)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <BarChart3 size={24} color="#3b65e4" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* â”€â”€ NON-PROMO: original Poll badge + menu header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+        {!isPromoPost && (
         <View style={styles.headerRow}>
           <View style={styles.pollBadge}>
             <Text style={styles.pollBadgeText}>POLL</Text>
@@ -832,6 +915,7 @@ const PollPostCard = React.memo(({
             </TouchableOpacity>
           </View>
         </View>
+        )}
 
         {/* Edit/Delete Menu */}
         {showMenu && isOwnPost && (
@@ -895,7 +979,8 @@ const PollPostCard = React.memo(({
           </Modal>
         )}
 
-        {/* Author Info */}
+        {/* Author Info â€” only in non-promo layout */}
+        {!isPromoPost && (
         <View style={styles.authorHeaderRow}>
           <TouchableOpacity style={styles.authorRow} onPress={handleUserPress} disabled={isAnon}>
             {isAnon ? (
@@ -917,11 +1002,11 @@ const PollPostCard = React.memo(({
             <Text style={styles.authorName}>
               {isAnon ? "Anonymous" : (post.author_name || post.author_username)}
             </Text>
-            <Text style={styles.separator}>•</Text>
+            <Text style={styles.separator}>â€¢</Text>
             <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
             {post.edited_at && (
               <>
-                <Text style={styles.separator}>•</Text>
+                <Text style={styles.separator}>â€¢</Text>
                 <Text style={styles.editedLabel}>Edited</Text>
               </>
             )}
@@ -946,6 +1031,7 @@ const PollPostCard = React.memo(({
             />
           )}
         </View>
+        )}
 
         {/* Question */}
         <Text style={styles.question}>{typeData.question}</Text>
@@ -991,7 +1077,7 @@ const PollPostCard = React.memo(({
             {post.expires_at &&
               (isExpired ? (
                 <>
-                  <Text style={styles.separator}>•</Text>
+                  <Text style={styles.separator}>â€¢</Text>
                   <View style={[styles.endedBadge, { marginLeft: 4 }]}>
                     <Text style={styles.endedBadgeText}>Ended</Text>
                   </View>
@@ -1023,6 +1109,12 @@ const PollPostCard = React.memo(({
         </View>
 
         {/* Engagement Row */}
+        {/* Plan / Event preview â€” promo only, BEFORE engagement */}
+        {isPromoPost && (
+          <PlanPreviewCard typeData={typeData} onPress={promoNavHandler} />
+        )}
+
+        {/* Like / Comment / View / Share / Bookmark */}
         {!hideEngagement && (
           <View style={styles.engagementRow}>
           {/* Like */}
@@ -1163,6 +1255,62 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: SPACING.m,
   },
+
+  // â”€â”€ Promo unified layout styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  promoAuthorRow: {
+    flexDirection:  'row',
+    alignItems:     'flex-start',
+    justifyContent: 'space-between',
+    marginBottom:   12,
+  },
+  promoAuthorLeft: {
+    flexDirection: 'row',
+    alignItems:    'flex-start',
+    flex:          1,
+    gap:           10,
+  },
+  promoAvatar: {
+    width:        36,
+    height:       36,
+    borderRadius: 18,
+  },
+  promoAuthorMeta: {
+    flex: 1,
+    gap:  4,
+  },
+  promoAuthorNameRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    flexWrap:      'wrap',
+    gap:           4,
+  },
+  promoAuthorName: {
+    fontFamily: FONTS.semiBold,
+    fontSize:   14,
+    color:      COLORS.textPrimary,
+  },
+  promoSep: {
+    fontFamily: FONTS.regular,
+    fontSize:   12,
+    color:      COLORS.textSecondary,
+  },
+  promoTimestamp: {
+    fontFamily: FONTS.regular,
+    fontSize:   12,
+    color:      COLORS.textSecondary,
+  },
+  promoMenuSlot: {
+    marginLeft: 4,
+  },
+  promoCaptionText: {
+    fontFamily:   FONTS.regular,
+    fontSize:     14,
+    color:        COLORS.textPrimary,
+    lineHeight:   21,
+    marginBottom: 4,
+  },
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
   rightHeaderContent: {
     flexDirection: "row",
     alignItems: "center",

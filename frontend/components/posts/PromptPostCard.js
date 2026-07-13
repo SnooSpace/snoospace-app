@@ -88,6 +88,7 @@ import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
 import CustomImagePicker from "../CustomImagePicker";
 import ContentActionsSheet from "../ContentActionsSheet";
+import PromoSourceBanner, { PromoTopRow, PlanPreviewCard } from "./PromoSourceBanner";
 
 const PromptPostCard = React.memo(({
   post,
@@ -110,7 +111,15 @@ const PromptPostCard = React.memo(({
 }) => {
   const navigation = useNavigation();
   const { showToast } = useToast();
-  const typeData = post.type_data || {};
+  const typeData    = post.type_data || {};
+  const isPromoPost = !!typeData.promo_source_type;
+  const promoNavHandler = () => {
+    const src = typeData.promo_source_type;
+    const id  = typeData.promo_source_id;
+    if (!src || !id) return;
+    if (src === 'plan')  navigation.navigate('PlanDetail',   { planId:  id });
+    if (src === 'event') navigation.navigate('EventDetails', { eventId: id });
+  };
   const [hasSubmitted, setHasSubmitted] = useState(post.has_submitted || false);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [submissionStatus, setSubmissionStatus] = useState(
@@ -799,7 +808,80 @@ const PromptPostCard = React.memo(({
     <>
       <TouchableWithoutFeedback onPress={handleDoubleTap}>
         <View ref={cardRef} style={styles.container}>
-      {/* Header with Type Indicator & Star */}
+      {/* ── PROMO: unified author+promo header ───────────────────────── */}
+      {isPromoPost && (
+        <View style={styles.promoAuthorRow}>
+          <TouchableOpacity style={styles.promoAuthorLeft} onPress={handleUserPress} activeOpacity={0.7}>
+            <Image
+              source={post.author_photo_url ? { uri: post.author_photo_url } : { uri: 'https://via.placeholder.com/36' }}
+              style={styles.promoAvatar}
+              cachePolicy="memory-disk"
+              contentFit="cover"
+            />
+            <View style={styles.promoAuthorMeta}>
+              <View style={styles.promoAuthorNameRow}>
+                <Text style={styles.promoAuthorName} numberOfLines={1}>
+                  {post.author_name || post.author_username}
+                </Text>
+                <Text style={styles.promoSep}>•</Text>
+                <Text style={styles.promoTimestamp}>{formatTimeAgo(post.created_at)}</Text>
+              </View>
+              <PromoTopRow sourceType={typeData.promo_source_type} />
+            </View>
+          </TouchableOpacity>
+          <View style={styles.promoMenuSlot}>
+            {isOwnPost && (onEdit || onDelete) ? (
+              <TouchableOpacity
+                style={styles.ellipsisButton}
+                onPress={(e) => {
+                  const { pageX, pageY } = e.nativeEvent;
+                  const screenWidth = Dimensions.get('window').width;
+                  setMenuPosition({ x: screenWidth - pageX - 10, y: pageY + 12 });
+                  setShowMenu(true);
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ellipsis size={20} color="#5B6B7C" />
+              </TouchableOpacity>
+            ) : !isOwnPost ? (
+              <View style={styles.ellipsisButton}>
+                <ContentActionsSheet
+                  type="post"
+                  targetId={post.id}
+                  targetName={post.author_name || post.author_username}
+                  label="Nudge"
+                  iconColor="#5B6B7C"
+                  iconSize={20}
+                />
+              </View>
+            ) : null}
+          </View>
+        </View>
+      )}
+
+      {/* Promo caption */}
+      {isPromoPost && !!typeData.promo_text && (
+        <Text style={styles.promoCaptionText}>{typeData.promo_text}</Text>
+      )}
+
+      {/* NUDGE badge row for promo mode */}
+      {isPromoPost && (
+        <View style={[styles.headerRow, { marginTop: 10 }]}>
+          <View style={styles.leftHeaderContent}>
+            <View style={styles.nudgeBadge}>
+              <Text style={styles.nudgeBadgeText}>NUDGE</Text>
+            </View>
+          </View>
+          <View style={styles.rightHeaderContent}>
+            <View style={styles.starIconContainer}>
+              <Star size={24} color="#FFB800" fill="#FFB800" />
+            </View>
+          </View>
+        </View>
+      )}
+
+      {/* ── NON-PROMO: original NUDGE badge + menu header ────────────── */}
+      {!isPromoPost && (
       <View style={styles.headerRow}>
         <View style={styles.leftHeaderContent}>
           <View style={styles.nudgeBadge}>
@@ -859,6 +941,7 @@ const PromptPostCard = React.memo(({
           </View>
         </View>
       </View>
+      )}
 
       {/* Edit/Delete Menu */}
       {showMenu && isOwnPost && (
@@ -922,7 +1005,8 @@ const PromptPostCard = React.memo(({
         </Modal>
       )}
 
-      {/* Author Info */}
+      {/* Author Info — only in non-promo layout */}
+      {!isPromoPost && (
       <View style={styles.authorHeaderRow}>
         <TouchableOpacity style={styles.authorRow} onPress={handleUserPress}>
           <Image
@@ -967,6 +1051,7 @@ const PromptPostCard = React.memo(({
           />
         )}
       </View>
+      )}
 
       {/* Prompt Text */}
       <Text style={styles.promptText}>{typeData.prompt_text}</Text>
@@ -1035,6 +1120,11 @@ const PromptPostCard = React.memo(({
           />
         </TouchableOpacity>
       </View>
+
+      {/* Plan / Event preview — promo only, BEFORE engagement */}
+      {isPromoPost && (
+        <PlanPreviewCard typeData={typeData} onPress={promoNavHandler} />
+      )}
 
       {/* Engagement Row */}
       {!hideEngagement && (
@@ -1310,6 +1400,62 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: SPACING.m,
   },
+
+  // ── Promo unified layout styles ──────────────────────────────────────────
+  promoAuthorRow: {
+    flexDirection:  'row',
+    alignItems:     'flex-start',
+    justifyContent: 'space-between',
+    marginBottom:   12,
+  },
+  promoAuthorLeft: {
+    flexDirection: 'row',
+    alignItems:    'flex-start',
+    flex:          1,
+    gap:           10,
+  },
+  promoAvatar: {
+    width:        36,
+    height:       36,
+    borderRadius: 18,
+  },
+  promoAuthorMeta: {
+    flex: 1,
+    gap:  4,
+  },
+  promoAuthorNameRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    flexWrap:      'wrap',
+    gap:           4,
+  },
+  promoAuthorName: {
+    fontFamily: FONTS.semiBold,
+    fontSize:   14,
+    color:      COLORS.textPrimary,
+  },
+  promoSep: {
+    fontFamily: FONTS.regular,
+    fontSize:   12,
+    color:      COLORS.textSecondary,
+  },
+  promoTimestamp: {
+    fontFamily: FONTS.regular,
+    fontSize:   12,
+    color:      COLORS.textSecondary,
+  },
+  promoMenuSlot: {
+    marginLeft: 4,
+  },
+  promoCaptionText: {
+    fontFamily:   FONTS.regular,
+    fontSize:     14,
+    color:        COLORS.textPrimary,
+    lineHeight:   21,
+    marginBottom: 4,
+  },
+  // ─────────────────────────────────────────────────────────────────────────
+
   nudgeBadge: {
     backgroundColor: "#FFE8E0", // Soft coral/peach
     paddingHorizontal: 10,

@@ -1,4 +1,4 @@
-const { createPool } = require("../config/db");
+﻿const { createPool } = require("../config/db");
 const pushService = require("../services/pushService");
 const { emitSignal, getCategoryForPost } = require("../utils/signalEmitter");
 const {
@@ -40,6 +40,9 @@ const createPost = async (req, res) => {
         return QnAController.createQnAPost(req, res);
       case "challenge":
         return ChallengeController.createChallengePost(req, res);
+      case "event_promo":
+      case "plan_promo":
+        return createPromoPost(req, res);
       case "media":
       default:
         // Continue with media post logic below
@@ -150,7 +153,7 @@ const createPost = async (req, res) => {
         validatedCropMetadata = cropMetadata;
       }
     } else {
-      console.log("[createPost] No cropMetadata received — cropMetadata value:", typeof cropMetadata, cropMetadata === null ? "null" : cropMetadata === undefined ? "undefined" : JSON.stringify(cropMetadata));
+      console.log("[createPost] No cropMetadata received â€” cropMetadata value:", typeof cropMetadata, cropMetadata === null ? "null" : cropMetadata === undefined ? "undefined" : JSON.stringify(cropMetadata));
     }
 
     // Generate video thumbnails and LQIP using Cloudinary transformation (with crop applied)
@@ -538,7 +541,7 @@ const createPost = async (req, res) => {
               pool,
               entity.id,
               entity.type,
-              "You were tagged 📌",
+              "You were tagged ðŸ“Œ",
               `${actorName || "Someone"} tagged you in a post`,
               {
                 type: "tag",
@@ -1548,7 +1551,7 @@ const likePost = async (req, res) => {
           pool,
           postAuthor.author_id,
           postAuthor.author_type,
-          "Someone liked your post ❤️",
+          "Someone liked your post â¤ï¸",
           `${actorName || "Someone"} liked your post`,
           {
             type: "like",
@@ -1561,7 +1564,7 @@ const likePost = async (req, res) => {
       console.error("Failed to create like notification", e);
     }
 
-    // Emit behavioral signal — fire-and-forget, non-blocking
+    // Emit behavioral signal â€” fire-and-forget, non-blocking
     // Only track likes on other users' posts, not self-likes
     if (postCheck.rows.length > 0) {
       getCategoryForPost(pool, postId).then((category) =>
@@ -2444,7 +2447,7 @@ const updatePost = async (req, res) => {
         }
         if (updates.expires_at !== undefined) {
           if (updates.expires_at === null) {
-            // Clearing the deadline — also reset show_proofs_immediately to true
+            // Clearing the deadline â€” also reset show_proofs_immediately to true
             allowedUpdates.expires_at = null;
             updatedTypeData.show_proofs_immediately = true;
           } else {
@@ -2828,6 +2831,239 @@ const unpinPost = async (req, res) => {
   }
 };
 
+// =========================================================================
+// PROMOTE POST: event_promo / plan_promo
+// =========================================================================
+
+/**
+ * Helper: get Monday of the week for a given date (UTC).
+ */
+function getWeekStart(date = new Date()) {
+  const d = new Date(date);
+  const day = d.getUTCDay(); // 0=Sun, 1=Mon, ...
+  const diff = (day === 0 ? -6 : 1 - day); // Monday
+  d.setUTCDate(d.getUTCDate() + diff);
+  d.setUTCHours(0, 0, 0, 0);
+  return d.toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
+/**
+ * POST /posts  { post_type: "event_promo" | "plan_promo" }
+ * Creates a promoted engagement post linking an event or plan to a poll / Q&A / prompt.
+ *
+ * Architecture: this app stores ALL post-type data inside posts.type_data (JSONB).
+ * There are no separate poll_posts / qna_posts / prompt_posts tables.
+ * We do a single INSERT per promotion and embed promo context inside type_data.
+ */
+const createPromoPost = async (req, res) => {
+  try {
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId || !userType) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const {
+      post_type,       // 'event_promo' | 'plan_promo'
+      source_id,       // event.id or plan.id
+      promo_text,      // optional caption shown above the engagement widget
+      engagement_type, // 'poll' | 'qna' | 'prompt'
+      engagement_data, // type-specific fields
+    } = req.body;
+
+    if (!source_id) {
+      return res.status(400).json({ error: 'source_id is required' });
+    }
+    if (!['poll', 'qna', 'prompt'].includes(engagement_type)) {
+      return res.status(400).json({ error: 'Invalid engagement_type. Must be: poll, qna, or prompt' });
+    }
+
+    const source_type = post_type === 'event_promo' ? 'event' : 'plan';
+
+    // â”€â”€ Quota check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    const weekStart   = getWeekStart();
+    const maxPromotes = source_type === 'event' ? 5 : 3;
+
+    const quotaResult = await pool.query(
+      `INSERT INTO promote_quotas (owner_id, owner_type, source_type, week_start, promotes_used, max_promotes)
+       VALUES ($1, $2, $3, $4, 0, $5)
+       ON CONFLICT (owner_id, owner_type, source_type, week_start)
+       DO UPDATE SET updated_at = NOW()
+       RETURNING promotes_used, max_promotes`,
+      [userId, userType, source_type, weekStart, maxPromotes],
+    );
+
+    const { promotes_used, max_promotes } = quotaResult.rows[0];
+    if (promotes_used >= max_promotes) {
+      return res.status(429).json({
+        error: 'Promote limit reached',
+        quota: { used: promotes_used, max: max_promotes },
+      });
+    }
+
+    // â”€â”€ Build type_data matching the real controller patterns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    const ed = engagement_data || {};
+    let typeData = {};
+
+    if (engagement_type === 'poll') {
+      if (!ed.question || !Array.isArray(ed.options) || ed.options.length < 2) {
+        return res.status(400).json({ error: 'Poll requires a question and at least 2 options' });
+      }
+      const pollOptions = ed.options
+        .map((opt, index) => ({
+          index,
+          text: typeof opt === 'string' ? opt.trim() : String(opt).trim(),
+          vote_count: 0,
+        }))
+        .filter(o => o.text);
+
+      typeData = {
+        question:                 ed.question.trim(),
+        options:                  pollOptions,
+        allow_multiple:           Boolean(ed.allow_multiple),
+        show_results_before_vote: Boolean(ed.show_results_before_vote),
+        total_votes:              0,
+        // Promo context â€” read by PromoSourceBanner on the frontend
+        promo_source_type:  source_type,
+        promo_source_id:    String(source_id),
+        promo_text:         promo_text || null,
+        original_post_type: post_type,
+      };
+
+    } else if (engagement_type === 'qna') {
+      if (!ed.title?.trim()) {
+        return res.status(400).json({ error: 'Q&A title is required' });
+      }
+      typeData = {
+        title:                  ed.title.trim(),
+        description:            ed.description?.trim() || '',
+        allow_anonymous:        Boolean(ed.allow_anonymous),
+        max_questions_per_user: ed.max_questions_per_user || 1,
+        question_count:         0,
+        answered_count:         0,
+        // Promo context
+        promo_source_type:  source_type,
+        promo_source_id:    String(source_id),
+        promo_text:         promo_text || null,
+        original_post_type: post_type,
+      };
+
+    } else if (engagement_type === 'prompt') {
+      if (!ed.prompt_text?.trim()) {
+        return res.status(400).json({ error: 'Prompt text is required' });
+      }
+      typeData = {
+        prompt_text:             ed.prompt_text.trim(),
+        submission_type:         ed.submission_type || 'text',
+        max_length:              parseInt(ed.max_length) || 500,
+        require_approval:        ed.require_approval !== false,
+        submission_count:        0,
+        featured_submission_ids: [],
+        // Promo context
+        promo_source_type:  source_type,
+        promo_source_id:    String(source_id),
+        promo_text:         promo_text || null,
+        original_post_type: post_type,
+      };
+    }
+
+    // â”€â”€ Single INSERT â€” all data in type_data, no sub-tables â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    const postResult = await pool.query(
+      `INSERT INTO posts (author_id, author_type, post_type, caption, image_urls, type_data, status)
+       VALUES ($1, $2, $3, $4, '[]'::jsonb, $5, 'active')
+       RETURNING id, created_at`,
+      [userId, userType, engagement_type, promo_text || null, JSON.stringify(typeData)],
+    );
+    const promoPost = postResult.rows[0];
+
+    console.log(`[createPromoPost] Created ${engagement_type} promo post ${promoPost.id} for ${source_type}:${source_id}`);
+
+    // â”€â”€ Increment quota â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    await pool.query(
+      `UPDATE promote_quotas
+       SET promotes_used = promotes_used + 1, updated_at = NOW()
+       WHERE owner_id = $1 AND owner_type = $2 AND source_type = $3 AND week_start = $4`,
+      [userId, userType, source_type, weekStart],
+    );
+
+    // â”€â”€ Emit feed signal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    try {
+      await emitSignal(pool, { authorId: userId, authorType: userType, postId: promoPost.id });
+    } catch (_) {}
+
+    return res.status(201).json({
+      success: true,
+      post: {
+        id:                 promoPost.id,
+        post_type:          engagement_type,
+        original_post_type: post_type,
+        source_id,
+        source_type,
+        promo_text:         promo_text || null,
+        engagement_type,
+        type_data:          typeData,
+        author_id:          userId,
+        author_type:        userType,
+        created_at:         promoPost.created_at,
+      },
+    });
+
+  } catch (error) {
+    console.error('[createPromoPost] Error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+/**
+ * GET /posts/promote-quota?source_type=event|plan
+ * Returns the current week's promote quota for the authenticated user.
+ */
+const getPromoteQuota = async (req, res) => {
+  try {
+    const userId   = req.user?.id;
+    const userType = req.user?.type;
+    if (!userId || !userType) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const source_type = req.query.source_type || 'event';
+    if (!['event', 'plan'].includes(source_type)) {
+      return res.status(400).json({ error: 'Invalid source_type' });
+    }
+
+    const weekStart   = getWeekStart();
+    const maxPromotes = source_type === 'event' ? 5 : 3;
+
+    // Compute next Monday (reset time) in ISO
+    const nextMonday = new Date(weekStart);
+    nextMonday.setUTCDate(nextMonday.getUTCDate() + 7);
+    const resetsAt = nextMonday.toISOString();
+
+    const result = await pool.query(
+      `SELECT promotes_used, max_promotes
+       FROM promote_quotas
+       WHERE owner_id = $1 AND owner_type = $2 AND source_type = $3 AND week_start = $4`,
+      [userId, userType, source_type, weekStart],
+    );
+
+    const used = result.rows[0]?.promotes_used ?? 0;
+    const max  = result.rows[0]?.max_promotes  ?? maxPromotes;
+
+    return res.json({
+      success: true,
+      quota: {
+        used,
+        max,
+        remaining: Math.max(0, max - used),
+        resets_at: resetsAt,
+      },
+    });
+  } catch (error) {
+    console.error('[getPromoteQuota] Error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   createPost,
   getFeed,
@@ -2841,4 +3077,6 @@ module.exports = {
   getPollVoters,
   pinPost,
   unpinPost,
+  createPromoPost,
+  getPromoteQuota,
 };

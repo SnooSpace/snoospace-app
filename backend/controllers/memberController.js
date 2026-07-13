@@ -1293,7 +1293,8 @@ async function updateLocation(req, res) {
       userId,
     ]);
     await pool.query(
-      `INSERT INTO member_location_history (member_id, location) VALUES ($1, $2::jsonb)`,
+      `INSERT INTO member_location_history (member_id, location) VALUES ($1, $2::jsonb)
+       ON CONFLICT DO NOTHING`,
       [userId, locationJson]
     );
     res.json({ success: true });
