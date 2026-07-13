@@ -63,6 +63,8 @@ const ACTIVITY_IMAGES = {
   other:        require('../../assets/Other.webp'),
   house_party:  require('../../assets/HouseParty.webp'),
   club:         require('../../assets/Party.webp'),
+  hiking:       require('../../assets/Hiking.webp'),
+  shopping:     require('../../assets/Shopping.webp'),
 };
 
 // ─── Activity colour palette (muted, instantly recognisable) ─────────────────
@@ -86,6 +88,8 @@ const PILL_COLORS = {
   hangout:      { bg: '#E8F5E9', text: '#1B5E20' },
   house_party:  { bg: '#FBE9E7', text: '#D84315' },
   club:         { bg: '#EDE7F6', text: '#5E35B1' },
+  hiking:       { bg: '#E8F5E9', text: '#2E7D32' },
+  shopping:     { bg: '#FCE4EC', text: '#D81B60' },
   other:        { bg: '#F5F5F5', text: '#424242' },
 };
 
@@ -108,6 +112,8 @@ const ACTIVITY_LABELS = {
   hangout:      'Hangout',
   house_party:  'House Party',
   club:         'Club',
+  hiking:       'Hiking',
+  shopping:     'Shopping',
   other:        null,  // falls back to custom_activity_label
 };
 
@@ -130,6 +136,8 @@ const ACTIVITY_EMOJIS = {
   pet_friendly: '🐾',
   house_party:  '🏡',
   club:         '🪩',
+  hiking:       '🥾',
+  shopping:     '🛍️',
   other:        '＋',
 };
 

@@ -49,6 +49,8 @@ const ACTIVITY_COLORS = {
   hangout:      { bg: '#E8F5E9', text: '#1B5E20' },
   house_party:  { bg: '#FBE9E7', text: '#D84315' },
   club:         { bg: '#EDE7F6', text: '#5E35B1' },
+  hiking:       { bg: '#E8F5E9', text: '#2E7D32' },
+  shopping:     { bg: '#FCE4EC', text: '#D81B60' },
   other:        { bg: '#F5F5F5', text: '#424242' },
 };
 
@@ -71,6 +73,8 @@ const ACTIVITY_EMOJIS = {
   pet_friendly: '🐾',
   house_party:  '🏡',
   club:         '🪩',
+  hiking:       '🥾',
+  shopping:     '🛍️',
   other:        '＋',
 };
 
@@ -239,6 +243,7 @@ export default function PlanDetailScreen({ navigation, route }) {
     creative: 'Creative', games: 'Games', gaming: 'Games',
     pet_friendly: 'Pet Friendly', hangout: 'Hangout',
     house_party: 'House Party', club: 'Club',
+    hiking: 'Hiking', shopping: 'Shopping',
   };
   const activityLabel = plan.activity_type === 'other'
     ? (plan.custom_activity_label || 'Other')

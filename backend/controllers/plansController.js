@@ -107,7 +107,7 @@ async function createPlan(req, res) {
       'sports', 'study', 'food', 'gaming', 'other',
       'cafe', 'walk', 'pet_friendly', 'hangout', 'rides',
       'creative', 'gym', 'yoga', 'live_music', 'movies', 'bar',
-      'house_party', 'club',
+      'house_party', 'club', 'hiking', 'shopping',
     ];
     if (!validActivityTypes.includes(activity_type)) {
       return res.status(400).json({ error: `activity_type must be one of: ${validActivityTypes.join(', ')}` });

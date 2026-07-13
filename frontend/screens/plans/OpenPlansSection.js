@@ -34,6 +34,8 @@ const ACTIVITY_COLORS = {
   hangout:      { bg: '#E8F5E9', text: '#1B5E20', label: 'Hangout' },
   house_party:  { bg: '#FBE9E7', text: '#D84315', label: 'House Party' },
   club:         { bg: '#EDE7F6', text: '#5E35B1', label: 'Club' },
+  hiking:       { bg: '#E8F5E9', text: '#2E7D32', label: 'Hiking' },
+  shopping:     { bg: '#FCE4EC', text: '#D81B60', label: 'Shopping' },
   other:        { bg: '#F5F5F5', text: '#424242', label: 'Other' },
 };
 

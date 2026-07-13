@@ -24,6 +24,9 @@ import {
   X,
   Globe,
   Users,
+  Venus,
+  Mars,
+  VenusAndMars,
 } from 'lucide-react-native';
 import { COLORS, FONTS, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
 import { getAuthToken } from '../../api/auth';
@@ -75,7 +78,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
   // New fields state
   const [costType, setCostType] = useState('free');
   const [costAmount, setCostAmount] = useState('');
-  const [visibility, setVisibility] = useState('community_members');
+  const [visibility, setVisibility] = useState('everyone');
   const [genderPref, setGenderPref] = useState('all');
 
   // Banner state
@@ -441,6 +444,34 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
             <TouchableOpacity
               style={[
                 styles.visCard,
+                visibility === 'everyone' && styles.visCardActive,
+              ]}
+              onPress={() => setVisibility('everyone')}
+            >
+              <Globe
+                size={18}
+                color={
+                  visibility === 'everyone'
+                    ? COLORS.primary
+                    : COLORS.textSecondary
+                }
+                strokeWidth={1.8}
+              />
+              <Text
+                style={[
+                  styles.visCardTitle,
+                  visibility === 'everyone' && { color: COLORS.primary },
+                ]}
+              >
+                Everyone
+              </Text>
+              <Text style={styles.visCardSub}>
+                Visible to all SnooSpace users
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.visCard,
                 visibility === 'community_members' && styles.visCardActive,
               ]}
               onPress={() => setVisibility('community_members')}
@@ -468,55 +499,77 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
                 People who share a community with you
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.visCard,
-                visibility === 'everyone' && styles.visCardActive,
-              ]}
-              onPress={() => setVisibility('everyone')}
-            >
-              <Globe
-                size={18}
-                color={
-                  visibility === 'everyone'
-                    ? COLORS.primary
-                    : COLORS.textSecondary
-                }
-                strokeWidth={1.8}
-              />
-              <Text
-                style={[
-                  styles.visCardTitle,
-                  visibility === 'everyone' && { color: COLORS.primary },
-                ]}
-              >
-                Everyone
-              </Text>
-              <Text style={styles.visCardSub}>
-                Visible to all SnooSpace users
-              </Text>
-            </TouchableOpacity>
           </View>
 
           {/* Gender */}
           <Text style={styles.fieldLabel}>Gender preference</Text>
           <View style={styles.chipRow}>
-            {GENDER_OPTS.map((g) => (
-              <TouchableOpacity
-                key={g.key}
-                style={[styles.chip, genderPref === g.key && styles.chipActive]}
-                onPress={() => setGenderPref(g.key)}
-              >
-                <Text
+            {GENDER_OPTS.map((g) => {
+              const isActive = genderPref === g.key;
+              
+              // Custom active colors: Everyone (Green), Women (Pink), Men (Blue)
+              const colorConfig = {
+                all: {
+                  bg: '#E8F5E9',
+                  border: '#2E7D32',
+                  text: '#2E7D32',
+                  iconColor: '#2E7D32'
+                },
+                Female: {
+                  bg: '#FCE4EC',
+                  border: '#D81B60',
+                  text: '#D81B60',
+                  iconColor: '#D81B60'
+                },
+                Male: {
+                  bg: '#E3F2FD',
+                  border: '#1565C0',
+                  text: '#1565C0',
+                  iconColor: '#1565C0'
+                }
+              };
+              
+              const activeStyle = colorConfig[g.key];
+              
+              // Icon components mapping
+              let IconComponent = null;
+              if (g.key === 'all') IconComponent = VenusAndMars;
+              else if (g.key === 'Female') IconComponent = Venus;
+              else if (g.key === 'Male') IconComponent = Mars;
+
+              return (
+                <TouchableOpacity
+                  key={g.key}
                   style={[
-                    styles.chipText,
-                    genderPref === g.key && styles.chipTextActive,
+                    styles.genderChip,
+                    isActive ? {
+                      backgroundColor: activeStyle.bg,
+                      borderColor: activeStyle.border
+                    } : {
+                      backgroundColor: COLORS.surface,
+                      borderColor: COLORS.border
+                    }
                   ]}
+                  onPress={() => setGenderPref(g.key)}
                 >
-                  {g.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  {IconComponent && (
+                    <IconComponent
+                      size={14}
+                      color={isActive ? activeStyle.iconColor : COLORS.textSecondary}
+                      strokeWidth={2.2}
+                    />
+                  )}
+                  <Text
+                    style={[
+                      styles.genderChipText,
+                      isActive ? { color: activeStyle.text } : { color: COLORS.textSecondary }
+                    ]}
+                  >
+                    {g.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           {/* Repeat Settings */}
@@ -905,6 +958,19 @@ const styles = StyleSheet.create({
   },
   chipTextActive: {
     color: COLORS.primary,
+  },
+  genderChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    borderWidth: 1.5,
+  },
+  genderChipText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 13,
   },
   inputRow: {
     flexDirection: 'row',

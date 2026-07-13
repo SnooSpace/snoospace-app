@@ -78,6 +78,8 @@ const ACTIVITY_EMOJIS = {
   pet_friendly: '🐾',
   house_party:  '🏡',
   club:         '🪩',
+  hiking:       '🥾',
+  shopping:     '🛍️',
   other:        '＋',
 };
 

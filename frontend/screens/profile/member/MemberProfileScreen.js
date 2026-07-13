@@ -50,6 +50,7 @@ import {
   CalendarDays,
   ChartNoAxesColumn,
   Music,
+  Sparkles,
 } from "lucide-react-native";
 import {
   getHostedPlans,
@@ -179,6 +180,12 @@ const ProfileBioHeader = React.memo(({ profile, setShowCollegeHub }) => {
         ]}
       >
         <Text style={styles.profileName}>{profile.nickname || profile.name}</Text>
+        {profile?.is_creator_mode_enabled && (
+          <View style={styles.creatorBadge}>
+            <Sparkles size={12} color="#7B1FA2" strokeWidth={2.5} style={{ marginRight: 4 }} />
+            <Text style={styles.creatorBadgeText}>Creator</Text>
+          </View>
+        )}
         {hasPronouns ? (
           <View style={styles.pronounsRowCentered}>
             <View style={[styles.chip, styles.pronounChipSmall]}>
@@ -2188,6 +2195,8 @@ export default function MemberProfileScreen({ navigation }) {
             <View style={{ display: "flex" }}>
               {(() => {
                 const displayPosts = posts.filter((p) => {
+                  if (p?.post_type === "plan_promo" || p?.post_type === "event_promo") return false;
+                  if (p?.type_data?.promo_source_type) return false;
                   if (!profile?.is_creator_mode_enabled) return true;
                   const postType = p.post_type || p.type;
                   const isInteractive = [
@@ -2292,6 +2301,9 @@ export default function MemberProfileScreen({ navigation }) {
 
                   // Filter items
                   const filteredCommunityItems = allCommunityItems.filter((item) => {
+                    if (communityFilter === "promotions") {
+                      return !!item.type_data?.promo_source_type;
+                    }
                     if (communityFilter === "all") return true;
 
                     // Owner check
@@ -2321,6 +2333,7 @@ export default function MemberProfileScreen({ navigation }) {
                           { label: "All", value: "all" },
                           { label: "Creator", value: "owner" },
                           { label: "Members", value: "members" },
+                          { label: "Promotions", value: "promotions" },
                         ].map((opt) => {
                           const isActive = communityFilter === opt.value;
                           return (
@@ -2565,7 +2578,22 @@ export default function MemberProfileScreen({ navigation }) {
               if (eventsFilter === "plans") return item.itemType === "plan";
               return true;
             });
-            const visibleEvents = filteredEventsAndPlans.slice(0, renderedEventsLimit);
+
+            const getItemDate = (item) => {
+              let dateVal = null;
+              if (item.itemType === "event") {
+                dateVal = item.event_date || item.start_datetime;
+              } else if (item.itemType === "plan") {
+                dateVal = item.scheduled_at;
+              }
+              return dateVal ? new Date(dateVal).getTime() : 0;
+            };
+
+            const sortedEventsAndPlans = [...filteredEventsAndPlans].sort((a, b) => {
+              return getItemDate(b) - getItemDate(a);
+            });
+
+            const visibleEvents = sortedEventsAndPlans.slice(0, renderedEventsLimit);
 
             return (
               <View style={profileTabStyles.eventsContainer}>
@@ -2700,6 +2728,8 @@ export default function MemberProfileScreen({ navigation }) {
         <ProfilePostFeed
           visible={postModalVisible}
           posts={posts.filter((p) => {
+            if (p?.post_type === "plan_promo" || p?.post_type === "event_promo") return false;
+            if (p?.type_data?.promo_source_type) return false;
             if (!profile?.is_creator_mode_enabled) return true;
             const postType = p.post_type || p.type;
             const isInteractive = [
@@ -3307,6 +3337,24 @@ const styles = StyleSheet.create({
     fontSize: 24,
     color: "#0F172A",
     textAlign: "center",
+  },
+  creatorBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3E5F5",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: "rgba(123, 31, 162, 0.2)",
+    alignSelf: "center",
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  creatorBadgeText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 11,
+    color: "#7B1FA2",
   },
   nameAndPronounsContainer: {
     alignItems: "center",

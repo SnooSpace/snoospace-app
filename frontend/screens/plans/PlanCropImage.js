@@ -27,6 +27,8 @@ const ACTIVITY_IMAGES = {
   other:        require('../../assets/Other.webp'),
   house_party:  require('../../assets/HouseParty.webp'),
   club:         require('../../assets/Party.webp'),
+  hiking:       require('../../assets/Hiking.webp'),
+  shopping:     require('../../assets/Shopping.webp'),
 };
 
 /**
