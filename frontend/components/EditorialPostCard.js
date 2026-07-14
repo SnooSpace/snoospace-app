@@ -1323,7 +1323,12 @@ const DefaultEditorialPostCard = ({
       </GestureDetector>
 
       {/* Engagement Row */}
-      <View style={styles.engagementRow}>
+      <Pressable
+        onPress={(e) => {
+          e.stopPropagation();
+        }}
+        style={styles.engagementRow}
+      >
         {/* Like */}
         <GHPressable
           style={styles.engagementButton}
@@ -1391,7 +1396,7 @@ const DefaultEditorialPostCard = ({
             )}
           </GHPressable>
         )}
-      </View>
+      </Pressable>
 
       {/* Fullscreen Video Modal */}
       {isVideo && fullscreenVisible && (

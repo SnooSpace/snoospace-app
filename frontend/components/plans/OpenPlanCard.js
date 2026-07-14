@@ -21,7 +21,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Image,
-  Dimensions, Share, Animated, Alert,
+  Dimensions, Share, Animated, Alert, Pressable,
 } from 'react-native';
 import { Pressable as GHPressable } from 'react-native-gesture-handler';
 import { GradientHeart } from '../ui/GradientHeart';
@@ -617,7 +617,12 @@ const OpenPlanCard = ({
         <View style={[styles.divider, compact && { marginBottom: 6 }]} />
 
         {/* Engagement row */}
-        <View style={[styles.engRow, compact && { marginBottom: 6 }]}>
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+          }}
+          style={[styles.engRow, compact && { marginBottom: 6 }]}
+        >
           {/* Like */}
           <TouchableOpacity style={[styles.engBtn, compact && { minWidth: 28, minHeight: 28 }]} onPress={handleLike} disabled={isLiking}>
             <Heart
@@ -677,7 +682,7 @@ const OpenPlanCard = ({
               </TouchableOpacity>
             );
           })()}
-        </View>
+        </Pressable>
 
         {/* Request / Owner section */}
         {!isOwner && (

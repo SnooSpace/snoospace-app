@@ -1041,7 +1041,12 @@ const OpportunityFeedCard = React.memo(({
         </View>
  
         {/* ── Engagement Row ────────────────────────────────────────────── */}
-        <View style={styles.engagementRow}>
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+          }}
+          style={styles.engagementRow}
+        >
           {/* Like */}
           <TouchableOpacity
             style={styles.engagementButton}
@@ -1097,7 +1102,7 @@ const OpportunityFeedCard = React.memo(({
               {formatCount(saveCount)}
             </Text>
           </TouchableOpacity>
-        </View>
+        </Pressable>
 
       {/* ── 3-dot Menu Modal ──────────────────────────────────────────────── */}
       {menuVisible && (

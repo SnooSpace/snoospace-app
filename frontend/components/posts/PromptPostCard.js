@@ -1128,7 +1128,12 @@ const PromptPostCard = React.memo(({
 
       {/* Engagement Row */}
       {!hideEngagement && (
-        <View style={styles.engagementRow}>
+        <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+          }}
+          style={styles.engagementRow}
+        >
           {/* Like */}
           <TouchableOpacity
             style={styles.engagementButton}
@@ -1184,7 +1189,7 @@ const PromptPostCard = React.memo(({
               <Text style={styles.engagementCount}>{formatCount(saveCount)}</Text>
             )}
           </TouchableOpacity>
-      </View>
+        </Pressable>
       )}
 
         {showHeart && (

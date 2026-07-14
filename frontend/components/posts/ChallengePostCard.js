@@ -1465,7 +1465,12 @@ const ChallengePostCard = React.memo(({
 
         {/* Engagement Row */}
         {!hideEngagement && (
-          <View style={styles.engagementRow}>
+          <Pressable
+          onPress={(e) => {
+            e.stopPropagation();
+          }}
+          style={styles.engagementRow}
+        >
           {/* Like */}
           <TouchableOpacity
             style={styles.engagementButton}
@@ -1530,7 +1535,7 @@ const ChallengePostCard = React.memo(({
               </Text>
             )}
           </TouchableOpacity>
-        </View>
+        </Pressable>
         )}
 
         {/* Submission Activity Teaser — shown as soon as any approved submission exists */}

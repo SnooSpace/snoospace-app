@@ -8,6 +8,7 @@ import {
   Dimensions,
   Share,
   Animated,
+  Pressable,
 } from "react-native";
 import { ScrollView, Gesture, GestureDetector, Pressable as GHPressable } from "react-native-gesture-handler";
 import AnimatedReanimated, {
@@ -1380,7 +1381,12 @@ function EventCard({
 
           {/* Engagement Row */}
           {!hideEngagement && (
-            <View style={styles.engagementRow}>
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+              }}
+              style={styles.engagementRow}
+            >
               <TouchableOpacity
                 style={styles.engagementBtn}
                 onPress={handleLikePress}
@@ -1426,7 +1432,7 @@ function EventCard({
                 <Send size={22} color="#5e8d9b" strokeWidth={2} />
                 <Text style={styles.engagementCount}>{shareCount}</Text>
               </TouchableOpacity>
-            </View>
+            </Pressable>
           )}
 
           {showHeart && (

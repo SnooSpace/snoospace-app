@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PollPostCard
  * Displays a poll post with voting functionality
  */
@@ -1116,72 +1116,77 @@ const PollPostCard = React.memo(({
 
         {/* Like / Comment / View / Share / Bookmark */}
         {!hideEngagement && (
-          <View style={styles.engagementRow}>
-          {/* Like */}
-          <TouchableOpacity
-            style={styles.engagementButton}
-            onPress={handleLike}
-            disabled={isLiking}
+          <Pressable
+            onPress={(e) => {
+              e.stopPropagation();
+            }}
+            style={styles.engagementRow}
           >
-            <Heart
-              size={EDITORIAL_SPACING.iconSize}
-              color={isLiked ? COLORS.error : COLORS.editorial.textSecondary}
-              fill={isLiked ? COLORS.error : "transparent"}
-            />
-            <Text
-              style={[styles.engagementCount, isLiked && styles.likedCount]}
+            {/* Like */}
+            <TouchableOpacity
+              style={styles.engagementButton}
+              onPress={handleLike}
+              disabled={isLiking}
             >
-              {formatCount(likeCount)}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Comment */}
-          <TouchableOpacity
-            style={styles.engagementButton}
-            onPress={handleCommentPress}
-          >
-            <MessageCircle size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
-            <Text style={styles.engagementCount}>
-              {formatCount(post.comment_count || 0)}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Views */}
-          <TouchableOpacity style={styles.engagementButton} onPress={() => HapticsService.triggerView()}>
-            <ChartNoAxesCombined size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
-            <Text style={styles.engagementCount}>
-              {formatCount(viewCount)}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Share */}
-          <TouchableOpacity
-            style={styles.engagementButton}
-            onPress={handleShare}
-          >
-            <Send size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
-            <Text style={styles.engagementCount}>
-              {formatCount(post.share_count || 0)}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Bookmark */}
-          <TouchableOpacity
-            style={styles.engagementButton}
-            onPress={handleSave}
-          >
-            <Bookmark
-              size={EDITORIAL_SPACING.iconSize}
-              color={COLORS.editorial.textSecondary}
-              fill={isSaved ? COLORS.editorial.textSecondary : "transparent"}
-            />
-            {saveCount > 0 && (
-              <Text style={styles.engagementCount}>
-                {formatCount(saveCount)}
+              <Heart
+                size={EDITORIAL_SPACING.iconSize}
+                color={isLiked ? COLORS.error : COLORS.editorial.textSecondary}
+                fill={isLiked ? COLORS.error : "transparent"}
+              />
+              <Text
+                style={[styles.engagementCount, isLiked && styles.likedCount]}
+              >
+                {formatCount(likeCount)}
               </Text>
-            )}
-          </TouchableOpacity>
-        </View>
+            </TouchableOpacity>
+
+            {/* Comment */}
+            <TouchableOpacity
+              style={styles.engagementButton}
+              onPress={handleCommentPress}
+            >
+              <MessageCircle size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
+              <Text style={styles.engagementCount}>
+                {formatCount(post.comment_count || 0)}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Views */}
+            <TouchableOpacity style={styles.engagementButton} onPress={() => HapticsService.triggerView()}>
+              <ChartNoAxesCombined size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
+              <Text style={styles.engagementCount}>
+                {formatCount(viewCount)}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Share */}
+            <TouchableOpacity
+              style={styles.engagementButton}
+              onPress={handleShare}
+            >
+              <Send size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
+              <Text style={styles.engagementCount}>
+                {formatCount(post.share_count || 0)}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Bookmark */}
+            <TouchableOpacity
+              style={styles.engagementButton}
+              onPress={handleSave}
+            >
+              <Bookmark
+                size={EDITORIAL_SPACING.iconSize}
+                color={COLORS.editorial.textSecondary}
+                fill={isSaved ? COLORS.editorial.textSecondary : "transparent"}
+              />
+              {saveCount > 0 && (
+                <Text style={styles.engagementCount}>
+                  {formatCount(saveCount)}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </Pressable>
         )}
 
         {showHeart && (
