@@ -795,7 +795,7 @@ const PollPostCard = React.memo(({
                   <Text style={styles.promoAuthorName} numberOfLines={1}>
                     {post.author_name || post.author_username}
                   </Text>
-                  <Text style={styles.promoSep}>â€¢</Text>
+                  <Text style={styles.promoSep}>•</Text>
                   <Text style={styles.promoTimestamp}>{formatTimeAgo(post.created_at)}</Text>
                 </View>
                 <PromoTopRow sourceType={typeData.promo_source_type} />
@@ -1002,11 +1002,11 @@ const PollPostCard = React.memo(({
             <Text style={styles.authorName}>
               {isAnon ? "Anonymous" : (post.author_name || post.author_username)}
             </Text>
-            <Text style={styles.separator}>â€¢</Text>
+            <Text style={styles.separator}>•</Text>
             <Text style={styles.timestamp}>{formatTimeAgo(post.created_at)}</Text>
             {post.edited_at && (
               <>
-                <Text style={styles.separator}>â€¢</Text>
+                <Text style={styles.separator}>•</Text>
                 <Text style={styles.editedLabel}>Edited</Text>
               </>
             )}
@@ -1077,7 +1077,7 @@ const PollPostCard = React.memo(({
             {post.expires_at &&
               (isExpired ? (
                 <>
-                  <Text style={styles.separator}>â€¢</Text>
+                  <Text style={styles.separator}>•</Text>
                   <View style={[styles.endedBadge, { marginLeft: 4 }]}>
                     <Text style={styles.endedBadgeText}>Ended</Text>
                   </View>

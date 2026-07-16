@@ -21,7 +21,8 @@ import {
   unfollowMember,
   getMemberCommunityCircleStatus,
   getCommunityCircleStatus,
-  removeMemberFromCommunityCircle
+  removeMemberFromCommunityCircle,
+  sendCommunityCircleInvite
 } from '../../../api/members';
 import { getFollowStatusForCommunity, followCommunity, unfollowCommunity } from '../../../api/communities';
 import CustomAlertModal from '../../../components/ui/CustomAlertModal';
@@ -151,7 +152,7 @@ const CircleMemberRow = React.memo(({
             )}
 
             {/* Regular Member Row (non-community, non-creator item): Add / Requested / In Circle */}
-            {!isCreator && !item.is_community && viewerType === "member" && (
+            {!isCreator && !item.is_community && (viewerType === "member" || viewerType === "community") && (
               <GHPressable
                 style={[
                   styles.ctaBtn,
@@ -501,7 +502,12 @@ export default function CircleListScreen({ route, navigation }) {
     setMemberCircleLoadingMap((prev) => ({ ...prev, [targetId]: true }));
     setMemberCircleStates((prev) => ({ ...prev, [targetId]: "pending_outgoing" }));
     try {
-      const res = await sendCircleRequest(targetId);
+      let res;
+      if (viewerType === "community") {
+        res = await sendCommunityCircleInvite(targetId);
+      } else {
+        res = await sendCircleRequest(targetId);
+      }
       const isAuto = !!(res?.auto_accepted || res?.status === "in_circle");
       setMemberCircleStates((prev) => ({ ...prev, [targetId]: isAuto ? "in_circle" : "pending_outgoing" }));
     } catch (e) {
@@ -510,7 +516,7 @@ export default function CircleListScreen({ route, navigation }) {
     } finally {
       setMemberCircleLoadingMap((prev) => ({ ...prev, [targetId]: false }));
     }
-  }, []);
+  }, [viewerType]);
 
   const handleRemove = useCallback((item) => {
     HapticsService.triggerImpactLight();

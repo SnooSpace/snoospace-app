@@ -5,6 +5,8 @@ import {
   unfollowMember,
   getCircleMembers,
   sendCircleRequest,
+  getCommunityCircleMembers,
+  sendCommunityCircleInvite,
 } from "../../api/members";
 import {
   getCommunityFollowing,
@@ -68,6 +70,13 @@ export default function UniversalFollowingScreen({ route, navigation }) {
           if (acc.type === 'member') {
             try {
               const circleRes = await getCircleMembers({ page: 1, limit: 200 });
+              const members = circleRes?.members || circleRes?.circle || [];
+              const ids = new Set(members.map((m) => String(m.id || m.member_id)));
+              circleIdSetRef.current = ids;
+            } catch (_) {}
+          } else if (acc.type === 'community') {
+            try {
+              const circleRes = await getCommunityCircleMembers(acc.id, { page: 1, limit: 200 });
               const members = circleRes?.members || circleRes?.circle || [];
               const ids = new Set(members.map((m) => String(m.id || m.member_id)));
               circleIdSetRef.current = ids;
@@ -188,12 +197,17 @@ export default function UniversalFollowingScreen({ route, navigation }) {
   );
 
   const handleCircleRequest = useCallback(async (memberId) => {
-    const res = await sendCircleRequest(memberId);
-    if (res?.auto_accepted) {
+    let res;
+    if (viewerType === 'community') {
+      res = await sendCommunityCircleInvite(memberId);
+    } else {
+      res = await sendCircleRequest(memberId);
+    }
+    if (res?.auto_accepted || res?.status === "in_circle") {
       circleIdSetRef.current = new Set([...circleIdSetRef.current, String(memberId)]);
     }
     return res;
-  }, []);
+  }, [viewerType]);
 
   const handleItemPress = useCallback(
     (item) => {
@@ -219,7 +233,11 @@ export default function UniversalFollowingScreen({ route, navigation }) {
       onToggleFollow={handleToggleFollow}
       onItemPress={handleItemPress}
       viewerType={viewerType}
-      onCircleRequest={viewerType === 'member' ? handleCircleRequest : null}
+      onCircleRequest={
+        viewerType === 'member' || viewerType === 'community'
+          ? handleCircleRequest
+          : null
+      }
       emptyMessage="You're not following anyone yet"
       removeOnUnfollow={true}
       primaryColor={primaryColor}

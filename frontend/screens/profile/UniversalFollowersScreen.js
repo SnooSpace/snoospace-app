@@ -6,6 +6,8 @@ import {
   getFollowStatusForMember,
   getCircleMembers,
   sendCircleRequest,
+  getCommunityCircleMembers,
+  sendCommunityCircleInvite,
 } from "../../api/members";
 import {
   getCommunityFollowers,
@@ -80,6 +82,13 @@ export default function UniversalFollowersScreen({ route, navigation }) {
           if (acc.type === 'member') {
             try {
               const circleRes = await getCircleMembers({ page: 1, limit: 200 });
+              const members = circleRes?.members || circleRes?.circle || [];
+              const ids = new Set(members.map((m) => String(m.id || m.member_id)));
+              circleIdSetRef.current = ids;
+            } catch (_) {}
+          } else if (acc.type === 'community') {
+            try {
+              const circleRes = await getCommunityCircleMembers(acc.id, { page: 1, limit: 200 });
               const members = circleRes?.members || circleRes?.circle || [];
               const ids = new Set(members.map((m) => String(m.id || m.member_id)));
               circleIdSetRef.current = ids;
@@ -204,13 +213,18 @@ export default function UniversalFollowersScreen({ route, navigation }) {
 
   const handleCircleRequest = useCallback(async (memberId) => {
     // Send circle request — throws on error so FollowerList can catch and revert UI
-    const res = await sendCircleRequest(memberId);
+    let res;
+    if (viewerType === 'community') {
+      res = await sendCommunityCircleInvite(memberId);
+    } else {
+      res = await sendCircleRequest(memberId);
+    }
     // If auto-accepted, update circle ID set so future renders mark them inCircle
-    if (res?.auto_accepted) {
+    if (res?.auto_accepted || res?.status === "in_circle") {
       circleIdSetRef.current = new Set([...circleIdSetRef.current, String(memberId)]);
     }
     return res;
-  }, []);
+  }, [viewerType]);
 
   const handleItemPress = useCallback(
     (item) => {
@@ -237,7 +251,11 @@ export default function UniversalFollowersScreen({ route, navigation }) {
       onToggleFollow={handleToggleFollow}
       onItemPress={handleItemPress}
       viewerType={viewerType}
-      onCircleRequest={viewerType === 'member' ? handleCircleRequest : null}
+      onCircleRequest={
+        viewerType === 'member' || viewerType === 'community'
+          ? handleCircleRequest
+          : null
+      }
       emptyMessage="If someone follows you, you'll be able to see them here"
       primaryColor={primaryColor}
     />

@@ -26,7 +26,6 @@ import {
   User,
   Sparkles,
   ArrowLeft,
-  CircleCheck,
   AlertCircle,
   ChevronRight,
   Music,
@@ -102,7 +101,6 @@ export default function EditDiscoverProfileScreen({ navigation }) {
   const { showToast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   const [unsavedModalVisible, setUnsavedModalVisible] = useState(false);
   const [incompleteSaveModalVisible, setIncompleteSaveModalVisible] = useState(false);
   const [incompleteMissingMsg, setIncompleteMissingMsg] = useState("");
@@ -484,12 +482,9 @@ export default function EditDiscoverProfileScreen({ navigation }) {
       });
 
       if (autoExit) {
-        setShowSuccess(true);
         Keyboard.dismiss();
-        setTimeout(() => {
-          setShowSuccess(false);
-          navigation.goBack();
-        }, 1500);
+        showToast("Success", "Saved successfully!");
+        navigation.goBack();
       }
       return true;
     } catch (error) {
@@ -873,13 +868,6 @@ export default function EditDiscoverProfileScreen({ navigation }) {
           </View>
         </View>
       </SafeAreaView>
-
-      {showSuccess && (
-        <View style={styles.successToast}>
-          <CircleCheck size={24} color="#FFFFFF" strokeWidth={2} />
-          <Text style={styles.successToastText}>Saved successfully!</Text>
-        </View>
-      )}
 
       {loading ? (
         <View style={styles.loadingContainer}>

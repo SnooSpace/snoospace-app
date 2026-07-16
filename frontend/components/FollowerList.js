@@ -253,10 +253,10 @@ export default function FollowerList({
           item.isFollowing
         );
 
-      // Member viewer can Add a member-type non-circle item to their circle
+      // Member or Community viewer can Add a member-type non-circle item to their circle
       const canAdd =
         onCircleRequest &&
-        viewerType === 'member' &&
+        (viewerType === 'member' || viewerType === 'community') &&
         itemType === 'member' &&
         !item.isCreator &&
         !item.is_creator &&
