@@ -152,7 +152,7 @@ const CircleMemberRow = React.memo(({
             )}
 
             {/* Regular Member Row (non-community, non-creator item): Add / Requested / In Circle */}
-            {!isCreator && !item.is_community && (viewerType === "member" || viewerType === "community") && (
+            {((!isCreator && viewerType === "member") || viewerType === "community") && !item.is_community && (
               <GHPressable
                 style={[
                   styles.ctaBtn,

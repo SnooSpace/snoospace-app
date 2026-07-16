@@ -254,13 +254,13 @@ export default function FollowerList({
         );
 
       // Member or Community viewer can Add a member-type non-circle item to their circle
+      // Note: Member viewers can only add non-creators (creators use follow relationship),
+      // but Community viewers can add any member (creators and non-creators alike).
       const canAdd =
         onCircleRequest &&
         (viewerType === 'member' || viewerType === 'community') &&
         itemType === 'member' &&
-        !item.isCreator &&
-        !item.is_creator &&
-        !item.is_creator_mode_enabled;
+        (viewerType === 'community' || (!item.isCreator && !item.is_creator && !item.is_creator_mode_enabled));
 
       // Items already in the viewer's circle show an 'In Circle' badge instead of Follow
       const inCircle = !!item.inCircle;
