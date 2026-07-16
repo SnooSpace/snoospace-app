@@ -205,7 +205,7 @@ const PersonCard = React.memo(({ attendee, onPress, lightTextColor }) => {
       <Image source={{ uri: photo }} style={styles.personPhoto} cachePolicy="memory-disk" />
       <View style={styles.personInfo}>
         <Text style={styles.personName} numberOfLines={1}>
-          {attendee.nickname || attendee.name}
+          {attendee.name}
           {attendee.age ? `, ${attendee.age}` : ""}
         </Text>
         <Text style={styles.personPronouns} numberOfLines={1}>

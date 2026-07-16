@@ -179,7 +179,7 @@ const ProfileBioHeader = React.memo(({ profile, setShowCollegeHub }) => {
           !hasBio && !hasPronouns && { marginBottom: 30 },
         ]}
       >
-        <Text style={styles.profileName}>{profile.nickname || profile.name}</Text>
+        <Text style={styles.profileName}>{profile.name}</Text>
         {profile?.is_creator_mode_enabled && (
           <View style={styles.creatorBadge}>
             <Sparkles size={12} color="#7B1FA2" strokeWidth={2.5} style={{ marginRight: 4 }} />
