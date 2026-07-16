@@ -714,11 +714,27 @@ export default function MemberProfileScreen({ navigation }) {
     initialCounts: profile ? {
       follower_count: profile.follower_count || 0,
       following_count: profile.following_count || 0,
-      post_count: posts ? posts.length : 0,
+      post_count: typeof profile.post_count === "number" ? profile.post_count : (posts ? posts.length : 0),
       circle_count: profile.circle_count || 0,
       creator_follower_count: profile.creator_follower_count || 0,
     } : null,
   });
+
+  // F1: When the ProfileCacheContext populates memberProfile after mount
+  // (e.g. cold start where profile was null on first render), seed polledCounts
+  // immediately so stats show cached values rather than zeros while loadProfile
+  // is in-flight. This is a no-op when profile was already non-null on mount.
+  useEffect(() => {
+    if (memberProfile && !profile) {
+      initializeCounts({
+        follower_count: memberProfile.follower_count || 0,
+        following_count: memberProfile.following_count || 0,
+        post_count: memberProfile.post_count || 0,
+        circle_count: memberProfile.circle_count || 0,
+        creator_follower_count: memberProfile.creator_follower_count || 0,
+      });
+    }
+  }, [memberProfile]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   const MAX_PINS = 3;
@@ -856,116 +872,12 @@ export default function MemberProfileScreen({ navigation }) {
     };
   }, []);
 
-  // Instantly update circle count when a circle request is accepted
-  useEffect(() => {
-    const unsub = EventBus.on("circle-request-responded", ({ action }) => {
-      if (action !== "accepted") return;
-      // Bump the polled circles count immediately without waiting for next poll tick
-      initializeCounts({
-        follower_count: polledCounts.followers,
-        following_count: polledCounts.following,
-        post_count: polledCounts.posts,
-        circle_count: (polledCounts.circles || 0) + 1,
-        creator_follower_count: polledCounts.creatorFollowers || 0,
-      });
-    });
-    return () => { if (unsub) unsub(); };
-  }, [polledCounts, initializeCounts]);
+  // NOTE: Count updates for circle-request-responded, creator:followed/unfollowed,
+  // circle:left, circle:member-removed, my:circle-member-removed, creator:follower-removed
+  // are all handled inside useProfileCountsPolling via its own internal EventBus listeners
+  // that use setCounts(prev => ...) — no stale closure risk.
+  // DO NOT add duplicate handlers here; they cause double-counting and stale overwrites.
 
-  // I followed a creator → my following count goes up
-  useEffect(() => {
-    const unsub = EventBus.on("creator:followed", () => {
-      initializeCounts({
-        follower_count: polledCounts.followers,
-        following_count: (polledCounts.following || 0) + 1,
-        post_count: polledCounts.posts,
-        circle_count: polledCounts.circles || 0,
-        creator_follower_count: polledCounts.creatorFollowers || 0,
-      });
-    });
-    return () => { if (unsub) unsub(); };
-  }, [polledCounts, initializeCounts]);
-
-  // I unfollowed a creator → my following count goes down
-  useEffect(() => {
-    const unsub = EventBus.on("creator:unfollowed", () => {
-      initializeCounts({
-        follower_count: polledCounts.followers,
-        following_count: Math.max(0, (polledCounts.following || 0) - 1),
-        post_count: polledCounts.posts,
-        circle_count: polledCounts.circles || 0,
-        creator_follower_count: polledCounts.creatorFollowers || 0,
-      });
-    });
-    return () => { if (unsub) unsub(); };
-  }, [polledCounts, initializeCounts]);
-
-  // I left a creator's circle → my circle count goes down
-  // (follow row restored so following_count stays the same — it was excluded while in circle)
-  useEffect(() => {
-    const unsub = EventBus.on("circle:left", ({ alsoUnfollow } = {}) => {
-      initializeCounts({
-        follower_count: polledCounts.followers,
-        following_count: polledCounts.following || 0,
-        post_count: polledCounts.posts,
-        circle_count: Math.max(0, (polledCounts.circles || 0) - 1),
-        creator_follower_count: polledCounts.creatorFollowers || 0,
-      });
-    });
-    return () => { if (unsub) unsub(); };
-  }, [polledCounts, initializeCounts]);
-
-  // As creator: I removed a follower → my creator_follower_count goes down
-  useEffect(() => {
-    const unsub = EventBus.on("creator:follower-removed", ({ creatorId } = {}) => {
-      if (String(creatorId) !== String(profile?.id)) return;
-      initializeCounts({
-        follower_count: polledCounts.followers,
-        following_count: polledCounts.following || 0,
-        post_count: polledCounts.posts,
-        circle_count: polledCounts.circles || 0,
-        creator_follower_count: Math.max(0, (polledCounts.creatorFollowers || 0) - 1),
-      });
-    });
-    return () => { if (unsub) unsub(); };
-  }, [polledCounts, initializeCounts, profile?.id]);
-
-  // As creator: I removed someone from my circle → circle_count--
-  // If alsoUnfollow=false → follow is restored → creator_follower_count++
-  // If alsoUnfollow=true → follow is also deleted → creator_follower_count--
-  useEffect(() => {
-    const unsub = EventBus.on("circle:member-removed", ({ creatorId, alsoUnfollow } = {}) => {
-      if (String(creatorId) !== String(profile?.id)) return;
-      initializeCounts({
-        follower_count: polledCounts.followers,
-        following_count: polledCounts.following || 0,
-        post_count: polledCounts.posts,
-        circle_count: Math.max(0, (polledCounts.circles || 0) - 1),
-        creator_follower_count: alsoUnfollow
-          // Follow also deleted — decrement
-          ? Math.max(0, (polledCounts.creatorFollowers || 0) - 1)
-          // Follow restored — increment (DB trigger restores the creator_follows row)
-          : (polledCounts.creatorFollowers || 0) + 1,
-      });
-    });
-    return () => { if (unsub) unsub(); };
-  }, [polledCounts, initializeCounts, profile?.id]);
-
-  // CircleListScreen removed someone from MY circle (no creatorId filter — always own circle)
-  useEffect(() => {
-    const unsub = EventBus.on("my:circle-member-removed", ({ alsoUnfollow } = {}) => {
-      initializeCounts({
-        follower_count: polledCounts.followers,
-        following_count: polledCounts.following || 0,
-        post_count: polledCounts.posts,
-        circle_count: Math.max(0, (polledCounts.circles || 0) - 1),
-        creator_follower_count: alsoUnfollow
-          ? Math.max(0, (polledCounts.creatorFollowers || 0) - 1)
-          : (polledCounts.creatorFollowers || 0),
-      });
-    });
-    return () => { if (unsub) unsub(); };
-  }, [polledCounts, initializeCounts]);
 
   // Real-time sync: view, share, save counts from EventBus
   useEffect(() => {
@@ -1177,6 +1089,7 @@ export default function MemberProfileScreen({ navigation }) {
         circle_count: circleCount,
         following_count: followingCount,
         follower_count: followerCount,
+        post_count: countsResponse?.post_count || 0,
         events_attended_count:
           eventsResponse?.total_events ?? eventsResponse?.events?.length ?? 0,
         // Creator Mode
@@ -1231,7 +1144,7 @@ export default function MemberProfileScreen({ navigation }) {
       initializeCounts({
         follower_count: followerCount,
         following_count: followingCount,
-        post_count: userPosts.length,
+        post_count: countsResponse?.post_count || 0,
         circle_count: circleCount,
         creator_follower_count: creatorFollowerCount,
       });
@@ -1367,15 +1280,6 @@ export default function MemberProfileScreen({ navigation }) {
     const task = InteractionManager.runAfterInteractions(() => {
       loadProfile();
     });
-    const off = EventBus.on("follow-updated", (payload) => {
-      // Optimistically adjust following_count for current user when they follow/unfollow someone
-      setProfile((prev) => {
-        if (!prev) return prev;
-        const delta = payload?.isFollowing ? 1 : -1;
-        const next = Math.max(0, (prev.following_count || 0) + delta);
-        return { ...prev, following_count: next };
-      });
-    });
 
     const offPostCreated = EventBus.on("post-created", () => {
       console.log(
@@ -1387,10 +1291,10 @@ export default function MemberProfileScreen({ navigation }) {
     return () => {
       console.log("[Profile] useEffect cleanup (unsubscribing)");
       task.cancel();
-      off();
       if (offPostCreated) offPostCreated();
     };
   }, []);
+
 
   // Navigation listener to detect when returning from EditProfile with changes
   useEffect(() => {
@@ -1909,7 +1813,7 @@ export default function MemberProfileScreen({ navigation }) {
             })()}
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{posts.length}</Text>
+                <Text style={styles.statNumber}>{polledCounts.posts}</Text>
                 <Text style={styles.statLabel}>Posts</Text>
               </View>
               <TouchableOpacity
@@ -1951,9 +1855,9 @@ export default function MemberProfileScreen({ navigation }) {
                   }}
                 >
                   <Text style={styles.statNumber}>
-                    {polledCounts.circles +
-                     polledCounts.creatorFollowers +
-                     (polledCounts.followers || 0)}
+                    {polledCounts.creatorFollowers +
+                     (polledCounts.followers || 0) +
+                     polledCounts.circles}
                   </Text>
                   <Text style={styles.statLabel}>Followers</Text>
                 </GHPressable>

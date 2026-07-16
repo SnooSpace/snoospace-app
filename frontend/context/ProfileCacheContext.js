@@ -98,6 +98,7 @@ export function ProfileCacheProvider({ children }) {
             circle_count: circleCount,
             following_count: followingCount,
             follower_count: followerCount,
+            post_count: countsResponse?.post_count || 0,
             events_attended_count:
               eventsResponse?.total_events ?? eventsResponse?.events?.length ?? 0,
             is_creator_mode_enabled: fullProfile.is_creator_mode_enabled === true,

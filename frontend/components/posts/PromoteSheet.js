@@ -9,22 +9,21 @@
  *   Submit → POST /posts { post_type: "event_promo" | "plan_promo", ... }
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
   Platform,
-  Modal,
   Alert,
-  Animated,
   ActivityIndicator,
 } from 'react-native';
+import SwipeableModal from '../modals/SwipeableModal';
+import EventBus from '../../utils/EventBus';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import {
   X,
   Megaphone,
@@ -144,7 +143,7 @@ const quotaStyles = StyleSheet.create({
     color: COLORS.textSecondary,
   },
   count: {
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.medium,
     fontSize: 12,
     color: '#7C3AED',
   },
@@ -174,12 +173,13 @@ const quotaStyles = StyleSheet.create({
   },
   sub: {
     fontFamily: FONTS.regular,
-    fontSize: 11,
+    fontSize: 13,
     color: COLORS.textSecondary,
   },
   subExceeded: {
     color: '#EF4444',
     fontFamily: FONTS.medium,
+    fontSize: 13,
   },
 });
 
@@ -203,28 +203,19 @@ const PromoteSheet = ({
   const [quota, setQuota]                   = useState(null);
   const [quotaLoading, setQuotaLoading]     = useState(false);
 
-  // Slide animation
-  const slideY = useRef(new Animated.Value(800)).current;
-
   useEffect(() => {
     if (visible) {
       setPromoText('');
       setEngagementType(null);
       setEngagementData(null);
       loadQuota();
-      Animated.spring(slideY, {
-        toValue: 0,
-        useNativeDriver: true,
-        damping: 22,
-        stiffness: 180,
-      }).start();
+      EventBus.emit("hide-tab-bar");
     } else {
-      Animated.timing(slideY, {
-        toValue: 800,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
+      EventBus.emit("show-tab-bar");
     }
+    return () => {
+      EventBus.emit("show-tab-bar");
+    };
   }, [visible]);
 
   const loadQuota = async () => {
@@ -364,184 +355,169 @@ const PromoteSheet = ({
     }
   };
 
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      <View style={styles.overlay}>
-        {/* Tap outside to dismiss */}
+  const headerEl = (
+    <View style={styles.header} collapsable={false}>
+      <View style={styles.headerHandle} />
+      <View style={styles.headerRow}>
+        <View style={styles.headerLeft}>
+          <View style={styles.headerIconWrap}>
+            <Megaphone size={18} color="#7C3AED" strokeWidth={2} />
+          </View>
+          <View>
+            <Text style={styles.headerTitle}>
+              Promote {sourceType === 'event' ? 'Event' : 'Open Plan'}
+            </Text>
+            {sourceData && (
+              <Text style={styles.headerSubtitle} numberOfLines={1}>
+                {getSourceSubtitle()}
+              </Text>
+            )}
+          </View>
+        </View>
         <TouchableOpacity
-          style={StyleSheet.absoluteFill}
-          activeOpacity={1}
           onPress={onClose}
-        />
-
-        <Animated.View style={[styles.sheet, { transform: [{ translateY: slideY }] }]}>
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerHandle} />
-            <View style={styles.headerRow}>
-              <View style={styles.headerLeft}>
-                <View style={styles.headerIconWrap}>
-                  <Megaphone size={18} color="#7C3AED" strokeWidth={2} />
-                </View>
-                <View>
-                  <Text style={styles.headerTitle}>
-                    Promote {sourceType === 'event' ? 'Event' : 'Open Plan'}
-                  </Text>
-                  {sourceData && (
-                    <Text style={styles.headerSubtitle} numberOfLines={1}>
-                      {getSourceSubtitle()}
-                    </Text>
-                  )}
-                </View>
-              </View>
-              <TouchableOpacity
-                onPress={onClose}
-                style={styles.closeButton}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              >
-                <X size={20} color={COLORS.textSecondary} strokeWidth={2.5} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={0}
-          >
-            <ScrollView
-              style={styles.scroll}
-              contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 100 }]}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Promo text input */}
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Add a message</Text>
-                <View style={styles.textInputWrap}>
-                  <TextInput
-                    style={styles.textInput}
-                    placeholder={
-                      sourceType === 'event'
-                        ? "Don't miss this one — grab your tickets now! 🎟️"
-                        : "Looking for people to join this plan..."
-                    }
-                    placeholderTextColor="#9CA3AF"
-                    value={promoText}
-                    onChangeText={setPromoText}
-                    multiline
-                    maxLength={300}
-                    editable={!isSubmitting}
-                    returnKeyType="done"
-                  />
-                  {promoText.length > 0 && (
-                    <Text style={styles.charCount}>{promoText.length}/300</Text>
-                  )}
-                </View>
-              </View>
-
-              {/* Engagement type selector */}
-              <View style={styles.section}>
-                <Text style={styles.sectionLabel}>Choose engagement type</Text>
-                <View style={styles.typeGrid}>
-                  {availableTypes.map((type) => {
-                    const { Icon } = type;
-                    const selected = engagementType === type.key;
-                    return (
-                      <TouchableOpacity
-                        key={type.key}
-                        style={[
-                          styles.typeCard,
-                          selected && { borderColor: type.color, borderWidth: 2 },
-                        ]}
-                        onPress={() => {
-                          HapticsService.triggerImpactLight();
-                          setEngagementType(type.key);
-                          setEngagementData(null);
-                        }}
-                        activeOpacity={0.75}
-                      >
-                        <View style={[styles.typeIconWrap, { backgroundColor: type.bg }]}>
-                          <Icon size={18} color={type.color} strokeWidth={2} />
-                        </View>
-                        <Text style={[styles.typeLabel, selected && { color: type.color }]}>
-                          {type.label}
-                        </Text>
-                        <Text style={styles.typeDesc}>{type.description}</Text>
-                        {selected && (
-                          <View style={[styles.selectedDot, { backgroundColor: type.color }]} />
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Engagement form */}
-              {engagementType && (
-                <View style={styles.section}>
-                  <Text style={styles.sectionLabel}>
-                    {engagementType === 'poll'
-                      ? 'Configure Poll'
-                      : engagementType === 'qna'
-                      ? 'Configure Q&A'
-                      : engagementType === 'prompt'
-                      ? 'Configure Prompt'
-                      : 'Add Opportunity'}
-                  </Text>
-                  {renderEngagementForm()}
-                </View>
-              )}
-
-              {/* Quota bar */}
-              {quotaLoading ? (
-                <ActivityIndicator size="small" color="#7C3AED" style={{ marginVertical: 12 }} />
-              ) : quota ? (
-                <QuotaBar used={quota.used} max={quota.max} resetsAt={quota.resets_at} />
-              ) : null}
-            </ScrollView>
-          </KeyboardAvoidingView>
-
-          {/* Submit bar */}
-          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-            <TouchableOpacity
-              style={styles.cancelBtn}
-              onPress={onClose}
-              disabled={isSubmitting}
-            >
-              <Text style={styles.cancelBtnText}>Cancel</Text>
-            </TouchableOpacity>
-            <GradientButton
-              title={isSubmitting ? 'Promoting...' : 'Promote'}
-              onPress={handleSubmit}
-              disabled={!canSubmit() || isSubmitting}
-              loading={isSubmitting}
-              style={[
-                styles.submitBtn,
-                (!canSubmit() || isSubmitting) && styles.submitBtnDisabled,
-              ]}
-              gradientStyle={styles.submitBtnGradient}
-              colors={
-                !canSubmit() || isSubmitting
-                  ? ['#E5E7EB', '#E5E7EB']
-                  : ['#7C3AED', '#9333EA']
-              }
-              textStyle={{
-                fontFamily: FONTS.semiBold,
-                fontSize: 15,
-                color: !canSubmit() || isSubmitting ? '#9CA3AF' : '#FFFFFF',
-              }}
-            />
-          </View>
-        </Animated.View>
+          style={styles.closeButton}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <X size={20} color={COLORS.textSecondary} strokeWidth={2.5} />
+        </TouchableOpacity>
       </View>
-    </Modal>
+    </View>
+  );
+
+  return (
+    <SwipeableModal
+      visible={visible}
+      onClose={onClose}
+      sheetStyle={styles.sheet}
+      avoidKeyboard={Platform.OS === 'ios'}
+      navigationBarTranslucent={Platform.OS === 'android'}
+      header={headerEl}
+    >
+      <KeyboardAwareScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Promo text input */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Add a message</Text>
+          <View style={styles.textInputWrap}>
+            <TextInput
+              style={styles.textInput}
+              placeholder={
+                sourceType === 'event'
+                  ? "Don't miss this one — grab your tickets now! 🎟️"
+                  : "Looking for people to join this plan..."
+              }
+              placeholderTextColor="#9CA3AF"
+              value={promoText}
+              onChangeText={setPromoText}
+              multiline
+              maxLength={300}
+              editable={!isSubmitting}
+              returnKeyType="done"
+            />
+            {promoText.length > 0 && (
+              <Text style={styles.charCount}>{promoText.length}/300</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Engagement type selector */}
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Choose engagement type</Text>
+          <View style={styles.typeGrid}>
+            {availableTypes.map((type) => {
+              const { Icon } = type;
+              const selected = engagementType === type.key;
+              return (
+                <TouchableOpacity
+                  key={type.key}
+                  style={[
+                    styles.typeCard,
+                    selected && { borderColor: type.color, borderWidth: 2 },
+                  ]}
+                  onPress={() => {
+                    HapticsService.triggerImpactLight();
+                    setEngagementType(type.key);
+                    setEngagementData(null);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.typeIconWrap, { backgroundColor: type.bg }]}>
+                    <Icon size={18} color={type.color} strokeWidth={2} />
+                  </View>
+                  <Text style={[styles.typeLabel, selected && { color: type.color }]}>
+                    {type.label}
+                  </Text>
+                  <Text style={styles.typeDesc}>{type.description}</Text>
+                  {selected && (
+                    <View style={[styles.selectedDot, { backgroundColor: type.color }]} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Engagement form */}
+        {engagementType && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>
+              {engagementType === 'poll'
+                ? 'Configure Poll'
+                : engagementType === 'qna'
+                ? 'Configure Q&A'
+                : engagementType === 'prompt'
+                ? 'Configure Prompt'
+                : 'Add Opportunity'}
+            </Text>
+            {renderEngagementForm()}
+          </View>
+        )}
+
+        {/* Quota bar */}
+        {quotaLoading ? (
+          <ActivityIndicator size="small" color="#7C3AED" style={{ marginVertical: 12 }} />
+        ) : quota ? (
+          <QuotaBar used={quota.used} max={quota.max} resetsAt={quota.resets_at} />
+        ) : null}
+      </KeyboardAwareScrollView>
+
+      {/* Submit bar */}
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <TouchableOpacity
+          style={styles.cancelBtn}
+          onPress={onClose}
+          disabled={isSubmitting}
+        >
+          <Text style={styles.cancelBtnText}>Cancel</Text>
+        </TouchableOpacity>
+        <GradientButton
+          title={isSubmitting ? 'Promoting...' : 'Promote'}
+          onPress={handleSubmit}
+          disabled={!canSubmit() || isSubmitting}
+          loading={isSubmitting}
+          style={[
+            styles.submitBtn,
+            (!canSubmit() || isSubmitting) && styles.submitBtnDisabled,
+          ]}
+          gradientStyle={styles.submitBtnGradient}
+          colors={
+            !canSubmit() || isSubmitting
+              ? ['#E5E7EB', '#E5E7EB']
+              : ['#7C3AED', '#9333EA']
+          }
+          textStyle={{
+            fontFamily: FONTS.semiBold,
+            fontSize: 16,
+            color: !canSubmit() || isSubmitting ? '#9CA3AF' : '#FFFFFF',
+          }}
+        />
+      </View>
+    </SwipeableModal>
   );
 };
 
@@ -591,21 +567,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#F3EFFE',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.primary,
     fontSize: 17,
     color: COLORS.textPrimary,
   },
   headerSubtitle: {
     fontFamily: FONTS.regular,
-    fontSize: 12,
+    fontSize: 13,
     color: COLORS.textSecondary,
     marginTop: 1,
   },
@@ -618,7 +594,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
   },
   scroll: {
-    flex: 1,
+    flexShrink: 1,
   },
   scrollContent: {
     padding: 20,
@@ -628,7 +604,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   sectionLabel: {
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.primary,
     fontSize: 14,
     color: COLORS.textPrimary,
     letterSpacing: 0.1,
@@ -649,8 +625,8 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   charCount: {
-    fontFamily: FONTS.regular,
-    fontSize: 11,
+    fontFamily: FONTS.medium,
+    fontSize: 12,
     color: COLORS.textSecondary,
     textAlign: 'right',
     marginTop: 4,
@@ -670,22 +646,22 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   typeIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
   typeLabel: {
     fontFamily: FONTS.semiBold,
-    fontSize: 14,
+    fontSize: 15,
     color: COLORS.textPrimary,
     marginBottom: 2,
   },
   typeDesc: {
     fontFamily: FONTS.regular,
-    fontSize: 11,
+    fontSize: 13,
     color: COLORS.textSecondary,
   },
   selectedDot: {
@@ -716,7 +692,7 @@ const styles = StyleSheet.create({
   },
   cancelBtnText: {
     fontFamily: FONTS.semiBold,
-    fontSize: 15,
+    fontSize: 16,
     color: COLORS.textSecondary,
   },
   submitBtn: {

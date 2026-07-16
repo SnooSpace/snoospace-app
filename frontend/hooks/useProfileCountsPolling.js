@@ -129,16 +129,18 @@ export function useProfileCountsPolling(options = {}) {
       if (!targetId) return;
 
       if (targetId === isMe) {
-        // Someone followed/unfollowed us (Community/Creator)
+        // Someone followed/unfollowed us via the plain follows table
+        // (communities, sponsors, venues → us, or old-style follows).
+        // This always touches members.follower_count, not creator_follower_count.
+        // Creator follows fire 'creator:followed'/'creator:unfollowed' separately.
         setCounts((prev) => {
-          const key = userType === 'community' ? 'followers' : 'creatorFollowers';
-          const nextVal = Math.max(0, prev[key] + (payload.isFollowing ? 1 : -1));
-          const updated = { ...prev, [key]: nextVal };
+          const nextVal = Math.max(0, prev.followers + (payload.isFollowing ? 1 : -1));
+          const updated = { ...prev, followers: nextVal };
           countsRef.current = updated;
           return updated;
         });
       } else {
-        // We followed/unfollowed someone else (adjusts our own private profile following count)
+        // We followed/unfollowed someone else — adjusts our own following count
         setCounts((prev) => {
           const nextVal = Math.max(0, prev.following + (payload.isFollowing ? 1 : -1));
           const updated = { ...prev, following: nextVal };

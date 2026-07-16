@@ -600,7 +600,7 @@ const getPublicCircleMembers = async (req, res) => {
     params.push(offset);
 
     const query = `
-      SELECT * FROM (
+      SELECT *, COUNT(*) OVER()::int as total_count FROM (
         SELECT
           c.id AS circle_id,
           c.created_at AS connected_since,
@@ -641,7 +641,13 @@ const getPublicCircleMembers = async (req, res) => {
     `;
 
     const result = await pool.query(query, params);
-    return res.json({ members: result.rows });
+    const totalCount = result.rows.length > 0 ? result.rows[0].total_count : 0;
+    // Strip total_count column from each row mapping for clean backward compatibility
+    const members = result.rows.map(row => {
+      const { total_count, ...memberData } = row;
+      return memberData;
+    });
+    return res.json({ members, total: totalCount });
   } catch (err) {
     console.error('[circleController.getPublicCircleMembers]', err);
     res.status(500).json({ error: 'Internal server error' });

@@ -34,6 +34,7 @@ export default function SwipeableModal({
   children,
   sheetStyle,
   statusBarTranslucent = true,
+  navigationBarTranslucent = false,
   backdropColor = "rgba(0, 0, 0, 0.4)",
   useBlur = false,
   blurIntensity = 20,
@@ -150,7 +151,7 @@ export default function SwipeableModal({
       animationType="none"
       onRequestClose={onRequestClose || onClose}
       statusBarTranslucent={statusBarTranslucent}
-      navigationBarTranslucent={false}
+      navigationBarTranslucent={navigationBarTranslucent}
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
         <View style={styles.overlay}>

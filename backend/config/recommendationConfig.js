@@ -22,7 +22,7 @@ module.exports = {
   // How long (days) before a dismissed candidate can resurface.
   DISMISSAL_COOLDOWN_DAYS: 14,
 
-  // ── Scoring weights (w1–w9) ───────────────────────────────────────────────
+  // ── Scoring weights (w1–w10) ───────────────────────────────────────────────────
   // Tuned post-launch based on engagement data. Starting values per spec.
   weights: {
     shared_events:        3.0,  // w1 — most on-thesis (physically co-present)
@@ -34,6 +34,13 @@ module.exports = {
     shared_interests:     0.8,  // w7 — rarity-weighted interest overlap
     proximity:            0.6,  // w8 — physical distance decay
     verification:         0.3,  // w9 — small trust signal, heavily capped
+
+    // w10 — Positive co-attendee rating (from open_plan_attendee_ratings)
+    // Uses same 180-day window as w1 (shared_events) for consistency.
+    // Set to 0 to disable entirely without touching job logic.
+    // Review Signal 10 contribution logs for the first 2 weeks post-launch
+    // (logged individually in computeRecommendations.js) before trusting this silently.
+    co_attendee_rating:   0.15,
   },
 
   // ── Signal caps ───────────────────────────────────────────────────────────

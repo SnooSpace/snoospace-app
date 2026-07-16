@@ -237,12 +237,25 @@ const getFollowers = async (req, res) => {
         CASE
           WHEN f.follower_type = 'member' THEN m.is_creator_mode_enabled
           ELSE false
-        END as is_creator
+        END as is_creator,
+        -- B1: Expose whether a community follower is already in the profile
+        -- owner's circle. FollowerList reads item.inCircle to render the chip.
+        -- This must be set by the API — the frontend must not infer it from
+        -- multiple tables (API design principle).
+        CASE
+          WHEN f.follower_type = 'community' AND cmc.community_id IS NOT NULL THEN true
+          ELSE false
+        END as in_circle
       FROM follows f
       LEFT JOIN members m ON f.follower_type = 'member' AND f.follower_id = m.id
       LEFT JOIN communities c ON f.follower_type = 'community' AND f.follower_id = c.id
       LEFT JOIN sponsors s ON f.follower_type = 'sponsor' AND f.follower_id = s.id
       LEFT JOIN venues v ON f.follower_type = 'venue' AND f.follower_id = v.id
+      -- B1: Join community_member_circles to annotate in_circle per community row
+      LEFT JOIN community_member_circles cmc
+        ON f.follower_type = 'community'
+        AND cmc.community_id = f.follower_id
+        AND cmc.member_id = $1
       WHERE f.following_id = $1 AND f.following_type = $2 AND f.is_superseded_by_circle = false
         ${searchClause}
       ORDER BY f.created_at DESC
@@ -256,6 +269,7 @@ const getFollowers = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
 
 // Get following list
 const getFollowing = async (req, res) => {
@@ -502,7 +516,7 @@ const getProfileCounts = async (req, res) => {
                  WHERE creator_id = $1 AND is_dormant = false AND is_superseded_by_circle = false)::int AS creator_follower_count,
                 (SELECT COUNT(*) FROM creator_follows
                  WHERE follower_id = $1 AND is_dormant = false AND is_superseded_by_circle = false)::int AS creator_following_count,
-                (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member')::int AS post_count
+                (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member' AND post_type = 'media')::int AS post_count
          FROM members WHERE id = $1`,
         [userId]
       );

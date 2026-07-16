@@ -143,7 +143,7 @@ function PersonRow({
                     : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
                 ]}
                 onPress={() => onFollowBack && onFollowBack(item)}
-                disabled={fbLoading || followBackState === null}
+                disabled={fbLoading || followBackState === undefined}
                 activeOpacity={0.75}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
@@ -243,7 +243,7 @@ function PersonRow({
                             : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
                         ]}
                         onPress={() => onFollowBack && onFollowBack(item)}
-                        disabled={fbLoading || followBackState === null}
+                        disabled={fbLoading || followBackState === undefined}
                         activeOpacity={0.75}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
@@ -282,11 +282,11 @@ function PersonRow({
             {/* If community viewer, check community circle relation */}
             {viewerType === "community" && (
               <>
-                {(isOwnProfile ? circleState === "in_circle" : memberToMemberCircleState === "in_circle") ? (
+                {memberToMemberCircleState === "in_circle" ? (
                   <View style={[styles.ctaBtn, { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }]}>
                     <Text style={[styles.ctaTextInCircle, { color: '#2962FF' }]}>In Circle</Text>
                   </View>
-                ) : (isOwnProfile ? circleState === "requested" : memberToMemberCircleState === "pending_outgoing") ? (
+                ) : memberToMemberCircleState === "pending_outgoing" ? (
                   <View style={[styles.ctaBtn, { backgroundColor: 'rgba(255,149,0,0.1)', borderColor: 'rgba(255,149,0,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }]}>
                     <Text style={[styles.ctaTextRequested, { color: '#FF9500' }]}>Requested</Text>
                   </View>
@@ -302,7 +302,7 @@ function PersonRow({
                             : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
                         ]}
                         onPress={() => onFollowBack && onFollowBack(item)}
-                        disabled={fbLoading || followBackState === null}
+                        disabled={fbLoading || followBackState === undefined}
                         activeOpacity={0.75}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
@@ -419,6 +419,9 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         isCreator: !!f.is_creator,
         is_creator: !!f.is_creator,
         is_creator_mode_enabled: !!f.is_creator,
+        // Pass through in_circle from backend annotation so circleStates can be
+        // seeded without N+1 circle-status API calls for community-type followers.
+        in_circle: !!f.in_circle,
       }));
 
       if (page === 1) {
@@ -430,7 +433,9 @@ export default function CreatorFollowersScreen({ route, navigation }) {
       setFollowerPage(page);
       setFollowerHasMore(!!res?.hasMore);
 
-      // Pre-seed circleStates for followers already in circle
+      // Pre-seed circleStates for followers already in circle.
+      // Member followers: cross-reference against circleIdSet from getPublicCircleMembers.
+      // Community followers: read in_circle field annotated by backend (avoids N+1 status calls).
       const preSeededCircle = {};
       if (circleIdSet) {
         normalizedRows.forEach((f) => {
@@ -439,6 +444,12 @@ export default function CreatorFollowersScreen({ route, navigation }) {
           }
         });
       }
+      // Seed circle state for community followers from backend annotation regardless of circleIdSet
+      normalizedRows.forEach((f) => {
+        if (f.type === 'community' && f.in_circle) {
+          preSeededCircle[f.id] = 'in_circle';
+        }
+      });
 
       if (isOwnProfile) {
         // Pre-seed Follow Back states for community-type followers on own profile
@@ -544,7 +555,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
       } else {
         setCircleMembers((prev) => [...prev, ...normalizedRows]);
       }
-      if (page === 1) setCircleTotal(normalizedRows.length);
+      if (page === 1) setCircleTotal(res?.total ?? normalizedRows.length);
       setCirclePage(page);
       setCircleHasMore(normalizedRows.length === 20);
 
@@ -626,6 +637,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
           const circleRes = await getPublicCircleMembers(creatorId, { page: 1, limit: 200 });
           const members = circleRes?.members || [];
           const idSet = new Set(members.map((m) => String(m.member_id || m.id)));
+          setCircleTotal(circleRes?.total ?? members.length);
           await loadFollowers(1, "", idSet, resolvedViewerType, resolvedMyId);
         } catch (_) {
           await loadFollowers(1, "", null, resolvedViewerType, resolvedMyId);
@@ -706,6 +718,7 @@ export default function CreatorFollowersScreen({ route, navigation }) {
           .then((circleRes) => {
             const members = circleRes?.members || [];
             const idSet = new Set(members.map((m) => String(m.member_id || m.id)));
+            setCircleTotal(circleRes?.total ?? members.length);
             return loadFollowers(1, followerSearch, idSet, viewerType, myId);
           })
           .catch(() => loadFollowers(1, followerSearch, null, viewerType, myId))
@@ -978,16 +991,19 @@ export default function CreatorFollowersScreen({ route, navigation }) {
     }
   }, [navigation]);
 
-  // ── Follow Back (community followers) ────────────────────────────────────
+  // ── Follow Back (community followers or creator-member followers) ──────────
 
   const handleFollowBack = useCallback(async (item) => {
-    const communityId = item.id;
-    const isFollowing = followBackStates[communityId];
+    const targetId = item.id;
+    // Determine if this is a community or a creator-member so we use the right API
+    const isCommunityItem = (item.type || item.follower_type || "") === "community";
+    const isFollowing = followBackStates[targetId];
+
     if (isFollowing) {
       hapticsService.triggerImpactLight();
       showAlert({
         title: 'Unfollow?',
-        message: `Are you sure you want to unfollow ${item.name || 'this community'}?`,
+        message: `Are you sure you want to unfollow ${item.name || (isCommunityItem ? 'this community' : 'this creator')}?`,
         icon: UserMinus,
         iconColor: COLORS.error || '#E53935',
         secondaryAction: { text: 'Cancel', onPress: hideAlert },
@@ -997,30 +1013,38 @@ export default function CreatorFollowersScreen({ route, navigation }) {
           onPress: async () => {
             hideAlert();
             hapticsService.triggerImpactMedium();
-            setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: true }));
-            setFollowBackStates((prev) => ({ ...prev, [communityId]: false }));
+            setFollowBackLoadingMap((prev) => ({ ...prev, [targetId]: true }));
+            setFollowBackStates((prev) => ({ ...prev, [targetId]: false }));
             try {
-              await unfollowCommunity(communityId);
+              if (isCommunityItem) {
+                await unfollowCommunity(targetId);
+              } else {
+                await unfollowMember(targetId);
+              }
             } catch (e) {
               console.warn('[CreatorFollowers] handleFollowBack error:', e);
-              setFollowBackStates((prev) => ({ ...prev, [communityId]: true }));
+              setFollowBackStates((prev) => ({ ...prev, [targetId]: true }));
             } finally {
-              setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: false }));
+              setFollowBackLoadingMap((prev) => ({ ...prev, [targetId]: false }));
             }
           },
         },
       });
     } else {
       hapticsService.triggerImpactMedium();
-      setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: true }));
-      setFollowBackStates((prev) => ({ ...prev, [communityId]: true }));
+      setFollowBackLoadingMap((prev) => ({ ...prev, [targetId]: true }));
+      setFollowBackStates((prev) => ({ ...prev, [targetId]: true }));
       try {
-        await followCommunity(communityId);
+        if (isCommunityItem) {
+          await followCommunity(targetId);
+        } else {
+          await followMember(targetId);
+        }
       } catch (e) {
         console.warn('[CreatorFollowers] handleFollowBack error:', e);
-        setFollowBackStates((prev) => ({ ...prev, [communityId]: false }));
+        setFollowBackStates((prev) => ({ ...prev, [targetId]: false }));
       } finally {
-        setFollowBackLoadingMap((prev) => ({ ...prev, [communityId]: false }));
+        setFollowBackLoadingMap((prev) => ({ ...prev, [targetId]: false }));
       }
     }
   }, [followBackStates, showAlert, hideAlert]);
@@ -1085,7 +1109,12 @@ export default function CreatorFollowersScreen({ route, navigation }) {
         followBackState={followBackStates[item.id]}
         followBackLoading={!!followBackLoadingMap[item.id]}
         onFollowBack={handleFollowBack}
-        memberToMemberCircleState={memberCircleStates[item.id] || "none"}
+        memberToMemberCircleState={
+          // On public-profile circle tab, memberCircleStates holds the viewer→item
+          // relationship fetched during loadCircle. Use that for the chip, not circleStates
+          // which tracks the own-profile "Add follower to circle" optimistic state.
+          isOwnProfile ? "none" : (memberCircleStates[item.id] || "none")
+        }
         onMemberCircleRequest={handleMemberCircleRequest}
       />
     );

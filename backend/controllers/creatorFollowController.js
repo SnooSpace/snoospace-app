@@ -196,10 +196,20 @@ async function getCreatorFollowers(req, res) {
           CASE
             WHEN cf.follower_type = 'member' THEN m.is_creator_mode_enabled
             ELSE false
-          END AS is_creator
+          END AS is_creator,
+          -- Annotate whether a community follower is in the creator's circle.
+          -- community_member_circles tracks Community→Creator circle relationships.
+          CASE
+            WHEN cf.follower_type = 'community' AND cmc_a.community_id IS NOT NULL THEN true
+            ELSE false
+          END AS in_circle
         FROM creator_follows cf
-        LEFT JOIN members      m  ON m.id  = cf.follower_id AND cf.follower_type = 'member'
-        LEFT JOIN communities cm  ON cm.id = cf.follower_id AND cf.follower_type = 'community'
+        LEFT JOIN members      m    ON m.id  = cf.follower_id AND cf.follower_type = 'member'
+        LEFT JOIN communities  cm   ON cm.id = cf.follower_id AND cf.follower_type = 'community'
+        LEFT JOIN community_member_circles cmc_a
+          ON cf.follower_type = 'community'
+          AND cmc_a.community_id = cf.follower_id
+          AND cmc_a.member_id = $1
         WHERE ${cfWhere}${searchClauseA}
 
         UNION ALL
@@ -226,11 +236,19 @@ async function getCreatorFollowers(req, res) {
             WHEN f.follower_type = 'venue'     THEN v.logo_url
             ELSE NULL
           END AS avatar_url,
-          false AS is_creator
+          false AS is_creator,
+          CASE
+            WHEN f.follower_type = 'community' AND cmc_b.community_id IS NOT NULL THEN true
+            ELSE false
+          END AS in_circle
         FROM follows f
-        LEFT JOIN communities cm2 ON cm2.id = f.follower_id AND f.follower_type = 'community'
-        LEFT JOIN sponsors    sp   ON sp.id  = f.follower_id AND f.follower_type = 'sponsor'
-        LEFT JOIN venues      v    ON v.id   = f.follower_id AND f.follower_type = 'venue'
+        LEFT JOIN communities  cm2 ON cm2.id = f.follower_id AND f.follower_type = 'community'
+        LEFT JOIN sponsors     sp   ON sp.id  = f.follower_id AND f.follower_type = 'sponsor'
+        LEFT JOIN venues       v    ON v.id   = f.follower_id AND f.follower_type = 'venue'
+        LEFT JOIN community_member_circles cmc_b
+          ON f.follower_type = 'community'
+          AND cmc_b.community_id = f.follower_id
+          AND cmc_b.member_id = $1
         WHERE ${fWhere}${searchClauseB}
       )
       SELECT * FROM combined
@@ -270,6 +288,7 @@ async function getCreatorFollowers(req, res) {
       created_at: row.created_at,
       is_notable: row.follower_type !== "member",
       is_creator: !!row.is_creator,
+      in_circle: !!row.in_circle,
     }));
 
     return res.json({

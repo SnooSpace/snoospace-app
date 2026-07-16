@@ -153,8 +153,11 @@ export default function UniversalFollowersScreen({ route, navigation }) {
         })
         .map((item) => ({
           ...item,
-          // Mark members already in the viewer's circle to show 'In Circle' badge
-          inCircle: (item.type === 'member' || item.type === 'community') && circleIdSetRef.current.has(String(item.id)),
+          // Mark members already in the viewer's circle to show 'In Circle' badge.
+          // Only applies to member-type items — the circleIdSetRef is built from
+          // getCircleMembers() which tracks member↔member circle relationships only.
+          // Community items are handled via a separate follow relationship.
+          inCircle: item.type === 'member' && circleIdSetRef.current.has(String(item.id)),
         }));
 
       return {

@@ -47,6 +47,7 @@ import CustomTimePicker from "../../components/ui/CustomTimePicker";
 import VenueSearchSheet from "../../components/location/VenueSearchSheet";
 import MapLocationPicker from "../../components/location/MapLocationPicker";
 import { getActiveProvider } from "../../services/location/index";
+import { useToast } from "../../context/ToastContext";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CONTAINER_WIDTH = SCREEN_WIDTH - 40;
@@ -115,6 +116,7 @@ export default function HostPlanBottomSheet({
   onPlanCreated,
   navigation,
 }) {
+  const { showToast } = useToast();
   const [activityType, setActivityType] = useState("sports");
   const [customLabel, setCustomLabel] = useState("");
   const [title, setTitle] = useState("");
@@ -267,6 +269,7 @@ export default function HostPlanBottomSheet({
         banner_image_url: bannerImageUrl,
       };
       const data = await createPlan(body, token);
+      showToast("Success", "Open plan created successfully!");
       onPlanCreated(data.plan);
       resetState();
       onClose();

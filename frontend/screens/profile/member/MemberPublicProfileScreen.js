@@ -1599,7 +1599,7 @@ export default function MemberPublicProfileScreen({ route, navigation }) {
                   }}
                 >
                   <Text style={styles.statNumber}>
-                    {circleCount + creatorFollowerCount + followersCount}
+                    {creatorFollowerCount + followersCount + circleCount}
                   </Text>
                   <Text style={styles.statLabel}>Followers</Text>
                 </GHPressable>

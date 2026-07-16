@@ -483,7 +483,7 @@ async function getPublicMember(req, res) {
                WHERE creator_id = $1 AND is_dormant = false AND is_superseded_by_circle = false)::int AS creator_follower_count,
               (SELECT COUNT(*) FROM creator_follows
                WHERE follower_id = $1 AND is_dormant = false AND is_superseded_by_circle = false)::int AS creator_following_count,
-              (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member')::int AS posts_count,
+              (SELECT COUNT(*) FROM posts WHERE author_id = $1 AND author_type = 'member' AND post_type = 'media')::int AS posts_count,
               (
                 (SELECT COUNT(*) FROM event_registrations WHERE member_id = $1
                    AND registration_status IN ('attended', 'confirmed', 'registered'))

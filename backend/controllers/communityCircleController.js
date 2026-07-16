@@ -169,21 +169,22 @@ const cancelInvite = async (req, res) => {
 // PATCH /community-circles/invites/:inviteId — Member accepts or declines
 // ---------------------------------------------------------------------------
 const respondToInvite = async (req, res) => {
+  const pool = req.app.locals.pool;
+  const memberId = req.user?.id;
+  const userType = req.user?.type;
+
+  if (!memberId || userType !== 'member') {
+    return res.status(401).json({ error: 'Member authentication required' });
+  }
+
+  const { inviteId } = req.params;
+  const { status } = req.body;
+  if (!['accepted', 'declined'].includes(status)) {
+    return res.status(400).json({ error: 'status must be "accepted" or "declined"' });
+  }
+
   try {
-    const pool = req.app.locals.pool;
-    const memberId = req.user?.id;
-    const userType = req.user?.type;
-
-    if (!memberId || userType !== 'member') {
-      return res.status(401).json({ error: 'Member authentication required' });
-    }
-
-    const { inviteId } = req.params;
-    const { status } = req.body;
-    if (!['accepted', 'declined'].includes(status)) {
-      return res.status(400).json({ error: 'status must be "accepted" or "declined"' });
-    }
-
+    // Validate invite outside the transaction (read-only, no lock needed)
     const inviteRes = await pool.query(
       `SELECT * FROM community_member_circle_invites WHERE id = $1`, [inviteId]
     );
@@ -197,30 +198,55 @@ const respondToInvite = async (req, res) => {
       return res.status(409).json({ error: 'This invite is no longer pending', current_status: invite.status });
     }
 
-    await pool.query(
-      `UPDATE community_member_circle_invites SET status = $1, updated_at = NOW() WHERE id = $2`,
-      [status, inviteId]
-    );
-
-    if (status === 'accepted') {
+    if (status === 'declined') {
+      // Decline: single UPDATE, no transaction needed
       await pool.query(
+        `UPDATE community_member_circle_invites SET status = 'declined', updated_at = NOW() WHERE id = $1`,
+        [inviteId]
+      );
+      return res.json({ success: true, status });
+    }
+
+    // Accept path: invite status + circle insert + follows supersede must be atomic.
+    // B2: If the supersede UPDATE fails, the circle insert must also roll back so the
+    // DB never reaches the inconsistent state of (active circle row + active follows row).
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await client.query(
+        `UPDATE community_member_circle_invites SET status = 'accepted', updated_at = NOW() WHERE id = $1`,
+        [inviteId]
+      );
+
+      await client.query(
         `INSERT INTO community_member_circles (community_id, member_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
         [invite.community_id, memberId]
       );
-      // Supersede standard follows between the community and member in either direction
-      await pool.query(
+
+      // Supersede standard follows between the community and member in either direction.
+      // This prevents the community from appearing as a plain 'follower' while already
+      // being in the circle — a data integrity requirement, not just a display hint.
+      await client.query(
         `UPDATE follows
          SET is_superseded_by_circle = true
          WHERE (follower_id = $1 AND follower_type = 'community' AND following_id = $2 AND following_type = 'member')
             OR (follower_id = $2 AND follower_type = 'member' AND following_id = $1 AND following_type = 'community')`,
         [invite.community_id, memberId]
-      ).catch((e) => console.warn('[communityCircleController] follows supersede (accept):', e?.message));
-    }
+      );
 
-    return res.json({ success: true, status });
+      await client.query('COMMIT');
+      return res.json({ success: true, status: 'accepted' });
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      console.error('[communityCircleController.respondToInvite] transaction rolled back:', txErr);
+      return res.status(500).json({ error: 'Internal server error' });
+    } finally {
+      client.release();
+    }
   } catch (err) {
     console.error('[communityCircleController.respondToInvite]', err);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 };
 

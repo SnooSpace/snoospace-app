@@ -44,6 +44,8 @@ const ACTIVITY_IMAGES = {
   other:        require('../../assets/Other.webp'),
   house_party:  require('../../assets/HouseParty.webp'),
   club:         require('../../assets/Party.webp'),
+  hiking:       require('../../assets/Hiking.webp'),
+  shopping:     require('../../assets/Shopping.webp'),
 };
 
 const PILL_COLORS = {
@@ -65,6 +67,8 @@ const PILL_COLORS = {
   hangout:      { bg: '#E8F5E9', text: '#1B5E20' },
   house_party:  { bg: '#FBE9E7', text: '#D84315' },
   club:         { bg: '#EDE7F6', text: '#5E35B1' },
+  hiking:       { bg: '#E8F5E9', text: '#2E7D32' },
+  shopping:     { bg: '#FCE4EC', text: '#D81B60' },
   other:        { bg: '#F5F5F5', text: '#424242' },
 };
 
@@ -73,10 +77,18 @@ const ACTIVITY_LABELS = {
   cafe: 'Cafe', yoga: 'Yoga', gym: 'Gym', walk: 'Walk', rides: 'Rides',
   live_music: 'Live Music', study: 'Study', creative: 'Creative',
   games: 'Games', gaming: 'Games', pet_friendly: 'Pet Friendly',
-  hangout: 'Hangout', house_party: 'House Party', club: 'Club', other: 'Other',
+  hangout: 'Hangout', house_party: 'House Party', club: 'Club',
+  hiking: 'Hiking', shopping: 'Shopping', other: 'Other',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Returns true when the plan's scheduled_at has passed the 3-hour live window */
+function isPlanEnded(plan) {
+  if (!plan?.scheduled_at) return false;
+  const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
+  return Date.now() > new Date(plan.scheduled_at).getTime() + THREE_HOURS_MS;
+}
 
 function formatDate(iso) {
   if (!iso) return null;
@@ -180,12 +192,12 @@ export function PlanPreviewCard({ typeData, onPress }) {
   if (sourceType === 'event') {
     return <EventCard event={source} onPress={onPress} />;
   }
-  return <PlanCard plan={source} onPress={onPress} />;
+  return <PlanCard plan={source} onPress={onPress} ended={isPlanEnded(source)} />;
 }
 
 // ── PlanCard ──────────────────────────────────────────────────────────────────
 
-function PlanCard({ plan, onPress }) {
+function PlanCard({ plan, onPress, ended = false }) {
   const activityKey   = plan.activity_type || 'other';
   const pillColor     = PILL_COLORS[activityKey]  || PILL_COLORS.other;
   const activityLabel =
@@ -201,16 +213,30 @@ function PlanCard({ plan, onPress }) {
   const spotsLeft = maxAcc - accepted;
 
   return (
-    <TouchableOpacity style={cardStyles.card} onPress={onPress} activeOpacity={0.82}>
+    <TouchableOpacity
+      style={[cardStyles.card, ended && cardStyles.cardEnded]}
+      onPress={onPress}
+      activeOpacity={0.82}
+    >
       {/* Illustration strip */}
       <View style={cardStyles.imgWrap}>
-        <Image source={imgSrc} style={cardStyles.img} resizeMode="cover" />
-        <View style={[cardStyles.activityPill, { backgroundColor: pillColor.bg }]}>
-          <Text style={[cardStyles.activityPillText, { color: pillColor.text }]}>
-            {activityLabel}
-          </Text>
-        </View>
-        {maxAcc > 0 && (
+        <Image source={imgSrc} style={[cardStyles.img, ended && { opacity: 0.45 }]} resizeMode="cover" />
+        {/* Ended overlay */}
+        {ended && (
+          <View style={cardStyles.endedOverlay}>
+            <View style={cardStyles.endedBadge}>
+              <Text style={cardStyles.endedBadgeText}>Ended</Text>
+            </View>
+          </View>
+        )}
+        {!ended && (
+          <View style={[cardStyles.activityPill, { backgroundColor: pillColor.bg }]}>
+            <Text style={[cardStyles.activityPillText, { color: pillColor.text }]}>
+              {activityLabel}
+            </Text>
+          </View>
+        )}
+        {!ended && maxAcc > 0 && (
           <View style={cardStyles.spotsOverlay}>
             <Users size={10} color="#fff" strokeWidth={2} />
             <Text style={cardStyles.spotsText}>
@@ -221,7 +247,9 @@ function PlanCard({ plan, onPress }) {
       </View>
       {/* Info */}
       <View style={cardStyles.info}>
-        <Text style={cardStyles.title} numberOfLines={2}>{plan.title}</Text>
+        <Text style={[cardStyles.title, ended && { color: COLORS.textSecondary }]} numberOfLines={2}>
+          {plan.title}
+        </Text>
         {!!dateStr && (
           <View style={cardStyles.metaRow}>
             <Calendar size={11} color={COLORS.textSecondary} strokeWidth={2} />
@@ -235,14 +263,14 @@ function PlanCard({ plan, onPress }) {
           </View>
         )}
         <View style={cardStyles.bottomRow}>
-          {!!costLabel && (
+          {!ended && !!costLabel && (
             <View style={cardStyles.costBadge}>
               <Text style={cardStyles.costText}>{costLabel}</Text>
             </View>
           )}
           <TouchableOpacity style={cardStyles.viewBtn} onPress={onPress}>
-            <Text style={cardStyles.viewBtnText}>View Plan</Text>
-            <ChevronRight size={11} color="#7C3AED" strokeWidth={2.5} />
+            <Text style={cardStyles.viewBtnText}>{ended ? 'View Plan' : 'View Plan'}</Text>
+            <ChevronRight size={11} color={ended ? COLORS.textSecondary : '#7C3AED'} strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
       </View>
@@ -305,6 +333,30 @@ const cardStyles = StyleSheet.create({
     borderColor:     '#ECEEF0',
     marginTop:       12,
     marginBottom:    4,
+  },
+  cardEnded: {
+    backgroundColor: '#F8F8F8',
+    borderColor:     '#E0E0E0',
+    opacity:         0.85,
+  },
+  endedOverlay: {
+    position:        'absolute',
+    top:             0, left: 0, right: 0, bottom: 0,
+    alignItems:      'center',
+    justifyContent:  'center',
+    backgroundColor: 'rgba(0,0,0,0.22)',
+  },
+  endedBadge: {
+    backgroundColor:  'rgba(30,30,30,0.82)',
+    paddingHorizontal: 14,
+    paddingVertical:   5,
+    borderRadius:      20,
+  },
+  endedBadgeText: {
+    fontFamily:    FONTS.semiBold,
+    fontSize:      12,
+    color:         '#FFFFFF',
+    letterSpacing: 0.4,
   },
   imgWrap: {
     height:   110,

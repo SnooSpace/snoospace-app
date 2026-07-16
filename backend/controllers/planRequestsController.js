@@ -108,7 +108,7 @@ async function getRequests(req, res) {
 
         const [postCountR, eventsR, socialR, sharedCommR, sharedEventsR] = await Promise.all([
           pool.query(
-            `SELECT COUNT(*)::int as count FROM posts WHERE author_id = $1 AND author_type = 'member'`,
+            `SELECT COUNT(*)::int as count FROM posts WHERE author_id = $1 AND author_type = 'member' AND post_type = 'media'`,
             [reqId]
           ),
           pool.query(

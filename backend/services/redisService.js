@@ -119,10 +119,70 @@ async function deleteUserRecs(userId) {
   }
 }
 
+// ── Reputation cache ─────────────────────────────────────────────────────────
+// Key format: reputation:{userId}
+// TTL: 1 hour (matches computeReputationScores job cadence)
+
+const REPUTATION_TTL_SECONDS = 3600;
+
+function reputationKey(userId) {
+  return `reputation:${userId}`;
+}
+
+/**
+ * Cache the computed reputation object for a user.
+ * @param {string|number} userId
+ * @param {Object} data  — { status, percentage?, sample_size_bucket?, label? }
+ */
+async function setUserReputation(userId, data) {
+  const redis = getRedis();
+  if (!redis) return;
+  try {
+    await redis.set(reputationKey(userId), JSON.stringify(data), { ex: REPUTATION_TTL_SECONDS });
+  } catch (err) {
+    console.error(`[RedisService] setUserReputation(${userId}) error:`, err.message);
+  }
+}
+
+/**
+ * Retrieve cached reputation for a user.
+ * @param {string|number} userId
+ * @returns {Object|null} — parsed reputation object or null on cache miss
+ */
+async function getUserReputation(userId) {
+  const redis = getRedis();
+  if (!redis) return null;
+  try {
+    const raw = await redis.get(reputationKey(userId));
+    if (!raw) return null;
+    return typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch (err) {
+    console.error(`[RedisService] getUserReputation(${userId}) error:`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Invalidate cached reputation for a user (call after batch recompute).
+ * @param {string|number} userId
+ */
+async function deleteUserReputation(userId) {
+  const redis = getRedis();
+  if (!redis) return;
+  try {
+    await redis.del(reputationKey(userId));
+  } catch (err) {
+    console.error(`[RedisService] deleteUserReputation(${userId}) error:`, err.message);
+  }
+}
+
 module.exports = {
   getRedis,
   setUserRecs,
   getUserRecs,
   removeUserRec,
   deleteUserRecs,
+  setUserReputation,
+  getUserReputation,
+  deleteUserReputation,
 };

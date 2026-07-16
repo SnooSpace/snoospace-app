@@ -18,6 +18,9 @@ import OpportunityViewScreen from "../screens/home/member/OpportunityViewScreen"
 import ApplyToOpportunityScreen from "../screens/home/member/ApplyToOpportunityScreen";
 import CreateGroupScreen from "../screens/messages/CreateGroupScreen";
 import GroupInfoScreen from "../screens/messages/GroupInfoScreen";
+import EventReviewScreen from "../screens/reviews/EventReviewScreen";
+import OpenPlanReviewScreen from "../screens/reviews/OpenPlanReviewScreen";
+import ReviewSuccessScreen from "../screens/reviews/ReviewSuccessScreen";
 
 // [VIDEO INSIGHTS - DEFERRED] import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";
 
@@ -140,6 +143,35 @@ export default function HomeStackNavigator() {
       <Stack.Screen
         name="ApplyToOpportunity"
         component={ApplyToOpportunityScreen}
+      />
+
+      {/* ── Review screens — slide up from bottom as intent-driven flows ── */}
+      <Stack.Screen
+        name="EventReview"
+        component={EventReviewScreen}
+        options={{
+          headerShown: false,
+          presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
+      />
+      <Stack.Screen
+        name="OpenPlanReview"
+        component={OpenPlanReviewScreen}
+        options={{
+          headerShown: false,
+          presentation: "modal",
+          animation: "slide_from_bottom",
+        }}
+      />
+      <Stack.Screen
+        name="ReviewSuccess"
+        component={ReviewSuccessScreen}
+        options={{
+          headerShown: false,
+          presentation: "transparentModal",
+          animation: "fade",
+        }}
       />
 
       {/* [VIDEO INSIGHTS - DEFERRED] <Stack.Screen name="VideoInsights" component={VideoInsightsScreen} options={{ headerShown: false }} /> */}

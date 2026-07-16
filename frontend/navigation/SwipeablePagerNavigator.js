@@ -355,6 +355,8 @@ function SwipeablePagerNavigator({
   const [loaded, setLoaded] = useState([]);
   const [pagerSwipeEnabled, setPagerSwipeEnabled] = useState(true);
 
+  const [forceHideTabBar, setForceHideTabBar] = useState(false);
+
   useEffect(() => {
     const unsubDisable = EventBus.on("disable-tab-swipe", () => {
       setPagerSwipeEnabled(false);
@@ -362,9 +364,17 @@ function SwipeablePagerNavigator({
     const unsubEnable = EventBus.on("enable-tab-swipe", () => {
       setPagerSwipeEnabled(true);
     });
+    const unsubHideTab = EventBus.on("hide-tab-bar", () => {
+      setForceHideTabBar(true);
+    });
+    const unsubShowTab = EventBus.on("show-tab-bar", () => {
+      setForceHideTabBar(false);
+    });
     return () => {
       if (unsubDisable) unsubDisable();
       if (unsubEnable) unsubEnable();
+      if (unsubHideTab) unsubHideTab();
+      if (unsubShowTab) unsubShowTab();
     };
   }, []);
 
@@ -402,7 +412,7 @@ function SwipeablePagerNavigator({
   const currentRoute = state.routes[state.index];
   const currentDescriptor = descriptors[currentRoute.key];
   const shouldHideTabBar =
-    currentDescriptor.options.tabBarStyle?.display === "none";
+    forceHideTabBar || currentDescriptor.options.tabBarStyle?.display === "none";
 
   // Sync position only when navigation changed from OUTSIDE our gesture/tap
   useEffect(() => {

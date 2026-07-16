@@ -87,12 +87,15 @@ const CircleMemberRow = React.memo(({
         {/* Public circle list: show relationship chips */}
         {readOnly && !isSelf && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {/* Creator Row: Follow / Following */}
-            {isCreator && (viewerType === "member" || viewerType === "community") && (
+            {/* Creator Row: Follow / Following — only shown to member viewers.
+                Communities manage creator relationships via the circle-invite flow below. */}
+            {isCreator && viewerType === "member" && (
               <GHPressable
                 style={[
                   styles.ctaBtn,
-                  circleState === "in_circle" || followState === true
+                  circleState === "in_circle"
+                    ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                    : followState === true
                     ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
                     : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
                 ]}
@@ -101,7 +104,7 @@ const CircleMemberRow = React.memo(({
                     onFollow && onFollow(item);
                   }
                 }}
-                disabled={followLoading || followState === null || circleState === "in_circle"}
+                disabled={followLoading || followState === undefined || circleState === "in_circle"}
               >
                 {followLoading ? (
                   <ActivityIndicator size="small" color={circleState === "in_circle" || followState === true ? "#2962FF" : "#fff"} style={{ width: 60 }} />
@@ -120,25 +123,31 @@ const CircleMemberRow = React.memo(({
 
             {/* Community Row viewed by any Member: interactive Follow / Following chip */}
             {!isCreator && item.is_community && viewerType === "member" && (
-              <GHPressable
-                style={[
-                  styles.ctaBtn,
-                  followState === true
-                    ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
-                    : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
-                ]}
-                onPress={() => onCommunityFollow && onCommunityFollow(item)}
-                disabled={followLoading}
-                hitSlop={8}
-              >
-                {followLoading ? (
-                  <ActivityIndicator size="small" color={followState === true ? '#2962FF' : '#fff'} style={{ width: 60 }} />
-                ) : (
-                  <Text style={[styles.ctaTextDefault, { color: followState === true ? '#2962FF' : '#fff' }]}>
-                    {followState === true ? 'Following' : 'Follow'}
-                  </Text>
-                )}
-              </GHPressable>
+              circleState === "in_circle" ? (
+                <View style={[styles.ctaBtn, { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }]}>
+                  <Text style={[styles.ctaTextDefault, { color: '#2962FF' }]}>In Circle</Text>
+                </View>
+              ) : (
+                <GHPressable
+                  style={[
+                    styles.ctaBtn,
+                    followState === true
+                      ? { backgroundColor: 'rgba(41,98,255,0.1)', borderColor: 'rgba(41,98,255,0.2)', borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 }
+                      : { backgroundColor: '#2962FF', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+                  ]}
+                  onPress={() => onCommunityFollow && onCommunityFollow(item)}
+                  disabled={followLoading}
+                  hitSlop={8}
+                >
+                  {followLoading ? (
+                    <ActivityIndicator size="small" color={followState === true ? '#2962FF' : '#fff'} style={{ width: 60 }} />
+                  ) : (
+                    <Text style={[styles.ctaTextDefault, { color: followState === true ? '#2962FF' : '#fff' }]}>
+                      {followState === true ? 'Following' : 'Follow'}
+                    </Text>
+                  )}
+                </GHPressable>
+              )
             )}
 
             {/* Regular Member Row (non-community, non-creator item): Add / Requested / In Circle */}

@@ -1,4 +1,4 @@
-﻿const { createPool } = require("../config/db");
+const { createPool } = require("../config/db");
 const pushService = require("../services/pushService");
 const { emitSignal, getCategoryForPost } = require("../utils/signalEmitter");
 const {
@@ -746,6 +746,19 @@ const getFeed = async (req, res) => {
           SELECT 1 FROM community_member_circles cc
           WHERE cc.community_id = p.author_id AND cc.member_id = $1
         ))
+      )
+      -- 1. Always exclude legacy plan_promo / event_promo post types (they never render correctly)
+      AND p.post_type NOT IN ('plan_promo', 'event_promo')
+      -- 2. Exclude new-style promo posts (poll/qna/prompt) once the linked plan has started (> 3h buffer)
+      AND NOT (
+        p.post_type IN ('poll', 'qna', 'prompt')
+        AND (p.type_data->>'promo_source_type') = 'plan'
+        AND (p.type_data->>'promo_source_id') IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM open_plans op
+          WHERE op.id = (p.type_data->>'promo_source_id')::int
+            AND op.scheduled_at < NOW() - INTERVAL '3 hours'
+        )
       )
       ${cursorCondition}
       ORDER BY p.created_at DESC

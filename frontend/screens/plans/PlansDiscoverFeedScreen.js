@@ -249,11 +249,11 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
   }, []);
 
   const loadPlans = useCallback(async (cursorVal = null, isRefresh = false) => {
-    if (!isRefresh && !cursorVal && plans.length > 0) return;
     try {
       if (isRefresh) setRefreshing(true);
       else if (!cursorVal) setLoading(true);
       else setLoadingMore(true);
+
 
       const token = await getAuthToken();
       const data = await getPlans(cursorVal, token);
@@ -274,7 +274,7 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
       setRefreshing(false);
       setLoadingMore(false);
     }
-  }, [plans.length]);
+  }, []);
 
   useEffect(() => {
     // Load userId and initial plans on mount

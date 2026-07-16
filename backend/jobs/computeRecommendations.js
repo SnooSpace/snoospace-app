@@ -4,13 +4,17 @@
  * Runs daily (via schedulerService cron at 5am).
  * For every active user:
  *   1. Gate candidates via SQL (hard filters — no scoring yet)
- *   2. Score each candidate across 9 weighted signals
+ *   2. Score each candidate across 10 weighted signals
  *   3. Pick top reasons (max 2) for UI display
  *   4. Upsert into recommended_matches
  *   5. Cache top 30 into Redis (key: user:{id}:recs, TTL 24h)
  *
  * All weights and caps are read from config/recommendationConfig.js —
  * never hardcoded here. Retune by editing the config.
+ *
+ * Signal 10 (co_attendee_rating) logs each candidate's individual contribution
+ * to stdout during the first weeks post-launch so it can be monitored before
+ * trusting it silently. Set cfg.weights.co_attendee_rating = 0 to disable.
  */
 
 'use strict';
@@ -468,18 +472,48 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
       const tierValue = cfg.verification_tier_values[candidate.verification_tier || 'none'] || 0;
       const verificationBoost = Math.min(tierValue, cfg.caps.verification);
 
-      // ── Total weighted score ──────────────────────────────────────────────
+      // ── Signal 10: Positive co-attendee rating (open plan) ──────────────
+      // Uses same 180-day window as Signal 1 (shared_events) for consistency.
+      // 1.0 if user rated this candidate 'absolutely'/'probably' in any plan.
+      // 0.0 otherwise (no negative signal — only positive co-attendee ratings count here).
+      let coAttendeeSignal = 0;
+      if (cfg.weights.co_attendee_rating > 0) {
+        const coRatingResult = await pool.query(
+          `SELECT 1 FROM open_plan_attendee_ratings opar
+           WHERE opar.rater_id  = $1
+             AND opar.rated_user_id = $2
+             AND opar.rating IN ('absolutely', 'probably')
+             AND opar.created_at > NOW() - INTERVAL '180 days'
+           LIMIT 1`,
+          [userId, candidate.id]
+        );
+        coAttendeeSignal = coRatingResult.rows.length > 0 ? 1 : 0;
+      }
+
+      // ── Total weighted score ──────────────────────────────────────────
       const W = cfg.weights;
-      const totalScore =
-        W.shared_events        * sharedEventScore     +
-        W.shared_communities   * sharedCommunityScore  +
-        W.mutual_circles       * mutualCapped          +
-        W.sparks               * sparkResult.score     +
-        W.same_college         * sameCollege           +
-        W.occupation           * occupationMatch       +
-        W.shared_interests     * interestResult.score  +
-        W.proximity            * proximity             +
-        W.verification         * verificationBoost;
+      const s1  = W.shared_events        * sharedEventScore;
+      const s2  = W.shared_communities   * sharedCommunityScore;
+      const s3  = W.mutual_circles       * mutualCapped;
+      const s4  = W.sparks               * sparkResult.score;
+      const s5  = W.same_college         * sameCollege;
+      const s6  = W.occupation           * occupationMatch;
+      const s7  = W.shared_interests     * interestResult.score;
+      const s8  = W.proximity            * proximity;
+      const s9  = W.verification         * verificationBoost;
+      const s10 = W.co_attendee_rating   * coAttendeeSignal;
+      const totalScore = s1 + s2 + s3 + s4 + s5 + s6 + s7 + s8 + s9 + s10;
+
+      // Q4 per-signal logging: log Signal 10 contribution individually so
+      // it can be monitored before trusting it silently post-launch.
+      // Remove this log line once Signal 10 has been validated.
+      if (s10 > 0) {
+        console.log(
+          `[Recs:Signal10] user=${userId} candidate=${candidate.id} ` +
+          `s10_contribution=${s10.toFixed(4)} total=${totalScore.toFixed(4)} ` +
+          `(s1=${s1.toFixed(3)} s2=${s2.toFixed(3)} s3=${s3.toFixed(3)})`
+        );
+      }
 
       if (totalScore <= 0) continue; // skip zero-score candidates
 
@@ -525,6 +559,11 @@ async function scoreUserCandidates(pool, userId, userData, sharedData) {
           type: 'shared_interest',
           weightedScore: W.shared_interests * interestResult.score,
           label: interestResult.rarestLabel,
+        },
+        {
+          type: 'co_attendee_rating',
+          weightedScore: s10,
+          label: coAttendeeSignal ? 'You rated them positively after meeting' : null,
         },
       ];
 

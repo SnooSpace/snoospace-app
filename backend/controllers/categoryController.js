@@ -975,7 +975,7 @@ const getAllUsers = async (req, res) => {
               cam.campus_name as campus_name,
               (SELECT COUNT(*) FROM follows WHERE following_id = m.id AND following_type = 'member') as follower_count,
               (SELECT COUNT(*) FROM follows WHERE follower_id = m.id AND follower_type = 'member') as following_count,
-              (SELECT COUNT(*) FROM posts WHERE author_id = m.id AND author_type = 'member') as post_count,
+              (SELECT COUNT(*) FROM posts WHERE author_id = m.id AND author_type = 'member' AND post_type = 'media') as post_count,
               COALESCE(
                 NOT EXISTS (
                   SELECT 1 FROM user_restrictions 
@@ -1167,7 +1167,7 @@ const getUserById = async (req, res) => {
           cam.campus_name as campus_name,
           (SELECT COUNT(*) FROM follows WHERE following_id = m.id AND following_type = 'member') as follower_count,
           (SELECT COUNT(*) FROM follows WHERE follower_id = m.id AND follower_type = 'member') as following_count,
-          (SELECT COUNT(*) FROM posts WHERE author_id = m.id AND author_type = 'member') as post_count,
+          (SELECT COUNT(*) FROM posts WHERE author_id = m.id AND author_type = 'member' AND post_type = 'media') as post_count,
           COALESCE(
             NOT EXISTS (
               SELECT 1 FROM user_restrictions 

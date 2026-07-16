@@ -156,7 +156,7 @@ async function createPlan(req, res) {
          $1, $2, $3, $4,
          $5, $6, $7, $8,
          $9, $10, $11,
-         $12, $12::timestamptz + INTERVAL '1 hour', $13, $14, $15, $16
+         $12, $12::timestamptz + INTERVAL '24 hours', $13, $14, $15, $16
        ) RETURNING *`,
       [
         userId,
@@ -243,10 +243,11 @@ async function getPlans(req, res) {
             )
           )
         )
-        -- Gender filter
+        -- Gender filter (creator always sees their own plan)
         AND (
           op.gender_preference = 'all'
           OR op.gender_preference = $3
+          OR op.created_by = $1
         )
       ORDER BY op.created_at DESC
       LIMIT $4
@@ -408,9 +409,11 @@ async function updatePlan(req, res) {
         return res.status(400).json({ error: 'scheduled_at must be a valid future date' });
       updates.push(`scheduled_at = $${idx++}`);
       values.push(req.body.scheduled_at);
-      // Also extend the expiry window: 1 hour after the event
+      // Also extend the expiry window: 24 hours after the event
+      const expiresAt = new Date(scheduledDate.getTime() + 24 * 60 * 60 * 1000);
       updates.push(`expires_at = $${idx++}`);
-      values.push(scheduledDate.toISOString());
+      values.push(expiresAt.toISOString());
+
     }
 
     // --- is_recurring + recurrence_interval ---

@@ -12,6 +12,9 @@ const pushService = require("./pushService");
 const { runDemographicLearningJob } = require("../jobs/learnDemographicScores");
 const { runBehaviorEventRetention } = require("../jobs/behaviorEventRetention");
 const { runRecommendationsJob } = require("../jobs/computeRecommendations");
+const { runReputationJob } = require("../jobs/computeReputationScores");
+const { runTrustFlagsJob } = require("../jobs/computeTrustFlags");
+const { scheduleReviewPrompts, deliverReviewPrompts } = require("../jobs/scheduleReviewPrompts");
 const {
   resolvePostEventAttendance,
   analysePostEventEcho,
@@ -164,7 +167,7 @@ const init = (dbPool) => {
     }
   });
 
-  // ── Daily at 2am: expire travel sparks past their end_date ─────────────────
+  // ── Daily at 2am: expire travel sparks past their end_date ───────────────────────
   cron.schedule("0 2 * * *", async () => {
     if (!pool) return;
     try {
@@ -179,6 +182,49 @@ const init = (dbPool) => {
       }
     } catch (err) {
       console.error("[Scheduler] Travel spark expiry error:", err.message);
+    }
+  });
+
+  // ── Hourly: compute reputation scores for users with new ratings ───────────
+  // Runs at the top of every hour (minute 0). Bayesian-smoothed Upstash+Postgres.
+  cron.schedule("0 * * * *", async () => {
+    if (!pool) return;
+    try {
+      await runReputationJob(pool);
+    } catch (err) {
+      console.error("[Scheduler] Reputation job error:", err.message);
+    }
+  });
+
+  // ── Daily at 3am: trust flags (repeat_never_again pattern detection) ─────
+  cron.schedule("0 3 * * *", async () => {
+    if (!pool) return;
+    try {
+      await runTrustFlagsJob(pool);
+    } catch (err) {
+      console.error("[Scheduler] Trust flags job error:", err.message);
+    }
+  });
+
+  // ── Every 15 min: schedule review prompt queue rows ───────────────────
+  // Finds recently-ended events/plans and inserts into review_prompts_queue.
+  cron.schedule("*/15 * * * *", async () => {
+    if (!pool) return;
+    try {
+      await scheduleReviewPrompts(pool);
+    } catch (err) {
+      console.error("[Scheduler] scheduleReviewPrompts error:", err.message);
+    }
+  });
+
+  // ── Every 15 min (1-min offset): deliver review prompts via push ───────
+  // 1-min stagger ensures scheduler always runs first to create the rows.
+  cron.schedule("1-59/15 * * * *", async () => {
+    if (!pool) return;
+    try {
+      await deliverReviewPrompts(pool);
+    } catch (err) {
+      console.error("[Scheduler] deliverReviewPrompts error:", err.message);
     }
   });
 

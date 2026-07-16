@@ -55,6 +55,36 @@ function AppContent() {
         }),
       );
     }
+
+    // Deep-link: review_prompt push notification
+    // sourceType: 'event' | 'open_plan'
+    // expiresAt: ISO timestamp — if expired, show error toast instead of broken form
+    if (currentBanner?.type === "review_prompt") {
+      const { sourceType, sourceId, expiresAt } = currentBanner;
+      const isExpired = expiresAt && new Date(expiresAt) < new Date();
+
+      if (isExpired) {
+        // Let the banner auto-dismiss; toast shown by NotificationsContext if needed
+        setCurrentBanner(null);
+        return;
+      }
+
+      const screenName = sourceType === "open_plan" ? "OpenPlanReview" : "EventReview";
+      const paramKey   = sourceType === "open_plan" ? "planId" : "eventId";
+
+      navigationRef.current?.dispatch(
+        CommonActions.navigate({
+          name: "MemberHome",
+          params: {
+            screen: "HomeStack",
+            params: {
+              screen: screenName,
+              params: { [paramKey]: sourceId },
+            },
+          },
+        }),
+      );
+    }
   };
 
   return (
