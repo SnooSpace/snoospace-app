@@ -1004,11 +1004,14 @@ export default function CommunityFollowersScreen({ route, navigation }) {
         circleLoading={circleLoading}
         onRemoveFromCircle={handleRemoveFromCircle}
         onPress={() => navigateTo(item)}
+        followBackState={followBackStates[item.id]}
+        followBackLoading={!!followBackLoadingMap[item.id]}
+        onFollowBack={handleFollowBack}
         memberToMemberCircleState={memberCircleStates[item.id] || "none"}
         onMemberCircleRequest={handleMemberCircleRequest}
       />
     );
-  }, [isOwnProfile, viewerType, myId, circleStates, circleActionLoading, memberCircleLoadingMap, handleRemoveFromCircle, navigateTo, memberCircleStates, handleMemberCircleRequest]);
+  }, [isOwnProfile, viewerType, myId, circleStates, circleActionLoading, memberCircleLoadingMap, handleRemoveFromCircle, navigateTo, followBackStates, followBackLoadingMap, handleFollowBack, memberCircleStates, handleMemberCircleRequest]);
 
   const renderEmpty = (label) => (
     <View style={styles.emptyState}>
@@ -1058,8 +1061,10 @@ export default function CommunityFollowersScreen({ route, navigation }) {
       circleActionLoading,
       memberCircleStates,
       memberCircleLoadingMap,
+      followBackStates,
+      followBackLoadingMap,
     }),
-    [myId, viewerType, circleActionLoading, memberCircleStates, memberCircleLoadingMap]
+    [myId, viewerType, circleActionLoading, memberCircleStates, memberCircleLoadingMap, followBackStates, followBackLoadingMap]
   );
 
   const isFollowersTab = activeTab === "followers";
