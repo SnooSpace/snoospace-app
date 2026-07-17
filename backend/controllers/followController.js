@@ -434,12 +434,27 @@ const getFollowStatus = async (req, res) => {
         .json({ error: "Following ID and type are required" });
     }
 
-    const result = await pool.query(
-      "SELECT id FROM follows WHERE follower_id = $1 AND follower_type = $2 AND following_id = $3 AND following_type = $4 AND is_superseded_by_circle = false",
-      [followerId, followerType, followingId, followingType]
-    );
+    let isFollowing = false;
+    if (followingType === 'member') {
+      const result = await pool.query(
+        `SELECT 1 FROM follows 
+         WHERE follower_id = $1 AND follower_type = $2 AND following_id = $3 AND following_type = 'member' AND is_superseded_by_circle = false
+         UNION ALL
+         SELECT 1 FROM creator_follows 
+         WHERE follower_id = $1 AND follower_type = $2 AND creator_id = $3 AND is_superseded_by_circle = false AND is_dormant = false
+         LIMIT 1`,
+        [followerId, followerType, followingId]
+      );
+      isFollowing = result.rows.length > 0;
+    } else {
+      const result = await pool.query(
+        "SELECT id FROM follows WHERE follower_id = $1 AND follower_type = $2 AND following_id = $3 AND following_type = $4 AND is_superseded_by_circle = false",
+        [followerId, followerType, followingId, followingType]
+      );
+      isFollowing = result.rows.length > 0;
+    }
 
-    res.json({ isFollowing: result.rows.length > 0 });
+    res.json({ isFollowing });
   } catch (error) {
     console.error("Error checking follow status:", error);
     res.status(500).json({ error: "Internal server error" });
