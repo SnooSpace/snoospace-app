@@ -8,26 +8,28 @@
  * Rules
  * ──────
  * EVENTS
- *   ✅ Promotable  : upcoming, not cancelled, and still at least 1 hour before start
+ *   ✅ Promotable  : upcoming, not cancelled, and still at least 2 hours before start
  *   ❌ Not promotable:
  *       - is_past === true (backend-flagged as past)
  *       - event_date < now  (client-side guard)
- *       - event_date is within the next 1 hour  ("starting soon")
+ *       - event_date is within the next 2 hours  ("starting soon")
  *       - status === 'cancelled'
  *
  * OPEN PLANS
- *   ✅ Promotable  : status is 'upcoming' or 'open', not full, not cancelled/completed
+ *   ✅ Promotable  : status is 'upcoming' or 'open', not full, not cancelled/completed,
+ *                    and scheduled_at is still at least 2 hours away
  *   ❌ Not promotable:
  *       - status === 'cancelled' or 'completed'
- *       - scheduled_at is in the past (plan already happened)
- *       - scheduled_at is within the next 1 hour
+ *       - scheduled_at is in the past (plan already started or happened)
+ *       - scheduled_at is within the next 2 hours
  *       - plan is full (all spots accepted) — still show button, just warn
  *
  * Returns { canPromote: boolean, reason: string | null }
  * When canPromote is false, `reason` is a short user-facing message.
+ * The promote icon is hidden entirely (not greyed) when canPromote is false.
  */
 
-const ONE_HOUR_MS = 60 * 60 * 1000;
+const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
 /**
  * @param {object} event - event object from backend
@@ -52,16 +54,19 @@ export function getEventPromoteState(event) {
     const nowMs    = Date.now();
     const msUntil  = eventMs - nowMs;
 
-    if (msUntil < 0) {
+    if (msUntil <= 0) {
       // Already started (client-side guard, backend should have flagged is_past)
       return { canPromote: false, reason: 'This event has already started' };
     }
 
-    if (msUntil < ONE_HOUR_MS) {
-      const minsLeft = Math.ceil(msUntil / 60000);
+    if (msUntil < TWO_HOURS_MS) {
+      const hoursLeft = msUntil / (60 * 60 * 1000);
+      const label = hoursLeft < 1
+        ? `${Math.ceil(msUntil / 60000)} min`
+        : `${hoursLeft.toFixed(1)} hrs`;
       return {
         canPromote: false,
-        reason: `Event starts in ${minsLeft} min — too close to promote`,
+        reason: `Event starts in ${label} — too close to promote`,
       };
     }
   }
@@ -96,18 +101,20 @@ export function getPlanPromoteState(plan) {
     const nowMs   = Date.now();
     const msUntil = planMs - nowMs;
 
-    // Past plans (3h buffer for "live" window)
-    const THREE_HOURS_MS = 3 * ONE_HOUR_MS;
-    if (nowMs > planMs + THREE_HOURS_MS) {
-      return { canPromote: false, reason: 'This plan has already happened' };
+    // Plan has already started or is in the past — no promotion allowed
+    if (msUntil <= 0) {
+      return { canPromote: false, reason: 'This plan has already started' };
     }
 
-    // Starting very soon
-    if (msUntil > 0 && msUntil < ONE_HOUR_MS) {
-      const minsLeft = Math.ceil(msUntil / 60000);
+    // Cutoff: 2 hours before start — too close to meaningfully promote
+    if (msUntil < TWO_HOURS_MS) {
+      const hoursLeft = msUntil / (60 * 60 * 1000);
+      const label = hoursLeft < 1
+        ? `${Math.ceil(msUntil / 60000)} min`
+        : `${hoursLeft.toFixed(1)} hrs`;
       return {
         canPromote: false,
-        reason: `Plan starts in ${minsLeft} min — too close to promote`,
+        reason: `Plan starts in ${label} — too close to promote`,
       };
     }
   }

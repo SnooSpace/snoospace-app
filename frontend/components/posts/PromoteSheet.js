@@ -209,16 +209,23 @@ const PromoteSheet = ({
   const [quotaLoading, setQuotaLoading] = useState(false);
 
   useEffect(() => {
+    let timer;
     if (visible) {
       setPromoText("");
       setEngagementType(null);
       setEngagementData(null);
-      loadQuota();
+      
+      // Delay API call until slide animation completes (350ms) to ensure smooth transitions
+      timer = setTimeout(() => {
+        loadQuota();
+      }, 350);
+
       EventBus.emit("hide-tab-bar");
     } else {
       EventBus.emit("show-tab-bar");
     }
     return () => {
+      if (timer) clearTimeout(timer);
       EventBus.emit("show-tab-bar");
     };
   }, [visible]);

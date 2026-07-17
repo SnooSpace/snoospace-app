@@ -656,9 +656,10 @@ const OpenPlanCard = ({
             <Send size={20} color="#5e8d9b" strokeWidth={2} />
           </TouchableOpacity>
 
-          {/* Promote — only for owner, with date/time gating */}
+          {/* Promote — only for owner, hidden once past the 2-hour cutoff */}
           {isOwner && onPromote && (() => {
-            const { canPromote, reason } = getPlanPromoteState(plan);
+            const { canPromote } = getPlanPromoteState(plan);
+            if (!canPromote) return null;
             return (
               <TouchableOpacity
                 style={[
@@ -667,16 +668,12 @@ const OpenPlanCard = ({
                 ]}
                 onPress={() => {
                   HapticsService.triggerImpactLight();
-                  if (!canPromote) {
-                    Alert.alert('Cannot Promote', reason);
-                    return;
-                  }
                   onPromote(plan);
                 }}
               >
                 <Megaphone
                   size={20}
-                  color={canPromote ? '#7C3AED' : '#C4B5FD'}
+                  color='#7C3AED'
                   strokeWidth={2}
                 />
               </TouchableOpacity>

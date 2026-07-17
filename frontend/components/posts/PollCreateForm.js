@@ -563,4 +563,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PollCreateForm;
+export default React.memo(PollCreateForm);

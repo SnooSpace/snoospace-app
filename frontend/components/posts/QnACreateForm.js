@@ -508,4 +508,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default QnACreateForm;
+export default React.memo(QnACreateForm);

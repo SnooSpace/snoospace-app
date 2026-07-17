@@ -102,7 +102,6 @@ export default function SwipeableModal({
   const panGesture = Gesture.Pan()
     .enabled(swipeEnabled)
     .activeOffsetY([-10, 10])
-    .failOffsetX([-15, 15])
     .onStart(() => {
       context.value = { y: translateY.value };
     })
@@ -111,8 +110,8 @@ export default function SwipeableModal({
       translateY.value = Math.max(0, context.value.y + event.translationY);
     })
     .onEnd((event) => {
-      // Threshold: 49% of sheet height translation OR velocity > 600 snaps to close
-      if (translateY.value > sheetHeight.value * 0.49 || event.velocityY > 600) {
+      // Threshold: 49% of sheet height translation OR velocity > 500 snaps to close
+      if (translateY.value > sheetHeight.value * 0.49 || event.velocityY > 500) {
         backdropOpacity.value = withTiming(0, { duration: 200 });
         translateY.value = withTiming(SCREEN_HEIGHT, { duration: 200 }, () => {
           runOnJS(handleDismiss)();

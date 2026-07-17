@@ -352,4 +352,4 @@ const styles = StyleSheet.create({
   deadlineText: { fontSize: 14, fontFamily: FONTS.semiBold, color: "#7C3AED" },
 });
 
-export default OpportunityCreateForm;
+export default React.memo(OpportunityCreateForm);

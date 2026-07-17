@@ -383,4 +383,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default PromptCreateForm;
+export default React.memo(PromptCreateForm);
