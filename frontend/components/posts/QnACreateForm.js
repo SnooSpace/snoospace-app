@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Switch,
-  ScrollView,
   Animated,
   LayoutAnimation,
   Platform,
@@ -134,7 +133,7 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
       {/* Hero Card */}
       <View style={styles.heroCard}>
         <View style={styles.heroHeader}>
@@ -322,14 +321,13 @@ const QnACreateForm = ({ onSubmit, isSubmitting }) => {
         time={expiresAt || new Date()}
         onChange={(newTime) => setExpiresAt(newTime)}
       />
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 40,
   },
