@@ -28,7 +28,7 @@ import { getCachedRecipients, setCachedRecipients, getCacheAgeSeconds } from "..
 
 const DEBOUNCE_MS = 350;
 
-export default function ShareModal({ visible, onClose, post }) {
+function ShareModal({ visible, onClose, post }) {
   const { showToast } = useToast();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -451,6 +451,13 @@ export default function ShareModal({ visible, onClose, post }) {
     </SwipeableModal>
   );
 }
+
+export default React.memo(ShareModal, (prevProps, nextProps) => {
+  return (
+    prevProps.visible === nextProps.visible &&
+    prevProps.post?.id === nextProps.post?.id
+  );
+});
 
 const styles = StyleSheet.create({
   modalOverlay: {

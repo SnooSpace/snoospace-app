@@ -36,7 +36,7 @@ const ACTIVITY_IMAGES = {
  * @param {number}  containerW    – rendered width of the container
  * @param {number}  [height=110]  – rendered height of the container
  */
-export default function PlanCropImage({ activityType, containerW, height = 110 }) {
+export default function PlanCropImage({ activityType, containerW = '100%', height = 110 }) {
   const imageSource = ACTIVITY_IMAGES[activityType];
 
   if (!imageSource) {

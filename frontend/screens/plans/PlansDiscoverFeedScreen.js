@@ -1,4 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Profiler } from 'react';
+
+const onRenderProfiler = (id, phase, actualDuration) => {
+  console.log(`[PERF-RENDER] ${id} - Phase: ${phase}, Duration: ${actualDuration.toFixed(2)}ms`);
+};
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, ActivityIndicator, Share, Dimensions,
 } from 'react-native';
@@ -324,7 +328,8 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
   ), [currentUserId, navigation, handleLike, handleShare, openCommentsModal, isGrid]);
 
   return (
-    <View style={styles.container}>
+    <Profiler id="PlansDiscoverFeedScreen" onRender={onRenderProfiler}>
+      <View style={styles.container}>
       <SafeAreaView edges={['top']} style={styles.safeArea}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -433,6 +438,7 @@ export default function PlansDiscoverFeedScreen({ navigation, route }) {
         post={sharingPlan}
       />
     </View>
+    </Profiler>
   );
 }
 

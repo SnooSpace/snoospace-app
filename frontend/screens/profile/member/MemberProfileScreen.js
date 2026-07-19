@@ -650,6 +650,7 @@ export default function MemberProfileScreen({ navigation }) {
   const communityPostsFetchedRef = useRef(false);
   const [communityFilter, setCommunityFilter] = useState("all"); // 'all' | 'owner' | 'members'
   const [eventsFilter, setEventsFilter] = useState("all"); // 'all' | 'events' | 'plans'
+  const [plansSubFilter, setPlansSubFilter] = useState("all"); // 'all' | 'hosted' | 'attended'
 
   const scrollViewRef = useRef(null);
   const scrollToPostIdRef = useRef(route?.params?.postId);
@@ -2474,12 +2475,17 @@ export default function MemberProfileScreen({ navigation }) {
           {renderedProfileTab === "events" && (() => {
             const allEventsAndPlans = [
               ...profileEvents.map((ev) => ({ ...ev, itemType: "event" })),
-              ...[...profilePlans.hosted, ...profilePlans.attending].map((plan) => ({ ...plan, itemType: "plan" }))
+              ...profilePlans.hosted.map((plan) => ({ ...plan, itemType: "plan", planFilterType: "hosted" })),
+              ...profilePlans.attending.map((plan) => ({ ...plan, itemType: "plan", planFilterType: "attended" }))
             ];
             const filteredEventsAndPlans = allEventsAndPlans.filter((item) => {
               if (eventsFilter === "all") return true;
               if (eventsFilter === "events") return item.itemType === "event";
-              if (eventsFilter === "plans") return item.itemType === "plan";
+              if (eventsFilter === "plans") {
+                if (item.itemType !== "plan") return false;
+                if (plansSubFilter === "all") return true;
+                return item.planFilterType === plansSubFilter;
+              }
               return true;
             });
 
@@ -2516,6 +2522,9 @@ export default function MemberProfileScreen({ navigation }) {
                         onPress={() => {
                           HapticsService.triggerImpactLight();
                           setEventsFilter(opt.value);
+                          if (opt.value !== "plans") {
+                            setPlansSubFilter("all");
+                          }
                         }}
                       >
                         <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
@@ -2525,6 +2534,32 @@ export default function MemberProfileScreen({ navigation }) {
                     );
                   })}
                 </View>
+
+                {eventsFilter === "plans" && (
+                  <View style={[styles.filterContainer, { paddingTop: 0, paddingBottom: 10 }]}>
+                    {[
+                      { label: "All Plans", value: "all" },
+                      { label: "Hosted", value: "hosted" },
+                      { label: "Attended", value: "attended" },
+                    ].map((opt) => {
+                      const isActive = plansSubFilter === opt.value;
+                      return (
+                        <TouchableOpacity
+                          key={opt.value}
+                          style={[styles.filterPill, isActive && styles.filterPillActive]}
+                          onPress={() => {
+                            HapticsService.triggerImpactLight();
+                            setPlansSubFilter(opt.value);
+                          }}
+                        >
+                          <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                )}
 
                 {loadingEvents ? (
                   <View style={profileTabStyles.loadingWrap}>
@@ -2590,14 +2625,22 @@ export default function MemberProfileScreen({ navigation }) {
                           eventsFilter === "events"
                             ? "No events found"
                             : eventsFilter === "plans"
-                            ? "No open plans found"
+                            ? plansSubFilter === "hosted"
+                              ? "No hosted plans found"
+                              : plansSubFilter === "attended"
+                              ? "No attended plans found"
+                              : "No open plans found"
                             : "No events yet"
                         }
                         subtitle={
                           eventsFilter === "events"
                             ? "You aren't attending or hosting any events."
                             : eventsFilter === "plans"
-                            ? "You aren't attending or hosting any open plans."
+                            ? plansSubFilter === "hosted"
+                              ? (isOwnProfile ? "You aren't hosting any open plans." : "This member isn't hosting any open plans.")
+                              : plansSubFilter === "attended"
+                              ? (isOwnProfile ? "You aren't attending any open plans." : "This member isn't attending any open plans.")
+                              : (isOwnProfile ? "You aren't attending or hosting any open plans." : "This member isn't attending or hosting any open plans.")
                             : "Events and plans you host or attend will show here."
                         }
                       />

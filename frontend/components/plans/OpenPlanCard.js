@@ -20,9 +20,10 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, Image,
+  View, Text, TouchableOpacity, StyleSheet,
   Dimensions, Share, Animated, Alert, Pressable, Modal,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Pressable as GHPressable } from 'react-native-gesture-handler';
 import { GradientHeart } from '../ui/GradientHeart';
@@ -192,7 +193,7 @@ function fmt(n) {
  * Renders the default banner image for the activity,
  * scaled to fill containerW × height exactly.
  */
-function CropImage({ activityType, containerW, height = 240 }) {
+function CropImage({ activityType, containerW = '100%', height = 240 }) {
   const H = height;
   const imageSource = ACTIVITY_IMAGES[activityType];
 
@@ -208,7 +209,7 @@ function CropImage({ activityType, containerW, height = 240 }) {
       <Image
         source={imageSource}
         style={{ width: '100%', height: '100%' }}
-        resizeMode="cover"
+        contentFit="cover"
       />
     </View>
   );
@@ -257,8 +258,7 @@ const OpenPlanCard = ({
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [deleteConfirmMessage, setDeleteConfirmMessage] = useState('');
 
-  // Layout width for CropImage
-  const [cardW, setCardW] = useState(compact ? (SCREEN_WIDTH - 48) / 2 : CARD_WIDTH);
+  // cardW state removed for performance optimization
 
   // ── Derived plan fields ──────────────────────────────────────────────────
 
@@ -521,11 +521,10 @@ const OpenPlanCard = ({
       style={styles.card}
       activeOpacity={0.95}
       onPress={handleCardPress}
-      onLayout={(e) => setCardW(e.nativeEvent.layout.width)}
     >
       {/* ── Hero Illustration ─────────────────────────────────────────── */}
       <View style={[styles.heroContainer, compact && { height: 110 }]}>
-        <CropImage activityType={activityKey} containerW={cardW} height={compact ? 110 : 240} />
+        <CropImage activityType={activityKey} height={compact ? 110 : 240} />
 
         {/* Top Left Row (Attendee count overlay) */}
         <View style={[styles.topLeftRow, compact && { top: 8, left: 8 }]}>
@@ -626,7 +625,7 @@ const OpenPlanCard = ({
         >
           <View style={[styles.hostAvatarContainer, compact && { width: 24, height: 24, borderRadius: 12 }]}>
             {hostPhoto ? (
-              <Image source={{ uri: hostPhoto }} style={styles.hostAvatar} />
+              <Image source={{ uri: hostPhoto }} style={styles.hostAvatar} cachePolicy="memory-disk" />
             ) : (
               <View style={styles.hostAvatarFallback}>
                 <User size={compact ? 12 : 16} color={COLORS.textSecondary} strokeWidth={2.2} />

@@ -318,4 +318,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default CustomAlertModal;
+export default React.memo(CustomAlertModal);

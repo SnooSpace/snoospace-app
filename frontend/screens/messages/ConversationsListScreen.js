@@ -1,6 +1,10 @@
 import React, {
-  useState, useEffect, useCallback, useRef, useMemo,
+  useState, useEffect, useCallback, useRef, useMemo, Profiler,
 } from "react";
+
+const onRenderProfiler = (id, phase, actualDuration) => {
+  console.log(`[PERF-RENDER] ${id} - Phase: ${phase}, Duration: ${actualDuration.toFixed(2)}ms`);
+};
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   TextInput, RefreshControl, Animated, Pressable, Alert, InteractionManager, Keyboard,
@@ -63,7 +67,7 @@ function formatRelativeTime(dateString) {
 }
 
 // ── Avatar with optional unread ring ─────────────────────────────────────────
-function ConvAvatar({ uri, size = 52, hasUnread = false, isGroup = false, isAnonymous = false }) {
+const ConvAvatar = React.memo(function ConvAvatar({ uri, size = 52, hasUnread = false, isGroup = false, isAnonymous = false }) {
   return (
     <View style={{ width: size, height: size, marginRight: 12 }}>
       {hasUnread && (
@@ -83,7 +87,7 @@ function ConvAvatar({ uri, size = 52, hasUnread = false, isGroup = false, isAnon
       )}
     </View>
   );
-}
+});
 const avatarStyles = StyleSheet.create({
   unreadRing:      { position: "absolute", borderWidth: 2, borderColor: ACTIVE_RING, zIndex: 0 },
   anonContainer:   { backgroundColor: SURFACE2, alignItems: "center", justifyContent: "center" },
@@ -125,117 +129,148 @@ const srStyles = StyleSheet.create({
 const SWIPE_THRESHOLD = 80;
 const SWIPE_FULL = SWIPE_THRESHOLD * 2; // two action buttons
 
-const SwipeableConvRow = React.memo(function SwipeableConvRow({ conv, onPress, onDelete, onLeave, onMute }) {
-  const translateX = useSharedValue(0);
-  const isGroup    = conv.isGroup;
-  const isMuted    = conv.isMuted;
+const SwipeableConvRow = React.memo(
+  function SwipeableConvRow({ conv, onPress, onDelete, onLeave, onMute }) {
+    const translateX = useSharedValue(0);
+    const isGroup    = conv.isGroup;
+    const isMuted    = conv.isMuted;
 
-  const pan = Gesture.Pan()
-    .activeOffsetX([-8, 8])
-    .onUpdate((e) => {
-      if (e.translationX > 0) { translateX.value = 0; return; }
-      translateX.value = Math.max(e.translationX, -SWIPE_FULL - 20);
-    })
-    .onEnd((e) => {
-      if (e.translationX < -SWIPE_THRESHOLD) {
-        translateX.value = withSpring(-SWIPE_FULL, { damping: 18, stiffness: 200 });
-        runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
-      } else {
-        translateX.value = withSpring(0, { damping: 18, stiffness: 200 });
-      }
-    });
+    const pan = useMemo(() => {
+      return Gesture.Pan()
+        .activeOffsetX([-8, 8])
+        .onUpdate((e) => {
+          if (e.translationX > 0) { translateX.value = 0; return; }
+          translateX.value = Math.max(e.translationX, -SWIPE_FULL - 20);
+        })
+        .onEnd((e) => {
+          if (e.translationX < -SWIPE_THRESHOLD) {
+            translateX.value = withSpring(-SWIPE_FULL, { damping: 18, stiffness: 200 });
+            runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+          } else {
+            translateX.value = withSpring(0, { damping: 18, stiffness: 200 });
+          }
+        });
+    }, [translateX]);
 
-  const rowStyle    = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
-  const actionWidth = SWIPE_FULL;
+    const rowStyle    = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
+    const actionWidth = SWIPE_FULL;
 
-  const isBlockedByOther = !isGroup && conv.otherParticipant?.isBlockedByOther;
+    const isBlockedByOther = !isGroup && conv.otherParticipant?.isBlockedByOther;
 
-  const name = isGroup
-    ? (conv.groupName || "Group")
-    : isBlockedByOther
-      ? "Snoospace User"
-      : (conv.otherParticipant?.name || "User");
-  const username = isGroup
-    ? `${conv.participantCount || "?"} members`
-    : isBlockedByOther
-      ? ""
-      : (conv.otherParticipant?.username ? `@${conv.otherParticipant.username}` : "");
-  const uri = isGroup
-    ? conv.groupAvatarUrl
-    : isBlockedByOther
-      ? null  // will fall back to default user icon
-      : conv.otherParticipant?.profilePhotoUrl;
-  const hasUnread    = (conv.unreadCount || 0) > 0;
+    const name = isGroup
+      ? (conv.groupName || "Group")
+      : isBlockedByOther
+        ? "Snoospace User"
+        : (conv.otherParticipant?.name || "User");
+    const username = isGroup
+      ? `${conv.participantCount || "?"} members`
+      : isBlockedByOther
+        ? ""
+        : (conv.otherParticipant?.username ? `@${conv.otherParticipant.username}` : "");
+    const uri = isGroup
+      ? conv.groupAvatarUrl
+      : isBlockedByOther
+        ? null  // will fall back to default user icon
+        : conv.otherParticipant?.profilePhotoUrl;
+    const hasUnread    = (conv.unreadCount || 0) > 0;
 
-  return (
-    <View style={{ overflow: "hidden" }}>
-      {/* Action buttons revealed on swipe */}
-      <View style={[swipeStyles.actions, { width: actionWidth }]}>
-        {/* Mute / Unmute action */}
-        <TouchableOpacity
-          style={[swipeStyles.actionBtn, { backgroundColor: isMuted ? "#34C759" : "#FF9F0A" }]}
-          onPress={() => {
-            translateX.value = withSpring(0);
-            onMute?.(conv);
-          }}
-        >
-          {isMuted
-            ? <Bell    size={18} color="#FFF" strokeWidth={2} />
-            : <BellOff size={18} color="#FFF" strokeWidth={2} />}
-          <Text style={swipeStyles.actionLabel}>{isMuted ? "Unmute" : "Mute"}</Text>
-        </TouchableOpacity>
+    return (
+      <View style={{ overflow: "hidden" }}>
+        {/* Action buttons revealed on swipe */}
+        <View style={[swipeStyles.actions, { width: actionWidth }]}>
+          {/* Mute / Unmute action */}
+          <TouchableOpacity
+            style={[swipeStyles.actionBtn, { backgroundColor: isMuted ? "#34C759" : "#FF9F0A" }]}
+            onPress={() => {
+              translateX.value = withSpring(0);
+              onMute?.(conv);
+            }}
+          >
+            {isMuted
+              ? <Bell    size={18} color="#FFF" strokeWidth={2} />
+              : <BellOff size={18} color="#FFF" strokeWidth={2} />}
+            <Text style={swipeStyles.actionLabel}>{isMuted ? "Unmute" : "Mute"}</Text>
+          </TouchableOpacity>
 
-        {/* Delete / Leave action */}
-        <TouchableOpacity
-          style={[swipeStyles.actionBtn, { backgroundColor: isGroup ? "#FF3B30" : DANGER }]}
-          onPress={() => {
-            translateX.value = withSpring(0);
-            if (isGroup) onLeave?.(conv);
-            else onDelete?.(conv);
-          }}
-        >
-          {isGroup
-            ? <LogOut size={18} color="#FFF" strokeWidth={2} />
-            : <Trash2  size={18} color="#FFF" strokeWidth={2} />}
-          <Text style={swipeStyles.actionLabel}>{isGroup ? "Leave" : "Delete"}</Text>
-        </TouchableOpacity>
-      </View>
+          {/* Delete / Leave action */}
+          <TouchableOpacity
+            style={[swipeStyles.actionBtn, { backgroundColor: isGroup ? "#FF3B30" : DANGER }]}
+            onPress={() => {
+              translateX.value = withSpring(0);
+              if (isGroup) onLeave?.(conv);
+              else onDelete?.(conv);
+            }}
+          >
+            {isGroup
+              ? <LogOut size={18} color="#FFF" strokeWidth={2} />
+              : <Trash2  size={18} color="#FFF" strokeWidth={2} />}
+            <Text style={swipeStyles.actionLabel}>{isGroup ? "Leave" : "Delete"}</Text>
+          </TouchableOpacity>
+        </View>
 
-      <GestureDetector gesture={pan}>
-        <Reanimated.View style={rowStyle}>
-          <Pressable style={swipeStyles.row} onPress={() => onPress(conv)} android_ripple={{ color: SURFACE2 }}>
-            <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} isAnonymous={isBlockedByOther} />
-            <View style={swipeStyles.content}>
-              <View style={swipeStyles.topRow}>
-                <Text style={[swipeStyles.name, hasUnread && swipeStyles.nameUnread]} numberOfLines={1}>
-                  {name}{conv.status === "CLOSED" ? " 🔒" : ""}
-                </Text>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                  {isMuted && <BellOff size={12} color={TEXT_SEC} strokeWidth={2} />}
-                  <Text style={swipeStyles.time}>{formatRelativeTime(conv.lastMessageAt)}</Text>
+        <GestureDetector gesture={pan}>
+          <Reanimated.View style={rowStyle}>
+            <Pressable style={swipeStyles.row} onPress={() => onPress(conv)} android_ripple={{ color: SURFACE2 }}>
+              <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} isAnonymous={isBlockedByOther} />
+              <View style={swipeStyles.content}>
+                <View style={swipeStyles.topRow}>
+                  <Text style={[swipeStyles.name, hasUnread && swipeStyles.nameUnread]} numberOfLines={1}>
+                    {name}{conv.status === "CLOSED" ? " 🔒" : ""}
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    {isMuted && <BellOff size={12} color={TEXT_SEC} strokeWidth={2} />}
+                    <Text style={swipeStyles.time}>{formatRelativeTime(conv.lastMessageAt)}</Text>
+                  </View>
+                </View>
+                <View style={swipeStyles.bottomRow}>
+                  <Text style={[swipeStyles.preview, hasUnread && !isMuted && swipeStyles.previewUnread]} numberOfLines={1}>
+                    {isBlockedByOther
+                      ? (conv.lastMessage || "")
+                      : (conv.lastMessage || username || "No messages yet")}
+                  </Text>
+                  {hasUnread && !isMuted && (
+                    <View style={swipeStyles.badge}>
+                      <Text style={swipeStyles.badgeText}>
+                        {conv.unreadCount > 9 ? "9+" : String(conv.unreadCount)}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </View>
-              <View style={swipeStyles.bottomRow}>
-                <Text style={[swipeStyles.preview, hasUnread && !isMuted && swipeStyles.previewUnread]} numberOfLines={1}>
-                  {isBlockedByOther
-                    ? (conv.lastMessage || "")
-                    : (conv.lastMessage || username || "No messages yet")}
-                </Text>
-                {hasUnread && !isMuted && (
-                  <View style={swipeStyles.badge}>
-                    <Text style={swipeStyles.badgeText}>
-                      {conv.unreadCount > 9 ? "9+" : String(conv.unreadCount)}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </Pressable>
-        </Reanimated.View>
-      </GestureDetector>
-    </View>
-  );
-});
+            </Pressable>
+          </Reanimated.View>
+        </GestureDetector>
+      </View>
+    );
+  },
+  (prevProps, nextProps) => {
+    const p = prevProps.conv;
+    const n = nextProps.conv;
+    return (
+      prevProps.onPress === nextProps.onPress &&
+      prevProps.onDelete === nextProps.onDelete &&
+      prevProps.onLeave === nextProps.onLeave &&
+      prevProps.onMute === nextProps.onMute &&
+      p.id === n.id &&
+      p.isGroup === n.isGroup &&
+      p.isMuted === n.isMuted &&
+      p.unreadCount === n.unreadCount &&
+      p.lastMessage === n.lastMessage &&
+      p.lastMessageAt === n.lastMessageAt &&
+      p.status === n.status &&
+      p.groupName === n.groupName &&
+      p.groupAvatarUrl === n.groupAvatarUrl &&
+      p.participantCount === n.participantCount &&
+      p.myRole === n.myRole &&
+      p.messagingRestricted === n.messagingRestricted &&
+      p.otherParticipant?.id === n.otherParticipant?.id &&
+      p.otherParticipant?.name === n.otherParticipant?.name &&
+      p.otherParticipant?.username === n.otherParticipant?.username &&
+      p.otherParticipant?.profilePhotoUrl === n.otherParticipant?.profilePhotoUrl &&
+      p.otherParticipant?.isBlockedByOther === n.otherParticipant?.isBlockedByOther
+    );
+  }
+);
 const swipeStyles = StyleSheet.create({
   actions:      { position: "absolute", right: 0, top: 0, bottom: 0, flexDirection: "row",
     justifyContent: "flex-end", alignItems: "center", paddingRight: 4 },
@@ -388,6 +423,15 @@ export default function ConversationsListScreen({ navigation }) {
     iconColor: "#FF3B30",
   });
 
+  const [isReady,          setIsReady]          = useState(false);
+
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      setIsReady(true);
+    });
+    return () => task.cancel();
+  }, []);
+
   const showAlert = useCallback((config) => setAlertConfig({ ...config, visible: true }), []);
   const hideAlert = useCallback(() => setAlertConfig((p) => ({ ...p, visible: false })), []);
 
@@ -415,44 +459,32 @@ export default function ConversationsListScreen({ navigation }) {
     };
   }, [navigation]);
 
-  // ── Load account info ────────────────────────────────────────────────────────
-  const loadAccountInfo = useCallback(async () => {
-    try {
-      const [active, all] = await Promise.all([getActiveAccount(), getAllAccounts()]);
-      cachedActiveAccount = active;
-      setActiveAccount(active);
-      setAllAccounts(all || []);
-    } catch (err) {
-      console.error("Error loading account info:", err);
-    }
-  }, []);
-
   // ── Load data (Conversations and Account info in parallel) ───────────────────
   const loadData = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
       else if (!cachedConversations) setLoading(true);
 
-      await Promise.all([
-        (async () => {
-          try {
-            const res = await getConversations();
-            const convs = res.conversations || [];
-            cachedConversations = convs;
-            setConversations(convs);
-          } catch (err) {
-            console.error("Error loading conversations:", err);
-          }
-        })(),
-        loadAccountInfo(),
+      const [res, active, all] = await Promise.all([
+        getConversations().catch(() => ({ conversations: [] })),
+        getActiveAccount().catch(() => null),
+        getAllAccounts().catch(() => []),
       ]);
+
+      const convs = res.conversations || [];
+      cachedConversations = convs;
+      cachedActiveAccount = active;
+
+      setConversations(convs);
+      setActiveAccount(active);
+      setAllAccounts(all || []);
     } catch (err) {
       console.error("Error loading data:", err);
     } finally {
       setRefreshing(false);
       setLoading(false);
     }
-  }, [loadAccountInfo]);
+  }, []);
 
   useFocusEffect(useCallback(() => {
     const task = InteractionManager.runAfterInteractions(() => {
@@ -749,7 +781,8 @@ export default function ConversationsListScreen({ navigation }) {
   ) : null;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <Profiler id="ConversationsListScreen" onRender={onRenderProfiler}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container}>
         {/* ── Header ── */}
         <View style={styles.header}>
@@ -815,6 +848,10 @@ export default function ConversationsListScreen({ navigation }) {
             renderItem={renderConversation}
             ListHeaderComponent={ListHeader}
             contentContainerStyle={conversations.length === 0 ? { flex: 1 } : { paddingBottom: 40 }}
+            initialNumToRender={5}
+            maxToRenderPerBatch={10}
+            windowSize={10}
+
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -835,82 +872,87 @@ export default function ConversationsListScreen({ navigation }) {
           />
         )}
 
-        {/* ── Modals ── */}
-        <AccountSwitcherModal
-          visible={showAccountSwitcher}
-          onClose={() => setShowAccountSwitcher(false)}
-          onAddAccount={() => { setShowAccountSwitcher(false); setShowAddAccount(true); }}
-          currentAccountId={activeAccount?.id ? `${activeAccount.type || "member"}_${activeAccount.id}` : undefined}
-          currentProfile={activeAccount ? { ...activeAccount, type: activeAccount.type || "member" } : null}
-          onAccountSwitch={(account) => {
-            setShowAccountSwitcher(false);
-            // Clear caches on switch to prevent cross-account leakage/flashing
-            cachedConversations = null;
-            cachedActiveAccount = null;
-            const routeName =
-              account.type === "community" ? "CommunityHome" :
-              account.type === "sponsor"   ? "SponsorHome" :
-              account.type === "venue"     ? "VenueHome" :
-              "MemberHome";
-            // Walk up the navigator tree to find root
-            let rootNavigator = navigation;
-            try {
-              if (navigation.getParent) {
-                const parent1 = navigation.getParent();
-                if (parent1?.getParent) {
-                  const parent2 = parent1.getParent();
-                  if (parent2) rootNavigator = parent2;
+        {/* ── Modals (deferred until animation settles) ── */}
+        {isReady && (
+          <>
+            <AccountSwitcherModal
+              visible={showAccountSwitcher}
+              onClose={() => setShowAccountSwitcher(false)}
+              onAddAccount={() => { setShowAccountSwitcher(false); setShowAddAccount(true); }}
+              currentAccountId={activeAccount?.id ? `${activeAccount.type || "member"}_${activeAccount.id}` : undefined}
+              currentProfile={activeAccount ? { ...activeAccount, type: activeAccount.type || "member" } : null}
+              onAccountSwitch={(account) => {
+                setShowAccountSwitcher(false);
+                // Clear caches on switch to prevent cross-account leakage/flashing
+                cachedConversations = null;
+                cachedActiveAccount = null;
+                const routeName =
+                  account.type === "community" ? "CommunityHome" :
+                  account.type === "sponsor"   ? "SponsorHome" :
+                  account.type === "venue"     ? "VenueHome" :
+                  "MemberHome";
+                // Walk up the navigator tree to find root
+                let rootNavigator = navigation;
+                try {
+                  if (navigation.getParent) {
+                    const parent1 = navigation.getParent();
+                    if (parent1?.getParent) {
+                      const parent2 = parent1.getParent();
+                      if (parent2) rootNavigator = parent2;
+                    }
+                  }
+                } catch (_) {}
+                rootNavigator.reset({ index: 0, routes: [{ name: routeName }] });
+              }}
+              onLoginRequired={(account) => {
+                setShowAccountSwitcher(false);
+                cachedConversations = null;
+                cachedActiveAccount = null;
+                let rootNavigator = navigation;
+                try {
+                  if (navigation.getParent) {
+                    const parent1 = navigation.getParent();
+                    if (parent1?.getParent) {
+                      const parent2 = parent1.getParent();
+                      if (parent2) rootNavigator = parent2;
+                    }
+                  }
+                } catch (_) {}
+                try {
+                  rootNavigator.navigate("Login", { email: account.email, isAddingAccount: false });
+                } catch (_) {
+                  rootNavigator.reset({ index: 0, routes: [{ name: "Landing" }] });
                 }
-              }
-            } catch (_) {}
-            rootNavigator.reset({ index: 0, routes: [{ name: routeName }] });
-          }}
-          onLoginRequired={(account) => {
-            setShowAccountSwitcher(false);
-            cachedConversations = null;
-            cachedActiveAccount = null;
-            let rootNavigator = navigation;
-            try {
-              if (navigation.getParent) {
-                const parent1 = navigation.getParent();
-                if (parent1?.getParent) {
-                  const parent2 = parent1.getParent();
-                  if (parent2) rootNavigator = parent2;
-                }
-              }
-            } catch (_) {}
-            try {
-              rootNavigator.navigate("Login", { email: account.email, isAddingAccount: false });
-            } catch (_) {
-              rootNavigator.reset({ index: 0, routes: [{ name: "Landing" }] });
-            }
-          }}
-        />
-        <AddAccountModal
-          visible={showAddAccount}
-          onClose={() => setShowAddAccount(false)}
-          onAccountAdded={async () => {
-            setShowAddAccount(false);
-            cachedConversations = null;
-            cachedActiveAccount = null;
-            await loadData(false);
-          }}
-        />
+              }}
+            />
+            <AddAccountModal
+              visible={showAddAccount}
+              onClose={() => setShowAddAccount(false)}
+              onAccountAdded={async () => {
+                setShowAddAccount(false);
+                cachedConversations = null;
+                cachedActiveAccount = null;
+                await loadData(false);
+              }}
+            />
 
-        <CustomAlertModal
-          visible={alertConfig.visible}
-          title={alertConfig.title}
-          message={alertConfig.message}
-          onClose={hideAlert}
-          primaryAction={alertConfig.primaryAction}
-          secondaryAction={alertConfig.secondaryAction}
-          durationOptions={alertConfig.durationOptions}
-          onDurationSelect={alertConfig.onDurationSelect}
-          icon={alertConfig.icon}
-          iconColor={alertConfig.iconColor}
-        />
+            <CustomAlertModal
+              visible={alertConfig.visible}
+              title={alertConfig.title}
+              message={alertConfig.message}
+              onClose={hideAlert}
+              primaryAction={alertConfig.primaryAction}
+              secondaryAction={alertConfig.secondaryAction}
+              durationOptions={alertConfig.durationOptions}
+              onDurationSelect={alertConfig.onDurationSelect}
+              icon={alertConfig.icon}
+              iconColor={alertConfig.iconColor}
+            />
+          </>
+        )}
       </SafeAreaView>
     </GestureHandlerRootView>
+    </Profiler>
   );
 }
 

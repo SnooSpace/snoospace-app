@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { BadgeCheck, Instagram, Calendar, FileText, Info, MessageCircle, MoveRight } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from '../../constants/theme';
 
@@ -40,6 +41,7 @@ const HostRequestReviewCard = ({ request, onApprove, onDecline, onOpenDm, onView
           <Image
             source={{ uri: requester.profile_photo_url }}
             style={styles.avatarImage}
+            cachePolicy="memory-disk"
           />
         ) : (
           <View style={styles.avatarCircle}>

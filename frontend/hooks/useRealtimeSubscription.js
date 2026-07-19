@@ -62,8 +62,16 @@ export default function useRealtimeSubscription({ table, event = '*', filter, on
     // Cleanup: remove the channel subscription when the component unmounts or dependencies change
     return () => {
       if (channel) {
+        const start = performance.now();
         console.log(`[Realtime] Cleaning up subscription for channel '${channelName}'`);
-        supabase.removeChannel(channel)
+        const callStart = performance.now();
+        const promise = supabase.removeChannel(channel);
+        const callDuration = performance.now() - callStart;
+        console.log(`[PERF-CLEANUP] Supabase removeChannel sync call took: ${callDuration.toFixed(2)}ms`);
+        promise
+          .then(() => {
+            console.log(`[PERF-CLEANUP] Supabase removeChannel async resolution for '${channelName}' took: ${(performance.now() - start).toFixed(2)}ms`);
+          })
           .catch((err) => console.warn(`[Realtime] Error removing channel '${channelName}':`, err));
       }
     };

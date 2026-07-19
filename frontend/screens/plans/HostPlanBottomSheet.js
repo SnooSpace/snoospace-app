@@ -14,8 +14,8 @@ import {
   KeyboardAvoidingView,
   Dimensions,
   Keyboard,
-  Image,
 } from "react-native";
+import { Image } from "expo-image";
 import SwipeableModal from "../../components/modals/SwipeableModal";
 import {
   Users,
@@ -378,7 +378,8 @@ export default function HostPlanBottomSheet({
                 <Image
                   source={{ uri: bannerUri }}
                   style={styles.bannerPreviewImg}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
                 />
               ) : (
                 <PlanCropImage activityType={activityType} containerW={CONTAINER_WIDTH} height={130} />

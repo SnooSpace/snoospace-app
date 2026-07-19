@@ -115,6 +115,10 @@ export function NotificationsProvider({ children }) {
     [items, unread, categoryBreakdown, loading, loadInitial, loadMore, markAllRead, currentBanner]
   );
 
+  useEffect(() => {
+    console.log(`[PERF-CONTEXT] NotificationsContext value updated. unread: ${unread}, loading: ${loading}, items count: ${items?.length || 0}`);
+  }, [value]);
+
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
 }
 

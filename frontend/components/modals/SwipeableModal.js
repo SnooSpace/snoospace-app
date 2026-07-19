@@ -150,6 +150,10 @@ export default function SwipeableModal({
 
 
 
+  if (!shouldRender) {
+    return null;
+  }
+
   return (
     <Modal
       transparent

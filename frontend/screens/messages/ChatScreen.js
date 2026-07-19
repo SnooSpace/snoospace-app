@@ -4,7 +4,12 @@ import React, {
   useRef,
   useCallback,
   useMemo,
+  Profiler,
 } from "react";
+
+const onRenderProfiler = (id, phase, actualDuration) => {
+  console.log(`[PERF-RENDER] ${id} - Phase: ${phase}, Duration: ${actualDuration.toFixed(2)}ms`);
+};
 import {
   StyleSheet,
   View,
@@ -1640,6 +1645,19 @@ export default function ChatScreen({ route, navigation }) {
   }, [isChatInputFocused]);
 
   useEffect(() => {
+    const unsubStart = navigation.addListener('transitionStart', (e) => {
+      console.log(`[PERF-NAV] ChatScreen transitionStart at: ${performance.now().toFixed(2)}ms, closing: ${e?.data?.closing}`);
+    });
+    const unsubEnd = navigation.addListener('transitionEnd', (e) => {
+      console.log(`[PERF-NAV] ChatScreen transitionEnd at: ${performance.now().toFixed(2)}ms, closing: ${e?.data?.closing}`);
+    });
+    return () => {
+      unsubStart();
+      unsubEnd();
+    };
+  }, [navigation]);
+
+  useEffect(() => {
     const unsubscribeBlur = navigation.addListener("blur", () => {
       Keyboard.dismiss();
     });
@@ -1649,9 +1667,17 @@ export default function ChatScreen({ route, navigation }) {
     return () => {
       unsubscribeBlur();
       unsubscribeRemove();
+      const start = performance.now();
       Keyboard.dismiss();
+      console.log(`[PERF-CLEANUP] ChatScreen Keyboard.dismiss() took: ${(performance.now() - start).toFixed(2)}ms`);
     };
   }, [navigation]);
+
+  useEffect(() => {
+    return () => {
+      console.log(`[PERF-NAV] ChatScreen unmounted at: ${performance.now().toFixed(2)}ms`);
+    };
+  }, []);
   const [recipient, setRecipient] = useState(() => {
     if (recipientId && recipientName) {
       return {
@@ -2365,8 +2391,10 @@ export default function ChatScreen({ route, navigation }) {
 
     return () => {
       if (socket) {
+        const start = performance.now();
         console.log(`[ChatScreen] Leaving socket chat room: chat_${currentConversationId}`);
         socket.emit("leave_chat", currentConversationId);
+        console.log(`[PERF-CLEANUP] ChatScreen socket leave_chat took: ${(performance.now() - start).toFixed(2)}ms`);
       }
     };
   }, [currentConversationId]);
@@ -3096,7 +3124,9 @@ export default function ChatScreen({ route, navigation }) {
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => {
+              console.log(`[PERF-NAV] ChatScreen Back pressed (loading screen) at: ${performance.now().toFixed(2)}ms`);
               Keyboard.dismiss();
+              console.log(`[PERF-NAV] ChatScreen navigation.goBack() called at: ${performance.now().toFixed(2)}ms`);
               navigation.goBack();
             }}
             style={styles.backButton}
@@ -3116,14 +3146,17 @@ export default function ChatScreen({ route, navigation }) {
 
   // ΓöÇΓöÇ Main render ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <Profiler id="ChatScreen" onRender={onRenderProfiler}>
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
         <View style={{ backgroundColor: "#FFFFFF", zIndex: 10 }}>
           <View style={{ height: insets.top }} />
           <View style={styles.header}>
             <TouchableOpacity
               onPress={() => {
+                console.log(`[PERF-NAV] ChatScreen Back pressed at: ${performance.now().toFixed(2)}ms`);
                 Keyboard.dismiss();
+                console.log(`[PERF-NAV] ChatScreen navigation.goBack() called at: ${performance.now().toFixed(2)}ms`);
                 navigation.goBack();
               }}
               style={styles.backButton}
@@ -3635,6 +3668,7 @@ export default function ChatScreen({ route, navigation }) {
         )}
       </View>
     </GestureHandlerRootView>
+    </Profiler>
   );
 }
 

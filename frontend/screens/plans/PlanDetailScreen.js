@@ -1,8 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Profiler } from 'react';
+
+const onRenderProfiler = (id, phase, actualDuration) => {
+  console.log(`[PERF-RENDER] ${id} - Phase: ${phase}, Duration: ${actualDuration.toFixed(2)}ms`);
+};
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Share, Image, Pressable, Dimensions, Linking, Platform, Alert, Modal,
+  Share, Pressable, Dimensions, Linking, Platform, Alert, Modal,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft, BadgeCheck, MapPin, Clock, Users, Lock,
@@ -151,12 +156,33 @@ export default function PlanDetailScreen({ navigation, route }) {
   }, [planId]);
 
   useEffect(() => {
+    const unsubStart = navigation.addListener('transitionStart', (e) => {
+      console.log(`[PERF-NAV] PlanDetailScreen transitionStart at: ${performance.now().toFixed(2)}ms, closing: ${e?.data?.closing}`);
+    });
+    const unsubEnd = navigation.addListener('transitionEnd', (e) => {
+      console.log(`[PERF-NAV] PlanDetailScreen transitionEnd at: ${performance.now().toFixed(2)}ms, closing: ${e?.data?.closing}`);
+    });
+    return () => {
+      unsubStart();
+      unsubEnd();
+    };
+  }, [navigation]);
+
+  useEffect(() => {
     loadPlan();
     const unsubscribe = navigation.addListener('focus', () => {
       loadPlan();
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+    };
   }, [loadPlan, navigation]);
+
+  useEffect(() => {
+    return () => {
+      console.log(`[PERF-NAV] PlanDetailScreen unmounted at: ${performance.now().toFixed(2)}ms`);
+    };
+  }, []);
 
   const handleLike = useCallback(async () => {
     const prev = { isLiked, likeCount };
@@ -300,10 +326,18 @@ export default function PlanDetailScreen({ navigation, route }) {
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
+    <Profiler id="PlanDetailScreen" onRender={onRenderProfiler}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => {
+              console.log(`[PERF-NAV] PlanDetailScreen Back pressed at: ${performance.now().toFixed(2)}ms`);
+              console.log(`[PERF-NAV] PlanDetailScreen navigation.goBack() called at: ${performance.now().toFixed(2)}ms`);
+              navigation.goBack();
+            }}
+            hitSlop={12}
+          >
           <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>Open Plans</Text>
@@ -334,7 +368,8 @@ export default function PlanDetailScreen({ navigation, route }) {
                 <Image
                   source={{ uri: plan.banner_image_url }}
                   style={styles.bannerImage}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
                 />
               ) : (
                 <PlanCropImage
@@ -380,6 +415,7 @@ export default function PlanDetailScreen({ navigation, route }) {
                     <Image
                       source={{ uri: plan.host_profile.profile_photo_url }}
                       style={styles.hostAvatar}
+                      cachePolicy="memory-disk"
                     />
                   ) : (
                     <View style={styles.hostAvatarFallback}>
@@ -687,7 +723,7 @@ export default function PlanDetailScreen({ navigation, route }) {
             >
               <View style={styles.commAvatarContainer}>
                 {comm.logo_url ? (
-                  <Image source={{ uri: comm.logo_url }} style={styles.commAvatar} />
+                  <Image source={{ uri: comm.logo_url }} style={styles.commAvatar} cachePolicy="memory-disk" />
                 ) : (
                   <View style={styles.commAvatarFallback}>
                     <Users size={16} color="#4F46E5" />
@@ -822,7 +858,8 @@ export default function PlanDetailScreen({ navigation, route }) {
           }
         }}
       />
-    </SafeAreaView>
+      </SafeAreaView>
+    </Profiler>
   );
 }
 
@@ -868,7 +905,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   bannerImage: {
-    width: CARD_WIDTH,
+    width: '100%',
     height: 240,
   },
   bannerOverlaysBottomLeft: {

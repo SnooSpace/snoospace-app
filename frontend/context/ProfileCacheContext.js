@@ -245,6 +245,10 @@ export function ProfileCacheProvider({ children }) {
     refreshProfile: preloadProfile,
   };
 
+  useEffect(() => {
+    console.log(`[PERF-CONTEXT] ProfileCacheContext rendering/updating. memberProfile: ${!!memberProfile}, communityProfile: ${!!communityProfile}, loading: ${loading}`);
+  });
+
   return (
     <ProfileCacheContext.Provider value={value}>
       {children}

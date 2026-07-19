@@ -11,8 +11,8 @@ import {
   Alert,
   Platform,
   Dimensions,
-  Image,
 } from 'react-native';
+import { Image } from 'expo-image';
 import SwipeableModal from '../../components/modals/SwipeableModal';
 import {
   Calendar,
@@ -258,13 +258,15 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
                 <Image
                   source={{ uri: bannerUri }}
                   style={styles.bannerPreviewImg}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
                 />
               ) : existingBannerUrl && !bannerRemoved ? (
                 <Image
                   source={{ uri: existingBannerUrl }}
                   style={styles.bannerPreviewImg}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  cachePolicy="memory-disk"
                 />
               ) : (
                 <PlanCropImage activityType={plan?.activity_type || 'other'} containerW={CONTAINER_WIDTH} height={130} />
