@@ -778,7 +778,7 @@ const OpenPlanCard = ({
         <Modal
           transparent
           visible={hostMenuVisible}
-          animationType="slide"
+          animationType="fade"
           onRequestClose={() => setHostMenuVisible(false)}
           statusBarTranslucent
         >
