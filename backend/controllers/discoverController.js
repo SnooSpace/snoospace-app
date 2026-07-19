@@ -272,6 +272,14 @@ const getSuggestedCommunities = async (req, res) => {
              WHERE f.following_id = c.id AND f.following_type = 'community'),
             0
           )::int as follower_count,
+          COALESCE(
+            (SELECT COUNT(*) FROM events e 
+             WHERE COALESCE(e.community_id, e.creator_id) = c.id 
+               AND e.start_datetime > NOW() 
+               AND (e.is_published = true OR e.is_published IS NULL)
+               AND e.is_cancelled IS NOT TRUE),
+            0
+          )::int as upcoming_event_count,
           -- Matching score based on category match
           CASE 
             WHEN c.category = ANY($1) THEN 50
@@ -302,6 +310,14 @@ const getSuggestedCommunities = async (req, res) => {
              WHERE f.following_id = c.id AND f.following_type = 'community'),
             0
           )::int as follower_count,
+          COALESCE(
+            (SELECT COUNT(*) FROM events e 
+             WHERE COALESCE(e.community_id, e.creator_id) = c.id 
+               AND e.start_datetime > NOW() 
+               AND (e.is_published = true OR e.is_published IS NULL)
+               AND e.is_cancelled IS NOT TRUE),
+            0
+          )::int as upcoming_event_count,
           0 as match_score
         FROM communities c
         WHERE c.id NOT IN (
@@ -324,6 +340,7 @@ const getSuggestedCommunities = async (req, res) => {
       category: community.category,
       bio: community.bio,
       follower_count: community.follower_count,
+      upcoming_event_count: community.upcoming_event_count,
       is_following: false, // Always false since we exclude followed
     }));
 

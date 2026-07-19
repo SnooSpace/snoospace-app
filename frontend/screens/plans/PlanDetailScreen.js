@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  Share, Image, Pressable, Dimensions, Linking, Platform,
+  Share, Image, Pressable, Dimensions, Linking, Platform, Alert, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft, BadgeCheck, MapPin, Clock, Users, Lock,
-  Heart, MessageCircle, ChartNoAxesCombined, Send, Pencil, MoreHorizontal, MoveRight,
+  Heart, MessageCircle, ChartNoAxesCombined, Send, Pencil, MoreHorizontal, MoveRight, Trash2,
 } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { getAuthToken, getActiveAccount } from '../../api/auth';
 import {
-  getPlanById, recordView, likePlan, unlikePlan,
+  getPlanById, recordView, likePlan, unlikePlan, cancelPlan,
 } from '../../api/plans';
 import RequestBottomSheet from './RequestBottomSheet';
 import CommentsModal from '../../components/CommentsModal';
@@ -21,6 +21,7 @@ import SnooLoader from '../../components/ui/SnooLoader';
 import ReportSheet from '../../components/ReportSheet';
 import SwipeableModal from '../../components/modals/SwipeableModal';
 import ShareModal from '../../components/ShareModal';
+import CustomConfirmDialog from '../../components/ui/CustomConfirmDialog';
 
 const CARD_PADDING = 16;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -124,6 +125,10 @@ export default function PlanDetailScreen({ navigation, route }) {
   const [reportSheetVisible, setReportSheetVisible] = useState(false);
   const [sharedCommSheetOpen, setSharedCommSheetOpen] = useState(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [hostMenuVisible, setHostMenuVisible] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [deleteConfirmMessage, setDeleteConfirmMessage] = useState('');
 
   const loadPlan = useCallback(async () => {
     try {
@@ -170,6 +175,18 @@ export default function PlanDetailScreen({ navigation, route }) {
   const handleShare = useCallback(() => {
     setShareModalVisible(true);
   }, []);
+
+  const handleDeletePlan = useCallback(() => {
+    if (!plan) return;
+    const pendingCount = plan.pending_count ?? 0;
+    const warningMsg = pendingCount > 0
+      ? `${pendingCount} pending request${pendingCount > 1 ? 's' : ''} will be notified that the plan was removed. This cannot be undone.`
+      : 'This plan will be permanently deleted. This cannot be undone.';
+
+    setDeleteConfirmMessage(warningMsg);
+    setDeleteConfirmVisible(true);
+    setHostMenuVisible(false);
+  }, [plan]);
 
   const handleOpenMap = useCallback(() => {
     if (!plan?.location_private) return;
@@ -230,7 +247,12 @@ export default function PlanDetailScreen({ navigation, route }) {
 
   // ─── Derived values ────────────────────────────────────────────────────────
 
-  const isOwner = plan.created_by === currentUserId;
+  const isOwner = currentUserId != null && String(plan.created_by) === String(currentUserId);
+  const isPastDeadline = new Date(plan.scheduled_at) < new Date();
+  // Allow deleting plans of all statuses (including cancelled) as long as no one was accepted.
+  const canDelete = (plan.accepted_count ?? 0) === 0;
+  // Show greyed-out delete when people have joined (accepted_count > 0)
+  const showDisabledDelete = !canDelete && (plan.accepted_count ?? 0) > 0;
   const isApproved = plan.my_request_status === 'approved';
   const showPrivateLocation = isOwner || isApproved;
 
@@ -286,8 +308,8 @@ export default function PlanDetailScreen({ navigation, route }) {
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>Open Plans</Text>
         {isOwner ? (
-          <TouchableOpacity onPress={() => setEditSheetOpen(true)} hitSlop={12}>
-            <Pencil size={20} color={COLORS.primary} strokeWidth={2} />
+          <TouchableOpacity onPress={() => setHostMenuVisible(true)} hitSlop={12}>
+            <MoreHorizontal size={22} color={COLORS.primary} strokeWidth={2} />
           </TouchableOpacity>
         ) : (
           <TouchableOpacity onPress={() => setReportSheetVisible(true)} hitSlop={12}>
@@ -685,6 +707,120 @@ export default function PlanDetailScreen({ navigation, route }) {
         visible={shareModalVisible}
         onClose={() => setShareModalVisible(false)}
         post={plan}
+      />
+
+      {/* Host action menu — plain Modal to avoid overflow:hidden clipping */}
+      <Modal
+        transparent
+        visible={hostMenuVisible}
+        animationType="slide"
+        onRequestClose={() => setHostMenuVisible(false)}
+        statusBarTranslucent
+      >
+        {/* Backdrop */}
+        <Pressable
+          style={styles.hostMenuOverlay}
+          onPress={() => setHostMenuVisible(false)}
+        />
+
+        {/* Sheet container */}
+        <View
+          style={styles.hostMenuSheet}
+        >
+          <View style={styles.hostMenuHandle} />
+          <Text style={styles.hostMenuTitle}>Plan Options</Text>
+
+          <View style={styles.hostMenuList}>
+            {/* Edit Plan — hidden when past scheduled time */}
+            {!isPastDeadline ? (
+              <TouchableOpacity
+                style={styles.hostMenuRow}
+                onPress={() => {
+                  setHostMenuVisible(false);
+                  setEditSheetOpen(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.hostMenuIconWrap}>
+                  <Pencil size={18} color={COLORS.primary} strokeWidth={2} />
+                </View>
+                <View style={styles.hostMenuRowText}>
+                  <Text style={styles.hostMenuLabel}>Edit Plan</Text>
+                  <Text style={styles.hostMenuSub}>Update details, time or location</Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <View style={[styles.hostMenuRow, styles.hostMenuRowDisabled]}>
+                <View style={[styles.hostMenuIconWrap, { backgroundColor: '#F3F4F6' }]}>
+                  <Pencil size={18} color="#D1D5DB" strokeWidth={2} />
+                </View>
+                <View style={styles.hostMenuRowText}>
+                  <Text style={[styles.hostMenuLabel, { color: '#9CA3AF' }]}>Edit Plan</Text>
+                  <Text style={styles.hostMenuSub}>Cannot edit — plan time has passed</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Delete Plan */}
+            {canDelete && (
+              <TouchableOpacity
+                style={[styles.hostMenuRow, { opacity: deleting ? 0.5 : 1 }]}
+                onPress={handleDeletePlan}
+                activeOpacity={0.7}
+                disabled={deleting}
+              >
+                <View style={[styles.hostMenuIconWrap, { backgroundColor: '#FEF2F2' }]}>
+                  <Trash2 size={18} color="#EF4444" strokeWidth={2} />
+                </View>
+                <View style={styles.hostMenuRowText}>
+                  <Text style={[styles.hostMenuLabel, { color: '#DC2626' }]}>Delete Plan</Text>
+                  <Text style={styles.hostMenuSub}>
+                    {(plan.pending_count ?? 0) > 0
+                      ? `${plan.pending_count} pending request${plan.pending_count > 1 ? 's' : ''} will be notified`
+                      : 'Permanently remove this plan'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {showDisabledDelete && (
+              <View style={[styles.hostMenuRow, styles.hostMenuRowDisabled]}>
+                <View style={[styles.hostMenuIconWrap, { backgroundColor: '#F3F4F6' }]}>
+                  <Trash2 size={18} color="#D1D5DB" strokeWidth={2} />
+                </View>
+                <View style={styles.hostMenuRowText}>
+                  <Text style={[styles.hostMenuLabel, { color: '#9CA3AF' }]}>Delete Plan</Text>
+                  <Text style={styles.hostMenuSub}>Cannot delete — people have joined</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <CustomConfirmDialog
+        visible={deleteConfirmVisible}
+        title="Delete Plan"
+        message={deleteConfirmMessage}
+        onCancel={() => setDeleteConfirmVisible(false)}
+        onConfirm={async () => {
+          setDeleteConfirmVisible(false);
+          setDeleting(true);
+          try {
+            const token = await getAuthToken();
+            await cancelPlan(plan.id, token);
+            navigation.goBack();
+          } catch (err) {
+            const errorCode = err?.response?.data?.error || err?.error;
+            if (errorCode === 'plan_has_accepted_attendees') {
+              Alert.alert('Cannot Delete', 'People have already joined this plan. You can close it instead.');
+            } else {
+              Alert.alert('Error', err?.message || 'Could not delete plan. Please try again.');
+            }
+          } finally {
+            setDeleting(false);
+          }
+        }}
       />
     </SafeAreaView>
   );
@@ -1123,6 +1259,76 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     fontSize: 12,
     color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  // Host action menu styles
+  hostMenuOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  hostMenuHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  hostMenuSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 28,
+  },
+  hostMenuTitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 18,
+    color: COLORS.textPrimary,
+    marginBottom: 16,
+  },
+  hostMenuList: {
+    gap: 8,
+    paddingBottom: 8,
+  },
+  hostMenuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  hostMenuRowDisabled: {
+    opacity: 0.55,
+  },
+  hostMenuIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hostMenuRowText: {
+    flex: 1,
+  },
+  hostMenuLabel: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  hostMenuSub: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textSecondary,
     marginTop: 2,
   },
 });

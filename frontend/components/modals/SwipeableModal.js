@@ -76,9 +76,16 @@ export default function SwipeableModal({
   useEffect(() => {
     if (visible) {
       isSwipedDownRef.current = false;
+      // Reset values to start states synchronously before mounting layout
+      translateY.value = SCREEN_HEIGHT;
+      backdropOpacity.value = 0;
       setShouldRender(true);
-      translateY.value = withSpring(0, springConfig);
-      backdropOpacity.value = withTiming(1, { duration: 300 });
+      
+      // Animate on the next frame after layout mounting has begun
+      requestAnimationFrame(() => {
+        translateY.value = withSpring(0, springConfig);
+        backdropOpacity.value = withTiming(1, { duration: 300 });
+      });
     } else {
       if (isSwipedDownRef.current) {
         setShouldRender(false);
@@ -110,8 +117,8 @@ export default function SwipeableModal({
       translateY.value = Math.max(0, context.value.y + event.translationY);
     })
     .onEnd((event) => {
-      // Threshold: 49% of sheet height translation OR velocity > 500 snaps to close
-      if (translateY.value > sheetHeight.value * 0.49 || event.velocityY > 500) {
+      // Threshold: 49% of sheet height translation OR velocity > 300 snaps to close
+      if (translateY.value > sheetHeight.value * 0.49 || event.velocityY > 300) {
         backdropOpacity.value = withTiming(0, { duration: 200 });
         translateY.value = withTiming(SCREEN_HEIGHT, { duration: 200 }, () => {
           runOnJS(handleDismiss)();

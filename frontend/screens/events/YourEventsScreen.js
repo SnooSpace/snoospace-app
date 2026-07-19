@@ -672,7 +672,7 @@ export default function YourEventsScreen({ navigation }) {
           plan={item}
           currentUserId={currentUserId}
           compact={true}
-          onPress={() => navigation.navigate("HostRequests", { planId: item.id, planTitle: item.title })}
+          onPress={(planId) => navigation.navigate("PlanDetail", { planId })}
           onLike={handlePlanLike}
           onShare={(plan) => {
             setSharingPlan(plan);
@@ -682,6 +682,9 @@ export default function YourEventsScreen({ navigation }) {
           onPromote={(plan) => {
             setPromotingPlan(plan);
             setShowPromoteSheet(true);
+          }}
+          onDelete={(planId) => {
+            setHostedPlans(prev => prev.filter(p => p.id !== planId));
           }}
           navigation={navigation}
         />

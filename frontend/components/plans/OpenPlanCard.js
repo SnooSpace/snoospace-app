@@ -21,22 +21,25 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Image,
-  Dimensions, Share, Animated, Alert, Pressable,
+  Dimensions, Share, Animated, Alert, Pressable, Modal,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Pressable as GHPressable } from 'react-native-gesture-handler';
 import { GradientHeart } from '../ui/GradientHeart';
 import {
   Users, User, Check, MapPin, Calendar, Heart, MessageCircle,
-  ChartNoAxesCombined, Send, Bookmark, Megaphone,
+  ChartNoAxesCombined, Send, Bookmark, Megaphone, MoreHorizontal, Pencil, Trash2,
 } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { useNavigation } from '@react-navigation/native';
 import CommentsModal from '../CommentsModal';
 import ContentActionsSheet from '../ContentActionsSheet';
 import HapticsService from '../../services/HapticsService';
-import { recordView, togglePlanInterest } from '../../api/plans';
+import { recordView, togglePlanInterest, cancelPlan } from '../../api/plans';
 import { getAuthToken } from '../../api/auth';
+import SwipeableModal from '../modals/SwipeableModal';
 import { getPlanPromoteState } from '../../utils/promoteUtils';
+import CustomConfirmDialog from '../ui/CustomConfirmDialog';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 32;  // 16px padding each side
@@ -224,9 +227,11 @@ const OpenPlanCard = ({
   isInterested: isInterestedProp = false,
   onInterest,
   onPromote,
+  onDelete,
   navigation: navProp,
   compact = false,
 }) => {
+  const insets = useSafeAreaInsets();
   const navHook = useNavigation();
   const navigation = navProp || navHook;
 
@@ -247,6 +252,10 @@ const OpenPlanCard = ({
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [isSaved,       setIsSaved]       = useState(isInterestedProp);
   const [isSaving,      setIsSaving]      = useState(false);
+  const [hostMenuVisible, setHostMenuVisible] = useState(false);
+  const [deletingCard,  setDeletingCard]  = useState(false);
+  const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
+  const [deleteConfirmMessage, setDeleteConfirmMessage] = useState('');
 
   // Layout width for CropImage
   const [cardW, setCardW] = useState(compact ? (SCREEN_WIDTH - 48) / 2 : CARD_WIDTH);
@@ -289,7 +298,7 @@ const OpenPlanCard = ({
     }
   }
 
-  const isOwner   = currentUserId && (plan?.created_by === currentUserId || plan?.created_by === String(currentUserId));
+  const isOwner   = currentUserId != null && String(plan?.created_by) === String(currentUserId);
   const reqStatus = plan?.my_request_status ?? plan?.request_status ?? null;
 
   const scheduledTime = plan?.scheduled_at ? new Date(plan.scheduled_at).getTime() : 0;
@@ -306,6 +315,12 @@ const OpenPlanCard = ({
   } else {
     statusChip = { label: 'Upcoming', bg: '#E3F2FD', text: '#1565C0' };
   }
+
+  // Host action menu derived values
+  const isPastDeadlineCard = scheduledTime && nowTime > scheduledTime;
+  // Allow deleting plans of all statuses (including cancelled) as long as no one was accepted.
+  const canDeleteCard = (plan?.accepted_count ?? 0) === 0;
+  const showDisabledDeleteCard = !canDeleteCard && (plan?.accepted_count ?? 0) > 0;
 
   // ── Like handler ─────────────────────────────────────────────────────────
 
@@ -522,7 +537,7 @@ const OpenPlanCard = ({
           </View>
         </View>
 
-        {/* Top Right Row (Status Chip + Report Button overlay) */}
+        {/* Top Right Row (Status Chip + Report/Owner Button overlay) */}
         <View style={[styles.topRightRow, compact && { top: 8, right: 8 }]}>
           {statusChip && (
             <View style={[styles.statusChipBubble, { backgroundColor: statusChip.bg }, compact && { paddingHorizontal: 8, paddingVertical: 3 }]}>
@@ -532,7 +547,17 @@ const OpenPlanCard = ({
             </View>
           )}
 
-          {!isOwner && (
+          {/* Owner: 3-dot menu button */}
+          {isOwner ? (
+            <TouchableOpacity
+              style={[styles.reportBubble, compact && { width: 26, height: 26, borderRadius: 13 }]}
+              onPress={(e) => { e.stopPropagation(); setHostMenuVisible(true); }}
+              activeOpacity={0.8}
+              hitSlop={8}
+            >
+              <MoreHorizontal size={compact ? 14 : 18} color="#1E293B" strokeWidth={2} />
+            </TouchableOpacity>
+          ) : (
             <View style={[styles.reportBubble, compact && { width: 26, height: 26, borderRadius: 13 }]}>
               <ContentActionsSheet
                 type="open_plan"
@@ -746,6 +771,129 @@ const OpenPlanCard = ({
         onCommentCountChange={(n) => setCommentCount(n)}
         onClose={() => setCommentsVisible(false)}
         navigation={navigation}
+      />
+
+      {/* Host action menu — plain Modal to avoid overflow:hidden clipping */}
+      {isOwner && (
+        <Modal
+          transparent
+          visible={hostMenuVisible}
+          animationType="slide"
+          onRequestClose={() => setHostMenuVisible(false)}
+          statusBarTranslucent
+        >
+          {/* Backdrop */}
+          <Pressable
+            style={styles.hostMenuOverlay}
+            onPress={() => setHostMenuVisible(false)}
+          />
+
+          {/* Sheet container */}
+          <View
+            style={[styles.hostMenuSheet, { paddingBottom: Math.max(36, insets.bottom + 20) }]}
+          >
+            {/* Handle */}
+            <View style={styles.hostMenuHandle} />
+            <Text style={styles.hostMenuTitle}>Plan Options</Text>
+
+            <View style={styles.hostMenuList}>
+              {/* Edit Plan */}
+              {!isPastDeadlineCard ? (
+                <TouchableOpacity
+                  style={styles.hostMenuRow}
+                  onPress={() => {
+                    setHostMenuVisible(false);
+                    navigation.navigate('PlanDetail', { planId: plan?.id });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.hostMenuIconWrap}>
+                    <Pencil size={18} color={COLORS.primary} strokeWidth={2} />
+                  </View>
+                  <View style={styles.hostMenuRowText}>
+                    <Text style={styles.hostMenuLabel}>Edit Plan</Text>
+                    <Text style={styles.hostMenuSub}>Update details, time or location</Text>
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.hostMenuRow, { opacity: 0.45 }]}>
+                  <View style={[styles.hostMenuIconWrap, { backgroundColor: '#F3F4F6' }]}>
+                    <Pencil size={18} color="#D1D5DB" strokeWidth={2} />
+                  </View>
+                  <View style={styles.hostMenuRowText}>
+                    <Text style={[styles.hostMenuLabel, { color: '#9CA3AF' }]}>Edit Plan</Text>
+                    <Text style={styles.hostMenuSub}>Cannot edit — plan time has passed</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Delete Plan */}
+              {canDeleteCard ? (
+                <TouchableOpacity
+                  style={[styles.hostMenuRow, { opacity: deletingCard ? 0.5 : 1 }]}
+                  onPress={() => {
+                    const pendingCount = plan?.pending_count ?? 0;
+                    const msg = pendingCount > 0
+                      ? `${pendingCount} pending request${pendingCount > 1 ? 's' : ''} will be notified that the plan was removed. This cannot be undone.`
+                      : 'This plan will be permanently deleted. This cannot be undone.';
+                    setDeleteConfirmMessage(msg);
+                    setDeleteConfirmVisible(true);
+                    setHostMenuVisible(false);
+                  }}
+                  activeOpacity={0.7}
+                  disabled={deletingCard}
+                >
+                  <View style={[styles.hostMenuIconWrap, { backgroundColor: '#FEF2F2' }]}>
+                    <Trash2 size={18} color="#EF4444" strokeWidth={2} />
+                  </View>
+                  <View style={styles.hostMenuRowText}>
+                    <Text style={[styles.hostMenuLabel, { color: '#DC2626' }]}>Delete Plan</Text>
+                    <Text style={styles.hostMenuSub}>
+                      {(plan?.pending_count ?? 0) > 0
+                        ? `${plan.pending_count} pending request${plan.pending_count > 1 ? 's' : ''} will be notified`
+                        : 'Permanently remove this plan'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : showDisabledDeleteCard ? (
+                <View style={[styles.hostMenuRow, { opacity: 0.45 }]}>
+                  <View style={[styles.hostMenuIconWrap, { backgroundColor: '#F3F4F6' }]}>
+                    <Trash2 size={18} color="#D1D5DB" strokeWidth={2} />
+                  </View>
+                  <View style={styles.hostMenuRowText}>
+                    <Text style={[styles.hostMenuLabel, { color: '#9CA3AF' }]}>Delete Plan</Text>
+                    <Text style={styles.hostMenuSub}>Cannot delete — people have joined</Text>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      <CustomConfirmDialog
+        visible={deleteConfirmVisible}
+        title="Delete Plan"
+        message={deleteConfirmMessage}
+        onCancel={() => setDeleteConfirmVisible(false)}
+        onConfirm={async () => {
+          setDeleteConfirmVisible(false);
+          setDeletingCard(true);
+          try {
+            const token = await getAuthToken();
+            await cancelPlan(plan?.id, token);
+            if (onDelete) onDelete(plan?.id);
+          } catch (err) {
+            const code = err?.response?.data?.error || err?.error;
+            if (code === 'plan_has_accepted_attendees') {
+              Alert.alert('Cannot Delete', 'People have already joined this plan.');
+            } else {
+              Alert.alert('Error', err?.message || 'Could not delete plan.');
+            }
+          } finally {
+            setDeletingCard(false);
+          }
+        }}
       />
     </TouchableOpacity>
   );
@@ -1013,8 +1161,76 @@ const styles = StyleSheet.create({
   finePrint: {
     fontFamily: FONTS.regular,
     fontSize: 11,
-    color: COLORS.textMuted,
+    color: COLORS.textSecondary,
     textAlign: 'center',
+    marginBottom: 12,
+  },
+
+  // ── Host action menu ─────────────────────────────────────────────────────
+  hostMenuOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  hostMenuSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  hostMenuHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.border,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  hostMenuTitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 18,
+    color: COLORS.textPrimary,
+    marginBottom: 16,
+  },
+  hostMenuList: {
+    gap: 8,
+    paddingBottom: 8,
+  },
+  hostMenuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: '#FAFAFA',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  hostMenuIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hostMenuRowText: {
+    flex: 1,
+  },
+  hostMenuLabel: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  hostMenuSub: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 2,
   },
 });
 

@@ -445,7 +445,7 @@ async function updatePlan(req, res) {
 }
 
 // ---------------------------------------------------------------------------
-// DELETE /plans/:planId  (cancel)
+// DELETE /plans/:planId  (delete/cancel)
 // ---------------------------------------------------------------------------
 async function cancelPlan(req, res) {
   try {
@@ -453,31 +453,63 @@ async function cancelPlan(req, res) {
     const userId = req.user.id;
     const planId = parseInt(req.params.planId, 10);
 
+    // Fetch the plan first (must exist, belong to this user, and be active/closed/completed/cancelled).
+    // 'completed' plans are past plans auto-marked by the DB cron after scheduled_at + 24h.
+    // 'cancelled' plans are those already cancelled; allowing delete here will run a hard delete.
     const planR = await pool.query(
-      `UPDATE open_plans SET status = 'cancelled' WHERE id = $1 AND created_by = $2 AND status = 'active' RETURNING *`,
+      `SELECT * FROM open_plans WHERE id = $1 AND created_by = $2 AND status IN ('active', 'closed', 'completed', 'cancelled')`,
       [planId, userId]
     );
-    if (planR.rows.length === 0) return res.status(404).json({ error: 'Plan not found, not authorized, or not active' });
+    if (planR.rows.length === 0) {
+      return res.status(404).json({ error: 'Plan not found, not authorized, or not active' });
+    }
     const plan = planR.rows[0];
 
-    // Fetch host name and all approved attendees
-    const [hostR, attendeesR] = await Promise.all([
+    // If the plan is already 'cancelled', perform a hard/permanent delete
+    if (plan.status === 'cancelled') {
+      await pool.query(
+        `DELETE FROM open_plans WHERE id = $1`,
+        [planId]
+      );
+      return res.json({ success: true, deleted: true });
+    }
+
+    // Guard: cannot delete if anyone has already been accepted
+    const acceptedCount = await getAcceptedCount(pool, planId);
+    if (acceptedCount > 0) {
+      return res.status(400).json({
+        error: 'plan_has_accepted_attendees',
+        message: 'Cannot delete this plan — people have already joined.',
+      });
+    }
+
+    // Mark plan as cancelled
+    await pool.query(
+      `UPDATE open_plans SET status = 'cancelled' WHERE id = $1`,
+      [planId]
+    );
+
+    // Fetch host name and all pending requesters to notify
+    const [hostR, pendingR] = await Promise.all([
       pool.query(`SELECT name FROM members WHERE id = $1`, [userId]),
-      pool.query(`SELECT requester_id FROM open_plan_requests WHERE plan_id = $1 AND status = 'approved'`, [planId]),
+      pool.query(
+        `SELECT requester_id FROM open_plan_requests WHERE plan_id = $1 AND status = 'pending'`,
+        [planId]
+      ),
     ]);
     const hostName = hostR.rows[0]?.name || 'Someone';
 
-    // Non-fatal push notifications
-    for (const attendee of attendeesR.rows) {
+    // Notify pending requesters that the plan was removed
+    for (const requester of pendingR.rows) {
       try {
         await pushService.sendPushNotification(
-          pool, attendee.requester_id, 'member',
-          'Plan Cancelled 😔',
-          `${hostName} cancelled the plan: ${plan.title}`,
+          pool, requester.requester_id, 'member',
+          'Plan Removed 😔',
+          `The plan "${plan.title}" has been removed by the host.`,
           { type: 'plan_cancelled', planId }
         );
       } catch (e) {
-        console.warn('[cancelPlan] Push failed for', attendee.requester_id, e.message);
+        console.warn('[cancelPlan] Push failed for pending requester', requester.requester_id, e.message);
       }
     }
 

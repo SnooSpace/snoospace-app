@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import { StyleSheet, View, Text, TouchableOpacity, ScrollView, Dimensions, Alert, InteractionManager, RefreshControl } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { BarChart3, User, Calendar, Users, Clock, MapPin } from "lucide-react-native";
+import { BarChart3, User, Calendar, Users, Clock, MapPin, Sparkles, ChevronRight } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "@react-navigation/native";
 import { apiGet } from "../../api/client";
@@ -42,6 +42,7 @@ export default function DiscoverScreen({ navigation }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [profileComplete, setProfileComplete] = useState(true);
   const [userPhoto, setUserPhoto] = useState(null);
+  const [collegeInfo, setCollegeInfo] = useState(null);
   const hasLoadedRef = useRef(false);
 
 
@@ -123,6 +124,7 @@ export default function DiscoverScreen({ navigation }) {
         setProfileComplete(
           photos.length >= 3 && sparks.length >= 1 && openers.length >= 1
         );
+        setCollegeInfo(profile.college_info || null);
       }
     } catch (error) {
       console.error("Error checking profile:", error);
@@ -208,9 +210,17 @@ export default function DiscoverScreen({ navigation }) {
           <View>
             <Text style={styles.sectionTitle}>Find Your Tribe</Text>
             <Text style={styles.sectionSubtitle}>
-              Communities based on your profile
+              Matched to your Vibes & campus
             </Text>
           </View>
+          <TouchableOpacity
+            style={styles.browseAllButton}
+            onPress={handleSearchPress}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text style={styles.browseAllText}>Browse all</Text>
+            <ChevronRight size={18} color={COLORS.primary} strokeWidth={2.2} />
+          </TouchableOpacity>
         </View>
         <ScrollView
           horizontal
@@ -220,14 +230,23 @@ export default function DiscoverScreen({ navigation }) {
           onScrollEndDrag={() => EventBus.emit("enable-tab-swipe")}
           onMomentumScrollEnd={() => EventBus.emit("enable-tab-swipe")}
         >
-          {suggestedCommunities.map((community) => (
+          {suggestedCommunities.map((community, index) => (
             <TribeCard
               key={community.id}
               community={community}
+              index={index}
               onPress={handleCommunityPress}
             />
           ))}
         </ScrollView>
+        <View style={styles.vibeMatchContainer}>
+          <View style={styles.vibeMatchPill}>
+            <Sparkles size={18} color="#2962FF" style={styles.vibeMatchIcon} />
+            <Text style={styles.vibeMatchText}>
+              Picked using your <Text style={styles.vibeMatchHighlight}>My Vibes</Text> and <Text style={styles.vibeMatchHighlight}>{collegeInfo?.college_abbreviation || "your"} campus</Text>
+            </Text>
+          </View>
+        </View>
       </View>
     );
   };
@@ -361,43 +380,140 @@ const ExpoImageBackground = ({ source, style, children }) => (
 
 
 
-const TribeCard = React.memo(({ community, onPress }) => (
-  <TouchableOpacity
-    style={styles.tribeCard}
-    onPress={() => onPress(community.id)}
-    activeOpacity={0.97}
-  >
-    <View style={styles.tribeVisualContainer}>
-      <ExpoImageBackground
-        source={{
-          uri:
-            community.logo_url ||
-            "https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80",
-        }}
-        style={styles.tribeVisual}
-      >
-        <LinearGradient
-          colors={["rgba(0,0,0,0.05)", "rgba(0,0,0,0.35)"]}
-          start={{ x: 0.5, y: 0.0 }}
-          end={{ x: 0.5, y: 1.0 }}
-          style={styles.tribeVisualGradient}
-        />
-      </ExpoImageBackground>
-    </View>
+const getGradientConfig = (index) => {
+  const gradients = [
+    {
+      colors: ["#09091F", "#1A1A4A"],
+      themeColor: "#2962FF",
+      lineColor: "rgba(66, 98, 255, 0.15)",
+      avatarColors: ["#448AFF", "#7B1FA2", "#00BFA5"],
+      joinTextColor: "#2962FF",
+      statusBg: "#2962FF",
+      statusText: "#FFFFFF",
+    },
+    {
+      colors: ["#010908", "#072421"],
+      themeColor: "#00BFA5",
+      lineColor: "rgba(0, 191, 165, 0.15)",
+      avatarColors: ["#00BFA5", "#FBC02D", "#EC407A"],
+      joinTextColor: "#057A6C",
+      statusBg: "rgba(0, 191, 165, 0.2)",
+      statusText: "#00E5FF",
+    },
+    {
+      colors: ["#0A0402", "#281207"],
+      themeColor: "#FF6D00",
+      lineColor: "rgba(255, 109, 0, 0.15)",
+      avatarColors: ["#FFD700", "#FF6D00", "#E53935"],
+      joinTextColor: "#C62828",
+      statusBg: "rgba(255, 109, 0, 0.2)",
+      statusText: "#FFAB40",
+    },
+  ];
+  return gradients[index % gradients.length];
+};
 
-    <View style={styles.tribeContent}>
-      <Text style={styles.tribeName} numberOfLines={1}>
-        {community.name}
-      </Text>
-      <Text style={styles.tribeMembers}>
-        {community.follower_count || 0} members
-      </Text>
-      <TouchableOpacity style={styles.joinButton} onPress={() => onPress(community.id)}>
-        <Text style={styles.joinButtonText}>Join</Text>
-      </TouchableOpacity>
-    </View>
-  </TouchableOpacity>
-));
+const TribeCard = React.memo(({ community, onPress, index }) => {
+  const gradient = getGradientConfig(index);
+  const displayCategory = community.category || "Tribe";
+  
+  const hasEvents = community.upcoming_event_count && community.upcoming_event_count > 0;
+  const statusTextStr = hasEvents 
+    ? `${community.upcoming_event_count} event${community.upcoming_event_count > 1 ? 's' : ''}`
+    : "ACTIVE";
+  
+  const statusBgColor = hasEvents ? gradient.statusBg : gradient.statusBg;
+  const statusTextColor = hasEvents ? gradient.statusText : "#FFFFFF";
+
+  return (
+    <TouchableOpacity
+      style={styles.tribeCard}
+      onPress={() => onPress(community.id)}
+      activeOpacity={0.9}
+    >
+      <LinearGradient
+        colors={gradient.colors}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0.5, y: 0.0 }}
+        end={{ x: 0.5, y: 1.0 }}
+      />
+
+      <View
+        style={[
+          styles.geometricBox,
+          {
+            borderColor: gradient.lineColor,
+            top: -15,
+            right: -15,
+            width: 100,
+            height: 100,
+            transform: [{ rotate: "12deg" }],
+          },
+        ]}
+      />
+      <View
+        style={[
+          styles.geometricBox,
+          {
+            borderColor: gradient.lineColor,
+            bottom: -20,
+            left: -20,
+            width: 110,
+            height: 110,
+            transform: [{ rotate: "-8deg" }],
+          },
+        ]}
+      />
+
+      <View style={styles.cardTopRow}>
+        <View style={styles.categoryBadge}>
+          <Text style={styles.categoryText} numberOfLines={1}>
+            {displayCategory}
+          </Text>
+        </View>
+        <View style={[styles.statusBadge, { backgroundColor: statusBgColor }]}>
+          <Text style={[styles.statusText, { color: statusTextColor }]} numberOfLines={1}>
+            {statusTextStr}
+          </Text>
+        </View>
+      </View>
+
+      <View>
+        <Text style={styles.cardTitle} numberOfLines={2}>
+          {community.name}
+        </Text>
+        <View style={styles.cardBottomRow}>
+          <View style={styles.memberContainer}>
+            <View style={styles.avatarPile}>
+              {gradient.avatarColors.map((color, i) => (
+                <View
+                  key={i}
+                  style={[
+                    styles.avatarDot,
+                    {
+                      backgroundColor: color,
+                      marginLeft: i > 0 ? -6 : 0,
+                      zIndex: 3 - i,
+                    },
+                  ]}
+                />
+              ))}
+            </View>
+            <Text style={styles.memberCountText}>
+              +{community.follower_count || 12}
+            </Text>
+          </View>
+
+          <View style={styles.joinButtonPill}>
+            <Text style={[styles.joinButtonPillText, { color: gradient.joinTextColor }]}>
+              Join
+            </Text>
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+});
 
 /** Maps a top_reasons entry to a human-readable sentence. */
 function formatReason(reason) {
@@ -562,65 +678,138 @@ const styles = StyleSheet.create({
 
   // Reconnect Section
   tribeCard: {
-    width: 156,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    width: 165,
+    height: 205,
+    backgroundColor: "#000000",
+    borderRadius: 20,
+    overflow: "hidden",
+    marginVertical: 6,
+    position: "relative",
+    padding: 14,
+    justifyContent: "space-between",
     ...SHADOWS.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.05,
-    shadowRadius: 18,
-    elevation: 2,
-    overflow: "hidden",
-    marginVertical: 4, // Space for shadow
   },
-  tribeVisualContainer: {
-    height: 88,
-    margin: 12,
-    borderRadius: 14,
-    backgroundColor: "#EFF6FF", // Fallback color
-    overflow: "hidden",
-  },
-  tribeVisual: {
-    width: "100%",
-    height: "100%",
-  },
-  tribeVisualGradient: {
+  geometricBox: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: "100%",
+    borderWidth: 1,
+    borderRadius: 6,
+    opacity: 0.8,
   },
-  tribeContent: {
-    paddingHorizontal: 12,
-    paddingBottom: 12,
+  cardTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    zIndex: 10,
   },
-  tribeName: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: "#0F172A",
-    marginBottom: 6,
+  categoryBadge: {
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    maxWidth: "50%",
   },
-  tribeMembers: {
+  categoryText: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+    color: "#FFFFFF",
+  },
+  statusBadge: {
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  statusText: {
+    fontFamily: FONTS.medium,
+    fontSize: 11,
+  },
+  cardTitle: {
+    fontFamily: FONTS.primary,
+    fontSize: 18,
+    color: "#FFFFFF",
+    lineHeight: 22,
+    marginBottom: 10,
+    zIndex: 10,
+  },
+  cardBottomRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  memberContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  avatarPile: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  avatarDot: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: "#000000",
+  },
+  memberCountText: {
     fontFamily: FONTS.medium,
     fontSize: 12,
-    color: "#64748B",
-    marginBottom: 0,
+    color: "#FFFFFF",
+    marginLeft: 6,
   },
-  joinButton: {
-    width: "100%",
-    height: 34,
-    backgroundColor: "#2962FF",
-    borderRadius: 10,
-    alignItems: "center",
+  joinButtonPill: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
     justifyContent: "center",
-    marginTop: 10,
+    alignItems: "center",
   },
-  joinButtonText: {
+  joinButtonPillText: {
     fontFamily: FONTS.medium,
-    fontSize: 13,
+    fontSize: 12,
+  },
+  browseAllButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingVertical: 4,
+    paddingLeft: 8,
+  },
+  browseAllText: {
+    fontFamily: FONTS.semiBold,
+    fontSize: 14,
+    color: COLORS.primary,
+  },
+  vibeMatchContainer: {
+    paddingHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  vibeMatchPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#18181B",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "#27272A",
+  },
+  vibeMatchIcon: {
+    marginRight: 8,
+  },
+  vibeMatchText: {
+    fontFamily: FONTS.regular,
+    fontSize: 12,
+    color: "#A1A1AA",
+    lineHeight: 16,
+  },
+  vibeMatchHighlight: {
+    fontFamily: FONTS.semiBold,
     color: "#FFFFFF",
   },
 

@@ -195,7 +195,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
     }
   };
 
-  const handleCancelPlan = async () => {
+  const handleDeletePlan = async () => {
     if (!cancelConfirming) {
       // Phase 1: show warning
       setCancelConfirming(true);
@@ -210,7 +210,15 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
       // Notify parent to remove plan from list
       if (onPlanCancelled) onPlanCancelled(plan.id);
     } catch (err) {
-      Alert.alert('Error', err?.message || 'Could not cancel plan. Please try again.');
+      const errorCode = err?.response?.data?.error || err?.error;
+      if (errorCode === 'plan_has_accepted_attendees') {
+        Alert.alert(
+          'Cannot Delete Plan',
+          'This plan cannot be deleted because people have already joined. You can close it instead.'
+        );
+      } else {
+        Alert.alert('Error', err?.message || 'Could not delete plan. Please try again.');
+      }
     } finally {
       setCancelling(false);
       setCancelConfirming(false);
@@ -607,15 +615,15 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
               <Text style={styles.submitBtnText}>Save changes</Text>
             )}
           </TouchableOpacity>
-          {/* Cancel Plan */}
-          {plan && !['cancelled', 'completed'].includes(plan.status) && (
+          {/* Delete Plan — only when no one has been accepted yet */}
+          {plan && (plan.accepted_count ?? 0) === 0 && (
             <View style={styles.cancelSection}>
               {cancelConfirming && (
                 <View style={styles.cancelWarning}>
                   <Text style={styles.cancelWarningText}>
-                    {plan.accepted_count > 0
-                      ? `⚠️ ${plan.accepted_count} approved attendee${plan.accepted_count > 1 ? 's' : ''} will be notified. This cannot be undone.`
-                      : 'This will cancel the plan for all requesters. This cannot be undone.'}
+                    {(plan.pending_count ?? 0) > 0
+                      ? `⚠️ ${plan.pending_count} pending request${plan.pending_count > 1 ? 's' : ''} will be notified that the plan was removed. This cannot be undone.`
+                      : 'This plan will be permanently deleted. This cannot be undone.'}
                   </Text>
                 </View>
               )}
@@ -625,7 +633,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
                   cancelConfirming && styles.cancelPlanBtnConfirm,
                   cancelling && styles.submitBtnDisabled,
                 ]}
-                onPress={handleCancelPlan}
+                onPress={handleDeletePlan}
                 disabled={cancelling || loading}
                 activeOpacity={0.8}
               >
@@ -636,7 +644,7 @@ export default function EditPlanBottomSheet({ visible, onClose, plan, navigation
                     styles.cancelPlanBtnText,
                     cancelConfirming && styles.cancelPlanBtnTextConfirm,
                   ]}>
-                    {cancelConfirming ? 'Confirm — Cancel Plan' : 'Cancel Plan'}
+                    {cancelConfirming ? 'Confirm — Delete Plan' : 'Delete Plan'}
                   </Text>
                 )}
               </TouchableOpacity>

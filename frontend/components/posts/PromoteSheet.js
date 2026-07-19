@@ -215,12 +215,11 @@ const PromoteSheet = ({
       setEngagementType(null);
       setEngagementData(null);
       
-      // Delay API call until slide animation completes (350ms) to ensure smooth transitions
+      // Delay API call and tab bar hiding until slide animation completes (350ms) to ensure smooth transitions
       timer = setTimeout(() => {
         loadQuota();
+        EventBus.emit("hide-tab-bar");
       }, 350);
-
-      EventBus.emit("hide-tab-bar");
     } else {
       EventBus.emit("show-tab-bar");
     }
