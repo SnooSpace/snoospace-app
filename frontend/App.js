@@ -12,6 +12,14 @@ import {
   Manrope_500Medium,
   Manrope_600SemiBold,
 } from "@expo-google-fonts/manrope";
+import {
+  PlusJakartaSans_800ExtraBold,
+  PlusJakartaSans_800ExtraBold_Italic,
+} from "@expo-google-fonts/plus-jakarta-sans";
+import {
+  Nunito_800ExtraBold,
+  Nunito_800ExtraBold_Italic,
+} from "@expo-google-fonts/nunito";
 import AppNavigator from "./navigation/AppNavigator";
 import {
   getAuthToken,
@@ -282,6 +290,10 @@ export default function App() {
     "Manrope-Regular": Manrope_400Regular,
     "Manrope-Medium": Manrope_500Medium,
     "Manrope-SemiBold": Manrope_600SemiBold,
+    "PlusJakartaSans-ExtraBold": PlusJakartaSans_800ExtraBold,
+    "PlusJakartaSans-ExtraBoldItalic": PlusJakartaSans_800ExtraBold_Italic,
+    "Nunito-ExtraBold": Nunito_800ExtraBold,
+    "Nunito-ExtraBoldItalic": Nunito_800ExtraBold_Italic,
   });
 
   // Auto-refresh tokens when app comes to foreground

@@ -20,13 +20,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import {
   ArrowRight,
   Users,
-  Building2,
-  Sparkles,
   UserPlus,
   MessageCircle,
   Calendar,
   Handshake,
   Sparkle,
+  TrendingUp,
 } from "lucide-react-native";
 import GlassBackButton from "../../components/GlassBackButton";
 import { SvgXml } from "react-native-svg";
@@ -98,7 +97,7 @@ const PARTICIPATION_ROLES = [
         icon: MessageCircle,
         iconBg: "#FEF3C7",
         iconColor: "#F59E0B",
-        title: "Build Connections",
+        title: "Connections",
         desc: "Start conversations and create lasting connections.",
       },
     ],
@@ -113,30 +112,30 @@ const PARTICIPATION_ROLES = [
     buttonText: "Start Building",
     image: require("../../assets/Illustrations/Community.webp"),
     icon: Users,
-    accentColor: "#FF5B37",
-    badgeBg: "#FFF0E6",
-    buttonGradient: ["#FF7A59", "#FF5252"],
+    accentColor: "#059669",
+    badgeBg: "#E6F4EA",
+    buttonGradient: ["#059669", "#047857"],
     features: [
       {
         icon: Calendar,
-        iconBg: "#FFEDD5",
-        iconColor: "#EA580C",
+        iconBg: "#E6F4EA",
+        iconColor: "#059669",
         title: "Create & Host",
         desc: "Bring your ideas to life with events.",
       },
       {
-        icon: Users,
-        iconBg: "#DCFCE7",
-        iconColor: "#22C55E",
+        icon: TrendingUp,
+        iconBg: "#E6F4EA",
+        iconColor: "#059669",
         title: "Engage & Grow",
         desc: "Grow your audience and increase impact.",
       },
       {
         icon: Handshake,
-        iconBg: "#FFEDD5",
-        iconColor: "#EA580C",
+        iconBg: "#E6F4EA",
+        iconColor: "#059669",
         title: "Collaborate",
-        desc: "Partner with others and do more together.",
+        desc: "Partner and do more together.",
       },
     ],
   },
@@ -345,7 +344,7 @@ const AnimatedCard = memo(
                     })}
                   </View>
 
-                  {/* Vibrant Gradient Button with Sparkles */}
+                  {/* Vibrant Gradient Button */}
                   <TouchableOpacity
                     activeOpacity={0.88}
                     onPress={onContinue}
@@ -360,19 +359,15 @@ const AnimatedCard = memo(
                         { shadowColor: item.accentColor },
                       ]}
                     >
-                      <Sparkles size={18} color="#FFFFFF" style={{ opacity: 0.9 }} />
-                      <View style={styles.buttonCenterRow}>
-                        <Text style={styles.cardContinueButtonText}>
-                          {item.buttonText}
-                        </Text>
-                        <ArrowRight
-                          size={18}
-                          color="#FFFFFF"
-                          strokeWidth={2.5}
-                          style={{ marginLeft: 6 }}
-                        />
-                      </View>
-                      <Sparkles size={18} color="#FFFFFF" style={{ opacity: 0.9 }} />
+                      <Text style={styles.cardContinueButtonText}>
+                        {item.buttonText}
+                      </Text>
+                      <ArrowRight
+                        size={18}
+                        color="#FFFFFF"
+                        strokeWidth={2.5}
+                        style={{ marginLeft: 6 }}
+                      />
                     </LinearGradient>
                   </TouchableOpacity>
                 </Animated.View>
@@ -639,10 +634,12 @@ const LandingScreen = ({ navigation, route }) => {
               <SvgXml xml={SnooSpaceIconSvg} width={48} height={48} />
             </View>
             <Text style={styles.headerTitle}>
-              <Text style={{ color: COLORS.textPrimary }}>
+              <Text style={{ color: "#0F172A", fontFamily: FONTS.plusJakartaExtraBold }}>
                 Welcome to{"\n"}
               </Text>
-              <Text style={{ color: COLORS.primary }}>SnooSpace</Text>
+              <Text style={{ color: "#3565F2", fontFamily: FONTS.plusJakartaExtraBoldItalic }}>
+                SnooSpace
+              </Text>
             </Text>
             <Text style={styles.headerSubtitle}>Step into your experience</Text>
           </View>
@@ -757,7 +754,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: { marginBottom: 8 },
   headerTitle: {
-    fontFamily: FONTS.black, // BasicCommercial-Black per authority rule
+    fontFamily: FONTS.plusJakartaExtraBold, // PlusJakartaSans-ExtraBold
     fontSize: 32,
     textAlign: "center",
     lineHeight: 36,
@@ -916,11 +913,11 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   featureTitle: {
-    fontFamily: FONTS.semiBold, // Manrope-SemiBold
-    fontSize: 11.5,
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 12.5,
     color: "#0F172A",
     textAlign: "center",
-    lineHeight: 15,
+    lineHeight: 16,
   },
   featureDesc: {
     fontFamily: FONTS.regular, // Manrope-Regular
@@ -940,7 +937,7 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.pill,
     height: 48,
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 18,
     shadowOffset: { width: 0, height: 6 },

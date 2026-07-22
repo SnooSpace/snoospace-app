@@ -816,7 +816,7 @@ const styles = StyleSheet.create({
   },
   mainTitle: {
     fontSize: 34,
-    fontFamily: "BasicCommercial-Black",
+    fontFamily: "PlusJakartaSans-ExtraBold",
     color: "#1a2d4a",
     marginBottom: 10,
     letterSpacing: -1,

@@ -351,7 +351,7 @@ const styles = StyleSheet.create({
   },
   heading: {
     fontSize: 30,
-    fontFamily: "BasicCommercial-Black",
+    fontFamily: "PlusJakartaSans-ExtraBold",
     color: COLORS.textPrimary,
     textAlign: "center",
     letterSpacing: -0.8,

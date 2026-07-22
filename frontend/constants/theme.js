@@ -56,10 +56,14 @@ export const COLORS = {
 
 export const FONTS = {
   primary: "BasicCommercial-Bold",
-  black: "BasicCommercial-Black",
+  black: "PlusJakartaSans-ExtraBold",
   regular: "Manrope-Regular",
   medium: "Manrope-Medium",
   semiBold: "Manrope-SemiBold",
+  plusJakartaExtraBold: "PlusJakartaSans-ExtraBold",
+  plusJakartaExtraBoldItalic: "PlusJakartaSans-ExtraBoldItalic",
+  nunitoExtraBold: "Nunito-ExtraBold",
+  nunitoExtraBoldItalic: "Nunito-ExtraBoldItalic",
 };
 
 export const SPACING = {

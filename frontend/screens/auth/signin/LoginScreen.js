@@ -15,7 +15,7 @@ import {
 import { useToast } from "../../../context/ToastContext";
 import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
-import wave from "../../../assets/background/wave.webp";
+import loginBg from "../../../assets/background/ZigzagColor.webp";
 import { LinearGradient } from "expo-linear-gradient";
 
 // Removed local constants in favor of theme constants
@@ -122,9 +122,9 @@ const LoginScreen = ({ navigation, route }) => {
 
   return (
     <ImageBackground
-      source={wave}
+      source={loginBg}
       style={styles.backgroundImage}
-      imageStyle={{ transform: [{ scaleX: -1 }, { scaleY: -1 }], opacity: 0.3 }}
+      imageStyle={{ opacity: 0.3 }}
       resizeMode="cover"
       blurRadius={10}
     >
@@ -162,7 +162,7 @@ const LoginScreen = ({ navigation, route }) => {
         />
 
         <View style={styles.content}>
-          <Text style={styles.title}>Welcome back</Text>
+          <Text style={styles.title}>Welcome back !</Text>
           <Text style={styles.subtitle}>
             Enter your email or username to receive a login code
           </Text>
@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
     paddingTop: 30,
   },
   title: {
-    fontFamily: "BasicCommercial-Black",
+    fontFamily: "PlusJakartaSans-ExtraBold",
     fontSize: 34,
     color: COLORS.textPrimary,
     marginBottom: 12,

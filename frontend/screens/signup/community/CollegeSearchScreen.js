@@ -610,7 +610,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 34,
-    fontFamily: "BasicCommercial-Black",
+    fontFamily: "PlusJakartaSans-ExtraBold",
     color: COLORS.textPrimary,
     marginBottom: 10,
     letterSpacing: -1,
@@ -789,7 +789,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 24,
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: "PlusJakartaSans-ExtraBold",
     color: COLORS.textPrimary,
     marginBottom: 4,
   },

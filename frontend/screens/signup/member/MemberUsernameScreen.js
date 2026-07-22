@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 34,
-    fontFamily: "BasicCommercial-Black",
+    fontFamily: "PlusJakartaSans-ExtraBold",
     color: COLORS.textPrimary,
     marginBottom: 10,
     letterSpacing: -1,

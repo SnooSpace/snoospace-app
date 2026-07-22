@@ -563,7 +563,7 @@ const styles = StyleSheet.create({
     flex: 0,
   },
   title: {
-    fontFamily: "BasicCommercial-Black",
+    fontFamily: "PlusJakartaSans-ExtraBold",
     fontSize: 34,
     color: COLORS.textPrimary,
     marginBottom: 12,
@@ -707,7 +707,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 22,
-    fontFamily: "BasicCommercial-Bold",
+    fontFamily: "PlusJakartaSans-ExtraBold",
     color: "#000",
     marginBottom: 8,
     textAlign: "center",

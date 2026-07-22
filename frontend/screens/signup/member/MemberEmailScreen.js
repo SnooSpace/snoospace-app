@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
     flex: 0,
   },
   title: {
-    fontFamily: "BasicCommercial-Black",
+    fontFamily: "PlusJakartaSans-ExtraBold",
     fontSize: 34,
     color: COLORS.textPrimary,
     marginBottom: 12,
