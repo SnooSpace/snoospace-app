@@ -4,16 +4,16 @@
     "slug": "snoospace",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/adaptive-icon-scaled.png",
+    "icon": "./assets/logos/adaptive-icon-scaled.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon-scaled.png",
+      "image": "./assets/logos/splash-icon-scaled.png",
       "resizeMode": "contain",
       "backgroundColor": "#F9F9F9"
     },
     "ios": {
-      "icon": "./assets/ios-icon.png",
+      "icon": "./assets/logos/ios-icon.png",
       "supportsTablet": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "SnooSpace uses your location to personalize events near you and improve recommendations while the app is open.",
@@ -23,7 +23,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon-scaled.png",
+        "foregroundImage": "./assets/logos/adaptive-icon-scaled.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": [
@@ -50,7 +50,7 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/Illustrations/favicon.png"
     },
     "plugins": [
       [

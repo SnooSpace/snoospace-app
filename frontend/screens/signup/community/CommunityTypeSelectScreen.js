@@ -13,7 +13,7 @@ import {
 import { University, Building2, ChevronRight } from "lucide-react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
-import wave from "../../../assets/wave.webp";
+import wave from "../../../assets/background/wave.webp";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   COLORS,

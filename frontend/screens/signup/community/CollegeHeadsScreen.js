@@ -33,7 +33,7 @@ import Animated, {
 import { CircleX, PlusCircle, Camera } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import wave from "../../../assets/wave.webp";
+import wave from "../../../assets/background/wave.webp";
 import {
   COLORS,
   BORDER_RADIUS,

@@ -13,7 +13,7 @@ import {
   Image,
   ScrollView,
 } from "react-native";
-import wave from "../../../assets/wave.webp";
+import wave from "../../../assets/background/wave.webp";
 import { Camera, X } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import Animated, {

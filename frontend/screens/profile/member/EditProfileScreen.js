@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, ScrollView, Alert, LayoutAnimation, UIManager, Platform, Image, Keyboard, TouchableWithoutFeedback, ImageBackground, KeyboardAvoidingView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
-import PillShape from "../../../assets/PillShape.jpeg";
+import PillShape from "../../../assets/background/PillShape.jpeg";
 import { CircleCheck, CircleX } from "lucide-react-native";
 // Use transparent Lucid icons if available or standard Ionicons
 import {

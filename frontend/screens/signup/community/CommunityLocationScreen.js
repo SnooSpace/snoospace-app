@@ -17,7 +17,7 @@ import {
 import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 import { LocateFixed, CheckCircle2, CircleX, MapPin } from "lucide-react-native";
 import { BlurView } from "expo-blur";
-import wave from "../../../assets/wave.webp";
+import wave from "../../../assets/background/wave.webp";
 
 import {
   getCurrentLocation,

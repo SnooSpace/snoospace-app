@@ -13,23 +13,22 @@ const ProfileTabIcon = ({ focused, color, userType = "member" }) => {
 
   const fetchProfile = useCallback(async () => {
     try {
-      const token = await getAuthToken();
+      const { getUserProfile } = await import("../api/auth");
       const activeAccount = await getActiveAccount();
       const email = activeAccount?.email;
 
-      if (token && email) {
-        const response = await apiPost(
-          "/auth/get-user-profile",
-          { email },
-          10000,
-          token,
-        );
+      if (activeAccount?.profilePicture) {
+        setPhotoUrl(activeAccount.profilePicture);
+      }
+
+      if (email) {
+        const response = await getUserProfile(email);
 
         if (response?.profile) {
           const url =
             userType === "member"
-              ? response.profile.profile_photo_url
-              : response.profile.logo_url;
+              ? response.profile.profile_photo_url || activeAccount?.profilePicture
+              : response.profile.logo_url || activeAccount?.profilePicture;
           setPhotoUrl(url || null);
         }
       }

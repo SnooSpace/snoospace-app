@@ -27,7 +27,7 @@ import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, wit
 import { MapPin, CheckCircle2 } from "lucide-react-native";
 import * as Location from "expo-location";
 import { BlurView } from "expo-blur";
-import wave from "../../../assets/wave.webp";
+import wave from "../../../assets/background/wave.webp";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";

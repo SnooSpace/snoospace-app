@@ -11,6 +11,8 @@ import authEventEmitter from "../utils/authEventEmitter";
 
 // In-memory token cache to completely avoid AsyncStorage and Decryption overhead on every API request.
 let cachedToken = null;
+const inFlightProfileRequests = new Map();
+const cachedProfileMap = new Map();
 
 // Register listeners on the unified singleton authEventEmitter
 console.log('🔵 [TRACE:1b] api/auth.js using authEventEmitter singleton. ID:', authEventEmitter._traceId || '(no id)');
@@ -18,13 +20,66 @@ console.log('🔵 [TRACE:1b] api/auth.js using authEventEmitter singleton. ID:',
 authEventEmitter.on("accountSwitched", (data) => {
   console.log('🔵 [TRACE:1c] accountSwitched received in api/auth.js. cachedToken BEFORE clear:', cachedToken ? cachedToken.substring(0, 20) + '...' : 'null', '| new account email:', data?.email);
   cachedToken = null;
-  console.log('🔵 [TRACE:1d] cachedToken is now: null');
+  inFlightProfileRequests.clear();
+  cachedProfileMap.clear();
+  console.log('🔵 [TRACE:1d] cachedToken and profile caches cleared.');
 });
 
 authEventEmitter.on("unexpectedLogout", (data) => {
   console.log("[api/auth] Clearing cached token due to logout:", data?.email);
   cachedToken = null;
+  inFlightProfileRequests.clear();
+  cachedProfileMap.clear();
 });
+
+export function invalidateUserProfileCache(email) {
+  if (email) {
+    const key = email.toLowerCase().trim();
+    cachedProfileMap.delete(key);
+    inFlightProfileRequests.delete(key);
+  } else {
+    cachedProfileMap.clear();
+    inFlightProfileRequests.clear();
+  }
+}
+
+export async function getUserProfile(email, forceRefresh = false) {
+  if (!email) return null;
+  const key = email.toLowerCase().trim();
+
+  if (!forceRefresh && cachedProfileMap.has(key)) {
+    console.log(`[api/auth] Returning memory cached profile for: ${key}`);
+    return cachedProfileMap.get(key);
+  }
+
+  if (inFlightProfileRequests.has(key)) {
+    console.log(`[api/auth] Joining in-flight profile request for: ${key}`);
+    return inFlightProfileRequests.get(key);
+  }
+
+  const promise = (async () => {
+    try {
+      const token = await getAuthToken();
+      if (!token) return null;
+
+      console.log(`[api/auth] Executing single deduplicated /auth/get-user-profile request for: ${key}`);
+      const { apiPost } = require("./client");
+      const res = await apiPost("/auth/get-user-profile", { email: key }, 15000, token);
+      if (res) {
+        cachedProfileMap.set(key, res);
+      }
+      return res;
+    } catch (err) {
+      console.error(`[api/auth] Failed to fetch profile for ${key}:`, err);
+      throw err;
+    } finally {
+      inFlightProfileRequests.delete(key);
+    }
+  })();
+
+  inFlightProfileRequests.set(key, promise);
+  return promise;
+}
 
 /**
  * Set auth session for current active account

@@ -14,7 +14,7 @@ import {
 import Reanimated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, withSequence } from "react-native-reanimated";
 
 import { BlurView } from "expo-blur";
-import wave from "../../../assets/wave.webp";
+import wave from "../../../assets/background/wave.webp";
 
 import { LinearGradient } from "expo-linear-gradient";
 import {

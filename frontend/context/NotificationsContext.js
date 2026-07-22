@@ -21,8 +21,9 @@ export function NotificationsProvider({ children }) {
   const offsetRef = useRef(0);
   const debounceRef = useRef(null);
 
-  const loadInitial = useCallback(async () => {
-    setLoading(true);
+  const loadInitial = useCallback(async (options = {}) => {
+    const isBackground = options?.background === true;
+    if (!isBackground) setLoading(true);
     try {
       const [unreadRes, list] = await Promise.all([
         fetchUnreadCount(),
@@ -41,7 +42,7 @@ export function NotificationsProvider({ children }) {
     } catch {
       // no-op
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   }, []);
 
@@ -106,17 +107,43 @@ export function NotificationsProvider({ children }) {
     } catch {}
   }, []);
 
+  const loadUnreadCountOnly = useCallback(async () => {
+    try {
+      const unreadRes = await fetchUnreadCount();
+      setUnread(unreadRes?.unread || 0);
+      setCategoryBreakdown(unreadRes?.breakdown || {
+        activity: 0,
+        communities: 0,
+        messages: 0,
+        events: 0,
+        system: 0
+      });
+    } catch {
+      // no-op
+    }
+  }, []);
+
   useEffect(() => {
-    loadInitial();
-  }, [loadInitial]);
+    loadUnreadCountOnly();
+  }, [loadUnreadCountOnly]);
 
   const value = useMemo(
-    () => ({ items, unread, categoryBreakdown, loading, loadInitial, loadMore, markAllRead, currentBanner, setCurrentBanner }),
-    [items, unread, categoryBreakdown, loading, loadInitial, loadMore, markAllRead, currentBanner]
+    () => ({ items, unread, categoryBreakdown, loading, loadInitial, loadMore, markAllRead, currentBanner, setCurrentBanner, loadUnreadCountOnly }),
+    [items, unread, categoryBreakdown, loading, loadInitial, loadMore, markAllRead, currentBanner, loadUnreadCountOnly]
   );
 
+  // [DIAG-CTX-IDENTITY] — remove after isolation sprint
+  // Tracks whether useMemo produced the SAME value object reference across renders.
+  // sameRefAsPrevious=true  → memoization held, no downstream re-renders triggered by this context
+  // sameRefAsPrevious=false → new object created; all consumers will re-render
+  const prevValueRef = useRef(null);
+  const isSameReference = prevValueRef.current === value;
+  // Assign synchronously in render body so the next render sees the current reference
+  prevValueRef.current = value;
+
   useEffect(() => {
-    console.log(`[PERF-CONTEXT] NotificationsContext value updated. unread: ${unread}, loading: ${loading}, items count: ${items?.length || 0}`);
+    // [DIAG-CTX-IDENTITY] — remove after isolation sprint
+    console.log(`[DIAG-CTX-IDENTITY] NotificationsContext: sameRefAsPrevious=${isSameReference}, unread=${unread}, items=${items?.length ?? 0} at t=${Date.now()}`);
   }, [value]);
 
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
@@ -137,5 +164,6 @@ export function useNotifications() {
     loadInitial: () => {},
     loadMore: () => {},
     markAllRead: () => {},
+    loadUnreadCountOnly: () => {},
   };
 }

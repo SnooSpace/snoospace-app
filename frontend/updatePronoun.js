@@ -7,7 +7,7 @@ let content = fs.readFileSync(filePath, 'utf8');
 // 1. Add Imports
 content = content.replace(
   'import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView } from "react-native";',
-  'import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, ImageBackground } from "react-native";\nimport { BlurView } from "expo-blur";\nimport wave from "../../../assets/wave.png";'
+  'import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView, ImageBackground } from "react-native";\nimport { BlurView } from "expo-blur";\nimport wave from "../../../assets/background/wave.webp";'
 );
 
 // 2. Wrap SafeAreaView with ImageBackground

@@ -10,7 +10,7 @@ import { StyleSheet, ImageBackground } from 'react-native';
 export default function GrainyGradientBackground({ children }) {
   return (
     <ImageBackground
-      source={require('../../assets/tealish.png')}
+      source={require('../../assets/background/tealish.png')}
       style={styles.container}
       resizeMode="cover"
     >

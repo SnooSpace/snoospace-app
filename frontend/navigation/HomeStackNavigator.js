@@ -44,6 +44,7 @@ export default function HomeStackNavigator() {
         // synchronous layout commit that triggered the paging snap.
         animation: "slide_from_right",
         gestureEnabled: true,
+        contentStyle: { backgroundColor: "#FFFFFF" },
         ...(Platform.OS === "ios" ? { animationDuration: 350 } : {}),
       }}
       initialRouteName="HomeFeed"

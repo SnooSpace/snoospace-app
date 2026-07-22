@@ -17,6 +17,8 @@ import React, {
   useCallback,
   useRef,
 } from "react";
+import { useRecyclingState } from "@shopify/flash-list";
+import { Image as ExpoImage } from "expo-image";
 import {
   View,
   Text,
@@ -268,8 +270,11 @@ const DefaultEditorialPostCard = ({
   const [fullscreenVisible, setFullscreenVisible] = useState(false);
   const videoPositionRef = useRef(0); // tracks current playback position for modal sync
   const initialIsLiked = post.is_liked === true;
-  const [isLiked, setIsLiked] = useState(initialIsLiked);
-  const [likeCount, setLikeCount] = useState(post.like_count || 0);
+  // Fix #2: useRecyclingState resets these values when FlashList recycles this
+  // component instance for a different post, preventing stale like/save/view
+  // state from carrying over across posts in the same recycled cell.
+  const [isLiked, setIsLiked] = useRecyclingState(post.is_liked === true, [post.id]);
+  const [likeCount, setLikeCount] = useRecyclingState(post.like_count || 0, [post.id]);
   const [isLiking, setIsLiking] = useState(false);
   // Cache auth token so handleLike never awaits I/O before the optimistic UI update
   const tokenRef = useRef(null);
@@ -278,12 +283,13 @@ const DefaultEditorialPostCard = ({
       tokenRef.current = t;
     });
   }, []);
-  const [isSaved, setIsSaved] = useState(post.is_saved || false);
-  const [saveCount, setSaveCount] = useState(
+  const [isSaved, setIsSaved] = useRecyclingState(post.is_saved || false, [post.id]);
+  const [saveCount, setSaveCount] = useRecyclingState(
     post.save_count || post.saves_count || 0,
+    [post.id],
   );
-  const [videoViewCounted, setVideoViewCounted] = useState(false);
-  const [imageViewCounted, setImageViewCounted] = useState(false);
+  const [videoViewCounted, setVideoViewCounted] = useRecyclingState(false, [post.id]);
+  const [imageViewCounted, setImageViewCounted] = useRecyclingState(false, [post.id]);
 
   // Custom Alert Modal State
   const [alertVisible, setAlertVisible] = useState(false);
@@ -1058,18 +1064,24 @@ const DefaultEditorialPostCard = ({
         <GestureDetector gesture={authorGesture}>
           <View style={styles.authorInfo}>
             {!isAnon && post.author_photo_url ? (
-              <Image
+              // Fix #3: expo-image with memory-disk caching so recycled cells
+              // do not re-fetch/re-decode avatars already downloaded this session.
+              <ExpoImage
                 source={{ uri: post.author_photo_url }}
                 style={styles.profileImage}
+                cachePolicy="memory-disk"
+                transition={100}
               />
             ) : !isAnon ? (
-              <Image
+              <ExpoImage
                 source={{
                   uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
                     post.author_name || "U",
                   )}&background=E5E7EB&color=6B7280&size=88`,
                 }}
                 style={styles.profileImage}
+                cachePolicy="memory-disk"
+                transition={100}
               />
             ) : (
               <View style={styles.anonProfileImage}>

@@ -9,6 +9,7 @@ import {
   Platform,
   Pressable,
   ImageBackground,
+  Image,
 } from "react-native";
 import { FlatList as GHFlatList } from "react-native-gesture-handler";
 import {
@@ -16,11 +17,19 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import LottieView from "lottie-react-native";
-import { ArrowRight, Users, Building2, ArrowLeft } from "lucide-react-native";
+import {
+  ArrowRight,
+  Users,
+  Building2,
+  Sparkles,
+  UserPlus,
+  MessageCircle,
+  Calendar,
+  Handshake,
+  Sparkle,
+} from "lucide-react-native";
 import GlassBackButton from "../../components/GlassBackButton";
 import { SvgXml } from "react-native-svg";
-import { BlurView } from "expo-blur";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -48,6 +57,7 @@ import {
 // RNGH-compatible animated FlatList — ensures carousel swipe gestures
 // win over the stack navigator's horizontal swipe-back recogniser.
 const AnimatedGHFlatList = Animated.createAnimatedComponent(GHFlatList);
+const AnimatedImage = Animated.createAnimatedComponent(Image);
 
 const SnooSpaceIconSvg = `<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
 <path d="M66.667 0.5C103.181 0.500189 132.833 31.9995 132.833 70.9219C132.833 109.844 103.181 141.344 66.667 141.344C30.1528 141.344 0.5 109.844 0.5 70.9219C0.500058 31.9993 30.1529 0.5 66.667 0.5Z" fill="#3565F2" stroke="#3D79F2"/>
@@ -59,24 +69,76 @@ const PARTICIPATION_ROLES = [
   {
     id: "member",
     title: "People",
+    collapsedSubtitle:
+      "Meet real people, join events, and connect over shared interests.",
     subtitle:
       "Join events, discover communities, and connect with people nearby.",
-    quote:
-      "Where every event is a chance to meet someone worth knowing — or become someone worth following.",
     buttonText: "Start Exploring",
-    animation: require("../../assets/animations/gossipers.json"),
+    image: require("../../assets/Illustrations/People.webp"),
     icon: Users,
-    accentColor: "#3B5BDB",
+    accentColor: "#7C3AED",
+    badgeBg: "#F0EBFF",
+    buttonGradient: ["#8B5CF6", "#7C3AED"],
+    features: [
+      {
+        icon: UserPlus,
+        iconBg: "#F3E8FF",
+        iconColor: "#8B5CF6",
+        title: "Meet New People",
+        desc: "Find like-minded people who share your interests.",
+      },
+      {
+        icon: Sparkle,
+        iconBg: "#DCFCE7",
+        iconColor: "#22C55E",
+        title: "Join & Participate",
+        desc: "Engage in events and activities happening around you.",
+      },
+      {
+        icon: MessageCircle,
+        iconBg: "#FEF3C7",
+        iconColor: "#F59E0B",
+        title: "Build Connections",
+        desc: "Start conversations and create lasting connections.",
+      },
+    ],
   },
   {
     id: "community",
     title: "Community",
-    subtitle: "Host events, grow your audience, and track what's working.",
-    quote: "The people worth gathering are out there. Bring them in.",
+    collapsedSubtitle:
+      "Host events, grow your audience, and build a thriving community.",
+    subtitle:
+      "Host events, grow your audience, and build a thriving community.",
     buttonText: "Start Building",
-    animation: require("../../assets/animations/Community svg.json"),
-    icon: Building2,
-    accentColor: "#3B5BDB",
+    image: require("../../assets/Illustrations/Community.webp"),
+    icon: Users,
+    accentColor: "#FF5B37",
+    badgeBg: "#FFF0E6",
+    buttonGradient: ["#FF7A59", "#FF5252"],
+    features: [
+      {
+        icon: Calendar,
+        iconBg: "#FFEDD5",
+        iconColor: "#EA580C",
+        title: "Create & Host",
+        desc: "Bring your ideas to life with events.",
+      },
+      {
+        icon: Users,
+        iconBg: "#DCFCE7",
+        iconColor: "#22C55E",
+        title: "Engage & Grow",
+        desc: "Grow your audience and increase impact.",
+      },
+      {
+        icon: Handshake,
+        iconBg: "#FFEDD5",
+        iconColor: "#EA580C",
+        title: "Collaborate",
+        desc: "Partner with others and do more together.",
+      },
+    ],
   },
 ];
 
@@ -86,6 +148,7 @@ const AnimatedCard = memo(
     item,
     index,
     cardBaseHeight,
+    cardExpandedHeight,
     selectedIndex,
     onSelect,
     onContinue,
@@ -96,42 +159,65 @@ const AnimatedCard = memo(
     const IconComponent = item.icon;
 
     const cardStyle = useAnimatedStyle(() => {
-      const currentScale = withTiming(isOtherSelected ? 0.88 : 1, {
+      const currentScale = withTiming(isOtherSelected ? 0.9 : 1, {
         duration: 350,
       });
       const currentOpacity = withTiming(isOtherSelected ? 0.75 : 1, {
         duration: 350,
       });
       const currentHeight = withTiming(
-        isSelected ? cardBaseHeight + 130 : cardBaseHeight,
-        { duration: 420 },
+        isSelected ? cardExpandedHeight : cardBaseHeight,
+        {
+          duration: 420,
+          easing: Easing.bezier(0.25, 1, 0.5, 1),
+        },
       );
+      const translateY = withTiming(isSelected ? 0 : 28, {
+        duration: 420,
+        easing: Easing.bezier(0.25, 1, 0.5, 1),
+      });
+
       return {
-        transform: [{ scale: currentScale }],
+        transform: [{ scale: currentScale }, { translateY }],
         opacity: currentOpacity,
         height: currentHeight,
         zIndex: isSelected ? 10 : 1,
       };
     });
 
-    const expandedAreaStyle = useAnimatedStyle(() => ({
+    const heroImageStyle = useAnimatedStyle(() => {
+      const targetHeight = withTiming(
+        isSelected ? Math.round(cardBaseHeight * 0.48) : cardBaseHeight,
+        {
+          duration: 420,
+          easing: Easing.bezier(0.25, 1, 0.5, 1),
+        },
+      );
+      return {
+        height: targetHeight,
+      };
+    });
+
+    const collapsedViewStyle = useAnimatedStyle(() => ({
+      opacity: withTiming(isSelected ? 0 : 1, {
+        duration: 250,
+        easing: Easing.out(Easing.quad),
+      }),
+    }));
+
+    const expandedViewStyle = useAnimatedStyle(() => ({
       opacity: withTiming(isSelected ? 1 : 0, {
-        duration: 280,
+        duration: 320,
         easing: Easing.out(Easing.quad),
       }),
       transform: [
         {
-          translateY: withTiming(isSelected ? 0 : 16, {
+          translateY: withTiming(isSelected ? 0 : 20, {
             duration: 380,
             easing: Easing.out(Easing.cubic),
           }),
         },
       ],
-      height: withTiming(isSelected ? 140 : 0, {
-        duration: 420,
-        easing: Easing.bezier(0.33, 1, 0.68, 1),
-      }),
-      overflow: "hidden",
     }));
 
     return (
@@ -142,15 +228,10 @@ const AnimatedCard = memo(
           cardStyle,
         ]}
       >
-        {/* ── Outer glow ring — colored border + deep shadow ── */}
         <View
           style={[
             styles.cardGlowRing,
-            {
-              borderColor: isSelected
-                ? item.accentColor + "55"
-                : "rgba(255,255,255,0.18)",
-            },
+            isSelected && styles.cardGlowRingExpanded,
           ]}
         >
           <Pressable
@@ -158,119 +239,143 @@ const AnimatedCard = memo(
             style={styles.cardPressable}
           >
             <View style={styles.cardInner}>
-              {/* Lottie Background */}
-              <LottieView
-                source={item.animation}
-                autoPlay
-                loop
-                style={[
-                  styles.lottieAnimation,
-                  item.id === "member" && styles.gossipersAnimation,
-                ]}
+              {/* Top Hero Background Image */}
+              <AnimatedImage
+                source={item.image}
+                style={[styles.heroImage, heroImageStyle]}
                 resizeMode="cover"
               />
 
-              {/* ── Cinematic gradient — 4-stop, stays clear longer ── */}
-              <LinearGradient
-                colors={[
-                  "transparent",
-                  "rgba(8,10,20,0.12)",
-                  "rgba(8,10,20,0.58)",
-                  "rgba(8,10,20,0.92)",
-                ]}
-                locations={[0.25, 0.5, 0.72, 1]}
-                style={styles.cardGradientOverlay}
-              />
-
-              {/* ── Card Content ── */}
-              <View style={styles.cardContent}>
-                {/* ── Frosted glass header panel ── */}
-                <BlurView intensity={22} tint="dark" style={styles.glassPanel}>
-                  {/* Accent hairline on top of glass panel */}
-                  <View
-                    style={[
-                      styles.glassPanelAccentLine,
-                      { backgroundColor: item.accentColor + "60" },
-                    ]}
-                  />
-
-                  <View style={styles.cardHeaderRow}>
-                    {/* Icon badge — tinted with accent */}
+              {/* ── Collapsed View Content (Dark Overlay + Title + Subtext) ── */}
+              <Animated.View
+                style={[styles.collapsedContainer, collapsedViewStyle]}
+                pointerEvents={isSelected ? "none" : "auto"}
+              >
+                <LinearGradient
+                  colors={[
+                    "transparent",
+                    "rgba(8,10,20,0.35)",
+                    "rgba(8,10,20,0.88)",
+                  ]}
+                  locations={[0.2, 0.55, 1]}
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.collapsedContent}>
+                  <View style={styles.collapsedHeaderRow}>
                     <View
                       style={[
-                        styles.cardIconContainer,
-                        {
-                          backgroundColor: item.accentColor + "28",
-                          borderColor: item.accentColor + "55",
-                        },
+                        styles.collapsedIconBadge,
+                        { backgroundColor: item.accentColor },
                       ]}
                     >
                       <IconComponent
-                        size={20}
-                        color={COLORS.surface}
+                        size={22}
+                        color="#FFFFFF"
                         strokeWidth={2.2}
                       />
                     </View>
-                    <Text style={styles.cardTitle}>{item.title}</Text>
+                    <Text style={styles.collapsedTitle}>{item.title}</Text>
                   </View>
+                  <Text style={styles.collapsedSubtitle}>
+                    {item.collapsedSubtitle}
+                  </Text>
+                </View>
+              </Animated.View>
 
-                  {/* Collapsed subtitle */}
-                  {!isSelected && (
-                    <View style={styles.cardSubtitleClipContainer}>
-                      <Text
-                        style={styles.cardSubtitleCollapsed}
-                        numberOfLines={2}
-                        ellipsizeMode="tail"
-                      >
-                        {item.subtitle}
-                      </Text>
-                    </View>
-                  )}
-                </BlurView>
-
-                {/* Expanded area — outside glass panel, below it */}
-                {isSelected && (
-                  <Animated.View
-                    style={[expandedAreaStyle, styles.expandedArea]}
-                  >
-                    {item.quote ? (
-                      <Text style={styles.cardQuoteExpanded}>{item.quote}</Text>
-                    ) : (
-                      <Text style={styles.cardSubtitleExpanded}>
-                        {item.subtitle}
-                      </Text>
-                    )}
-                    <TouchableOpacity
-                      activeOpacity={0.82}
-                      onPress={onContinue}
+              {/* ── Expanded View Content (Clean White Sheet) ── */}
+              {isSelected && (
+                <Animated.View
+                  style={[styles.expandedSheet, expandedViewStyle]}
+                >
+                  {/* Header Row */}
+                  <View style={styles.expandedHeaderRow}>
+                    <View
                       style={[
-                        styles.cardContinueButton,
-                        {
-                          backgroundColor: item.accentColor,
-                          shadowColor: item.accentColor,
-                        },
+                        styles.expandedIconBadge,
+                        { backgroundColor: item.badgeBg },
                       ]}
                     >
-                      <Text style={styles.cardContinueButtonText}>
-                        {item.buttonText}
-                      </Text>
-                      <ArrowRight
-                        size={18}
-                        color={COLORS.surface}
-                        strokeWidth={2.5}
+                      <IconComponent
+                        size={24}
+                        color={item.accentColor}
+                        strokeWidth={2.2}
                       />
-                    </TouchableOpacity>
-                  </Animated.View>
-                )}
-              </View>
+                    </View>
+                    <Text style={styles.expandedTitle}>{item.title}</Text>
+                  </View>
 
-              {/* Blur overlay for de-emphasised cards */}
-              {isOtherSelected && Platform.OS !== "web" && (
-                <BlurView
-                  intensity={4}
-                  style={StyleSheet.absoluteFill}
-                  tint="light"
-                />
+                  {/* Main Subtitle */}
+                  <Text style={styles.expandedSubtitle}>{item.subtitle}</Text>
+
+                  {/* 3 Features Columns Row */}
+                  <View style={styles.featuresRow}>
+                    {item.features.map((feat, fIdx) => {
+                      const FeatIcon = feat.icon;
+                      return (
+                        <View
+                          key={fIdx}
+                          style={[
+                            styles.featureCol,
+                            fIdx < item.features.length - 1 &&
+                              styles.featureColDivider,
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.featureIconCircle,
+                              { backgroundColor: feat.iconBg },
+                            ]}
+                          >
+                            <FeatIcon
+                              size={20}
+                              color={feat.iconColor}
+                              strokeWidth={2.2}
+                            />
+                          </View>
+                          <View style={styles.featureTitleContainer}>
+                            <Text style={styles.featureTitle} numberOfLines={2}>
+                              {feat.title}
+                            </Text>
+                          </View>
+                          <Text style={styles.featureDesc} numberOfLines={4}>
+                            {feat.desc}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+
+                  {/* Vibrant Gradient Button with Sparkles */}
+                  <TouchableOpacity
+                    activeOpacity={0.88}
+                    onPress={onContinue}
+                    style={styles.cardContinueButtonWrapper}
+                  >
+                    <LinearGradient
+                      colors={item.buttonGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={[
+                        styles.cardContinueButton,
+                        { shadowColor: item.accentColor },
+                      ]}
+                    >
+                      <Sparkles size={18} color="#FFFFFF" style={{ opacity: 0.9 }} />
+                      <View style={styles.buttonCenterRow}>
+                        <Text style={styles.cardContinueButtonText}>
+                          {item.buttonText}
+                        </Text>
+                        <ArrowRight
+                          size={18}
+                          color="#FFFFFF"
+                          strokeWidth={2.5}
+                          style={{ marginLeft: 6 }}
+                        />
+                      </View>
+                      <Sparkles size={18} color="#FFFFFF" style={{ opacity: 0.9 }} />
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
               )}
             </View>
           </Pressable>
@@ -290,27 +395,20 @@ const LandingScreen = ({ navigation, route }) => {
 
   // Draft recovery state
   const [showDraftModal, setShowDraftModal] = useState(false);
-  const [activeDraft, setActiveDraft] = useState(null); // { type: "Member"|"Community", email: string, step: string }
-  // Prevent draft modal from re-appearing when navigating back from signup flow
+  const [activeDraft, setActiveDraft] = useState(null);
   const draftModalShown = useRef(false);
 
-  // Check for any existing drafts when landing screen appears
   useFocusEffect(
     useCallback(() => {
-      // Only show draft modal once per session to avoid re-showing it
-      // when the user navigates back from within the signup flow
       if (draftModalShown.current) return;
 
       const checkForDrafts = async () => {
         try {
-          // Check both drafts
           const [communityDraft, memberDraft] = await Promise.all([
             getCommunitySignupDraft(),
             getSignupDraft(),
           ]);
 
-          // Priority: Community draft if exists, else Member draft
-          // (Or could compare lastUpdatedAt, but a simple priority is fine)
           if (communityDraft && communityDraft.data?.email) {
             setActiveDraft({
               type: "Community",
@@ -330,10 +428,8 @@ const LandingScreen = ({ navigation, route }) => {
             draftModalShown.current = true;
             setShowDraftModal(true);
           } else if (memberDraft && memberDraft.data?.fromCommunitySignup) {
-            // People-profile draft: no email (flow started from community account)
             setActiveDraft({
               type: "Member",
-              // Show a friendly label since there's no email in this flow
               email: "your People profile",
               step: memberDraft.currentStep,
               data: memberDraft.data,
@@ -347,7 +443,6 @@ const LandingScreen = ({ navigation, route }) => {
         }
       };
 
-      // Delay slightly to not interrupt splash screen transition
       const timer = setTimeout(checkForDrafts, 600);
       return () => clearTimeout(timer);
     }, []),
@@ -368,10 +463,6 @@ const LandingScreen = ({ navigation, route }) => {
         ...activeDraft.data,
         isResumingDraft: true,
       };
-      console.log(
-        "[LandingScreen] Resuming community draft. Stack:",
-        screenStack,
-      );
       navigation.reset({
         index: 0,
         routes: [
@@ -379,7 +470,7 @@ const LandingScreen = ({ navigation, route }) => {
             name: "CommunitySignup",
             state: {
               index: screenStack.length - 1,
-              routes: screenStack.map((screenName, i) => ({
+              routes: screenStack.map((screenName) => ({
                 name: screenName,
                 params: { ...sharedParams, isResumingDraft: true },
               })),
@@ -388,22 +479,12 @@ const LandingScreen = ({ navigation, route }) => {
         ],
       });
     } else if (activeDraft.fromCommunitySignup) {
-      // People-profile draft: the community session is still active.
       if (activeDraft.step === "PeopleProfilePrompt") {
-        // User hadn't chosen "Set up now" yet — return to the prompt screen.
-        console.log(
-          "[LandingScreen] People-profile draft at PeopleProfilePrompt → returning to prompt screen",
-        );
         navigation.navigate("PeopleProfilePromptScreen", {
           prefillRecovery: activeDraft.data?.prefill || {},
         });
       } else {
-        // User had started filling in the member form — resume there.
         const resumeScreen = getPeopleProfileResumeScreen(activeDraft.step);
-        console.log(
-          "[LandingScreen] Resuming People-profile draft at:",
-          resumeScreen,
-        );
         navigation.navigate("MemberSignup", {
           screen: resumeScreen,
           params: {
@@ -415,14 +496,11 @@ const LandingScreen = ({ navigation, route }) => {
         });
       }
     } else {
-      // Regular member draft — rebuild the full nested-navigator stack so
-      // every back button has proper history (mirrors the Community approach).
       const screenStack = getMemberResumeStack(activeDraft.step);
       const sharedParams = {
         ...activeDraft.data,
         isResumingDraft: true,
       };
-      console.log("[LandingScreen] Resuming member draft. Stack:", screenStack);
       navigation.reset({
         index: 0,
         routes: [
@@ -453,14 +531,14 @@ const LandingScreen = ({ navigation, route }) => {
       await deleteSignupDraft();
     }
     setActiveDraft(null);
-    // Reset so a fresh draft can be shown if user starts again
     draftModalShown.current = false;
   };
 
-  const CARD_WIDTH = width * 0.85;
+  const CARD_WIDTH = width * 0.86;
   const CARD_SPACING = 16;
   const ITEM_SIZE = CARD_WIDTH + CARD_SPACING;
-  const CARD_BASE_HEIGHT = height * 0.42;
+  const CARD_BASE_HEIGHT = Math.min(height * 0.44, 380);
+  const CARD_EXPANDED_HEIGHT = Math.min(height * 0.66, 530);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -470,11 +548,13 @@ const LandingScreen = ({ navigation, route }) => {
 
   const carouselHeightStyle = useAnimatedStyle(() => {
     const isExpanded = selectedIndex !== -1;
-    const targetHeight = isExpanded ? CARD_BASE_HEIGHT + 140 : CARD_BASE_HEIGHT + 40;
+    const targetHeight = isExpanded
+      ? CARD_EXPANDED_HEIGHT + 24
+      : CARD_BASE_HEIGHT + 56;
     return {
       height: withTiming(targetHeight, {
         duration: 420,
-        easing: Easing.bezier(0.33, 1, 0.68, 1),
+        easing: Easing.bezier(0.25, 1, 0.5, 1),
       }),
     };
   });
@@ -517,18 +597,28 @@ const LandingScreen = ({ navigation, route }) => {
         item={item}
         index={index}
         cardBaseHeight={CARD_BASE_HEIGHT}
+        cardExpandedHeight={CARD_EXPANDED_HEIGHT}
         selectedIndex={selectedIndex}
         onSelect={handleSelect}
         onContinue={handleContinue}
         cardWidth={CARD_WIDTH}
       />
     ),
-    [selectedIndex, CARD_BASE_HEIGHT, CARD_WIDTH, handleSelect, handleContinue],
+    [
+      selectedIndex,
+      CARD_BASE_HEIGHT,
+      CARD_EXPANDED_HEIGHT,
+      CARD_WIDTH,
+      handleSelect,
+      handleContinue,
+    ],
   );
+
+  const activeRole = selectedIndex !== -1 ? PARTICIPATION_ROLES[selectedIndex] : null;
 
   return (
     <ImageBackground
-      source={require("../../assets/wave.webp")}
+      source={require("../../assets/background/wave.webp")}
       style={styles.backgroundImage}
       imageStyle={{ opacity: 0.3 }}
       resizeMode="cover"
@@ -580,7 +670,7 @@ const LandingScreen = ({ navigation, route }) => {
 
           {/* ── Pagination Dots ── */}
           <View style={styles.paginationContainer}>
-            {PARTICIPATION_ROLES.map((_, i) => {
+            {PARTICIPATION_ROLES.map((role, i) => {
               // eslint-disable-next-line react-hooks/rules-of-hooks
               const dotStyle = useAnimatedStyle(() => {
                 const progress = scrollX.value / ITEM_SIZE;
@@ -592,7 +682,9 @@ const LandingScreen = ({ navigation, route }) => {
                   duration: 250,
                 });
                 const backgroundColor =
-                  distanceFromActive < 0.5 ? COLORS.primary : COLORS.textMuted;
+                  distanceFromActive < 0.5
+                    ? role.accentColor
+                    : COLORS.textMuted;
                 return { width: dotWidth, opacity, backgroundColor };
               });
               return <Animated.View key={i} style={[styles.dot, dotStyle]} />;
@@ -609,7 +701,14 @@ const LandingScreen = ({ navigation, route }) => {
                 onPress={handleLoginPress}
                 hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
               >
-                <Text style={styles.loginLinkText}>Sign In</Text>
+                <Text
+                  style={[
+                    styles.loginLinkText,
+                    activeRole && { color: activeRole.accentColor },
+                  ]}
+                >
+                  Sign In
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -646,7 +745,7 @@ const styles = StyleSheet.create({
   // ── Header ──
   headerContainer: {
     alignItems: "center",
-    paddingTop: 16,
+    paddingTop: 12,
     paddingHorizontal: 24,
     position: "relative",
   },
@@ -656,18 +755,18 @@ const styles = StyleSheet.create({
     left: 24,
     zIndex: 10,
   },
-  logoContainer: { marginBottom: 12 },
+  logoContainer: { marginBottom: 8 },
   headerTitle: {
-    fontFamily: FONTS.black,
-    fontSize: 34,
+    fontFamily: FONTS.black, // BasicCommercial-Black per authority rule
+    fontSize: 32,
     textAlign: "center",
-    lineHeight: 38,
-    marginBottom: 12,
+    lineHeight: 36,
+    marginBottom: 8,
     letterSpacing: -0.5,
   },
   headerSubtitle: {
-    fontFamily: FONTS.regular,
-    fontSize: 16,
+    fontFamily: FONTS.regular, // Manrope-Regular
+    fontSize: 15,
     color: COLORS.textSecondary,
     textAlign: "center",
   },
@@ -675,152 +774,189 @@ const styles = StyleSheet.create({
   // ── Carousel ──
   carouselContainer: {
     justifyContent: "center",
-    marginTop: 24,
+    marginTop: 16,
   },
   cardContainer: {
     backgroundColor: "transparent",
   },
 
-  // ── Glow ring — NEW: colored border + deep shadow ──
   cardGlowRing: {
     flex: 1,
-    borderRadius: 34,
-    borderWidth: 1.5,
+    borderRadius: 30,
     backgroundColor: COLORS.surface,
-    shadowColor: "#1a2d4a",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 5,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 8,
   },
-
+  cardGlowRingExpanded: {
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+    shadowColor: "transparent",
+  },
   cardPressable: { flex: 1 },
   cardInner: {
     flex: 1,
-    borderRadius: 32,
+    borderRadius: 28,
     backgroundColor: COLORS.surface,
     overflow: "hidden",
   },
 
-  lottieAnimation: {
-    position: "absolute",
+  heroImage: {
     width: "100%",
-    height: "100%",
-  },
-  gossipersAnimation: {
-    transform: [{ scale: 1.1 }],
-    marginTop: -20,
-    marginLeft: 145,
   },
 
-  // ── Cinematic gradient — NEW: 4-stop ──
-  cardGradientOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: "100%",
+  // ── Collapsed Overlay ──
+  collapsedContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "flex-end",
   },
-
-  cardContent: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 14,
+  collapsedContent: {
+    padding: 20,
   },
-
-  // ── Frosted glass panel — NEW ──
-  glassPanel: {
-    borderRadius: 20,
-    overflow: "hidden",
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 14,
-  },
-  glassPanelAccentLine: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1.5,
-  },
-
-  cardHeaderRow: {
+  collapsedHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: 10,
   },
-
-  // ── Icon badge — NEW: accent tinted border ──
-  cardIconContainer: {
-    width: 40,
-    height: 40,
+  collapsedIconBadge: {
+    width: 44,
+    height: 44,
     borderRadius: 14,
-    borderWidth: 1,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
-
-  cardTitle: {
-    fontFamily: FONTS.primary,
+  collapsedTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
     fontSize: 26,
-    color: COLORS.surface,
+    color: "#FFFFFF",
     letterSpacing: -0.5,
   },
-  cardSubtitleClipContainer: {
-    marginTop: 4,
-    overflow: "hidden",
-    height: 42,
-    width: "100%",
-  },
-  cardSubtitleCollapsed: {
-    fontFamily: FONTS.regular,
+  collapsedSubtitle: {
+    fontFamily: FONTS.regular, // Manrope-Regular
     fontSize: 14,
-    color: "rgba(255,255,255,0.7)",
-    width: "100%",
+    color: "rgba(255, 255, 255, 0.92)",
+    lineHeight: 20,
   },
 
-  // Expanded area — sits below glass panel
-  expandedArea: {
-    paddingHorizontal: 4,
-    paddingTop: 12,
+  // ── Expanded White Sheet Panel ──
+  expandedSheet: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    borderBottomLeftRadius: 26,
+    borderBottomRightRadius: 26,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 16,
+    marginTop: -16,
+    flex: 1,
+    justifyContent: "space-between",
   },
-  cardSubtitleExpanded: {
-    fontFamily: FONTS.regular,
-    fontSize: 15,
-    color: "rgba(255,255,255,0.9)",
-    lineHeight: 22,
-    marginBottom: 8,
-  },
-  cardQuoteExpanded: {
-    fontFamily: FONTS.regular,
-    fontSize: 15,
-    fontStyle: "italic",
-    color: "rgba(255,255,255,0.9)",
-    marginBottom: 16,
-    lineHeight: 22,
-  },
-
-  // ── CTA button — accent color driven by role ──
-  cardContinueButton: {
-    borderRadius: BORDER_RADIUS.pill,
-    height: 50,
+  expandedHeaderRow: {
     flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  expandedIconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 20,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.45,
+    marginRight: 12,
+  },
+  expandedTitle: {
+    fontFamily: FONTS.primary, // BasicCommercial-Bold
+    fontSize: 26,
+    color: "#0F172A",
+    letterSpacing: -0.5,
+  },
+  expandedSubtitle: {
+    fontFamily: FONTS.regular, // Manrope-Regular
+    fontSize: 13.5,
+    color: "#475569",
+    lineHeight: 19,
+    marginBottom: 12,
+  },
+
+  // ── 3 Feature Columns Row ──
+  featuresRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    marginBottom: 12,
+  },
+  featureCol: {
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 2,
+  },
+  featureColDivider: {
+    borderRightWidth: 1,
+    borderRightColor: "rgba(0, 0, 0, 0.07)",
+  },
+  featureIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  featureTitleContainer: {
+    height: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 4,
+    width: "100%",
+  },
+  featureTitle: {
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
+    fontSize: 11.5,
+    color: "#0F172A",
+    textAlign: "center",
+    lineHeight: 15,
+  },
+  featureDesc: {
+    fontFamily: FONTS.regular, // Manrope-Regular
+    fontSize: 10.2,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 14,
+  },
+
+  // ── CTA Button ──
+  cardContinueButtonWrapper: {
+    width: "100%",
+    borderRadius: BORDER_RADIUS.pill,
+    overflow: "hidden",
+  },
+  cardContinueButton: {
+    borderRadius: BORDER_RADIUS.pill,
+    height: 48,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
     shadowRadius: 12,
     elevation: 6,
   },
+  buttonCenterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   cardContinueButtonText: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 16,
-    color: COLORS.surface,
-    marginRight: 8,
+    fontFamily: FONTS.semiBold, // Manrope-SemiBold
+    fontSize: 15.5,
+    color: "#FFFFFF",
+    letterSpacing: 0.2,
   },
 
   // ── Pagination ──
@@ -829,7 +965,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginTop: 12,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   dot: {
     height: 8,
@@ -841,7 +977,7 @@ const styles = StyleSheet.create({
   footerContainer: {
     paddingHorizontal: 24,
     marginTop: "auto",
-    paddingBottom: 20,
+    paddingBottom: 16,
     alignItems: "center",
   },
   loginPromptContainer: {

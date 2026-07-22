@@ -45,7 +45,7 @@ import {
 } from "../../../constants/theme";
 import SignupHeader from "../../../components/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
-import wave from "../../../assets/wave.webp";
+import wave from "../../../assets/background/wave.webp";
 
 // Removed local constants in favor of theme constants
 const RESEND_COOLDOWN = 60;
@@ -441,6 +441,7 @@ const LoginOtpScreen = ({ navigation, route }) => {
 
     setResendLoading(true);
     setError("");
+    setOtp("");
     try {
       await sessionManager.sendOtp(email);
       showToast("Success", `Code resent to ${email}`, "success");

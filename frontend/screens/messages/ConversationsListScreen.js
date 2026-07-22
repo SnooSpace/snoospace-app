@@ -33,6 +33,11 @@ import { getAllAccounts, getActiveAccount } from "../../api/auth";
 
 import EventBus from "../../utils/EventBus";
 import { getSocket } from "../../services/socketService";
+import {
+  readWarmConversationsCache,
+  writeWarmConversationsCache,
+  clearWarmConversationsCache,
+} from "../../services/appWarmupService";
 import SnooLoader from "../../components/ui/SnooLoader";
 import AccountSwitcherModal from "../../components/modals/AccountSwitcherModal";
 import AddAccountModal from "../../components/modals/AddAccountModal";
@@ -129,124 +134,193 @@ const srStyles = StyleSheet.create({
 const SWIPE_THRESHOLD = 80;
 const SWIPE_FULL = SWIPE_THRESHOLD * 2; // two action buttons
 
-const SwipeableConvRow = React.memo(
-  function SwipeableConvRow({ conv, onPress, onDelete, onLeave, onMute }) {
-    const translateX = useSharedValue(0);
-    const isGroup    = conv.isGroup;
-    const isMuted    = conv.isMuted;
+// ─── Helper: derive display fields from a conv object ────────────────────────
+// Shared by both ConvRowShell and SwipeRow so derivations are never duplicated.
+function deriveConvFields(conv) {
+  const isGroup         = conv.isGroup;
+  const isBlockedByOther = !isGroup && conv.otherParticipant?.isBlockedByOther;
+  const name = isGroup
+    ? (conv.groupName || "Group")
+    : isBlockedByOther ? "Snoospace User"
+    : (conv.otherParticipant?.name || "User");
+  const username = isGroup
+    ? `${conv.participantCount || "?"} members`
+    : isBlockedByOther ? ""
+    : (conv.otherParticipant?.username ? `@${conv.otherParticipant.username}` : "");
+  const uri = isGroup
+    ? conv.groupAvatarUrl
+    : isBlockedByOther ? null
+    : conv.otherParticipant?.profilePhotoUrl;
+  const hasUnread = (conv.unreadCount || 0) > 0;
+  return { isGroup, isBlockedByOther, name, username, uri, hasUnread };
+}
 
-    const pan = useMemo(() => {
-      return Gesture.Pan()
-        .activeOffsetX([-8, 8])
-        .onUpdate((e) => {
-          if (e.translationX > 0) { translateX.value = 0; return; }
-          translateX.value = Math.max(e.translationX, -SWIPE_FULL - 20);
-        })
-        .onEnd((e) => {
-          if (e.translationX < -SWIPE_THRESHOLD) {
-            translateX.value = withSpring(-SWIPE_FULL, { damping: 18, stiffness: 200 });
-            runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
-          } else {
-            translateX.value = withSpring(0, { damping: 18, stiffness: 200 });
-          }
-        });
-    }, [translateX]);
-
-    const rowStyle    = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
-    const actionWidth = SWIPE_FULL;
-
-    const isBlockedByOther = !isGroup && conv.otherParticipant?.isBlockedByOther;
-
-    const name = isGroup
-      ? (conv.groupName || "Group")
-      : isBlockedByOther
-        ? "Snoospace User"
-        : (conv.otherParticipant?.name || "User");
-    const username = isGroup
-      ? `${conv.participantCount || "?"} members`
-      : isBlockedByOther
-        ? ""
-        : (conv.otherParticipant?.username ? `@${conv.otherParticipant.username}` : "");
-    const uri = isGroup
-      ? conv.groupAvatarUrl
-      : isBlockedByOther
-        ? null  // will fall back to default user icon
-        : conv.otherParticipant?.profilePhotoUrl;
-    const hasUnread    = (conv.unreadCount || 0) > 0;
-
-    return (
-      <View style={{ overflow: "hidden" }}>
-        {/* Action buttons revealed on swipe */}
-        <View style={[swipeStyles.actions, { width: actionWidth }]}>
-          {/* Mute / Unmute action */}
-          <TouchableOpacity
-            style={[swipeStyles.actionBtn, { backgroundColor: isMuted ? "#34C759" : "#FF9F0A" }]}
-            onPress={() => {
-              translateX.value = withSpring(0);
-              onMute?.(conv);
-            }}
-          >
-            {isMuted
-              ? <Bell    size={18} color="#FFF" strokeWidth={2} />
-              : <BellOff size={18} color="#FFF" strokeWidth={2} />}
-            <Text style={swipeStyles.actionLabel}>{isMuted ? "Unmute" : "Mute"}</Text>
-          </TouchableOpacity>
-
-          {/* Delete / Leave action */}
-          <TouchableOpacity
-            style={[swipeStyles.actionBtn, { backgroundColor: isGroup ? "#FF3B30" : DANGER }]}
-            onPress={() => {
-              translateX.value = withSpring(0);
-              if (isGroup) onLeave?.(conv);
-              else onDelete?.(conv);
-            }}
-          >
-            {isGroup
-              ? <LogOut size={18} color="#FFF" strokeWidth={2} />
-              : <Trash2  size={18} color="#FFF" strokeWidth={2} />}
-            <Text style={swipeStyles.actionLabel}>{isGroup ? "Leave" : "Delete"}</Text>
-          </TouchableOpacity>
+// ─── RowContent: pure presentational row, NO Reanimated, NO gesture ──────────
+// This is what renders on first mount. Zero Reanimated overhead.
+// Cost: ~3-5ms per row (vs ~20-30ms for SwipeRow).
+const ConvRowShell = React.memo(function ConvRowShell({ conv, onPress }) {
+  const { isGroup, isBlockedByOther, name, username, uri, hasUnread } = deriveConvFields(conv);
+  const isMuted = conv.isMuted;
+  return (
+    <Pressable style={swipeStyles.row} onPress={() => onPress(conv)} android_ripple={{ color: SURFACE2 }}>
+      <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} isAnonymous={isBlockedByOther} />
+      <View style={swipeStyles.content}>
+        <View style={swipeStyles.topRow}>
+          <Text style={[swipeStyles.name, hasUnread && swipeStyles.nameUnread]} numberOfLines={1}>
+            {name}{conv.status === "CLOSED" ? " 🔒" : ""}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            {isMuted && <BellOff size={12} color={TEXT_SEC} strokeWidth={2} />}
+            <Text style={swipeStyles.time}>{formatRelativeTime(conv.lastMessageAt)}</Text>
+          </View>
         </View>
+        <View style={swipeStyles.bottomRow}>
+          <Text style={[swipeStyles.preview, hasUnread && !isMuted && swipeStyles.previewUnread]} numberOfLines={1}>
+            {isBlockedByOther
+              ? (conv.lastMessage || "")
+              : (conv.lastMessage || username || "No messages yet")}
+          </Text>
+          {hasUnread && !isMuted && (
+            <View style={swipeStyles.badge}>
+              <Text style={swipeStyles.badgeText}>
+                {conv.unreadCount > 9 ? "9+" : String(conv.unreadCount)}
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+    </Pressable>
+  );
+});
 
-        <GestureDetector gesture={pan}>
-          <Reanimated.View style={rowStyle}>
-            <Pressable style={swipeStyles.row} onPress={() => onPress(conv)} android_ripple={{ color: SURFACE2 }}>
-              <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} isAnonymous={isBlockedByOther} />
-              <View style={swipeStyles.content}>
-                <View style={swipeStyles.topRow}>
-                  <Text style={[swipeStyles.name, hasUnread && swipeStyles.nameUnread]} numberOfLines={1}>
-                    {name}{conv.status === "CLOSED" ? " 🔒" : ""}
-                  </Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                    {isMuted && <BellOff size={12} color={TEXT_SEC} strokeWidth={2} />}
-                    <Text style={swipeStyles.time}>{formatRelativeTime(conv.lastMessageAt)}</Text>
-                  </View>
-                </View>
-                <View style={swipeStyles.bottomRow}>
-                  <Text style={[swipeStyles.preview, hasUnread && !isMuted && swipeStyles.previewUnread]} numberOfLines={1}>
-                    {isBlockedByOther
-                      ? (conv.lastMessage || "")
-                      : (conv.lastMessage || username || "No messages yet")}
-                  </Text>
-                  {hasUnread && !isMuted && (
-                    <View style={swipeStyles.badge}>
-                      <Text style={swipeStyles.badgeText}>
-                        {conv.unreadCount > 9 ? "9+" : String(conv.unreadCount)}
-                      </Text>
-                    </View>
-                  )}
+// ─── SwipeRow: full swipeable row with Reanimated + GestureHandler ───────────
+// Only mounted after InteractionManager.runAfterInteractions — i.e. after the
+// navigation transition animation has fully settled. The user will never see
+// a blank state: ConvRowShell is already visible by the time this mounts.
+const SwipeRow = React.memo(function SwipeRow({ conv, onPress, onDelete, onLeave, onMute }) {
+  const translateX = useSharedValue(0);
+  const isMuted    = conv.isMuted;
+  const { isGroup, isBlockedByOther, name, username, uri, hasUnread } = deriveConvFields(conv);
+
+  const pan = useMemo(() =>
+    Gesture.Pan()
+      .activeOffsetX([-8, 8])
+      .onUpdate((e) => {
+        if (e.translationX > 0) { translateX.value = 0; return; }
+        translateX.value = Math.max(e.translationX, -SWIPE_FULL - 20);
+      })
+      .onEnd((e) => {
+        if (e.translationX < -SWIPE_THRESHOLD) {
+          translateX.value = withSpring(-SWIPE_FULL, { damping: 18, stiffness: 200 });
+          runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+        } else {
+          translateX.value = withSpring(0, { damping: 18, stiffness: 200 });
+        }
+      }),
+  [translateX]);
+
+  const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
+
+  return (
+    <View style={{ overflow: "hidden" }}>
+      {/* Action buttons revealed on swipe */}
+      <View style={[swipeStyles.actions, { width: SWIPE_FULL }]}>
+        <TouchableOpacity
+          style={[swipeStyles.actionBtn, { backgroundColor: isMuted ? "#34C759" : "#FF9F0A" }]}
+          onPress={() => { translateX.value = withSpring(0); onMute?.(conv); }}
+        >
+          {isMuted ? <Bell size={18} color="#FFF" strokeWidth={2} /> : <BellOff size={18} color="#FFF" strokeWidth={2} />}
+          <Text style={swipeStyles.actionLabel}>{isMuted ? "Unmute" : "Mute"}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[swipeStyles.actionBtn, { backgroundColor: isGroup ? "#FF3B30" : DANGER }]}
+          onPress={() => { translateX.value = withSpring(0); if (isGroup) onLeave?.(conv); else onDelete?.(conv); }}
+        >
+          {isGroup ? <LogOut size={18} color="#FFF" strokeWidth={2} /> : <Trash2 size={18} color="#FFF" strokeWidth={2} />}
+          <Text style={swipeStyles.actionLabel}>{isGroup ? "Leave" : "Delete"}</Text>
+        </TouchableOpacity>
+      </View>
+
+      <GestureDetector gesture={pan}>
+        <Reanimated.View style={rowStyle}>
+          <Pressable style={swipeStyles.row} onPress={() => onPress(conv)} android_ripple={{ color: SURFACE2 }}>
+            <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} isAnonymous={isBlockedByOther} />
+            <View style={swipeStyles.content}>
+              <View style={swipeStyles.topRow}>
+                <Text style={[swipeStyles.name, hasUnread && swipeStyles.nameUnread]} numberOfLines={1}>
+                  {name}{conv.status === "CLOSED" ? " 🔒" : ""}
+                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  {isMuted && <BellOff size={12} color={TEXT_SEC} strokeWidth={2} />}
+                  <Text style={swipeStyles.time}>{formatRelativeTime(conv.lastMessageAt)}</Text>
                 </View>
               </View>
-            </Pressable>
-          </Reanimated.View>
-        </GestureDetector>
-      </View>
+              <View style={swipeStyles.bottomRow}>
+                <Text style={[swipeStyles.preview, hasUnread && !isMuted && swipeStyles.previewUnread]} numberOfLines={1}>
+                  {isBlockedByOther
+                    ? (conv.lastMessage || "")
+                    : (conv.lastMessage || username || "No messages yet")}
+                </Text>
+                {hasUnread && !isMuted && (
+                  <View style={swipeStyles.badge}>
+                    <Text style={swipeStyles.badgeText}>
+                      {conv.unreadCount > 9 ? "9+" : String(conv.unreadCount)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </Pressable>
+        </Reanimated.View>
+      </GestureDetector>
+    </View>
+  );
+});
+
+// ─── SwipeableConvRow: deferred gate ─────────────────────────────────────────
+// Phase 1 (initial mount): renders ConvRowShell — zero Reanimated/gesture cost.
+// Phase 2 (after interactions): InteractionManager fires → swapReady = true →
+// SwipeRow mounts with full gesture infrastructure.
+//
+// The navigation transition takes ~350ms. InteractionManager.runAfterInteractions
+// fires after it fully settles, so swipe becomes available before the user could
+// reasonably attempt a swipe gesture. No UX degradation.
+const SwipeableConvRow = React.memo(
+  function SwipeableConvRow({ conv, index = 0, onPress, onDelete, onLeave, onMute }) {
+    const [swipeReady, setSwipeReady] = useState(false);
+
+    useEffect(() => {
+      // [DIAG-ROW] — remove after isolation sprint
+      console.log(`[DIAG-ROW] index=${index} phase2-scheduled at t=${Date.now()} delay=${250 + index * 120}ms`);
+      const timer = setTimeout(() => {
+        // [DIAG-ROW] — remove after isolation sprint
+        console.log(`[DIAG-ROW] index=${index} phase2-mounting-start at t=${Date.now()}`);
+        setSwipeReady(true);
+      }, 250 + index * 120);
+      return () => clearTimeout(timer);
+    }, [index]);
+
+    if (!swipeReady) {
+      return <ConvRowShell conv={conv} onPress={onPress} />;
+    }
+    // [DIAG-ROW] — fires on the render that follows setSwipeReady(true)
+    console.log(`[DIAG-ROW] index=${index} phase2-mounting-complete at t=${Date.now()}`);
+
+    return (
+      <SwipeRow
+        conv={conv}
+        onPress={onPress}
+        onDelete={onDelete}
+        onLeave={onLeave}
+        onMute={onMute}
+      />
     );
   },
   (prevProps, nextProps) => {
     const p = prevProps.conv;
     const n = nextProps.conv;
     return (
+      prevProps.index === nextProps.index &&
       prevProps.onPress === nextProps.onPress &&
       prevProps.onDelete === nextProps.onDelete &&
       prevProps.onLeave === nextProps.onLeave &&
@@ -342,12 +416,14 @@ function EmptyInboxIllustration() {
           <Circle cx="55" cy="85" r="5" fill="#2563EB" stroke="#0F172A" strokeWidth="2" />
           <Path d="M80 50L82 55H87L83 58L84 63L80 60L76 63L77 58L73 55H78L80 50Z" fill="#2563EB" stroke="#0F172A" strokeWidth="1.5" />
         </Svg>
-        <Reanimated.View style={[{ position: "absolute", top: 0, left: 0 }, orbitStyle]}>
-          <Svg width={240} height={240} viewBox="0 0 240 240" fill="none">
-            <Rect x="180" y="90" width="25" height="18" rx="5" fill="#22D3EE" stroke="#0F172A" strokeWidth="2.5" />
-            <Path d="M185 108L180 113V108H185Z" fill="#22D3EE" stroke="#0F172A" strokeWidth="2.5" />
-          </Svg>
-        </Reanimated.View>
+        <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}>
+          <Reanimated.View style={[{ position: "absolute", top: 0, left: 0 }, orbitStyle]}>
+            <Svg width={240} height={240} viewBox="0 0 240 240" fill="none">
+              <Rect x="180" y="90" width="25" height="18" rx="5" fill="#22D3EE" stroke="#0F172A" strokeWidth="2.5" />
+              <Path d="M185 108L180 113V108H185Z" fill="#22D3EE" stroke="#0F172A" strokeWidth="2.5" />
+            </Svg>
+          </Reanimated.View>
+        </View>
       </Reanimated.View>
       <View style={{ width: 128, height: 8, backgroundColor: "rgba(30, 58, 138, 0.05)", borderRadius: 100, marginTop: -8 }} />
     </View>
@@ -395,16 +471,50 @@ const skeletonStyles = StyleSheet.create({
   },
 });
 
-// Module-level cache for instant rendering on mount
+// Module-level cache for instant rendering on mount.
+// cachedConversations delegates to the AppWarmupService shared cache so
+// that Phase B's prefetch is actually read here on first mount.
 let cachedActiveAccount = null;
-let cachedConversations = null;
+// We use a getter/setter pair so reads always reflect the warm cache.
+let _cachedConversations = null;
+const getCachedConversations = () => _cachedConversations ?? readWarmConversationsCache();
+const setCachedConversations = (v) => {
+  _cachedConversations = v;
+  writeWarmConversationsCache(v);
+};
+const clearCachedConversations = () => {
+  _cachedConversations = null;
+  clearWarmConversationsCache();
+};
+
+function areConversationsEqual(prev, next) {
+  if (prev === next) return true;
+  if (!prev || !next) return false;
+  if (prev.length !== next.length) return false;
+  for (let i = 0; i < prev.length; i++) {
+    const p = prev[i];
+    const n = next[i];
+    if (
+      p.id !== n.id ||
+      p.lastMessageAt !== n.lastMessageAt ||
+      p.lastMessage !== n.lastMessage ||
+      p.unreadCount !== n.unreadCount ||
+      p.isMuted !== n.isMuted ||
+      p.groupName !== n.groupName ||
+      p.groupAvatarUrl !== n.groupAvatarUrl
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN SCREEN
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function ConversationsListScreen({ navigation }) {
-  const [conversations,    setConversations]    = useState(cachedConversations || []);
-  const [loading,          setLoading]          = useState(!cachedConversations);
+  const [conversations,    setConversations]    = useState(getCachedConversations() || []);
+  const [loading,          setLoading]          = useState(!getCachedConversations());
   const [refreshing,       setRefreshing]       = useState(false);
   const [searchText,       setSearchText]       = useState("");
   const [searchResults,    setSearchResults]    = useState([]);
@@ -426,10 +536,10 @@ export default function ConversationsListScreen({ navigation }) {
   const [isReady,          setIsReady]          = useState(false);
 
   useEffect(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
+    const timer = setTimeout(() => {
       setIsReady(true);
-    });
-    return () => task.cancel();
+    }, 250);
+    return () => clearTimeout(timer);
   }, []);
 
   const showAlert = useCallback((config) => setAlertConfig({ ...config, visible: true }), []);
@@ -438,7 +548,7 @@ export default function ConversationsListScreen({ navigation }) {
   const searchTimeout = useRef(null);
   const isSearching   = searchText.trim().length > 0;
   const activeAccountRef = useRef(activeAccount);
-  const isInitialLoad = useRef(!cachedConversations);
+  const isInitialLoad = useRef(!getCachedConversations());
 
   // Keep activeAccountRef in sync
   useEffect(() => {
@@ -446,38 +556,84 @@ export default function ConversationsListScreen({ navigation }) {
   }, [activeAccount]);
 
   useEffect(() => {
+    const t0 = performance.now();
+    const unsubStart = navigation.addListener("transitionStart", (e) => {
+      console.log(`[PERF-NAV] ConversationsListScreen transitionStart (closing: ${e?.data?.closing}) at t+${(performance.now() - t0).toFixed(2)}ms`);
+    });
+    const unsubEnd = navigation.addListener("transitionEnd", (e) => {
+      console.log(`[PERF-NAV] ConversationsListScreen transitionEnd (closing: ${e?.data?.closing}) at t+${(performance.now() - t0).toFixed(2)}ms`);
+    });
+    const unsubFocus = navigation.addListener("focus", () => {
+      console.log(`[PERF-NAV] ConversationsListScreen FOCUS at t+${(performance.now() - t0).toFixed(2)}ms`);
+    });
     const unsubscribeBlur = navigation.addListener("blur", () => {
+      console.log(`[PERF-NAV] ConversationsListScreen BLUR at t+${(performance.now() - t0).toFixed(2)}ms`);
       Keyboard.dismiss();
     });
-    const unsubscribeRemove = navigation.addListener("beforeRemove", () => {
+    const unsubscribeRemove = navigation.addListener("beforeRemove", (e) => {
+      console.log(`[PERF-NAV] ConversationsListScreen beforeRemove action: ${e?.data?.action?.type} at t+${(performance.now() - t0).toFixed(2)}ms`);
       Keyboard.dismiss();
     });
     return () => {
+      unsubStart();
+      unsubEnd();
+      unsubFocus();
       unsubscribeBlur();
       unsubscribeRemove();
       Keyboard.dismiss();
     };
   }, [navigation]);
 
-  // ── Load data (Conversations and Account info in parallel) ───────────────────
+
+
+  // Synchronous/early active account load for Frame 0 header paint
+  useEffect(() => {
+    if (!cachedActiveAccount) {
+      getActiveAccount().then((acc) => {
+        if (acc) {
+          cachedActiveAccount = acc;
+          setActiveAccount(acc);
+        }
+      }).catch(() => {});
+    }
+  }, []);
+
+  // ── Load data (Conversations and Account info in parallel) ──
   const loadData = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
-      else if (!cachedConversations) setLoading(true);
+      else if (!getCachedConversations()) setLoading(true);
 
-      const [res, active, all] = await Promise.all([
-        getConversations().catch(() => ({ conversations: [] })),
+      // Load conversations first for instant first-frame paint
+      const res = await getConversations().catch(() => ({ conversations: [] }));
+      const convs = res.conversations || [];
+
+      // Only update state if conversation list content actually changed.
+      // Retaining the same array reference causes React to bail out of re-rendering.
+      setConversations((prev) => {
+        if (areConversationsEqual(prev, convs)) {
+          return prev;
+        }
+        setCachedConversations(convs);
+        return convs;
+      });
+
+      // Load accounts metadata without artificial delay
+      Promise.all([
         getActiveAccount().catch(() => null),
         getAllAccounts().catch(() => []),
-      ]);
-
-      const convs = res.conversations || [];
-      cachedConversations = convs;
-      cachedActiveAccount = active;
-
-      setConversations(convs);
-      setActiveAccount(active);
-      setAllAccounts(all || []);
+      ]).then(([active, all]) => {
+        if (active && (active.id !== cachedActiveAccount?.id || active.type !== cachedActiveAccount?.type || active.username !== cachedActiveAccount?.username)) {
+          cachedActiveAccount = active;
+          setActiveAccount(active);
+        }
+        setAllAccounts((prevAll) => {
+          if (prevAll?.length === all?.length && prevAll.every((a, idx) => a.id === all[idx]?.id)) {
+            return prevAll;
+          }
+          return all || [];
+        });
+      }).catch((e) => console.warn("Account metadata loading error:", e));
     } catch (err) {
       console.error("Error loading data:", err);
     } finally {
@@ -486,16 +642,25 @@ export default function ConversationsListScreen({ navigation }) {
     }
   }, []);
 
+  // ── Mount/unmount lifecycle — TEMPORARY DIAGNOSTIC ──────────────────────────
+  // Answers: does Home→Chat→Back destroy the route (mount/unmount), or just blur
+  // it (would show only focus/blur)? Determines whether freezeOnBlur is viable.
+  // Remove once the navigation pattern is confirmed.
+  useEffect(() => {
+    console.log("[DIAG] ConversationsListScreen MOUNTED");
+    return () => console.log("[DIAG] ConversationsListScreen UNMOUNTED");
+  }, []);
+
   useFocusEffect(useCallback(() => {
-    const task = InteractionManager.runAfterInteractions(() => {
+    const timer = setTimeout(() => {
       if (isInitialLoad.current) {
         loadData(false);
         isInitialLoad.current = false;
       } else {
         loadData(true);
       }
-    });
-    return () => task.cancel();
+    }, 150);
+    return () => clearTimeout(timer);
   }, [loadData]));
 
   // ── EventBus listeners ────────────────────────────────────────────────────────
@@ -744,14 +909,20 @@ export default function ConversationsListScreen({ navigation }) {
     : activeAccount?.name || "Messages";
 
   // ── Render ────────────────────────────────────────────────────────────────────
-  const renderConversation = useCallback(({ item }) => (
-    <SwipeableConvRow
-      conv={item}
-      onPress={openConversation}
-      onDelete={handleDeleteConversation}
-      onLeave={handleLeaveGroup}
-      onMute={handleMuteConversation}
-    />
+  const renderConversation = useCallback(({ item, index }) => (
+    // Sub-profiler: measures cost of constructing a single SwipeableConvRow,
+    // including its Reanimated shared values, Pan gesture, and image element.
+    // Each row log: [PERF-ROW] Row-<id> mount <Xms>
+    <Profiler id={`Row-${item.id}`} onRender={onRenderProfiler}>
+      <SwipeableConvRow
+        conv={item}
+        index={index}
+        onPress={openConversation}
+        onDelete={handleDeleteConversation}
+        onLeave={handleLeaveGroup}
+        onMute={handleMuteConversation}
+      />
+    </Profiler>
   ), [openConversation, handleDeleteConversation, handleLeaveGroup, handleMuteConversation]);
 
   const renderSearchItem = useCallback(({ item }) => {
@@ -784,9 +955,19 @@ export default function ConversationsListScreen({ navigation }) {
     <Profiler id="ConversationsListScreen" onRender={onRenderProfiler}>
       <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container}>
-        {/* ── Header ── */}
+          {/* ── Header ── */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => { HapticsService.triggerBack(); Keyboard.dismiss(); navigation.goBack(); }}>
+          {/* ── 1.3 Back button: handler is already minimal ──
+               Only does: triggerBack() haptic (sync, zero latency on user tap),
+               Keyboard.dismiss() (prevents keyboard fighting the back animation),
+               then goBack(). Nothing here needs deferring to blur/beforeRemove. */}
+          <TouchableOpacity style={styles.backBtn} onPress={() => {
+            // [DIAG-BACKPRESS] — remove after isolation sprint
+            console.log(`[DIAG-BACKPRESS] at t=${Date.now()}`);
+            HapticsService.triggerBack();
+            Keyboard.dismiss();
+            navigation.goBack();
+          }}>
             <ArrowLeft size={24} color={TEXT_PRIMARY} strokeWidth={2.5} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.accountBtn} onPress={() => { HapticsService.triggerUsernameSwitcherPress(); Keyboard.dismiss(); setShowAccountSwitcher(true); }} activeOpacity={0.75}>
@@ -842,34 +1023,45 @@ export default function ConversationsListScreen({ navigation }) {
           <ConversationListSkeleton />
         ) : (
           /* ── Conversations list ── */
-          <FlatList
-            data={conversations}
-            keyExtractor={(item) => String(item.id)}
-            renderItem={renderConversation}
-            ListHeaderComponent={ListHeader}
-            contentContainerStyle={conversations.length === 0 ? { flex: 1 } : { paddingBottom: 40 }}
-            initialNumToRender={5}
-            maxToRenderPerBatch={10}
-            windowSize={10}
+          // Sub-profiler on FlatList: measures total list construction time
+          // separately from individual row render time. If FlatList itself is
+          // cheap but rows are expensive, this will show a short mount + many
+          // short nested updates. If FlatList setup dominates, this mount is long
+          // but rows are not.
+          <Profiler id="ConvFlatList" onRender={onRenderProfiler}>
+            <FlatList
+              data={conversations}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={renderConversation}
+              ListHeaderComponent={ListHeader}
+              contentContainerStyle={conversations.length === 0 ? { flex: 1 } : { paddingBottom: 40 }}
+              initialNumToRender={5}
+              maxToRenderPerBatch={10}
+              windowSize={10}
 
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={() => loadData(true)}
-                tintColor={ACCENT}
-                colors={[ACCENT]}
-              />
-            }
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <EmptyInboxIllustration />
-                <Text style={styles.emptyTitle}>No conversations yet</Text>
-                <Text style={styles.emptySub}>
-                  Your inbox is waiting for its first spark. Find friends or start a new chat to see them here.
-                </Text>
-              </View>
-            }
-          />
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={() => loadData(true)}
+                  tintColor={ACCENT}
+                  colors={[ACCENT]}
+                />
+              }
+              ListEmptyComponent={
+                // Sub-profiler on EmptyState: if inbox is empty, the floating
+                // SVG + two withRepeat animations may be the dominant cost.
+                <Profiler id="EmptyInboxIllustration" onRender={onRenderProfiler}>
+                  <View style={styles.emptyContainer}>
+                    <EmptyInboxIllustration />
+                    <Text style={styles.emptyTitle}>No conversations yet</Text>
+                    <Text style={styles.emptySub}>
+                      Your inbox is waiting for its first spark. Find friends or start a new chat to see them here.
+                    </Text>
+                  </View>
+                </Profiler>
+              }
+            />
+          </Profiler>
         )}
 
         {/* ── Modals (deferred until animation settles) ── */}
@@ -883,9 +1075,14 @@ export default function ConversationsListScreen({ navigation }) {
               currentProfile={activeAccount ? { ...activeAccount, type: activeAccount.type || "member" } : null}
               onAccountSwitch={(account) => {
                 setShowAccountSwitcher(false);
-                // Clear caches on switch to prevent cross-account leakage/flashing
-                cachedConversations = null;
-                cachedActiveAccount = null;
+                // Clear conversation caches on switch to prevent cross-account leakage
+                clearCachedConversations();
+                cachedActiveAccount = account;
+                setActiveAccount(account);
+                try {
+                  const { AppWarmupService } = require("../../services/appWarmupService");
+                  AppWarmupService.invalidate();
+                } catch (_) {}
                 const routeName =
                   account.type === "community" ? "CommunityHome" :
                   account.type === "sponsor"   ? "SponsorHome" :
@@ -906,7 +1103,7 @@ export default function ConversationsListScreen({ navigation }) {
               }}
               onLoginRequired={(account) => {
                 setShowAccountSwitcher(false);
-                cachedConversations = null;
+                clearCachedConversations();
                 cachedActiveAccount = null;
                 let rootNavigator = navigation;
                 try {
@@ -930,8 +1127,12 @@ export default function ConversationsListScreen({ navigation }) {
               onClose={() => setShowAddAccount(false)}
               onAccountAdded={async () => {
                 setShowAddAccount(false);
-                cachedConversations = null;
+                clearCachedConversations();
                 cachedActiveAccount = null;
+                try {
+                  const { AppWarmupService } = require("../../services/appWarmupService");
+                  AppWarmupService.invalidate();
+                } catch (_) {}
                 await loadData(false);
               }}
             />

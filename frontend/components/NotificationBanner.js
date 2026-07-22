@@ -100,7 +100,7 @@ export default function NotificationBanner({
             source={
               actorAvatar
                 ? { uri: actorAvatar }
-                : require("../assets/adaptive-icon.png")
+                : require("../assets/logos/adaptive-icon.png")
             }
             style={styles.avatar}
           />

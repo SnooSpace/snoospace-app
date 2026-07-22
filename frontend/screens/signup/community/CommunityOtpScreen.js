@@ -206,6 +206,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
 
     setResendLoading(true);
     setError("");
+    setOtp("");
     try {
       await sessionManager.sendOtp(email);
       showToast("Success", `Code resent to ${email}`, "success");
@@ -314,7 +315,7 @@ const CommunityOtpScreen = ({ navigation, route }) => {
 
   return (
     <ImageBackground
-      source={require("../../../assets/wave.webp")}
+      source={require("../../../assets/background/wave.webp")}
       style={styles.backgroundImage}
       imageStyle={{ transform: [{ scaleX: -1 }, { scaleY: -1 }], opacity: 0.3 }}
       resizeMode="cover"

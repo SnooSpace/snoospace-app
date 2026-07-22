@@ -1,7 +1,7 @@
 import "react-native-gesture-handler";
 import "react-native-get-random-values";
 import React, { useEffect, useState } from "react";
-import { View, StyleSheet } from "react-native";
+import { View, StyleSheet, InteractionManager } from "react-native";
 import { NavigationContainer, CommonActions, DefaultTheme } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -70,11 +70,22 @@ function AppContent() {
   useAppResume({ onRefreshAuthState: refreshAuthState });
 
   // ── Socket.io & Push Notifications Sync ────────────────────────────────────
+  // ── 1.5 Deferred socket connect + push registration ─────────────────────────
+  // Both connectSocket() and registerPushTokenWithBackend() do async network work
+  // that doesn't affect frame 0. Deferring them until after the first interactive
+  // frame ensures they don't compete with layout/paint on the JS thread at startup.
+  //
+  // HomeFeedScreen's socket subscriptions are set up defensively — they call
+  // getSocket() at subscription time, which returns null if not yet connected,
+  // and re-subscribe via the 'socket:reconnected' EventBus event. So deferral
+  // here is safe; no screen assumes the socket is already connected at mount.
   useEffect(() => {
     if (activeAccountEmail) {
-      console.log("[App] User session active, connecting socket and registering push token...");
-      connectSocket();
-      registerPushTokenWithBackend();
+      console.log("[App] User session active, deferring socket + push registration...");
+      InteractionManager.runAfterInteractions(() => {
+        connectSocket();
+        registerPushTokenWithBackend();
+      });
     } else {
       console.log("[App] No active user session, disconnecting socket...");
       disconnectSocket();

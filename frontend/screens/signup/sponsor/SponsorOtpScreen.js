@@ -75,6 +75,7 @@ const SponsorOtpScreen = ({ navigation, route }) => {
 
     setResendLoading(true);
     setError("");
+    setOtp("");
     try {
       // Use V2 endpoint for sending OTP
       await sessionManager.sendOtp(email);

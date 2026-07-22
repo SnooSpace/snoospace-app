@@ -18,7 +18,7 @@ import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, wit
 import { apiPost } from "../../../api/client";
 import { getSponsorTypes } from "../../../api/client";
 import { BlurView } from "expo-blur";
-import wave from "../../../assets/wave.webp";
+import wave from "../../../assets/background/wave.webp";
 import { LinearGradient } from "expo-linear-gradient";
 import { X, ChevronDown, ChevronRight, Zap } from "lucide-react-native";
 import { getInterestStyle, INTEREST_CATEGORIES } from "../../profile/member/EditProfileConstants";

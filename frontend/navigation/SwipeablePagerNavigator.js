@@ -52,7 +52,14 @@ const ProfileTabButton = ({
   };
 
   const cycleNextAccount = async () => {
-    const cycleStart = Date.now();
+    // ── 1.7 Optimistic account switch ────────────────────────────────────────
+    // We call account-switch-start (shows the overlay) immediately on press so
+    // the user sees visual feedback with zero delay. AsyncStorage reads happen
+    // in the background AFTER that. If anything fails we emit account-switch-end
+    // to dismiss the overlay and swallow the error gracefully.
+    hapticsService.triggerImpactLight();
+    EventBus.emit("account-switch-start");
+
     try {
       const allAccounts = await getAllAccounts();
       const loggedInAccounts = allAccounts.filter(
@@ -60,20 +67,16 @@ const ProfileTabButton = ({
       );
 
       if (loggedInAccounts.length <= 1) {
+        // Single account — dismiss overlay and navigate to profile tab instead
+        EventBus.emit("account-switch-end");
         navigateToProfile();
         return;
       }
 
-      hapticsService.triggerImpactLight();
-      console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Emitting account-switch-start`);
-      EventBus.emit("account-switch-start");
-
-      console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Awaiting getActiveAccount()...`);
       const activeAccount = await getActiveAccount();
       const activeCompositeId = activeAccount
         ? `${activeAccount.type}_${activeAccount.id}`
         : null;
-      console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Active account composite ID:`, activeCompositeId);
 
       let currentIndex = loggedInAccounts.findIndex(
         (acc) => `${acc.type}_${acc.id}` === activeCompositeId,
@@ -85,11 +88,8 @@ const ProfileTabButton = ({
         loggedInAccounts[(currentIndex + 1) % loggedInAccounts.length];
       const nextCompositeId = `${nextAccount.type}_${nextAccount.id}`;
 
-      console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Awaiting switchAccount for ${nextCompositeId}...`);
       await switchAccount(nextCompositeId);
-      console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] switchAccount finished successfully.`);
 
-      console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Emitting account-switch-done`);
       EventBus.emit("account-switch-done", {
         name: nextAccount.name || nextAccount.username || "",
         username: nextAccount.username || "",
@@ -110,8 +110,6 @@ const ProfileTabButton = ({
                     ? "VenueHome"
                     : "Landing";
 
-          console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Resetting stack to:`, routeName);
-
           // Walk up to root navigator.
           let rootNav = navigation;
           let parent = rootNav.getParent ? rootNav.getParent() : null;
@@ -121,7 +119,6 @@ const ProfileTabButton = ({
           }
 
           if (!rootNav || !rootNav.dispatch) {
-            console.warn(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Root navigator unavailable, skipping dispatch`);
             navigateToProfile();
             return;
           }
@@ -132,21 +129,14 @@ const ProfileTabButton = ({
               routes: [{ name: routeName }],
             }),
           );
-          console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] Stack reset dispatched.`);
         } catch (navErr) {
-          console.error(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] ERROR during navigation stack reset:`, navErr);
+          console.error("[DoubleTapCycle] ERROR during navigation stack reset:", navErr);
           navigateToProfile();
         }
       }, 50);
     } catch (error) {
-      console.error(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] ERROR cycling account:`, error);
-      if (error && error.stack) {
-        console.error(`[DoubleTapCycle] ERROR stack trace:`, error.stack);
-      }
-      console.error(`[DoubleTapCycle] ERROR JSON:`, JSON.stringify(error, Object.getOwnPropertyNames(error)));
-      navigateToProfile();
-    } finally {
-      console.log(`[DoubleTapCycle] [${Date.now() - cycleStart}ms] finally block: Emitting account-switch-end`);
+      // Roll back: dismiss the overlay so the user isn't stuck behind it
+      console.error("[DoubleTapCycle] ERROR cycling account:", error);
       EventBus.emit("account-switch-end");
     }
   };
@@ -275,22 +265,26 @@ const AnimatedTabBar = ({
                 style={styles.tabButton}
                 navigation={navigation}
               >
-                <Animated.View style={iconStyle}>
-                  <Animated.View style={inactiveOpacityStyle}>
-                    <ProfileTabIcon
-                      focused={false}
-                      color="#999999"
-                      userType={role}
-                    />
+                <View style={{ alignItems: "center", justifyContent: "center" }}>
+                  <Animated.View style={iconStyle}>
+                    <View style={{ alignItems: "center", justifyContent: "center" }}>
+                      <Animated.View style={inactiveOpacityStyle}>
+                        <ProfileTabIcon
+                          focused={false}
+                          color="#999999"
+                          userType={role}
+                        />
+                      </Animated.View>
+                      <Animated.View style={activeOpacityStyle}>
+                        <ProfileTabIcon
+                          focused={true}
+                          color="#3565F2"
+                          userType={role}
+                        />
+                      </Animated.View>
+                    </View>
                   </Animated.View>
-                  <Animated.View style={activeOpacityStyle}>
-                    <ProfileTabIcon
-                      focused={true}
-                      color="#3565F2"
-                      userType={role}
-                    />
-                  </Animated.View>
-                </Animated.View>
+                </View>
               </ProfileTabButton>
             );
           }
@@ -301,24 +295,28 @@ const AnimatedTabBar = ({
               onPress={() => onTabPress(index)}
               style={styles.tabButton}
             >
-              <Animated.View style={iconStyle}>
-                <Animated.View style={inactiveOpacityStyle}>
-                  <IconComponent
-                    size={26}
-                    color="#999999"
-                    fill="transparent"
-                    strokeWidth={2.2}
-                  />
+              <View style={{ alignItems: "center", justifyContent: "center" }}>
+                <Animated.View style={iconStyle}>
+                  <View style={{ alignItems: "center", justifyContent: "center" }}>
+                    <Animated.View style={inactiveOpacityStyle}>
+                      <IconComponent
+                        size={26}
+                        color="#999999"
+                        fill="transparent"
+                        strokeWidth={2.2}
+                      />
+                    </Animated.View>
+                    <Animated.View style={activeOpacityStyle}>
+                      <IconComponent
+                        size={26}
+                        color="#3565F2"
+                        fill="rgba(53, 101, 242, 0.15)"
+                        strokeWidth={2.5}
+                      />
+                    </Animated.View>
+                  </View>
                 </Animated.View>
-                <Animated.View style={activeOpacityStyle}>
-                  <IconComponent
-                    size={26}
-                    color="#3565F2"
-                    fill="rgba(53, 101, 242, 0.15)"
-                    strokeWidth={2.5}
-                  />
-                </Animated.View>
-              </Animated.View>
+              </View>
             </Pressable>
           );
         })}
@@ -520,19 +518,28 @@ function SwipeablePagerNavigator({
         </View>
       </GestureDetector>
 
-      <Animated.View
-        style={[styles.tabBarWrapper, animatedTabBarStyle]}
-        pointerEvents={shouldHideTabBar ? "none" : "auto"}
-      >
-        <AnimatedTabBar
-          state={state}
-          onTabPress={handleTabPress}
-          translateX={translateX}
-          insets={insets}
-          role={role}
-          navigation={navigation}
-        />
-      </Animated.View>
+      {/*
+        Layout animation isolation for tab bar:
+        animatedTabBarStyle drives `transform: [{ translateY }]` via Reanimated's
+        useAnimatedStyle. A plain View wrapper absorbs any layout animation pass
+        (triggered by screens that call setLayoutAnimationEnabledExperimental) so
+        the inner Animated.View retains exclusive ownership of `transform`.
+      */}
+      <View style={[styles.tabBarWrapper]}>
+        <Animated.View
+          style={[{ flex: 1 }, animatedTabBarStyle]}
+          pointerEvents={shouldHideTabBar ? "none" : "auto"}
+        >
+          <AnimatedTabBar
+            state={state}
+            onTabPress={handleTabPress}
+            translateX={translateX}
+            insets={insets}
+            role={role}
+            navigation={navigation}
+          />
+        </Animated.View>
+      </View>
     </View>
   );
 }

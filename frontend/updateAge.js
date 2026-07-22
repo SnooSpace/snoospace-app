@@ -11,7 +11,7 @@ content = content.replace(
 );
 content = content.replace(
   'import { Ionicons } from "@expo/vector-icons";',
-  'import { Ionicons } from "@expo/vector-icons";\nimport { BlurView } from "expo-blur";\nimport wave from "../../../assets/wave.png";'
+  'import { Ionicons } from "@expo/vector-icons";\nimport { BlurView } from "expo-blur";\nimport wave from "../../../assets/background/wave.webp";'
 );
 
 // 2. Wrap SafeAreaView with ImageBackground

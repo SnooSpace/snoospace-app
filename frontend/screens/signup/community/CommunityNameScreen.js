@@ -216,7 +216,7 @@ const CommunityNameScreen = ({ navigation, route }) => {
 
   return (
     <ImageBackground
-      source={require("../../../assets/wave.webp")}
+      source={require("../../../assets/background/wave.webp")}
       style={styles.backgroundImage}
       imageStyle={{ opacity: 0.3, transform: [{ scaleX: -1 }, { scaleY: -1 }] }}
       resizeMode="cover"

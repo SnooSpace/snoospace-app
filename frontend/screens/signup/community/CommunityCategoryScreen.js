@@ -20,7 +20,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { ChevronDown, ChevronRight, X } from "lucide-react-native";
 import { BlurView } from "expo-blur";
-import wave from "../../../assets/wave.webp";
+import wave from "../../../assets/background/wave.webp";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   COLORS,

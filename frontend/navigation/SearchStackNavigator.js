@@ -22,9 +22,9 @@ export default function SearchStackNavigator() {
         gestureEnabled: true,
         animation: "slide_from_right", // Native horizontal slide
       }}
-      initialRouteName="Search"
+      initialRouteName="SearchMain"
     >
-      <Stack.Screen name="Search" component={SearchScreenWithSwipe} />
+      <Stack.Screen name="SearchMain" component={SearchScreenWithSwipe} />
       <Stack.Screen name="VenueProfile" component={VenueProfileScreen} />
       <Stack.Screen
         name="CommunityPublicProfile"

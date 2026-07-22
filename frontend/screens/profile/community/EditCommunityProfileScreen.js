@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, Alert, Platform, Image, Modal, LayoutAnimation, UIManager, ImageBackground, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import PillShape from "../../../assets/PillShape.jpeg";
+import PillShape from "../../../assets/background/PillShape.jpeg";
 import { ScrollView } from "react-native";
 import { BlurView } from "expo-blur";
 import {

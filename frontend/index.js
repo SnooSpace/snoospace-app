@@ -1,4 +1,11 @@
 import { registerRootComponent } from 'expo';
+// ── 1.1 Screen Freeze — must run before ANY navigator mounts ─────────────────
+// enableFreeze(true) tells react-native-screens to freeze (suspend) background
+// stack screens so their effects and re-renders stop running while they are
+// inactive. This is the single highest-leverage change in Phase 1.
+import { enableFreeze } from 'react-native-screens';
+enableFreeze(true);
+
 
 import App from './App';
 

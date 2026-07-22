@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { getActiveAccount, getAuthToken } from "../api/auth";
+import { getActiveAccount, getAuthToken, getUserProfile } from "../api/auth";
 import { apiGet, apiPost } from "../api/client";
 import { getCommunityProfile } from "../api/communities";
 import { useAuthState } from "../contexts/AuthStateContext";
@@ -15,7 +15,8 @@ export function ProfileCacheProvider({ children }) {
 
   const { activeAccountEmail } = useAuthState();
 
-  const preloadProfile = useCallback(async () => {
+  const preloadProfile = useCallback(async (options = {}) => {
+    const isBackground = options?.isBackground === true;
     try {
       const activeAccount = await getActiveAccount();
       const token = await getAuthToken();
@@ -24,19 +25,14 @@ export function ProfileCacheProvider({ children }) {
         return;
       }
 
-      setLoading(true);
+      if (!isBackground) setLoading(true);
       const email = activeAccount.email;
       const type = activeAccount.type || "member";
 
       console.log(`[ProfileCache] Pre-fetching profile for ${email} (type: ${type})`);
 
       if (type === "member") {
-        const userProfileResponse = await apiPost(
-          "/auth/get-user-profile",
-          { email },
-          15000,
-          token
-        );
+        const userProfileResponse = await getUserProfile(email);
         const fullProfile = userProfileResponse?.profile;
         const userRole = userProfileResponse?.role;
 
@@ -116,12 +112,7 @@ export function ProfileCacheProvider({ children }) {
           const profileRes = await getCommunityProfile();
           fullProfile = profileRes?.profile || null;
         } catch (e) {
-          const profRes = await apiPost(
-            "/auth/get-user-profile",
-            { email },
-            15000,
-            token
-          ).catch(() => null);
+          const profRes = await getUserProfile(email).catch(() => null);
           fullProfile = profRes?.profile || null;
         }
 
@@ -232,6 +223,11 @@ export function ProfileCacheProvider({ children }) {
     preloadProfile();
   }, [preloadProfile, activeAccountEmail]);
 
+  // [DIAG-CTX] — remove after isolation sprint
+  // This plain object literal is recreated on every render of ProfileCacheProvider
+  // because it has no useMemo wrapper. Each new object reference triggers a re-render
+  // cascade in all consumers. The log below fires once per object construction.
+  console.log(`[DIAG-CTX] ProfileCacheContext value constructed at t=${Date.now()}, identity=${Math.random().toString(36).slice(2,8)}, hasMemberProfile=${!!memberProfile}, hasCommunityProfile=${!!communityProfile}, loading=${loading}`);
   const value = {
     memberProfile,
     memberPosts,
@@ -246,7 +242,9 @@ export function ProfileCacheProvider({ children }) {
   };
 
   useEffect(() => {
-    console.log(`[PERF-CONTEXT] ProfileCacheContext rendering/updating. memberProfile: ${!!memberProfile}, communityProfile: ${!!communityProfile}, loading: ${loading}`);
+    // [DIAG-CTX] — kept as effect-level confirmation; compare with inline log above
+    // If both fire at the same timestamp → both are caused by the same render
+    console.log(`[DIAG-CTX] ProfileCacheContext useEffect(no-deps) at t=${Date.now()}, identity=${Math.random().toString(36).slice(2,8)}`);
   });
 
   return (

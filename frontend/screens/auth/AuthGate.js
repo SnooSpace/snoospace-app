@@ -16,6 +16,7 @@ import {
   getAuthEmail,
   getRefreshToken,
   getPendingAccountSelection,
+  getUserProfile,
 } from "../../api/auth";
 import { apiPost } from "../../api/client";
 import { COLORS } from "../../constants/theme";
@@ -238,12 +239,7 @@ export default function AuthGate({ navigation }) {
 
   async function navigateToHome(email, token) {
     try {
-      const profile = await apiPost(
-        "/auth/get-user-profile",
-        { email },
-        8000,
-        token
-      );
+      const profile = await getUserProfile(email);
       const role = profile?.role;
       const routeName =
         role === "member"

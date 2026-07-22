@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { getMaxPreloadDistance, getMaxPreloadDistanceSync } from "../utils/preloadConfig";
 import { useFocusEffect, useIsFocused } from "@react-navigation/native";
+import { loadFeedSnapshot, saveFeedSnapshot, clearFeedSnapshot } from "../services/feedCache";
 import {
   StyleSheet,
   View,
@@ -181,6 +182,12 @@ const HeaderIcon = ({ IconComponent, onPress, showDot }) => {
 };
 
 export default function HomeFeedScreen({ navigation, role = "member" }) {
+  // [DIAG-REFOCUS-RENDER] — remove after isolation sprint
+  // Fires on EVERY render of HomeFeedScreen, including the reconciliation burst
+  // after react-native-screens un-freezes this screen on navigation return.
+  // Cross-reference timestamp clusters against [PERF-NAV] HomeFeedScreen FOCUS.
+  console.log(`[DIAG-REFOCUS-RENDER] HomeFeedScreen component body executing at t=${Date.now()}`);
+
   const insets = useSafeAreaInsets();
 
   // Calculate total header height including status bar
@@ -267,38 +274,57 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const isFocusedRef = useRef(isFocused);
   useEffect(() => { isFocusedRef.current = isFocused; }, [isFocused]);
 
-  // Pause videos when screen loses focus, restore when it regains focus
+  // ── 1.1 Freeze verification diagnostic ──────────────────────────────────────
+  // These logs let us confirm HomeFeedScreen effects stop firing while
+  // ConversationsList / Chat is on top. Remove in prompt 1.7 after verification.
   useEffect(() => {
-    let task;
+    console.log(`[HomeFeed][FREEZE-DIAG] top-level useEffect mounted at ${Date.now()}`);
+    return () => {
+      console.log(`[HomeFeed][FREEZE-DIAG] top-level useEffect cleanup at ${Date.now()}`);
+    };
+  }, []);
+
+  // Pause videos when screen loses focus. Video RESUME is intentionally moved
+  // to the transitionEnd listener below (prompt 1.2) — this effect now only
+  // handles the PAUSE path so it stays decoupled from navigation timing.
+  useEffect(() => {
     if (!isFocused) {
       // Screen lost focus - save current visible post and pause all videos
       if (visiblePostIdRef.current) {
-        console.log(
-          "[HomeFeed] Screen lost focus, pausing video:",
-          visiblePostIdRef.current,
-        );
         lastVisiblePostIdRef.current = visiblePostIdRef.current;
         visiblePostIdRef.current = null;
         setVisiblePostId(null);
       }
-    } else if (isFocused && lastVisiblePostIdRef.current && !visiblePostIdRef.current) {
-      // Screen regained focus - restore the last visible post to trigger playback after transition
-      console.log(
-        "[HomeFeed] Screen regained focus, restoring video after transition:",
-        lastVisiblePostIdRef.current,
-      );
-      task = InteractionManager.runAfterInteractions(() => {
-        if (lastVisiblePostIdRef.current) {
-          visiblePostIdRef.current = lastVisiblePostIdRef.current;
-          setVisiblePostId(lastVisiblePostIdRef.current);
-          lastVisiblePostIdRef.current = null; // Clear the ref
-        }
-      });
     }
-    return () => {
-      if (task) task.cancel();
-    };
+    // NOTE: video RESUME deliberately omitted here. It now runs in the
+    // transitionEnd listener below, which fires only once the push/pop animation
+    // has fully settled — eliminating the "laggy return" bug.
   }, [isFocused]);
+
+  // ── 1.2 transitionEnd video resume ───────────────────────────────────────────
+  // We drive video playback restoration off transitionEnd (fires AFTER the native
+  // animation completes) rather than off the focus event (fires at the START of
+  // the animation). This is the direct fix for ConversationsList→HomeFeed lag.
+  useEffect(() => {
+    const unsubTransitionEnd = navigation.addListener("transitionEnd", (e) => {
+      // e.data.closing is true when this screen is being pushed off the stack.
+      // We only care about the return case (closing === false = this screen is
+      // becoming the top of the stack again).
+      if (e?.data?.closing) return;
+
+      if (lastVisiblePostIdRef.current && !visiblePostIdRef.current) {
+        console.log(
+          `[HomeFeed][1.2] transitionEnd → restoring video: ${lastVisiblePostIdRef.current} at ${Date.now()}`,
+        );
+        // transitionEnd already guarantees the animation is done — no
+        // InteractionManager wrapper needed (that was the cause of the lag).
+        visiblePostIdRef.current = lastVisiblePostIdRef.current;
+        setVisiblePostId(lastVisiblePostIdRef.current);
+        lastVisiblePostIdRef.current = null;
+      }
+    });
+    return () => unsubTransitionEnd();
+  }, [navigation]);
 
   // Cursor-based pagination state
   const [cursor, setCursor] = useState(null);
@@ -580,12 +606,21 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // Merge posts, events, and opportunities into a single flat list.
   // We use useMemo to compute feedItems synchronously in the render phase,
   // reducing the number of renders from two down to exactly one on updates.
+  // Skeleton placeholders — shown while loading and all data arrays are empty.
+  // Using typed objects keeps the list persistent (no key-swap remount).
+  const SKELETON_ITEMS = useMemo(
+    () => [{ id: "sk-1", itemType: "skeleton" }, { id: "sk-2", itemType: "skeleton" }, { id: "sk-3", itemType: "skeleton" }],
+    [],
+  );
+
   const feedItems = useMemo(() => {
     if (
       posts.length === 0 &&
       events.length === 0 &&
       opportunities.length === 0
     ) {
+      // Return empty — ListEmptyComponent handles both the loading skeleton
+      // and the empty-state view, so we never need to swap data/key here.
       return [];
     }
 
@@ -655,9 +690,34 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   }, [posts, events, opportunities]);
 
   useEffect(() => {
+    // ── 1.4 Progressive hydration ───────────────────────────────────────────────
+    // On mount, read the cached snapshot FIRST so FlashList has real content at
+    // frame 0 instead of skeletons. The real network call still runs in the
+    // background and replaces state when it resolves.
+    const hydrateFromCache = async () => {
+      try {
+        const snapshot = await loadFeedSnapshot();
+        if (snapshot && snapshot.posts.length > 0) {
+          console.log(`[HomeFeed][1.4] Hydrating from cache: ${snapshot.posts.length} posts, ${snapshot.events.length} events, ${snapshot.opportunities.length} opps`);
+          setPosts(snapshot.posts);
+          setEvents(snapshot.events);
+          setOpportunities(snapshot.opportunities);
+          // Show real content immediately — skip the skeleton state
+          setLoading(false);
+        }
+      } catch (e) {
+        // Non-fatal — will fall through to skeleton + network path
+        console.warn("[HomeFeed][1.4] Cache hydration failed:", e);
+      }
+    };
+
     const loadInitialData = async () => {
       setLoading(true);
       try {
+        // Hydrate from cache before the network call to give FlashList real
+        // content at frame 0. The Promise.all below will replace with fresh data.
+        await hydrateFromCache();
+
         await Promise.all([
           loadFeed(true, true), // reset=true, skipSetLoading=true
           loadEvents(),
@@ -665,10 +725,30 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           loadGreetingName(),
           loadMessageUnreadCount(),
         ]);
+
+        // ── 1.4 Persist snapshot for next cold start ──────────────────────────
+        // We access the latest values via refs to avoid stale closure issues.
+        saveFeedSnapshot(postsRef.current, eventsRef.current, opportunitiesRef.current);
       } catch (error) {
         console.error("[HomeFeed] Error loading initial data:", error);
       } finally {
         setLoading(false);
+        // Start predictive prewarming once the app is idle and interactive
+        const runOnIdle = (callback) => {
+          if (typeof requestIdleCallback === "function") {
+            requestIdleCallback(callback, { timeout: 2000 });
+          } else {
+            setTimeout(callback, 500);
+          }
+        };
+        runOnIdle(() => {
+          try {
+            const { AppWarmupService } = require("../services/appWarmupService");
+            AppWarmupService.start();
+          } catch (e) {
+            console.warn("[HomeFeed] AppWarmupService startup failed:", e);
+          }
+        });
       }
     };
     loadInitialData();
@@ -715,6 +795,10 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       setGreetingName(null);
       setCurrentUserId(null);
       setCurrentUserType(null);
+      // ── 1.4 Clear cached snapshot to prevent cross-account leakage ──────────
+      // The cached feed belongs to the previous account. Clear it now so the
+      // next cold start does not show another account's content at frame 0.
+      clearFeedSnapshot();
       // Reload all data for the new account
       setLoading(true);
       try {
@@ -725,6 +809,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           loadOpportunities(),
           loadMessageUnreadCount(),
         ]);
+        // Persist fresh snapshot for the newly active account
+        saveFeedSnapshot(postsRef.current, eventsRef.current, opportunitiesRef.current);
       } catch (e) {
         console.warn("[HomeFeed] Error reloading after account switch:", e);
       } finally {
@@ -864,22 +950,63 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     };
   }, []);
 
+  useEffect(() => {
+    const unsubStart = navigation.addListener("transitionStart", (e) => {
+      console.log(`[PERF-NAV] HomeFeedScreen transitionStart (closing: ${e?.data?.closing}) at t=${performance.now().toFixed(2)}ms`);
+    });
+    const unsubEnd = navigation.addListener("transitionEnd", (e) => {
+      console.log(`[PERF-NAV] HomeFeedScreen transitionEnd (closing: ${e?.data?.closing}) at t=${performance.now().toFixed(2)}ms`);
+    });
+    const unsubFocus = navigation.addListener("focus", () => {
+      console.log(`[PERF-NAV] HomeFeedScreen FOCUS at t=${performance.now().toFixed(2)}ms`);
+    });
+    const unsubBlur = navigation.addListener("blur", () => {
+      console.log(`[PERF-NAV] HomeFeedScreen BLUR at t=${performance.now().toFixed(2)}ms`);
+    });
+    return () => {
+      unsubStart();
+      unsubEnd();
+      unsubFocus();
+      unsubBlur();
+    };
+  }, [navigation]);
+
   useFocusEffect(
     React.useCallback(() => {
-      const task = InteractionManager.runAfterInteractions(() => {
-        loadMessageUnreadCount();
-      });
-      return () => task.cancel();
+      let timer;
+      if (typeof requestIdleCallback === "function") {
+        timer = requestIdleCallback(() => {
+          loadMessageUnreadCount();
+        }, { timeout: 1500 });
+      } else {
+        timer = setTimeout(() => {
+          loadMessageUnreadCount();
+        }, 150);
+      }
+      return () => {
+        if (typeof cancelIdleCallback === "function") cancelIdleCallback(timer);
+        else clearTimeout(timer);
+      };
     }, []),
   );
 
   const { loadInitial: loadNotifications } = useNotifications();
   useFocusEffect(
     React.useCallback(() => {
-      const task = InteractionManager.runAfterInteractions(() => {
-        loadNotifications();
-      });
-      return () => task.cancel();
+      let timer;
+      if (typeof requestIdleCallback === "function") {
+        timer = requestIdleCallback(() => {
+          loadNotifications({ background: true });
+        }, { timeout: 2000 });
+      } else {
+        timer = setTimeout(() => {
+          loadNotifications({ background: true });
+        }, 200);
+      }
+      return () => {
+        if (typeof cancelIdleCallback === "function") cancelIdleCallback(timer);
+        else clearTimeout(timer);
+      };
     }, [loadNotifications]),
   );
 
@@ -970,30 +1097,30 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
 
   const loadGreetingName = async () => {
     try {
-      const token = await getAuthToken();
-      const { getActiveAccount } = await import("../api/auth");
+      const { getActiveAccount, getUserProfile } = await import("../api/auth");
       const activeAccount = await getActiveAccount();
 
-      if (!token || !activeAccount?.email) return;
+      if (activeAccount) {
+        if (activeAccount.name || activeAccount.username) {
+          setGreetingName(activeAccount.name || activeAccount.username);
+        }
+        if (activeAccount.id) setCurrentUserId(activeAccount.id);
+        if (activeAccount.type) setCurrentUserType(activeAccount.type);
+      }
+
+      if (!activeAccount?.email) return;
 
       const email = activeAccount.email;
-
-      const res = await apiPost(
-        "/auth/get-user-profile",
-        { email },
-        12000,
-        token,
-      );
+      const res = await getUserProfile(email);
       const prof = res?.profile || {};
-      const name = prof.full_name || prof.name || prof.username || "Member";
+      const name = prof.full_name || prof.name || prof.username || activeAccount.name || activeAccount.username || "Member";
 
       setGreetingName(name);
-      setCurrentUserId(prof.id);
-      const userType = res?.role || role;
+      if (prof.id) setCurrentUserId(prof.id);
+      const userType = res?.role || activeAccount.type || role;
       setCurrentUserType(userType);
     } catch (e) {
       console.error("[HomeFeed] Error loading greeting name:", e);
-      setGreetingName("Member");
     }
   };
 
@@ -1506,6 +1633,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
             IconComponent={MessageCircle}
             showDot={messageUnread > 0}
             onPress={() => {
+              const { AppWarmupService } = require("../services/appWarmupService");
+              AppWarmupService.recordChatOpen();
               navigation.navigate("ConversationsList");
             }}
           />
@@ -1526,28 +1655,48 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         </View>
       ) : null}
 
+      {/* [DIAG-REFOCUS-RENDER] Profiler — remove after isolation sprint
+          Measures the cost of FlashList reconciliation on every render pass,
+          specifically the burst that happens when HomeFeedScreen un-freezes.
+          phase='mount'   → first render after freeze was lifted (if screen was frozen mid-life)
+          phase='update'  → subsequent reconciliation passes (this is what we're hunting)
+          actualDuration  → JS time spent re-rendering this subtree */}
+      <React.Profiler
+        id="HomeFeedFlashList"
+        onRender={(id, phase, actualDuration) => {
+          console.log(`[DIAG-REFOCUS-RENDER] HomeFeedFlashList phase=${phase} duration=${actualDuration.toFixed(2)}ms at t=${Date.now()}`);
+        }}
+      >
       <AnimatedFlashList
-        key={loading ? "feed-list-loading" : "feed-list-loaded"}
         ref={listRefCallback}
         nestedScrollEnabled={true}
-        data={loading ? [1, 2, 3] : feedItems}
-        renderItem={
-          loading
-            ? () => <SkeletonCard />
-            : renderFeedItem
-        }
-        keyExtractor={(item) =>
-          loading
-            ? `skeleton-${item}`
-            : `${item.itemType || "post"}-${item.id}`
-        }
+        data={feedItems}
+        renderItem={renderFeedItem}
+        keyExtractor={(item) => `${item.itemType || "post"}-${item.id}`}
         style={styles.feed}
         contentContainerStyle={[
           styles.feedContent,
           { paddingTop: totalHeaderHeight },
         ]}
+        // ── getItemType — separate recycling pools per card variant prevents
+        // layout thrash from pool cross-contamination between post (~700px),
+        // event (~500px), and opportunity types.
+        getItemType={(item) => {
+          if (item.itemType === "event") return "event";
+          if (item.itemType === "opportunity") return "opportunity";
+          if (item.itemType === "skeleton") return "skeleton";
+          return "post";
+        }}
+        // estimatedItemSize is the fallback default (most common type).
         estimatedItemSize={650}
-        drawDistance={3000}
+        // Fix #4: Per-type size hints so FlashList's first-paint layout
+        // guess is accurate for event and opportunity cards, not just posts.
+        overrideItemLayout={(layout, item) => {
+          if (item.itemType === "event") layout.size = 500;
+          else if (item.itemType === "opportunity") layout.size = 450;
+          else layout.size = 700; // post (and skeleton, which approximates a post)
+        }}
+        drawDistance={800}
         // Progress view offset pushes the spinner down so it doesn't hide behind the header
         progressViewOffset={totalHeaderHeight}
         refreshControl={
@@ -1571,16 +1720,24 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         viewabilityConfig={viewabilityConfig}
         ListHeaderComponent={<HomeGreetingHeader name={greetingName} />}
         ListEmptyComponent={() =>
-          !loading ? (
+          loading ? (
+            // Fix #1: skeleton shown via ListEmptyComponent while feedItems is
+            // empty during initial load — no key-swap, list instance is persistent.
+            <>
+              <SkeletonCard />
+              <SkeletonCard />
+              <SkeletonCard />
+            </>
+          ) : (
             <EmptyFeedState />
-          ) : null
+          )
         }
         onEndReached={() => {
           if (!loading && !loadingMore && hasMore) {
             loadFeed(false);
           }
         }}
-        onEndReachedThreshold={0.5}
+        onEndReachedThreshold={1.5}
         ListFooterComponent={
           loadingMore ? (
             <View style={{ paddingVertical: 20, alignItems: "center" }}>
@@ -1589,6 +1746,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           ) : null
         }
       />
+      </React.Profiler>
 
       {/* Comments Modal */}
       <CommentsModal
