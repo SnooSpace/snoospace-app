@@ -11,6 +11,7 @@ import {
   Alert,
   Platform,
   Easing,
+  Image,
   Animated as RNAnimated,
   InteractionManager,
 } from "react-native";
@@ -100,6 +101,59 @@ const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 
 // Header height for animations
 const HEADER_HEIGHT = 50;
+
+// ── 4A Batched progressive reveal ────────────────────────────────────────────
+// Timing constants. SKELETON_MIN_MS = minimum time the skeleton is shown before
+// any real cards appear. BATCH_MIN_MS = how long scroll is blocked between
+// batches (giving images time to prefetch). Tune these if the rhythm feels
+// too slow (reduce) or if cards still appear half-built (increase).
+const SKELETON_MIN_MS = 1000; // minimum skeleton display on cold-start
+const BATCH_MIN_MS    = 1800; // inter-batch scroll-block window
+
+// Render-cost heuristics per item type (arbitrary units).
+// budget 6 ≈ 1s (skeleton window), budget 10 ≈ 1.8s (inter-batch window).
+// Higher = more JS + more images = needs more time before reveal is safe.
+const getItemRenderCost = (item) => {
+  if (item.itemType === 'event')       return 2;
+  if (item.itemType === 'opportunity') return 2;
+  switch (item.post_type) {
+    case 'challenge': return 3;
+    case 'poll':      return 2;
+    case 'qna':       return 2;
+    case 'prompt':    return 2;
+    default: {
+      // Media posts with images are heavier; text-only is nearly free
+      const urls = Array.isArray(item.image_urls) ? item.image_urls.flat() : [];
+      return urls.length > 0 ? 3 : 1;
+    }
+  }
+};
+
+// How many items starting at `startIndex` fit within the cost `budget`
+const computeBatchSize = (items, startIndex, budget) => {
+  let remaining = budget;
+  let count = 0;
+  for (let i = startIndex; i < items.length && remaining > 0; i++) {
+    const cost = getItemRenderCost(items[i]);
+    if (remaining >= cost) { remaining -= cost; count++; }
+    else break;
+  }
+  return Math.max(1, count);
+};
+
+// Prefetch images for a batch so they appear instantly when cards mount.
+// Uses Image.prefetch (RN built-in, writes to OS HTTP cache).
+// allSettled: one slow/failing URL never blocks the rest.
+const prefetchBatchImages = (items) => {
+  const urls = [];
+  for (const item of items) {
+    if (item.author_photo_url) urls.push(item.author_photo_url);
+    if (item.video_thumbnail)  urls.push(item.video_thumbnail);
+    const imgs = Array.isArray(item.image_urls) ? item.image_urls.flat() : [];
+    for (const u of imgs) { if (u) urls.push(u); }
+  }
+  return Promise.allSettled(urls.map((u) => Image.prefetch(u)));
+};
 
 /**
  * Animated Header Icon Component
@@ -235,6 +289,23 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   useEffect(() => { eventsRef.current = events; }, [events]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // 4A: how many items from feedItems are currently exposed to FlashList.
+  // Grows in cost-budget steps after each inter-batch prefetch window.
+  const [revealedCount, setRevealedCount] = useState(0);
+  // showSkeleton: true until the first batch is ready (images prefetched).
+  // While true, visibleFeedItems returns SKELETON_ITEMS regardless of feedItems.
+  const [showSkeleton, setShowSkeleton] = useState(true);
+  // isScrollBlocked: true during inter-batch prefetch windows.
+  // Disables FlashList scroll + shows an overlay so the user waits for
+  // fully-loaded cards rather than seeing half-built content.
+  const [isScrollBlocked, setIsScrollBlocked] = useState(false);
+  // Tracks when the skeleton started so we respect SKELETON_MIN_MS.
+  const skeletonStartTimeRef = useRef(Date.now());
+  // Stores the freshly-fetched posts from loadFeed so triggerSkeletonReveal
+  // can compute batch size before React re-renders feedItems.
+  const freshPostsRef = useRef([]);
+  // Prevents concurrent batch-reveal calls from stacking.
+  const isRevealingRef = useRef(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [commentsModalVisible, setCommentsModalVisible] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState(null);
@@ -606,10 +677,10 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   // Merge posts, events, and opportunities into a single flat list.
   // We use useMemo to compute feedItems synchronously in the render phase,
   // reducing the number of renders from two down to exactly one on updates.
-  // Skeleton placeholders — shown while loading and all data arrays are empty.
-  // Using typed objects keeps the list persistent (no key-swap remount).
+  // Single skeleton card — fills exactly one viewport so the user can't
+  // scroll further, and there's no content below to accidentally reveal.
   const SKELETON_ITEMS = useMemo(
-    () => [{ id: "sk-1", itemType: "skeleton" }, { id: "sk-2", itemType: "skeleton" }, { id: "sk-3", itemType: "skeleton" }],
+    () => [{ id: "sk-1", itemType: "skeleton" }],
     [],
   );
 
@@ -689,6 +760,19 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     return merged;
   }, [posts, events, opportunities]);
 
+  // 4A: The slice that actually gets handed to AnimatedFlashList.
+  // By keeping this as a separate derived value we avoid mutating feedItems
+  // (which is still used for the full-length checks in onEndReached) and we
+  // keep feedItemIndexMapRef based on the real ordering so shouldPreloadItem
+  // calculations remain correct even for items not yet revealed.
+  const visibleFeedItems = useMemo(() => {
+    // While the skeleton is showing, hand FlashList skeleton items so
+    // ListEmptyComponent is never needed (and cache-hydrated real posts
+    // never accidentally bypass the skeleton window).
+    if (showSkeleton) return SKELETON_ITEMS;
+    return feedItems.slice(0, revealedCount);
+  }, [feedItems, revealedCount, showSkeleton]);
+
   useEffect(() => {
     // ── 1.4 Progressive hydration ───────────────────────────────────────────────
     // On mount, read the cached snapshot FIRST so FlashList has real content at
@@ -699,23 +783,26 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         const snapshot = await loadFeedSnapshot();
         if (snapshot && snapshot.posts.length > 0) {
           console.log(`[HomeFeed][1.4] Hydrating from cache: ${snapshot.posts.length} posts, ${snapshot.events.length} events, ${snapshot.opportunities.length} opps`);
+          // Populate state but DO NOT set loading=false or showSkeleton=false.
+          // The skeleton window must still complete (SKELETON_MIN_MS + prefetch)
+          // before real cards are revealed, even for cached content.
           setPosts(snapshot.posts);
           setEvents(snapshot.events);
           setOpportunities(snapshot.opportunities);
-          // Show real content immediately — skip the skeleton state
-          setLoading(false);
         }
       } catch (e) {
-        // Non-fatal — will fall through to skeleton + network path
-        console.warn("[HomeFeed][1.4] Cache hydration failed:", e);
+        console.warn('[HomeFeed][1.4] Cache hydration failed:', e);
       }
     };
 
     const loadInitialData = async () => {
+      skeletonStartTimeRef.current = Date.now();
+      setShowSkeleton(true);
+      setRevealedCount(0);
       setLoading(true);
+      let revealDispatched = false;
       try {
-        // Hydrate from cache before the network call to give FlashList real
-        // content at frame 0. The Promise.all below will replace with fresh data.
+        // Hydrate from cache (populates state without ending skeleton window)
         await hydrateFromCache();
 
         await Promise.all([
@@ -726,16 +813,49 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           loadMessageUnreadCount(),
         ]);
 
-        // ── 1.4 Persist snapshot for next cold start ──────────────────────────
-        // We access the latest values via refs to avoid stale closure issues.
         saveFeedSnapshot(postsRef.current, eventsRef.current, opportunitiesRef.current);
-      } catch (error) {
-        console.error("[HomeFeed] Error loading initial data:", error);
-      } finally {
+
+        // ── 4A Skeleton → first-batch reveal ──────────────────────────────
+        // freshPostsRef was populated inside loadFeed for the reset path.
+        // Compute how many posts fit in a 1-second render budget, prefetch
+        // their images, enforce minimum skeleton display time, then reveal.
+        const rawPosts = freshPostsRef.current;
+        const batchSize = computeBatchSize(
+          rawPosts.map((p) => ({ ...p, itemType: 'post' })),
+          0,
+          6, // budget ≈ 1s
+        );
+        const firstBatch = rawPosts.slice(0, batchSize).map((p) => ({ ...p, itemType: 'post' }));
+
+        const prefetchPromise = prefetchBatchImages(firstBatch);
+        const elapsed = Date.now() - skeletonStartTimeRef.current;
+        const skeletonRemaining = Math.max(0, SKELETON_MIN_MS - elapsed);
+
+        // Wait: at least skeletonRemaining ms AND prefetch (hard-capped at
+        // skeletonRemaining + 1500ms so a slow image never blocks forever).
+        await Promise.race([
+          Promise.all([
+            new Promise((r) => setTimeout(r, skeletonRemaining)),
+            prefetchPromise,
+          ]),
+          new Promise((r) => setTimeout(r, skeletonRemaining + 1500)),
+        ]);
+
+        revealDispatched = true;
+        setRevealedCount(batchSize);
+        setShowSkeleton(false);
         setLoading(false);
-        // Start predictive prewarming once the app is idle and interactive
+      } catch (error) {
+        console.error('[HomeFeed] Error loading initial data:', error);
+      } finally {
+        if (!revealDispatched) {
+          // Error path: still hide skeleton so user sees the error/empty state
+          setShowSkeleton(false);
+          setLoading(false);
+        }
+        // Start predictive prewarming once the app is idle
         const runOnIdle = (callback) => {
-          if (typeof requestIdleCallback === "function") {
+          if (typeof requestIdleCallback === 'function') {
             requestIdleCallback(callback, { timeout: 2000 });
           } else {
             setTimeout(callback, 500);
@@ -791,6 +911,10 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     // above won't re-fire. Force a full reload so the greeting name, feed, and
     // identity state all reflect the newly active account.
     const offAccountSwitch = EventBus.on("account-switch-done", async () => {
+      // 4A: account data is fully replaced → restart the skeleton + reveal window
+      skeletonStartTimeRef.current = Date.now();
+      setShowSkeleton(true);
+      setRevealedCount(0);
       // Clear stale identity immediately so the UI doesn't flash old data
       setGreetingName(null);
       setCurrentUserId(null);
@@ -811,9 +935,27 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         ]);
         // Persist fresh snapshot for the newly active account
         saveFeedSnapshot(postsRef.current, eventsRef.current, opportunitiesRef.current);
+
+        // Skeleton reveal for account switch (same logic as initial load)
+        const rawPosts = freshPostsRef.current;
+        const batchSize = computeBatchSize(
+          rawPosts.map((p) => ({ ...p, itemType: 'post' })), 0, 6,
+        );
+        const firstBatch = rawPosts.slice(0, batchSize).map((p) => ({ ...p, itemType: 'post' }));
+        const elapsed = Date.now() - skeletonStartTimeRef.current;
+        await Promise.race([
+          Promise.all([
+            new Promise((r) => setTimeout(r, Math.max(0, SKELETON_MIN_MS - elapsed))),
+            prefetchBatchImages(firstBatch),
+          ]),
+          new Promise((r) => setTimeout(r, Math.max(0, SKELETON_MIN_MS - elapsed) + 1500)),
+        ]);
+        setRevealedCount(batchSize);
+        setShowSkeleton(false);
+        setLoading(false);
       } catch (e) {
-        console.warn("[HomeFeed] Error reloading after account switch:", e);
-      } finally {
+        console.warn('[HomeFeed] Error reloading after account switch:', e);
+        setShowSkeleton(false);
         setLoading(false);
       }
     });
@@ -1071,9 +1213,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       const mergedPosts = await LikeStateManager.mergeLikeStates(newPosts);
 
       // Append or replace based on reset flag
+      // 4A: capture freshly-loaded posts in a ref so triggerSkeletonReveal
+      // can read them synchronously (before React re-renders feedItems).
+      if (reset) freshPostsRef.current = mergedPosts;
       setPosts((prevPosts) => {
         if (reset) return mergedPosts;
-        // Deduplicate by ID when appending
         const existingIds = new Set(prevPosts.map((p) => p.id));
         const uniqueNew = mergedPosts.filter((p) => !existingIds.has(p.id));
         return [...prevPosts, ...uniqueNew];
@@ -1125,6 +1269,11 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   };
 
   const onRefresh = async () => {
+    // Pull-to-refresh: RefreshControl's native spinner is already visible, so
+    // we skip the skeleton window and reveal the first batch immediately after
+    // data arrives. Scroll-block batching still applies for subsequent scrolls.
+    setRevealedCount(0);
+    setShowSkeleton(false); // RefreshControl provides the loading UI
     setRefreshing(true);
     await Promise.all([
       loadFeed(),
@@ -1132,6 +1281,12 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       loadOpportunities(),
       loadMessageUnreadCount(),
     ]);
+    // Reveal first batch based on cost budget (no min-skeleton wait needed)
+    const rawPosts = freshPostsRef.current;
+    const batchSize = computeBatchSize(
+      rawPosts.map((p) => ({ ...p, itemType: 'post' })), 0, 6,
+    );
+    setRevealedCount(batchSize);
     setRefreshing(false);
   };
 
@@ -1435,6 +1590,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   }, [onRefresh]);
 
   const renderFeedItem = useCallback(({ item }) => {
+    // 4A: skeleton items in visibleFeedItems while showSkeleton=true
+    if (item.itemType === 'skeleton') return <SkeletonCard />;
+
     if (item.itemType === "event") {
       return (
         <EventCard
@@ -1670,7 +1828,8 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       <AnimatedFlashList
         ref={listRefCallback}
         nestedScrollEnabled={true}
-        data={feedItems}
+        // 4A: skeleton items while showSkeleton=true; prefix slice of feedItems otherwise.
+        data={visibleFeedItems}
         renderItem={renderFeedItem}
         keyExtractor={(item) => `${item.itemType || "post"}-${item.id}`}
         style={styles.feed}
@@ -1678,23 +1837,41 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           styles.feedContent,
           { paddingTop: totalHeaderHeight },
         ]}
-        // ── getItemType — separate recycling pools per card variant prevents
-        // layout thrash from pool cross-contamination between post (~700px),
-        // event (~500px), and opportunity types.
+        // ── getItemType — 8 distinct recycling pools: post_media, post_poll,
+        // post_prompt, post_qna, post_challenge, event, opportunity, skeleton.
+        // Previously all 5 post sub-types shared a single "post" pool, causing
+        // FlashList to recycle an 800px ChallengePostCard into a 300px text-post
+        // slot (and vice-versa), triggering layout thrash and stale state leakage.
+        // Phase 3.1 fix: one pool per distinct component tree.
         getItemType={(item) => {
           if (item.itemType === "event") return "event";
           if (item.itemType === "opportunity") return "opportunity";
           if (item.itemType === "skeleton") return "skeleton";
-          return "post";
+          if (item.itemType === "post") {
+            return `post_${item.post_type || "media"}`;
+          }
+          return "post_media";
         }}
-        // estimatedItemSize is the fallback default (most common type).
-        estimatedItemSize={650}
-        // Fix #4: Per-type size hints so FlashList's first-paint layout
-        // guess is accurate for event and opportunity cards, not just posts.
+        // estimatedItemSize is the fallback default (most common type: post_media).
+        estimatedItemSize={700}
+        // Per-type size hints so FlashList's first-paint layout guess is
+        // accurate for every card variant, not just the post_media default.
+        // ⚠️  NOTE: poll/prompt/qna/challenge sizes below are ESTIMATED from
+        // audit complexity analysis — NOT measured from a real device.
+        // FlashList auto-corrects after the first actual layout measurement,
+        // so wrong estimates only affect the very first paint, not correctness.
+        // Replace with real measured heights if available.
         overrideItemLayout={(layout, item) => {
-          if (item.itemType === "event") layout.size = 500;
-          else if (item.itemType === "opportunity") layout.size = 450;
-          else layout.size = 700; // post (and skeleton, which approximates a post)
+          if (item.itemType === "event") { layout.size = 500; return; }
+          if (item.itemType === "opportunity") { layout.size = 450; return; }
+          if (item.itemType === "skeleton") { layout.size = 700; return; }
+          switch (item.post_type) {
+            case "poll":      layout.size = 480; break;
+            case "prompt":   layout.size = 420; break;
+            case "qna":      layout.size = 460; break;
+            case "challenge": layout.size = 780; break;
+            default:         layout.size = 700; // media / text
+          }
         }}
         drawDistance={800}
         // Progress view offset pushes the spinner down so it doesn't hide behind the header
@@ -1733,13 +1910,48 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           )
         }
         onEndReached={() => {
-          if (!loading && !loadingMore && hasMore) {
+          // Guards: skip if skeleton still showing, if already blocked/loading,
+          // or if a reveal is already in-flight (isRevealingRef prevents stacking).
+          if (showSkeleton || isScrollBlocked || isRevealingRef.current) return;
+          if (loading || loadingMore) return;
+
+          if (revealedCount < feedItems.length) {
+            // ── 4A inter-batch reveal path ──────────────────────────────────
+            // Locally-fetched data exists beyond the slice window.
+            // Block scroll + prefetch images for the next batch, then reveal.
+            isRevealingRef.current = true;
+            setIsScrollBlocked(true);
+
+            const budget = 10; // ≈ 1.8s batch window
+            const nextSize = computeBatchSize(feedItems, revealedCount, budget);
+            const nextBatch = feedItems.slice(revealedCount, revealedCount + nextSize);
+
+            Promise.race([
+              Promise.all([
+                new Promise((r) => setTimeout(r, BATCH_MIN_MS)),
+                prefetchBatchImages(nextBatch),
+              ]),
+              new Promise((r) => setTimeout(r, BATCH_MIN_MS + 1500)),
+            ]).then(() => {
+              setRevealedCount((prev) => prev + nextSize);
+              setIsScrollBlocked(false);
+              isRevealingRef.current = false;
+            });
+          } else if (hasMore) {
+            // ── Real network pagination path ───────────────────────────────
+            // All local data revealed — fetch the next server page.
+            // When it arrives, feedItems grows and the inter-batch path above
+            // kicks in first, so page 2+ is also revealed in gated batches.
             loadFeed(false);
           }
         }}
         onEndReachedThreshold={1.5}
         ListFooterComponent={
-          loadingMore ? (
+          // Show spinner during both real network pagination (loadingMore)
+          // AND local inter-batch prefetch windows (isScrollBlocked) so the
+          // user always sees a spinner at the natural scroll-end rather than
+          // a blank gap that feels like a freeze.
+          loadingMore || isScrollBlocked ? (
             <View style={{ paddingVertical: 20, alignItems: "center" }}>
               <SnooLoader size="small" color={COLORS.primary} />
             </View>
@@ -1747,6 +1959,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         }
       />
       </React.Profiler>
+
 
       {/* Comments Modal */}
       <CommentsModal
@@ -2216,5 +2429,25 @@ const styles = StyleSheet.create({
     fontFamily: "Manrope-SemiBold",
     fontSize: 14,
     letterSpacing: 0.1,
+  },
+  // 4A scroll-block overlay — visible between batches while images prefetch
+  scrollBlockOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 100,
+    backgroundColor: "rgba(255,255,255,0.96)",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(0,0,0,0.08)",
+    zIndex: 500,
+  },
+  scrollBlockText: {
+    fontSize: 13,
+    fontFamily: "Manrope-Regular",
+    color: COLORS.textSecondary,
   },
 });
