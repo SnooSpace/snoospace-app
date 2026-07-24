@@ -66,6 +66,7 @@ import ContentActionsSheet from "./ContentActionsSheet";
 import CustomAlertModal from "./ui/CustomAlertModal";
 import FollowButton from "./FollowButton";
 import { getOptimizedImageUrl } from "../utils/imageUtils";
+import { useRecyclingState } from "@shopify/flash-list";
 import {
   followMember,
   unfollowMember,
@@ -146,14 +147,14 @@ const OpportunityFeedCard = React.memo(({
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
 
-  // ── 3-dot menu state ───────────────────────────────────────
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  // ── 3-dot menu state ──────────────────────────────────────────────
+  const [menuVisible, setMenuVisible] = useRecyclingState(false, [opportunity.id]);
+  const [isDeleting, setIsDeleting] = useRecyclingState(false, [opportunity.id]);
+  const [menuPosition, setMenuPosition] = useRecyclingState({ x: 0, y: 0 }, [opportunity.id]);
 
-  // ── Comments modal state ─────────────────────────────────────────────────────
-  const [commentsVisible, setCommentsVisible] = useState(false);
-  const [commentCount, setCommentCount] = useState(opportunity.comment_count || 0);
+  // ── Comments modal state ──────────────────────────────────────────────────
+  const [commentsVisible, setCommentsVisible] = useRecyclingState(false, [opportunity.id]);
+  const [commentCount, setCommentCount] = useRecyclingState(opportunity.comment_count || 0, [opportunity.id]);
 
   const openMenu = useCallback(() => {
     setMenuVisible(true);
@@ -164,15 +165,15 @@ const OpportunityFeedCard = React.memo(({
   }, []);
 
   // Custom Alert Modal State
-  const [alertVisible, setAlertVisible] = useState(false);
-  const [alertConfig, setAlertConfig] = useState({
+  const [alertVisible, setAlertVisible] = useRecyclingState(false, [opportunity.id]);
+  const [alertConfig, setAlertConfig] = useRecyclingState({
     title: "",
     message: "",
     primaryAction: null,
     secondaryAction: null,
     icon: null,
     iconColor: "#FF3B30",
-  });
+  }, [opportunity.id]);
 
   const showAlert = useCallback((title, message, buttons = null, icon = null, iconColor = null) => {
     if (!buttons || buttons.length === 0) {
@@ -461,28 +462,19 @@ const OpportunityFeedCard = React.memo(({
     });
   }, []);
 
-  // ── Engagement state ───────────────────────────────────────────────────────
-  const initialIsLiked = opportunity.is_liked === true || opportunity.isLiked === true;
-  const [isLiked, setIsLiked] = useState(initialIsLiked);
-  const [likeCount, setLikeCount] = useState(opportunity.like_count || 0);
-  const [isLiking, setIsLiking] = useState(false);
-  const [isSaved, setIsSaved] = useState(opportunity.is_saved || false);
-  const [saveCount, setSaveCount] = useState(opportunity.save_count || 0);
-  const [isSaving, setIsSaving] = useState(false);
-
-  // Sync state when the opportunity prop changes
-  useEffect(() => {
-    setIsLiked(opportunity.is_liked === true || opportunity.isLiked === true);
-    setLikeCount(opportunity.like_count || 0);
-    setIsSaved(opportunity.is_saved || false);
-    setSaveCount(opportunity.save_count || 0);
-    setCommentCount(opportunity.comment_count || 0);
-  }, [opportunity.is_liked, opportunity.isLiked, opportunity.like_count, opportunity.is_saved, opportunity.save_count, opportunity.comment_count]);
 
   // ── View Tracking (opportunity-specific endpoint) ─────────────────────────
-  const [viewCount, setViewCount] = useState(
+  const [viewCount, setViewCount] = useRecyclingState(
     opportunity.view_count || opportunity.public_view_count || 0,
-  );
+  [opportunity.id]);
+
+  // ── Engagement State \u2014 useRecyclingState resets on opportunity.id change ─────
+  const [isLiked, setIsLiked] = useRecyclingState(opportunity.is_liked === true, [opportunity.id]);
+  const [likeCount, setLikeCount] = useRecyclingState(opportunity.like_count || 0, [opportunity.id]);
+  const [isLiking, setIsLiking] = useRecyclingState(false, [opportunity.id]);
+  const [isSaved, setIsSaved] = useRecyclingState(opportunity.is_saved || false, [opportunity.id]);
+  const [saveCount, setSaveCount] = useRecyclingState(opportunity.save_count || opportunity.saves_count || 0, [opportunity.id]);
+  const [isSaving, setIsSaving] = useRecyclingState(false, [opportunity.id]);
   const dwellTimerRef = useRef(null);
   const hasTrackedView = useRef(false);
 
@@ -647,9 +639,9 @@ const OpportunityFeedCard = React.memo(({
   const cardRef = useRef(null);
 
   const heartScale = useRef(new RNAnimated.Value(0)).current;
-  const [heartPos, setHeartPos] = useState({ x: 0, y: 0 });
-  const [heartRot, setHeartRot] = useState(0);
-  const [showHeart, setShowHeart] = useState(false);
+  const [heartPos, setHeartPos] = useRecyclingState({ x: 0, y: 0 }, [opportunity.id]);
+  const [heartRot, setHeartRot] = useRecyclingState(0, [opportunity.id]);
+  const [showHeart, setShowHeart] = useRecyclingState(false, [opportunity.id]);
 
   const triggerHeartAnimation = useCallback((x, y) => {
     setHeartPos({ x, y });

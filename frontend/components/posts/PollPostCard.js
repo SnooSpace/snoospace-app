@@ -72,6 +72,7 @@ import { useToast } from "../../context/ToastContext";
 import ContentActionsSheet from "../ContentActionsSheet";
 import PromoSourceBanner, { PromoTopRow, PlanPreviewCard } from "./PromoSourceBanner";
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
+import { useRecyclingState } from "@shopify/flash-list";
 
 const PollPostCard = React.memo(({
   post,
@@ -103,31 +104,31 @@ const PollPostCard = React.memo(({
     if (src === 'plan')  navigation.navigate('PlanDetail',   { planId:  id });
     if (src === 'event') navigation.navigate('EventDetails', { eventId: id });
   };
-  const [hasVoted, setHasVoted] = useState(post.has_voted || false);
-  const [votedIndexes, setVotedIndexes] = useState(post.voted_indexes || []);
-  const [options, setOptions] = useState(typeData.options || []);
-  const [totalVotes, setTotalVotes] = useState(typeData.total_votes || 0);
-  const [isVoting, setIsVoting] = useState(false);
-  const [votingIndex, setVotingIndex] = useState(null);
-  const [showMenu, setShowMenu] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showVotersModal, setShowVotersModal] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [hasVoted, setHasVoted] = useRecyclingState(post.has_voted || false, [post.id]);
+  const [votedIndexes, setVotedIndexes] = useRecyclingState(post.voted_indexes || [], [post.id]);
+  const [options, setOptions] = useRecyclingState(typeData.options || [], [post.id]);
+  const [totalVotes, setTotalVotes] = useRecyclingState(typeData.total_votes || 0, [post.id]);
+  const [isVoting, setIsVoting] = useRecyclingState(false, [post.id]);
+  const [votingIndex, setVotingIndex] = useRecyclingState(null, [post.id]);
+  const [showMenu, setShowMenu] = useRecyclingState(false, [post.id]);
+  const [menuPosition, setMenuPosition] = useRecyclingState({ x: 0, y: 0 }, [post.id]);
+  const [showEditModal, setShowEditModal] = useRecyclingState(false, [post.id]);
+  const [showVotersModal, setShowVotersModal] = useRecyclingState(false, [post.id]);
+  const [isUpdating, setIsUpdating] = useRecyclingState(false, [post.id]);
 
   const isAnon = post.type_data?.is_anonymous === true || post.is_anonymous === true;
-  const [voteAnonymously, setVoteAnonymously] = useState(false);
+  const [voteAnonymously, setVoteAnonymously] = useRecyclingState(false, [post.id]);
 
   // Custom Alert Modal State
-  const [alertVisible, setAlertVisible] = useState(false);
-  const [alertConfig, setAlertConfig] = useState({
+  const [alertVisible, setAlertVisible] = useRecyclingState(false, [post.id]);
+  const [alertConfig, setAlertConfig] = useRecyclingState({
     title: "",
     message: "",
     primaryAction: null,
     secondaryAction: null,
     icon: null,
     iconColor: "#FF3B30",
-  });
+  }, [post.id]);
 
   const handleFollowToggle = async () => {
     const isMemberAuthor = post.author_type === "member";
@@ -347,23 +348,15 @@ const PollPostCard = React.memo(({
     });
   }, []);
 
-  // Engagement State
-  const initialIsLiked = post.is_liked === true;
-  const [isLiked, setIsLiked] = useState(initialIsLiked);
-  const [likeCount, setLikeCount] = useState(post.like_count || 0);
-  const [isLiking, setIsLiking] = useState(false);
-  const [isSaved, setIsSaved] = useState(post.is_saved || false);
-  const [saveCount, setSaveCount] = useState(post.save_count || post.saves_count || 0);
+  // Engagement State — useRecyclingState resets on post.id change (cell recycle)
+  const [isLiked, setIsLiked] = useRecyclingState(post.is_liked === true, [post.id]);
+  const [likeCount, setLikeCount] = useRecyclingState(post.like_count || 0, [post.id]);
+  const [isLiking, setIsLiking] = useRecyclingState(false, [post.id]);
+  const [isSaved, setIsSaved] = useRecyclingState(post.is_saved || false, [post.id]);
+  const [saveCount, setSaveCount] = useRecyclingState(post.save_count || post.saves_count || 0, [post.id]);
 
-  useEffect(() => {
-    setIsLiked(post.is_liked === true);
-    setLikeCount(post.like_count || 0);
-    setIsSaved(post.is_saved || false);
-    setSaveCount(post.save_count || post.saves_count || 0);
-  }, [post.is_liked, post.like_count, post.is_saved, post.save_count, post.saves_count]);
-
-  // â”€â”€ View Tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  const [viewCount, setViewCount] = useState(post.public_view_count || post.view_count || 0);
+  // ── View Tracking ──────────────────────────────────────────────────────────
+  const [viewCount, setViewCount] = useRecyclingState(post.public_view_count || post.view_count || 0, [post.id]);
   const dwellTimerRef = useRef(null);
 
   useEffect(() => {
@@ -585,9 +578,9 @@ const PollPostCard = React.memo(({
   const lastTapRef = useRef(0);
   const cardRef = useRef(null);
   const heartScale = useRef(new Animated.Value(0)).current;
-  const [heartPos, setHeartPos] = useState({ x: 0, y: 0 });
-  const [heartRot, setHeartRot] = useState(0);
-  const [showHeart, setShowHeart] = useState(false);
+  const [heartPos, setHeartPos] = useRecyclingState({ x: 0, y: 0 }, [post.id]);
+  const [heartRot, setHeartRot] = useRecyclingState(0, [post.id]);
+  const [showHeart, setShowHeart] = useRecyclingState(false, [post.id]);
 
   const triggerHeartAnimation = (x, y) => {
     setHeartPos({ x, y });

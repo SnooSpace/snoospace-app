@@ -11,6 +11,7 @@ import {
   Pressable,
 } from "react-native";
 import { ScrollView, Gesture, GestureDetector, Pressable as GHPressable } from "react-native-gesture-handler";
+import { useRecyclingState } from "@shopify/flash-list";
 import AnimatedReanimated, {
   useSharedValue,
   useAnimatedStyle,
@@ -132,13 +133,13 @@ function EventCard({
   compact = false,
   onAttendancePress,
 }) {
-  const [isInterested, setIsInterested] = useState(
+  const [isInterested, setIsInterested] = useRecyclingState(
     Boolean(event?.is_interested),
-  );
-  const [userRole, setUserRole] = useState(null);
-  const [interestLoading, setInterestLoading] = useState(false);
-  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
-  const [containerWidth, setContainerWidth] = useState(CARD_WIDTH);
+  [event.id]);
+  const [userRole, setUserRole] = useRecyclingState(null, [event.id]);
+  const [interestLoading, setInterestLoading] = useRecyclingState(false, [event.id]);
+  const [currentBannerIndex, setCurrentBannerIndex] = useRecyclingState(0, [event.id]);
+  const [containerWidth, setContainerWidth] = useRecyclingState(CARD_WIDTH, [event.id]);
   const translateX = useSharedValue(0);
   const startX = useSharedValue(0);
   const currentIndexShared = useSharedValue(0);
@@ -241,13 +242,13 @@ function EventCard({
   const navigation = useNavigation();
 
   // Engagement state
-  const [isLiked, setIsLiked] = useState(Boolean(event?.is_liked));
-  const [likeCount, setLikeCount] = useState(event?.like_count ?? 0);
-  const [isLiking, setIsLiking] = useState(false);
-  const [commentCount, setCommentCount] = useState(event?.comment_count ?? 0);
-  const [viewCount, setViewCount] = useState(event?.view_count ?? 0);
-  const [shareCount, setShareCount] = useState(event?.share_count ?? 0);
-  const [commentsVisible, setCommentsVisible] = useState(false);
+  const [isLiked, setIsLiked] = useRecyclingState(Boolean(event?.is_liked), [event.id]);
+  const [likeCount, setLikeCount] = useRecyclingState(event?.like_count ?? 0, [event.id]);
+  const [isLiking, setIsLiking] = useRecyclingState(false, [event.id]);
+  const [commentCount, setCommentCount] = useRecyclingState(event?.comment_count ?? 0, [event.id]);
+  const [viewCount, setViewCount] = useRecyclingState(event?.view_count ?? 0, [event.id]);
+  const [shareCount, setShareCount] = useRecyclingState(event?.share_count ?? 0, [event.id]);
+  const [commentsVisible, setCommentsVisible] = useRecyclingState(false, [event.id]);
   const viewTrackedRef = useRef(false);
 
   // Ref to track if we're the source of an EventBus event (prevent self-listening)
@@ -258,9 +259,9 @@ function EventCard({
   const cardRef = useRef(null);
 
   const heartScale = useRef(new Animated.Value(0)).current;
-  const [heartPos, setHeartPos] = useState({ x: 0, y: 0 });
-  const [heartRot, setHeartRot] = useState(0);
-  const [showHeart, setShowHeart] = useState(false);
+  const [heartPos, setHeartPos] = useRecyclingState({ x: 0, y: 0 }, [event.id]);
+  const [heartRot, setHeartRot] = useRecyclingState(0, [event.id]);
+  const [showHeart, setShowHeart] = useRecyclingState(false, [event.id]);
 
   const triggerHeartAnimation = (x, y) => {
     setHeartPos({ x, y });
@@ -343,24 +344,6 @@ function EventCard({
     }
     lastTapRef.current = now;
   };
-
-  // Sync engagement state when parent passes updated event prop (e.g. after a feed refresh)
-  useEffect(() => {
-    if (event?.is_liked !== undefined) setIsLiked(Boolean(event.is_liked));
-  }, [event?.is_liked]);
-
-  useEffect(() => {
-    if (event?.like_count !== undefined) setLikeCount(event.like_count);
-  }, [event?.like_count]);
-
-  useEffect(() => {
-    if (event?.comment_count !== undefined)
-      setCommentCount(event.comment_count);
-  }, [event?.comment_count]);
-
-  useEffect(() => {
-    if (event?.share_count !== undefined) setShareCount(event.share_count);
-  }, [event?.share_count]);
 
   const [currentUserAccount, setCurrentUserAccount] = useState(null);
 
