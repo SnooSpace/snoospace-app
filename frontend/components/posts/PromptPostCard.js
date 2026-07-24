@@ -106,6 +106,7 @@ const PromptPostCard = React.memo(({
   currentUserId,
   currentUserType,
   showManagementControls = false,
+  authToken = null, // Hoisted from HomeFeedScreen - avoids per-card AsyncStorage read
   hideEngagement = false,
   showFollowButton = true,
   isSharedPreview = false,
@@ -359,13 +360,8 @@ const PromptPostCard = React.memo(({
 
   const isAnon = post.is_anonymous === true || post.type_data?.is_anonymous === true;
 
-  // Cache auth token so handleLike never awaits I/O before the optimistic UI update
-  const tokenRef = useRef(null);
-  useEffect(() => {
-    getAuthToken().then((t) => {
-      tokenRef.current = t;
-    });
-  }, []);
+  // Auth token — use the hoisted prop if available, otherwise fetch lazily
+  const tokenRef = useRef(authToken);
 
   // Engagement State — useRecyclingState resets on post.id change (cell recycle)
   const [isLiked, setIsLiked] = useRecyclingState(post.is_liked === true, [post.id]);

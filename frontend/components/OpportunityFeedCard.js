@@ -25,7 +25,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
-import { getAuthToken, getActiveAccount } from "../api/auth";
+import { getAuthToken } from "../api/auth";
 import {
   COLORS,
   FONTS,
@@ -142,10 +142,13 @@ const OpportunityFeedCard = React.memo(({
   onPostUpdate,              // Optional: called when post is updated
   showManagementControls = false, // When true, shows pin + 3-dot menu for owners (Profile screens only)
   showFollowButton = true,
+  currentUserId = null,   // Hoisted from HomeFeedScreen
+  currentUserType = null, // Hoisted from HomeFeedScreen
+  authToken = null,       // Hoisted from HomeFeedScreen
 }) => {
   const navigation = useNavigation();
-  const [currentUserId, setCurrentUserId] = useState(null);
-  const [currentUserType, setCurrentUserType] = useState(null);
+  // currentUserId and currentUserType come from HomeFeedScreen as hoisted props;
+  // no per-card AsyncStorage read needed.
 
   // ── 3-dot menu state ──────────────────────────────────────────────
   const [menuVisible, setMenuVisible] = useRecyclingState(false, [opportunity.id]);
@@ -371,18 +374,7 @@ const OpportunityFeedCard = React.memo(({
     }
   }, [opportunity.creator_type, opportunity.author_is_creator, opportunity.is_in_circle, opportunity.is_circle_requested, opportunity.is_following, opportunity.creator_id, opportunity.creator_name, opportunity.id, currentUserType, onPostUpdate, showAlert]);
 
-  // ── Current user detection ─────────────────────────────────────────────────
-  useEffect(() => {
-    const fetchUser = async () => {
-      const account = await getActiveAccount();
-      if (account?.id) {
-        setCurrentUserId(account.id);
-        setCurrentUserType(account.type || "member");
-      }
-    };
-    fetchUser();
-  }, [opportunity.creator_id]);
-
+  // currentUserId and currentUserType are hoisted from HomeFeedScreen — no per-card fetch needed.
   const isCreator = currentUserId && opportunity.creator_id == currentUserId;
 
   // ── Work mode / type / compensation helpers (Memoized) ───────────────────────
@@ -455,12 +447,8 @@ const OpportunityFeedCard = React.memo(({
   }, [opportunity.skill_groups]);
 
   // Cache auth token so handleLike never awaits I/O before the optimistic UI update
-  const tokenRef = useRef(null);
-  useEffect(() => {
-    getAuthToken().then((t) => {
-      tokenRef.current = t;
-    });
-  }, []);
+  // Auth token — use the hoisted prop if available, otherwise fetch lazily in handlers
+  const tokenRef = useRef(authToken);
 
 
   // ── View Tracking (opportunity-specific endpoint) ─────────────────────────

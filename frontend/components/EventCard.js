@@ -50,7 +50,7 @@ import {
 import { formatPrice } from "../utils/pricingUtils";
 import HapticsService from "../services/HapticsService";
 import EventBus from "../utils/EventBus";
-import { getActiveAccount } from "../api/auth";
+
 import CommentsModal from "./CommentsModal";
 import ContentActionsSheet from "./ContentActionsSheet";
 import { getOptimizedImageUrl } from "../utils/imageUtils";
@@ -132,11 +132,16 @@ function EventCard({
   onAttendeesPress,
   compact = false,
   onAttendancePress,
+  currentUserId = null,   // Hoisted from HomeFeedScreen
+  currentUserType = null, // Hoisted from HomeFeedScreen
+  authToken = null,       // Hoisted from HomeFeedScreen
 }) {
   const [isInterested, setIsInterested] = useRecyclingState(
     Boolean(event?.is_interested),
   [event.id]);
-  const [userRole, setUserRole] = useRecyclingState(null, [event.id]);
+  // Initialize userRole from the hoisted prop; the per-card getActiveAccount() effect
+  // below will not run (it has been removed) when this prop is supplied.
+  const [userRole, setUserRole] = useRecyclingState(currentUserType, [event.id]);
   const [interestLoading, setInterestLoading] = useRecyclingState(false, [event.id]);
   const [currentBannerIndex, setCurrentBannerIndex] = useRecyclingState(0, [event.id]);
   const [containerWidth, setContainerWidth] = useRecyclingState(CARD_WIDTH, [event.id]);
@@ -345,24 +350,9 @@ function EventCard({
     lastTapRef.current = now;
   };
 
-  const [currentUserAccount, setCurrentUserAccount] = useState(null);
-
-  // Fetch current user role
-  useEffect(() => {
-    getActiveAccount()
-      .then((account) => {
-        if (account) {
-          setCurrentUserAccount(account);
-          if (account.type) {
-            setUserRole(account.type);
-          }
-        }
-      })
-      .catch((err) =>
-        console.error("[EventCard] Error fetching account:", err),
-      );
-  }, []);
-
+  // currentUserId and currentUserType are hoisted from HomeFeedScreen.
+  // currentUserAccount is only used for isEventOwner — derive it from props.
+  const currentUserAccount = currentUserId ? { id: currentUserId, type: currentUserType } : null;
   // Reset view tracking flag if the event changes (e.g., same card slot reused after refresh)
   // Also sync view_count from prop when the event ID changes (new card load), but NOT on every
   // prop change — to avoid clobbering mid-session server-tracked view increments.

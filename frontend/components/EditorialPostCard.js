@@ -180,6 +180,7 @@ const EditorialPostCard = (props) => {
         currentUserId={props.currentUserId}
         currentUserType={props.currentUserType}
         showManagementControls={props.showManagementControls}
+        authToken={props.authToken}
       />
     );
   }
@@ -199,6 +200,7 @@ const EditorialPostCard = (props) => {
         currentUserId={props.currentUserId}
         currentUserType={props.currentUserType}
         showManagementControls={props.showManagementControls}
+        authToken={props.authToken}
       />
     );
   }
@@ -218,6 +220,7 @@ const EditorialPostCard = (props) => {
         currentUserId={props.currentUserId}
         currentUserType={props.currentUserType}
         showManagementControls={props.showManagementControls}
+        authToken={props.authToken}
       />
     );
   }
@@ -237,6 +240,7 @@ const EditorialPostCard = (props) => {
         currentUserId={props.currentUserId}
         currentUserType={props.currentUserType}
         showManagementControls={props.showManagementControls}
+        authToken={props.authToken}
       />
     );
   }
@@ -266,6 +270,7 @@ const DefaultEditorialPostCard = ({
   hideSave = false,
   navigation = null,
   showManagementControls = false, // When false (HomeFeed), hides pin button on all card types
+  authToken = null, // Hoisted from HomeFeedScreen — avoids per-card AsyncStorage read
 }) => {
   // Default: Media/text post with editorial design
   const [fullscreenVisible, setFullscreenVisible] = useState(false);
@@ -277,13 +282,8 @@ const DefaultEditorialPostCard = ({
   const [isLiked, setIsLiked] = useRecyclingState(post.is_liked === true, [post.id]);
   const [likeCount, setLikeCount] = useRecyclingState(post.like_count || 0, [post.id]);
   const [isLiking, setIsLiking] = useState(false);
-  // Cache auth token so handleLike never awaits I/O before the optimistic UI update
-  const tokenRef = useRef(null);
-  useEffect(() => {
-    getAuthToken().then((t) => {
-      tokenRef.current = t;
-    });
-  }, []);
+  // Auth token — use the hoisted prop if available, otherwise fetch lazily
+  const tokenRef = useRef(authToken);
   const [isSaved, setIsSaved] = useRecyclingState(post.is_saved || false, [post.id]);
   const [saveCount, setSaveCount] = useRecyclingState(
     post.save_count || post.saves_count || 0,

@@ -378,6 +378,13 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [currentUserType, setCurrentUserType] = useState(null);
 
+  // ── Hoisted auth token: fetched ONCE at screen level, passed as prop to every
+  //    card. Eliminates N concurrent AsyncStorage reads on cold start / refocus.
+  const authTokenRef = useRef(null);
+  useEffect(() => {
+    getAuthToken().then((t) => { authTokenRef.current = t; });
+  }, []);
+
   // Auto-play state (for video: requires 60% viewport coverage)
   // ── PERF: Using refs instead of state so that viewability changes during
   //    scroll do NOT invalidate renderFeedItem or trigger re-renders.
@@ -1661,6 +1668,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           onInterestedPress={handleInterestedPress}
           onShare={handleSharePress}
           onComment={handleEventComment}
+          currentUserId={currentUserId}
+          currentUserType={currentUserType}
+          authToken={authTokenRef.current}
         />
       );
     }
@@ -1677,6 +1687,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
           onDelete={handleOpportunityDelete}
           onUserPress={handleUserPress}
           onPostUpdate={handlePostUpdate}
+          currentUserId={currentUserId}
+          currentUserType={currentUserType}
+          authToken={authTokenRef.current}
         />
       );
     }
@@ -1694,6 +1707,7 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
         showFollowButton={true}
         currentUserId={currentUserId}
         currentUserType={currentUserType}
+        authToken={authTokenRef.current}
         isVideoPlaying={item.id === visiblePostId}
         shouldPreload={shouldPreloadItem(feedItemIndexMapRef.current.get(item.id) ?? -1)}
         isInViewport={isFocusedRef.current}
