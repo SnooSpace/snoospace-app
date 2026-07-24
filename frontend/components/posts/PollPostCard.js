@@ -71,6 +71,7 @@ import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
 import ContentActionsSheet from "../ContentActionsSheet";
 import PromoSourceBanner, { PromoTopRow, PlanPreviewCard } from "./PromoSourceBanner";
+import { getOptimizedImageUrl } from "../../utils/imageUtils";
 
 const PollPostCard = React.memo(({
   post,
@@ -785,7 +786,7 @@ const PollPostCard = React.memo(({
           <View style={styles.promoAuthorRow}>
             <TouchableOpacity style={styles.promoAuthorLeft} onPress={handleUserPress} activeOpacity={0.7}>
               <Image
-                source={post.author_photo_url ? { uri: post.author_photo_url } : { uri: 'https://via.placeholder.com/36' }}
+                source={post.author_photo_url ? { uri: getOptimizedImageUrl(post.author_photo_url, { width: 36 }) } : { uri: 'https://via.placeholder.com/36' }}
                 style={styles.promoAvatar}
                 cachePolicy="memory-disk"
                 contentFit="cover"
@@ -991,7 +992,7 @@ const PollPostCard = React.memo(({
               <Image
                 source={
                   post.author_photo_url
-                    ? { uri: post.author_photo_url }
+                    ? { uri: getOptimizedImageUrl(post.author_photo_url, { width: 32 }) }
                     : { uri: "https://via.placeholder.com/40" }
                 }
                 style={styles.profileImage}

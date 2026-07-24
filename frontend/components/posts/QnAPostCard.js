@@ -83,6 +83,7 @@ import { useToast } from "../../context/ToastContext";
 import HapticsService from "../../services/HapticsService";
 import ContentActionsSheet from "../ContentActionsSheet";
 import PromoSourceBanner, { PromoTopRow, PlanPreviewCard } from "./PromoSourceBanner";
+import { getOptimizedImageUrl } from "../../utils/imageUtils";
 
 const QnAPostCard = React.memo(({
   post,
@@ -842,7 +843,7 @@ const QnAPostCard = React.memo(({
             {/* Author info */}
             <TouchableOpacity style={styles.promoAuthorLeft} onPress={handleUserPress} activeOpacity={0.7}>
               <Image
-                source={{ uri: post.author_photo_url || 'https://via.placeholder.com/36' }}
+                source={{ uri: getOptimizedImageUrl(post.author_photo_url, { width: 36 }) || 'https://via.placeholder.com/36' }}
                 style={styles.promoAvatar}
                 cachePolicy="memory-disk"
                 contentFit="cover"
@@ -961,7 +962,7 @@ const QnAPostCard = React.memo(({
                   <Image
                     key={index}
                     source={{
-                      uri: participant.photo_url || "https://via.placeholder.com/24",
+                      uri: getOptimizedImageUrl(participant.photo_url, { width: 24 }) || "https://via.placeholder.com/24",
                     }}
                     style={[
                       styles.stackAvatar,
@@ -1084,7 +1085,7 @@ const QnAPostCard = React.memo(({
           >
             <Image
               source={{
-                uri: post.author_photo_url || "https://via.placeholder.com/24",
+                uri: getOptimizedImageUrl(post.author_photo_url, { width: 24 }) || "https://via.placeholder.com/24",
               }}
               style={styles.authorAvatar}
               cachePolicy="memory-disk"

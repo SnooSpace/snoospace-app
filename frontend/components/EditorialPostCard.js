@@ -99,6 +99,7 @@ import CustomAlertModal from "./ui/CustomAlertModal";
 import { viewQueueService } from "../services/ViewQueueService";
 import HapticsService from "../services/HapticsService";
 import ContentActionsSheet from "./ContentActionsSheet";
+import { getOptimizedImageUrl } from "../utils/imageUtils";
 
 // Import type-specific card components for special post types
 import PollPostCard from "./posts/PollPostCard";
@@ -438,8 +439,14 @@ const DefaultEditorialPostCard = ({
   };
 
   const carouselGesture = useMemo(
-    () =>
-      Gesture.Pan()
+    () => {
+      // Only build the Pan gesture when there are multiple images to swipe
+      // between. For single-image and text-only posts this returns null so
+      // RNGH doesn't allocate a gesture recogniser on every card mount.
+      // (carouselGesture is only ever consumed inside the hasMultipleMedia
+      // branch, so null is never passed into a GestureDetector.)
+      if (!hasMultipleMedia) return null;
+      return Gesture.Pan()
         .activeOffsetX([-15, 15])
         .failOffsetY([-8, 8])
         .onStart(() => {
@@ -491,8 +498,9 @@ const DefaultEditorialPostCard = ({
         .onFinalize(() => {
           "worklet";
           runOnJS(enableSwipe)();
-        }),
-    [imageUrls.length, CONTENT_WIDTH],
+        });
+    },
+    [hasMultipleMedia, imageUrls.length, CONTENT_WIDTH],
   );
 
   const carouselRowStyle = useAnimatedStyle(() => {
@@ -1067,7 +1075,7 @@ const DefaultEditorialPostCard = ({
               // Fix #3: expo-image with memory-disk caching so recycled cells
               // do not re-fetch/re-decode avatars already downloaded this session.
               <ExpoImage
-                source={{ uri: post.author_photo_url }}
+                source={{ uri: getOptimizedImageUrl(post.author_photo_url, { width: 44 }) }}
                 style={styles.profileImage}
                 cachePolicy="memory-disk"
                 transition={100}
@@ -1284,7 +1292,7 @@ const DefaultEditorialPostCard = ({
                             ]}
                           >
                             <Image
-                              source={{ uri: url }}
+                              source={{ uri: getOptimizedImageUrl(url, { width: CONTENT_WIDTH }) }}
                               style={styles.mediaImage}
                               resizeMode="cover"
                             />
@@ -1323,7 +1331,7 @@ const DefaultEditorialPostCard = ({
                   ]}
                 >
                   <Image
-                    source={{ uri: firstMediaUrl }}
+                    source={{ uri: getOptimizedImageUrl(firstMediaUrl, { width: CONTENT_WIDTH }) }}
                     style={styles.mediaImage}
                     resizeMode="cover"
                   />

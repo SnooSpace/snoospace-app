@@ -14,6 +14,7 @@ import {
   Image,
   Animated as RNAnimated,
   InteractionManager,
+  Dimensions,
 } from "react-native";
 import { FlashList } from "@shopify/flash-list"; // Using FlashList for smooth cell recycling
 import Animated, {
@@ -70,6 +71,10 @@ import { COLORS } from "../constants/theme";
 import EmptyFeedState from "./EmptyFeedState";
 import SnooLoader from "./ui/SnooLoader";
 import { LinearGradient } from "expo-linear-gradient";
+import { Image as ExpoImage } from "expo-image";
+import { getOptimizedImageUrl } from "../utils/imageUtils";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const AnimatedFlashList = Animated.createAnimatedComponent(FlashList);
 
@@ -141,18 +146,73 @@ const computeBatchSize = (items, startIndex, budget) => {
   return Math.max(1, count);
 };
 
-// Prefetch images for a batch so they appear instantly when cards mount.
-// Uses Image.prefetch (RN built-in, writes to OS HTTP cache).
-// allSettled: one slow/failing URL never blocks the rest.
+// ── 2.2b: Split-cache prefetch ───────────────────────────────────────────────
+//
+// RN's Image.prefetch and expo-image's Image.prefetch write to SEPARATE caches.
+// Routing rules (must match the render-site component exactly):
+//
+//  expo-image cache:
+//    • editorial/media  → author_photo_url   (width 100, matches ExpoImage in EditorialPostCard)
+//    • poll/prompt/qna  → author_photo_url   (width 100, covers promoAvatar 36px + profileImage 32px)
+//    • challenge        → author_photo_url   (width 60, matches ExpoImage in ChallengePostCard)
+//
+//  RN Image cache:
+//    • event            → author_photo_url   (width 60, community logo via RN Image in EventCard)
+//    • opportunity      → author_photo_url   (width 60, creator avatar via RN Image in OpportunityFeedCard)
+//    • image_urls[]     → any editorial post (width SCREEN_WIDTH*2, RN Image in EditorialPostCard)
+//    • video_thumbnail  → any post           (width SCREEN_WIDTH*2, RN Image in VideoPlayer)
+//
+// allSettled: one slow/failed URL never blocks the rest.
+const EDITORIAL_IMG_WIDTH = SCREEN_WIDTH; // logical dp — PixelRatio applied inside getOptimizedImageUrl
+
 const prefetchBatchImages = (items) => {
-  const urls = [];
+  const rnUrls   = []; // → Image.prefetch() from 'react-native'
+  const expoUrls = []; // → ExpoImage.prefetch() from 'expo-image'
+
   for (const item of items) {
-    if (item.author_photo_url) urls.push(item.author_photo_url);
-    if (item.video_thumbnail)  urls.push(item.video_thumbnail);
+    const postType = item.post_type || item.type || "media"; // 'event' | 'opportunity' | post_type
+
+    // ── author avatar ──────────────────────────────────────────────────────────
+    if (item.author_photo_url || item.creator_photo || item.community_logo) {
+      const avatarUrl = item.author_photo_url || item.creator_photo || item.community_logo;
+      if (postType === "event" || postType === "opportunity") {
+        // EventCard and OpportunityFeedCard both use RN <Image>
+        const url = getOptimizedImageUrl(avatarUrl, { width: 24 });
+        if (url) rnUrls.push(url);
+      } else if (postType === "challenge") {
+        // ChallengePostCard uses expo-image, authorAvatar style = 24px logical
+        const url = getOptimizedImageUrl(avatarUrl, { width: 24 });
+        if (url) expoUrls.push(url);
+      } else {
+        // editorial/media/poll/prompt/qna — all use expo-image
+        // editorial avatar = 44px logical (EDITORIAL_SPACING.profileImageSize)
+        // poll/prompt/qna promoAvatar = 36px, profileImage = 32px
+        // 44 is the correct width for editorial; for poll/prompt/qna we'd
+        // ideally split by isPromo, but 36 is close enough for non-editorial
+        const isEditorial = postType === "media" || !postType;
+        const url = getOptimizedImageUrl(avatarUrl, { width: isEditorial ? 44 : 36 });
+        if (url) expoUrls.push(url);
+      }
+    }
+
+    // ── post media images (editorial only) ────────────────────────────────────
+    // EditorialPostCard uses plain RN <Image> for image_urls
     const imgs = Array.isArray(item.image_urls) ? item.image_urls.flat() : [];
-    for (const u of imgs) { if (u) urls.push(u); }
+    for (const u of imgs) {
+      if (u) rnUrls.push(getOptimizedImageUrl(u, { width: EDITORIAL_IMG_WIDTH }));
+    }
+
+    // ── video thumbnail ───────────────────────────────────────────────────────
+    // VideoPlayer uses plain RN <Image> for thumbnail overlay
+    if (item.video_thumbnail) {
+      rnUrls.push(getOptimizedImageUrl(item.video_thumbnail, { width: EDITORIAL_IMG_WIDTH }));
+    }
   }
-  return Promise.allSettled(urls.map((u) => Image.prefetch(u)));
+
+  return Promise.allSettled([
+    ...rnUrls.map((u)   => Image.prefetch(u)),
+    ...expoUrls.map((u) => ExpoImage.prefetch(u)),
+  ]);
 };
 
 /**

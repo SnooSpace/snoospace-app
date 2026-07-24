@@ -65,6 +65,7 @@ import HapticsService from "../services/HapticsService";
 import ContentActionsSheet from "./ContentActionsSheet";
 import CustomAlertModal from "./ui/CustomAlertModal";
 import FollowButton from "./FollowButton";
+import { getOptimizedImageUrl } from "../utils/imageUtils";
 import {
   followMember,
   unfollowMember,
@@ -833,7 +834,7 @@ const OpportunityFeedCard = React.memo(({
             <Image
               source={
                 opportunity.creator_photo
-                  ? { uri: opportunity.creator_photo }
+                  ? { uri: getOptimizedImageUrl(opportunity.creator_photo, { width: 24 }) }
                   : {
                       uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
                         opportunity.creator_name || "U",
@@ -943,7 +944,7 @@ const OpportunityFeedCard = React.memo(({
                   {opportunity.applicants.slice(0, 3).map((applicant, index) => (
                     <Image
                       key={index}
-                      source={{ uri: applicant.photo_url }}
+                      source={{ uri: getOptimizedImageUrl(applicant.photo_url, { width: 28 }) }}
                       style={[
                         styles.applicantAvatar,
                         { marginLeft: index > 0 ? -10 : 0 },

@@ -94,6 +94,7 @@ import {
   getTimeRemaining,
 } from "../../utils/cardTiming";
 import ContentActionsSheet from "../ContentActionsSheet";
+import { getOptimizedImageUrl } from "../../utils/imageUtils";
 
 const ChallengePostCard = React.memo(({
   post,
@@ -909,7 +910,7 @@ const ChallengePostCard = React.memo(({
         {previewSubmission.media_urls &&
           previewSubmission.media_urls.length > 0 && (
             <Image
-              source={{ uri: previewSubmission.media_urls[0] }}
+              source={{ uri: getOptimizedImageUrl(previewSubmission.media_urls[0], { width: 80 }) }}
               style={styles.previewImage}
               cachePolicy="memory-disk"
               contentFit="cover"
@@ -918,7 +919,7 @@ const ChallengePostCard = React.memo(({
         {previewSubmission.video_thumbnail && (
           <View style={styles.previewImageContainer}>
             <Image
-              source={{ uri: previewSubmission.video_thumbnail }}
+              source={{ uri: getOptimizedImageUrl(previewSubmission.video_thumbnail, { width: 80 }) }}
               style={styles.previewImage}
               cachePolicy="memory-disk"
               contentFit="cover"
@@ -932,7 +933,7 @@ const ChallengePostCard = React.memo(({
           <View style={styles.previewMeta}>
             {previewSubmission.participant_photo_url && (
               <Image
-                source={{ uri: previewSubmission.participant_photo_url }}
+                source={{ uri: getOptimizedImageUrl(previewSubmission.participant_photo_url, { width: 20 }) }}
                 style={styles.previewAvatar}
                 cachePolicy="memory-disk"
                 contentFit="cover"
@@ -1151,7 +1152,7 @@ const ChallengePostCard = React.memo(({
             <Image
               source={
                 post.author_photo_url
-                  ? { uri: post.author_photo_url }
+                  ? { uri: getOptimizedImageUrl(post.author_photo_url, { width: 24 }) }
                   : { uri: "https://via.placeholder.com/32" }
               }
               style={styles.authorAvatar}
@@ -1396,7 +1397,7 @@ const ChallengePostCard = React.memo(({
                           >
                             {participant.participant_photo_url ? (
                               <Image
-                                source={{ uri: participant.participant_photo_url }}
+                                source={{ uri: getOptimizedImageUrl(participant.participant_photo_url, { width: 28 }) }}
                                 style={styles.participantAvatarImg}
                                 cachePolicy="memory-disk"
                                 contentFit="cover"

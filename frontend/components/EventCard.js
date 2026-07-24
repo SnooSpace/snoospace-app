@@ -52,6 +52,7 @@ import EventBus from "../utils/EventBus";
 import { getActiveAccount } from "../api/auth";
 import CommentsModal from "./CommentsModal";
 import ContentActionsSheet from "./ContentActionsSheet";
+import { getOptimizedImageUrl } from "../utils/imageUtils";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 40; // 20px padding on each side
@@ -165,9 +166,16 @@ function EventCard({
     setCurrentBannerIndex(index);
   };
 
+  const hasMultipleBanners = (banners.length || 0) > 1;
+
   const carouselGesture = useMemo(
-    () =>
-      Gesture.Pan()
+    () => {
+      // Only build the Pan gesture when there are multiple banners to swipe.
+      // Single-banner events (the majority) skip the gesture allocation.
+      // Safe: the GestureDetector is only rendered when banners.length > 1,
+      // so null is never passed into GestureDetector.
+      if (!hasMultipleBanners) return null;
+      return Gesture.Pan()
         .activeOffsetX([-15, 15])
         .failOffsetY([-8, 8])
         .onStart(() => {
@@ -220,8 +228,9 @@ function EventCard({
         .onFinalize(() => {
           "worklet";
           runOnJS(enableSwipe)();
-        }),
-    [banners.length, containerWidth],
+        });
+    },
+    [hasMultipleBanners, banners.length, containerWidth],
   );
 
   const carouselRowStyle = useAnimatedStyle(() => {
@@ -771,7 +780,7 @@ function EventCard({
                     {banners.map((banner, index) => (
                       <Image
                         key={index}
-                        source={{ uri: banner.image_url || banner.url }}
+                        source={{ uri: getOptimizedImageUrl(banner.image_url || banner.url, { width: CARD_WIDTH }) }}
                         style={{
                           width: containerWidth || CARD_WIDTH,
                           height: "100%",
@@ -796,7 +805,7 @@ function EventCard({
               </GestureDetector>
             ) : (
               <Image
-                source={{ uri: banners[0].image_url || banners[0].url }}
+                source={{ uri: getOptimizedImageUrl(banners[0].image_url || banners[0].url, { width: CARD_WIDTH }) }}
                 style={styles.bannerImage}
                 resizeMode="cover"
               />
@@ -904,7 +913,7 @@ function EventCard({
             >
               {hasValidPhoto ? (
                 <Image
-                  source={{ uri: community_logo }}
+                  source={{ uri: getOptimizedImageUrl(community_logo, { width: 20 }) }}
                   style={[
                     styles.communityAvatar,
                     compact && styles.communityAvatarCompact,
@@ -1009,7 +1018,7 @@ function EventCard({
                                     <Image
                                       key={`attendee-avatar-compact-${index}`}
                                       source={{
-                                        uri: avatarData.profile_photo_url,
+                                        uri: getOptimizedImageUrl(avatarData.profile_photo_url, { width: 24 }),
                                       }}
                                       style={[
                                         styles.avatar,
@@ -1216,7 +1225,7 @@ function EventCard({
                                       <Image
                                         key={`attendee-avatar-${index}`}
                                         source={{
-                                          uri: avatarData.profile_photo_url,
+                                          uri: getOptimizedImageUrl(avatarData.profile_photo_url, { width: 24 }),
                                         }}
                                         style={[
                                           styles.avatar,
