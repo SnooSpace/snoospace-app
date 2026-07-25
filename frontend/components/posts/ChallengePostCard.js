@@ -423,7 +423,6 @@ const ChallengePostCard = React.memo(({
   const [submissionStats, setSubmissionStats] = useRecyclingState(null, [post.id]);
 
   useEffect(() => {
-    if (!shouldPreload) return; // defer until card is near viewport
     const postId = post.id;
 
     // Check TTL cache first (same pattern as auth.js cachedProfileMap)
@@ -463,7 +462,7 @@ const ChallengePostCard = React.memo(({
     promise.then((data) => {
       if (data?.success) setSubmissionStats(data);
     });
-  }, [post.id, shouldPreload]);
+  }, [post.id]);
 
   // ── Live teaser counters — react to like/comment events from submissions screen ──
   useEffect(() => {
@@ -658,7 +657,6 @@ const ChallengePostCard = React.memo(({
 
   // Fetch participant previews for avatar stack
   useEffect(() => {
-    if (!shouldPreload) return; // defer until card is near viewport
     if (participantCount === 0) return;
     const postId = post.id;
 
@@ -703,7 +701,7 @@ const ChallengePostCard = React.memo(({
     promise.then((previews) => {
       if (previews) setParticipantPreviews(previews);
     });
-  }, [post.id, participantCount, shouldPreload]);
+  }, [post.id, participantCount]);
 
   // Animate Live Now badge
   useEffect(() => {
