@@ -118,7 +118,16 @@ const PollPostCard = React.memo(({
   const [isUpdating, setIsUpdating] = useRecyclingState(false, [post.id]);
 
   const isAnon = post.type_data?.is_anonymous === true || post.is_anonymous === true;
+  const allowAnonymousVoting = typeData.allow_anonymous === true;
   const [voteAnonymously, setVoteAnonymously] = useRecyclingState(false, [post.id]);
+  const [justVoted, setJustVoted] = useRecyclingState(false, [post.id]);
+
+  useEffect(() => {
+    if (justVoted) {
+      const timer = setTimeout(() => setJustVoted(false), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [justVoted]);
 
   // Custom Alert Modal State
   const [alertVisible, setAlertVisible] = useRecyclingState(false, [post.id]);
@@ -544,7 +553,7 @@ const PollPostCard = React.memo(({
       // If option is not selected, it will be added
       const response = await apiPost(
         `/posts/${post.id}/vote`,
-        { option_index: optionIndex, is_anonymous: voteAnonymously },
+        { option_index: optionIndex, is_anonymous: allowAnonymousVoting && voteAnonymously },
         15000,
         token,
       );
@@ -552,16 +561,33 @@ const PollPostCard = React.memo(({
       if (response.success) {
         // Use the backend's authoritative voted_indexes response
         const newVotedIndexes = response.voted_indexes || [];
+        const newTotalVotes = response.total_votes !== undefined ? response.total_votes : totalVotes;
+        const newOptions = response.options || options;
+
+        setJustVoted(true);
         setVotedIndexes(newVotedIndexes);
         setHasVoted(newVotedIndexes.length > 0);
+        setOptions(newOptions);
+        setTotalVotes(newTotalVotes);
 
-        // Use updated options and total_votes from response
-        if (response.options) {
-          setOptions(response.options);
+        // ── LIFT TO PARENT: Patch HomeFeedScreen's posts array ──
+        const postUpdatePayload = {
+          id: post.id,
+          has_voted: newVotedIndexes.length > 0,
+          voted_indexes: newVotedIndexes,
+          type_data: {
+            ...typeData,
+            options: newOptions,
+            total_votes: newTotalVotes,
+          },
+        };
+
+        if (onPostUpdate) {
+          onPostUpdate(postUpdatePayload);
         }
-        if (response.total_votes !== undefined) {
-          setTotalVotes(response.total_votes);
-        }
+
+        // Global event for external listeners
+        EventBus.emit("poll-vote-updated", postUpdatePayload);
       }
     } catch (error) {
       console.error("Error voting:", error);
@@ -655,13 +681,8 @@ const PollPostCard = React.memo(({
       lastTapRef.current = now;
       if (tapTimeoutRef.current) {
         clearTimeout(tapTimeoutRef.current);
-      }
-      tapTimeoutRef.current = setTimeout(() => {
-        if (onComment) {
-          onComment(post.id);
-        }
         tapTimeoutRef.current = null;
-      }, DOUBLE_TAP_DELAY);
+      }
     }
   };
 
@@ -718,7 +739,12 @@ const PollPostCard = React.memo(({
         activeOpacity={0.85}
       >
         {/* Animated Progress fill */}
-        <AnimatedProgressBar percentage={percentage} isSelected={isSelected} />
+        <AnimatedProgressBar
+          key={`prog-${option.index}`}
+          percentage={percentage}
+          isSelected={isSelected}
+          shouldAnimate={justVoted}
+        />
 
         {/* Content */}
         <View style={styles.optionContent}>
@@ -1036,7 +1062,7 @@ const PollPostCard = React.memo(({
         )}
 
         {/* Anonymous Vote Toggle */}
-        {!isExpired && !hasVoted && (
+        {!isExpired && !hasVoted && allowAnonymousVoting && (
           <View style={styles.anonVoteRow}>
             <View style={styles.anonVoteLeft}>
               <HatGlasses size={18} color="#5e8d9b" strokeWidth={2} style={{ marginRight: 8 }} />

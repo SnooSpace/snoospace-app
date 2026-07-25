@@ -40,6 +40,7 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
   ]);
   const [allowMultiple, setAllowMultiple] = useState(false);
   const [showResultsBeforeVote, setShowResultsBeforeVote] = useState(false);
+  const [allowAnonymous, setAllowAnonymous] = useState(false);
   const [hasExpiry, setHasExpiry] = useState(false);
   const [expiresAt, setExpiresAt] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -66,6 +67,10 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
         updates.showResultsBeforeVote !== undefined
           ? updates.showResultsBeforeVote
           : showResultsBeforeVote,
+      allow_anonymous:
+        updates.allowAnonymous !== undefined
+          ? updates.allowAnonymous
+          : allowAnonymous,
       expires_at: isExpiryActive && currentExpiry ? (currentExpiry instanceof Date ? currentExpiry.toISOString() : currentExpiry) : null,
     };
     onDataChange?.(newData);
@@ -112,6 +117,10 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
       const newValue = !showResultsBeforeVote;
       setShowResultsBeforeVote(newValue);
       updateData({ showResultsBeforeVote: newValue });
+    } else if (setting === "anonymous") {
+      const newValue = !allowAnonymous;
+      setAllowAnonymous(newValue);
+      updateData({ allowAnonymous: newValue });
     }
   };
 
@@ -265,7 +274,7 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
           />
         </View>
 
-        <View style={[styles.settingRow, { borderBottomWidth: 0 }]}>
+        <View style={styles.settingRow}>
           <View style={styles.settingInfo}>
             <Text style={styles.settingLabel}>Show results before voting</Text>
             <Text style={styles.settingSubLabel}>
@@ -278,6 +287,23 @@ const PollCreateForm = ({ onDataChange, disabled = false }) => {
             ios_backgroundColor="#E5E7EB"
             onValueChange={() => toggleSetting("showResults")}
             value={showResultsBeforeVote}
+            disabled={disabled}
+          />
+        </View>
+
+        <View style={[styles.settingRow, { borderBottomWidth: 0 }]}>
+          <View style={styles.settingInfo}>
+            <Text style={styles.settingLabel}>Allow anonymous voting</Text>
+            <Text style={styles.settingSubLabel}>
+              Voters can choose to vote anonymously
+            </Text>
+          </View>
+          <Switch
+            trackColor={{ false: "#E5E7EB", true: COLORS.primary }}
+            thumbColor={"#FFFFFF"}
+            ios_backgroundColor="#E5E7EB"
+            onValueChange={() => toggleSetting("anonymous")}
+            value={allowAnonymous}
             disabled={disabled}
           />
         </View>

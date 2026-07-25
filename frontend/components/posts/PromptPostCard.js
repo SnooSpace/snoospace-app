@@ -717,12 +717,27 @@ const PromptPostCard = React.memo(({
       );
 
       if (response.success) {
+        const newCount = submissionCount + 1;
+        const status = response.submission?.status || "pending";
+
         setHasSubmitted(true);
-        setSubmissionStatus(response.submission.status);
-        setSubmissionCount((prev) => prev + 1);
+        setSubmissionStatus(status);
+        setSubmissionCount(newCount);
         setShowSubmitModal(false);
         setSubmissionText("");
         setSelectedImages([]);
+
+        const updatePayload = {
+          id: post.id,
+          has_submitted: true,
+          submission_status: status,
+          type_data: {
+            ...typeData,
+            submission_count: newCount,
+          },
+        };
+        if (onPostUpdate) onPostUpdate(updatePayload);
+        EventBus.emit("prompt-submission-updated", updatePayload);
       }
     } catch (error) {
       console.error("Error submitting response:", error);

@@ -727,17 +727,26 @@ const QnAPostCard = React.memo(({
     const handleUpvoteTopQuestion = async () => {
       try {
         const token = await getAuthToken();
-        const hasUpvoted = previewQuestion.has_upvoted;
-        const questionId = previewQuestion.id;
+        const newHasUpvoted = !hasUpvoted;
+        const newUpvoteCount = newHasUpvoted
+          ? (previewQuestion.upvote_count || 0) + 1
+          : Math.max(0, (previewQuestion.upvote_count || 0) - 1);
+
+        const updatedPreview = {
+          ...previewQuestion,
+          upvote_count: newUpvoteCount,
+          has_upvoted: newHasUpvoted,
+        };
 
         // Optimistic update
-        setPreviewQuestion((prev) => ({
-          ...prev,
-          upvote_count: hasUpvoted
-            ? Math.max(0, prev.upvote_count - 1)
-            : (prev.upvote_count || 0) + 1,
-          has_upvoted: !hasUpvoted,
-        }));
+        setPreviewQuestion(updatedPreview);
+
+        if (onPostUpdate) {
+          onPostUpdate({
+            id: post.id,
+            preview_question: updatedPreview,
+          });
+        }
 
         if (hasUpvoted) {
           await apiDelete(`/questions/${questionId}/upvote`, {}, 10000, token);
@@ -748,7 +757,7 @@ const QnAPostCard = React.memo(({
         // Also emit an event so QnAQuestionsScreen updates if the user clicks in
         EventBus.emit("question-upvote-updated", {
           questionId,
-          hasUpvoted: !hasUpvoted,
+          hasUpvoted: newHasUpvoted,
         });
       } catch (error) {
         console.error("Error toggling upvote on top question:", error);

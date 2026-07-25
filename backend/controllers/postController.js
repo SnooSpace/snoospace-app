@@ -1453,10 +1453,14 @@ const likePost = async (req, res) => {
     }
 
     // Add like
-    await pool.query(
-      "INSERT INTO post_likes (post_id, liker_id, liker_type) VALUES ($1, $2, $3)",
+    const insertResult = await pool.query(
+      "INSERT INTO post_likes (post_id, liker_id, liker_type) VALUES ($1, $2, $3) ON CONFLICT (post_id, liker_id, liker_type) DO NOTHING",
       [postId, userId, userType],
     );
+
+    if (insertResult.rowCount === 0) {
+      return res.status(400).json({ error: "Post already liked" });
+    }
 
     // Update like count
     await pool.query(
@@ -2748,9 +2752,14 @@ const getPollVoters = async (req, res) => {
       });
     });
 
+    // Calculate total unique voters
+    const uniqueVoters = new Set(
+      votesResult.rows.map((r) => `${r.voter_type}_${r.voter_id}`),
+    ).size;
+
     res.json({
       voters_by_option: votersByOption,
-      total_votes: votesResult.rows.length,
+      total_votes: uniqueVoters,
     });
   } catch (error) {
     console.error("Error getting poll voters:", error);

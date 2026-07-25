@@ -7,16 +7,20 @@
 import React, { useEffect, useRef, memo } from "react";
 import { Animated, StyleSheet } from "react-native";
 
-const AnimatedProgressBar = memo(({ percentage, isSelected }) => {
+const AnimatedProgressBar = memo(({ percentage, isSelected, shouldAnimate = false }) => {
   const widthAnim = useRef(new Animated.Value(percentage)).current;
 
   useEffect(() => {
-    Animated.timing(widthAnim, {
-      toValue: percentage,
-      duration: 400,
-      useNativeDriver: false, // width animation can't use native driver
-    }).start();
-  }, [percentage, widthAnim]);
+    if (shouldAnimate) {
+      Animated.timing(widthAnim, {
+        toValue: percentage,
+        duration: 400,
+        useNativeDriver: false, // width animation can't use native driver
+      }).start();
+    } else {
+      widthAnim.setValue(percentage);
+    }
+  }, [percentage, shouldAnimate, widthAnim]);
 
   return (
     <Animated.View

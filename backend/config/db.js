@@ -1328,8 +1328,26 @@ async function ensureTables(pool) {
         UNIQUE (event_id, member_id, type)
       );
       CREATE INDEX IF NOT EXISTS idx_event_verifications_member ON event_verifications(member_id);
+
+      -- Resynchronize table primary key sequences with MAX(id)
+      DO $$
+      DECLARE
+        r RECORD;
+        seq_name text;
+      BEGIN
+        FOR r IN
+          SELECT table_name
+          FROM information_schema.columns
+          WHERE column_name = 'id' AND table_schema = 'public'
+        LOOP
+          seq_name := pg_get_serial_sequence(quote_ident(r.table_name), 'id');
+          IF seq_name IS NOT NULL THEN
+            EXECUTE format('SELECT setval(%L, COALESCE((SELECT MAX(id) FROM %I), 1))', seq_name, r.table_name);
+          END IF;
+        END LOOP;
+      END $$;
     `);
-    console.log("✅ Ensured all tables");
+    console.log("✅ Ensured all tables and synchronized sequences");
   } catch (err) {
     console.error("❌ Failed ensuring tables", err);
   }

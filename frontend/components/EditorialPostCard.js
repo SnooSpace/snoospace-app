@@ -1072,25 +1072,41 @@ const DefaultEditorialPostCard = ({
         <GestureDetector gesture={authorGesture}>
           <View style={styles.authorInfo}>
             {!isAnon && post.author_photo_url ? (
-              // Fix #3: expo-image with memory-disk caching so recycled cells
-              // do not re-fetch/re-decode avatars already downloaded this session.
-              <ExpoImage
-                source={{ uri: getOptimizedImageUrl(post.author_photo_url, { width: 44 }) }}
-                style={styles.profileImage}
-                cachePolicy="memory-disk"
-                transition={100}
-              />
+              (() => {
+                const avatarUri = getOptimizedImageUrl(post.author_photo_url, { width: 44 });
+                if (isVideo) {
+                  console.log('[AvatarRender]', post.id, 'isVideo:', isVideo, 'uri:', post.author_photo_url, 'optUri:', avatarUri, 'renderPass:', Date.now());
+                }
+                return (
+                  <ExpoImage
+                    source={{ uri: avatarUri }}
+                    style={styles.profileImage}
+                    cachePolicy="memory-disk"
+                    transition={100}
+                    onLoad={() => isVideo && console.log('[AvatarLoad] SUCCESS', post.id)}
+                    onError={(e) => isVideo && console.log('[AvatarLoad] ERROR', post.id, e?.nativeEvent || e?.error || e)}
+                  />
+                );
+              })()
             ) : !isAnon ? (
-              <ExpoImage
-                source={{
-                  uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                    post.author_name || "U",
-                  )}&background=E5E7EB&color=6B7280&size=88`,
-                }}
-                style={styles.profileImage}
-                cachePolicy="memory-disk"
-                transition={100}
-              />
+              (() => {
+                const uiAvatarUri = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                  post.author_name || "U",
+                )}&background=E5E7EB&color=6B7280&size=88`;
+                if (isVideo) {
+                  console.log('[AvatarRender-Fallback]', post.id, 'isVideo:', isVideo, 'uri:', uiAvatarUri, 'renderPass:', Date.now());
+                }
+                return (
+                  <ExpoImage
+                    source={{ uri: uiAvatarUri }}
+                    style={styles.profileImage}
+                    cachePolicy="memory-disk"
+                    transition={100}
+                    onLoad={() => isVideo && console.log('[AvatarLoad] SUCCESS (fallback)', post.id)}
+                    onError={(e) => isVideo && console.log('[AvatarLoad] ERROR (fallback)', post.id, e?.nativeEvent || e?.error || e)}
+                  />
+                );
+              })()
             ) : (
               <View style={styles.anonProfileImage}>
                 <HatGlasses size={18} color={COLORS.primary} strokeWidth={2} />

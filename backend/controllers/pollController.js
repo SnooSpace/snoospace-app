@@ -54,6 +54,7 @@ const createPollPost = async (req, res) => {
       options,
       allow_multiple = false,
       show_results_before_vote = false,
+      allow_anonymous = false,
       expires_at,
     } = req.body;
 
@@ -95,6 +96,7 @@ const createPollPost = async (req, res) => {
       options: pollOptions,
       allow_multiple: Boolean(allow_multiple),
       show_results_before_vote: Boolean(show_results_before_vote),
+      allow_anonymous: Boolean(allow_anonymous),
       total_votes: 0,
     };
 
@@ -142,6 +144,61 @@ const createPollPost = async (req, res) => {
     console.error("Error creating poll post:", error);
     res.status(500).json({ error: "Internal server error" });
   }
+};
+
+/**
+ * Helper function to synchronize posts.type_data with poll_votes table ground truth
+ */
+const syncPollVoteCounts = async (postId) => {
+  const postResult = await pool.query(
+    `SELECT type_data FROM posts WHERE id = $1 AND post_type = 'poll'`,
+    [postId],
+  );
+  if (postResult.rows.length === 0) return null;
+
+  const typeData = postResult.rows[0].type_data || {};
+
+  // Aggregate counts per option from poll_votes
+  const optionCountsResult = await pool.query(
+    `SELECT option_index, COUNT(*)::int as count
+     FROM poll_votes
+     WHERE post_id = $1
+     GROUP BY option_index`,
+    [postId],
+  );
+
+  const optionCountsMap = {};
+  optionCountsResult.rows.forEach((r) => {
+    optionCountsMap[r.option_index] = r.count;
+  });
+
+  // Aggregate total unique voters from poll_votes
+  const totalVotersResult = await pool.query(
+    `SELECT COUNT(DISTINCT (voter_id, voter_type))::int as total_voters
+     FROM poll_votes
+     WHERE post_id = $1`,
+    [postId],
+  );
+  const totalVotes = totalVotersResult.rows[0]?.total_voters || 0;
+
+  // Update option counts in type_data
+  const updatedOptions = (typeData.options || []).map((opt) => ({
+    ...opt,
+    vote_count: optionCountsMap[opt.index] || 0,
+  }));
+
+  const updatedTypeData = {
+    ...typeData,
+    options: updatedOptions,
+    total_votes: totalVotes,
+  };
+
+  await pool.query(
+    `UPDATE posts SET type_data = $1 WHERE id = $2`,
+    [JSON.stringify(updatedTypeData), postId],
+  );
+
+  return updatedTypeData;
 };
 
 /**
@@ -258,73 +315,36 @@ const vote = async (req, res) => {
       }
     }
 
-    // Insert new vote(s)
+    // Insert new vote(s) — ON CONFLICT DO NOTHING guards against:
+    // 1. Sequence drift (duplicate pkey from restored dumps)
+    // 2. Race conditions (duplicate unique_poll_vote constraint)
+    const effectiveIsAnonymous = Boolean(is_anonymous) && Boolean(typeData.allow_anonymous);
+
     for (const idx of indexesToAdd) {
       await pool.query(
         `INSERT INTO poll_votes (post_id, voter_id, voter_type, option_index, is_anonymous)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [postId, userId, userType, idx, Boolean(is_anonymous)],
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT DO NOTHING`,
+        [postId, userId, userType, idx, effectiveIsAnonymous],
       );
     }
 
-    // Update vote counts in type_data
-    // Only adjust counts for options that changed
-    const updatedOptions = typeData.options.map((opt) => {
-      let newCount = opt.vote_count;
-      // Decrement if this option was removed
-      if (indexesToRemove.includes(opt.index)) {
-        newCount = Math.max(0, newCount - 1);
-      }
-      // Increment if this option was added
-      if (indexesToAdd.includes(opt.index)) {
-        newCount = newCount + 1;
-      }
-      return { ...opt, vote_count: newCount };
-    });
+    // Synchronize type_data ground truth directly from poll_votes table
+    const updatedTypeData = await syncPollVoteCounts(postId);
+    const updatedOptions = updatedTypeData?.options || typeData.options;
+    const newTotalVotes = updatedTypeData?.total_votes ?? 0;
 
-    // Calculate new voted indexes after this operation
-    const finalVotedIndexes = [
-      ...previousIndexes.filter((idx) => !indexesToRemove.includes(idx)),
-      ...indexesToAdd,
-    ];
-
-    // Total votes changes when:
-    // - A new voter appears (had 0 votes, now has votes) → increment
-    // - A voter is completely removed (had votes, now has 0) → decrement
-    let newTotalVotes = typeData.total_votes || 0;
-    const hadVotes = previousIndexes.length > 0;
-    const hasVotes = finalVotedIndexes.length > 0;
-
-    if (!hadVotes && hasVotes) {
-      // New voter added
-      newTotalVotes = newTotalVotes + 1;
-    } else if (hadVotes && !hasVotes) {
-      // Voter completely removed
-      newTotalVotes = Math.max(0, newTotalVotes - 1);
-    }
-    // If hadVotes && hasVotes → voter is just changing options, count stays same
-
-    const updatedTypeData = {
-      ...typeData,
-      options: updatedOptions,
-      total_votes: newTotalVotes,
-    };
-
-    await pool.query(`UPDATE posts SET type_data = $1 WHERE id = $2`, [
-      JSON.stringify(updatedTypeData),
-      postId,
-    ]);
+    // Get current voted indexes for this user directly from database
+    const finalVotesResult = await pool.query(
+      `SELECT option_index FROM poll_votes WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3`,
+      [postId, userId, userType],
+    );
+    const finalVotedIndexes = finalVotesResult.rows.map((r) => r.option_index);
 
     console.log(
       `[vote] User ${userType}:${userId} ${
         isChangingVote ? "changed vote" : "voted"
-      } on poll ${postId}`,
-    );
-
-    // Debug: Log options being returned
-    console.log(
-      `[vote] Returning options:`,
-      JSON.stringify(updatedOptions, null, 2),
+      } on poll ${postId}. New total_votes: ${newTotalVotes}`,
     );
 
     // Emit behavioral signal — fire-and-forget, non-blocking
@@ -377,60 +397,24 @@ const removeVote = async (req, res) => {
       return res.status(400).json({ error: "You haven't voted on this poll" });
     }
 
-    const votedIndexes = voteResult.rows.map((r) => r.option_index);
-
     // Delete votes
     await pool.query(
       `DELETE FROM poll_votes WHERE post_id = $1 AND voter_id = $2 AND voter_type = $3`,
       [postId, userId, userType],
     );
 
-    // Update counts in type_data
-    const postResult = await pool.query(
-      `SELECT type_data FROM posts WHERE id = $1`,
-      [postId],
-    );
-
-    if (postResult.rows.length > 0) {
-      const typeData = postResult.rows[0].type_data;
-
-      const updatedOptions = typeData.options.map((opt) => ({
-        ...opt,
-        vote_count: votedIndexes.includes(opt.index)
-          ? Math.max(0, opt.vote_count - 1)
-          : opt.vote_count,
-      }));
-
-      const newTotalVotes = Math.max(0, (typeData.total_votes || 0) - 1);
-
-      const updatedTypeData = {
-        ...typeData,
-        options: updatedOptions,
-        total_votes: newTotalVotes,
-      };
-
-      await pool.query(`UPDATE posts SET type_data = $1 WHERE id = $2`, [
-        JSON.stringify(updatedTypeData),
-        postId,
-      ]);
-    }
+    // Synchronize type_data ground truth directly from poll_votes table
+    const updatedTypeData = await syncPollVoteCounts(postId);
 
     console.log(
       `[removeVote] User ${userType}:${userId} removed vote from poll ${postId}`,
     );
 
-    // Return updated options so frontend can update UI
-    const updatedPost = await pool.query(
-      `SELECT type_data FROM posts WHERE id = $1`,
-      [postId],
-    );
-    const finalTypeData = updatedPost.rows[0]?.type_data || {};
-
     res.json({
       success: true,
       message: "Vote removed",
-      options: finalTypeData.options || [],
-      total_votes: finalTypeData.total_votes || 0,
+      options: updatedTypeData?.options || [],
+      total_votes: updatedTypeData?.total_votes || 0,
     });
   } catch (error) {
     console.error("Error removing vote:", error);

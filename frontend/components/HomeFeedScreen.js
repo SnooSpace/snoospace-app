@@ -1151,10 +1151,18 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       setOpportunities(updater);
     };
 
+    const handleGenericPostUpdated = (payload) => {
+      if (!payload?.id) return;
+      handlePostUpdate(payload);
+    };
+
     const unsubscribeView = EventBus.on("post-view-updated", handlePostViewUpdate);
     const unsubscribeShare = EventBus.on("post-share-updated", handlePostShareUpdate);
     const unsubscribeSave = EventBus.on("post-save-updated", handlePostSaveUpdate);
     const unsubscribeFollow = EventBus.on("post-follow-updated", handlePostFollowUpdated);
+    const unsubscribePollVote = EventBus.on("poll-vote-updated", handleGenericPostUpdated);
+    const unsubscribeChallengeJoin = EventBus.on("challenge-join-updated", handleGenericPostUpdated);
+    const unsubscribePromptSubmission = EventBus.on("prompt-submission-updated", handleGenericPostUpdated);
 
     return () => {
       if (unsubscribeLike) unsubscribeLike();
@@ -1163,6 +1171,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       if (unsubscribeShare) unsubscribeShare();
       if (unsubscribeSave) unsubscribeSave();
       if (unsubscribeFollow) unsubscribeFollow();
+      if (unsubscribePollVote) unsubscribePollVote();
+      if (unsubscribeChallengeJoin) unsubscribeChallengeJoin();
+      if (unsubscribePromptSubmission) unsubscribePromptSubmission();
     };
   }, []);
 

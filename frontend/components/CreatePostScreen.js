@@ -107,6 +107,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
     options: ["", ""],
     allow_multiple: false,
     show_results_before_vote: false,
+    allow_anonymous: false,
   });
   const [promptData, setPromptData] = useState({
     prompt_text: "",
@@ -503,6 +504,7 @@ const CreatePostScreen = ({ navigation, route, onPostCreated }) => {
           options: pollData.options.filter((o) => o.trim()),
           allow_multiple: pollData.allow_multiple,
           show_results_before_vote: pollData.show_results_before_vote,
+          allow_anonymous: pollData.allow_anonymous,
           expires_at: pollData.expires_at,
         };
       } else if (postType === "prompt") {

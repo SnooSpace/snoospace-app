@@ -782,9 +782,22 @@ const ChallengePostCard = React.memo(({
         token,
       );
       if (response.success) {
+        const newCount = participantCount + 1;
         setHasJoined(true);
         setUserParticipation(response.participation);
-        setParticipantCount((prev) => prev + 1);
+        setParticipantCount(newCount);
+
+        const updatePayload = {
+          id: post.id,
+          has_joined: true,
+          user_participation: response.participation,
+          type_data: {
+            ...typeData,
+            participant_count: newCount,
+          },
+        };
+        if (onPostUpdate) onPostUpdate(updatePayload);
+        EventBus.emit("challenge-join-updated", updatePayload);
       }
     } catch (error) {
       console.error("Error joining challenge:", error);
@@ -798,10 +811,24 @@ const ChallengePostCard = React.memo(({
     try {
       const token = await getAuthToken();
       await apiDelete(`/posts/${post.id}/join`, {}, 10000, token);
+      const newCount = Math.max(0, participantCount - 1);
       setHasJoined(false);
       setUserParticipation(null);
       setUserSubmissionCount(0);
-      setParticipantCount((prev) => Math.max(0, prev - 1));
+      setParticipantCount(newCount);
+
+      const updatePayload = {
+        id: post.id,
+        has_joined: false,
+        user_participation: null,
+        user_submission_count: 0,
+        type_data: {
+          ...typeData,
+          participant_count: newCount,
+        },
+      };
+      if (onPostUpdate) onPostUpdate(updatePayload);
+      EventBus.emit("challenge-join-updated", updatePayload);
     } catch (error) {
       console.error("Error leaving challenge:", error);
     } finally {
