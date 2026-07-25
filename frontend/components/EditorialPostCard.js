@@ -1082,7 +1082,7 @@ const DefaultEditorialPostCard = ({
                     source={{ uri: avatarUri }}
                     style={styles.profileImage}
                     cachePolicy="memory-disk"
-                    transition={100}
+                    transition={0}
                     onLoad={() => isVideo && console.log('[AvatarLoad] SUCCESS', post.id)}
                     onError={(e) => isVideo && console.log('[AvatarLoad] ERROR', post.id, e?.nativeEvent || e?.error || e)}
                   />
@@ -1101,7 +1101,7 @@ const DefaultEditorialPostCard = ({
                     source={{ uri: uiAvatarUri }}
                     style={styles.profileImage}
                     cachePolicy="memory-disk"
-                    transition={100}
+                    transition={0}
                     onLoad={() => isVideo && console.log('[AvatarLoad] SUCCESS (fallback)', post.id)}
                     onError={(e) => isVideo && console.log('[AvatarLoad] ERROR (fallback)', post.id, e?.nativeEvent || e?.error || e)}
                   />
