@@ -986,6 +986,13 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
       setGreetingName(null);
       setCurrentUserId(null);
       setCurrentUserType(null);
+      // Invalidate the hoisted auth token ref so mounted cards don't inherit
+      // the previous account's token. api/auth.js already clears its own
+      // cachedToken on accountSwitched; we mirror that here so the ref is null
+      // rather than stale. Cards' action handlers have a || await getAuthToken()
+      // fallback that will re-warm the ref on first use after the switch.
+      authTokenRef.current = null;
+      getAuthToken().then((t) => { authTokenRef.current = t; });
       // ── 1.4 Clear cached snapshot to prevent cross-account leakage ──────────
       // The cached feed belongs to the previous account. Clear it now so the
       // next cold start does not show another account's content at frame 0.
