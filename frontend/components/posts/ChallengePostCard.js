@@ -96,6 +96,26 @@ import {
 import ContentActionsSheet from "../ContentActionsSheet";
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
 import { useRecyclingState } from "@shopify/flash-list";
+import authEventEmitter from "../../utils/authEventEmitter";
+
+// ── Module-level fetch cache (same pattern as api/auth.js inFlightProfileRequests) ─
+// Keyed by post.id. Cleared on account switch to prevent cross-account data leakage.
+const CACHE_TTL_MS = 60_000; // 60 seconds
+
+// submission-stats cache
+const statsCache = new Map();       // postId → { data, ts }
+const statsInFlight = new Map();    // postId → Promise
+
+// participant-previews cache
+const previewsCache = new Map();    // postId → { data, ts }
+const previewsInFlight = new Map(); // postId → Promise
+
+authEventEmitter.on("accountSwitched", () => {
+  statsCache.clear();
+  statsInFlight.clear();
+  previewsCache.clear();
+  previewsInFlight.clear();
+});
 
 const ChallengePostCard = React.memo(({
   post,
@@ -116,6 +136,7 @@ const ChallengePostCard = React.memo(({
   showFollowButton = true,
   isSharedPreview = false,
   onPress,
+  shouldPreload = true, // When false (card far from viewport), defer network-heavy fetches
 }) => {
   const navigation = useNavigation();
   const { showToast } = useToast();
@@ -402,18 +423,47 @@ const ChallengePostCard = React.memo(({
   const [submissionStats, setSubmissionStats] = useRecyclingState(null, [post.id]);
 
   useEffect(() => {
-    const loadSubmissionStats = async () => {
-      try {
-        const token = await getAuthToken();
-        const data = await apiGet(`/posts/${post.id}/submission-stats`, 8000, token);
-        console.log("[ChallengePostCard] submission-stats for", post.id, "→", JSON.stringify(data));
+    if (!shouldPreload) return; // defer until card is near viewport
+    const postId = post.id;
+
+    // Check TTL cache first (same pattern as auth.js cachedProfileMap)
+    const cached = statsCache.get(postId);
+    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+      setSubmissionStats(cached.data);
+      return;
+    }
+
+    // Join an in-flight request if one is already pending for this post.id
+    if (statsInFlight.has(postId)) {
+      statsInFlight.get(postId).then((data) => {
         if (data?.success) setSubmissionStats(data);
+      });
+      return;
+    }
+
+    // No cache hit, no in-flight — fire a new deduplicated request
+    const promise = (async () => {
+      try {
+        const token = tokenRef.current || (await getAuthToken());
+        const data = await apiGet(`/posts/${postId}/submission-stats`, 8000, token);
+        if (data?.success) {
+          statsCache.set(postId, { data, ts: Date.now() });
+          return data;
+        }
+        return null;
       } catch (e) {
         console.warn("[ChallengePostCard] submission-stats fetch failed:", e?.message);
+        return null;
+      } finally {
+        statsInFlight.delete(postId);
       }
-    };
-    loadSubmissionStats();
-  }, [post.id]);
+    })();
+
+    statsInFlight.set(postId, promise);
+    promise.then((data) => {
+      if (data?.success) setSubmissionStats(data);
+    });
+  }, [post.id, shouldPreload]);
 
   // ── Live teaser counters — react to like/comment events from submissions screen ──
   useEffect(() => {
@@ -608,24 +658,52 @@ const ChallengePostCard = React.memo(({
 
   // Fetch participant previews for avatar stack
   useEffect(() => {
-    const fetchPreviews = async () => {
-      if (participantCount === 0) return;
+    if (!shouldPreload) return; // defer until card is near viewport
+    if (participantCount === 0) return;
+    const postId = post.id;
+
+    // Check TTL cache first
+    const cached = previewsCache.get(postId);
+    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+      setParticipantPreviews(cached.data);
+      return;
+    }
+
+    // Join an in-flight request if one is already pending for this post.id
+    if (previewsInFlight.has(postId)) {
+      previewsInFlight.get(postId).then((previews) => {
+        if (previews) setParticipantPreviews(previews);
+      });
+      return;
+    }
+
+    // No cache hit, no in-flight — fire a new deduplicated request
+    const promise = (async () => {
       try {
-        const token = await getAuthToken();
+        const token = tokenRef.current || (await getAuthToken());
         const response = await apiGet(
-          `/posts/${post.id}/participant-previews`,
+          `/posts/${postId}/participant-previews`,
           10000,
           token,
         );
         if (response.success && response.previews) {
-          setParticipantPreviews(response.previews);
+          previewsCache.set(postId, { data: response.previews, ts: Date.now() });
+          return response.previews;
         }
+        return null;
       } catch (error) {
-        console.log("Error fetching participant previews:", error);
+        console.log("[ChallengePostCard] participant-previews fetch failed:", error);
+        return null;
+      } finally {
+        previewsInFlight.delete(postId);
       }
-    };
-    fetchPreviews();
-  }, [post.id, participantCount]);
+    })();
+
+    previewsInFlight.set(postId, promise);
+    promise.then((previews) => {
+      if (previews) setParticipantPreviews(previews);
+    });
+  }, [post.id, participantCount, shouldPreload]);
 
   // Animate Live Now badge
   useEffect(() => {

@@ -241,6 +241,7 @@ const EditorialPostCard = (props) => {
         currentUserType={props.currentUserType}
         showManagementControls={props.showManagementControls}
         authToken={props.authToken}
+        shouldPreload={props.shouldPreload}
       />
     );
   }
