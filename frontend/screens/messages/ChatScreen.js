@@ -115,6 +115,12 @@ import EmptyChatState from "../../components/EmptyChatState";
 import useRealtimeSubscription from "../../hooks/useRealtimeSubscription";
 import { getSocket } from "../../services/socketService";
 import { getPostById } from "../../api/posts";
+import {
+  getCachedConversation,
+  setCachedConversation,
+  appendMessageToCache,
+  clearConversationCache,
+} from "../../services/conversationCache";
 
 // ΓöÇΓöÇ Palette ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 const PRIMARY_COLOR = "#3565F2";
@@ -2138,22 +2144,67 @@ export default function ChatScreen({ route, navigation }) {
 
   // loadMessages replaced by useChatPagination.loadInitial()
 
-  // ΓöÇΓöÇ initializeConversation ────────────────────────────────────────────────────────
+  // ── initializeConversation ────────────────────────────────────────────────────────
   useEffect(() => {
     const tStartInit = global.performance ? global.performance.now() : Date.now();
     if (tappedAt) {
       console.log(`[PERF] Tap to ChatScreen useEffect init: ${(tStartInit - tappedAt).toFixed(2)}ms`);
     }
     const init = async () => {
-      setMessagesLoading(true);
-      try {
-        if (conversationId) {
-          setCurrentConversationId(conversationId);
+      if (conversationId) {
+        // ── Cache-first hydration ──────────────────────────────────────────
+        // Check for a warm in-memory entry before touching the network.
+        // If found, paint real messages immediately (no skeleton) and kick
+        // off a background reconcile to merge any messages sent while away.
+        const cached = getCachedConversation(conversationId);
+        if (cached && cached.messages.length > 0) {
+          console.log(`[ConvCache] Cache HIT for ${conversationId} (${cached.messages.length} msgs, age ${((Date.now() - cached.cachedAt) / 1000).toFixed(1)}s)`);
+          // Hydrate the pagination hook directly — this sets messages state
+          // before the network round-trip, giving a frame-0 paint.
+          addNewMessages(cached.messages);
+          setMessagesLoading(false);
+        } else {
+          console.log(`[ConvCache] Cache MISS for ${conversationId}`);
+          setMessagesLoading(true);
+        }
+
+        setCurrentConversationId(conversationId);
+        try {
           const tStartLoad = global.performance ? global.performance.now() : Date.now();
-          const loadRes = await loadInitial(conversationId);
-          if (loadRes?.status) setGroupStatus(loadRes.status);
+          let freshMsgs = [];
+          let freshCursor = null;
+
+          if (cached && cached.messages.length > 0) {
+            // Cache HIT path: use getMessages directly to avoid loadInitial's
+            // setMessages([]) reset which would blank out the already-painted messages.
+            const reconcileRes = await getMessages(conversationId, { limit: 20 });
+            freshMsgs = reconcileRes?.messages || [];
+            freshCursor = reconcileRes?.nextCursor || null;
+            if (reconcileRes?.status) setGroupStatus(reconcileRes.status);
+          } else {
+            // Cache MISS path: original loadInitial handles state reset + set
+            const loadRes = await loadInitial(conversationId);
+            if (loadRes?.status) setGroupStatus(loadRes.status);
+            freshMsgs = loadRes?.messages || [];
+            freshCursor = loadRes?.nextCursor || null;
+          }
+
           const tEndLoad = global.performance ? global.performance.now() : Date.now();
           console.log(`[PERF] loadInitial (conversationId exists) took: ${(tEndLoad - tStartLoad).toFixed(2)}ms`);
+
+          // Merge: addNewMessages dedupes by id, so this is always safe
+          // regardless of whether cache was used.
+          if (freshMsgs.length > 0) {
+            addNewMessages(freshMsgs);
+          }
+          // Update cache with the authoritative server state
+          if (freshMsgs.length > 0 || !cached) {
+            setCachedConversation(conversationId, {
+              messages: freshMsgs,
+              cursor: freshCursor,
+            });
+          }
+
           EventBus.emit("messages-read");
           NotificationConsumptionService.consumeChat(conversationId).catch(console.error);
           // For group chats: fetch restriction flag + current user role
@@ -2161,83 +2212,105 @@ export default function ChatScreen({ route, navigation }) {
             try {
               const gpRes = await getGroupParticipants(conversationId);
               setMessagingRestricted(gpRes.messagingRestricted || false);
-              // find current user's role by matching token user — we get it from auth via getConversations
-              // We store it after we also load current user identity below
-              if (gpRes._myRole) setMyGroupRole(gpRes._myRole); // populated below
+              if (gpRes._myRole) setMyGroupRole(gpRes._myRole);
             } catch {
               /* non-fatal */
             }
           }
-        } else if (recipientId) {
-          // 1. Resolve conversation with recipient using lightweight endpoint
-          const tResolveStart = global.performance ? global.performance.now() : Date.now();
-          const resolvedRes = await resolveConversation(recipientId, recipientType);
-          const tResolveEnd = global.performance ? global.performance.now() : Date.now();
-          console.log(`[PERF] resolveConversation took: ${(tResolveEnd - tResolveStart).toFixed(2)}ms`);
-
-          const resolvedConvId = resolvedRes?.conversationId || null;
-
-          // 2. Fetch the recipient details if not pre-seeded
-          let recipientPromise = Promise.resolve(null);
-          if (!recipient) {
-            if ((recipientType || "member") === "community") {
-              recipientPromise = getPublicCommunity(recipientId).then((p) => ({
-                id: p.id,
-                name: p.name,
-                username: p.username,
-                profilePhotoUrl: p.logo_url,
-                type: "community"
-              }));
-            } else {
-              recipientPromise = getPublicMemberProfile(recipientId).then((p) => ({
-                id: p.id,
-                name: p.full_name || p.name,
-                username: p.username,
-                profilePhotoUrl: p.profile_photo_url,
-                you_have_blocked: !!p?.you_have_blocked,
-                type: "member"
-              }));
-            }
+        } catch (err) {
+          // If the background fetch fails but we had a cache hit, the user
+          // still sees something. Only hard-error if we had no cache at all.
+          console.error("[ConvCache] Background fetch failed:", err);
+          if (!cached || cached.messages.length === 0) {
+            throw err; // re-throw so the outer catch shows the alert
           }
-
-          // Fetch profile/block status concurrently with loading the initial messages if conversation exists
-          const promises = [recipientPromise];
-          let loadInitialIndex = -1;
-          if (resolvedConvId) {
-            loadInitialIndex = promises.length;
-            promises.push(loadInitial(resolvedConvId));
-          }
-
-          const tPromisesStart = global.performance ? global.performance.now() : Date.now();
-          const results = await Promise.all(promises);
-          const loadRes = loadInitialIndex !== -1 ? results[loadInitialIndex] : null;
-          if (loadRes?.status) setGroupStatus(loadRes.status);
-          const tPromisesEnd = global.performance ? global.performance.now() : Date.now();
-          if (loadInitialIndex !== -1) {
-            console.log(`[PERF] loadInitial + recipientPromise concurrent took: ${(tPromisesEnd - tPromisesStart).toFixed(2)}ms`);
-          } else {
-            console.log(`[PERF] recipientPromise took: ${(tPromisesEnd - tPromisesStart).toFixed(2)}ms`);
-          }
-
-          const recipientResult = results[0];
-
-          if (recipientResult) {
-            setRecipient(recipientResult);
-            if (recipientResult.type === "member") {
-              setYouHaveBlocked(!!recipientResult.you_have_blocked);
-            }
-          }
-
-          if (resolvedConvId) {
-            setCurrentConversationId(resolvedConvId);
-            EventBus.emit("messages-read");
-            NotificationConsumptionService.consumeChat(resolvedConvId).catch(console.error);
-          } else {
-            setCurrentConversationId(null);
-          }
-          setCurrentRecipientId(recipientId);
-          setCurrentRecipientType(recipientType || "member");
+        } finally {
+          setMessagesLoading(false);
         }
+      } else if (recipientId) {
+        setMessagesLoading(true);
+        // 1. Resolve conversation with recipient using lightweight endpoint
+        const tResolveStart = global.performance ? global.performance.now() : Date.now();
+        const resolvedRes = await resolveConversation(recipientId, recipientType);
+        const tResolveEnd = global.performance ? global.performance.now() : Date.now();
+        console.log(`[PERF] resolveConversation took: ${(tResolveEnd - tResolveStart).toFixed(2)}ms`);
+
+        const resolvedConvId = resolvedRes?.conversationId || null;
+
+        // 2. Fetch the recipient details if not pre-seeded
+        let recipientPromise = Promise.resolve(null);
+        if (!recipient) {
+          if ((recipientType || "member") === "community") {
+            recipientPromise = getPublicCommunity(recipientId).then((p) => ({
+              id: p.id,
+              name: p.name,
+              username: p.username,
+              profilePhotoUrl: p.logo_url,
+              type: "community"
+            }));
+          } else {
+            recipientPromise = getPublicMemberProfile(recipientId).then((p) => ({
+              id: p.id,
+              name: p.full_name || p.name,
+              username: p.username,
+              profilePhotoUrl: p.profile_photo_url,
+              you_have_blocked: !!p?.you_have_blocked,
+              type: "member"
+            }));
+          }
+        }
+
+        // Fetch profile/block status concurrently with loading the initial messages if conversation exists
+        const promises = [recipientPromise];
+        let loadInitialIndex = -1;
+        if (resolvedConvId) {
+          loadInitialIndex = promises.length;
+          promises.push(loadInitial(resolvedConvId));
+        }
+
+        const tPromisesStart = global.performance ? global.performance.now() : Date.now();
+        const results = await Promise.all(promises);
+        const loadRes = loadInitialIndex !== -1 ? results[loadInitialIndex] : null;
+        if (loadRes?.status) setGroupStatus(loadRes.status);
+        const tPromisesEnd = global.performance ? global.performance.now() : Date.now();
+        if (loadInitialIndex !== -1) {
+          console.log(`[PERF] loadInitial + recipientPromise concurrent took: ${(tPromisesEnd - tPromisesStart).toFixed(2)}ms`);
+        } else {
+          console.log(`[PERF] recipientPromise took: ${(tPromisesEnd - tPromisesStart).toFixed(2)}ms`);
+        }
+
+        const recipientResult = results[0];
+
+        if (recipientResult) {
+          setRecipient(recipientResult);
+          if (recipientResult.type === "member") {
+            setYouHaveBlocked(!!recipientResult.you_have_blocked);
+          }
+        }
+
+        if (resolvedConvId) {
+          setCurrentConversationId(resolvedConvId);
+          // Populate cache for the resolved conversation so next open is instant
+          const freshMsgs = loadRes?.messages || [];
+          if (freshMsgs.length > 0) {
+            setCachedConversation(resolvedConvId, {
+              messages: freshMsgs,
+              cursor: loadRes?.nextCursor || null,
+            });
+          }
+          EventBus.emit("messages-read");
+          NotificationConsumptionService.consumeChat(resolvedConvId).catch(console.error);
+        } else {
+          setCurrentConversationId(null);
+        }
+        setCurrentRecipientId(recipientId);
+        setCurrentRecipientType(recipientType || "member");
+      }
+    };
+
+    const run = async () => {
+      try {
+        await init();
       } catch (err) {
         console.error("Error initializing conversation:", err);
         showAlert({
@@ -2259,7 +2332,7 @@ export default function ChatScreen({ route, navigation }) {
         console.log(`[PERF] Total ChatScreen initialization took: ${(tEndAll - tStartInit).toFixed(2)}ms`);
       }
     };
-    init();
+    run();
   }, [conversationId, recipientId, recipientType]);
 
   // Fetch fresh post details when shared post modal opens
@@ -2439,6 +2512,25 @@ export default function ChatScreen({ route, navigation }) {
       }
       console.log("[ChatScreen] Socket.io new message received:", msg.id);
       addNewMessage({
+        id: msg.id,
+        senderId: msg.senderId,
+        senderType: msg.senderType,
+        senderName: msg.senderName,
+        senderUsername: msg.senderUsername,
+        senderPhotoUrl: msg.senderPhotoUrl,
+        messageText: msg.messageText,
+        messageType: msg.messageType,
+        metadata: msg.metadata,
+        isDeleted: msg.isDeleted,
+        deletedByType: msg.deletedByType,
+        replyToMessageId: msg.replyToMessageId,
+        replyPreview: msg.replyPreview,
+        isRead: msg.isRead,
+        createdAt: msg.createdAt,
+      });
+      // Keep the cache in sync so the next reopen is also instant.
+      // Zero extra cost — we're already inside the socket handler.
+      appendMessageToCache(currentConversationId, {
         id: msg.id,
         senderId: msg.senderId,
         senderType: msg.senderType,
