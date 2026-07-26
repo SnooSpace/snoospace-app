@@ -203,34 +203,36 @@ const ConvRowShell = React.memo(function ConvRowShell({ conv, onPress }) {
   const { isGroup, isBlockedByOther, name, username, uri, hasUnread } = deriveConvFields(conv);
   const isMuted = conv.isMuted;
   return (
-    <RowPressable style={swipeStyles.row} onPress={() => onPress(conv)}>
-      <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} isAnonymous={isBlockedByOther} />
-      <View style={swipeStyles.content}>
-        <View style={swipeStyles.topRow}>
-          <Text style={[swipeStyles.name, hasUnread && swipeStyles.nameUnread]} numberOfLines={1}>
-            {name}{conv.status === "CLOSED" ? " 🔒" : ""}
-          </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            {isMuted && <BellOff size={12} color={TEXT_SEC} strokeWidth={2} />}
-            <Text style={swipeStyles.time}>{formatRelativeTime(conv.lastMessageAt)}</Text>
+    <View style={swipeStyles.rowContainer}>
+      <RowPressable style={swipeStyles.row} onPress={() => onPress(conv)}>
+        <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} isAnonymous={isBlockedByOther} />
+        <View style={swipeStyles.content}>
+          <View style={swipeStyles.topRow}>
+            <Text style={[swipeStyles.name, hasUnread && swipeStyles.nameUnread]} numberOfLines={1}>
+              {name}{conv.status === "CLOSED" ? " 🔒" : ""}
+            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              {isMuted && <BellOff size={12} color={TEXT_SEC} strokeWidth={2} />}
+              <Text style={swipeStyles.time}>{formatRelativeTime(conv.lastMessageAt)}</Text>
+            </View>
+          </View>
+          <View style={swipeStyles.bottomRow}>
+            <Text style={[swipeStyles.preview, hasUnread && !isMuted && swipeStyles.previewUnread]} numberOfLines={1}>
+              {isBlockedByOther
+                ? (conv.lastMessage || "")
+                : (conv.lastMessage || username || "No messages yet")}
+            </Text>
+            {hasUnread && !isMuted && (
+              <View style={swipeStyles.badge}>
+                <Text style={swipeStyles.badgeText}>
+                  {conv.unreadCount > 9 ? "9+" : String(conv.unreadCount)}
+                </Text>
+              </View>
+            )}
           </View>
         </View>
-        <View style={swipeStyles.bottomRow}>
-          <Text style={[swipeStyles.preview, hasUnread && !isMuted && swipeStyles.previewUnread]} numberOfLines={1}>
-            {isBlockedByOther
-              ? (conv.lastMessage || "")
-              : (conv.lastMessage || username || "No messages yet")}
-          </Text>
-          {hasUnread && !isMuted && (
-            <View style={swipeStyles.badge}>
-              <Text style={swipeStyles.badgeText}>
-                {conv.unreadCount > 9 ? "9+" : String(conv.unreadCount)}
-              </Text>
-            </View>
-          )}
-        </View>
-      </View>
-    </RowPressable>
+      </RowPressable>
+    </View>
   );
 });
 
@@ -263,7 +265,7 @@ const SwipeRow = React.memo(function SwipeRow({ conv, onPress, onDelete, onLeave
   const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
 
   return (
-    <View style={{ overflow: "hidden" }}>
+    <View style={swipeStyles.rowContainer}>
       {/* Action buttons revealed on swipe */}
       <View style={[swipeStyles.actions, { width: SWIPE_FULL }]}>
         <TouchableOpacity
@@ -392,8 +394,8 @@ const swipeStyles = StyleSheet.create({
   actionBtn:    { width: 68, alignSelf: "stretch", justifyContent: "center", alignItems: "center",
     borderRadius: 12, margin: 4, gap: 3 },
   actionLabel:  { fontFamily: "Manrope-Medium", fontSize: 10, color: "#FFF" },
+  rowContainer: { overflow: "hidden", marginHorizontal: 8, marginVertical: 2, borderRadius: 16 },
   row:          { flexDirection: "row", paddingHorizontal: 14, paddingVertical: 12,
-    marginHorizontal: 8, marginVertical: 2, borderRadius: 16,
     backgroundColor: BG, alignItems: "center" },
   content:      { flex: 1 },
   topRow:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
