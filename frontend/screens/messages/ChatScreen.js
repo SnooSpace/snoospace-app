@@ -344,8 +344,11 @@ const ReplyBar = ({ reply, onClose }) => {
   const opacity = useSharedValue(0);
   useEffect(() => {
     if (reply) {
-      translateY.value = withSpring(0, { damping: 18, stiffness: 200 });
+      translateY.value = withTiming(0, { duration: 160, easing: Easing.out(Easing.quad) });
       opacity.value = withTiming(1, { duration: 160 });
+    } else {
+      translateY.value = 30;
+      opacity.value = 0;
     }
   }, [reply]);
   const animStyle = useAnimatedStyle(() => ({
