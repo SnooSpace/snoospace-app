@@ -43,7 +43,15 @@ export default function DiscoverStackNavigator() {
         name="ActivityInsights"
         component={ActivityInsightsScreen}
       />
-      <Stack.Screen name="Chat" component={ChatScreen} />
+      <Stack.Screen
+        name="Chat"
+        component={ChatScreen}
+        options={{
+          headerShown: false,
+          animation: "slide_from_right",
+          animationDuration: 200,
+        }}
+      />
       <Stack.Screen name="OpportunityView" component={OpportunityViewScreen} />
       <Stack.Screen
         name="ApplyToOpportunity"

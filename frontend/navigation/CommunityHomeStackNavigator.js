@@ -59,6 +59,8 @@ export default function CommunityHomeStackNavigator() {
         component={ChatScreen}
         options={{
           headerShown: false,
+          animation: "slide_from_right",
+          animationDuration: 200,
         }}
       />
       <Stack.Screen
