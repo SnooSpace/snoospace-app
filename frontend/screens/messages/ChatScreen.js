@@ -339,8 +339,11 @@ const sepStyles = StyleSheet.create({
 });
 
 // ── ReplyBar (above input) ──────────────────────────────────────────────────
+// Always stays mounted in the component tree so SVG icons (ImageIcon/Video/X)
+// and native views are pre-instantiated on screen open — eliminating the
+// JS thread frame-drop that used to happen on the very first swipe to reply.
 const ReplyBar = ({ reply, onClose }) => {
-  const maxHeight = useSharedValue(0);
+  const height = useSharedValue(0);
   const translateY = useSharedValue(20);
   const opacity = useSharedValue(0);
   const activeReplyRef = useRef(reply);
@@ -351,81 +354,87 @@ const ReplyBar = ({ reply, onClose }) => {
 
   useEffect(() => {
     if (reply) {
-      maxHeight.value = withTiming(52, { duration: 180, easing: Easing.out(Easing.quad) });
-      translateY.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
+      height.value = withTiming(52, { duration: 200, easing: Easing.out(Easing.cubic) });
+      translateY.value = withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) });
       opacity.value = withTiming(1, { duration: 180 });
     } else {
-      maxHeight.value = withTiming(0, { duration: 160, easing: Easing.out(Easing.quad) });
-      translateY.value = withTiming(20, { duration: 160, easing: Easing.out(Easing.quad) });
+      height.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.cubic) });
+      translateY.value = withTiming(20, { duration: 180, easing: Easing.out(Easing.cubic) });
       opacity.value = withTiming(0, { duration: 140 });
     }
   }, [reply]);
 
   const animStyle = useAnimatedStyle(() => ({
-    maxHeight: maxHeight.value,
+    height: height.value,
     opacity: opacity.value,
+    overflow: "hidden",
+  }));
+
+  const innerAnimStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
   }));
 
-  const activeReply = reply || activeReplyRef.current;
-  if (!activeReply) return null;
-
-  const isPostShare = activeReply.isPostShare;
+  const activeReply = activeReplyRef.current;
+  const isPostShare = activeReply?.isPostShare;
   const isMedia =
-    activeReply.messageType === "image" ||
-    activeReply.messageType === "video" ||
-    activeReply.messageType === "multi_media";
+    activeReply?.messageType === "image" ||
+    activeReply?.messageType === "video" ||
+    activeReply?.messageType === "multi_media";
 
-  let preview;
-  if (activeReply.isDeleted) {
-    preview = "This message was unsent";
-  } else if (isPostShare) {
-    const authorLine = activeReply.postAuthorUsername
-      ? `@${activeReply.postAuthorUsername}`
-      : "Shared post";
-    const captionLine = activeReply.postCaption
-      ? ` ∙ ${activeReply.postCaption.slice(0, 40)}${activeReply.postCaption.length > 40 ? "…" : ""}`
-      : "";
-    preview = authorLine + captionLine;
-  } else {
-    preview = activeReply.messageText || "";
-    if (!preview && isMedia) {
-      preview =
-        activeReply.messageType === "video"
-          ? "Video"
-          : activeReply.messageType === "multi_media"
-            ? "Media"
-            : "Photo";
+  let preview = "";
+  if (activeReply) {
+    if (activeReply.isDeleted) {
+      preview = "This message was unsent";
+    } else if (isPostShare) {
+      const authorLine = activeReply.postAuthorUsername
+        ? `@${activeReply.postAuthorUsername}`
+        : "Shared post";
+      const captionLine = activeReply.postCaption
+        ? ` ∙ ${activeReply.postCaption.slice(0, 40)}${activeReply.postCaption.length > 40 ? "…" : ""}`
+        : "";
+      preview = authorLine + captionLine;
+    } else {
+      preview = activeReply.messageText || "";
+      if (!preview && isMedia) {
+        preview =
+          activeReply.messageType === "video"
+            ? "Video"
+            : activeReply.messageType === "multi_media"
+              ? "Media"
+              : "Photo";
+      }
+      preview = preview.slice(0, 60) + (preview.length > 60 ? "…" : "");
     }
-    preview = preview.slice(0, 60) + (preview.length > 60 ? "…" : "");
   }
 
   return (
-    <Animated.View style={[replyBarStyles.container, animStyle]}>
-      {(isPostShare || isMedia) && (
-        <View style={replyBarStyles.postIcon}>
-          {activeReply.messageType === "video" ? (
-            <Video size={14} color="#3565F2" strokeWidth={2} />
-          ) : (
-            <ImageIcon size={14} color="#3565F2" strokeWidth={2} />
-          )}
+    <Animated.View style={animStyle}>
+      <Animated.View style={[replyBarStyles.container, innerAnimStyle]}>
+        {(isPostShare || isMedia) && (
+          <View style={replyBarStyles.postIcon}>
+            {activeReply?.messageType === "video" ? (
+              <Video size={14} color="#3565F2" strokeWidth={2} />
+            ) : (
+              <ImageIcon size={14} color="#3565F2" strokeWidth={2} />
+            )}
+          </View>
+        )}
+        <View style={replyBarStyles.body}>
+          <Text style={replyBarStyles.name}>
+            Replying to {activeReply?.senderName || "Message"}
+          </Text>
+          <Text style={replyBarStyles.preview} numberOfLines={1}>
+            {preview}
+          </Text>
         </View>
-      )}
-      <View style={replyBarStyles.body}>
-        <Text style={replyBarStyles.name}>
-          Replying to {activeReply.senderName || "Message"}
-        </Text>
-        <Text style={replyBarStyles.preview} numberOfLines={1}>
-          {preview}
-        </Text>
-      </View>
-      <TouchableOpacity
-        onPress={onClose}
-        style={replyBarStyles.close}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <X size={16} color={LIGHT_TEXT} strokeWidth={2.5} />
-      </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onClose}
+          style={replyBarStyles.close}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <X size={16} color={LIGHT_TEXT} strokeWidth={2.5} />
+        </TouchableOpacity>
+      </Animated.View>
     </Animated.View>
   );
 };
