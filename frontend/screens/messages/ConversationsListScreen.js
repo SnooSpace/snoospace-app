@@ -196,167 +196,131 @@ const RowPressable = React.memo(function RowPressable({ children, onPress, style
   );
 });
 
-// ─── RowContent: pure presentational row, NO Reanimated, NO gesture ──────────
-// This is what renders on first mount. Zero Reanimated overhead.
-// Cost: ~3-5ms per row (vs ~20-30ms for SwipeRow).
-const ConvRowShell = React.memo(function ConvRowShell({ conv, onPress }) {
+// ─── RowContent: shared presentational row body ────────────────────────────
+// Used by both phases. Kept as its own memo so React can diff and skip it
+// even when the parent re-renders due to swipeReady flipping.
+const RowBody = React.memo(function RowBody({ conv, onPress }) {
   const { isGroup, isBlockedByOther, name, username, uri, hasUnread } = deriveConvFields(conv);
   const isMuted = conv.isMuted;
   return (
-    <View style={swipeStyles.rowContainer}>
-      <RowPressable style={swipeStyles.row} onPress={() => onPress(conv)}>
-        <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} isAnonymous={isBlockedByOther} />
-        <View style={swipeStyles.content}>
-          <View style={swipeStyles.topRow}>
-            <Text style={[swipeStyles.name, hasUnread && swipeStyles.nameUnread]} numberOfLines={1}>
-              {name}{conv.status === "CLOSED" ? " 🔒" : ""}
-            </Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              {isMuted && <BellOff size={12} color={TEXT_SEC} strokeWidth={2} />}
-              <Text style={swipeStyles.time}>{formatRelativeTime(conv.lastMessageAt)}</Text>
-            </View>
-          </View>
-          <View style={swipeStyles.bottomRow}>
-            <Text style={[swipeStyles.preview, hasUnread && !isMuted && swipeStyles.previewUnread]} numberOfLines={1}>
-              {isBlockedByOther
-                ? (conv.lastMessage || "")
-                : (conv.lastMessage || username || "No messages yet")}
-            </Text>
-            {hasUnread && !isMuted && (
-              <View style={swipeStyles.badge}>
-                <Text style={swipeStyles.badgeText}>
-                  {conv.unreadCount > 9 ? "9+" : String(conv.unreadCount)}
-                </Text>
-              </View>
-            )}
+    <RowPressable style={swipeStyles.row} onPress={() => onPress(conv)}>
+      <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} isAnonymous={isBlockedByOther} />
+      <View style={swipeStyles.content}>
+        <View style={swipeStyles.topRow}>
+          <Text style={[swipeStyles.name, hasUnread && swipeStyles.nameUnread]} numberOfLines={1}>
+            {name}{conv.status === "CLOSED" ? " 🔒" : ""}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            {isMuted && <BellOff size={12} color={TEXT_SEC} strokeWidth={2} />}
+            <Text style={swipeStyles.time}>{formatRelativeTime(conv.lastMessageAt)}</Text>
           </View>
         </View>
-      </RowPressable>
-    </View>
-  );
-});
-
-// ─── SwipeRow: full swipeable row with Reanimated + GestureHandler ───────────
-// Only mounted after InteractionManager.runAfterInteractions — i.e. after the
-// navigation transition animation has fully settled. The user will never see
-// a blank state: ConvRowShell is already visible by the time this mounts.
-const SwipeRow = React.memo(function SwipeRow({ conv, onPress, onDelete, onLeave, onMute }) {
-  const translateX = useSharedValue(0);
-  const isMuted    = conv.isMuted;
-  const { isGroup, isBlockedByOther, name, username, uri, hasUnread } = deriveConvFields(conv);
-
-  const pan = useMemo(() =>
-    Gesture.Pan()
-      .activeOffsetX([-8, 8])
-      .onUpdate((e) => {
-        if (e.translationX > 0) { translateX.value = 0; return; }
-        translateX.value = Math.max(e.translationX, -SWIPE_FULL - 20);
-      })
-      .onEnd((e) => {
-        if (e.translationX < -SWIPE_THRESHOLD) {
-          translateX.value = withSpring(-SWIPE_FULL, { damping: 18, stiffness: 200 });
-          runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
-        } else {
-          translateX.value = withSpring(0, { damping: 18, stiffness: 200 });
-        }
-      }),
-  [translateX]);
-
-  const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
-
-  return (
-    <View style={swipeStyles.rowContainer}>
-      {/* Action buttons revealed on swipe */}
-      <View style={[swipeStyles.actions, { width: SWIPE_FULL }]}>
-        <TouchableOpacity
-          style={[swipeStyles.actionBtn, { backgroundColor: isMuted ? "#34C759" : "#FF9F0A" }]}
-          onPress={() => { translateX.value = withSpring(0); onMute?.(conv); }}
-        >
-          {isMuted ? <Bell size={18} color="#FFF" strokeWidth={2} /> : <BellOff size={18} color="#FFF" strokeWidth={2} />}
-          <Text style={swipeStyles.actionLabel}>{isMuted ? "Unmute" : "Mute"}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[swipeStyles.actionBtn, { backgroundColor: isGroup ? "#FF3B30" : DANGER }]}
-          onPress={() => { translateX.value = withSpring(0); if (isGroup) onLeave?.(conv); else onDelete?.(conv); }}
-        >
-          {isGroup ? <LogOut size={18} color="#FFF" strokeWidth={2} /> : <Trash2 size={18} color="#FFF" strokeWidth={2} />}
-          <Text style={swipeStyles.actionLabel}>{isGroup ? "Leave" : "Delete"}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <GestureDetector gesture={pan}>
-        <Reanimated.View style={rowStyle}>
-          <RowPressable style={swipeStyles.row} onPress={() => onPress(conv)}>
-            <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} isAnonymous={isBlockedByOther} />
-            <View style={swipeStyles.content}>
-              <View style={swipeStyles.topRow}>
-                <Text style={[swipeStyles.name, hasUnread && swipeStyles.nameUnread]} numberOfLines={1}>
-                  {name}{conv.status === "CLOSED" ? " 🔒" : ""}
-                </Text>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                  {isMuted && <BellOff size={12} color={TEXT_SEC} strokeWidth={2} />}
-                  <Text style={swipeStyles.time}>{formatRelativeTime(conv.lastMessageAt)}</Text>
-                </View>
-              </View>
-              <View style={swipeStyles.bottomRow}>
-                <Text style={[swipeStyles.preview, hasUnread && !isMuted && swipeStyles.previewUnread]} numberOfLines={1}>
-                  {isBlockedByOther
-                    ? (conv.lastMessage || "")
-                    : (conv.lastMessage || username || "No messages yet")}
-                </Text>
-                {hasUnread && !isMuted && (
-                  <View style={swipeStyles.badge}>
-                    <Text style={swipeStyles.badgeText}>
-                      {conv.unreadCount > 9 ? "9+" : String(conv.unreadCount)}
-                    </Text>
-                  </View>
-                )}
-              </View>
+        <View style={swipeStyles.bottomRow}>
+          <Text style={[swipeStyles.preview, hasUnread && !isMuted && swipeStyles.previewUnread]} numberOfLines={1}>
+            {isBlockedByOther
+              ? (conv.lastMessage || "")
+              : (conv.lastMessage || username || "No messages yet")}
+          </Text>
+          {hasUnread && !isMuted && (
+            <View style={swipeStyles.badge}>
+              <Text style={swipeStyles.badgeText}>
+                {conv.unreadCount > 9 ? "9+" : String(conv.unreadCount)}
+              </Text>
             </View>
-          </RowPressable>
-        </Reanimated.View>
-      </GestureDetector>
-    </View>
+          )}
+        </View>
+      </View>
+    </RowPressable>
   );
 });
 
-// ─── SwipeableConvRow: deferred gate ─────────────────────────────────────────
-// Phase 1 (initial mount): renders ConvRowShell — zero Reanimated/gesture cost.
-// Phase 2 (after interactions): InteractionManager fires → swapReady = true →
-// SwipeRow mounts with full gesture infrastructure.
+// ─── SwipeableConvRow: single unified component, flicker-free ─────────────────
+// RowBody (and its expo-image avatar) is ALWAYS in the same tree position.
+// In phase 1: a plain View wraps RowBody — no gesture infrastructure.
+// In phase 2: action buttons appear (absolutely positioned behind) and a
+//             GestureDetector > Reanimated.View wrap RowBody.
 //
-// The navigation transition takes ~350ms. InteractionManager.runAfterInteractions
-// fires after it fully settles, so swipe becomes available before the user could
-// reasonably attempt a swipe gesture. No UX degradation.
+// WHY THIS MATTERS: previously ConvRowShell was entirely replaced by SwipeRow,
+// causing React to unmount the old Image node and mount a brand new one —
+// triggering a re-decode/re-render flash even on cached images. Now RowBody
+// stays in the same position within swipeStyles.rowContainer across both phases,
+// so React reconciles it as an UPDATE (not unmount+remount) → no flicker.
+//
+// NOTE: Phase 1 → Phase 2 DOES change the immediate parent of RowBody
+// (plain View → Reanimated.View inside GestureDetector). To truly prevent any
+// React unmount, we keep RowBody always inside the same Reanimated.View shell,
+// which starts with translateX=0 and becomes pannable after swipeReady.
 const SwipeableConvRow = React.memo(
   function SwipeableConvRow({ conv, index = 0, onPress, onDelete, onLeave, onMute }) {
     const [swipeReady, setSwipeReady] = useState(false);
+    const isMuted = conv.isMuted;
+    const { isGroup } = deriveConvFields(conv);
+    const translateX = useSharedValue(0);
 
     useEffect(() => {
-      // [DIAG-ROW] — remove after isolation sprint
-      console.log(`[DIAG-ROW] index=${index} phase2-scheduled at t=${Date.now()} delay=${250 + index * 120}ms`);
-      const timer = setTimeout(() => {
-        // [DIAG-ROW] — remove after isolation sprint
-        console.log(`[DIAG-ROW] index=${index} phase2-mounting-start at t=${Date.now()}`);
-        setSwipeReady(true);
-      }, 250 + index * 120);
+      const timer = setTimeout(() => setSwipeReady(true), 250 + index * 120);
       return () => clearTimeout(timer);
     }, [index]);
 
-    if (!swipeReady) {
-      return <ConvRowShell conv={conv} onPress={onPress} />;
-    }
-    // [DIAG-ROW] — fires on the render that follows setSwipeReady(true)
-    console.log(`[DIAG-ROW] index=${index} phase2-mounting-complete at t=${Date.now()}`);
+    // Pan gesture — only active after swipeReady. Before that it's still created
+    // but the GestureDetector just wraps a static Reanimated.View (translateX=0).
+    const pan = useMemo(() =>
+      Gesture.Pan()
+        .activeOffsetX([-8, 8])
+        .enabled(swipeReady)
+        .onUpdate((e) => {
+          if (e.translationX > 0) { translateX.value = 0; return; }
+          translateX.value = Math.max(e.translationX, -SWIPE_FULL - 20);
+        })
+        .onEnd((e) => {
+          if (e.translationX < -SWIPE_THRESHOLD) {
+            translateX.value = withSpring(-SWIPE_FULL, { damping: 18, stiffness: 200 });
+            runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
+          } else {
+            translateX.value = withSpring(0, { damping: 18, stiffness: 200 });
+          }
+        }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [translateX, swipeReady]);
 
+    const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
+
+    // Single stable tree in BOTH phases:
+    //   rowContainer > [actions?] > GestureDetector > Reanimated.View > RowBody
+    // React sees the same component types at each position → RowBody is never
+    // unmounted → expo-image avatar never re-flashes.
     return (
-      <SwipeRow
-        conv={conv}
-        onPress={onPress}
-        onDelete={onDelete}
-        onLeave={onLeave}
-        onMute={onMute}
-      />
+      <View style={swipeStyles.rowContainer}>
+        {/* Action buttons — only rendered after swipeReady so they don't
+            consume layout space in phase 1 */}
+        {swipeReady && (
+          <View style={[swipeStyles.actions, { width: SWIPE_FULL }]}>
+            <TouchableOpacity
+              style={[swipeStyles.actionBtn, { backgroundColor: isMuted ? "#34C759" : "#FF9F0A" }]}
+              onPress={() => { translateX.value = withSpring(0); onMute?.(conv); }}
+            >
+              {isMuted ? <Bell size={18} color="#FFF" strokeWidth={2} /> : <BellOff size={18} color="#FFF" strokeWidth={2} />}
+              <Text style={swipeStyles.actionLabel}>{isMuted ? "Unmute" : "Mute"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[swipeStyles.actionBtn, { backgroundColor: isGroup ? "#FF3B30" : DANGER }]}
+              onPress={() => { translateX.value = withSpring(0); if (isGroup) onLeave?.(conv); else onDelete?.(conv); }}
+            >
+              {isGroup ? <LogOut size={18} color="#FFF" strokeWidth={2} /> : <Trash2 size={18} color="#FFF" strokeWidth={2} />}
+              <Text style={swipeStyles.actionLabel}>{isGroup ? "Leave" : "Delete"}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {/* GestureDetector + Reanimated.View are present in BOTH phases.
+            In phase 1 the pan gesture is disabled (.enabled(false)), so there
+            is zero gesture overhead — but the tree shape is identical, meaning
+            RowBody is reconciled as an update, never remounted. */}
+        <GestureDetector gesture={pan}>
+          <Reanimated.View style={rowStyle}>
+            <RowBody conv={conv} onPress={onPress} />
+          </Reanimated.View>
+        </GestureDetector>
+      </View>
     );
   },
   (prevProps, nextProps) => {
