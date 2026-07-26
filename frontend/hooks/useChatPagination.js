@@ -172,6 +172,27 @@ export default function useChatPagination() {
     isLoadingRef.current = false;
   }, []);
 
+  // ── bootstrapPaginationState ───────────────────────────────────────────────
+  // Called by ChatScreen when it hydrates messages from the in-memory cache
+  // (cache-HIT path) instead of going through loadInitial. loadInitial is the
+  // normal setter for cursorRef / hasMore / newestAtRef — skipping it leaves
+  // those uninitialised, so loadOlderMessages hits its !cursorRef guard and
+  // silently no-ops, breaking "scroll up for older" on every second open.
+  //
+  // Call this once after the reconcile getMessages() resolves, passing the
+  // authoritative values from the server response.
+  const bootstrapPaginationState = useCallback(({
+    conversationId,
+    cursor,
+    hasMore: serverHasMore,
+    newestAt,
+  }) => {
+    convIdRef.current   = conversationId;
+    cursorRef.current   = cursor || null;
+    newestAtRef.current = newestAt || null;
+    setHasMore(serverHasMore || false);
+  }, []);
+
   return {
     messages,
     hasMore,
@@ -179,9 +200,10 @@ export default function useChatPagination() {
     loadInitial,
     loadOlderMessages,
     addNewMessage,
-    addNewMessages,   // batch insert — used by the polling fallback
+    addNewMessages,
     updateMessageById,
     resetMessages,
-    newestAtRef,      // forward-cursor ref so polling fetches only new messages
+    bootstrapPaginationState, // cache-HIT path only
+    newestAtRef,
   };
 }

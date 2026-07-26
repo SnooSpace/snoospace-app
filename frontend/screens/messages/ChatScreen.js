@@ -1640,6 +1640,7 @@ export default function ChatScreen({ route, navigation }) {
     addNewMessage,
     addNewMessages,
     updateMessageById,
+    bootstrapPaginationState,
     newestAtRef,
   } = useChatPagination();
 
@@ -2181,6 +2182,16 @@ export default function ChatScreen({ route, navigation }) {
             freshMsgs = reconcileRes?.messages || [];
             freshCursor = reconcileRes?.nextCursor || null;
             if (reconcileRes?.status) setGroupStatus(reconcileRes.status);
+
+            // CRITICAL: restore pagination state that loadInitial would normally
+            // set. Without this, cursorRef stays null and loadOlderMessages
+            // silently no-ops — "scroll up for older" appears broken on 2nd open.
+            bootstrapPaginationState({
+              conversationId,
+              cursor:    freshCursor,
+              hasMore:   reconcileRes?.hasMore || false,
+              newestAt:  freshMsgs.length > 0 ? freshMsgs[freshMsgs.length - 1].createdAt : null,
+            });
           } else {
             // Cache MISS path: original loadInitial handles state reset + set
             const loadRes = await loadInitial(conversationId);
