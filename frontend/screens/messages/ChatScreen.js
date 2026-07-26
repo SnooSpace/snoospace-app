@@ -1172,7 +1172,11 @@ const SwipeableMessage = SwipeableMessageRow;
 const MessageRow = React.memo(
   ({
     item,
-    index,
+    // index intentionally omitted — it changes for every row when any new
+    // message arrives (inverted list shifts all indices by +1), defeating
+    // React.memo for all visible rows. index is never used inside this
+    // component's body; showAvatar and showSenderName are pre-computed in
+    // renderItem and passed as explicit stable props.
     isMyMessage,
     showAvatar,
     showSenderName,
@@ -1610,6 +1614,35 @@ const MessageRow = React.memo(
       </View>
     );
   },
+  // ── Custom comparator ─────────────────────────────────────────────────────
+  // Belt-and-suspenders on top of the wrapper object cache in buildMessageList.
+  // Compares item by msg.id + isDeleted so a deleted/edited message still
+  // propagates, while an unchanged message (even if the wrapper object is
+  // accidentally new) short-circuits React reconciliation.
+  // Explicitly excludes: index (meaningless — see above), rsvpLoading (read
+  // from ref at render time, not reactive state).
+  (prev, next) =>
+    prev.item.data.id          === next.item.data.id          &&
+    prev.item.data.isDeleted   === next.item.data.isDeleted   &&
+    prev.isMyMessage           === next.isMyMessage           &&
+    prev.showAvatar            === next.showAvatar            &&
+    prev.showSenderName        === next.showSenderName        &&
+    prev.isGroup               === next.isGroup               &&
+    prev.currentUser           === next.currentUser           &&
+    prev.recipient             === next.recipient             &&
+    prev.recipientId           === next.recipientId           &&
+    prev.isBlockedByOther      === next.isBlockedByOther      &&
+    prev.highlightedIdSV       === next.highlightedIdSV       &&
+    prev.onReply               === next.onReply               &&
+    prev.onLongPress           === next.onLongPress           &&
+    prev.onRSVP                === next.onRSVP                &&
+    prev.onOpenViewer          === next.onOpenViewer          &&
+    prev.onPressPostShare      === next.onPressPostShare      &&
+    prev.onPressUser           === next.onPressUser           &&
+    prev.onPressOpportunity    === next.onPressOpportunity    &&
+    prev.onPressEvent          === next.onPressEvent          &&
+    prev.onPressPlan           === next.onPressPlan           &&
+    prev.onPressReplyQuote     === next.onPressReplyQuote,
 );
 
 // ── Typing Dots Animation Component ─────────────────────────────────────────
@@ -3264,7 +3297,6 @@ export default function ChatScreen({ route, navigation }) {
         >
           <MessageRow
             item={item}
-            index={index}
             isMyMessage={isMyMessage}
             showAvatar={showAvatar}
             showSenderName={showSenderName}
