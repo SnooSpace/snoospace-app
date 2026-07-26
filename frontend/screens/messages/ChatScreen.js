@@ -10,6 +10,9 @@ import React, {
 const onRenderProfiler = (id, phase, actualDuration) => {
   console.log(`[PERF-RENDER] ${id} - Phase: ${phase}, Duration: ${actualDuration.toFixed(2)}ms`);
 };
+const onRenderMsgProfiler = (id, phase, actualDuration) => {
+  console.log(`[PERF-MSG] ${id} phase:${phase} mountMs:${actualDuration.toFixed(2)}`);
+};
 import {
   StyleSheet,
   View,
@@ -1758,6 +1761,37 @@ export default function ChatScreen({ route, navigation }) {
   const typingTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
 
+  // ── PERF-MSG Type Breakdown Logger ──────────────────────────────────────────
+  const loggedBreakdownRef = useRef(null);
+  useEffect(() => {
+    if (currentConversationId && messages && messages.length > 0) {
+      if (loggedBreakdownRef.current === currentConversationId) return;
+      loggedBreakdownRef.current = currentConversationId;
+
+      const recent20 = messages.slice(-20);
+      const breakdown = {
+        text: 0,
+        image: 0,
+        video: 0,
+        multi_media: 0,
+        post_share: 0,
+        opportunity_share: 0,
+        event_share: 0,
+        plan_share: 0,
+        ticket: 0,
+        system: 0,
+        deleted: 0,
+      };
+      recent20.forEach((msg) => {
+        const type = msg.isDeleted
+          ? "deleted"
+          : msg.messageType || "text";
+        breakdown[type] = (breakdown[type] || 0) + 1;
+      });
+      console.log("[PERF-MSG] type breakdown", breakdown);
+    }
+  }, [currentConversationId, messages]);
+
   const handleTextChange = useCallback((text) => {
     setMessageText(text);
 
@@ -3167,32 +3201,41 @@ export default function ChatScreen({ route, navigation }) {
         !isMyMessage &&
         (!nextMsg || nextMsg.senderId !== msg.senderId);
 
+      const effectiveType = msg.isDeleted
+        ? "deleted"
+        : msg.messageType || "text";
+
       return (
-        <MessageRow
-          item={item}
-          index={index}
-          isMyMessage={isMyMessage}
-          showAvatar={showAvatar}
-          showSenderName={showSenderName}
-          isGroup={isGroup}
-          currentUser={currentUser}
-          recipient={recipient}
-          recipientId={recipientId}
-          isBlockedByOther={isBlockedByOther}
-          rsvpLoading={rsvpLoadingRef.current[msg.id]}
-          highlightedIdSV={highlightedIdSV}
-          onReply={handleReply}
-          onLongPress={handleLongPress}
-          onRSVP={handleRSVP}
-          onOpenViewer={handleOpenViewer}
-          onPressPostShare={handlePressPostShare}
-          onPressUser={handlePressUser}
-          onPressOpportunity={handlePressOpportunity}
-          onPressEvent={handlePressEvent}
-          onPressPlan={handlePressPlan}
-          onPressReplyQuote={scrollToMessage}
-          navigation={navigation}
-        />
+        <Profiler
+          id={`type=${effectiveType} id=${msg.id}`}
+          onRender={onRenderMsgProfiler}
+        >
+          <MessageRow
+            item={item}
+            index={index}
+            isMyMessage={isMyMessage}
+            showAvatar={showAvatar}
+            showSenderName={showSenderName}
+            isGroup={isGroup}
+            currentUser={currentUser}
+            recipient={recipient}
+            recipientId={recipientId}
+            isBlockedByOther={isBlockedByOther}
+            rsvpLoading={rsvpLoadingRef.current[msg.id]}
+            highlightedIdSV={highlightedIdSV}
+            onReply={handleReply}
+            onLongPress={handleLongPress}
+            onRSVP={handleRSVP}
+            onOpenViewer={handleOpenViewer}
+            onPressPostShare={handlePressPostShare}
+            onPressUser={handlePressUser}
+            onPressOpportunity={handlePressOpportunity}
+            onPressEvent={handlePressEvent}
+            onPressPlan={handlePressPlan}
+            onPressReplyQuote={scrollToMessage}
+            navigation={navigation}
+          />
+        </Profiler>
       );
     },
     [
