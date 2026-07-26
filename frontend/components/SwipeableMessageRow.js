@@ -40,7 +40,7 @@ import React, { useRef, useCallback, useMemo, Profiler } from "react";
 import { View, StyleSheet } from "react-native";
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, withSpring,
-  withSequence, useDerivedValue, runOnJS,
+  withSequence, useDerivedValue, runOnJS, Easing,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
@@ -186,7 +186,7 @@ function SwipeableMessageRowInner({
       })
       .onEnd((e) => {
         const didTrigger = Math.abs(e.translationX) >= REPLY_HAPTIC_THRESHOLD;
-        translateX.value  = withSpring(0, { damping: 20, stiffness: 200, mass: 0.5 });
+        translateX.value  = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
         iconOpacity.value = withTiming(0, { duration: 150 });
         fired.current = false;
         if (didTrigger) runOnJS(callOnReply)();

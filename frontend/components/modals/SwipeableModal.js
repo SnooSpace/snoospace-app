@@ -22,6 +22,7 @@ import Animated, {
   runOnJS,
   interpolate,
   Extrapolation,
+  Easing,
 } from "react-native-reanimated";
 import hapticsService from "../../services/HapticsService";
 
@@ -83,8 +84,8 @@ export default function SwipeableModal({
       
       // Animate on the next frame after layout mounting has begun
       requestAnimationFrame(() => {
-        translateY.value = withSpring(0, springConfig);
-        backdropOpacity.value = withTiming(1, { duration: 300 });
+        translateY.value = withTiming(0, { duration: 220, easing: Easing.out(Easing.quad) });
+        backdropOpacity.value = withTiming(1, { duration: 220 });
       });
     } else {
       if (isSwipedDownRef.current) {
@@ -124,7 +125,7 @@ export default function SwipeableModal({
           runOnJS(handleDismiss)();
         });
       } else {
-        translateY.value = withSpring(0, springConfig);
+        translateY.value = withTiming(0, { duration: 200, easing: Easing.out(Easing.quad) });
       }
     });
 
