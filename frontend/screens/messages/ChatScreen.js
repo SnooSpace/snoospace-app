@@ -2093,6 +2093,45 @@ export default function ChatScreen({ route, navigation }) {
   // buildMessageList now outputs newest→oldest directly (no .reverse() needed).
   const flatListData = useMemo(() => buildMessageList(messages), [messages]);
 
+  // ── PERF: Dynamic Cost-Based FlatList Tuning ─────────────────────────────
+  // Dynamically scales initialNumToRender, maxToRenderPerBatch, and windowSize
+  // based on the layout complexity ("cost") of items in the list.
+  // • Text-heavy chats (cost < 16): renders 16 rows upfront for instant scroll fill,
+  //   batches 12 rows per frame.
+  // • Media/card-heavy chats (cost >= 16): lowers initialNumToRender to 8 and
+  //   batching to 5 to avoid heavy image decodes and JS frame drops on mount.
+  const listCostConfig = useMemo(() => {
+    let totalCost = 0;
+    const len = Math.min(flatListData.length, 20);
+    for (let i = 0; i < len; i++) {
+      const item = flatListData[i];
+      if (item.type === "message") {
+        const msg = item.data;
+        const isMediaOrCard =
+          msg.messageType === "image" ||
+          msg.messageType === "video" ||
+          msg.messageType === "multi_media" ||
+          msg.isPostShare ||
+          msg.ticketId ||
+          msg.eventId ||
+          msg.planId;
+        if (isMediaOrCard) {
+          totalCost += 4;
+        } else if (msg.replyToId || (msg.messageText && msg.messageText.length > 140)) {
+          totalCost += 2;
+        } else {
+          totalCost += 1;
+        }
+      }
+    }
+    const isHeavy = totalCost >= 16;
+    return {
+      initialNumToRender: isHeavy ? 8 : 16,
+      maxToRenderPerBatch: isHeavy ? 5 : 12,
+      windowSize: isHeavy ? 6 : 10,
+    };
+  }, [flatListData]);
+
   // ── PERF: stored in a ref instead of useMemo so scrollToMessage can read the
   // latest index without depending on messageIndexMap as a closure variable.
   // If it closed over the useMemo value, scrollToMessage would rebuild every
@@ -3698,9 +3737,9 @@ export default function ChatScreen({ route, navigation }) {
               // on fast scroll when all 20 rows mounted in one frame).
               // windowSize 8: keeps 8 × viewport height of rows resident in
               // native. Was 15 — excessive for a chat list; 8 is still generous.
-              initialNumToRender={12}
-              maxToRenderPerBatch={8}
-              windowSize={8}
+              initialNumToRender={listCostConfig.initialNumToRender}
+              maxToRenderPerBatch={listCostConfig.maxToRenderPerBatch}
+              windowSize={listCostConfig.windowSize}
               removeClippedSubviews={Platform.OS === 'android'}
               updateCellsBatchingPeriod={20}
               scrollEventThrottle={16}
