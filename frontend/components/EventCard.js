@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { ScrollView, Gesture, GestureDetector, Pressable as GHPressable } from "react-native-gesture-handler";
 import { useRecyclingState } from "@shopify/flash-list";
+import { useDebouncedLikeToggle } from "../hooks/useDebouncedLikeToggle";
 import AnimatedReanimated, {
   useSharedValue,
   useAnimatedStyle,
@@ -43,10 +44,10 @@ import { getGradientForName, getInitials } from "../utils/AvatarGenerator";
 import { useLocationName } from "../utils/locationNameCache";
 import {
   toggleEventInterest,
-  toggleEventLike,
   recordEventView,
   trackEventShare,
 } from "../api/events";
+import { apiPost, apiDelete } from "../api/client";
 import { formatPrice } from "../utils/pricingUtils";
 import HapticsService from "../services/HapticsService";
 import EventBus from "../utils/EventBus";
@@ -246,18 +247,26 @@ function EventCard({
   });
   const navigation = useNavigation();
 
-  // Engagement state
-  const [isLiked, setIsLiked] = useRecyclingState(Boolean(event?.is_liked), [event.id]);
-  const [likeCount, setLikeCount] = useRecyclingState(event?.like_count ?? 0, [event.id]);
-  const [isLiking, setIsLiking] = useRecyclingState(false, [event.id]);
+  // ── Like state (shared debounced hook) ───────────────────────────────────
+  const { isLiked, likeCount, toggle: toggleLike, reset: resetLike } =
+    useDebouncedLikeToggle({
+      itemId: event.id,
+      initialIsLiked: Boolean(event?.is_liked),
+      initialLikeCount: event?.like_count ?? 0,
+      likeEndpoint: () => apiPost(`/events/${event.id}/like`, {}, 10000, authToken),
+      unlikeEndpoint: () => apiDelete(`/events/${event.id}/like`, null, 10000, authToken),
+      onConfirmed: (liked, count) => {
+        EventBus.emit('event-like-updated', { eventId: event.id, isLiked: liked, likeCount: count });
+      },
+    });
+  useEffect(() => { resetLike(Boolean(event?.is_liked), event?.like_count ?? 0); }, [event.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [commentCount, setCommentCount] = useRecyclingState(event?.comment_count ?? 0, [event.id]);
   const [viewCount, setViewCount] = useRecyclingState(event?.view_count ?? 0, [event.id]);
   const [shareCount, setShareCount] = useRecyclingState(event?.share_count ?? 0, [event.id]);
   const [commentsVisible, setCommentsVisible] = useRecyclingState(false, [event.id]);
-  const viewTrackedRef = useRef(false);
-
   // Ref to track if we're the source of an EventBus event (prevent self-listening)
   const isEmittingRef = useRef(false);
+  const viewTrackedRef = useRef(false);
 
   const lastTapRef = useRef(0);
   const timerRef = useRef(null);
@@ -334,7 +343,7 @@ function EventCard({
         triggerHeartAnimation(relativeX, relativeY);
       });
       if (!isLiked) {
-        handleLikePress();
+        toggleLike();
       } else {
         HapticsService.triggerImpactLight();
       }
@@ -420,19 +429,21 @@ function EventCard({
     }
   }, [event?.is_interested]);
 
-  // Listen for like updates from other EventCard instances showing the same event
+  // Listen for like updates from other EventCard instances showing the same event.
+  // Uses resetLike() to keep the hook's confirmed/desired refs in sync.
   useEffect(() => {
     if (!event?.id) return;
-    const unsubscribe = EventBus.on("event-like-updated", (payload) => {
+    const unsubscribe = EventBus.on('event-like-updated', (payload) => {
       if (isEmittingRef.current) return;
       if (payload?.eventId === event.id) {
-        setIsLiked(Boolean(payload.isLiked));
-        if (payload.likeCount !== undefined) setLikeCount(payload.likeCount);
+        resetLike(
+          Boolean(payload.isLiked),
+          payload.likeCount ?? likeCount,
+        );
       }
     });
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
+    return () => { if (unsubscribe) unsubscribe(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event?.id]);
 
   // Check if user is registered for this event
@@ -555,41 +566,6 @@ function EventCard({
     onInterestedPress?.(event);
   };
 
-  // Engagement handlers
-  const handleLikePress = async () => {
-    if (isLiking) return;
-    HapticsService.triggerLike();
-    const nextLiked = !isLiked;
-    const nextCount = Math.max(0, likeCount + (nextLiked ? 1 : -1));
-    setIsLiked(nextLiked);
-    setLikeCount(nextCount);
-    setIsLiking(true);
-    try {
-      const resp = await toggleEventLike(id, isLiked);
-      if (resp?.success) {
-        setIsLiked(resp.is_liked);
-        setLikeCount(resp.like_count ?? nextCount);
-        // Emit so other EventCard instances of the same event stay in sync
-        isEmittingRef.current = true;
-        EventBus.emit("event-like-updated", {
-          eventId: id,
-          isLiked: resp.is_liked,
-          likeCount: resp.like_count ?? nextCount,
-        });
-        setTimeout(() => {
-          isEmittingRef.current = false;
-        }, 0);
-      } else {
-        setIsLiked(!nextLiked);
-        setLikeCount(likeCount);
-      }
-    } catch (e) {
-      setIsLiked(!nextLiked);
-      setLikeCount(likeCount);
-    } finally {
-      setIsLiking(false);
-    }
-  };
 
   const handleSharePress = async () => {
     HapticsService.triggerShare();
@@ -1371,8 +1347,7 @@ function EventCard({
             >
               <TouchableOpacity
                 style={styles.engagementBtn}
-                onPress={handleLikePress}
-                disabled={isLiking}
+                onPress={toggleLike}
               >
                 <Heart
                   size={22}

@@ -1375,54 +1375,28 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     setRefreshing(false);
   };
 
-  const handleLikeUpdate = useCallback((postId, isLiked) => {
-    
-    // Defer the parent state updates until after interaction animations settle
-    InteractionManager.runAfterInteractions(() => {
-      setPosts((prevPosts) => {
-        let changed = false;
-        const updated = prevPosts.map((p) => {
-          if (p.id === postId) {
-            const nextLiked = isLiked;
-            const nextLikes = Math.max(0, (p.like_count || 0) + (isLiked ? 1 : -1));
-            if (p.is_liked === nextLiked && p.like_count === nextLikes) {
-              return p;
-            }
-            changed = true;
-            return {
-              ...p,
-              is_liked: nextLiked,
-              isLiked: nextLiked,
-              like_count: nextLikes,
-            };
-          }
-          return p;
-        });
-        return changed ? updated : prevPosts;
-      });
-
-      setOpportunities((prevOpps) => {
-        let changed = false;
-        const updated = prevOpps.map((o) => {
-          if (o.id === postId) {
-            const nextLiked = isLiked;
-            const nextLikes = Math.max(0, (o.like_count || 0) + (isLiked ? 1 : -1));
-            if (o.is_liked === nextLiked && o.like_count === nextLikes) {
-              return o;
-            }
-            changed = true;
-            return {
-              ...o,
-              is_liked: nextLiked,
-              isLiked: nextLiked,
-              like_count: nextLikes,
-            };
-          }
-          return o;
-        });
-        return changed ? updated : prevOpps;
-      });
-    });
+  // Intentionally a no-op.
+  //
+  // Previously this wrote the optimistic like/unlike state back into the parent
+  // posts array immediately (via InteractionManager). That caused a race:
+  //
+  //   1. Tap A fires → optimistic write: posts[i].is_liked = true
+  //   2. Tap B fires rapidly → optimistic write: posts[i].is_liked = false
+  //   3. Tap A's request returns 400 "already liked" → card reverts local
+  //      isLiked back to false — but the parent array already has is_liked=false
+  //      from Tap B. No conflict visible at the card level.
+  //   4. Any subsequent parent re-render (scroll, focus, EventBus) causes
+  //      useRecyclingState to re-initialise from posts[i].is_liked — which is
+  //      now stale relative to the card's own corrected local state.
+  //   Result: heart icon snaps back to the wrong state on recycle.
+  //
+  // Fix: parent posts array is now updated ONLY by the EventBus
+  // "post-like-updated" handler (handlePostLikeUpdate below), which fires only
+  // after the server confirms the action. Cards manage their own optimistic
+  // state exclusively via useRecyclingState local state + isLikingRef guard.
+  const handleLikeUpdate = useCallback((_postId, _isLiked) => {
+    // no-op — parent sync is handled exclusively by the EventBus
+    // "post-like-updated" handler on server confirmation.
   }, []);
 
   const handlePostUpdate = useCallback((updatedItem) => {

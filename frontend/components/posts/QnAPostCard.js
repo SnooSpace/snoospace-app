@@ -85,6 +85,7 @@ import ContentActionsSheet from "../ContentActionsSheet";
 import PromoSourceBanner, { PromoTopRow, PlanPreviewCard } from "./PromoSourceBanner";
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
 import { useRecyclingState } from "@shopify/flash-list";
+import { useDebouncedLikeToggle } from "../../hooks/useDebouncedLikeToggle";
 
 const QnAPostCard = React.memo(({
   post,
@@ -436,11 +437,20 @@ const QnAPostCard = React.memo(({
   // Auth token — use the hoisted prop if available, otherwise fetch lazily
   const tokenRef = useRef(authToken);
 
-  // Engagement State
-  
-  const [isLiked, setIsLiked] = useRecyclingState(post.is_liked === true, [post.id]);
-  const [likeCount, setLikeCount] = useRecyclingState(post.like_count || 0, [post.id]);
-  const [isLiking, setIsLiking] = useRecyclingState(false, [post.id]);
+  // ── Like state (shared debounced hook) ───────────────────────────────────
+  const { isLiked, likeCount, toggle: toggleLike, reset: resetLike } =
+    useDebouncedLikeToggle({
+      itemId: post.id,
+      initialIsLiked: post.is_liked === true,
+      initialLikeCount: post.like_count || 0,
+      likeEndpoint: () => apiPost(`/posts/${post.id}/like`, {}, 15000, tokenRef.current || authToken),
+      unlikeEndpoint: () => apiDelete(`/posts/${post.id}/like`, null, 15000, tokenRef.current || authToken),
+      onConfirmed: (liked, count) => {
+        onLike?.(post.id, liked, count);
+        EventBus.emit('post-like-updated', { postId: post.id, isLiked: liked, likeCount: count });
+      },
+    });
+  useEffect(() => { resetLike(post.is_liked === true, post.like_count || 0); }, [post.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [isSaved, setIsSaved] = useRecyclingState(post.is_saved || false, [post.id]);
   const [saveCount, setSaveCount] = useRecyclingState(
     post.save_count || post.saves_count || 0,
@@ -482,44 +492,6 @@ const QnAPostCard = React.memo(({
     };
   }, [post.id]);
 
-  const handleLike = async () => {
-    if (isLiking) return;
-    HapticsService.triggerLike();
-
-    const prevLiked = isLiked;
-    const prevLikeCount = likeCount;
-    const nextLiked = !prevLiked;
-    const delta = nextLiked ? 1 : -1;
-    const nextLikes = Math.max(0, prevLikeCount + delta);
-
-    // Optimistic update
-    setIsLiked(nextLiked);
-    setLikeCount(nextLikes);
-    if (onLike) onLike(post.id, nextLiked, nextLikes);
-
-    setIsLiking(true);
-    try {
-      const token = tokenRef.current || (await getAuthToken());
-      if (nextLiked) {
-        await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
-      } else {
-        await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
-      }
-      EventBus.emit("post-like-updated", {
-        postId: post.id,
-        isLiked: nextLiked,
-        likeCount: nextLikes,
-      });
-    } catch (error) {
-      console.error("Error liking post:", error);
-      // Revert on error
-      setIsLiked(prevLiked);
-      setLikeCount(prevLikeCount);
-      if (onLike) onLike(post.id, prevLiked, prevLikeCount);
-    } finally {
-      setIsLiking(false);
-    }
-  };
 
   const handleSave = async () => {
     HapticsService.triggerSave();
@@ -689,7 +661,8 @@ const QnAPostCard = React.memo(({
         triggerHeartAnimation(relativeX, relativeY);
       });
       if (!isLiked) {
-        handleLike();
+        HapticsService.triggerLike();
+        toggleLike();
       } else {
         HapticsService.triggerImpactLight();
       }
@@ -1219,8 +1192,7 @@ const QnAPostCard = React.memo(({
             {/* Like */}
             <TouchableOpacity
               style={styles.engagementButton}
-              onPress={handleLike}
-              disabled={isLiking}
+              onPress={toggleLike}
             >
               <Heart
                 size={EDITORIAL_SPACING.iconSize}

@@ -18,6 +18,7 @@ import React, {
   useRef,
 } from "react";
 import { useRecyclingState } from "@shopify/flash-list";
+import { useDebouncedLikeToggle } from "../hooks/useDebouncedLikeToggle";
 import { Image as ExpoImage } from "expo-image";
 import {
   View,
@@ -276,15 +277,41 @@ const DefaultEditorialPostCard = ({
   // Default: Media/text post with editorial design
   const [fullscreenVisible, setFullscreenVisible] = useState(false);
   const videoPositionRef = useRef(0); // tracks current playback position for modal sync
-  const initialIsLiked = post.is_liked === true;
-  // Fix #2: useRecyclingState resets these values when FlashList recycles this
-  // component instance for a different post, preventing stale like/save/view
-  // state from carrying over across posts in the same recycled cell.
-  const [isLiked, setIsLiked] = useRecyclingState(post.is_liked === true, [post.id]);
-  const [likeCount, setLikeCount] = useRecyclingState(post.like_count || 0, [post.id]);
-  const [isLiking, setIsLiking] = useState(false);
-  // Auth token — use the hoisted prop if available, otherwise fetch lazily
+  // ── Like state (shared debounced hook) ───────────────────────────────────
+  // Replaces isLiked/likeCount/isLiking/isLikingRef + handleLike.
+  // • Every tap updates UI instantly, no disabled state, no guard.
+  // • 500ms debounce collapses rapid bursts to ONE network call.
+  // • Net-no-op bursts (even # of taps) fire ZERO network calls.
   const tokenRef = useRef(authToken);
+  const { isLiked, likeCount, toggle: toggleLike, reset: resetLike } =
+    useDebouncedLikeToggle({
+      itemId: post.id,
+      initialIsLiked: post.is_liked === true,
+      initialLikeCount: post.like_count || 0,
+      likeEndpoint: () => {
+        const token = tokenRef.current || authToken;
+        return apiPost(`/posts/${post.id}/like`, {}, 15000, token);
+      },
+      unlikeEndpoint: () => {
+        const token = tokenRef.current || authToken;
+        return apiDelete(`/posts/${post.id}/like`, null, 15000, token);
+      },
+      onConfirmed: (liked, count) => {
+        onLike?.(post.id, liked, count);
+        EventBus.emit('post-like-updated', {
+          postId: post.id,
+          isLiked: liked,
+          likeCount: count,
+        });
+      },
+    });
+
+  // Reset hook when FlashList recycles this cell for a different post.
+  useEffect(() => {
+    resetLike(post.is_liked === true, post.like_count || 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post.id]);
+
   const [isSaved, setIsSaved] = useRecyclingState(post.is_saved || false, [post.id]);
   const [saveCount, setSaveCount] = useRecyclingState(
     post.save_count || post.saves_count || 0,
@@ -614,10 +641,11 @@ const DefaultEditorialPostCard = ({
     [post.tagged_entities],
   );
 
-  // Sync state when post prop changes
+  // Sync like state when post prop changes (e.g. server push via parent re-render).
+  // resetLike updates both the desired and confirmed refs so the debounce state
+  // stays consistent — prevents a stale desiredStateRef from firing a phantom request.
   useEffect(() => {
-    setIsLiked(post.is_liked === true || post.isLiked === true);
-    setLikeCount(post.like_count || 0);
+    resetLike(post.is_liked === true || post.isLiked === true, post.like_count || 0);
     setIsSaved(post.is_saved || false);
     setSaveCount(post.save_count || post.saves_count || 0);
   }, [
@@ -645,51 +673,6 @@ const DefaultEditorialPostCard = ({
     return `${Math.floor(diffInSeconds / 2592000)}mo ago`;
   };
 
-  const handleLike = async () => {
-    if (isLiking) {
-      return;
-    }
-    HapticsService.triggerLike();
-
-    const prevLiked = isLiked;
-    const prevLikeCount = likeCount;
-    const nextLiked = !prevLiked;
-    const delta = nextLiked ? 1 : -1;
-    const nextLikes = Math.max(0, prevLikeCount + delta);
-
-    // Optimistic update — all synchronous, zero async before this point
-    setIsLiked(nextLiked);
-    setLikeCount(nextLikes);
-    setIsLiking(true);
-    if (onLike) {
-      onLike(post.id, nextLiked, nextLikes);
-    }
-
-    try {
-      // Use cached token; if stale, fall back to async fetch
-      const token = tokenRef.current || (await getAuthToken());
-      
-      if (nextLiked) {
-        await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
-      } else {
-        await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
-      }
-
-      EventBus.emit("post-like-updated", {
-        postId: post.id,
-        isLiked: nextLiked,
-        likeCount: nextLikes,
-      });
-    } catch (error) {
-      console.error("Error liking post:", error);
-      // Revert on error
-      setIsLiked(prevLiked);
-      setLikeCount(prevLikeCount);
-      if (onLike) onLike(post.id, prevLiked, prevLikeCount);
-    } finally {
-      setIsLiking(false);
-    }
-  };
 
   const handleUserPress = () => {
     if (isAnon) return;
@@ -1004,9 +987,10 @@ const DefaultEditorialPostCard = ({
 
   // ── Double Tap to Like gesture ─────────────────────────────────────────────
   const onDoubleTap = (pageX, pageY) => {
-    // Only like, don't unlike on double tap
-    if (!isLiked && !isLiking) {
-      handleLike();
+    // Only like on double-tap, never unlike.
+    if (!isLiked) {
+      HapticsService.triggerLike();
+      toggleLike();
     } else {
       HapticsService.triggerImpactLight();
     }
@@ -1369,8 +1353,7 @@ const DefaultEditorialPostCard = ({
         {/* Like */}
         <GHPressable
           style={styles.engagementButton}
-          onPress={handleLike}
-          disabled={isLiking}
+          onPress={toggleLike}
         >
           <Heart
             size={EDITORIAL_SPACING.iconSize}

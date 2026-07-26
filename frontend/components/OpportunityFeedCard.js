@@ -67,6 +67,7 @@ import CustomAlertModal from "./ui/CustomAlertModal";
 import FollowButton from "./FollowButton";
 import { getOptimizedImageUrl } from "../utils/imageUtils";
 import { useRecyclingState } from "@shopify/flash-list";
+import { useDebouncedLikeToggle } from "../hooks/useDebouncedLikeToggle";
 import {
   followMember,
   unfollowMember,
@@ -446,7 +447,6 @@ const OpportunityFeedCard = React.memo(({
     return tools.slice(0, 8);
   }, [opportunity.skill_groups]);
 
-  // Cache auth token so handleLike never awaits I/O before the optimistic UI update
   // Auth token — use the hoisted prop if available, otherwise fetch lazily in handlers
   const tokenRef = useRef(authToken);
 
@@ -456,10 +456,20 @@ const OpportunityFeedCard = React.memo(({
     opportunity.view_count || opportunity.public_view_count || 0,
   [opportunity.id]);
 
-  // ── Engagement State \u2014 useRecyclingState resets on opportunity.id change ─────
-  const [isLiked, setIsLiked] = useRecyclingState(opportunity.is_liked === true, [opportunity.id]);
-  const [likeCount, setLikeCount] = useRecyclingState(opportunity.like_count || 0, [opportunity.id]);
-  const [isLiking, setIsLiking] = useRecyclingState(false, [opportunity.id]);
+  // ── Like state (shared debounced hook) ───────────────────────────────────
+  const { isLiked, likeCount, toggle: toggleLike, reset: resetLike } =
+    useDebouncedLikeToggle({
+      itemId: opportunity.id,
+      initialIsLiked: opportunity.is_liked === true,
+      initialLikeCount: opportunity.like_count || 0,
+      likeEndpoint: () => apiPost(`/opportunities/${opportunity.id}/like`, {}, 15000, tokenRef.current || authToken),
+      unlikeEndpoint: () => apiDelete(`/opportunities/${opportunity.id}/like`, null, 15000, tokenRef.current || authToken),
+      onConfirmed: (liked, count) => {
+        onLike?.(opportunity.id, liked, count);
+        EventBus.emit('post-like-updated', { postId: opportunity.id, isLiked: liked, likeCount: count });
+      },
+    });
+  useEffect(() => { resetLike(opportunity.is_liked === true, opportunity.like_count || 0); }, [opportunity.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [isSaved, setIsSaved] = useRecyclingState(opportunity.is_saved || false, [opportunity.id]);
   const [saveCount, setSaveCount] = useRecyclingState(opportunity.save_count || opportunity.saves_count || 0, [opportunity.id]);
   const [isSaving, setIsSaving] = useRecyclingState(false, [opportunity.id]);
@@ -492,49 +502,7 @@ const OpportunityFeedCard = React.memo(({
     };
   }, [opportunity.id]);
 
-  // ── Like handler (opportunity-specific endpoint) ──────────────────────────
-  const handleLike = useCallback(async () => {
-    if (isLiking) return;
-    HapticsService.triggerLike();
 
-    const prevLiked = isLiked;
-    const prevLikeCount = likeCount;
-    const nextLiked = !prevLiked;
-    const delta = nextLiked ? 1 : -1;
-    const nextLikes = Math.max(0, prevLikeCount + delta);
-
-    // Optimistic update
-    setIsLiked(nextLiked);
-    setLikeCount(nextLikes);
-    if (onLike) onLike(opportunity.id, nextLiked, nextLikes);
-
-    setIsLiking(true);
-    try {
-      const token = tokenRef.current || (await getAuthToken());
-      if (nextLiked) {
-        await apiPost(`/opportunities/${opportunity.id}/like`, {}, 15000, token);
-      } else {
-        await apiDelete(`/opportunities/${opportunity.id}/like`, null, 15000, token);
-      }
-      EventBus.emit("post-like-updated", {
-        postId: opportunity.id,
-        isLiked: nextLiked,
-        likeCount: nextLikes,
-      });
-    } catch (error) {
-      console.error("Error liking opportunity:", error);
-      if (error?.message?.toLowerCase().includes("already liked")) {
-        setIsLiked(true);
-        setLikeCount(prevLikeCount);
-      } else {
-        setIsLiked(prevLiked);
-        setLikeCount(prevLikeCount);
-        if (onLike) onLike(opportunity.id, prevLiked, prevLikeCount);
-      }
-    } finally {
-      setIsLiking(false);
-    }
-  }, [isLiked, likeCount, isLiking, opportunity.id, onLike]);
 
   // ── Save handler (opportunity-specific endpoint) ──────────────────────────
   const handleSave = useCallback(async () => {
@@ -691,7 +659,8 @@ const OpportunityFeedCard = React.memo(({
         triggerHeartAnimation(relativeX, relativeY);
       });
       if (!isLiked) {
-        handleLike();
+        HapticsService.triggerLike();
+        toggleLike();
       } else {
         HapticsService.triggerImpactLight();
       }
@@ -705,7 +674,7 @@ const OpportunityFeedCard = React.memo(({
       }, 250);
     }
     lastTapRef.current = now;
-  }, [onPress, opportunity, isLiked, handleLike, triggerHeartAnimation]);
+  }, [onPress, opportunity, isLiked, toggleLike, triggerHeartAnimation]);
 
   const handlePinPress = useCallback(() => {
     onPinToggle?.(opportunity, true);
@@ -1031,8 +1000,7 @@ const OpportunityFeedCard = React.memo(({
           {/* Like */}
           <TouchableOpacity
             style={styles.engagementButton}
-            onPress={handleLike}
-            disabled={isLiking}
+            onPress={toggleLike}
           >
             <Heart
               size={20}

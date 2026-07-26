@@ -56,6 +56,7 @@ import CustomImagePicker from "./CustomImagePicker";
 import EventBus from "../utils/EventBus";
 import ShareModal from "./ShareModal";
 import ContentActionsSheet from "./ContentActionsSheet";
+import { useDebouncedLikeToggle } from "../hooks/useDebouncedLikeToggle";
 
 // Cloudinary direct upload helper
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME;
@@ -100,9 +101,24 @@ const CARD_CONTENT_WIDTH = SCREEN_WIDTH - (CARD_MARGIN * 2) - (CARD_PADDING * 2)
 export const VoicePostCard = React.memo(({ post, onComment }) => {
   const isAnon = post?.type_data?.is_anonymous;
 
-  const [isLiked, setIsLiked] = useState(post?.is_liked === true);
-  const [likeCount, setLikeCount] = useState(post?.like_count || 0);
-  const [isLiking, setIsLiking] = useState(false);
+  // \u2500\u2500 Like state (shared debounced hook) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  const { isLiked, likeCount, toggle: toggleLike, reset: resetLike } =
+    useDebouncedLikeToggle({
+      itemId: post.id,
+      initialIsLiked: post?.is_liked === true,
+      initialLikeCount: post?.like_count || 0,
+      likeEndpoint: async () => {
+        const token = await getAuthToken();
+        return apiPost(`/posts/${post.id}/like`, {}, 15000, token);
+      },
+      unlikeEndpoint: async () => {
+        const token = await getAuthToken();
+        return apiDelete(`/posts/${post.id}/like`, null, 15000, token);
+      },
+      onConfirmed: (liked, count) => {
+        EventBus.emit('post-like-updated', { postId: post.id, isLiked: liked, likeCount: count });
+      },
+    });
 
   const [isSaved, setIsSaved] = useState(post?.is_saved === true);
   const [saveCount, setSaveCount] = useState(post?.save_count || post?.saves_count || 0);
@@ -186,7 +202,8 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
         triggerHeartAnimation(relativeX, relativeY);
       });
       if (!isLiked) {
-        handleLike();
+        HapticsService.triggerLike();
+        toggleLike();
       } else {
         HapticsService.triggerImpactLight();
       }
@@ -194,22 +211,20 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
     lastTapRef.current = now;
   };
 
-  // Sync state when post prop changes
+  // Sync like state when post prop changes.
   useEffect(() => {
-    setIsLiked(post?.is_liked === true);
-    setLikeCount(post?.like_count || 0);
+    resetLike(post?.is_liked === true, post?.like_count || 0);
     setIsSaved(post?.is_saved === true);
     setSaveCount(post?.save_count || post?.saves_count || 0);
     setViewCount(post?.public_view_count || post?.view_count || 0);
     setShareCount(post?.share_count || 0);
-  }, [post?.is_liked, post?.like_count, post?.is_saved, post?.save_count, post?.saves_count, post?.public_view_count, post?.view_count, post?.share_count]);
+  }, [post?.is_liked, post?.like_count, post?.is_saved, post?.save_count, post?.saves_count, post?.public_view_count, post?.view_count, post?.share_count]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync via EventBus
   useEffect(() => {
     const handleLikeUpdate = (payload) => {
       if (payload.postId === post.id) {
-        setIsLiked(payload.isLiked);
-        setLikeCount(payload.likeCount);
+        resetLike(payload.isLiked, payload.likeCount);
       }
     };
     const handleSaveUpdate = (payload) => {
@@ -242,39 +257,6 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
     };
   }, [post.id]);
 
-  const handleLike = async () => {
-    if (isLiking) return;
-    HapticsService.triggerLike();
-    const prevLiked = isLiked;
-    const prevLikeCount = likeCount;
-    const nextLiked = !prevLiked;
-    const delta = nextLiked ? 1 : -1;
-    const nextLikes = Math.max(0, prevLikeCount + delta);
-
-    setIsLiked(nextLiked);
-    setLikeCount(nextLikes);
-
-    setIsLiking(true);
-    try {
-      const token = await getAuthToken();
-      if (nextLiked) {
-        await apiPost(`/posts/${post.id}/like`, {}, 15000, token);
-      } else {
-        await apiDelete(`/posts/${post.id}/like`, null, 15000, token);
-      }
-      EventBus.emit("post-like-updated", {
-        postId: post.id,
-        isLiked: nextLiked,
-        likeCount: nextLikes,
-      });
-    } catch (error) {
-      console.error("Error liking voice post:", error);
-      setIsLiked(prevLiked);
-      setLikeCount(prevLikeCount);
-    } finally {
-      setIsLiking(false);
-    }
-  };
 
   const handleSave = async () => {
     HapticsService.triggerSave();
@@ -387,8 +369,7 @@ export const VoicePostCard = React.memo(({ post, onComment }) => {
           {/* Like */}
           <Pressable
             style={cardStyles.engagementButton}
-            onPress={handleLike}
-            disabled={isLiking}
+            onPress={toggleLike}
           >
             <Heart
               size={20}
