@@ -868,6 +868,7 @@ export default function ConversationsListScreen({ navigation }) {
   // ── Navigate to chat ──────────────────────────────────────────────────────────
   const openConversation = useCallback((conv) => {
     Keyboard.dismiss();
+    const tappedAt = global.performance ? global.performance.now() : Date.now(); // DIAG: tap-to-render timing
     if (conv.isGroup) {
       navigation.navigate("Chat", {
         conversationId:      conv.id,
@@ -875,8 +876,9 @@ export default function ConversationsListScreen({ navigation }) {
         groupName:           conv.groupName,
         isMuted:             conv.isMuted || false,
         mutedUntil:          conv.mutedUntil || null,
-        myGroupRole:         conv.myRole || "member",         // pass role instantly
-        messagingRestricted: conv.messagingRestricted || false, // pass restriction instantly
+        myGroupRole:         conv.myRole || "member",
+        messagingRestricted: conv.messagingRestricted || false,
+        tappedAt,
       });
     } else {
       navigation.navigate("Chat", {
@@ -888,18 +890,21 @@ export default function ConversationsListScreen({ navigation }) {
         recipientName: conv.otherParticipant?.name,
         recipientUsername: conv.otherParticipant?.username,
         recipientAvatar: conv.otherParticipant?.profilePhotoUrl,
+        tappedAt,
       });
     }
   }, [navigation]);
 
   const openUserChat = useCallback((user) => {
     Keyboard.dismiss();
+    const tappedAt = global.performance ? global.performance.now() : Date.now(); // DIAG: tap-to-render timing
     navigation.navigate("Chat", {
       recipientId: user.id,
       recipientType: user.type || "member",
       recipientName: user.display_name || user.name || user.full_name,
       recipientUsername: user.username,
       recipientAvatar: user.profile_photo_url || user.logo_url || user.photo_url,
+      tappedAt,
     });
   }, [navigation]);
 
