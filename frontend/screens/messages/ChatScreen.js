@@ -2368,17 +2368,31 @@ export default function ChatScreen({ route, navigation }) {
                   : null,
               });
             } else {
-              // ── STALE CACHE: background reconcile with server ──────────────
-              console.log(`[ConvCache] Cache HIT (stale, ${(cacheAgeMs/1000).toFixed(1)}s old) — reconciling`);
-              const reconcileRes = await getMessages(conversationId, { limit: 20 });
+              // ── STALE CACHE: delta reconcile — only fetch what's NEW ────────
+              // Use after=<newestAt> so we only retrieve messages created after
+              // the last message we already have in cache. For quiet conversations
+              // (no messages since last open) this returns 0 items and costs
+              // essentially nothing. Only busy conversations pay proportional cost.
+              const newestCachedAt = cached.messages.length > 0
+                ? cached.messages[cached.messages.length - 1].createdAt
+                : null;
+              console.log(`[ConvCache] Cache HIT (stale, ${(cacheAgeMs/1000).toFixed(1)}s old) — delta reconcile after ${newestCachedAt}`);
+              const reconcileParams = newestCachedAt
+                ? { after: newestCachedAt }           // delta: only newer messages
+                : { limit: 20 };                      // no anchor: full page fallback
+              const reconcileRes = await getMessages(conversationId, reconcileParams);
               freshMsgs = reconcileRes?.messages || [];
               freshCursor = reconcileRes?.nextCursor || null;
               if (reconcileRes?.status) setGroupStatus(reconcileRes.status);
+              // For delta reconcile: keep existing cursor/hasMore from cache since
+              // we only fetched new messages, not the full recent history.
               bootstrapPaginationState({
                 conversationId,
-                cursor:    freshCursor,
-                hasMore:   reconcileRes?.hasMore || false,
-                newestAt:  freshMsgs.length > 0 ? freshMsgs[freshMsgs.length - 1].createdAt : null,
+                cursor:    freshCursor || cached.cursor || null,
+                hasMore:   reconcileRes?.hasMore ?? cached.hasMore ?? false,
+                newestAt:  freshMsgs.length > 0
+                  ? freshMsgs[freshMsgs.length - 1].createdAt
+                  : newestCachedAt,
               });
             }
           } else {
