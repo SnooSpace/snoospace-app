@@ -157,7 +157,7 @@ function deriveConvFields(conv) {
 }
 
 // ── Animated Pressable Row Wrapper ──────────────────────────────────────────
-// Smooth tactile press animation with rounded light blue highlight (#F0F4FF) for light theme
+// Smooth tactile press animation with rounded warm creamish highlight (#F5F2EB) for light theme
 const RowPressable = React.memo(function RowPressable({ children, onPress, style }) {
   const scale = useSharedValue(1);
   const pressedBg = useSharedValue(0);
@@ -167,14 +167,14 @@ const RowPressable = React.memo(function RowPressable({ children, onPress, style
     backgroundColor: interpolateColor(
       pressedBg.value,
       [0, 1],
-      ["#FFFFFF", "#F0F4FF"]
+      ["#FFFFFF", "#F5F2EB"]
     ),
   }));
 
   const handlePressIn = useCallback(() => {
     scale.value = withTiming(0.982, { duration: 90 });
     pressedBg.value = withTiming(1, { duration: 90 });
-    HapticsService.triggerLight();
+    HapticsService.triggerImpactLight();
   }, [scale, pressedBg]);
 
   const handlePressOut = useCallback(() => {
