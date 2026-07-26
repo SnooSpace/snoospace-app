@@ -244,21 +244,31 @@ const formatSeparatorLabel = (dateString) => {
 
 /**
  * buildMessageList: converts a raw messages array (oldest → newest) into a
- * mixed list ordered newest → oldest, ready for an inverted FlashList.
+ * mixed list ordered newest → oldest, ready for an inverted FlatList.
  *
  * Date separators are injected AFTER the oldest message of each day in
  * this reversed order, so they render ABOVE that day's message group
  * exactly as expected in a chat UI.
  *
  * Input:  [oldest, …, newest]  (chronological, as stored in useChatPagination)
- * Output: [newest, …, oldest, separator, …]  (for inverted FlashList)
+ * Output: [newest, …, oldest, separator, …]  (for inverted FlatList)
+ *
+ * ── PERF: wrapper object cache ──────────────────────────────────────────────
+ * Every call creates a new { type, data } wrapper per message, giving each
+ * item a new object reference even when the message itself hasn't changed.
+ * This defeats MessageRow's React.memo: FlatList sees a "new" item and calls
+ * renderItem + MessageRow for every visible row whenever *any* message
+ * changes (e.g. a new message appended by socket).
+ *
+ * Fix: cache wrapper objects by message id.  On subsequent builds only the
+ * truly new/changed messages get fresh wrappers — the rest return the same
+ * object reference → MessageRow's memo bails out with zero render cost.
  */
+const _msgWrapperCache = new Map(); // module-level: lives as long as the module
+
 const buildMessageList = (messages) => {
   if (!messages || messages.length === 0) return [];
 
-  // Work in ascending order to detect day boundaries, then emit newest-first.
-  // We iterate in reverse (newest → oldest) and inject a separator whenever
-  // the day changes compared to the next-older message.
   const result = [];
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
@@ -276,7 +286,15 @@ const buildMessageList = (messages) => {
       older._dateString = d.toDateString();
     }
 
-    result.push({ type: "message", data: msg });
+    // Return cached wrapper if the msg reference hasn't changed.
+    // If the server updates a message in-place (e.g. isDeleted flag), the
+    // msg object itself is a new reference → cache miss → fresh wrapper.
+    let wrapper = _msgWrapperCache.get(msg.id);
+    if (!wrapper || wrapper.data !== msg) {
+      wrapper = { type: "message", data: msg };
+      _msgWrapperCache.set(msg.id, wrapper);
+    }
+    result.push(wrapper);
 
     // Inject a separator after (below in the inverted list) this message if:
     // • it is the oldest message overall, OR
@@ -3493,9 +3511,19 @@ export default function ChatScreen({ route, navigation }) {
                 minIndexForVisible: 1,
                 autoscrollToTopThreshold: 10,
               }}
-              initialNumToRender={25}
-              maxToRenderPerBatch={20}
-              windowSize={15}
+              // ── PERF: FlatList render tuning ─────────────────────────────
+              // initialNumToRender 12: covers the visible viewport on any phone
+              // (inverted, so this is the most-recent 12 messages). Was 25 —
+              // the extra 13 were speculative below-fold mounts that blocked
+              // the first paint with ~13 × 12ms = 156ms of Reanimated setup.
+              // maxToRenderPerBatch 8: smaller chunks free the JS thread between
+              // batches for gestures/animations. Was 20 (too large, caused jank
+              // on fast scroll when all 20 rows mounted in one frame).
+              // windowSize 8: keeps 8 × viewport height of rows resident in
+              // native. Was 15 — excessive for a chat list; 8 is still generous.
+              initialNumToRender={12}
+              maxToRenderPerBatch={8}
+              windowSize={8}
               removeClippedSubviews={Platform.OS === 'android'}
               updateCellsBatchingPeriod={20}
               scrollEventThrottle={16}
