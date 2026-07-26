@@ -60,6 +60,7 @@ import { GestureHandlerRootView, TouchableOpacity } from "react-native-gesture-h
 import SwipeableMessageRow from "../../components/SwipeableMessageRow";
 import SwipeableModal from "../../components/modals/SwipeableModal";
 import useChatPagination from "../../hooks/useChatPagination";
+import { StatusBar } from "expo-status-bar";
 import {
   useKeyboardHandler,
   KeyboardStickyView,
@@ -285,6 +286,16 @@ const buildMessageList = (messages) => {
       older._time = d.getTime();
       older._dateString = d.toDateString();
     }
+
+    const isOldestOfDay = !older || msg._dateString !== older._dateString;
+    const isDifferentSenderOrTime =
+      isOldestOfDay ||
+      !older ||
+      older.senderId !== msg.senderId ||
+      Math.abs((msg._time || 0) - (older._time || 0)) > 60000;
+
+    msg._showAvatar = isDifferentSenderOrTime;
+    msg._showSenderName = !older || older.senderId !== msg.senderId;
 
     // Return cached wrapper if the msg reference hasn't changed.
     // If the server updates a message in-place (e.g. isDeleted flag), the
@@ -3347,7 +3358,9 @@ export default function ChatScreen({ route, navigation }) {
 
       const nextItem = flatListData[index + 1];
       const nextMsg = nextItem?.type === "message" ? nextItem.data : null;
-      const showAvatar = shouldShowAvatar(msg, nextMsg, isMyMessage);
+      const showAvatar = isMyMessage
+        ? false
+        : (msg._showAvatar ?? shouldShowAvatar(msg, nextMsg, isMyMessage));
       const showSenderName =
         isGroup &&
         !isMyMessage &&
@@ -3454,6 +3467,7 @@ export default function ChatScreen({ route, navigation }) {
     <Profiler id="ChatScreen" onRender={onRenderProfiler}>
       <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
+        <StatusBar style="dark" animated={true} />
         <View style={{ backgroundColor: "#FFFFFF", zIndex: 10 }}>
           <View style={{ height: insets.top }} />
           <View style={styles.header}>

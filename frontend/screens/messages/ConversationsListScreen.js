@@ -19,6 +19,7 @@ import Reanimated, {
 import Svg, { Circle, Path, Rect, G } from "react-native-svg";
 import * as Haptics from "expo-haptics";
 import HapticsService from "../../services/HapticsService";
+import { StatusBar } from "expo-status-bar";
 
 import {
   ChevronDown, PenSquare, Search, Users, Trash2, LogOut, X, ArrowLeft, TriangleAlert,
@@ -960,6 +961,7 @@ export default function ConversationsListScreen({ navigation }) {
     <Profiler id="ConversationsListScreen" onRender={onRenderProfiler}>
       <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container}>
+        <StatusBar style="dark" animated={true} />
           {/* ── Header ── */}
         <View style={styles.header}>
           {/* ── 1.3 Back button: handler is already minimal ──
