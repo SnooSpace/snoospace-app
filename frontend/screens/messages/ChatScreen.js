@@ -1628,31 +1628,32 @@ const MessageRow = React.memo(
   // accidentally new) short-circuits React reconciliation.
   // Explicitly excludes: index (meaningless — see above), rsvpLoading (read
   // from ref at render time, not reactive state).
-  (prev, next) =>
-    prev.item.data.id          === next.item.data.id          &&
-    prev.item.data.isDeleted   === next.item.data.isDeleted   &&
-    prev.isMyMessage           === next.isMyMessage           &&
-    prev.showAvatar            === next.showAvatar            &&
-    prev.showSenderName        === next.showSenderName        &&
-    prev.isGroup               === next.isGroup               &&
-    prev.currentUser           === next.currentUser           &&
-    prev.recipient             === next.recipient             &&
-    prev.recipientId           === next.recipientId           &&
-    prev.isBlockedByOther      === next.isBlockedByOther      &&
-    prev.highlightedIdSV       === next.highlightedIdSV       &&
-    prev.onReply               === next.onReply               &&
-    prev.onLongPress           === next.onLongPress           &&
-    prev.onRSVP                === next.onRSVP                &&
-    prev.onOpenViewer          === next.onOpenViewer          &&
-    prev.onPressPostShare      === next.onPressPostShare      &&
-    prev.onPressUser           === next.onPressUser           &&
-    prev.onPressOpportunity    === next.onPressOpportunity    &&
-    prev.onPressEvent          === next.onPressEvent          &&
-    prev.onPressPlan           === next.onPressPlan           &&
-    prev.onPressReplyQuote     === next.onPressReplyQuote,
-    // navigationRef intentionally excluded: it is a ref object whose .current
-    // changes without causing a new ref identity, so comparing refs is always
-    // equal anyway. Excluding it makes the intent explicit.
+  (prev, next) => {
+    return (
+      prev.item?.data?.id          === next.item?.data?.id          &&
+      prev.item?.data?.isDeleted   === next.item?.data?.isDeleted   &&
+      prev.isMyMessage           === next.isMyMessage           &&
+      prev.showAvatar            === next.showAvatar            &&
+      prev.showSenderName        === next.showSenderName        &&
+      prev.isGroup               === next.isGroup               &&
+      prev.currentUser?.id       === next.currentUser?.id       &&
+      prev.currentUser?.avatarUri === next.currentUser?.avatarUri &&
+      prev.recipient             === next.recipient             &&
+      prev.recipientId           === next.recipientId           &&
+      prev.isBlockedByOther      === next.isBlockedByOther      &&
+      prev.highlightedIdSV       === next.highlightedIdSV       &&
+      prev.onReply               === next.onReply               &&
+      prev.onLongPress           === next.onLongPress           &&
+      prev.onRSVP                === next.onRSVP                &&
+      prev.onOpenViewer          === next.onOpenViewer          &&
+      prev.onPressPostShare      === next.onPressPostShare      &&
+      prev.onPressUser           === next.onPressUser           &&
+      prev.onPressOpportunity    === next.onPressOpportunity    &&
+      prev.onPressEvent          === next.onPressEvent          &&
+      prev.onPressPlan           === next.onPressPlan           &&
+      prev.onPressReplyQuote     === next.onPressReplyQuote
+    );
+  }
 );
 
 // ── Typing Dots Animation Component ─────────────────────────────────────────
@@ -2117,6 +2118,11 @@ export default function ChatScreen({ route, navigation }) {
     );
   }, [messages, currentUser]);
 
+  const mediaTimelineRef = useRef([]);
+  useEffect(() => {
+    mediaTimelineRef.current = mediaTimeline;
+  }, [mediaTimeline]);
+
 
   // ΓöÇΓöÇ scrollToMessage ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const scrollToMessage = useCallback(
@@ -2215,13 +2221,13 @@ export default function ChatScreen({ route, navigation }) {
 
   const handleOpenViewer = useCallback(
     (mediaId) => {
-      const idx = mediaTimeline.findIndex((m) => m.id === mediaId);
+      const idx = mediaTimelineRef.current.findIndex((m) => m.id === mediaId);
       if (idx !== -1) {
         setViewerIndex(idx);
         setViewerVisible(true);
       }
     },
-    [mediaTimeline],
+    [],
   );
 
   const handlePressPostShare = useCallback(
@@ -2231,61 +2237,66 @@ export default function ChatScreen({ route, navigation }) {
       const pType = postData.post_type || postData.type || "media";
 
       if (pType === "opportunity") {
-        const nav = navigation.getParent()?.getParent() || navigation;
-        nav.navigate("OpportunityView", {
+        const nav = navigationRef.current;
+        const n = nav?.getParent()?.getParent() || nav;
+        n?.navigate("OpportunityView", {
           opportunityId: postId || postData.id,
           opportunity: postData
         });
         return;
       }
 
-      // Open focused full-screen post feed directly for all other post types (media, text, prompts, polls, challenges, Q&As, voice posts)
+      // Open focused full-screen post feed directly for all other post types
       setSelectedSharedPost(postData);
       setSharedPostModalVisible(true);
     },
-    [navigation],
+    [],
   );
 
   const handlePressUser = useCallback(
     (userId, userType) => {
-      const nav = navigation.getParent()?.getParent() || navigation;
+      const nav = navigationRef.current;
+      const n = nav?.getParent()?.getParent() || nav;
       if (userType === "community") {
-        nav.navigate("CommunityPublicProfile", {
+        n?.navigate("CommunityPublicProfile", {
           communityId: userId,
           viewerRole: "member",
         });
       } else {
-        nav.navigate("MemberPublicProfile", { memberId: userId });
+        n?.navigate("MemberPublicProfile", { memberId: userId });
       }
     },
-    [navigation],
+    [],
   );
 
   const handlePressOpportunity = useCallback(
     (opportunityId, metadata) => {
-      const nav = navigation.getParent()?.getParent() || navigation;
-      nav.navigate("OpportunityView", {
+      const nav = navigationRef.current;
+      const n = nav?.getParent()?.getParent() || nav;
+      n?.navigate("OpportunityView", {
         opportunityId,
         opportunity: { id: opportunityId, ...metadata },
       });
     },
-    [navigation],
+    [],
   );
 
   const handlePressEvent = useCallback(
     (eventId) => {
-      const nav = navigation.getParent()?.getParent() || navigation;
-      nav.navigate("EventDetails", { eventId });
+      const nav = navigationRef.current;
+      const n = nav?.getParent()?.getParent() || nav;
+      n?.navigate("EventDetails", { eventId });
     },
-    [navigation],
+    [],
   );
 
   const handlePressPlan = useCallback(
     (planId) => {
-      const nav = navigation.getParent()?.getParent() || navigation;
-      nav.navigate("PlanDetail", { planId });
+      const nav = navigationRef.current;
+      const n = nav?.getParent()?.getParent() || nav;
+      n?.navigate("PlanDetail", { planId });
     },
-    [navigation],
+    [],
   );
 
   // ΓöÇΓöÇ loadMessages ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
