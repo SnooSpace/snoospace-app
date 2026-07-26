@@ -12,7 +12,7 @@
  * animation when the user taps a reply quote. It is written from ChatScreen
  * after scrollToMessage() to avoid any React re-renders.
  */
-import React, { useRef } from "react";
+import React, { useRef, Profiler } from "react";
 import { View, StyleSheet } from "react-native";
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, withSpring,
@@ -21,6 +21,15 @@ import Animated, {
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
 import { Reply } from "lucide-react-native";
+
+export const msgContentTimings = new Map();
+const onRenderContentProfiler = (id, phase, actualDuration) => {
+  const match = id.match(/CONTENT-id=(.*)/);
+  if (match) {
+    const msgId = match[1];
+    msgContentTimings.set(String(msgId), actualDuration);
+  }
+};
 
 const REPLY_SWIPE_MAX      = 72;
 const REPLY_HAPTIC_THRESHOLD = 64;
@@ -144,7 +153,9 @@ const SwipeableMessageRow = React.memo(({
       <Animated.View style={[styles.bubble, isMine ? styles.bubbleRight : styles.bubbleLeft, bubbleStyle]}>
         <GestureDetector gesture={composed}>
           <View collapsable={false}>
-            {children}
+            <Profiler id={`CONTENT-id=${messageId}`} onRender={onRenderContentProfiler}>
+              {children}
+            </Profiler>
             <Animated.View style={[highlightOverlayStyle, { zIndex: 10 }]} />
           </View>
         </GestureDetector>

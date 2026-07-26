@@ -7,11 +7,25 @@ import React, {
   Profiler,
 } from "react";
 
+import { msgContentTimings } from "../../components/SwipeableMessageRow";
+
 const onRenderProfiler = (id, phase, actualDuration) => {
   console.log(`[PERF-RENDER] ${id} - Phase: ${phase}, Duration: ${actualDuration.toFixed(2)}ms`);
 };
 const onRenderMsgProfiler = (id, phase, actualDuration) => {
-  console.log(`[PERF-MSG] ${id} phase:${phase} mountMs:${actualDuration.toFixed(2)}`);
+  const match = id.match(/ROW-type=(.*) id=(.*)/);
+  if (match) {
+    const type = match[1];
+    const msgId = match[2];
+    const contentMs = msgContentTimings.get(String(msgId));
+    if (contentMs !== undefined) {
+      const wrapperMs = Math.max(0, actualDuration - contentMs);
+      console.log(`[PERF-WRAP] type=${type} id=${msgId} phase:${phase} totalMs:${actualDuration.toFixed(2)} contentOnlyMs:${contentMs.toFixed(2)} wrapperSetupMs:${wrapperMs.toFixed(2)}`);
+      msgContentTimings.delete(String(msgId));
+    } else {
+      console.log(`[PERF-WRAP] type=${type} id=${msgId} phase:${phase} totalMs:${actualDuration.toFixed(2)} contentOnlyMs:${actualDuration.toFixed(2)} wrapperSetupMs:0.00 (skips wrapper)`);
+    }
+  }
 };
 import {
   StyleSheet,
@@ -3207,7 +3221,7 @@ export default function ChatScreen({ route, navigation }) {
 
       return (
         <Profiler
-          id={`type=${effectiveType} id=${msg.id}`}
+          id={`ROW-type=${effectiveType} id=${msg.id}`}
           onRender={onRenderMsgProfiler}
         >
           <MessageRow
