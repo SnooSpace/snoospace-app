@@ -2020,6 +2020,21 @@ export default function ChatScreen({ route, navigation }) {
   // buildMessageList now outputs newest→oldest directly (no .reverse() needed).
   const flatListData = useMemo(() => buildMessageList(messages), [messages]);
 
+  // ── PERF: stored in a ref instead of useMemo so scrollToMessage can read the
+  // latest index without depending on messageIndexMap as a closure variable.
+  // If it closed over the useMemo value, scrollToMessage would rebuild every
+  // time any message arrived (flatListData -> messageIndexMap -> scrollToMessage
+  // -> renderItem -> all visible rows re-render). With a ref the dep array
+  // becomes [highlightedIdSV] only, making scrollToMessage stable forever.
+  const messageIndexMapRef = useRef({});
+  useEffect(() => {
+    const map = {};
+    flatListData.forEach((item, idx) => {
+      if (item.type === "message") map[item.data.id] = idx;
+    });
+    messageIndexMapRef.current = map;
+  }, [flatListData]);
+
   // ΓöÇΓöÇ mediaTimeline: flattened array of all media in the chat ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const mediaTimeline = useMemo(() => {
     const timeline = [];
@@ -2084,19 +2099,11 @@ export default function ChatScreen({ route, navigation }) {
     );
   }, [messages, currentUser]);
 
-  // Map message id ΓåÆ index in flatListData for scroll-to-reply
-  const messageIndexMap = useMemo(() => {
-    const map = {};
-    flatListData.forEach((item, idx) => {
-      if (item.type === "message") map[item.data.id] = idx;
-    });
-    return map;
-  }, [flatListData]);
 
   // ΓöÇΓöÇ scrollToMessage ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const scrollToMessage = useCallback(
     (targetId) => {
-      const idx = messageIndexMap[targetId];
+      const idx = messageIndexMapRef.current[targetId];
       if (idx == null) return;
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -2110,7 +2117,8 @@ export default function ChatScreen({ route, navigation }) {
         highlightedIdSV.value = "";
       }, 1600);
     },
-    [messageIndexMap, highlightedIdSV],
+    // messageIndexMapRef is a ref — reads .current at call time, no dep needed.
+    [highlightedIdSV],
   );
 
   const handleReply = useCallback(
