@@ -1741,6 +1741,14 @@ export default function ChatScreen({ route, navigation }) {
   const t0Ref = useRef(global.performance ? global.performance.now() : Date.now());
   const firstRenderRef = useRef(true);
 
+  // ── Sync cache seed ──────────────────────────────────────────────────────
+  // Read from the in-memory cache SYNCHRONOUSLY before first render so
+  // useChatPagination starts with real messages — FlatList renders on frame 0
+  // without waiting for any useEffect or InteractionManager to fire.
+  const initialMessagesRef = useRef(
+    conversationId ? (getCachedConversation(conversationId)?.messages || []) : []
+  );
+
   const {
     messages,
     hasMore,
@@ -1752,7 +1760,7 @@ export default function ChatScreen({ route, navigation }) {
     updateMessageById,
     bootstrapPaginationState,
     newestAtRef,
-  } = useChatPagination();
+  } = useChatPagination(initialMessagesRef.current);
 
   const [messageText, setMessageText] = useState("");
   const [isChatInputFocused, setIsChatInputFocused] = useState(false);
@@ -1808,7 +1816,16 @@ export default function ChatScreen({ route, navigation }) {
     return null;
   });
   const [loading, setLoading] = useState(!recipientName && !isGroup);
-  const [messagesLoading, setMessagesLoading] = useState(true);
+  // Start messagesLoading=false when we have a warm cache hit — the FlatList
+  // hydrates synchronously from cache in the useState initializer below, so
+  // we should never show a spinner on a warm second-open.
+  const [messagesLoading, setMessagesLoading] = useState(() => {
+    if (conversationId) {
+      const cached = getCachedConversation(conversationId);
+      return !cached || cached.messages.length === 0; // false on cache hit
+    }
+    return !recipientName; // new chat opened from search
+  });
   const [groupStatus, setGroupStatus] = useState("ACTIVE");
   const _renderNow = global.performance ? global.performance.now() : Date.now();
   const _tapToRenderMs = tappedAt ? (_renderNow - tappedAt).toFixed(1) : 'n/a';
@@ -2549,7 +2566,15 @@ export default function ChatScreen({ route, navigation }) {
         console.log(`[PERF] Total ChatScreen initialization took: ${(tEndAll - tStartInit).toFixed(2)}ms`);
       }
     };
-    run();
+    // ── Defer all init work until after the navigation animation settles ──────
+    // Running init() immediately on mount competes with the JS-driven push
+    // animation (~350ms), causing frame drops and delaying visible content.
+    // InteractionManager fires after all animations complete, freeing the JS
+    // thread to do layout/animation first, then hydrate data.
+    const interaction = InteractionManager.runAfterInteractions(() => {
+      run();
+    });
+    return () => interaction.cancel();
   }, [conversationId, recipientId, recipientType]);
 
   // Fetch fresh post details when shared post modal opens

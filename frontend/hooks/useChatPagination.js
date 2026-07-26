@@ -21,8 +21,8 @@ import { getMessages } from "../api/messages";
 
 const PAGE_SIZE = 20;
 
-export default function useChatPagination() {
-  const [messages,     setMessages]     = useState([]);
+export default function useChatPagination(initialMessages = []) {
+  const [messages,     setMessages]     = useState(initialMessages);
   const [hasMore,      setHasMore]      = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
 
