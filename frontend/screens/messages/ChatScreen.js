@@ -1186,6 +1186,26 @@ const MessageRow = React.memo(
       );
     }
 
+    // ── PERF: Stable callbacks for SwipeableMessage ────────────────────────
+    // Wrapped in useCallback keyed on primitive msg.id + isMyMessage boolean
+    // — both stable for a given message instance.  onReply/onLongPress are
+    // ChatScreen-level useCallback handlers, so their references are stable
+    // too.  Combined with SwipeableMessageRow's custom React.memo comparator
+    // (which excludes these props from equality), this ensures the wrapper
+    // bails out on every ChatScreen re-render for rows that didn't change.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const handleRowReply = useCallback(
+      () => onReply(msg, isMyMessage),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [msg.id, isMyMessage, onReply],
+    );
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const handleRowLongPress = useCallback(
+      () => onLongPress(msg),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [msg.id, onLongPress],
+    );
+
     // Pre-compute avatar element once.
     // Show a Lucide User icon when: the user is blocked, or no photo URL is available.
     const showUserIcon =
@@ -1298,8 +1318,8 @@ const MessageRow = React.memo(
             messageId={msg.id}
             highlightedIdSV={highlightedIdSV}
             isMyMessage={isMyMessage}
-            onReply={() => onReply(msg, isMyMessage)}
-            onLongPress={() => onLongPress(msg)}
+            onReply={handleRowReply}
+            onLongPress={handleRowLongPress}
           >
             <View collapsable={false}>
               {showSenderName && (
@@ -1354,8 +1374,8 @@ const MessageRow = React.memo(
             messageId={msg.id}
             highlightedIdSV={highlightedIdSV}
             isMyMessage={isMyMessage}
-            onReply={() => onReply(msg, isMyMessage)}
-            onLongPress={() => onLongPress(msg)}
+            onReply={handleRowReply}
+            onLongPress={handleRowLongPress}
           >
             <View collapsable={false}>
               {showSenderName && (
@@ -1396,8 +1416,8 @@ const MessageRow = React.memo(
             messageId={msg.id}
             highlightedIdSV={highlightedIdSV}
             isMyMessage={isMyMessage}
-            onReply={() => onReply(msg, isMyMessage)}
-            onLongPress={() => onLongPress(msg)}
+            onReply={handleRowReply}
+            onLongPress={handleRowLongPress}
           >
             <View collapsable={false}>
               {showSenderName && (
@@ -1437,8 +1457,8 @@ const MessageRow = React.memo(
             messageId={msg.id}
             highlightedIdSV={highlightedIdSV}
             isMyMessage={isMyMessage}
-            onReply={() => onReply(msg, isMyMessage)}
-            onLongPress={() => onLongPress(msg)}
+            onReply={handleRowReply}
+            onLongPress={handleRowLongPress}
           >
             <View collapsable={false}>
               {showSenderName && (
@@ -1475,8 +1495,8 @@ const MessageRow = React.memo(
             messageId={msg.id}
             highlightedIdSV={highlightedIdSV}
             isMyMessage={isMyMessage}
-            onReply={() => onReply(msg, isMyMessage)}
-            onLongPress={() => onLongPress(msg)}
+            onReply={handleRowReply}
+            onLongPress={handleRowLongPress}
           >
             <View collapsable={false}>
               {showSenderName && (
@@ -1563,8 +1583,8 @@ const MessageRow = React.memo(
             messageId={msg.id}
             highlightedIdSV={highlightedIdSV}
             isMyMessage={isMyMessage}
-            onReply={() => onReply(msg, isMyMessage)}
-            onLongPress={() => onLongPress(msg)}
+            onReply={handleRowReply}
+            onLongPress={handleRowLongPress}
           >
             {bubbleContent}
           </SwipeableMessage>
