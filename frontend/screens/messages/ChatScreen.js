@@ -1629,30 +1629,37 @@ const MessageRow = React.memo(
   // Explicitly excludes: index (meaningless — see above), rsvpLoading (read
   // from ref at render time, not reactive state).
   (prev, next) => {
-    return (
-      prev.item?.data?.id          === next.item?.data?.id          &&
-      prev.item?.data?.isDeleted   === next.item?.data?.isDeleted   &&
-      prev.isMyMessage           === next.isMyMessage           &&
-      prev.showAvatar            === next.showAvatar            &&
-      prev.showSenderName        === next.showSenderName        &&
-      prev.isGroup               === next.isGroup               &&
-      prev.currentUser?.id       === next.currentUser?.id       &&
-      prev.currentUser?.avatarUri === next.currentUser?.avatarUri &&
-      prev.recipient             === next.recipient             &&
-      prev.recipientId           === next.recipientId           &&
-      prev.isBlockedByOther      === next.isBlockedByOther      &&
-      prev.highlightedIdSV       === next.highlightedIdSV       &&
-      prev.onReply               === next.onReply               &&
-      prev.onLongPress           === next.onLongPress           &&
-      prev.onRSVP                === next.onRSVP                &&
-      prev.onOpenViewer          === next.onOpenViewer          &&
-      prev.onPressPostShare      === next.onPressPostShare      &&
-      prev.onPressUser           === next.onPressUser           &&
-      prev.onPressOpportunity    === next.onPressOpportunity    &&
-      prev.onPressEvent          === next.onPressEvent          &&
-      prev.onPressPlan           === next.onPressPlan           &&
-      prev.onPressReplyQuote     === next.onPressReplyQuote
-    );
+    const diffs = [];
+    if (prev.item?.data?.id !== next.item?.data?.id) diffs.push("item.data.id");
+    if (prev.item?.data?.isDeleted !== next.item?.data?.isDeleted) diffs.push("item.data.isDeleted");
+    if (prev.isMyMessage !== next.isMyMessage) diffs.push("isMyMessage");
+    if (prev.showAvatar !== next.showAvatar) diffs.push("showAvatar");
+    if (prev.showSenderName !== next.showSenderName) diffs.push("showSenderName");
+    if (prev.isGroup !== next.isGroup) diffs.push("isGroup");
+    if (prev.currentUser?.id !== next.currentUser?.id) diffs.push("currentUser.id");
+    if (prev.currentUser?.avatarUri !== next.currentUser?.avatarUri) diffs.push("currentUser.avatarUri");
+    if (prev.recipient?.id !== next.recipient?.id) diffs.push("recipient.id");
+    if (prev.recipient?.profilePhotoUrl !== next.recipient?.profilePhotoUrl) diffs.push("recipient.profilePhotoUrl");
+    if (prev.recipient?.name !== next.recipient?.name) diffs.push("recipient.name");
+    if (prev.recipientId !== next.recipientId) diffs.push("recipientId");
+    if (prev.isBlockedByOther !== next.isBlockedByOther) diffs.push("isBlockedByOther");
+    if (prev.highlightedIdSV !== next.highlightedIdSV) diffs.push("highlightedIdSV");
+    if (prev.onReply !== next.onReply) diffs.push("onReply");
+    if (prev.onLongPress !== next.onLongPress) diffs.push("onLongPress");
+    if (prev.onRSVP !== next.onRSVP) diffs.push("onRSVP");
+    if (prev.onOpenViewer !== next.onOpenViewer) diffs.push("onOpenViewer");
+    if (prev.onPressPostShare !== next.onPressPostShare) diffs.push("onPressPostShare");
+    if (prev.onPressUser !== next.onPressUser) diffs.push("onPressUser");
+    if (prev.onPressOpportunity !== next.onPressOpportunity) diffs.push("onPressOpportunity");
+    if (prev.onPressEvent !== next.onPressEvent) diffs.push("onPressEvent");
+    if (prev.onPressPlan !== next.onPressPlan) diffs.push("onPressPlan");
+    if (prev.onPressReplyQuote !== next.onPressReplyQuote) diffs.push("onPressReplyQuote");
+
+    if (diffs.length > 0) {
+      console.log(`[PERF-DIFF] MessageRow id=${next.item?.data?.id} changed props:`, diffs);
+      return false;
+    }
+    return true;
   }
 );
 
@@ -2145,6 +2152,9 @@ export default function ChatScreen({ route, navigation }) {
     [highlightedIdSV],
   );
 
+  const recipientRef = useRef(recipient);
+  useEffect(() => { recipientRef.current = recipient; }, [recipient]);
+
   const handleReply = useCallback(
     (msg, isMyMessage) => {
       setSelectedReply({
@@ -2158,7 +2168,7 @@ export default function ChatScreen({ route, navigation }) {
                 ? "Video"
                 : msg.messageText,
         messageType: msg.messageType,
-        senderName: isMyMessage ? "You" : msg.senderName || recipient?.name,
+        senderName: isMyMessage ? "You" : msg.senderName || recipientRef.current?.name,
         isDeleted: msg.isDeleted,
         isPostShare: msg.messageType === "post_share",
         postAuthorUsername:
@@ -2166,7 +2176,7 @@ export default function ChatScreen({ route, navigation }) {
         postCaption: msg.metadata?.caption,
       });
     },
-    [recipient?.name],
+    [],
   );
 
   const handleLongPress = useCallback((msg) => {
