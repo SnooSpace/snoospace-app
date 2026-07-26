@@ -307,13 +307,6 @@ const buildMessageList = (messages) => {
     }
     result.push(wrapper);
 
-    // Inject a separator after (below in the inverted list) this message if:
-    // • it is the oldest message overall, OR
-    // • the next-older message belongs to a different calendar day.
-    const isOldestOfDay =
-      !older ||
-      msg._dateString !== older._dateString;
-
     if (isOldestOfDay) {
       result.push({
         type: "separator",
