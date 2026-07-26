@@ -1699,7 +1699,9 @@ export default function ChatScreen({ route, navigation }) {
   const [loading, setLoading] = useState(!recipientName && !isGroup);
   const [messagesLoading, setMessagesLoading] = useState(true);
   const [groupStatus, setGroupStatus] = useState("ACTIVE");
-  console.log(`[PERF] ChatScreen rendering... messagesLoading: ${messagesLoading}, loading: ${loading}`);
+  const _renderNow = global.performance ? global.performance.now() : Date.now();
+  const _tapToRenderMs = tappedAt ? (_renderNow - tappedAt).toFixed(1) : 'n/a';
+  console.log(`[PERF] ChatScreen render — messagesLoading:${messagesLoading} loading:${loading} msgs:${messages.length} tapToRender:${_tapToRenderMs}ms`);
   const [sending, setSending] = useState(false);
   const [currentConversationId, setCurrentConversationId] =
     useState(conversationId);
@@ -2158,9 +2160,7 @@ export default function ChatScreen({ route, navigation }) {
         // off a background reconcile to merge any messages sent while away.
         const cached = getCachedConversation(conversationId);
         if (cached && cached.messages.length > 0) {
-          console.log(`[ConvCache] Cache HIT for ${conversationId} (${cached.messages.length} msgs, age ${((Date.now() - cached.cachedAt) / 1000).toFixed(1)}s)`);
-          // Hydrate the pagination hook directly — this sets messages state
-          // before the network round-trip, giving a frame-0 paint.
+          console.log(`[ConvCache] Cache HIT for ${conversationId} — ${cached.messages.length} msgs, age ${((Date.now() - cached.cachedAt) / 1000).toFixed(1)}s`);
           addNewMessages(cached.messages);
           setMessagesLoading(false);
         } else {
@@ -2199,6 +2199,7 @@ export default function ChatScreen({ route, navigation }) {
           }
           // Update cache with the authoritative server state
           if (freshMsgs.length > 0 || !cached) {
+            console.log(`[ConvCache] WRITE conversationId=${conversationId} source=${cached ? 'reconcile' : 'initial'} count=${freshMsgs.length} (will be trimmed to ${Math.min(freshMsgs.length, 30)})`);
             setCachedConversation(conversationId, {
               messages: freshMsgs,
               cursor: freshCursor,
@@ -2293,6 +2294,7 @@ export default function ChatScreen({ route, navigation }) {
           // Populate cache for the resolved conversation so next open is instant
           const freshMsgs = loadRes?.messages || [];
           if (freshMsgs.length > 0) {
+            console.log(`[ConvCache] WRITE conversationId=${resolvedConvId} source=recipientPath count=${freshMsgs.length} (will be trimmed to ${Math.min(freshMsgs.length, 30)})`);
             setCachedConversation(resolvedConvId, {
               messages: freshMsgs,
               cursor: loadRes?.nextCursor || null,
