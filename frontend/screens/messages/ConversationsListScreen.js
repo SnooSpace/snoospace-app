@@ -264,15 +264,21 @@ const SwipeableConvRow = React.memo(
 
     // Pan gesture — only active after swipeReady. Before that it's still created
     // but the GestureDetector just wraps a static Reanimated.View (translateX=0).
+    // We use a ref so the gesture object is created ONCE and never recreated —
+    // avoiding a GestureDetector re-registration on the phase 1 → 2 transition.
+    const swipeReadyRef = useRef(false);
+    useEffect(() => { swipeReadyRef.current = swipeReady; }, [swipeReady]);
+
     const pan = useMemo(() =>
       Gesture.Pan()
         .activeOffsetX([-8, 8])
         .enabled(swipeReady)
         .onUpdate((e) => {
-          if (e.translationX > 0) { translateX.value = 0; return; }
+          if (!swipeReadyRef.current || e.translationX > 0) { translateX.value = 0; return; }
           translateX.value = Math.max(e.translationX, -SWIPE_FULL - 20);
         })
         .onEnd((e) => {
+          if (!swipeReadyRef.current) return;
           if (e.translationX < -SWIPE_THRESHOLD) {
             translateX.value = withSpring(-SWIPE_FULL, { damping: 18, stiffness: 200 });
             runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
@@ -280,10 +286,14 @@ const SwipeableConvRow = React.memo(
             translateX.value = withSpring(0, { damping: 18, stiffness: 200 });
           }
         }),
+    // translateX is a stable SharedValue ref — intentionally excluded from deps.
+    // swipeReady is used only via .enabled() which re-registers on the gesture
+    // handler side, not via JS closure — stable object, no recreation needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [translateX, swipeReady]);
+    []);
 
     const rowStyle = useAnimatedStyle(() => ({ transform: [{ translateX: translateX.value }] }));
+
 
     // Single stable tree in BOTH phases:
     //   rowContainer > [actions?] > GestureDetector > Reanimated.View > RowBody
