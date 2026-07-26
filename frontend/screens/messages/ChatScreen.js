@@ -340,47 +340,60 @@ const sepStyles = StyleSheet.create({
 
 // ── ReplyBar (above input) ──────────────────────────────────────────────────
 const ReplyBar = ({ reply, onClose }) => {
-  const translateY = useSharedValue(30);
+  const maxHeight = useSharedValue(0);
+  const translateY = useSharedValue(20);
   const opacity = useSharedValue(0);
+  const activeReplyRef = useRef(reply);
+
+  if (reply) {
+    activeReplyRef.current = reply;
+  }
+
   useEffect(() => {
     if (reply) {
-      translateY.value = withTiming(0, { duration: 160, easing: Easing.out(Easing.quad) });
-      opacity.value = withTiming(1, { duration: 160 });
+      maxHeight.value = withTiming(52, { duration: 180, easing: Easing.out(Easing.quad) });
+      translateY.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
+      opacity.value = withTiming(1, { duration: 180 });
     } else {
-      translateY.value = 30;
-      opacity.value = 0;
+      maxHeight.value = withTiming(0, { duration: 160, easing: Easing.out(Easing.quad) });
+      translateY.value = withTiming(20, { duration: 160, easing: Easing.out(Easing.quad) });
+      opacity.value = withTiming(0, { duration: 140 });
     }
   }, [reply]);
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-    opacity: opacity.value,
-  }));
-  if (!reply) return null;
 
-  const isPostShare = reply.isPostShare;
+  const animStyle = useAnimatedStyle(() => ({
+    maxHeight: maxHeight.value,
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  const activeReply = reply || activeReplyRef.current;
+  if (!activeReply) return null;
+
+  const isPostShare = activeReply.isPostShare;
   const isMedia =
-    reply.messageType === "image" ||
-    reply.messageType === "video" ||
-    reply.messageType === "multi_media";
+    activeReply.messageType === "image" ||
+    activeReply.messageType === "video" ||
+    activeReply.messageType === "multi_media";
 
   let preview;
-  if (reply.isDeleted) {
+  if (activeReply.isDeleted) {
     preview = "This message was unsent";
   } else if (isPostShare) {
-    const authorLine = reply.postAuthorUsername
-      ? `@${reply.postAuthorUsername}`
+    const authorLine = activeReply.postAuthorUsername
+      ? `@${activeReply.postAuthorUsername}`
       : "Shared post";
-    const captionLine = reply.postCaption
-      ? ` ∙ ${reply.postCaption.slice(0, 40)}${reply.postCaption.length > 40 ? "…" : ""}`
+    const captionLine = activeReply.postCaption
+      ? ` ∙ ${activeReply.postCaption.slice(0, 40)}${activeReply.postCaption.length > 40 ? "…" : ""}`
       : "";
     preview = authorLine + captionLine;
   } else {
-    preview = reply.messageText || "";
+    preview = activeReply.messageText || "";
     if (!preview && isMedia) {
       preview =
-        reply.messageType === "video"
+        activeReply.messageType === "video"
           ? "Video"
-          : reply.messageType === "multi_media"
+          : activeReply.messageType === "multi_media"
             ? "Media"
             : "Photo";
     }
@@ -391,7 +404,7 @@ const ReplyBar = ({ reply, onClose }) => {
     <Animated.View style={[replyBarStyles.container, animStyle]}>
       {(isPostShare || isMedia) && (
         <View style={replyBarStyles.postIcon}>
-          {reply.messageType === "video" ? (
+          {activeReply.messageType === "video" ? (
             <Video size={14} color="#3565F2" strokeWidth={2} />
           ) : (
             <ImageIcon size={14} color="#3565F2" strokeWidth={2} />
@@ -400,7 +413,7 @@ const ReplyBar = ({ reply, onClose }) => {
       )}
       <View style={replyBarStyles.body}>
         <Text style={replyBarStyles.name}>
-          Replying to {reply.senderName || "Message"}
+          Replying to {activeReply.senderName || "Message"}
         </Text>
         <Text style={replyBarStyles.preview} numberOfLines={1}>
           {preview}
@@ -425,6 +438,7 @@ const replyBarStyles = StyleSheet.create({
     paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: INCOMING_BORDER,
+    overflow: "hidden",
   },
   postIcon: {
     width: 28,
