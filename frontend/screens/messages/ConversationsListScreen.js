@@ -14,7 +14,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler";
 import Reanimated, {
-  useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS, withRepeat, withSequence, Easing
+  useSharedValue, useAnimatedStyle, withTiming, withSpring, runOnJS, withRepeat, withSequence, Easing, interpolateColor
 } from "react-native-reanimated";
 import Svg, { Circle, Path, Rect, G } from "react-native-svg";
 import * as Haptics from "expo-haptics";
@@ -156,6 +156,46 @@ function deriveConvFields(conv) {
   return { isGroup, isBlockedByOther, name, username, uri, hasUnread };
 }
 
+// ── Animated Pressable Row Wrapper ──────────────────────────────────────────
+// Smooth tactile press animation with rounded light blue highlight (#F0F4FF) for light theme
+const RowPressable = React.memo(function RowPressable({ children, onPress, style }) {
+  const scale = useSharedValue(1);
+  const pressedBg = useSharedValue(0);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    backgroundColor: interpolateColor(
+      pressedBg.value,
+      [0, 1],
+      ["#FFFFFF", "#F0F4FF"]
+    ),
+  }));
+
+  const handlePressIn = useCallback(() => {
+    scale.value = withTiming(0.982, { duration: 90 });
+    pressedBg.value = withTiming(1, { duration: 90 });
+    HapticsService.triggerLight();
+  }, [scale, pressedBg]);
+
+  const handlePressOut = useCallback(() => {
+    scale.value = withSpring(1, { damping: 15, stiffness: 300 });
+    pressedBg.value = withTiming(0, { duration: 200 });
+  }, [scale, pressedBg]);
+
+  return (
+    <Pressable
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={onPress}
+      style={{ overflow: "visible" }}
+    >
+      <Reanimated.View style={[style, animatedStyle]}>
+        {children}
+      </Reanimated.View>
+    </Pressable>
+  );
+});
+
 // ─── RowContent: pure presentational row, NO Reanimated, NO gesture ──────────
 // This is what renders on first mount. Zero Reanimated overhead.
 // Cost: ~3-5ms per row (vs ~20-30ms for SwipeRow).
@@ -163,7 +203,7 @@ const ConvRowShell = React.memo(function ConvRowShell({ conv, onPress }) {
   const { isGroup, isBlockedByOther, name, username, uri, hasUnread } = deriveConvFields(conv);
   const isMuted = conv.isMuted;
   return (
-    <Pressable style={swipeStyles.row} onPress={() => onPress(conv)} android_ripple={{ color: SURFACE2 }}>
+    <RowPressable style={swipeStyles.row} onPress={() => onPress(conv)}>
       <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} isAnonymous={isBlockedByOther} />
       <View style={swipeStyles.content}>
         <View style={swipeStyles.topRow}>
@@ -190,7 +230,7 @@ const ConvRowShell = React.memo(function ConvRowShell({ conv, onPress }) {
           )}
         </View>
       </View>
-    </Pressable>
+    </RowPressable>
   );
 });
 
@@ -244,7 +284,7 @@ const SwipeRow = React.memo(function SwipeRow({ conv, onPress, onDelete, onLeave
 
       <GestureDetector gesture={pan}>
         <Reanimated.View style={rowStyle}>
-          <Pressable style={swipeStyles.row} onPress={() => onPress(conv)} android_ripple={{ color: SURFACE2 }}>
+          <RowPressable style={swipeStyles.row} onPress={() => onPress(conv)}>
             <ConvAvatar uri={uri} size={52} hasUnread={hasUnread} isGroup={isGroup} isAnonymous={isBlockedByOther} />
             <View style={swipeStyles.content}>
               <View style={swipeStyles.topRow}>
@@ -271,7 +311,7 @@ const SwipeRow = React.memo(function SwipeRow({ conv, onPress, onDelete, onLeave
                 )}
               </View>
             </View>
-          </Pressable>
+          </RowPressable>
         </Reanimated.View>
       </GestureDetector>
     </View>
@@ -352,7 +392,8 @@ const swipeStyles = StyleSheet.create({
   actionBtn:    { width: 68, alignSelf: "stretch", justifyContent: "center", alignItems: "center",
     borderRadius: 12, margin: 4, gap: 3 },
   actionLabel:  { fontFamily: "Manrope-Medium", fontSize: 10, color: "#FFF" },
-  row:          { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 12,
+  row:          { flexDirection: "row", paddingHorizontal: 14, paddingVertical: 12,
+    marginHorizontal: 8, marginVertical: 2, borderRadius: 16,
     backgroundColor: BG, alignItems: "center" },
   content:      { flex: 1 },
   topRow:       { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
