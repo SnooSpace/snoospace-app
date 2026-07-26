@@ -641,9 +641,20 @@ export default function ConversationsListScreen({ navigation }) {
         getActiveAccount().catch(() => null),
         getAllAccounts().catch(() => []),
       ]).then(([active, all]) => {
-        if (active && (active.id !== cachedActiveAccount?.id || active.type !== cachedActiveAccount?.type || active.username !== cachedActiveAccount?.username)) {
-          cachedActiveAccount = active;
-          setActiveAccount(active);
+        // Only update if the visible display username is actually different.
+        // This prevents a flicker where getActiveAccount() resolves with a
+        // slightly different object shape than what onAccountSwitch already
+        // synchronously cached — triggering a header re-paint even though the
+        // displayed username is the same.
+        if (active) {
+          const prev = cachedActiveAccount;
+          const usernameChanged = active.username !== prev?.username;
+          const idChanged = String(active.id) !== String(prev?.id);
+          const typeChanged = active.type !== prev?.type;
+          if (usernameChanged || idChanged || typeChanged) {
+            cachedActiveAccount = active;
+            setActiveAccount(active);
+          }
         }
         setAllAccounts((prevAll) => {
           if (prevAll?.length === all?.length && prevAll.every((a, idx) => a.id === all[idx]?.id)) {
