@@ -1197,7 +1197,13 @@ const MessageRow = React.memo(
     onPressEvent,
     onPressPlan,
     onPressReplyQuote,
-    navigation,
+    // navigation intentionally received as a REF (navigationRef) not a plain
+    // prop. React Navigation can provide a new navigation object reference on
+    // every context update (e.g. when NotificationsContext fires), and having
+    // it as a live prop would rebuild renderItem + all 5 navigation handlers
+    // on each such update, causing a full re-render cascade across all rows.
+    // Reading from navigationRef.current at call time avoids this entirely.
+    navigationRef,
   }) => {
     const msg = item.data;
     if (msg.messageType === "system") {
@@ -1309,8 +1315,9 @@ const MessageRow = React.memo(
               senderName={recipient?.name}
               loading={rsvpLoading}
               onViewEvent={() => {
-                const n = navigation.getParent()?.getParent() || navigation;
-                n.navigate("EventDetails", { eventId: msg.metadata.eventId });
+                const nav = navigationRef.current;
+                const n = nav?.getParent()?.getParent() || nav;
+                n?.navigate("EventDetails", { eventId: msg.metadata.eventId });
               }}
               onConfirmGoing={() => onRSVP(msg, "going")}
               onDecline={() => onRSVP(msg, "not_going")}
@@ -1643,6 +1650,9 @@ const MessageRow = React.memo(
     prev.onPressEvent          === next.onPressEvent          &&
     prev.onPressPlan           === next.onPressPlan           &&
     prev.onPressReplyQuote     === next.onPressReplyQuote,
+    // navigationRef intentionally excluded: it is a ref object whose .current
+    // changes without causing a new ref identity, so comparing refs is always
+    // equal anyway. Excluding it makes the intent explicit.
 );
 
 // ── Typing Dots Animation Component ─────────────────────────────────────────
@@ -1797,6 +1807,14 @@ export default function ChatScreen({ route, navigation }) {
   const [currentRecipientType, setCurrentRecipientType] =
     useState(recipientType);
   const [currentRecipientId, setCurrentRecipientId] = useState(recipientId);
+  // ── PERF: navigationRef mirrors navigation for stable access without deps.
+  // Passing navigation as a prop/dep rebuilds renderItem + 5 handlers on every
+  // React Navigation context update (e.g. NotificationsContext changes cause the
+  // navigator to provide a new navigation object). Reading .current at call time
+  // inside MessageRow's ticket branch avoids the rebuild entirely.
+  const navigationRef = useRef(navigation);
+  useEffect(() => { navigationRef.current = navigation; }, [navigation]);
+
   const [currentUser, setCurrentUser] = useState(null);
   const [rsvpLoading, setRsvpLoading] = useState({});
   // \u2500\u2500 PERF: ref mirror so renderItem can read RSVP state without being in its deps.
@@ -2287,6 +2305,16 @@ export default function ChatScreen({ route, navigation }) {
         // If found, paint real messages immediately (no skeleton) and kick
         // off a background reconcile to merge any messages sent while away.
         const cached = getCachedConversation(conversationId);
+        // ── PERF: reconcile freshness gate ───────────────────────────────────────
+        // If the cache is fresh enough, skip the background getMessages() call.
+        // The socket subscription (established below) delivers any new messages
+        // in real-time, so a network fetch within this window is redundant.
+        // Reconcile only runs when the cache is stale (> RECONCILE_SKIP_WINDOW_MS)
+        // or on a first open (cache miss). This eliminates the ~850ms network
+        // wait that users feel as lag on warm second-opens.
+        const RECONCILE_SKIP_WINDOW_MS = 60_000; // 60 s
+        const cacheAgeMs = cached ? (Date.now() - cached.cachedAt) : Infinity;
+        const skipReconcile = cached && cacheAgeMs < RECONCILE_SKIP_WINDOW_MS;
         if (cached && cached.messages.length > 0) {
           console.log(`[ConvCache] Cache HIT for ${conversationId} — ${cached.messages.length} msgs, age ${((Date.now() - cached.cachedAt) / 1000).toFixed(1)}s`);
           addNewMessages(cached.messages);
@@ -2303,22 +2331,31 @@ export default function ChatScreen({ route, navigation }) {
           let freshCursor = null;
 
           if (cached && cached.messages.length > 0) {
-            // Cache HIT path: use getMessages directly to avoid loadInitial's
-            // setMessages([]) reset which would blank out the already-painted messages.
-            const reconcileRes = await getMessages(conversationId, { limit: 20 });
-            freshMsgs = reconcileRes?.messages || [];
-            freshCursor = reconcileRes?.nextCursor || null;
-            if (reconcileRes?.status) setGroupStatus(reconcileRes.status);
-
-            // CRITICAL: restore pagination state that loadInitial would normally
-            // set. Without this, cursorRef stays null and loadOlderMessages
-            // silently no-ops — "scroll up for older" appears broken on 2nd open.
-            bootstrapPaginationState({
-              conversationId,
-              cursor:    freshCursor,
-              hasMore:   reconcileRes?.hasMore || false,
-              newestAt:  freshMsgs.length > 0 ? freshMsgs[freshMsgs.length - 1].createdAt : null,
-            });
+            if (skipReconcile) {
+              // ── FRESH CACHE: skip network, just restore pagination state ──
+              console.log(`[ConvCache] Cache HIT (fresh, ${(cacheAgeMs/1000).toFixed(1)}s old) — skipping reconcile`);
+              bootstrapPaginationState({
+                conversationId,
+                cursor:   cached.cursor   || null,
+                hasMore:  cached.hasMore  ?? false,
+                newestAt: cached.messages.length > 0
+                  ? cached.messages[cached.messages.length - 1].createdAt
+                  : null,
+              });
+            } else {
+              // ── STALE CACHE: background reconcile with server ──────────────
+              console.log(`[ConvCache] Cache HIT (stale, ${(cacheAgeMs/1000).toFixed(1)}s old) — reconciling`);
+              const reconcileRes = await getMessages(conversationId, { limit: 20 });
+              freshMsgs = reconcileRes?.messages || [];
+              freshCursor = reconcileRes?.nextCursor || null;
+              if (reconcileRes?.status) setGroupStatus(reconcileRes.status);
+              bootstrapPaginationState({
+                conversationId,
+                cursor:    freshCursor,
+                hasMore:   reconcileRes?.hasMore || false,
+                newestAt:  freshMsgs.length > 0 ? freshMsgs[freshMsgs.length - 1].createdAt : null,
+              });
+            }
           } else {
             // Cache MISS path: original loadInitial handles state reset + set
             const loadRes = await loadInitial(conversationId);
@@ -2337,10 +2374,11 @@ export default function ChatScreen({ route, navigation }) {
           }
           // Update cache with the authoritative server state
           if (freshMsgs.length > 0 || !cached) {
-            console.log(`[ConvCache] WRITE conversationId=${conversationId} source=${cached ? 'reconcile' : 'initial'} count=${freshMsgs.length} (will be trimmed to ${Math.min(freshMsgs.length, 30)})`);
+            console.log(`[ConvCache] WRITE conversationId=${conversationId} source=${cached ? 'reconcile' : 'initial'} count=${freshMsgs.length}`);
             setCachedConversation(conversationId, {
               messages: freshMsgs,
               cursor: freshCursor,
+              hasMore: hasMore,  // persisted so freshness gate can bootstrap pagination
             });
           }
 
@@ -3325,7 +3363,10 @@ export default function ChatScreen({ route, navigation }) {
             onPressEvent={handlePressEvent}
             onPressPlan={handlePressPlan}
             onPressReplyQuote={scrollToMessage}
-            navigation={navigation}
+            // navigationRef: read .current at call time; stable across all renders.
+            // Keeping navigation OUT of renderItem's closure prevents rebuilds
+            // triggered by React Navigation context updates (e.g. notifications).
+            navigationRef={navigationRef}
           />
         </Profiler>
       );
@@ -3352,7 +3393,10 @@ export default function ChatScreen({ route, navigation }) {
       handlePressEvent,
       handlePressPlan,
       scrollToMessage,
-      navigation,
+      // navigation intentionally excluded from deps — stored in navigationRef.
+      // Including it caused renderItem to rebuild on every navigation context
+      // update (e.g. NotificationsContext firing), cascading re-renders to all
+      // visible rows via the 5 handlers that each had [navigation] in their deps.
     ],
   );
 
