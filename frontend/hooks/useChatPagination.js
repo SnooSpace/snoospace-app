@@ -51,7 +51,9 @@ export default function useChatPagination(initialMessages = []) {
       const res = await getMessages(conversationId, { limit: PAGE_SIZE });
       if (convIdRef.current !== conversationId) return; // stale response
 
-      const msgs = res.messages || [];
+      const msgs = [...(res.messages || [])].sort(
+        (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+      );
       setMessages(msgs);
       setHasMore(res.hasMore || false);
       // Cursor = createdAt of the oldest (first) message in the array
@@ -84,7 +86,9 @@ export default function useChatPagination(initialMessages = []) {
       });
       if (convIdRef.current !== conversationId) return; // stale
 
-      const older = res.messages || [];
+      const older = [...(res.messages || [])].sort(
+        (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+      );
       if (older.length > 0) {
         // PREPEND: older messages go before existing ones.
         // FlashList's maintainVisibleContentPosition keeps the viewport stable.
@@ -92,7 +96,7 @@ export default function useChatPagination(initialMessages = []) {
           // Deduplicate by id (safety net for edge cases)
           const existingIds = new Set(prev.map(m => m.id));
           const fresh = older.filter(m => !existingIds.has(m.id));
-          // Older messages are already sorted ascending from backend;
+          // Hook guarantees ascending sort (oldest → newest);
           // prepending them maintains overall ascending order.
           return [...fresh, ...prev];
         });
