@@ -274,9 +274,9 @@ const buildMessageList = (messages) => {
   if (!messages || messages.length === 0) return [];
 
   const result = [];
-  for (let i = messages.length - 1; i >= 0; i--) {
+  for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
-    const older = messages[i - 1]; // undefined when i === 0 (oldest message)
+    const older = i > 0 ? messages[i - 1] : undefined;
 
     // Pre-parse and cache dates to avoid creating Date objects inside the render path
     if (msg && !msg._time) {
@@ -290,9 +290,9 @@ const buildMessageList = (messages) => {
       older._dateString = d.toDateString();
     }
 
-    const isOldestOfDay = !older || msg._dateString !== older._dateString;
+    const isFirstOfDay = !older || msg._dateString !== older._dateString;
     const isDifferentSenderOrTime =
-      isOldestOfDay ||
+      isFirstOfDay ||
       !older ||
       older.senderId !== msg.senderId ||
       Math.abs((msg._time || 0) - (older._time || 0)) > 60000;
@@ -300,23 +300,21 @@ const buildMessageList = (messages) => {
     msg._showAvatar = isDifferentSenderOrTime;
     msg._showSenderName = !older || older.senderId !== msg.senderId;
 
-    // Return cached wrapper if the msg reference hasn't changed.
-    // If the server updates a message in-place (e.g. isDeleted flag), the
-    // msg object itself is a new reference → cache miss → fresh wrapper.
-    let wrapper = _msgWrapperCache.get(msg.id);
-    if (!wrapper || wrapper.data !== msg) {
-      wrapper = { type: "message", data: msg };
-      _msgWrapperCache.set(msg.id, wrapper);
-    }
-    result.push(wrapper);
-
-    if (isOldestOfDay) {
+    if (isFirstOfDay) {
       result.push({
         type: "separator",
         id: `sep-${msg.id}`,
         label: formatSeparatorLabel(msg.createdAt),
       });
     }
+
+    // Return cached wrapper if the msg reference hasn't changed.
+    let wrapper = _msgWrapperCache.get(msg.id);
+    if (!wrapper || wrapper.data !== msg) {
+      wrapper = { type: "message", data: msg };
+      _msgWrapperCache.set(msg.id, wrapper);
+    }
+    result.push(wrapper);
   }
   return result;
 };
