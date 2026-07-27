@@ -274,9 +274,9 @@ const buildMessageList = (messages) => {
   if (!messages || messages.length === 0) return [];
 
   const result = [];
-  for (let i = 0; i < messages.length; i++) {
+  for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
-    const older = i > 0 ? messages[i - 1] : undefined;
+    const older = messages[i - 1]; // undefined when i === 0 (oldest message)
 
     // Pre-parse and cache dates to avoid creating Date objects inside the render path
     if (msg && !msg._time) {
@@ -290,23 +290,15 @@ const buildMessageList = (messages) => {
       older._dateString = d.toDateString();
     }
 
-    const isFirstOfDay = !older || msg._dateString !== older._dateString;
+    const isOldestOfDay = !older || msg._dateString !== older._dateString;
     const isDifferentSenderOrTime =
-      isFirstOfDay ||
+      isOldestOfDay ||
       !older ||
       older.senderId !== msg.senderId ||
       Math.abs((msg._time || 0) - (older._time || 0)) > 60000;
 
     msg._showAvatar = isDifferentSenderOrTime;
     msg._showSenderName = !older || older.senderId !== msg.senderId;
-
-    if (isFirstOfDay) {
-      result.push({
-        type: "separator",
-        id: `sep-${msg.id}`,
-        label: formatSeparatorLabel(msg.createdAt),
-      });
-    }
 
     // Return cached wrapper if the msg reference hasn't changed.
     let wrapper = _msgWrapperCache.get(msg.id);
@@ -315,6 +307,14 @@ const buildMessageList = (messages) => {
       _msgWrapperCache.set(msg.id, wrapper);
     }
     result.push(wrapper);
+
+    if (isOldestOfDay) {
+      result.push({
+        type: "separator",
+        id: `sep-${msg.id}`,
+        label: formatSeparatorLabel(msg.createdAt),
+      });
+    }
   }
   return result;
 };
