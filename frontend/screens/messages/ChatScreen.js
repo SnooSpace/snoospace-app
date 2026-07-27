@@ -2124,23 +2124,8 @@ export default function ChatScreen({ route, navigation }) {
   }, []);
 
   // ── flatListData: memoised mixed separator + message list ──────────────────
+  // buildMessageList outputs newest→oldest (index 0 is newest).
   const flatListData = useMemo(() => buildMessageList(messages), [messages]);
-
-  // ── Scroll-to-bottom on screen mount & new messages ────────────────────────
-  // Anchors viewport to the newest message at the bottom (Instagram style).
-  useEffect(() => {
-    if (flatListData.length > 0) {
-      requestAnimationFrame(() => {
-        flashListRef.current?.scrollToEnd({ animated: false });
-      });
-    }
-  }, [currentConversationId]);
-
-  useEffect(() => {
-    if (flatListData.length > 0 && !loadingOlder) {
-      flashListRef.current?.scrollToEnd({ animated: true });
-    }
-  }, [flatListData.length]);
 
   // ── PERF: Dynamic Cost-Based FlatList Tuning ─────────────────────────────
   // Dynamically scales initialNumToRender, maxToRenderPerBatch, and windowSize
@@ -3768,20 +3753,20 @@ export default function ChatScreen({ route, navigation }) {
               renderItem={renderItem}
               getItemType={(item) => item.type}
               estimatedItemSize={72}
+              inverted
               showsVerticalScrollIndicator={false}
               contentContainerStyle={[
                 styles.listContent,
-                { paddingTop: 12, paddingBottom: 12 + insets.bottom },
+                { paddingTop: 12 + insets.bottom },
               ]}
               drawDistance={500}
-              onScroll={(e) => {
-                const { contentOffset } = e.nativeEvent;
-                if (contentOffset.y < 150 && hasMore && !loadingOlder) {
+              onEndReached={() => {
+                if (hasMore && !loadingOlder) {
                   loadOlderMessages(currentConversationId);
                 }
               }}
-              scrollEventThrottle={32}
-              ListHeaderComponent={
+              onEndReachedThreshold={0.3}
+              ListFooterComponent={
                 loadingOlder ? (
                   <View style={styles.loadingOlderContainer}>
                     <ActivityIndicator size="small" color={PRIMARY_COLOR} />
@@ -3790,11 +3775,11 @@ export default function ChatScreen({ route, navigation }) {
               }
               ListEmptyComponent={
                 messagesLoading ? (
-                  <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 200 }}>
+                  <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 200, transform: Platform.select({ android: [{ scaleY: -1 }, { scaleX: -1 }], default: [{ scaleY: -1 }] }) }}>
                     <ActivityIndicator size="large" color={PRIMARY_COLOR} />
                   </View>
                 ) : (
-                  <View style={{ width: "100%" }}>
+                  <View style={{ transform: Platform.select({ android: [{ scaleY: -1 }, { scaleX: -1 }], default: [{ scaleY: -1 }] }), width: "100%" }}>
                     <EmptyChatState />
                   </View>
                 )
