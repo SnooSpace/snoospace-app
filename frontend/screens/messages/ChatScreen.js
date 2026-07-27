@@ -54,11 +54,13 @@ import Animated, {
   Easing,
   interpolate,
   Extrapolate,
+  runOnJS,
 } from "react-native-reanimated";
 import { GestureHandlerRootView, TouchableOpacity } from "react-native-gesture-handler";
 
 import SwipeableMessageRow from "../../components/SwipeableMessageRow";
 import SwipeableModal from "../../components/modals/SwipeableModal";
+import DeferredCard from "../../components/DeferredCard";
 import useChatPagination from "../../hooks/useChatPagination";
 import { StatusBar } from "expo-status-bar";
 import {
@@ -342,8 +344,9 @@ const sepStyles = StyleSheet.create({
 // Always stays mounted in the component tree so SVG icons (ImageIcon/Video/X)
 // and native views are pre-instantiated on screen open — eliminating the
 // JS thread frame-drop that used to happen on the very first swipe to reply.
-const ReplyBar = ({ reply, onClose }) => {
-  const height = useSharedValue(0);
+const ReplyBar = ({ reply, onClose, heightShared }) => {
+  const fallbackHeight = useSharedValue(0);
+  const height = heightShared || fallbackHeight;
   const translateY = useSharedValue(20);
   const opacity = useSharedValue(0);
   const activeReplyRef = useRef(reply);
@@ -352,17 +355,31 @@ const ReplyBar = ({ reply, onClose }) => {
     activeReplyRef.current = reply;
   }
 
+  const handleClose = useCallback(() => {
+    height.value = withTiming(
+      0,
+      { duration: 180, easing: Easing.bezier(0.25, 0.1, 0.25, 1) },
+      (finished) => {
+        if (finished && onClose) {
+          runOnJS(onClose)();
+        }
+      }
+    );
+    translateY.value = withTiming(20, { duration: 180, easing: Easing.bezier(0.25, 0.1, 0.25, 1) });
+    opacity.value = withTiming(0, { duration: 140 });
+  }, [height, translateY, opacity, onClose]);
+
   useEffect(() => {
     if (reply) {
-      height.value = withTiming(52, { duration: 200, easing: Easing.out(Easing.cubic) });
-      translateY.value = withTiming(0, { duration: 200, easing: Easing.out(Easing.cubic) });
+      height.value = withTiming(52, { duration: 200, easing: Easing.bezier(0.25, 0.1, 0.25, 1) });
+      translateY.value = withTiming(0, { duration: 200, easing: Easing.bezier(0.25, 0.1, 0.25, 1) });
       opacity.value = withTiming(1, { duration: 180 });
     } else {
-      height.value = withTiming(0, { duration: 180, easing: Easing.out(Easing.cubic) });
-      translateY.value = withTiming(20, { duration: 180, easing: Easing.out(Easing.cubic) });
+      height.value = withTiming(0, { duration: 180, easing: Easing.bezier(0.25, 0.1, 0.25, 1) });
+      translateY.value = withTiming(20, { duration: 180, easing: Easing.bezier(0.25, 0.1, 0.25, 1) });
       opacity.value = withTiming(0, { duration: 140 });
     }
-  }, [reply]);
+  }, [reply, height, translateY, opacity]);
 
   const animStyle = useAnimatedStyle(() => ({
     height: height.value,
@@ -410,15 +427,18 @@ const ReplyBar = ({ reply, onClose }) => {
   return (
     <Animated.View style={animStyle}>
       <Animated.View style={[replyBarStyles.container, innerAnimStyle]}>
-        {(isPostShare || isMedia) && (
-          <View style={replyBarStyles.postIcon}>
-            {activeReply?.messageType === "video" ? (
-              <Video size={14} color="#3565F2" strokeWidth={2} />
-            ) : (
-              <ImageIcon size={14} color="#3565F2" strokeWidth={2} />
-            )}
-          </View>
-        )}
+        <View
+          style={[
+            replyBarStyles.postIcon,
+            !(isPostShare || isMedia) && { display: "none" },
+          ]}
+        >
+          {activeReply?.messageType === "video" ? (
+            <Video size={14} color="#3565F2" strokeWidth={2} />
+          ) : (
+            <ImageIcon size={14} color="#3565F2" strokeWidth={2} />
+          )}
+        </View>
         <View style={replyBarStyles.body}>
           <Text style={replyBarStyles.name}>
             Replying to {activeReply?.senderName || "Message"}
@@ -428,7 +448,7 @@ const ReplyBar = ({ reply, onClose }) => {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={onClose}
+          onPress={handleClose}
           style={replyBarStyles.close}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
@@ -1339,19 +1359,21 @@ const MessageRow = React.memo(
                 {msg.senderName || "Unknown"}
               </Text>
             )}
-            <TicketMessageCard
-              metadata={msg.metadata}
-              isFromMe={isMyMessage}
-              senderName={recipient?.name}
-              loading={rsvpLoading}
-              onViewEvent={() => {
-                const nav = navigationRef.current;
-                const n = nav?.getParent()?.getParent() || nav;
-                n?.navigate("EventDetails", { eventId: msg.metadata.eventId });
-              }}
-              onConfirmGoing={() => onRSVP(msg, "going")}
-              onDecline={() => onRSVP(msg, "not_going")}
-            />
+            <DeferredCard minHeight={160}>
+              <TicketMessageCard
+                metadata={msg.metadata}
+                isFromMe={isMyMessage}
+                senderName={recipient?.name}
+                loading={rsvpLoading}
+                onViewEvent={() => {
+                  const nav = navigationRef.current;
+                  const n = nav?.getParent()?.getParent() || nav;
+                  n?.navigate("EventDetails", { eventId: msg.metadata.eventId });
+                }}
+                onConfirmGoing={() => onRSVP(msg, "going")}
+                onDecline={() => onRSVP(msg, "not_going")}
+              />
+            </DeferredCard>
           </View>
         </View>
       );
@@ -1393,12 +1415,14 @@ const MessageRow = React.memo(
                   onPress={() => onPressReplyQuote(msg.replyToMessageId)}
                 />
               ) : null}
-              <ChatMediaMessage
-                message={msg}
-                isMyMessage={isMyMessage}
-                uploadProgress={null}
-                onOpenViewer={onOpenViewer}
-              />
+              <DeferredCard minHeight={180}>
+                <ChatMediaMessage
+                  message={msg}
+                  isMyMessage={isMyMessage}
+                  uploadProgress={null}
+                  onOpenViewer={onOpenViewer}
+                />
+              </DeferredCard>
               <Text
                 style={[
                   styles.messageTime,
@@ -1449,11 +1473,13 @@ const MessageRow = React.memo(
                   onPress={() => onPressReplyQuote(msg.replyToMessageId)}
                 />
               ) : null}
-              <SharedPostCard
-                metadata={msg.metadata}
-                onPress={onPressPostShare}
-                onUserPress={onPressUser}
-              />
+              <DeferredCard minHeight={200}>
+                <SharedPostCard
+                  metadata={msg.metadata}
+                  onPress={onPressPostShare}
+                  onUserPress={onPressUser}
+                />
+              </DeferredCard>
             </View>
           </SwipeableMessage>
         </View>
@@ -1491,10 +1517,12 @@ const MessageRow = React.memo(
                   onPress={() => onPressReplyQuote(msg.replyToMessageId)}
                 />
               ) : null}
-              <SharedOpportunityCard
-                metadata={msg.metadata}
-                onPress={onPressOpportunity}
-              />
+              <DeferredCard minHeight={180}>
+                <SharedOpportunityCard
+                  metadata={msg.metadata}
+                  onPress={onPressOpportunity}
+                />
+              </DeferredCard>
             </View>
           </SwipeableMessage>
         </View>
@@ -1532,7 +1560,9 @@ const MessageRow = React.memo(
                   onPress={() => onPressReplyQuote(msg.replyToMessageId)}
                 />
               ) : null}
-              <SharedEventCard metadata={msg.metadata} onPress={onPressEvent} />
+              <DeferredCard minHeight={180}>
+                <SharedEventCard metadata={msg.metadata} onPress={onPressEvent} />
+              </DeferredCard>
             </View>
           </SwipeableMessage>
         </View>
@@ -1570,7 +1600,9 @@ const MessageRow = React.memo(
                   onPress={() => onPressReplyQuote(msg.replyToMessageId)}
                 />
               ) : null}
-              <SharedPlanCard metadata={msg.metadata} onPress={onPressPlan} />
+              <DeferredCard minHeight={180}>
+                <SharedPlanCard metadata={msg.metadata} onPress={onPressPlan} />
+              </DeferredCard>
             </View>
           </SwipeableMessage>
         </View>
@@ -2046,6 +2078,9 @@ export default function ChatScreen({ route, navigation }) {
   });
   const insets = useSafeAreaInsets();
 
+  // Shared value for ultra-smooth UI thread ReplyBar transition
+  const replyBarHeightShared = useSharedValue(0);
+
   // Reanimated keyboard tracking
   const keyboardHeight = useSharedValue(0);
   useKeyboardHandler({
@@ -2064,7 +2099,7 @@ export default function ChatScreen({ route, navigation }) {
   });
   const containerAnimatedStyle = useAnimatedStyle(() => {
     const style = {
-      marginBottom: inputHeight,
+      marginBottom: inputHeight + replyBarHeightShared.value,
     };
 
     if (Platform.OS === "android") {
@@ -3775,6 +3810,11 @@ export default function ChatScreen({ route, navigation }) {
         </KeyboardAvoidingView>
 
         <KeyboardAwareToolbar enabled={isChatInputFocused}>
+          <ReplyBar
+            reply={selectedReply}
+            onClose={() => setSelectedReply(null)}
+            heightShared={replyBarHeightShared}
+          />
           <View
             style={{ flexDirection: "column" }}
             onLayout={(e) => {
@@ -3784,11 +3824,6 @@ export default function ChatScreen({ route, navigation }) {
               }
             }}
           >
-            <ReplyBar
-              reply={selectedReply}
-              onClose={() => setSelectedReply(null)}
-            />
-
             {renderTypingIndicator()}
 
             {/* ΓöÇΓöÇ Locked bar: shown to non-admins when messaging is restricted ΓöÇΓöÇ */}
