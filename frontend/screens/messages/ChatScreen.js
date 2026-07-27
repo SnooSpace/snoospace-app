@@ -2188,6 +2188,31 @@ export default function ChatScreen({ route, navigation }) {
     };
   }, [flatListData]);
 
+  const estimatedItemSize = useMemo(() => {
+    // Weighted average based on the actual mix of row types in view,
+    // rather than a flat guess that's wrong for ~30% of rows (media/cards).
+    const len = Math.min(flatListData.length, 20);
+    let totalHeight = 0;
+    let count = 0;
+    for (let i = 0; i < len; i++) {
+      const item = flatListData[i];
+      if (item.type !== "message") continue;
+      const msg = item.data;
+      const isMediaOrCard =
+        msg.messageType === "image" ||
+        msg.messageType === "video" ||
+        msg.messageType === "multi_media" ||
+        msg.messageType === "post_share" ||
+        msg.messageType === "opportunity_share" ||
+        msg.messageType === "event_share" ||
+        msg.messageType === "plan_share" ||
+        msg.messageType === "ticket";
+      totalHeight += isMediaOrCard ? 190 : 60;
+      count++;
+    }
+    return count > 0 ? Math.round(totalHeight / count) : 72;
+  }, [flatListData]);
+
   // ── PERF: stored in a ref instead of useMemo so scrollToMessage can read the
   // latest index without depending on messageIndexMap as a closure variable.
   // If it closed over the useMemo value, scrollToMessage would rebuild every
@@ -3778,14 +3803,17 @@ export default function ChatScreen({ route, navigation }) {
               keyExtractor={keyExtractor}
               renderItem={renderItem}
               getItemType={(item) => item.type}
-              estimatedItemSize={72}
+              estimatedItemSize={estimatedItemSize}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={[
                 styles.listContent,
                 { paddingBottom: 12 + insets.bottom },
               ]}
               drawDistance={500}
-              maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToBottomThreshold: 0.2 }}
+              maintainVisibleContentPosition={{
+                minIndexForVisible: 0,
+                autoscrollToBottomThreshold: 0.1,
+              }}
               onStartReached={() => {
                 if (hasMore && !loadingOlder) {
                   loadOlderMessages(currentConversationId);
