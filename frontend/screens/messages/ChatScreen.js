@@ -274,47 +274,45 @@ const buildMessageList = (messages) => {
   if (!messages || messages.length === 0) return [];
 
   const result = [];
-  for (let i = messages.length - 1; i >= 0; i--) {
+  for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
-    const older = messages[i - 1]; // undefined when i === 0 (oldest message)
+    const prevMsg = messages[i - 1]; // undefined when i === 0 (oldest message)
 
-    // Pre-parse and cache dates to avoid creating Date objects inside the render path
     if (msg && !msg._time) {
       const d = new Date(msg.createdAt);
       msg._time = d.getTime();
       msg._dateString = d.toDateString();
     }
-    if (older && !older._time) {
-      const d = new Date(older.createdAt);
-      older._time = d.getTime();
-      older._dateString = d.toDateString();
+    if (prevMsg && !prevMsg._time) {
+      const d = new Date(prevMsg.createdAt);
+      prevMsg._time = d.getTime();
+      prevMsg._dateString = d.toDateString();
     }
 
-    const isOldestOfDay = !older || msg._dateString !== older._dateString;
+    const isNewDay = !prevMsg || msg._dateString !== prevMsg._dateString;
     const isDifferentSenderOrTime =
-      isOldestOfDay ||
-      !older ||
-      older.senderId !== msg.senderId ||
-      Math.abs((msg._time || 0) - (older._time || 0)) > 60000;
+      isNewDay ||
+      !prevMsg ||
+      prevMsg.senderId !== msg.senderId ||
+      Math.abs((msg._time || 0) - (prevMsg._time || 0)) > 60000;
 
     msg._showAvatar = isDifferentSenderOrTime;
-    msg._showSenderName = !older || older.senderId !== msg.senderId;
+    msg._showSenderName = !prevMsg || prevMsg.senderId !== msg.senderId;
 
-    // Return cached wrapper if the msg reference hasn't changed.
-    let wrapper = _msgWrapperCache.get(msg.id);
-    if (!wrapper || wrapper.data !== msg) {
-      wrapper = { type: "message", data: msg };
-      _msgWrapperCache.set(msg.id, wrapper);
-    }
-    result.push(wrapper);
-
-    if (isOldestOfDay) {
+    if (isNewDay) {
       result.push({
         type: "separator",
         id: `sep-${msg.id}`,
         label: formatSeparatorLabel(msg.createdAt),
       });
     }
+
+    let wrapper = _msgWrapperCache.get(msg.id);
+    if (!wrapper || wrapper.data !== msg) {
+      wrapper = { type: "message", data: msg };
+      _msgWrapperCache.set(msg.id, wrapper);
+    }
+    result.push(wrapper);
   }
   return result;
 };
@@ -1805,6 +1803,10 @@ export default function ChatScreen({ route, navigation }) {
   const initialMessagesRef = useRef(
     conversationId ? (getCachedConversation(conversationId)?.messages || []) : []
   );
+  if (initialMessagesRef.current.length > 0) {
+    const c = initialMessagesRef.current;
+    console.log('[CHECK-3] cache seed order — first:', c[0]?.createdAt, 'last:', c[c.length - 1]?.createdAt, 'count:', c.length);
+  }
 
   const {
     messages,
@@ -2124,8 +2126,28 @@ export default function ChatScreen({ route, navigation }) {
   }, []);
 
   // ── flatListData: memoised mixed separator + message list ──────────────────
-  // buildMessageList outputs newest→oldest (index 0 is newest).
+  // buildMessageList outputs chronological oldest→newest.
   const flatListData = useMemo(() => buildMessageList(messages), [messages]);
+
+  useEffect(() => {
+    console.log('[CHECK-5] FlashList package version:', require('@shopify/flash-list/package.json').version);
+  }, []);
+
+  useEffect(() => {
+    if (!messagesLoading && flatListData.length > 0) {
+      // Defer to next frame so layout is committed before scrolling.
+      requestAnimationFrame(() => {
+        flashListRef.current?.scrollToEnd({ animated: false });
+      });
+    }
+  }, [messagesLoading]);
+
+  useEffect(() => {
+    const msgItems = flatListData.filter(i => i.type === 'message');
+    if (msgItems.length > 0) {
+      console.log('[CHECK-4] flatListData order — index0 (renders at BOTTOM):', msgItems[0]?.data?.createdAt, ' | lastIndex (renders at TOP):', msgItems[msgItems.length - 1]?.data?.createdAt);
+    }
+  }, [flatListData]);
 
   // ── PERF: Dynamic Cost-Based FlatList Tuning ─────────────────────────────
   // Dynamically scales initialNumToRender, maxToRenderPerBatch, and windowSize
@@ -3467,6 +3489,10 @@ export default function ChatScreen({ route, navigation }) {
   // ——— renderItem ———————————————————————————————————————————————————————————————————
   const renderItem = useCallback(
     ({ item, index }) => {
+      if (item.type === 'message' && index < 3) {
+        console.log('[CHECK-6] renderItem index:', index, 'createdAt:', item.data.createdAt);
+      }
+
       if (item.type === "separator") {
         return <TimestampSeparator label={item.label} />;
       }
@@ -3753,20 +3779,20 @@ export default function ChatScreen({ route, navigation }) {
               renderItem={renderItem}
               getItemType={(item) => item.type}
               estimatedItemSize={72}
-              inverted
               showsVerticalScrollIndicator={false}
               contentContainerStyle={[
                 styles.listContent,
-                { paddingTop: 12 + insets.bottom },
+                { paddingBottom: 12 + insets.bottom },
               ]}
               drawDistance={500}
-              onEndReached={() => {
+              maintainVisibleContentPosition={{ minIndexForVisible: 0, autoscrollToBottomThreshold: 0.2 }}
+              onStartReached={() => {
                 if (hasMore && !loadingOlder) {
                   loadOlderMessages(currentConversationId);
                 }
               }}
-              onEndReachedThreshold={0.3}
-              ListFooterComponent={
+              onStartReachedThreshold={0.3}
+              ListHeaderComponent={
                 loadingOlder ? (
                   <View style={styles.loadingOlderContainer}>
                     <ActivityIndicator size="small" color={PRIMARY_COLOR} />
@@ -3775,13 +3801,11 @@ export default function ChatScreen({ route, navigation }) {
               }
               ListEmptyComponent={
                 messagesLoading ? (
-                  <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 200, transform: Platform.select({ android: [{ scaleY: -1 }, { scaleX: -1 }], default: [{ scaleY: -1 }] }) }}>
+                  <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 200 }}>
                     <ActivityIndicator size="large" color={PRIMARY_COLOR} />
                   </View>
                 ) : (
-                  <View style={{ transform: Platform.select({ android: [{ scaleY: -1 }, { scaleX: -1 }], default: [{ scaleY: -1 }] }), width: "100%" }}>
-                    <EmptyChatState />
-                  </View>
+                  <EmptyChatState />
                 )
               }
               viewabilityConfig={viewabilityConfigRef.current}
