@@ -62,6 +62,7 @@ import SwipeableMessageRow from "../../components/SwipeableMessageRow";
 import SwipeableModal from "../../components/modals/SwipeableModal";
 import DeferredCard from "../../components/DeferredCard";
 import useChatPagination from "../../hooks/useChatPagination";
+import { FlashList } from "@shopify/flash-list";
 import { StatusBar } from "expo-status-bar";
 import {
   useKeyboardHandler,
@@ -3747,37 +3748,20 @@ export default function ChatScreen({ route, navigation }) {
           keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
           <Animated.View style={[{ flex: 1 }, containerAnimatedStyle]}>
-            <FlatList
+            <FlashList
               ref={flashListRef}
               data={flatListData}
               keyExtractor={keyExtractor}
               renderItem={renderItem}
+              getItemType={(item) => item.type}
+              estimatedItemSize={72}
               inverted
               showsVerticalScrollIndicator={false}
               contentContainerStyle={[
                 styles.listContent,
                 { paddingTop: 12 + insets.bottom },
               ]}
-              maintainVisibleContentPosition={{
-                minIndexForVisible: 1,
-                autoscrollToTopThreshold: 10,
-              }}
-              // ── PERF: FlatList render tuning ─────────────────────────────
-              // initialNumToRender 12: covers the visible viewport on any phone
-              // (inverted, so this is the most-recent 12 messages). Was 25 —
-              // the extra 13 were speculative below-fold mounts that blocked
-              // the first paint with ~13 × 12ms = 156ms of Reanimated setup.
-              // maxToRenderPerBatch 8: smaller chunks free the JS thread between
-              // batches for gestures/animations. Was 20 (too large, caused jank
-              // on fast scroll when all 20 rows mounted in one frame).
-              // windowSize 8: keeps 8 × viewport height of rows resident in
-              // native. Was 15 — excessive for a chat list; 8 is still generous.
-              initialNumToRender={listCostConfig.initialNumToRender}
-              maxToRenderPerBatch={listCostConfig.maxToRenderPerBatch}
-              windowSize={listCostConfig.windowSize}
-              removeClippedSubviews={Platform.OS === 'android'}
-              updateCellsBatchingPeriod={20}
-              scrollEventThrottle={16}
+              drawDistance={500}
               onEndReached={() => {
                 if (hasMore && !loadingOlder) {
                   loadOlderMessages(currentConversationId);
