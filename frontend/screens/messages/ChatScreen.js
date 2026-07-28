@@ -274,45 +274,47 @@ const buildMessageList = (messages) => {
   if (!messages || messages.length === 0) return [];
 
   const result = [];
-  for (let i = 0; i < messages.length; i++) {
+  for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
-    const prevMsg = messages[i - 1]; // undefined when i === 0 (oldest message)
+    const older = messages[i - 1]; // undefined when i === 0 (oldest message)
 
+    // Pre-parse and cache dates to avoid creating Date objects inside the render path
     if (msg && !msg._time) {
       const d = new Date(msg.createdAt);
       msg._time = d.getTime();
       msg._dateString = d.toDateString();
     }
-    if (prevMsg && !prevMsg._time) {
-      const d = new Date(prevMsg.createdAt);
-      prevMsg._time = d.getTime();
-      prevMsg._dateString = d.toDateString();
+    if (older && !older._time) {
+      const d = new Date(older.createdAt);
+      older._time = d.getTime();
+      older._dateString = d.toDateString();
     }
 
-    const isNewDay = !prevMsg || msg._dateString !== prevMsg._dateString;
+    const isOldestOfDay = !older || msg._dateString !== older._dateString;
     const isDifferentSenderOrTime =
-      isNewDay ||
-      !prevMsg ||
-      prevMsg.senderId !== msg.senderId ||
-      Math.abs((msg._time || 0) - (prevMsg._time || 0)) > 60000;
+      isOldestOfDay ||
+      !older ||
+      older.senderId !== msg.senderId ||
+      Math.abs((msg._time || 0) - (older._time || 0)) > 60000;
 
     msg._showAvatar = isDifferentSenderOrTime;
-    msg._showSenderName = !prevMsg || prevMsg.senderId !== msg.senderId;
+    msg._showSenderName = !older || older.senderId !== msg.senderId;
 
-    if (isNewDay) {
-      result.push({
-        type: "separator",
-        id: `sep-${msg.id}`,
-        label: formatSeparatorLabel(msg.createdAt),
-      });
-    }
-
+    // Return cached wrapper if the msg reference hasn't changed.
     let wrapper = _msgWrapperCache.get(msg.id);
     if (!wrapper || wrapper.data !== msg) {
       wrapper = { type: "message", data: msg };
       _msgWrapperCache.set(msg.id, wrapper);
     }
     result.push(wrapper);
+
+    if (isOldestOfDay) {
+      result.push({
+        type: "separator",
+        id: `sep-${msg.id}`,
+        label: formatSeparatorLabel(msg.createdAt),
+      });
+    }
   }
   return result;
 };
@@ -2126,28 +2128,8 @@ export default function ChatScreen({ route, navigation }) {
   }, []);
 
   // ── flatListData: memoised mixed separator + message list ──────────────────
-  // buildMessageList outputs chronological oldest→newest.
+  // buildMessageList outputs newest→oldest (index 0 is newest).
   const flatListData = useMemo(() => buildMessageList(messages), [messages]);
-
-  useEffect(() => {
-    console.log('[CHECK-5] FlashList package version:', require('@shopify/flash-list/package.json').version);
-  }, []);
-
-  useEffect(() => {
-    if (!messagesLoading && flatListData.length > 0) {
-      // Defer to next frame so layout is committed before scrolling.
-      requestAnimationFrame(() => {
-        flashListRef.current?.scrollToEnd({ animated: false });
-      });
-    }
-  }, [messagesLoading]);
-
-  useEffect(() => {
-    const msgItems = flatListData.filter(i => i.type === 'message');
-    if (msgItems.length > 0) {
-      console.log('[CHECK-4] flatListData order — index0 (renders at BOTTOM):', msgItems[0]?.data?.createdAt, ' | lastIndex (renders at TOP):', msgItems[msgItems.length - 1]?.data?.createdAt);
-    }
-  }, [flatListData]);
 
   // ── PERF: Dynamic Cost-Based FlatList Tuning ─────────────────────────────
   // Dynamically scales initialNumToRender, maxToRenderPerBatch, and windowSize
@@ -3804,23 +3786,20 @@ export default function ChatScreen({ route, navigation }) {
               renderItem={renderItem}
               getItemType={(item) => item.type}
               estimatedItemSize={estimatedItemSize}
+              inverted
               showsVerticalScrollIndicator={false}
               contentContainerStyle={[
                 styles.listContent,
-                { paddingBottom: 12 + insets.bottom },
+                { paddingTop: 12 + insets.bottom },
               ]}
               drawDistance={500}
-              maintainVisibleContentPosition={{
-                minIndexForVisible: 0,
-                autoscrollToBottomThreshold: 0.1,
-              }}
-              onStartReached={() => {
+              onEndReached={() => {
                 if (hasMore && !loadingOlder) {
                   loadOlderMessages(currentConversationId);
                 }
               }}
-              onStartReachedThreshold={0.3}
-              ListHeaderComponent={
+              onEndReachedThreshold={0.3}
+              ListFooterComponent={
                 loadingOlder ? (
                   <View style={styles.loadingOlderContainer}>
                     <ActivityIndicator size="small" color={PRIMARY_COLOR} />
