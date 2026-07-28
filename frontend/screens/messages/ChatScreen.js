@@ -274,47 +274,45 @@ const buildMessageList = (messages) => {
   if (!messages || messages.length === 0) return [];
 
   const result = [];
-  for (let i = messages.length - 1; i >= 0; i--) {
+  for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
-    const older = messages[i - 1]; // undefined when i === 0 (oldest message)
+    const prevMsg = messages[i - 1]; // undefined when i === 0 (oldest message)
 
-    // Pre-parse and cache dates to avoid creating Date objects inside the render path
     if (msg && !msg._time) {
       const d = new Date(msg.createdAt);
       msg._time = d.getTime();
       msg._dateString = d.toDateString();
     }
-    if (older && !older._time) {
-      const d = new Date(older.createdAt);
-      older._time = d.getTime();
-      older._dateString = d.toDateString();
+    if (prevMsg && !prevMsg._time) {
+      const d = new Date(prevMsg.createdAt);
+      prevMsg._time = d.getTime();
+      prevMsg._dateString = d.toDateString();
     }
 
-    const isOldestOfDay = !older || msg._dateString !== older._dateString;
+    const isNewDay = !prevMsg || msg._dateString !== prevMsg._dateString;
     const isDifferentSenderOrTime =
-      isOldestOfDay ||
-      !older ||
-      older.senderId !== msg.senderId ||
-      Math.abs((msg._time || 0) - (older._time || 0)) > 60000;
+      isNewDay ||
+      !prevMsg ||
+      prevMsg.senderId !== msg.senderId ||
+      Math.abs((msg._time || 0) - (prevMsg._time || 0)) > 60000;
 
     msg._showAvatar = isDifferentSenderOrTime;
-    msg._showSenderName = !older || older.senderId !== msg.senderId;
+    msg._showSenderName = !prevMsg || prevMsg.senderId !== msg.senderId;
 
-    // Return cached wrapper if the msg reference hasn't changed.
-    let wrapper = _msgWrapperCache.get(msg.id);
-    if (!wrapper || wrapper.data !== msg) {
-      wrapper = { type: "message", data: msg };
-      _msgWrapperCache.set(msg.id, wrapper);
-    }
-    result.push(wrapper);
-
-    if (isOldestOfDay) {
+    if (isNewDay) {
       result.push({
         type: "separator",
         id: `sep-${msg.id}`,
         label: formatSeparatorLabel(msg.createdAt),
       });
     }
+
+    let wrapper = _msgWrapperCache.get(msg.id);
+    if (!wrapper || wrapper.data !== msg) {
+      wrapper = { type: "message", data: msg };
+      _msgWrapperCache.set(msg.id, wrapper);
+    }
+    result.push(wrapper);
   }
   return result;
 };
