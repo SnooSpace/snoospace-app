@@ -60,7 +60,6 @@ import { GestureHandlerRootView, TouchableOpacity } from "react-native-gesture-h
 
 import SwipeableMessageRow from "../../components/SwipeableMessageRow";
 import SwipeableModal from "../../components/modals/SwipeableModal";
-import DeferredCard from "../../components/DeferredCard";
 import useChatPagination from "../../hooks/useChatPagination";
 import { FlashList } from "@shopify/flash-list";
 import { StatusBar } from "expo-status-bar";
@@ -1213,6 +1212,30 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
     </Modal>
   );
 };
+
+// ── DeferredCard ────────────────────────────────────────────────────────────
+// Defers rendering of heavy subtrees (media, shared post cards, ticket cards)
+// until after initial interaction, avoiding main thread frame drops during mount.
+const DeferredCard = React.memo(({ children, minHeight = 160 }) => {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (active) setMounted(true);
+    });
+    return () => {
+      active = false;
+      task.cancel();
+    };
+  }, []);
+
+  if (!mounted) {
+    return <View style={{ minHeight, width: "100%", opacity: 0 }} />;
+  }
+
+  return children;
+});
 
 // SwipeableMessage extracted to components/SwipeableMessageRow.js
 const SwipeableMessage = SwipeableMessageRow;
