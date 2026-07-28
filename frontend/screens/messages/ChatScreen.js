@@ -1213,30 +1213,6 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
   );
 };
 
-// ── DeferredCard ────────────────────────────────────────────────────────────
-// Defers rendering of heavy subtrees (media, shared post cards, ticket cards)
-// until after initial interaction, avoiding main thread frame drops during mount.
-const DeferredCard = React.memo(({ children, minHeight = 160 }) => {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    const task = InteractionManager.runAfterInteractions(() => {
-      if (active) setMounted(true);
-    });
-    return () => {
-      active = false;
-      task.cancel();
-    };
-  }, []);
-
-  if (!mounted) {
-    return <View style={{ minHeight, width: "100%", opacity: 0 }} />;
-  }
-
-  return children;
-});
-
 // SwipeableMessage extracted to components/SwipeableMessageRow.js
 const SwipeableMessage = SwipeableMessageRow;
 
@@ -1381,21 +1357,19 @@ const MessageRow = React.memo(
                 {msg.senderName || "Unknown"}
               </Text>
             )}
-            <DeferredCard minHeight={160}>
-              <TicketMessageCard
-                metadata={msg.metadata}
-                isFromMe={isMyMessage}
-                senderName={recipient?.name}
-                loading={rsvpLoading}
-                onViewEvent={() => {
-                  const nav = navigationRef.current;
-                  const n = nav?.getParent()?.getParent() || nav;
-                  n?.navigate("EventDetails", { eventId: msg.metadata.eventId });
-                }}
-                onConfirmGoing={() => onRSVP(msg, "going")}
-                onDecline={() => onRSVP(msg, "not_going")}
-              />
-            </DeferredCard>
+            <TicketMessageCard
+              metadata={msg.metadata}
+              isFromMe={isMyMessage}
+              senderName={recipient?.name}
+              loading={rsvpLoading}
+              onViewEvent={() => {
+                const nav = navigationRef.current;
+                const n = nav?.getParent()?.getParent() || nav;
+                n?.navigate("EventDetails", { eventId: msg.metadata.eventId });
+              }}
+              onConfirmGoing={() => onRSVP(msg, "going")}
+              onDecline={() => onRSVP(msg, "not_going")}
+            />
           </View>
         </View>
       );
@@ -1437,14 +1411,12 @@ const MessageRow = React.memo(
                   onPress={() => onPressReplyQuote(msg.replyToMessageId)}
                 />
               ) : null}
-              <DeferredCard minHeight={180}>
-                <ChatMediaMessage
-                  message={msg}
-                  isMyMessage={isMyMessage}
-                  uploadProgress={null}
-                  onOpenViewer={onOpenViewer}
-                />
-              </DeferredCard>
+              <ChatMediaMessage
+                message={msg}
+                isMyMessage={isMyMessage}
+                uploadProgress={null}
+                onOpenViewer={onOpenViewer}
+              />
               <Text
                 style={[
                   styles.messageTime,
@@ -1495,13 +1467,11 @@ const MessageRow = React.memo(
                   onPress={() => onPressReplyQuote(msg.replyToMessageId)}
                 />
               ) : null}
-              <DeferredCard minHeight={200}>
-                <SharedPostCard
-                  metadata={msg.metadata}
-                  onPress={onPressPostShare}
-                  onUserPress={onPressUser}
-                />
-              </DeferredCard>
+              <SharedPostCard
+                metadata={msg.metadata}
+                onPress={onPressPostShare}
+                onUserPress={onPressUser}
+              />
             </View>
           </SwipeableMessage>
         </View>
@@ -1539,12 +1509,10 @@ const MessageRow = React.memo(
                   onPress={() => onPressReplyQuote(msg.replyToMessageId)}
                 />
               ) : null}
-              <DeferredCard minHeight={180}>
-                <SharedOpportunityCard
-                  metadata={msg.metadata}
-                  onPress={onPressOpportunity}
-                />
-              </DeferredCard>
+              <SharedOpportunityCard
+                metadata={msg.metadata}
+                onPress={onPressOpportunity}
+              />
             </View>
           </SwipeableMessage>
         </View>
@@ -1582,9 +1550,7 @@ const MessageRow = React.memo(
                   onPress={() => onPressReplyQuote(msg.replyToMessageId)}
                 />
               ) : null}
-              <DeferredCard minHeight={180}>
-                <SharedEventCard metadata={msg.metadata} onPress={onPressEvent} />
-              </DeferredCard>
+              <SharedEventCard metadata={msg.metadata} onPress={onPressEvent} />
             </View>
           </SwipeableMessage>
         </View>
@@ -1622,9 +1588,7 @@ const MessageRow = React.memo(
                   onPress={() => onPressReplyQuote(msg.replyToMessageId)}
                 />
               ) : null}
-              <DeferredCard minHeight={180}>
-                <SharedPlanCard metadata={msg.metadata} onPress={onPressPlan} />
-              </DeferredCard>
+              <SharedPlanCard metadata={msg.metadata} onPress={onPressPlan} />
             </View>
           </SwipeableMessage>
         </View>
