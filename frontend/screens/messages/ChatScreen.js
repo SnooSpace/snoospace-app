@@ -3795,11 +3795,13 @@ export default function ChatScreen({ route, navigation }) {
               }
               ListEmptyComponent={
                 messagesLoading ? (
-                  <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 200 }}>
+                  <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 200, transform: [{ scaleY: -1 }] }}>
                     <ActivityIndicator size="large" color={PRIMARY_COLOR} />
                   </View>
                 ) : (
-                  <EmptyChatState />
+                  <View style={{ transform: [{ scaleY: -1 }] }}>
+                    <EmptyChatState />
+                  </View>
                 )
               }
               viewabilityConfig={viewabilityConfigRef.current}
