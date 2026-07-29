@@ -31,13 +31,7 @@ export async function getMessages(conversationId, { before = null, after = null,
   const params = new URLSearchParams({ limit: String(limit) });
   if (before) params.append("before", before);
   if (after)  params.append("after",  after);
-  const data = await apiGet(`/messages/conversations/${conversationId}?${params.toString()}`, 15000, token);
-  if (data && Array.isArray(data.messages)) {
-    data.messages = [...data.messages].sort(
-      (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
-    );
-  }
-  return data;
+  return apiGet(`/messages/conversations/${conversationId}?${params.toString()}`, 15000, token);
 }
 
 

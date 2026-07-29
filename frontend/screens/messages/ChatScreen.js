@@ -247,14 +247,13 @@ const formatSeparatorLabel = (dateString) => {
 
 /**
  * buildMessageList: converts a raw messages array (oldest → newest) into a
- * mixed list ordered newest → oldest, ready for an inverted FlatList.
+ * mixed list for a non-inverted FlashList using startRenderingFromBottom.
  *
- * Date separators are injected AFTER the oldest message of each day in
- * this reversed order, so they render ABOVE that day's message group
- * exactly as expected in a chat UI.
+ * Date separators are injected BEFORE the first message of a new day so they
+ * appear ABOVE that day's messages — correct chat layout without inverted.
  *
  * Input:  [oldest, …, newest]  (chronological, as stored in useChatPagination)
- * Output: [newest, …, oldest, separator, …]  (for inverted FlatList)
+ * Output: [separator, oldest, …, newest]  (for startRenderingFromBottom)
  *
  * ── PERF: wrapper object cache ──────────────────────────────────────────────
  * Every call creates a new { type, data } wrapper per message, giving each
@@ -271,9 +270,10 @@ const _msgWrapperCache = new Map(); // module-level: lives as long as the module
 
 const buildMessageList = (messages) => {
   if (!messages || messages.length === 0) return [];
+  if (_msgWrapperCache.size > 1000) _msgWrapperCache.clear();
 
   const result = [];
-  for (let i = messages.length - 1; i >= 0; i--) {
+  for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
     const older = messages[i - 1]; // undefined when i === 0 (oldest message)
 
@@ -289,15 +289,24 @@ const buildMessageList = (messages) => {
       older._dateString = d.toDateString();
     }
 
-    const isOldestOfDay = !older || msg._dateString !== older._dateString;
+    const isFirstOfDay = !older || msg._dateString !== older._dateString;
     const isDifferentSenderOrTime =
-      isOldestOfDay ||
+      isFirstOfDay ||
       !older ||
       older.senderId !== msg.senderId ||
       Math.abs((msg._time || 0) - (older._time || 0)) > 60000;
 
     msg._showAvatar = isDifferentSenderOrTime;
     msg._showSenderName = !older || older.senderId !== msg.senderId;
+
+    // Inject separator BEFORE the first message of each new day
+    if (isFirstOfDay) {
+      result.push({
+        type: "separator",
+        id: `sep-${msg.id}`,
+        label: formatSeparatorLabel(msg.createdAt),
+      });
+    }
 
     // Return cached wrapper if the msg reference hasn't changed.
     let wrapper = _msgWrapperCache.get(msg.id);
@@ -306,14 +315,6 @@ const buildMessageList = (messages) => {
       _msgWrapperCache.set(msg.id, wrapper);
     }
     result.push(wrapper);
-
-    if (isOldestOfDay) {
-      result.push({
-        type: "separator",
-        id: `sep-${msg.id}`,
-        label: formatSeparatorLabel(msg.createdAt),
-      });
-    }
   }
   return result;
 };
@@ -321,6 +322,44 @@ const buildMessageList = (messages) => {
 // ── keyExtractor ────────────────────────────────────────────────────────────
 const keyExtractor = (item) =>
   item.type === "message" ? String(item.data.id) : item.id;
+
+// ── overrideItemLayout ───────────────────────────────────────────────────────
+// Provides height estimates so startRenderingFromBottom computes a reasonable
+// initial scroll offset. Do NOT add a JS-side height cache here — custom caches
+// conflict with FlashList's cell-recycling pool causing stale sizes on repeated
+// opens (collapsed render window, only last item visible, no scroll).
+const overrideItemLayout = (layout, item) => {
+  if (!item) return;
+  if (item.type === "separator") {
+    layout.size = 36;
+    return;
+  }
+  const msg = item.data;
+  if (!msg) return;
+  if (msg.messageType === "system") { layout.size = 32; return; }
+  if (msg.isDeleted) { layout.size = 40; return; }
+
+  const isMediaOrCard =
+    msg.messageType === "image" ||
+    msg.messageType === "video" ||
+    msg.messageType === "multi_media" ||
+    msg.messageType === "post_share" ||
+    msg.messageType === "opportunity_share" ||
+    msg.messageType === "event_share" ||
+    msg.messageType === "plan_share" ||
+    msg.messageType === "ticket";
+
+  if (isMediaOrCard) { layout.size = 240; return; }
+
+  let size = 44;
+  if (msg._showSenderName) size += 18;
+  if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 46;
+  const len = msg.messageText ? msg.messageText.length : 0;
+  if (len > 200) size += 100;
+  else if (len > 120) size += 60;
+  else if (len > 60) size += 30;
+  layout.size = size;
+};
 
 // ── TimestampSeparator ──────────────────────────────────────────────────────
 const TimestampSeparator = React.memo(({ label }) => (
@@ -1823,6 +1862,19 @@ export default function ChatScreen({ route, navigation }) {
     });
     const unsubEnd = navigation.addListener('transitionEnd', (e) => {
       console.log(`[PERF-NAV] ChatScreen transitionEnd at: ${performance.now().toFixed(2)}ms, closing: ${e?.data?.closing}`);
+      // Scroll correction on open: once the navigation animation is done,
+      // the FlashList has rendered all visible items with real heights.
+      // scrollToEnd corrects any residual drift from startRenderingFromBottom estimates.
+      if (!e?.data?.closing) {
+        requestAnimationFrame(() => {
+          flashListRef.current?.scrollToEnd({ animated: false });
+        });
+        // Retry: card-type messages (post_share, etc.) make async API calls
+        // that change height after first render — one follow-up correction absorbs this.
+        setTimeout(() => {
+          flashListRef.current?.scrollToEnd({ animated: false });
+        }, 450);
+      }
     });
     return () => {
       unsubStart();
@@ -2054,6 +2106,40 @@ export default function ChatScreen({ route, navigation }) {
   const subscriptionRef = useRef(null);
   const supabaseRef = useRef(null);
 
+  // Tracks whether the user is at/near the bottom of the chat list.
+  // Initialised true — screen always opens at the newest message.
+  // Updated on every onScroll event; read by incoming-message handlers
+  // to decide whether to auto-scroll.
+  const isAtBottomRef = useRef(true);
+
+  // Detects cold-open (seed=0) vs warm-open (seed>0).
+  // prevFlatListLenRef starts at the seed length so the effect that
+  // triggers scrollToEnd on first data only fires for cold opens.
+  const prevFlatListLenRef = useRef(initialMessagesRef.current.length);
+
+  // ── List reveal animation ────────────────────────────────────────────────
+  // WARM open: startRenderingFromBottom uses estimates → FlashList onLayout
+  //   corrects to the real viewport height (e.g. 3506→2078) — a visible jump.
+  //   Fix: start at opacity 0, reveal after onLayout + scrollToEnd correction.
+  // COLD open: startRenderingFromBottom is a no-op on an empty list — no jump.
+  //   Start immediately visible (opacity 1).
+  const isColdOpen = initialMessagesRef.current.length === 0;
+  const listRevealOpacity = useSharedValue(isColdOpen ? 1 : 0);
+  const hasRevealedListRef = useRef(isColdOpen); // cold: already "revealed"
+  const listRevealStyle = useAnimatedStyle(() => ({
+    opacity: listRevealOpacity.value,
+  }));
+
+  const revealList = useCallback(() => {
+    if (hasRevealedListRef.current) return;
+    hasRevealedListRef.current = true;
+    // Scroll to newest before fading in so the user never sees the wrong position.
+    flashListRef.current?.scrollToEnd({ animated: false });
+    requestAnimationFrame(() => {
+      listRevealOpacity.value = withTiming(1, { duration: 180 });
+    });
+  }, [listRevealOpacity]);
+
 
   const groupParticipantsRef = useRef([]);
   const visibleItemIdsRef = useRef(new Set());
@@ -2115,8 +2201,22 @@ export default function ChatScreen({ route, navigation }) {
   }, []);
 
   // ── flatListData: memoised mixed separator + message list ──────────────────
-  // buildMessageList outputs newest→oldest (index 0 is newest).
+  // buildMessageList outputs oldest→newest (index 0 is oldest, last is newest).
   const flatListData = useMemo(() => buildMessageList(messages), [messages]);
+
+  // Cold-open: list starts empty, data arrives async after the network call.
+  // When data first arrives (prev=0 → count>0) scroll to the newest message.
+  // Warm-open: prevFlatListLenRef starts >0, so this effect never fires.
+  // revealList() on the warm path is triggered by the FlashList onLayout handler.
+  useEffect(() => {
+    const prev = prevFlatListLenRef.current;
+    prevFlatListLenRef.current = flatListData.length;
+    if (prev === 0 && flatListData.length > 0) {
+      requestAnimationFrame(() => {
+        flashListRef.current?.scrollToEnd({ animated: false });
+      });
+    }
+  }, [flatListData]);
 
   // ── PERF: Dynamic Cost-Based FlatList Tuning ─────────────────────────────
   // Dynamically scales initialNumToRender, maxToRenderPerBatch, and windowSize
@@ -2904,6 +3004,12 @@ export default function ChatScreen({ route, navigation }) {
         isRead: msg.isRead,
         createdAt: msg.createdAt,
       });
+      // Auto-scroll to show the new message if user is at/near the bottom.
+      if (isAtBottomRef.current) {
+        setTimeout(() => {
+          flashListRef.current?.scrollToEnd({ animated: true });
+        }, 80);
+      }
       // Mark as read immediately
       markMessageRead(msg.id).catch(() => {});
       NotificationConsumptionService.consumeChat(currentConversationId).catch(console.error);
@@ -3766,47 +3872,65 @@ export default function ChatScreen({ route, navigation }) {
           keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
           <Animated.View style={[{ flex: 1 }, containerAnimatedStyle]}>
-            <FlashList
-              ref={flashListRef}
-              data={flatListData}
-              keyExtractor={keyExtractor}
-              renderItem={renderItem}
-              getItemType={(item) => item.type}
-              estimatedItemSize={estimatedItemSize}
-              inverted
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={[
-                styles.listContent,
-                { paddingTop: 12 + insets.bottom },
-              ]}
-              drawDistance={500}
-              onEndReached={() => {
-                if (hasMore && !loadingOlder) {
-                  loadOlderMessages(currentConversationId);
+            <Animated.View style={[{ flex: 1 }, listRevealStyle]}>
+              <FlashList
+                ref={flashListRef}
+                data={flatListData}
+                keyExtractor={keyExtractor}
+                renderItem={renderItem}
+                getItemType={(item) => item.type}
+                overrideItemLayout={overrideItemLayout}
+                estimatedItemSize={60}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={[
+                  styles.listContent,
+                  { paddingBottom: 12 + insets.bottom },
+                ]}
+                drawDistance={1500}
+                maintainVisibleContentPosition={{
+                  startRenderingFromBottom: true,
+                }}
+                onStartReached={() => {
+                  if (hasMore && !loadingOlder) {
+                    loadOlderMessages(currentConversationId);
+                  }
+                }}
+                onStartReachedThreshold={0.4}
+                onScroll={(e) => {
+                  const y = e.nativeEvent.contentOffset.y;
+                  const contentH = e.nativeEvent.contentSize.height;
+                  const listH = e.nativeEvent.layoutMeasurement.height;
+                  isAtBottomRef.current = (contentH - listH - y) < 100;
+                }}
+                scrollEventThrottle={16}
+                onLayout={(e) => {
+                  const { height } = e.nativeEvent.layout;
+                  if (height > 0 && flatListData.length > 0) {
+                    revealList();
+                  }
+                }}
+                ListHeaderComponent={
+                  loadingOlder ? (
+                    <View style={styles.loadingOlderContainer}>
+                      <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+                    </View>
+                  ) : null
                 }
-              }}
-              onEndReachedThreshold={0.3}
-              ListFooterComponent={
-                loadingOlder ? (
-                  <View style={styles.loadingOlderContainer}>
-                    <ActivityIndicator size="small" color={PRIMARY_COLOR} />
-                  </View>
-                ) : null
-              }
-              ListEmptyComponent={
-                messagesLoading ? (
-                  <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 200, transform: [{ scaleY: -1 }] }}>
-                    <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-                  </View>
-                ) : (
-                  <View style={{ transform: [{ scaleY: -1 }] }}>
-                    <EmptyChatState />
-                  </View>
-                )
-              }
-              viewabilityConfig={viewabilityConfigRef.current}
-              onViewableItemsChanged={onViewableItemsChangedRef.current}
-            />
+                ListEmptyComponent={
+                  messagesLoading ? (
+                    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 200 }}>
+                      <ActivityIndicator size="large" color={PRIMARY_COLOR} />
+                    </View>
+                  ) : (
+                    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 200 }}>
+                      <EmptyChatState />
+                    </View>
+                  )
+                }
+                viewabilityConfig={viewabilityConfigRef.current}
+                onViewableItemsChanged={onViewableItemsChangedRef.current}
+              />
+            </Animated.View>
 
           </Animated.View>
         </KeyboardAvoidingView>
