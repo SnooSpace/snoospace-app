@@ -10,7 +10,9 @@ import React, {
 import { msgContentTimings } from "../../components/SwipeableMessageRow";
 
 const onRenderProfiler = (id, phase, actualDuration) => {
-  console.log(`[PERF-RENDER] ${id} - Phase: ${phase}, Duration: ${actualDuration.toFixed(2)}ms`);
+  console.log(
+    `[PERF-RENDER] ${id} - Phase: ${phase}, Duration: ${actualDuration.toFixed(2)}ms`,
+  );
 };
 const onRenderMsgProfiler = (id, phase, actualDuration) => {
   const match = id.match(/ROW-type=(.*) id=(.*)/);
@@ -20,10 +22,14 @@ const onRenderMsgProfiler = (id, phase, actualDuration) => {
     const contentMs = msgContentTimings.get(String(msgId));
     if (contentMs !== undefined) {
       const wrapperMs = Math.max(0, actualDuration - contentMs);
-      console.log(`[PERF-WRAP] type=${type} id=${msgId} phase:${phase} totalMs:${actualDuration.toFixed(2)} contentOnlyMs:${contentMs.toFixed(2)} wrapperSetupMs:${wrapperMs.toFixed(2)}`);
+      console.log(
+        `[PERF-WRAP] type=${type} id=${msgId} phase:${phase} totalMs:${actualDuration.toFixed(2)} contentOnlyMs:${contentMs.toFixed(2)} wrapperSetupMs:${wrapperMs.toFixed(2)}`,
+      );
       msgContentTimings.delete(String(msgId));
     } else {
-      console.log(`[PERF-WRAP] type=${type} id=${msgId} phase:${phase} totalMs:${actualDuration.toFixed(2)} contentOnlyMs:${actualDuration.toFixed(2)} wrapperSetupMs:0.00 (skips wrapper)`);
+      console.log(
+        `[PERF-WRAP] type=${type} id=${msgId} phase:${phase} totalMs:${actualDuration.toFixed(2)} contentOnlyMs:${actualDuration.toFixed(2)} wrapperSetupMs:0.00 (skips wrapper)`,
+      );
     }
   }
 };
@@ -40,10 +46,19 @@ import {
   Keyboard,
   ActivityIndicator,
   FlatList,
+  Dimensions,
   InteractionManager,
   Animated as RNAnimated,
   Easing as RNEasing,
 } from "react-native";
+
+// How many messages to load on first open.
+// Fills ~1.5 screens based on device height. 80px is a conservative average
+// (text bubbles ~60px, card rows 240px but uncommon enough not to skew this).
+// Clamped between 15 and 30 so we never fetch too few (leaves blank screen)
+// or too many (hurts cold-open latency).
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const INITIAL_MESSAGES_LIMIT = Math.min(30, Math.max(15, Math.ceil(SCREEN_HEIGHT / 80 * 1.5)));
 
 import { Image } from "expo-image";
 import Animated, {
@@ -56,7 +71,10 @@ import Animated, {
   Extrapolate,
   runOnJS,
 } from "react-native-reanimated";
-import { GestureHandlerRootView, TouchableOpacity } from "react-native-gesture-handler";
+import {
+  GestureHandlerRootView,
+  TouchableOpacity,
+} from "react-native-gesture-handler";
 
 import SwipeableMessageRow from "../../components/SwipeableMessageRow";
 import SwipeableModal from "../../components/modals/SwipeableModal";
@@ -336,20 +354,38 @@ const overrideItemLayout = (layout, item) => {
   }
   const msg = item.data;
   if (!msg) return;
-  if (msg.messageType === "system") { layout.size = 32; return; }
-  if (msg.isDeleted) { layout.size = 40; return; }
+  if (msg.messageType === "system") {
+    layout.size = 32;
+    return;
+  }
+  if (msg.isDeleted) {
+    layout.size = 40;
+    return;
+  }
 
-  const isMediaOrCard =
+  const isImageOrVideo =
     msg.messageType === "image" ||
     msg.messageType === "video" ||
-    msg.messageType === "multi_media" ||
+    msg.messageType === "multi_media";
+
+  const isCard =
     msg.messageType === "post_share" ||
     msg.messageType === "opportunity_share" ||
     msg.messageType === "event_share" ||
     msg.messageType === "plan_share" ||
     msg.messageType === "ticket";
 
-  if (isMediaOrCard) { layout.size = 240; return; }
+  if (isImageOrVideo) {
+    // BUBBLE_H (200) + time text (~24) + wrapper margins (~16) = 240
+    layout.size = 240;
+    return;
+  }
+
+  if (isCard) {
+    // minHeight: 240 on card containers — matches SharedXxxCard container style
+    layout.size = 240;
+    return;
+  }
 
   let size = 44;
   if (msg._showSenderName) size += 18;
@@ -400,20 +436,35 @@ const ReplyBar = ({ reply, onClose, heightShared }) => {
         if (finished && onClose) {
           runOnJS(onClose)();
         }
-      }
+      },
     );
-    translateY.value = withTiming(20, { duration: 180, easing: Easing.bezier(0.25, 0.1, 0.25, 1) });
+    translateY.value = withTiming(20, {
+      duration: 180,
+      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+    });
     opacity.value = withTiming(0, { duration: 140 });
   }, [height, translateY, opacity, onClose]);
 
   useEffect(() => {
     if (reply) {
-      height.value = withTiming(52, { duration: 200, easing: Easing.bezier(0.25, 0.1, 0.25, 1) });
-      translateY.value = withTiming(0, { duration: 200, easing: Easing.bezier(0.25, 0.1, 0.25, 1) });
+      height.value = withTiming(52, {
+        duration: 200,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      });
+      translateY.value = withTiming(0, {
+        duration: 200,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      });
       opacity.value = withTiming(1, { duration: 180 });
     } else {
-      height.value = withTiming(0, { duration: 180, easing: Easing.bezier(0.25, 0.1, 0.25, 1) });
-      translateY.value = withTiming(20, { duration: 180, easing: Easing.bezier(0.25, 0.1, 0.25, 1) });
+      height.value = withTiming(0, {
+        duration: 180,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      });
+      translateY.value = withTiming(20, {
+        duration: 180,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      });
       opacity.value = withTiming(0, { duration: 140 });
     }
   }, [reply, height, translateY, opacity]);
@@ -1063,124 +1114,135 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
         >
           <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
             <Animated.View
-              style={[actionSheetStyles.sheet, animatedSheetStyle, { paddingBottom: 24 }]}
+              style={[
+                actionSheetStyles.sheet,
+                animatedSheetStyle,
+                { paddingBottom: 24 },
+              ]}
             >
-              <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
+              <Pressable
+                onPress={(e) => e.stopPropagation()}
+                style={{ width: "100%" }}
+              >
                 <View style={actionSheetStyles.handle} />
 
-              <TouchableOpacity
-                onPress={() => {
-                  setOtherMode(false);
-                  setOtherText("");
-                }}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginBottom: 16,
-                }}
-                activeOpacity={0.7}
-              >
-                <ArrowLeft size={18} color="#8FA1B8" strokeWidth={2} />
+                <TouchableOpacity
+                  onPress={() => {
+                    setOtherMode(false);
+                    setOtherText("");
+                  }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginBottom: 16,
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <ArrowLeft size={18} color="#8FA1B8" strokeWidth={2} />
+                  <Text
+                    style={{
+                      fontFamily: "Manrope-Medium",
+                      fontSize: 13,
+                      color: "#8FA1B8",
+                      marginLeft: 6,
+                    }}
+                  >
+                    Back
+                  </Text>
+                </TouchableOpacity>
+
                 <Text
                   style={{
-                    fontFamily: "Manrope-Medium",
-                    fontSize: 13,
-                    color: "#8FA1B8",
-                    marginLeft: 6,
+                    fontFamily: "BasicCommercial-Bold",
+                    fontSize: 18,
+                    color: "#1F3A5F",
+                    marginBottom: 6,
                   }}
                 >
-                  Back
+                  Tell us more
                 </Text>
-              </TouchableOpacity>
-
-              <Text
-                style={{
-                  fontFamily: "BasicCommercial-Bold",
-                  fontSize: 18,
-                  color: "#1F3A5F",
-                  marginBottom: 6,
-                }}
-              >
-                Tell us more
-              </Text>
-              <Text
-                style={{
-                  fontFamily: "Manrope-Regular",
-                  fontSize: 13,
-                  color: "#8FA1B8",
-                  marginBottom: 16,
-                }}
-              >
-                Please describe what happened so we can review it properly.
-              </Text>
-
-              <View
-                style={{
-                  borderWidth: 1,
-                  borderColor: "#E5E5EA",
-                  borderRadius: 14,
-                  backgroundColor: "#F8F9FB",
-                  paddingHorizontal: 14,
-                  paddingVertical: 10,
-                  marginBottom: 4,
-                  minHeight: 90,
-                }}
-              >
-                <TextInput
-                  ref={otherInputRef}
-                  value={otherText}
-                  onChangeText={setOtherText}
-                  placeholder="Describe the issue…"
-                  placeholderTextColor="#B0BEC5"
-                  multiline
-                  maxLength={500}
-                  autoFocus
+                <Text
                   style={{
                     fontFamily: "Manrope-Regular",
-                    fontSize: 14.5,
-                    color: "#1F3A5F",
-                    textAlignVertical: "top",
-                    minHeight: 70,
-                  }}
-                />
-              </View>
-              <Text
-                style={{
-                  fontFamily: "Manrope-Regular",
-                  fontSize: 11,
-                  color: "#B0BEC5",
-                  alignSelf: "flex-end",
-                  marginBottom: 14,
-                }}
-              >
-                {otherText.length} / 500
-              </Text>
-
-              <TouchableOpacity
-                onPress={() => {
-                  const trimmed = otherText.trim();
-                  if (!trimmed) return;
-                  onSelect({ key: "other", label: "Other", details: trimmed });
-                }}
-                activeOpacity={otherText.trim().length > 0 ? 0.7 : 1}
-                style={{
-                  backgroundColor:
-                    otherText.trim().length > 0 ? "#1F3A5F" : "#E0E0E0",
-                  borderRadius: 14,
-                  paddingVertical: 14,
-                  alignItems: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    fontFamily: "Manrope-SemiBold",
-                    fontSize: 15,
-                    color: "#FFFFFF",
+                    fontSize: 13,
+                    color: "#8FA1B8",
+                    marginBottom: 16,
                   }}
                 >
-                  Submit Report
+                  Please describe what happened so we can review it properly.
                 </Text>
-              </TouchableOpacity>
+
+                <View
+                  style={{
+                    borderWidth: 1,
+                    borderColor: "#E5E5EA",
+                    borderRadius: 14,
+                    backgroundColor: "#F8F9FB",
+                    paddingHorizontal: 14,
+                    paddingVertical: 10,
+                    marginBottom: 4,
+                    minHeight: 90,
+                  }}
+                >
+                  <TextInput
+                    ref={otherInputRef}
+                    value={otherText}
+                    onChangeText={setOtherText}
+                    placeholder="Describe the issue…"
+                    placeholderTextColor="#B0BEC5"
+                    multiline
+                    maxLength={500}
+                    autoFocus
+                    style={{
+                      fontFamily: "Manrope-Regular",
+                      fontSize: 14.5,
+                      color: "#1F3A5F",
+                      textAlignVertical: "top",
+                      minHeight: 70,
+                    }}
+                  />
+                </View>
+                <Text
+                  style={{
+                    fontFamily: "Manrope-Regular",
+                    fontSize: 11,
+                    color: "#B0BEC5",
+                    alignSelf: "flex-end",
+                    marginBottom: 14,
+                  }}
+                >
+                  {otherText.length} / 500
+                </Text>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    const trimmed = otherText.trim();
+                    if (!trimmed) return;
+                    onSelect({
+                      key: "other",
+                      label: "Other",
+                      details: trimmed,
+                    });
+                  }}
+                  activeOpacity={otherText.trim().length > 0 ? 0.7 : 1}
+                  style={{
+                    backgroundColor:
+                      otherText.trim().length > 0 ? "#1F3A5F" : "#E0E0E0",
+                    borderRadius: 14,
+                    paddingVertical: 14,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: "Manrope-SemiBold",
+                      fontSize: 15,
+                      color: "#FFFFFF",
+                    }}
+                  >
+                    Submit Report
+                  </Text>
+                </TouchableOpacity>
               </Pressable>
             </Animated.View>
           </Pressable>
@@ -1197,54 +1259,55 @@ const ReportReasonSheet = ({ visible, onClose, onSelect }) => {
       onRequestClose={onClose}
     >
       <Pressable style={actionSheetStyles.overlay} onPress={onClose}>
-        <Animated.View
-          style={[actionSheetStyles.sheet, animatedSheetStyle]}
-        >
-          <Pressable onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
-            <View style={actionSheetStyles.handle} />
-          <Text
-            style={{
-              fontFamily: "BasicCommercial-Bold",
-              fontSize: 18,
-              color: "#1F3A5F",
-              marginBottom: 16,
-            }}
+        <Animated.View style={[actionSheetStyles.sheet, animatedSheetStyle]}>
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={{ width: "100%" }}
           >
-            Why are you reporting?
-          </Text>
-          {REPORT_REASONS.map((r) => (
-            <TouchableOpacity
-              key={r.key}
-              style={[actionSheetStyles.row, { paddingVertical: 12 }]}
-              onPress={() => {
-                if (r.key === "other") {
-                  setOtherMode(true);
-                } else {
-                  onSelect(r);
-                }
+            <View style={actionSheetStyles.handle} />
+            <Text
+              style={{
+                fontFamily: "BasicCommercial-Bold",
+                fontSize: 18,
+                color: "#1F3A5F",
+                marginBottom: 16,
               }}
-              activeOpacity={0.7}
             >
-              <Text
-                style={{
-                  fontFamily: "Manrope-Regular",
-                  fontSize: 15,
-                  color: "#1F3A5F",
-                  flex: 1,
+              Why are you reporting?
+            </Text>
+            {REPORT_REASONS.map((r) => (
+              <TouchableOpacity
+                key={r.key}
+                style={[actionSheetStyles.row, { paddingVertical: 12 }]}
+                onPress={() => {
+                  if (r.key === "other") {
+                    setOtherMode(true);
+                  } else {
+                    onSelect(r);
+                  }
                 }}
+                activeOpacity={0.7}
               >
-                {r.label}
-              </Text>
-              {r.key === "other" && (
-                <ArrowLeft
-                  size={16}
-                  color="#B0BEC5"
-                  strokeWidth={2}
-                  style={{ transform: [{ rotate: "180deg" }] }}
-                />
-              )}
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={{
+                    fontFamily: "Manrope-Regular",
+                    fontSize: 15,
+                    color: "#1F3A5F",
+                    flex: 1,
+                  }}
+                >
+                  {r.label}
+                </Text>
+                {r.key === "other" && (
+                  <ArrowLeft
+                    size={16}
+                    color="#B0BEC5"
+                    strokeWidth={2}
+                    style={{ transform: [{ rotate: "180deg" }] }}
+                  />
+                )}
+              </TouchableOpacity>
+            ))}
           </Pressable>
         </Animated.View>
       </Pressable>
@@ -1718,36 +1781,50 @@ const MessageRow = React.memo(
   (prev, next) => {
     const diffs = [];
     if (prev.item?.data?.id !== next.item?.data?.id) diffs.push("item.data.id");
-    if (prev.item?.data?.isDeleted !== next.item?.data?.isDeleted) diffs.push("item.data.isDeleted");
+    if (prev.item?.data?.isDeleted !== next.item?.data?.isDeleted)
+      diffs.push("item.data.isDeleted");
     if (prev.isMyMessage !== next.isMyMessage) diffs.push("isMyMessage");
     if (prev.showAvatar !== next.showAvatar) diffs.push("showAvatar");
-    if (prev.showSenderName !== next.showSenderName) diffs.push("showSenderName");
+    if (prev.showSenderName !== next.showSenderName)
+      diffs.push("showSenderName");
     if (prev.isGroup !== next.isGroup) diffs.push("isGroup");
-    if (prev.currentUser?.id !== next.currentUser?.id) diffs.push("currentUser.id");
-    if (prev.currentUser?.avatarUri !== next.currentUser?.avatarUri) diffs.push("currentUser.avatarUri");
+    if (prev.currentUser?.id !== next.currentUser?.id)
+      diffs.push("currentUser.id");
+    if (prev.currentUser?.avatarUri !== next.currentUser?.avatarUri)
+      diffs.push("currentUser.avatarUri");
     if (prev.recipient?.id !== next.recipient?.id) diffs.push("recipient.id");
-    if (prev.recipient?.profilePhotoUrl !== next.recipient?.profilePhotoUrl) diffs.push("recipient.profilePhotoUrl");
-    if (prev.recipient?.name !== next.recipient?.name) diffs.push("recipient.name");
+    if (prev.recipient?.profilePhotoUrl !== next.recipient?.profilePhotoUrl)
+      diffs.push("recipient.profilePhotoUrl");
+    if (prev.recipient?.name !== next.recipient?.name)
+      diffs.push("recipient.name");
     if (prev.recipientId !== next.recipientId) diffs.push("recipientId");
-    if (prev.isBlockedByOther !== next.isBlockedByOther) diffs.push("isBlockedByOther");
-    if (prev.highlightedIdSV !== next.highlightedIdSV) diffs.push("highlightedIdSV");
+    if (prev.isBlockedByOther !== next.isBlockedByOther)
+      diffs.push("isBlockedByOther");
+    if (prev.highlightedIdSV !== next.highlightedIdSV)
+      diffs.push("highlightedIdSV");
     if (prev.onReply !== next.onReply) diffs.push("onReply");
     if (prev.onLongPress !== next.onLongPress) diffs.push("onLongPress");
     if (prev.onRSVP !== next.onRSVP) diffs.push("onRSVP");
     if (prev.onOpenViewer !== next.onOpenViewer) diffs.push("onOpenViewer");
-    if (prev.onPressPostShare !== next.onPressPostShare) diffs.push("onPressPostShare");
+    if (prev.onPressPostShare !== next.onPressPostShare)
+      diffs.push("onPressPostShare");
     if (prev.onPressUser !== next.onPressUser) diffs.push("onPressUser");
-    if (prev.onPressOpportunity !== next.onPressOpportunity) diffs.push("onPressOpportunity");
+    if (prev.onPressOpportunity !== next.onPressOpportunity)
+      diffs.push("onPressOpportunity");
     if (prev.onPressEvent !== next.onPressEvent) diffs.push("onPressEvent");
     if (prev.onPressPlan !== next.onPressPlan) diffs.push("onPressPlan");
-    if (prev.onPressReplyQuote !== next.onPressReplyQuote) diffs.push("onPressReplyQuote");
+    if (prev.onPressReplyQuote !== next.onPressReplyQuote)
+      diffs.push("onPressReplyQuote");
 
     if (diffs.length > 0) {
-      console.log(`[PERF-DIFF] MessageRow id=${next.item?.data?.id} changed props:`, diffs);
+      console.log(
+        `[PERF-DIFF] MessageRow id=${next.item?.data?.id} changed props:`,
+        diffs,
+      );
       return false;
     }
     return true;
-  }
+  },
 );
 
 // ── Typing Dots Animation Component ─────────────────────────────────────────
@@ -1774,7 +1851,7 @@ const TypingDots = () => {
             useNativeDriver: true,
           }),
           RNAnimated.delay(300),
-        ])
+        ]),
       );
     };
 
@@ -1795,9 +1872,15 @@ const TypingDots = () => {
 
   return (
     <View style={typingStyles.dotsContainer}>
-      <RNAnimated.View style={[typingStyles.dot, { transform: [{ translateY: dot1 }] }]} />
-      <RNAnimated.View style={[typingStyles.dot, { transform: [{ translateY: dot2 }] }]} />
-      <RNAnimated.View style={[typingStyles.dot, { transform: [{ translateY: dot3 }] }]} />
+      <RNAnimated.View
+        style={[typingStyles.dot, { transform: [{ translateY: dot1 }] }]}
+      />
+      <RNAnimated.View
+        style={[typingStyles.dot, { transform: [{ translateY: dot2 }] }]}
+      />
+      <RNAnimated.View
+        style={[typingStyles.dot, { transform: [{ translateY: dot3 }] }]}
+      />
     </View>
   );
 };
@@ -1821,7 +1904,9 @@ export default function ChatScreen({ route, navigation }) {
     tappedAt,
   } = route.params || {};
 
-  const t0Ref = useRef(global.performance ? global.performance.now() : Date.now());
+  const t0Ref = useRef(
+    global.performance ? global.performance.now() : Date.now(),
+  );
   const firstRenderRef = useRef(true);
 
   // ── Sync cache seed ──────────────────────────────────────────────────────
@@ -1829,11 +1914,18 @@ export default function ChatScreen({ route, navigation }) {
   // useChatPagination starts with real messages — FlatList renders on frame 0
   // without waiting for any useEffect or InteractionManager to fire.
   const initialMessagesRef = useRef(
-    conversationId ? (getCachedConversation(conversationId)?.messages || []) : []
+    conversationId ? getCachedConversation(conversationId)?.messages || [] : [],
   );
   if (initialMessagesRef.current.length > 0) {
     const c = initialMessagesRef.current;
-    console.log('[CHECK-3] cache seed order — first:', c[0]?.createdAt, 'last:', c[c.length - 1]?.createdAt, 'count:', c.length);
+    console.log(
+      "[CHECK-3] cache seed order — first:",
+      c[0]?.createdAt,
+      "last:",
+      c[c.length - 1]?.createdAt,
+      "count:",
+      c.length,
+    );
   }
 
   const {
@@ -1857,11 +1949,15 @@ export default function ChatScreen({ route, navigation }) {
   }, [isChatInputFocused]);
 
   useEffect(() => {
-    const unsubStart = navigation.addListener('transitionStart', (e) => {
-      console.log(`[PERF-NAV] ChatScreen transitionStart at: ${performance.now().toFixed(2)}ms, closing: ${e?.data?.closing}`);
+    const unsubStart = navigation.addListener("transitionStart", (e) => {
+      console.log(
+        `[PERF-NAV] ChatScreen transitionStart at: ${performance.now().toFixed(2)}ms, closing: ${e?.data?.closing}`,
+      );
     });
-    const unsubEnd = navigation.addListener('transitionEnd', (e) => {
-      console.log(`[PERF-NAV] ChatScreen transitionEnd at: ${performance.now().toFixed(2)}ms, closing: ${e?.data?.closing}`);
+    const unsubEnd = navigation.addListener("transitionEnd", (e) => {
+      console.log(
+        `[PERF-NAV] ChatScreen transitionEnd at: ${performance.now().toFixed(2)}ms, closing: ${e?.data?.closing}`,
+      );
       // Safety-net: once navigation animation completes, correct any residual drift.
       // For warm opens: revealList() already handles this with its 400ms settle window.
       // For cold opens: data may not have arrived yet — this is a no-op on an empty list.
@@ -1889,13 +1985,17 @@ export default function ChatScreen({ route, navigation }) {
       unsubscribeRemove();
       const start = performance.now();
       Keyboard.dismiss();
-      console.log(`[PERF-CLEANUP] ChatScreen Keyboard.dismiss() took: ${(performance.now() - start).toFixed(2)}ms`);
+      console.log(
+        `[PERF-CLEANUP] ChatScreen Keyboard.dismiss() took: ${(performance.now() - start).toFixed(2)}ms`,
+      );
     };
   }, [navigation]);
 
   useEffect(() => {
     return () => {
-      console.log(`[PERF-NAV] ChatScreen unmounted at: ${performance.now().toFixed(2)}ms`);
+      console.log(
+        `[PERF-NAV] ChatScreen unmounted at: ${performance.now().toFixed(2)}ms`,
+      );
     };
   }, []);
   const [recipient, setRecipient] = useState(() => {
@@ -1905,7 +2005,7 @@ export default function ChatScreen({ route, navigation }) {
         name: recipientName,
         username: recipientUsername || "",
         profilePhotoUrl: recipientAvatar || null,
-        type: recipientType || "member"
+        type: recipientType || "member",
       };
     }
     return null;
@@ -1923,8 +2023,10 @@ export default function ChatScreen({ route, navigation }) {
   });
   const [groupStatus, setGroupStatus] = useState("ACTIVE");
   const _renderNow = global.performance ? global.performance.now() : Date.now();
-  const _tapToRenderMs = tappedAt ? (_renderNow - tappedAt).toFixed(1) : 'n/a';
-  console.log(`[PERF] ChatScreen render — messagesLoading:${messagesLoading} loading:${loading} msgs:${messages.length} tapToRender:${_tapToRenderMs}ms`);
+  const _tapToRenderMs = tappedAt ? (_renderNow - tappedAt).toFixed(1) : "n/a";
+  console.log(
+    `[PERF] ChatScreen render — messagesLoading:${messagesLoading} loading:${loading} msgs:${messages.length} tapToRender:${_tapToRenderMs}ms`,
+  );
   const [sending, setSending] = useState(false);
   const [currentConversationId, setCurrentConversationId] =
     useState(conversationId);
@@ -1937,7 +2039,9 @@ export default function ChatScreen({ route, navigation }) {
   // navigator to provide a new navigation object). Reading .current at call time
   // inside MessageRow's ticket branch avoids the rebuild entirely.
   const navigationRef = useRef(navigation);
-  useEffect(() => { navigationRef.current = navigation; }, [navigation]);
+  useEffect(() => {
+    navigationRef.current = navigation;
+  }, [navigation]);
 
   const [currentUser, setCurrentUser] = useState(null);
   const [rsvpLoading, setRsvpLoading] = useState({});
@@ -1947,7 +2051,11 @@ export default function ChatScreen({ route, navigation }) {
   const rsvpLoadingRef = useRef({});
   const [sharedPostModalVisible, setSharedPostModalVisible] = useState(false);
   const [selectedSharedPost, setSelectedSharedPost] = useState(null);
-  const [commentsModalState, setCommentsModalState] = useState({ visible: false, postId: null, postType: "post" });
+  const [commentsModalState, setCommentsModalState] = useState({
+    visible: false,
+    postId: null,
+    postType: "post",
+  });
   const [sharedPosts, setSharedPosts] = useState({});
   const [selectedReply, setSelectedReply] = useState(null); // { id, messageText, senderName, isDeleted }
   const [optionsTarget, setOptionsTarget] = useState(null); // message object to show options for
@@ -2010,44 +2118,45 @@ export default function ChatScreen({ route, navigation }) {
         deleted: 0,
       };
       recent20.forEach((msg) => {
-        const type = msg.isDeleted
-          ? "deleted"
-          : msg.messageType || "text";
+        const type = msg.isDeleted ? "deleted" : msg.messageType || "text";
         breakdown[type] = (breakdown[type] || 0) + 1;
       });
       console.log("[PERF-MSG] type breakdown", breakdown);
     }
   }, [currentConversationId, messages]);
 
-  const handleTextChange = useCallback((text) => {
-    setMessageText(text);
+  const handleTextChange = useCallback(
+    (text) => {
+      setMessageText(text);
 
-    const socket = getSocket();
-    if (!socket || !currentConversationId || !currentUser) return;
+      const socket = getSocket();
+      if (!socket || !currentConversationId || !currentUser) return;
 
-    if (!isTypingRef.current && text.length > 0) {
-      isTypingRef.current = true;
-      socket.emit("typing_start", {
-        chatId: currentConversationId,
-        userId: currentUser.id,
-        userName: currentUser.name || "Someone",
-      });
-    }
-
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    typingTimeoutRef.current = setTimeout(() => {
-      if (isTypingRef.current) {
-        isTypingRef.current = false;
-        socket.emit("typing_stop", {
+      if (!isTypingRef.current && text.length > 0) {
+        isTypingRef.current = true;
+        socket.emit("typing_start", {
           chatId: currentConversationId,
           userId: currentUser.id,
+          userName: currentUser.name || "Someone",
         });
       }
-    }, 2000);
-  }, [currentConversationId, currentUser]);
+
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+
+      typingTimeoutRef.current = setTimeout(() => {
+        if (isTypingRef.current) {
+          isTypingRef.current = false;
+          socket.emit("typing_stop", {
+            chatId: currentConversationId,
+            userId: currentUser.id,
+          });
+        }
+      }, 2000);
+    },
+    [currentConversationId, currentUser],
+  );
 
   useEffect(() => {
     return () => {
@@ -2075,7 +2184,8 @@ export default function ChatScreen({ route, navigation }) {
         <View style={typingStyles.container}>
           <Text style={typingStyles.text}>
             <Text style={typingStyles.boldText}>{typingList[0]}</Text> and{" "}
-            <Text style={typingStyles.boldText}>{typingList[1]}</Text> are typing
+            <Text style={typingStyles.boldText}>{typingList[1]}</Text> are
+            typing
           </Text>
           <TypingDots />
         </View>
@@ -2150,7 +2260,6 @@ export default function ChatScreen({ route, navigation }) {
       flashListRef.current?.scrollToEnd({ animated: false });
     }
   }, []);
-
 
   const groupParticipantsRef = useRef([]);
   const visibleItemIdsRef = useRef(new Set());
@@ -2257,7 +2366,10 @@ export default function ChatScreen({ route, navigation }) {
           msg.planId;
         if (isMediaOrCard) {
           totalCost += 4;
-        } else if (msg.replyToId || (msg.messageText && msg.messageText.length > 140)) {
+        } else if (
+          msg.replyToId ||
+          (msg.messageText && msg.messageText.length > 140)
+        ) {
           totalCost += 2;
         } else {
           totalCost += 1;
@@ -2381,7 +2493,6 @@ export default function ChatScreen({ route, navigation }) {
     mediaTimelineRef.current = mediaTimeline;
   }, [mediaTimeline]);
 
-
   // ΓöÇΓöÇ scrollToMessage ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const scrollToMessage = useCallback(
     (targetId) => {
@@ -2404,31 +2515,32 @@ export default function ChatScreen({ route, navigation }) {
   );
 
   const recipientRef = useRef(recipient);
-  useEffect(() => { recipientRef.current = recipient; }, [recipient]);
+  useEffect(() => {
+    recipientRef.current = recipient;
+  }, [recipient]);
 
-  const handleReply = useCallback(
-    (msg, isMyMessage) => {
-      setSelectedReply({
-        id: msg.id,
-        messageText:
-          msg.messageType === "multi_media"
-            ? "Media"
-            : msg.messageType === "image"
-              ? "Photo"
-              : msg.messageType === "video"
-                ? "Video"
-                : msg.messageText,
-        messageType: msg.messageType,
-        senderName: isMyMessage ? "You" : msg.senderName || recipientRef.current?.name,
-        isDeleted: msg.isDeleted,
-        isPostShare: msg.messageType === "post_share",
-        postAuthorUsername:
-          msg.metadata?.authorUsername || msg.metadata?.author_username,
-        postCaption: msg.metadata?.caption,
-      });
-    },
-    [],
-  );
+  const handleReply = useCallback((msg, isMyMessage) => {
+    setSelectedReply({
+      id: msg.id,
+      messageText:
+        msg.messageType === "multi_media"
+          ? "Media"
+          : msg.messageType === "image"
+            ? "Photo"
+            : msg.messageType === "video"
+              ? "Video"
+              : msg.messageText,
+      messageType: msg.messageType,
+      senderName: isMyMessage
+        ? "You"
+        : msg.senderName || recipientRef.current?.name,
+      isDeleted: msg.isDeleted,
+      isPostShare: msg.messageType === "post_share",
+      postAuthorUsername:
+        msg.metadata?.authorUsername || msg.metadata?.author_username,
+      postCaption: msg.metadata?.caption,
+    });
+  }, []);
 
   const handleLongPress = useCallback((msg) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -2480,85 +2592,67 @@ export default function ChatScreen({ route, navigation }) {
     [updateMessageById],
   );
 
-  const handleOpenViewer = useCallback(
-    (mediaId) => {
-      const idx = mediaTimelineRef.current.findIndex((m) => m.id === mediaId);
-      if (idx !== -1) {
-        setViewerIndex(idx);
-        setViewerVisible(true);
-      }
-    },
-    [],
-  );
+  const handleOpenViewer = useCallback((mediaId) => {
+    const idx = mediaTimelineRef.current.findIndex((m) => m.id === mediaId);
+    if (idx !== -1) {
+      setViewerIndex(idx);
+      setViewerVisible(true);
+    }
+  }, []);
 
-  const handlePressPostShare = useCallback(
-    (postId, postData) => {
-      if (!postData) return;
+  const handlePressPostShare = useCallback((postId, postData) => {
+    if (!postData) return;
 
-      const pType = postData.post_type || postData.type || "media";
+    const pType = postData.post_type || postData.type || "media";
 
-      if (pType === "opportunity") {
-        const nav = navigationRef.current;
-        const n = nav?.getParent()?.getParent() || nav;
-        n?.navigate("OpportunityView", {
-          opportunityId: postId || postData.id,
-          opportunity: postData
-        });
-        return;
-      }
-
-      // Open focused full-screen post feed directly for all other post types
-      setSelectedSharedPost(postData);
-      setSharedPostModalVisible(true);
-    },
-    [],
-  );
-
-  const handlePressUser = useCallback(
-    (userId, userType) => {
-      const nav = navigationRef.current;
-      const n = nav?.getParent()?.getParent() || nav;
-      if (userType === "community") {
-        n?.navigate("CommunityPublicProfile", {
-          communityId: userId,
-          viewerRole: "member",
-        });
-      } else {
-        n?.navigate("MemberPublicProfile", { memberId: userId });
-      }
-    },
-    [],
-  );
-
-  const handlePressOpportunity = useCallback(
-    (opportunityId, metadata) => {
+    if (pType === "opportunity") {
       const nav = navigationRef.current;
       const n = nav?.getParent()?.getParent() || nav;
       n?.navigate("OpportunityView", {
-        opportunityId,
-        opportunity: { id: opportunityId, ...metadata },
+        opportunityId: postId || postData.id,
+        opportunity: postData,
       });
-    },
-    [],
-  );
+      return;
+    }
 
-  const handlePressEvent = useCallback(
-    (eventId) => {
-      const nav = navigationRef.current;
-      const n = nav?.getParent()?.getParent() || nav;
-      n?.navigate("EventDetails", { eventId });
-    },
-    [],
-  );
+    // Open focused full-screen post feed directly for all other post types
+    setSelectedSharedPost(postData);
+    setSharedPostModalVisible(true);
+  }, []);
 
-  const handlePressPlan = useCallback(
-    (planId) => {
-      const nav = navigationRef.current;
-      const n = nav?.getParent()?.getParent() || nav;
-      n?.navigate("PlanDetail", { planId });
-    },
-    [],
-  );
+  const handlePressUser = useCallback((userId, userType) => {
+    const nav = navigationRef.current;
+    const n = nav?.getParent()?.getParent() || nav;
+    if (userType === "community") {
+      n?.navigate("CommunityPublicProfile", {
+        communityId: userId,
+        viewerRole: "member",
+      });
+    } else {
+      n?.navigate("MemberPublicProfile", { memberId: userId });
+    }
+  }, []);
+
+  const handlePressOpportunity = useCallback((opportunityId, metadata) => {
+    const nav = navigationRef.current;
+    const n = nav?.getParent()?.getParent() || nav;
+    n?.navigate("OpportunityView", {
+      opportunityId,
+      opportunity: { id: opportunityId, ...metadata },
+    });
+  }, []);
+
+  const handlePressEvent = useCallback((eventId) => {
+    const nav = navigationRef.current;
+    const n = nav?.getParent()?.getParent() || nav;
+    n?.navigate("EventDetails", { eventId });
+  }, []);
+
+  const handlePressPlan = useCallback((planId) => {
+    const nav = navigationRef.current;
+    const n = nav?.getParent()?.getParent() || nav;
+    n?.navigate("PlanDetail", { planId });
+  }, []);
 
   // ΓöÇΓöÇ loadMessages ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
@@ -2566,9 +2660,13 @@ export default function ChatScreen({ route, navigation }) {
 
   // ── initializeConversation ────────────────────────────────────────────────────────
   useEffect(() => {
-    const tStartInit = global.performance ? global.performance.now() : Date.now();
+    const tStartInit = global.performance
+      ? global.performance.now()
+      : Date.now();
     if (tappedAt) {
-      console.log(`[PERF] Tap to ChatScreen useEffect init: ${(tStartInit - tappedAt).toFixed(2)}ms`);
+      console.log(
+        `[PERF] Tap to ChatScreen useEffect init: ${(tStartInit - tappedAt).toFixed(2)}ms`,
+      );
     }
     const init = async () => {
       if (conversationId) {
@@ -2585,10 +2683,12 @@ export default function ChatScreen({ route, navigation }) {
         // or on a first open (cache miss). This eliminates the ~850ms network
         // wait that users feel as lag on warm second-opens.
         const RECONCILE_SKIP_WINDOW_MS = 60_000; // 60 s
-        const cacheAgeMs = cached ? (Date.now() - cached.cachedAt) : Infinity;
+        const cacheAgeMs = cached ? Date.now() - cached.cachedAt : Infinity;
         const skipReconcile = cached && cacheAgeMs < RECONCILE_SKIP_WINDOW_MS;
         if (cached && cached.messages.length > 0) {
-          console.log(`[ConvCache] Cache HIT for ${conversationId} — ${cached.messages.length} msgs, age ${((Date.now() - cached.cachedAt) / 1000).toFixed(1)}s`);
+          console.log(
+            `[ConvCache] Cache HIT for ${conversationId} — ${cached.messages.length} msgs, age ${((Date.now() - cached.cachedAt) / 1000).toFixed(1)}s`,
+          );
           addNewMessages(cached.messages);
           setMessagesLoading(false);
         } else {
@@ -2598,21 +2698,28 @@ export default function ChatScreen({ route, navigation }) {
 
         setCurrentConversationId(conversationId);
         try {
-          const tStartLoad = global.performance ? global.performance.now() : Date.now();
+          const tStartLoad = global.performance
+            ? global.performance.now()
+            : Date.now();
           let freshMsgs = [];
           let freshCursor = null;
+          let freshHasMore = false; // set in each branch from the API response, not from React state
 
           if (cached && cached.messages.length > 0) {
             if (skipReconcile) {
               // ── FRESH CACHE: skip network, just restore pagination state ──
-              console.log(`[ConvCache] Cache HIT (fresh, ${(cacheAgeMs/1000).toFixed(1)}s old) — skipping reconcile`);
+              console.log(
+                `[ConvCache] Cache HIT (fresh, ${(cacheAgeMs / 1000).toFixed(1)}s old) — skipping reconcile`,
+              );
+              freshHasMore = cached.hasMore ?? false;
               bootstrapPaginationState({
                 conversationId,
-                cursor:   cached.cursor   || null,
-                hasMore:  cached.hasMore  ?? false,
-                newestAt: cached.messages.length > 0
-                  ? cached.messages[cached.messages.length - 1].createdAt
-                  : null,
+                cursor: cached.cursor || null,
+                hasMore: freshHasMore,
+                newestAt:
+                  cached.messages.length > 0
+                    ? cached.messages[cached.messages.length - 1].createdAt
+                    : null,
               });
             } else {
               // ── STALE CACHE: delta reconcile — only fetch what's NEW ────────
@@ -2620,38 +2727,53 @@ export default function ChatScreen({ route, navigation }) {
               // the last message we already have in cache. For quiet conversations
               // (no messages since last open) this returns 0 items and costs
               // essentially nothing. Only busy conversations pay proportional cost.
-              const newestCachedAt = cached.messages.length > 0
-                ? cached.messages[cached.messages.length - 1].createdAt
-                : null;
-              console.log(`[ConvCache] Cache HIT (stale, ${(cacheAgeMs/1000).toFixed(1)}s old) — delta reconcile after ${newestCachedAt}`);
+              const newestCachedAt =
+                cached.messages.length > 0
+                  ? cached.messages[cached.messages.length - 1].createdAt
+                  : null;
+              console.log(
+                `[ConvCache] Cache HIT (stale, ${(cacheAgeMs / 1000).toFixed(1)}s old) — delta reconcile after ${newestCachedAt}`,
+              );
               const reconcileParams = newestCachedAt
-                ? { after: newestCachedAt }           // delta: only newer messages
-                : { limit: 20 };                      // no anchor: full page fallback
-              const reconcileRes = await getMessages(conversationId, reconcileParams);
+                ? { after: newestCachedAt } // delta: only newer messages
+                : { limit: 20 }; // no anchor: full page fallback
+              const reconcileRes = await getMessages(
+                conversationId,
+                reconcileParams,
+              );
               freshMsgs = reconcileRes?.messages || [];
               freshCursor = reconcileRes?.nextCursor || null;
+              // For delta reconcile, hasMore from server tells us if there are older messages.
+              // Fall back to cached.hasMore if the reconcile didn't return a hasMore field.
+              freshHasMore = reconcileRes?.hasMore ?? cached.hasMore ?? false;
               if (reconcileRes?.status) setGroupStatus(reconcileRes.status);
-              // For delta reconcile: keep existing cursor/hasMore from cache since
-              // we only fetched new messages, not the full recent history.
               bootstrapPaginationState({
                 conversationId,
-                cursor:    freshCursor || cached.cursor || null,
-                hasMore:   reconcileRes?.hasMore ?? cached.hasMore ?? false,
-                newestAt:  freshMsgs.length > 0
-                  ? freshMsgs[freshMsgs.length - 1].createdAt
-                  : newestCachedAt,
+                cursor: freshCursor || cached.cursor || null,
+                hasMore: freshHasMore,
+                newestAt:
+                  freshMsgs.length > 0
+                    ? freshMsgs[freshMsgs.length - 1].createdAt
+                    : newestCachedAt,
               });
             }
           } else {
             // Cache MISS path: original loadInitial handles state reset + set
-            const loadRes = await loadInitial(conversationId);
+            const loadRes = await loadInitial(conversationId, INITIAL_MESSAGES_LIMIT);
             if (loadRes?.status) setGroupStatus(loadRes.status);
             freshMsgs = loadRes?.messages || [];
             freshCursor = loadRes?.nextCursor || null;
+            // Read hasMore from the API response object directly — NOT from the hasMore
+            // React state variable, which hasn't settled yet when this async code runs.
+            freshHasMore = loadRes?.hasMore ?? false;
           }
 
-          const tEndLoad = global.performance ? global.performance.now() : Date.now();
-          console.log(`[PERF] loadInitial (conversationId exists) took: ${(tEndLoad - tStartLoad).toFixed(2)}ms`);
+          const tEndLoad = global.performance
+            ? global.performance.now()
+            : Date.now();
+          console.log(
+            `[PERF] loadInitial (conversationId exists) took: ${(tEndLoad - tStartLoad).toFixed(2)}ms`,
+          );
 
           // Merge: addNewMessages dedupes by id, so this is always safe
           // regardless of whether cache was used.
@@ -2660,16 +2782,20 @@ export default function ChatScreen({ route, navigation }) {
           }
           // Update cache with the authoritative server state
           if (freshMsgs.length > 0 || !cached) {
-            console.log(`[ConvCache] WRITE conversationId=${conversationId} source=${cached ? 'reconcile' : 'initial'} count=${freshMsgs.length}`);
+            console.log(
+              `[ConvCache] WRITE conversationId=${conversationId} source=${cached ? "reconcile" : "initial"} count=${freshMsgs.length}`,
+            );
             setCachedConversation(conversationId, {
               messages: freshMsgs,
               cursor: freshCursor,
-              hasMore: hasMore,  // persisted so freshness gate can bootstrap pagination
+              hasMore: freshHasMore,
             });
           }
 
           EventBus.emit("messages-read");
-          NotificationConsumptionService.consumeChat(conversationId).catch(console.error);
+          NotificationConsumptionService.consumeChat(conversationId).catch(
+            console.error,
+          );
           // For group chats: fetch restriction flag + current user role
           if (isGroup) {
             try {
@@ -2693,10 +2819,19 @@ export default function ChatScreen({ route, navigation }) {
       } else if (recipientId) {
         setMessagesLoading(true);
         // 1. Resolve conversation with recipient using lightweight endpoint
-        const tResolveStart = global.performance ? global.performance.now() : Date.now();
-        const resolvedRes = await resolveConversation(recipientId, recipientType);
-        const tResolveEnd = global.performance ? global.performance.now() : Date.now();
-        console.log(`[PERF] resolveConversation took: ${(tResolveEnd - tResolveStart).toFixed(2)}ms`);
+        const tResolveStart = global.performance
+          ? global.performance.now()
+          : Date.now();
+        const resolvedRes = await resolveConversation(
+          recipientId,
+          recipientType,
+        );
+        const tResolveEnd = global.performance
+          ? global.performance.now()
+          : Date.now();
+        console.log(
+          `[PERF] resolveConversation took: ${(tResolveEnd - tResolveStart).toFixed(2)}ms`,
+        );
 
         const resolvedConvId = resolvedRes?.conversationId || null;
 
@@ -2709,17 +2844,19 @@ export default function ChatScreen({ route, navigation }) {
               name: p.name,
               username: p.username,
               profilePhotoUrl: p.logo_url,
-              type: "community"
+              type: "community",
             }));
           } else {
-            recipientPromise = getPublicMemberProfile(recipientId).then((p) => ({
-              id: p.id,
-              name: p.full_name || p.name,
-              username: p.username,
-              profilePhotoUrl: p.profile_photo_url,
-              you_have_blocked: !!p?.you_have_blocked,
-              type: "member"
-            }));
+            recipientPromise = getPublicMemberProfile(recipientId).then(
+              (p) => ({
+                id: p.id,
+                name: p.full_name || p.name,
+                username: p.username,
+                profilePhotoUrl: p.profile_photo_url,
+                you_have_blocked: !!p?.you_have_blocked,
+                type: "member",
+              }),
+            );
           }
         }
 
@@ -2728,18 +2865,27 @@ export default function ChatScreen({ route, navigation }) {
         let loadInitialIndex = -1;
         if (resolvedConvId) {
           loadInitialIndex = promises.length;
-          promises.push(loadInitial(resolvedConvId));
+          promises.push(loadInitial(resolvedConvId, INITIAL_MESSAGES_LIMIT));
         }
 
-        const tPromisesStart = global.performance ? global.performance.now() : Date.now();
+        const tPromisesStart = global.performance
+          ? global.performance.now()
+          : Date.now();
         const results = await Promise.all(promises);
-        const loadRes = loadInitialIndex !== -1 ? results[loadInitialIndex] : null;
+        const loadRes =
+          loadInitialIndex !== -1 ? results[loadInitialIndex] : null;
         if (loadRes?.status) setGroupStatus(loadRes.status);
-        const tPromisesEnd = global.performance ? global.performance.now() : Date.now();
+        const tPromisesEnd = global.performance
+          ? global.performance.now()
+          : Date.now();
         if (loadInitialIndex !== -1) {
-          console.log(`[PERF] loadInitial + recipientPromise concurrent took: ${(tPromisesEnd - tPromisesStart).toFixed(2)}ms`);
+          console.log(
+            `[PERF] loadInitial + recipientPromise concurrent took: ${(tPromisesEnd - tPromisesStart).toFixed(2)}ms`,
+          );
         } else {
-          console.log(`[PERF] recipientPromise took: ${(tPromisesEnd - tPromisesStart).toFixed(2)}ms`);
+          console.log(
+            `[PERF] recipientPromise took: ${(tPromisesEnd - tPromisesStart).toFixed(2)}ms`,
+          );
         }
 
         const recipientResult = results[0];
@@ -2756,14 +2902,19 @@ export default function ChatScreen({ route, navigation }) {
           // Populate cache for the resolved conversation so next open is instant
           const freshMsgs = loadRes?.messages || [];
           if (freshMsgs.length > 0) {
-            console.log(`[ConvCache] WRITE conversationId=${resolvedConvId} source=recipientPath count=${freshMsgs.length} (will be trimmed to ${Math.min(freshMsgs.length, 30)})`);
+            console.log(
+              `[ConvCache] WRITE conversationId=${resolvedConvId} source=recipientPath count=${freshMsgs.length} (will be trimmed to ${Math.min(freshMsgs.length, 30)})`,
+            );
             setCachedConversation(resolvedConvId, {
               messages: freshMsgs,
               cursor: loadRes?.nextCursor || null,
+              hasMore: loadRes?.hasMore ?? false,
             });
           }
           EventBus.emit("messages-read");
-          NotificationConsumptionService.consumeChat(resolvedConvId).catch(console.error);
+          NotificationConsumptionService.consumeChat(resolvedConvId).catch(
+            console.error,
+          );
         } else {
           setCurrentConversationId(null);
         }
@@ -2792,8 +2943,12 @@ export default function ChatScreen({ route, navigation }) {
       } finally {
         setLoading(false);
         setMessagesLoading(false);
-        const tEndAll = global.performance ? global.performance.now() : Date.now();
-        console.log(`[PERF] Total ChatScreen initialization took: ${(tEndAll - tStartInit).toFixed(2)}ms`);
+        const tEndAll = global.performance
+          ? global.performance.now()
+          : Date.now();
+        console.log(
+          `[PERF] Total ChatScreen initialization took: ${(tEndAll - tStartInit).toFixed(2)}ms`,
+        );
       }
     };
     // ── Defer all init work until after the navigation animation settles ──────
@@ -2809,7 +2964,10 @@ export default function ChatScreen({ route, navigation }) {
 
   // Fetch fresh post details when shared post modal opens
   useEffect(() => {
-    const targetPostId = selectedSharedPost?.id || selectedSharedPost?.postId || selectedSharedPost?.post_id;
+    const targetPostId =
+      selectedSharedPost?.id ||
+      selectedSharedPost?.postId ||
+      selectedSharedPost?.post_id;
     if (sharedPostModalVisible && targetPostId) {
       let isMounted = true;
       const loadFreshPost = async () => {
@@ -2820,7 +2978,10 @@ export default function ChatScreen({ route, navigation }) {
             setSelectedSharedPost(post);
           }
         } catch (err) {
-          console.warn("[ChatScreen] Failed to fetch fresh shared post details:", err?.message);
+          console.warn(
+            "[ChatScreen] Failed to fetch fresh shared post details:",
+            err?.message,
+          );
         }
       };
       loadFreshPost();
@@ -2828,13 +2989,20 @@ export default function ChatScreen({ route, navigation }) {
         isMounted = false;
       };
     }
-  }, [sharedPostModalVisible, selectedSharedPost?.id, selectedSharedPost?.postId, selectedSharedPost?.post_id]);
+  }, [
+    sharedPostModalVisible,
+    selectedSharedPost?.id,
+    selectedSharedPost?.postId,
+    selectedSharedPost?.post_id,
+  ]);
 
   useEffect(() => {
     if (firstRenderRef.current && !messagesLoading) {
       firstRenderRef.current = false;
       const tEnd = global.performance ? global.performance.now() : Date.now();
-      console.log(`[PERF] FlatList rendered with messages: ${(tEnd - t0Ref.current).toFixed(2)}ms since ChatScreen mount`);
+      console.log(
+        `[PERF] FlatList rendered with messages: ${(tEnd - t0Ref.current).toFixed(2)}ms since ChatScreen mount`,
+      );
     }
   });
 
@@ -2886,9 +3054,11 @@ export default function ChatScreen({ route, navigation }) {
 
   // ——— Supabase Realtime Subscription ————————————————————————————————————————————————
   useRealtimeSubscription({
-    table: 'messages',
-    event: '*',
-    filter: currentConversationId ? `conversation_id=eq.${currentConversationId}` : null,
+    table: "messages",
+    event: "*",
+    filter: currentConversationId
+      ? `conversation_id=eq.${currentConversationId}`
+      : null,
     onData: (payload) => {
       if (payload.eventType === "INSERT") {
         const m = payload.new;
@@ -2914,14 +3084,17 @@ export default function ChatScreen({ route, navigation }) {
         // ConversationsListScreen doesn't show a false unread badge on return.
         markMessageRead(m.id).catch(() => {});
       } else if (payload.eventType === "UPDATE") {
-        console.log("[ChatScreen] Realtime message update received:", payload.new.id);
+        console.log(
+          "[ChatScreen] Realtime message update received:",
+          payload.new.id,
+        );
         updateMessageById(payload.new.id, {
           isDeleted: payload.new.is_deleted,
           deletedByType: payload.new.deleted_by_type,
           messageText: payload.new.is_deleted ? null : payload.new.message_text,
         });
       }
-    }
+    },
   });
 
   // ——— Socket.io Room Joins & Leaves —————————————————————————————————──────────────
@@ -2930,16 +3103,22 @@ export default function ChatScreen({ route, navigation }) {
 
     const socket = getSocket();
     if (socket) {
-      console.log(`[ChatScreen] Joining socket chat room: chat_${currentConversationId}`);
+      console.log(
+        `[ChatScreen] Joining socket chat room: chat_${currentConversationId}`,
+      );
       socket.emit("join_chat", currentConversationId);
     }
 
     return () => {
       if (socket) {
         const start = performance.now();
-        console.log(`[ChatScreen] Leaving socket chat room: chat_${currentConversationId}`);
+        console.log(
+          `[ChatScreen] Leaving socket chat room: chat_${currentConversationId}`,
+        );
         socket.emit("leave_chat", currentConversationId);
-        console.log(`[PERF-CLEANUP] ChatScreen socket leave_chat took: ${(performance.now() - start).toFixed(2)}ms`);
+        console.log(
+          `[PERF-CLEANUP] ChatScreen socket leave_chat took: ${(performance.now() - start).toFixed(2)}ms`,
+        );
       }
     };
   }, [currentConversationId]);
@@ -2951,12 +3130,12 @@ export default function ChatScreen({ route, navigation }) {
 
     const handleUserTyping = ({ userId, userName }) => {
       console.log("[ChatScreen] User is typing:", userId, userName);
-      setTypingUsers(prev => ({ ...prev, [userId]: userName }));
+      setTypingUsers((prev) => ({ ...prev, [userId]: userName }));
     };
 
     const handleUserStoppedTyping = ({ userId }) => {
       console.log("[ChatScreen] User stopped typing:", userId);
-      setTypingUsers(prev => {
+      setTypingUsers((prev) => {
         const copy = { ...prev };
         delete copy[userId];
         return copy;
@@ -3027,7 +3206,9 @@ export default function ChatScreen({ route, navigation }) {
       }
       // Mark as read immediately
       markMessageRead(msg.id).catch(() => {});
-      NotificationConsumptionService.consumeChat(currentConversationId).catch(console.error);
+      NotificationConsumptionService.consumeChat(currentConversationId).catch(
+        console.error,
+      );
     };
 
     const handleMessageUpdated = (msg) => {
@@ -3041,9 +3222,12 @@ export default function ChatScreen({ route, navigation }) {
 
     const handleGroupStatusChanged = ({ conversationId, status }) => {
       if (Number(conversationId) === Number(currentConversationId)) {
-        console.log("[ChatScreen] Socket.io group_status_changed received:", status);
+        console.log(
+          "[ChatScreen] Socket.io group_status_changed received:",
+          status,
+        );
         setGroupStatus(status);
-        loadInitial(currentConversationId).catch(console.error);
+        loadInitial(currentConversationId, INITIAL_MESSAGES_LIMIT).catch(console.error);
       }
     };
 
@@ -3056,7 +3240,13 @@ export default function ChatScreen({ route, navigation }) {
       socket.off("message_updated", handleMessageUpdated);
       socket.off("group_status_changed", handleGroupStatusChanged);
     };
-  }, [currentConversationId, currentUser, addNewMessage, updateMessageById, loadInitial]);
+  }, [
+    currentConversationId,
+    currentUser,
+    addNewMessage,
+    updateMessageById,
+    loadInitial,
+  ]);
 
   const handleSend = async () => {
     const hasText = messageText.trim().length > 0;
@@ -3509,7 +3699,7 @@ export default function ChatScreen({ route, navigation }) {
       setYouHaveBlocked(false);
       // Re-fetch messages so B's messages that were hidden during the block now appear for A
       if (currentConversationId) {
-        await loadInitial(currentConversationId);
+        await loadInitial(currentConversationId, INITIAL_MESSAGES_LIMIT);
       }
     } catch (err) {
       showAlert({
@@ -3591,8 +3781,11 @@ export default function ChatScreen({ route, navigation }) {
     if (nextMessage.senderId !== message.senderId) return true;
 
     // Use pre-cached timestamps to avoid new Date overhead
-    const timeA = message._time || (message._time = new Date(message.createdAt).getTime());
-    const timeB = nextMessage._time || (nextMessage._time = new Date(nextMessage.createdAt).getTime());
+    const timeA =
+      message._time || (message._time = new Date(message.createdAt).getTime());
+    const timeB =
+      nextMessage._time ||
+      (nextMessage._time = new Date(nextMessage.createdAt).getTime());
     const diff = Math.abs(timeB - timeA);
     return diff > 60000;
   }, []);
@@ -3604,8 +3797,13 @@ export default function ChatScreen({ route, navigation }) {
   // ——— renderItem ———————————————————————————————————————————————————————————————————
   const renderItem = useCallback(
     ({ item, index }) => {
-      if (item.type === 'message' && index < 3) {
-        console.log('[CHECK-6] renderItem index:', index, 'createdAt:', item.data.createdAt);
+      if (item.type === "message" && index < 3) {
+        console.log(
+          "[CHECK-6] renderItem index:",
+          index,
+          "createdAt:",
+          item.data.createdAt,
+        );
       }
 
       if (item.type === "separator") {
@@ -3714,9 +3912,13 @@ export default function ChatScreen({ route, navigation }) {
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => {
-              console.log(`[PERF-NAV] ChatScreen Back pressed (loading screen) at: ${performance.now().toFixed(2)}ms`);
+              console.log(
+                `[PERF-NAV] ChatScreen Back pressed (loading screen) at: ${performance.now().toFixed(2)}ms`,
+              );
               Keyboard.dismiss();
-              console.log(`[PERF-NAV] ChatScreen navigation.goBack() called at: ${performance.now().toFixed(2)}ms`);
+              console.log(
+                `[PERF-NAV] ChatScreen navigation.goBack() called at: ${performance.now().toFixed(2)}ms`,
+              );
               navigation.goBack();
             }}
             style={styles.backButton}
@@ -3738,540 +3940,568 @@ export default function ChatScreen({ route, navigation }) {
   return (
     <Profiler id="ChatScreen" onRender={onRenderProfiler}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-      <View style={styles.container}>
-        <StatusBar style="dark" animated={true} />
-        <View style={{ backgroundColor: "#FFFFFF", zIndex: 10 }}>
-          <View style={{ height: insets.top }} />
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => {
-                console.log(`[PERF-NAV] ChatScreen Back pressed at: ${performance.now().toFixed(2)}ms`);
-                Keyboard.dismiss();
-                console.log(`[PERF-NAV] ChatScreen navigation.goBack() called at: ${performance.now().toFixed(2)}ms`);
-                navigation.goBack();
-              }}
-              style={styles.backButton}
-              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-            >
-              <ArrowLeft size={22} color="#333333" strokeWidth={2.5} />
-            </TouchableOpacity>
-            {isGroup ? (
-              <>
-                <TouchableOpacity
-                  style={[
-                    styles.headerInfo,
-                    {
-                      flexDirection: "column",
-                      alignItems: "flex-start",
-                    },
-                  ]}
-                  onPress={() =>
-                    navigation.navigate("GroupInfo", {
-                      conversationId: currentConversationId,
-                      groupName,
-                    })
-                  }
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.headerName} numberOfLines={1}>
-                    {groupName || "Group"}
-                  </Text>
-                  <Text style={styles.headerUsername}>Tap to view info</Text>
-                </TouchableOpacity>
-                <View style={{ flex: 1 }} />
-                <TouchableOpacity
-                  style={{ padding: 8 }}
-                  onPress={() => setChatActionsVisible(true)}
-                >
-                  <MoreVertical size={22} color="#8FA1B8" strokeWidth={2} />
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                {recipient && (
+        <View style={styles.container}>
+          <StatusBar style="dark" animated={true} />
+          <View style={{ backgroundColor: "#FFFFFF", zIndex: 10 }}>
+            <View style={{ height: insets.top }} />
+            <View style={styles.header}>
+              <TouchableOpacity
+                onPress={() => {
+                  console.log(
+                    `[PERF-NAV] ChatScreen Back pressed at: ${performance.now().toFixed(2)}ms`,
+                  );
+                  Keyboard.dismiss();
+                  console.log(
+                    `[PERF-NAV] ChatScreen navigation.goBack() called at: ${performance.now().toFixed(2)}ms`,
+                  );
+                  navigation.goBack();
+                }}
+                style={styles.backButton}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+              >
+                <ArrowLeft size={22} color="#333333" strokeWidth={2.5} />
+              </TouchableOpacity>
+              {isGroup ? (
+                <>
                   <TouchableOpacity
-                    style={styles.headerInfo}
+                    style={[
+                      styles.headerInfo,
+                      {
+                        flexDirection: "column",
+                        alignItems: "flex-start",
+                      },
+                    ]}
+                    onPress={() =>
+                      navigation.navigate("GroupInfo", {
+                        conversationId: currentConversationId,
+                        groupName,
+                      })
+                    }
                     activeOpacity={0.7}
-                    onPress={() => {
-                      if (isBlockedByOther) return; // don't navigate to profile of user who blocked you
-                      const nav =
-                        navigation.getParent()?.getParent() || navigation;
-                      if (currentRecipientType === "community") {
-                        nav.navigate("CommunityPublicProfile", {
-                          communityId: currentRecipientId || recipientId,
-                          viewerRole: "member",
-                        });
-                      } else {
-                        nav.navigate("MemberPublicProfile", {
-                          memberId: currentRecipientId || recipientId,
-                        });
-                      }
-                    }}
                   >
-                    {isBlockedByOther ? (
-                      <View
-                        style={[
-                          styles.headerAvatar,
-                          {
-                            backgroundColor: "#EFEFF4",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          },
-                        ]}
-                      >
-                        <UserX size={18} color="#8E8E93" strokeWidth={1.5} />
-                      </View>
-                    ) : (
-                      <Image
-                        source={{ uri: recipient.profilePhotoUrl }}
-                        style={styles.headerAvatar}
-                        contentFit="cover"
-                        cachePolicy="memory-disk"
-                      />
-                    )}
-                    <View>
-                      <Text style={styles.headerName} numberOfLines={1}>
-                        {isBlockedByOther
-                          ? "Snoospace User"
-                          : recipient.name || "User"}
-                      </Text>
-                      {!isBlockedByOther && (
-                        <Text style={styles.headerUsername} numberOfLines={1}>
-                          @{recipient.username || "user"}
-                        </Text>
-                      )}
-                    </View>
+                    <Text style={styles.headerName} numberOfLines={1}>
+                      {groupName || "Group"}
+                    </Text>
+                    <Text style={styles.headerUsername}>Tap to view info</Text>
                   </TouchableOpacity>
-                )}
-                <View style={{ flex: 1 }} />
+                  <View style={{ flex: 1 }} />
+                  <TouchableOpacity
+                    style={{ padding: 8 }}
+                    onPress={() => setChatActionsVisible(true)}
+                  >
+                    <MoreVertical size={22} color="#8FA1B8" strokeWidth={2} />
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  {recipient && (
+                    <TouchableOpacity
+                      style={styles.headerInfo}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        if (isBlockedByOther) return; // don't navigate to profile of user who blocked you
+                        const nav =
+                          navigation.getParent()?.getParent() || navigation;
+                        if (currentRecipientType === "community") {
+                          nav.navigate("CommunityPublicProfile", {
+                            communityId: currentRecipientId || recipientId,
+                            viewerRole: "member",
+                          });
+                        } else {
+                          nav.navigate("MemberPublicProfile", {
+                            memberId: currentRecipientId || recipientId,
+                          });
+                        }
+                      }}
+                    >
+                      {isBlockedByOther ? (
+                        <View
+                          style={[
+                            styles.headerAvatar,
+                            {
+                              backgroundColor: "#EFEFF4",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            },
+                          ]}
+                        >
+                          <UserX size={18} color="#8E8E93" strokeWidth={1.5} />
+                        </View>
+                      ) : (
+                        <Image
+                          source={{ uri: recipient.profilePhotoUrl }}
+                          style={styles.headerAvatar}
+                          contentFit="cover"
+                          cachePolicy="memory-disk"
+                        />
+                      )}
+                      <View>
+                        <Text style={styles.headerName} numberOfLines={1}>
+                          {isBlockedByOther
+                            ? "Snoospace User"
+                            : recipient.name || "User"}
+                        </Text>
+                        {!isBlockedByOther && (
+                          <Text style={styles.headerUsername} numberOfLines={1}>
+                            @{recipient.username || "user"}
+                          </Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                  <View style={{ flex: 1 }} />
+                  <TouchableOpacity
+                    style={{ padding: 8 }}
+                    onPress={() => setChatActionsVisible(true)}
+                  >
+                    <MoreVertical size={22} color="#8FA1B8" strokeWidth={2} />
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+            {youHaveBlocked && (
+              <View style={blockBannerStyles.banner}>
+                <View style={blockBannerStyles.left}>
+                  <ShieldOff
+                    size={18}
+                    color="#E11D48"
+                    strokeWidth={2}
+                    style={{ marginRight: 8 }}
+                  />
+                  <Text style={blockBannerStyles.text}>
+                    You've blocked this user
+                  </Text>
+                </View>
                 <TouchableOpacity
-                  style={{ padding: 8 }}
-                  onPress={() => setChatActionsVisible(true)}
+                  style={blockBannerStyles.btn}
+                  onPress={handleUnblockUser}
+                  disabled={unblocking}
+                  activeOpacity={0.75}
                 >
-                  <MoreVertical size={22} color="#8FA1B8" strokeWidth={2} />
+                  <Text style={blockBannerStyles.btnText}>
+                    {unblocking ? "Unblocking…" : "Unblock"}
+                  </Text>
                 </TouchableOpacity>
-              </>
+              </View>
             )}
           </View>
-          {youHaveBlocked && (
-            <View style={blockBannerStyles.banner}>
-              <View style={blockBannerStyles.left}>
-                <ShieldOff
-                  size={18}
-                  color="#E11D48"
-                  strokeWidth={2}
-                  style={{ marginRight: 8 }}
-                />
-                <Text style={blockBannerStyles.text}>
-                  You've blocked this user
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={blockBannerStyles.btn}
-                onPress={handleUnblockUser}
-                disabled={unblocking}
-                activeOpacity={0.75}
-              >
-                <Text style={blockBannerStyles.btnText}>
-                  {unblocking ? "Unblocking…" : "Unblock"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
 
-        <KeyboardAvoidingView
-          enabled={isChatInputFocused}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.keyboardView}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-        >
-          <Animated.View style={[{ flex: 1 }, containerAnimatedStyle]}>
-            {messagesLoading && (
-              <View style={styles.loadingOverlay} pointerEvents="none">
-                <ActivityIndicator size="large" color={PRIMARY_COLOR} />
-              </View>
-            )}
-            <View style={{ flex: 1 }}>
-              <FlashList
-                ref={flashListRef}
-                data={flatListData}
-                keyExtractor={keyExtractor}
-                renderItem={renderItem}
-                getItemType={(item) => item.type}
-                overrideItemLayout={overrideItemLayout}
-                estimatedItemSize={estimatedItemSize}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={[
-                  styles.listContent,
-                  { paddingBottom: 12 + insets.bottom },
-                ]}
-                drawDistance={1500}
-                maintainVisibleContentPosition={{
-                  startRenderingFromBottom: true,
-                }}
-                onStartReached={() => {
-                  if (hasMore && !loadingOlder) {
-                    loadOlderMessages(currentConversationId);
-                  }
-                }}
-                onStartReachedThreshold={0.4}
-                onScroll={(e) => {
-                  const y = e.nativeEvent.contentOffset.y;
-                  const contentH = e.nativeEvent.contentSize.height;
-                  const listH = e.nativeEvent.layoutMeasurement.height;
-                  isAtBottomRef.current = (contentH - listH - y) < 100;
-                }}
-                scrollEventThrottle={16}
-                onContentSizeChange={onContentSizeChange}
-                onLayout={(e) => {
-                  const { height } = e.nativeEvent.layout;
-                  if (height > 0 && flatListData.length > 0) {
-                    revealList();
-                  }
-                }}
-                ListHeaderComponent={
-                  loadingOlder ? (
-                    <View style={styles.loadingOlderContainer}>
-                      <ActivityIndicator size="small" color={PRIMARY_COLOR} />
-                    </View>
-                  ) : null
-                }
-                ListEmptyComponent={
-                  !messagesLoading ? (
-                    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", minHeight: 200 }}>
-                      <EmptyChatState />
-                    </View>
-                  ) : null
-                }
-                viewabilityConfig={viewabilityConfigRef.current}
-                onViewableItemsChanged={onViewableItemsChangedRef.current}
-              />
-            </View>
-
-          </Animated.View>
-        </KeyboardAvoidingView>
-
-        <KeyboardAwareToolbar enabled={isChatInputFocused}>
-          <ReplyBar
-            reply={selectedReply}
-            onClose={() => setSelectedReply(null)}
-            heightShared={replyBarHeightShared}
-          />
-          <View
-            style={{ flexDirection: "column" }}
-            onLayout={(e) => {
-              const { height } = e.nativeEvent.layout;
-              if (height > 0) {
-                setInputHeight(height);
-              }
-            }}
+          <KeyboardAvoidingView
+            enabled={isChatInputFocused}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.keyboardView}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
           >
-            {renderTypingIndicator()}
-
-            {/* ΓöÇΓöÇ Locked bar: shown to non-admins when messaging is restricted ΓöÇΓöÇ */}
-            {isGroup && groupStatus === "CLOSED" ? (
-              <View style={styles.closedBar}>
-                <View style={styles.closedBarHeader}>
-                  <LockKeyhole size={18} color="#FF3B30" strokeWidth={2.2} style={{ marginRight: 8 }} />
-                  <Text style={styles.closedBarTitle}>This group has been closed</Text>
+            <Animated.View style={[{ flex: 1 }, containerAnimatedStyle]}>
+              {messagesLoading && (
+                <View style={styles.loadingOverlay} pointerEvents="none">
+                  <ActivityIndicator size="large" color={PRIMARY_COLOR} />
                 </View>
-                <Text style={styles.closedBarSubtext}>
-                  Past conversations remain available, but new messages cannot be sent.
-                </Text>
-              </View>
-            ) : isGroup && messagingRestricted && myGroupRole !== "admin" ? (
-              <View style={styles.lockedBar}>
-                <View style={styles.lockedBarIcon}>
-                  <LockKeyhole size={16} color={ACCENT} strokeWidth={2} />
-                </View>
-                <Text style={styles.lockedBarText}>
-                  Only admins can send messages
-                </Text>
-                <View style={styles.lockedBarBadge}>
-                  <Megaphone
-                    size={12}
-                    color="#8FA1B8"
-                    strokeWidth={2}
-                    style={{ marginRight: 4 }}
-                  />
-                  <Text style={styles.lockedBarBadgeText}>Announcement</Text>
-                </View>
-              </View>
-            ) : (
-              <>
-                {/* ΓöÇΓöÇ Media preview strip ΓöÇΓöÇ */}
-                {mediaAttachments.length > 0 && (
-                  <View style={styles.mediaPreviewStrip}>
-                    {/* Scrollable thumbnail row */}
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      style={styles.mediaPreviewScroll}
-                      contentContainerStyle={styles.mediaPreviewScrollContent}
-                    >
-                      {mediaAttachments.map((att, idx) => (
-                        <View key={idx} style={styles.mediaThumbContainer}>
-                          <Image
-                            source={{ uri: att.thumbnailUri || att.uri }}
-                            style={styles.mediaPreviewThumb}
-                            contentFit="cover"
-                            cachePolicy="memory"
-                          />
-                          {att.type === "video" && (
-                            <View style={styles.mediaPreviewVideoIcon}>
-                              <Text style={{ fontSize: 9 }}>≡ƒÄÑ</Text>
-                            </View>
-                          )}
-                          {/* Per-item remove button */}
-                          <TouchableOpacity
-                            style={styles.mediaThumbRemove}
-                            onPress={() =>
-                              setMediaAttachments((prev) =>
-                                prev.filter((_, i) => i !== idx),
-                              )
-                            }
-                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                          >
-                            <X size={12} color="#FFFFFF" strokeWidth={3} />
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                    </ScrollView>
-
-                    {/* Caption input + close-all */}
-                    <View style={styles.mediaCaptionRow}>
-                      <TextInput
-                        style={styles.mediaCaption}
-                        placeholder={`Add a caption`}
-                        placeholderTextColor="#B0BEC5"
-                        value={messageText}
-                        onChangeText={handleTextChange}
-                        multiline
-                        maxLength={500}
-                      />
-                      <TouchableOpacity
-                        onPress={() => {
-                          setMediaAttachments([]);
-                          setMessageText("");
+              )}
+              <View style={{ flex: 1 }}>
+                <FlashList
+                  ref={flashListRef}
+                  data={flatListData}
+                  keyExtractor={keyExtractor}
+                  renderItem={renderItem}
+                  getItemType={(item) => item.type}
+                  overrideItemLayout={overrideItemLayout}
+                  estimatedItemSize={estimatedItemSize}
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={[
+                    styles.listContent,
+                    { paddingBottom: 12 + insets.bottom },
+                  ]}
+                  drawDistance={4000}
+                  maintainVisibleContentPosition={{
+                    startRenderingFromBottom: true,
+                  }}
+                  onStartReached={() => {
+                    if (hasMore && !loadingOlder) {
+                      loadOlderMessages(currentConversationId);
+                    }
+                  }}
+                  onStartReachedThreshold={0.4}
+                  onScroll={(e) => {
+                    const y = e.nativeEvent.contentOffset.y;
+                    const contentH = e.nativeEvent.contentSize.height;
+                    const listH = e.nativeEvent.layoutMeasurement.height;
+                    isAtBottomRef.current = contentH - listH - y < 100;
+                  }}
+                  scrollEventThrottle={16}
+                  onContentSizeChange={onContentSizeChange}
+                  onLayout={(e) => {
+                    const { height } = e.nativeEvent.layout;
+                    if (height > 0 && flatListData.length > 0) {
+                      revealList();
+                    }
+                  }}
+                  ListHeaderComponent={
+                    loadingOlder ? (
+                      <View style={styles.loadingOlderContainer}>
+                        <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+                      </View>
+                    ) : null
+                  }
+                  ListEmptyComponent={
+                    !messagesLoading ? (
+                      <View
+                        style={{
+                          flex: 1,
+                          justifyContent: "center",
+                          alignItems: "center",
+                          minHeight: 200,
                         }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <X size={18} color="#8FA1B8" strokeWidth={2.5} />
-                      </TouchableOpacity>
-                    </View>
+                        <EmptyChatState />
+                      </View>
+                    ) : null
+                  }
+                  viewabilityConfig={viewabilityConfigRef.current}
+                  onViewableItemsChanged={onViewableItemsChangedRef.current}
+                />
+              </View>
+            </Animated.View>
+          </KeyboardAvoidingView>
+
+          <KeyboardAwareToolbar enabled={isChatInputFocused}>
+            <ReplyBar
+              reply={selectedReply}
+              onClose={() => setSelectedReply(null)}
+              heightShared={replyBarHeightShared}
+            />
+            <View
+              style={{ flexDirection: "column" }}
+              onLayout={(e) => {
+                const { height } = e.nativeEvent.layout;
+                if (height > 0) {
+                  setInputHeight(height);
+                }
+              }}
+            >
+              {renderTypingIndicator()}
+
+              {/* ΓöÇΓöÇ Locked bar: shown to non-admins when messaging is restricted ΓöÇΓöÇ */}
+              {isGroup && groupStatus === "CLOSED" ? (
+                <View style={styles.closedBar}>
+                  <View style={styles.closedBarHeader}>
+                    <LockKeyhole
+                      size={18}
+                      color="#FF3B30"
+                      strokeWidth={2.2}
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text style={styles.closedBarTitle}>
+                      This group has been closed
+                    </Text>
                   </View>
-                )}
+                  <Text style={styles.closedBarSubtext}>
+                    Past conversations remain available, but new messages cannot
+                    be sent.
+                  </Text>
+                </View>
+              ) : isGroup && messagingRestricted && myGroupRole !== "admin" ? (
+                <View style={styles.lockedBar}>
+                  <View style={styles.lockedBarIcon}>
+                    <LockKeyhole size={16} color={ACCENT} strokeWidth={2} />
+                  </View>
+                  <Text style={styles.lockedBarText}>
+                    Only admins can send messages
+                  </Text>
+                  <View style={styles.lockedBarBadge}>
+                    <Megaphone
+                      size={12}
+                      color="#8FA1B8"
+                      strokeWidth={2}
+                      style={{ marginRight: 4 }}
+                    />
+                    <Text style={styles.lockedBarBadgeText}>Announcement</Text>
+                  </View>
+                </View>
+              ) : (
+                <>
+                  {/* ΓöÇΓöÇ Media preview strip ΓöÇΓöÇ */}
+                  {mediaAttachments.length > 0 && (
+                    <View style={styles.mediaPreviewStrip}>
+                      {/* Scrollable thumbnail row */}
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.mediaPreviewScroll}
+                        contentContainerStyle={styles.mediaPreviewScrollContent}
+                      >
+                        {mediaAttachments.map((att, idx) => (
+                          <View key={idx} style={styles.mediaThumbContainer}>
+                            <Image
+                              source={{ uri: att.thumbnailUri || att.uri }}
+                              style={styles.mediaPreviewThumb}
+                              contentFit="cover"
+                              cachePolicy="memory"
+                            />
+                            {att.type === "video" && (
+                              <View style={styles.mediaPreviewVideoIcon}>
+                                <Text style={{ fontSize: 9 }}>≡ƒÄÑ</Text>
+                              </View>
+                            )}
+                            {/* Per-item remove button */}
+                            <TouchableOpacity
+                              style={styles.mediaThumbRemove}
+                              onPress={() =>
+                                setMediaAttachments((prev) =>
+                                  prev.filter((_, i) => i !== idx),
+                                )
+                              }
+                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                            >
+                              <X size={12} color="#FFFFFF" strokeWidth={3} />
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                      </ScrollView>
 
-                {/* ΓöÇΓöÇ Regular input row ΓöÇΓöÇ */}
-                <View style={styles.inputContent}>
-                  {/* Attachment button ΓÇö opens CustomImagePicker directly */}
-                  <TouchableOpacity
-                    style={styles.attachBtn}
-                    onPress={() => setMediaPickerOpen(true)}
-                  >
-                    <ImagePlus size={22} color={ACCENT} strokeWidth={2} />
-                  </TouchableOpacity>
-
-                  {!mediaAttachments.length && (
-                    <View style={styles.inputWrapper}>
-                      <TextInput
-                        ref={inputRef}
-                        style={styles.input}
-                        placeholder="Message..."
-                        placeholderTextColor="#8FA1B8"
-                        selectionColor="#8FA1B8"
-                        cursorColor="#8FA1B8"
-                        underlineColorAndroid="transparent"
-                        value={messageText}
-                        onChangeText={handleTextChange}
-                        multiline
-                        maxLength={1000}
-                        onFocus={() => setIsChatInputFocused(true)}
-                        onBlur={() => setIsChatInputFocused(false)}
-                      />
+                      {/* Caption input + close-all */}
+                      <View style={styles.mediaCaptionRow}>
+                        <TextInput
+                          style={styles.mediaCaption}
+                          placeholder={`Add a caption`}
+                          placeholderTextColor="#B0BEC5"
+                          value={messageText}
+                          onChangeText={handleTextChange}
+                          multiline
+                          maxLength={500}
+                        />
+                        <TouchableOpacity
+                          onPress={() => {
+                            setMediaAttachments([]);
+                            setMessageText("");
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <X size={18} color="#8FA1B8" strokeWidth={2.5} />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   )}
-                  {mediaAttachments.length > 0 && <View style={{ flex: 1 }} />}
 
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.sendButton,
-                      ((!messageText.trim() && !mediaAttachments.length) ||
-                        sending ||
-                        uploadingMedia) &&
-                        styles.sendButtonDisabled,
-                      pressed &&
-                        (messageText.trim() || mediaAttachments.length) &&
-                        !sending && { backgroundColor: SEND_BUTTON_PRESSED },
-                    ]}
-                    onPress={handleSend}
-                    disabled={
-                      (!messageText.trim() && !mediaAttachments.length) ||
-                      sending ||
-                      uploadingMedia
-                    }
-                  >
-                    {sending || uploadingMedia ? (
-                      <SnooLoader size="small" color="#FFFFFF" />
-                    ) : (
-                      <Send size={20} color="#FFFFFF" strokeWidth={2.6} />
+                  {/* ΓöÇΓöÇ Regular input row ΓöÇΓöÇ */}
+                  <View style={styles.inputContent}>
+                    {/* Attachment button ΓÇö opens CustomImagePicker directly */}
+                    <TouchableOpacity
+                      style={styles.attachBtn}
+                      onPress={() => setMediaPickerOpen(true)}
+                    >
+                      <ImagePlus size={22} color={ACCENT} strokeWidth={2} />
+                    </TouchableOpacity>
+
+                    {!mediaAttachments.length && (
+                      <View style={styles.inputWrapper}>
+                        <TextInput
+                          ref={inputRef}
+                          style={styles.input}
+                          placeholder="Message..."
+                          placeholderTextColor="#8FA1B8"
+                          selectionColor="#8FA1B8"
+                          cursorColor="#8FA1B8"
+                          underlineColorAndroid="transparent"
+                          value={messageText}
+                          onChangeText={handleTextChange}
+                          multiline
+                          maxLength={1000}
+                          onFocus={() => setIsChatInputFocused(true)}
+                          onBlur={() => setIsChatInputFocused(false)}
+                        />
+                      </View>
                     )}
-                  </Pressable>
-                </View>
-              </>
-            )}
-          </View>
-        </KeyboardAwareToolbar>
+                    {mediaAttachments.length > 0 && (
+                      <View style={{ flex: 1 }} />
+                    )}
 
-        {!!optionsTarget && (
-          <MessageOptionsModal
-            visible={!!optionsTarget}
-            isMyMessage={
-              isGroup
-                ? String(optionsTarget?.senderId) === String(currentUser?.id) &&
-                  (optionsTarget?.senderType || "member") ===
-                    (currentUser?.type || "member")
-                : optionsTarget?.senderId !== (recipient?.id || recipientId)
-            }
-            onReply={() => {
-              const isOwnMsg = isGroup
-                ? String(optionsTarget?.senderId) === String(currentUser?.id) &&
-                  (optionsTarget?.senderType || "member") ===
-                    (currentUser?.type || "member")
-                : optionsTarget?.senderId !== (recipient?.id || recipientId);
-              setSelectedReply({
-                id: optionsTarget.id,
-                messageText: optionsTarget.messageText,
-                senderName: isOwnMsg
-                  ? "You"
-                  : optionsTarget.senderName || recipient?.name,
-                isDeleted: optionsTarget.isDeleted,
-              });
-              setOptionsTarget(null);
-              setTimeout(() => inputRef.current?.focus(), 100);
-            }}
-            onUnsend={() => {
-              handleUnsend(optionsTarget.id);
-              setOptionsTarget(null);
-            }}
-            onCancel={() => setOptionsTarget(null)}
-          />
-        )}
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.sendButton,
+                        ((!messageText.trim() && !mediaAttachments.length) ||
+                          sending ||
+                          uploadingMedia) &&
+                          styles.sendButtonDisabled,
+                        pressed &&
+                          (messageText.trim() || mediaAttachments.length) &&
+                          !sending && { backgroundColor: SEND_BUTTON_PRESSED },
+                      ]}
+                      onPress={handleSend}
+                      disabled={
+                        (!messageText.trim() && !mediaAttachments.length) ||
+                        sending ||
+                        uploadingMedia
+                      }
+                    >
+                      {sending || uploadingMedia ? (
+                        <SnooLoader size="small" color="#FFFFFF" />
+                      ) : (
+                        <Send size={20} color="#FFFFFF" strokeWidth={2.6} />
+                      )}
+                    </Pressable>
+                  </View>
+                </>
+              )}
+            </View>
+          </KeyboardAwareToolbar>
 
-        {chatActionsVisible && (
-          <ChatActionsSheet
-            visible={chatActionsVisible}
-            onClose={() => setChatActionsVisible(false)}
-            onDeleteChat={handleDeleteChat}
-            onReport={handleStartReport}
-            onMute={handleMuteChat}
-            isMuted={isMuted}
-            onBlock={handleBlockUser}
-            onUnblock={() => {
-              setChatActionsVisible(false);
-              handleUnblockUser();
-            }}
-            youHaveBlocked={youHaveBlocked}
-            isGroup={isGroup}
-          />
-        )}
+          {!!optionsTarget && (
+            <MessageOptionsModal
+              visible={!!optionsTarget}
+              isMyMessage={
+                isGroup
+                  ? String(optionsTarget?.senderId) ===
+                      String(currentUser?.id) &&
+                    (optionsTarget?.senderType || "member") ===
+                      (currentUser?.type || "member")
+                  : optionsTarget?.senderId !== (recipient?.id || recipientId)
+              }
+              onReply={() => {
+                const isOwnMsg = isGroup
+                  ? String(optionsTarget?.senderId) ===
+                      String(currentUser?.id) &&
+                    (optionsTarget?.senderType || "member") ===
+                      (currentUser?.type || "member")
+                  : optionsTarget?.senderId !== (recipient?.id || recipientId);
+                setSelectedReply({
+                  id: optionsTarget.id,
+                  messageText: optionsTarget.messageText,
+                  senderName: isOwnMsg
+                    ? "You"
+                    : optionsTarget.senderName || recipient?.name,
+                  isDeleted: optionsTarget.isDeleted,
+                });
+                setOptionsTarget(null);
+                setTimeout(() => inputRef.current?.focus(), 100);
+              }}
+              onUnsend={() => {
+                handleUnsend(optionsTarget.id);
+                setOptionsTarget(null);
+              }}
+              onCancel={() => setOptionsTarget(null)}
+            />
+          )}
 
-        {reportSheetVisible && (
-          <ReportReasonSheet
-            visible={reportSheetVisible}
-            onClose={() => setReportSheetVisible(false)}
-            onSelect={handleReportReason}
-          />
-        )}
+          {chatActionsVisible && (
+            <ChatActionsSheet
+              visible={chatActionsVisible}
+              onClose={() => setChatActionsVisible(false)}
+              onDeleteChat={handleDeleteChat}
+              onReport={handleStartReport}
+              onMute={handleMuteChat}
+              isMuted={isMuted}
+              onBlock={handleBlockUser}
+              onUnblock={() => {
+                setChatActionsVisible(false);
+                handleUnblockUser();
+              }}
+              youHaveBlocked={youHaveBlocked}
+              isGroup={isGroup}
+            />
+          )}
 
-        {sharedPostModalVisible && selectedSharedPost && (
-          <ProfilePostFeed
-            visible={sharedPostModalVisible}
-            posts={[selectedSharedPost]}
-            initialPostId={selectedSharedPost.id}
-            onClose={() => {
-              setSharedPostModalVisible(false);
-              setSelectedSharedPost(null);
-            }}
-            currentUserId={currentUser?.id}
-            currentUserType={currentUser?.type || "member"}
-            onLikeUpdate={(postId, isLiked) =>
-              setSelectedSharedPost((prev) => ({
-                ...prev,
-                is_liked: isLiked,
-                isLiked,
-                like_count: Math.max(
-                  0,
-                  (prev.like_count || 0) + (isLiked ? 1 : -1),
-                ),
-              }))
-            }
-            onComment={(postId, newCount) =>
-              setSelectedSharedPost((prev) => ({
-                ...prev,
-                comment_count: newCount,
-              }))
-            }
-            navigation={navigation}
-          />
-        )}
+          {reportSheetVisible && (
+            <ReportReasonSheet
+              visible={reportSheetVisible}
+              onClose={() => setReportSheetVisible(false)}
+              onSelect={handleReportReason}
+            />
+          )}
 
-        {commentsModalState.visible && (
-          <CommentsModal
-            visible={commentsModalState.visible}
-            postId={commentsModalState.postId}
-            postType={commentsModalState.postType}
-            onClose={() => setCommentsModalState({ visible: false, postId: null, postType: "post" })}
-          />
-        )}
+          {sharedPostModalVisible && selectedSharedPost && (
+            <ProfilePostFeed
+              visible={sharedPostModalVisible}
+              posts={[selectedSharedPost]}
+              initialPostId={selectedSharedPost.id}
+              onClose={() => {
+                setSharedPostModalVisible(false);
+                setSelectedSharedPost(null);
+              }}
+              currentUserId={currentUser?.id}
+              currentUserType={currentUser?.type || "member"}
+              onLikeUpdate={(postId, isLiked) =>
+                setSelectedSharedPost((prev) => ({
+                  ...prev,
+                  is_liked: isLiked,
+                  isLiked,
+                  like_count: Math.max(
+                    0,
+                    (prev.like_count || 0) + (isLiked ? 1 : -1),
+                  ),
+                }))
+              }
+              onComment={(postId, newCount) =>
+                setSelectedSharedPost((prev) => ({
+                  ...prev,
+                  comment_count: newCount,
+                }))
+              }
+              navigation={navigation}
+            />
+          )}
 
-        {mediaPickerOpen && (
-          <CustomImagePicker
-            visible={mediaPickerOpen}
-            onClose={() => setMediaPickerOpen(false)}
-            onDone={handleCustomPickerDone}
-            selectionLimit={10}
-            allowVideos
-            videoMaxDuration={120}
-          />
-        )}
+          {commentsModalState.visible && (
+            <CommentsModal
+              visible={commentsModalState.visible}
+              postId={commentsModalState.postId}
+              postType={commentsModalState.postType}
+              onClose={() =>
+                setCommentsModalState({
+                  visible: false,
+                  postId: null,
+                  postType: "post",
+                })
+              }
+            />
+          )}
 
-        {!!videoPreviewing && (
-          <VideoSendPreviewModal
-            visible={!!videoPreviewing}
-            videoUri={videoPreviewing?.uri}
-            duration={videoPreviewing?.duration}
-            onClose={() => setVideoPreviewing(null)}
-            onSend={handleVideoSendConfirm}
-          />
-        )}
+          {mediaPickerOpen && (
+            <CustomImagePicker
+              visible={mediaPickerOpen}
+              onClose={() => setMediaPickerOpen(false)}
+              onDone={handleCustomPickerDone}
+              selectionLimit={10}
+              allowVideos
+              videoMaxDuration={120}
+            />
+          )}
 
-        {viewerVisible && (
-          <MediaViewerTimeline
-            timeline={mediaTimeline}
-            initialIndex={viewerIndex}
-            visible={viewerVisible}
-            onClose={() => setViewerVisible(false)}
-            onReply={(mediaItem) => {
-              setViewerVisible(false);
-              setSelectedReply({
-                id: mediaItem.messageId,
-                messageText: mediaItem.type === "video" ? "Video" : "Photo",
-                messageType: mediaItem.type === "video" ? "video" : "image",
-                senderName: mediaItem.senderName,
-                isDeleted: false,
-              });
-              setTimeout(() => inputRef.current?.focus(), 100);
-            }}
-          />
-        )}
+          {!!videoPreviewing && (
+            <VideoSendPreviewModal
+              visible={!!videoPreviewing}
+              videoUri={videoPreviewing?.uri}
+              duration={videoPreviewing?.duration}
+              onClose={() => setVideoPreviewing(null)}
+              onSend={handleVideoSendConfirm}
+            />
+          )}
 
-        {alertConfig.visible && (
-          <CustomAlertModal onClose={hideAlert} {...alertConfig} />
-        )}
-      </View>
-    </GestureHandlerRootView>
+          {viewerVisible && (
+            <MediaViewerTimeline
+              timeline={mediaTimeline}
+              initialIndex={viewerIndex}
+              visible={viewerVisible}
+              onClose={() => setViewerVisible(false)}
+              onReply={(mediaItem) => {
+                setViewerVisible(false);
+                setSelectedReply({
+                  id: mediaItem.messageId,
+                  messageText: mediaItem.type === "video" ? "Video" : "Photo",
+                  messageType: mediaItem.type === "video" ? "video" : "image",
+                  senderName: mediaItem.senderName,
+                  isDeleted: false,
+                });
+                setTimeout(() => inputRef.current?.focus(), 100);
+              }}
+            />
+          )}
+
+          {alertConfig.visible && (
+            <CustomAlertModal onClose={hideAlert} {...alertConfig} />
+          )}
+        </View>
+      </GestureHandlerRootView>
     </Profiler>
   );
 }

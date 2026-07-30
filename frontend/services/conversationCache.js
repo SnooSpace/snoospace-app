@@ -88,14 +88,19 @@ export function getCachedConversation(conversationId) {
  * @param {string|number} conversationId
  * @param {{ messages: Array, cursor: string|null }} param1
  */
-export function setCachedConversation(conversationId, { messages, cursor }) {
+export function setCachedConversation(conversationId, { messages, cursor, hasMore }) {
   const key = String(conversationId);
   evictIfNeeded();
 
   // Keep only the 30 most-recent messages (they are stored oldest→newest)
   const trimmed = Array.isArray(messages) ? messages.slice(-30) : [];
 
-  const entry = { messages: trimmed, cursor: cursor || null, cachedAt: Date.now() };
+  const entry = {
+    messages: trimmed,
+    cursor: cursor || null,
+    hasMore: hasMore !== undefined ? hasMore : true,
+    cachedAt: Date.now(),
+  };
   conversationCache.delete(key); // ensure re-insert at MRU end
   conversationCache.set(key, entry);
 }
@@ -120,6 +125,7 @@ export function appendMessageToCache(conversationId, newMessage) {
   const updated = {
     messages: [...entry.messages, newMessage].slice(-30),
     cursor: entry.cursor,
+    hasMore: entry.hasMore !== undefined ? entry.hasMore : true,
     cachedAt: Date.now(), // extend TTL — conversation is still active
   };
   touchEntry(key, updated);

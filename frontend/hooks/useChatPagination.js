@@ -2,14 +2,16 @@
  * useChatPagination
  *
  * Owns all message-list state for the ChatScreen.
- * Uses cursor-based pagination (?before=<ISO>&limit=20) so that
+ * Uses cursor-based pagination (?before=<ISO>&limit=N) so that
  * prepending older messages never shifts the visible viewport.
  *
  * API surface:
  *   messages           — current flat array of messages (oldest → newest)
  *   hasMore            — true while more older pages exist
  *   loadingOlder       — true while a "load older" request is in flight
- *   loadInitial(id)    — fetch the 20 most-recent messages for a conversation
+ *   loadInitial(id, limit?) — fetch the most-recent messages for a conversation.
+ *                            limit defaults to OLDER_PAGE_SIZE but callers should
+ *                            pass a viewport-derived value for the initial fetch.
  *   loadOlderMessages()  — fetch the next page of older messages (cursor walk)
  *   addNewMessage(msg)   — insert a new message, deduped + sorted by timestamp
  *   addNewMessages(arr)  — batch-insert polled messages in one state update
@@ -19,7 +21,7 @@
 import { useState, useRef, useCallback } from "react";
 import { getMessages } from "../api/messages";
 
-const PAGE_SIZE = 20;
+const OLDER_PAGE_SIZE = 20; // fixed page size for "load older" pagination
 
 export default function useChatPagination(initialMessages = []) {
   const [messages,     setMessages]     = useState(initialMessages);
@@ -39,8 +41,11 @@ export default function useChatPagination(initialMessages = []) {
   const newestAtRef     = useRef(null);
 
   // ── loadInitial ────────────────────────────────────────────────────────────
-  // Fetches the 20 most-recent messages.  Called once per conversation open.
-  const loadInitial = useCallback(async (conversationId) => {
+  // Fetches the most-recent messages. Called once per conversation open.
+  // limit: how many messages to fetch. Callers should pass a viewport-derived
+  // value (e.g. Math.ceil(screenHeight / avgItemHeight * 1.5)) so the first
+  // batch fills exactly one screen worth of content — no more, no less.
+  const loadInitial = useCallback(async (conversationId, limit = OLDER_PAGE_SIZE) => {
     convIdRef.current  = conversationId;
     cursorRef.current  = null;
     newestAtRef.current = null;
@@ -48,7 +53,7 @@ export default function useChatPagination(initialMessages = []) {
     setHasMore(false);
 
     try {
-      const res = await getMessages(conversationId, { limit: PAGE_SIZE });
+      const res = await getMessages(conversationId, { limit });
       if (convIdRef.current !== conversationId) return; // stale response
 
       const msgs = res.messages || [];
@@ -72,15 +77,18 @@ export default function useChatPagination(initialMessages = []) {
     if (!conversationId) return;
     if (isLoadingRef.current) return;   // already in flight
     if (!hasMore) return;               // nothing more to fetch
-    if (!cursorRef.current) return;     // no cursor yet (shouldn't happen)
+
+    // Use cursorRef.current if present; otherwise fall back to oldest loaded message timestamp
+    const effectiveCursor = cursorRef.current || (messages.length > 0 ? messages[0].createdAt : null);
+    if (!effectiveCursor) return;
 
     isLoadingRef.current = true;
     setLoadingOlder(true);
 
     try {
       const res = await getMessages(conversationId, {
-        before: cursorRef.current,
-        limit: PAGE_SIZE,
+        before: effectiveCursor,
+        limit: OLDER_PAGE_SIZE,
       });
       if (convIdRef.current !== conversationId) return; // stale
 
@@ -97,7 +105,7 @@ export default function useChatPagination(initialMessages = []) {
           return [...fresh, ...prev];
         });
         // Advance cursor to the oldest of the newly fetched batch
-        cursorRef.current = res.nextCursor || null;
+        cursorRef.current = res.nextCursor || (older.length > 0 ? older[0].createdAt : null);
       }
       setHasMore(res.hasMore || false);
     } catch (err) {
@@ -106,7 +114,7 @@ export default function useChatPagination(initialMessages = []) {
       isLoadingRef.current = false;
       setLoadingOlder(false);
     }
-  }, [hasMore]);
+  }, [hasMore, messages]);
 
   // ── addNewMessage ──────────────────────────────────────────────────────────
   // Inserts a new message (outgoing send or Supabase realtime INSERT).

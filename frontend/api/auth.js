@@ -11,6 +11,12 @@ import authEventEmitter from "../utils/authEventEmitter";
 
 // In-memory token cache to completely avoid AsyncStorage and Decryption overhead on every API request.
 let cachedToken = null;
+// In-memory active-account cache — same pattern as cachedToken.
+// Populated on first getActiveAccount() call; invalidated on account switch / logout.
+// Eliminates the AsyncStorage + decryption round-trip on subsequent calls,
+// which was causing ChatScreen to start with currentUser=null and then trigger
+// a mass re-render of all MessageRows when the account resolved async.
+let cachedActiveAccount = null;
 const inFlightProfileRequests = new Map();
 const cachedProfileMap = new Map();
 
@@ -20,14 +26,16 @@ console.log('🔵 [TRACE:1b] api/auth.js using authEventEmitter singleton. ID:',
 authEventEmitter.on("accountSwitched", (data) => {
   console.log('🔵 [TRACE:1c] accountSwitched received in api/auth.js. cachedToken BEFORE clear:', cachedToken ? cachedToken.substring(0, 20) + '...' : 'null', '| new account email:', data?.email);
   cachedToken = null;
+  cachedActiveAccount = null;
   inFlightProfileRequests.clear();
   cachedProfileMap.clear();
-  console.log('🔵 [TRACE:1d] cachedToken and profile caches cleared.');
+  console.log('🔵 [TRACE:1d] cachedToken, cachedActiveAccount, and profile caches cleared.');
 });
 
 authEventEmitter.on("unexpectedLogout", (data) => {
   console.log("[api/auth] Clearing cached token due to logout:", data?.email);
   cachedToken = null;
+  cachedActiveAccount = null;
   inFlightProfileRequests.clear();
   cachedProfileMap.clear();
 });
@@ -514,7 +522,10 @@ export async function checkEmailExists(email) {
  * Get current active account
  */
 export async function getActiveAccount() {
-  return await accountManager.getActiveAccount();
+  if (cachedActiveAccount) return cachedActiveAccount;
+  const account = await accountManager.getActiveAccount();
+  if (account) cachedActiveAccount = account;
+  return account;
 }
 
 /**
