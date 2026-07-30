@@ -2115,77 +2115,41 @@ export default function ChatScreen({ route, navigation }) {
   // without needing flatListData in its useCallback dependency array.
   const flatListDataLengthRef = useRef(initialMessagesRef.current.length);
 
-  // ── List reveal animation ────────────────────────────────────────────────
-  // ALL opens start at opacity 0. This hides two visual glitches:
-  //
-  // 1. COLD open flash: when messages arrive async, startRenderingFromBottom
-  //    uses overrideItemLayout *estimates* to compute initial scroll offset.
-  //    For chats with card-type messages (post_share, opportunity_share) the
-  //    estimates are 240px but cards resolve to ~80px → initial position
-  //    lands on messages from months ago. scrollToEnd corrects it, but the
-  //    flash happens in <100ms — imperceptible at normal speed but visible in
-  //    screen recordings (image 2).
-  //
-  // 2. Post-scroll drift: currentUser resolves async after mount → triggers
-  //    re-render of all visible MessageRows → some row heights change → FlashList
-  //    readjusts its anchor → list scrolls up slightly from the correct position
-  //    (image 4). The 220ms settle window absorbs this before fade-in.
-  //
-  // WARM open: onLayout fires when the FlashList renders with seed data.
-  // COLD open: prevFlatListLenRef effect fires when data arrives (0 → N items).
-  const listRevealOpacity = useSharedValue(0);
   const hasRevealedListRef = useRef(false);
-  const listRevealStyle = useAnimatedStyle(() => ({
-    opacity: listRevealOpacity.value,
-  }));
 
+  // onContentSizeChange: silent post-reveal scroll correction.
+  // If a shared card (post_share / opportunity_share) resolves its loading
+  // state after revealList() has already fired, the content height changes
+  // and the list can end up slightly above the true bottom. Re-correct here —
+  // but ONLY when the user is already at the bottom (same guard used for
+  // incoming realtime messages).
+  const onContentSizeChange = useCallback(() => {
+    if (!hasRevealedListRef.current) return;
+    if (!isAtBottomRef.current) return;
+    flashListRef.current?.scrollToEnd({ animated: false });
+  }, []);
+
+  // revealList: called from FlashList's onLayout (warm open) and from the
+  // flatListData effect (cold open). Scrolls once to the newest message.
+  // onContentSizeChange handles any subsequent drift from late-resolving cards.
   const revealList = useCallback(() => {
     if (hasRevealedListRef.current) return;
     hasRevealedListRef.current = true;
-
-    // scrollToNewest uses scrollToIndex(last, viewPosition:1) — this is more
-    // reliable than scrollToEnd for conversations with card-type messages:
-    //
-    // scrollToEnd depends on *total content height*, which changes when
-    // post_share / opportunity_share cards resolve their API calls (e.g.
-    // shrinking from 240px loading state → 80px unavailable state). If
-    // scrollToEnd fires before the cards settle, the position is wrong.
-    //
-    // scrollToIndex targets the SPECIFIC LAST ITEM by index. Card height
-    // changes in the middle of the list don't affect its target position —
-    // only a height change in the last item itself would matter (and the
-    // last message is almost always a text bubble with stable height).
-    const scrollToNewest = () => {
-      const len = flatListDataLengthRef.current;
-      if (len > 0) {
-        try {
-          flashListRef.current?.scrollToIndex({
-            index: len - 1,
-            animated: false,
-            viewPosition: 1, // align item to the BOTTOM of the viewport
-          });
-        } catch (_) {
-          // scrollToIndex can throw if the item isn't rendered yet; fall back.
-          flashListRef.current?.scrollToEnd({ animated: false });
-        }
-      } else {
+    const len = flatListDataLengthRef.current;
+    if (len > 0) {
+      try {
+        flashListRef.current?.scrollToIndex({
+          index: len - 1,
+          animated: false,
+          viewPosition: 1,
+        });
+      } catch (_) {
         flashListRef.current?.scrollToEnd({ animated: false });
       }
-    };
-
-    // Immediate pass: best-effort position while still hidden (opacity 0).
-    scrollToNewest();
-
-    // Settle window: 400ms covers
-    //   • currentUser async re-render (~74-92ms)
-    //   • card API calls (post_share, opportunity_share) resolving to
-    //     "unavailable" state — typically 200-400ms on a real device
-    // After the window, do a final correction and then fade in.
-    setTimeout(() => {
-      scrollToNewest();
-      listRevealOpacity.value = withTiming(1, { duration: 150 });
-    }, 400);
-  }, [listRevealOpacity]);
+    } else {
+      flashListRef.current?.scrollToEnd({ animated: false });
+    }
+  }, []);
 
 
   const groupParticipantsRef = useRef([]);
@@ -3923,14 +3887,12 @@ export default function ChatScreen({ route, navigation }) {
           keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
           <Animated.View style={[{ flex: 1 }, containerAnimatedStyle]}>
-            {/* Loading spinner: rendered OUTSIDE the opacity wrapper so it's always
-                visible during cold opens (list is opacity 0 while settling). */}
             {messagesLoading && (
               <View style={styles.loadingOverlay} pointerEvents="none">
                 <ActivityIndicator size="large" color={PRIMARY_COLOR} />
               </View>
             )}
-            <Animated.View style={[{ flex: 1 }, listRevealStyle]}>
+            <View style={{ flex: 1 }}>
               <FlashList
                 ref={flashListRef}
                 data={flatListData}
@@ -3938,7 +3900,7 @@ export default function ChatScreen({ route, navigation }) {
                 renderItem={renderItem}
                 getItemType={(item) => item.type}
                 overrideItemLayout={overrideItemLayout}
-                estimatedItemSize={60}
+                estimatedItemSize={estimatedItemSize}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={[
                   styles.listContent,
@@ -3961,6 +3923,7 @@ export default function ChatScreen({ route, navigation }) {
                   isAtBottomRef.current = (contentH - listH - y) < 100;
                 }}
                 scrollEventThrottle={16}
+                onContentSizeChange={onContentSizeChange}
                 onLayout={(e) => {
                   const { height } = e.nativeEvent.layout;
                   if (height > 0 && flatListData.length > 0) {
@@ -3984,7 +3947,7 @@ export default function ChatScreen({ route, navigation }) {
                 viewabilityConfig={viewabilityConfigRef.current}
                 onViewableItemsChanged={onViewableItemsChangedRef.current}
               />
-            </Animated.View>
+            </View>
 
           </Animated.View>
         </KeyboardAvoidingView>

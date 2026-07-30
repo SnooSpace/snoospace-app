@@ -560,6 +560,8 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
     alignSelf: "flex-start",
     marginVertical: 8,
+    minHeight: 240,
+    justifyContent: "center",
   },
   card: {
     backgroundColor: "#FFFFFF",
