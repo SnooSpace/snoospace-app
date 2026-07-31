@@ -282,9 +282,6 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
       style={[styles.container, style]}
       onPress={loading || deleted ? undefined : handlePress}
       activeOpacity={loading || deleted ? 1 : 0.9}
-      onLayout={(e) =>
-        console.log(`[HEIGHT-DIAG] SharedOpportunityCard id=${targetId} state=${loading ? 'LOADING' : deleted ? 'DELETED' : 'RESOLVED'} h=${e.nativeEvent.layout.height}`)
-      }
     >
       {loading ? (
         // Simple centered loader — no metadata skeleton.

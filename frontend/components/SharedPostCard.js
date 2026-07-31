@@ -180,12 +180,7 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
   // Loading state
   if (loading) {
     return (
-      <View
-        style={[styles.container, style]}
-        onLayout={(e) =>
-          console.log(`[HEIGHT-DIAG] SharedPostCard id=${postId} state=LOADING h=${e.nativeEvent.layout.height}`)
-        }
-      >
+      <View style={[styles.container, style]}>
         <View style={styles.card}>
           <View style={styles.loadingContainer}>
             <SnooLoader size="small" color={COLORS.primary} />
@@ -200,12 +195,7 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
   if (error || !postData) {
     const hasMetaInfo = metaUsername || metaName || caption;
     return (
-      <View
-        style={[styles.container, style]}
-        onLayout={(e) =>
-          console.log(`[HEIGHT-DIAG] SharedPostCard id=${postId} state=ERROR h=${e.nativeEvent.layout.height}`)
-        }
-      >
+      <View style={[styles.container, style]}>
         <View style={[styles.card, styles.errorCard]}>
           <Text style={styles.errorIcon}>📭</Text>
           <Text style={styles.errorText}>
@@ -387,9 +377,6 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
   return (
     <View
       style={[styles.container, style]}
-      onLayout={(e) =>
-        console.log(`[HEIGHT-DIAG] SharedPostCard id=${postId} state=RESOLVED h=${e.nativeEvent.layout.height}`)
-      }
     >
       <View style={styles.card}>
         {/* Post Media */}
