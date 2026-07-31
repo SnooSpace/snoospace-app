@@ -2222,9 +2222,10 @@ export default function ChatScreen({ route, navigation }) {
   // visible scroll jump. This ref ensures the corrective scrollToEnd fires
   // exactly once per conversation open and never again.
   const hasCorrectedInitialLayoutRef = useRef(false);
-  // Opacity mask: starts transparent so the user never sees the wrong-position
-  // first frame. Fades to 1 after the one-shot scrollToEnd correction lands.
-  // Reset to 0 on conversation change so every open goes through the same cycle.
+  // Opacity mask: starts at 0 so the user never sees the wrong-position first
+  // frame from FlashList v2's first-paint gap. Reveals instantly (no fade)
+  // after the one-shot scrollToEnd correction has had 2 rAFs to land.
+  // Total hidden duration: ~2 frames (~33ms) — below perception threshold.
   const listRevealOpacity = useSharedValue(0);
   useEffect(() => {
     // Reset both guards whenever the conversation changes.
@@ -2232,41 +2233,37 @@ export default function ChatScreen({ route, navigation }) {
     listRevealOpacity.value = 0;
   }, [currentConversationId]);
 
-  // ── runInitialCorrectionAndReveal ──────────────────────────────────────────────
+  // ── runInitialCorrection ───────────────────────────────────────────────────────
   // One-shot correction+reveal per conversation open. Guards via
-  // hasCorrectedInitialLayoutRef so it runs exactly once regardless of
-  // whether layout fires before data (warm open) or data arrives after
-  // layout (cold open / network fetch).
+  // hasCorrectedInitialLayoutRef so it fires exactly once regardless of whether
+  // layout fires before data (warm open) or data arrives after layout (cold open).
   //
   // Sequence:
-  //   rAF 1 — scrollToEnd to the true bottom
-  //   80ms   — settle window so late-resolving cards (e.g. post_share
-  //            resolving to "unavailable" and shrinking) finish before reveal
-  //   scrollToEnd again — re-anchor after any post-mount height changes
-  //   withTiming(1, 150ms) — fade list in, correctly positioned
-  const runInitialCorrectionAndReveal = useCallback(() => {
+  //   rAF 1 — scrollToEnd (snap to true bottom)
+  //   rAF 2 — the native scroll has had one more frame to paint; reveal instantly
+  //
+  // No setTimeout settle window needed: card heights are now stable across all
+  // states (SharedOpportunityCard fix), so there’s nothing left to wait for.
+  const runInitialCorrection = useCallback(() => {
     if (hasCorrectedInitialLayoutRef.current) return; // already ran
-    if (messages.length === 0) return;                // no data yet
+    if (messages.length === 0) return;                // wait for data
     hasCorrectedInitialLayoutRef.current = true;
     requestAnimationFrame(() => {
       flashListRef.current?.scrollToEnd({ animated: false });
-      // Give late-resolving cards one bounded window to settle their heights
-      // before we commit to the final scroll position and reveal.
-      setTimeout(() => {
-        flashListRef.current?.scrollToEnd({ animated: false });
-        listRevealOpacity.value = withTiming(1, { duration: 150 });
-      }, 80);
+      // One more frame so the corrected position has painted before reveal.
+      requestAnimationFrame(() => {
+        listRevealOpacity.value = 1; // instant — no fade animation
+      });
     });
   }, [messages.length]);
 
-  // Data-arrival trigger: fires when messages arrive AFTER the layout has
-  // already occurred (the cold-open / cache-miss case). The layout fires
-  // first with flatListData.length===0 (guard skips), then data arrives and
-  // this effect retries. The hasCorrectedInitialLayoutRef guard prevents
-  // double-firing if the warm-open onLayout path already ran it first.
+  // Data-arrival trigger: fires when messages arrive AFTER layout has already
+  // occurred (the cold-open / cache-miss case). The hasCorrectedInitialLayoutRef
+  // guard prevents double-firing if the warm-open onLayout path ran it first.
   useEffect(() => {
-    runInitialCorrectionAndReveal();
-  }, [runInitialCorrectionAndReveal]);
+    runInitialCorrection();
+  }, [runInitialCorrection]);
+
 
   const groupParticipantsRef = useRef([]);
   const visibleItemIdsRef = useRef(new Set());
@@ -4170,8 +4167,8 @@ export default function ChatScreen({ route, navigation }) {
                   scrollEventThrottle={16}
                   onLayout={() => {
                     // Warm-open path: layout fires after data is already present.
-                    // runInitialCorrectionAndReveal checks the guard internally.
-                    runInitialCorrectionAndReveal();
+                    // runInitialCorrection checks the guard internally.
+                    runInitialCorrection();
                   }}
                   ListHeaderComponent={
                     loadingOlder ? (
@@ -4192,10 +4189,9 @@ export default function ChatScreen({ route, navigation }) {
                       >
                         <EmptyChatState
                           onLayout={() => {
-                            // No scroll correction needed for an empty list —
-                            // reveal immediately so the empty state is visible.
+                            // Empty list — no scroll correction needed, reveal immediately.
                             if (listRevealOpacity.value < 1) {
-                              listRevealOpacity.value = withTiming(1, { duration: 150 });
+                              listRevealOpacity.value = 1;
                             }
                           }}
                         />
