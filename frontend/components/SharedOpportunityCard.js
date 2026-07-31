@@ -261,11 +261,40 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
     if (onPress && targetId) onPress(targetId, opp);
   }, [onPress, targetId, opp]);
 
-  // ── Deleted / not-found state ─────────────────────────────────────────────
-  if (!loading && deleted) {
-    const hasMetaInfo = metaCreatorName || metaCreatorUsername || metaTitle;
-    return (
-      <View style={[styles.container, style]}>
+  // ── Unified render: all states share the same root element type ────────────
+  // CRITICAL for scroll stability: having the deleted state return a <View>
+  // while loading/resolved returned <TouchableOpacity> caused a React
+  // unmount+remount cycle on every loading→deleted transition, which combined
+  // with the 10.28px height difference (250.28px loading → 240px deleted)
+  // produced the visible scroll drift after opacity reveal.
+  //
+  // Fix: Single <TouchableOpacity> root for all states. The loading state
+  // renders only a simple centered spinner (no header/author/title skeleton),
+  // so its natural height also falls to the minHeight:240 floor — giving a
+  // zero-height-change loading→deleted transition. Growth on loading→resolved
+  // (valid card gets taller) is a one-time upward change handled natively by
+  // maintainVisibleContentPosition.
+
+  const hasMetaInfo = metaCreatorName || metaCreatorUsername || metaTitle;
+
+  return (
+    <TouchableOpacity
+      style={[styles.container, style]}
+      onPress={loading || deleted ? undefined : handlePress}
+      activeOpacity={loading || deleted ? 1 : 0.9}
+      onLayout={(e) =>
+        console.log(`[HEIGHT-DIAG] SharedOpportunityCard id=${targetId} state=${loading ? 'LOADING' : deleted ? 'DELETED' : 'RESOLVED'} h=${e.nativeEvent.layout.height}`)
+      }
+    >
+      {loading ? (
+        // Simple centered loader — no metadata skeleton.
+        // Natural height anchors to minHeight:240 on the container,
+        // matching the deleted state height → zero layout change on resolve.
+        <View style={styles.simpleLoadingCard}>
+          <SnooLoader size="small" color={COLORS.primary} />
+        </View>
+      ) : deleted ? (
+        // Deleted state — simple centered error content, same height floor.
         <View style={[styles.card, styles.deletedCard]}>
           <Text style={styles.deletedIcon}>📭</Text>
           <Text style={styles.deletedText}>Opportunity no longer available</Text>
@@ -287,181 +316,167 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
             </Text>
           )}
         </View>
-      </View>
-    );
-  }
-
-  return (
-    <TouchableOpacity
-      style={[styles.container, style]}
-      onPress={handlePress}
-      activeOpacity={0.9}
-    >
-      <LinearGradient
-        colors={["#C8E9EA", "#E8F7F8"]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.card}
-      >
-        {/* ── Header Row: Badge & Icon ──────────────────────────────────── */}
-        <View style={styles.headerRow}>
-          <View style={styles.typeBadge}>
-            <Text style={styles.typeBadgeText}>OPPORTUNITY</Text>
+      ) : (
+        // Resolved valid opportunity — full card.
+        // May grow taller than 240px — that's intentional and fine.
+        <LinearGradient
+          colors={["#C8E9EA", "#E8F7F8"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.card}
+        >
+          {/* ── Header Row: Badge & Icon ──────────────────────────────────── */}
+          <View style={styles.headerRow}>
+            <View style={styles.typeBadge}>
+              <Text style={styles.typeBadgeText}>OPPORTUNITY</Text>
+            </View>
+            <View style={styles.iconContainer}>
+              <Briefcase size={14} color="#2962FF" strokeWidth={2} />
+            </View>
           </View>
-          <View style={styles.iconContainer}>
-            <Briefcase size={14} color="#2962FF" strokeWidth={2} />
-          </View>
-        </View>
 
-        {/* ── Author Row ───────────────────────────────────────────────── */}
-        <View style={styles.authorRow}>
-          <Image
-            source={
-              displayCreatorPhoto
-                ? { uri: displayCreatorPhoto }
-                : {
-                    uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                      displayCreatorName
-                    )}&background=E5E7EB&color=6B7280&size=88`,
-                  }
-            }
-            style={styles.authorAvatar}
-            cachePolicy="memory-disk"
-            contentFit="cover"
-          />
-          <Text style={styles.authorUsername} numberOfLines={1}>
-            {displayCreatorName}
+          {/* ── Author Row ───────────────────────────────────────────────── */}
+          <View style={styles.authorRow}>
+            <Image
+              source={
+                displayCreatorPhoto
+                  ? { uri: displayCreatorPhoto }
+                  : {
+                      uri: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                        displayCreatorName
+                      )}&background=E5E7EB&color=6B7280&size=88`,
+                    }
+              }
+              style={styles.authorAvatar}
+              cachePolicy="memory-disk"
+              contentFit="cover"
+            />
+            <Text style={styles.authorUsername} numberOfLines={1}>
+              {displayCreatorName}
+            </Text>
+            {createdAt && (
+              <>
+                <Text style={styles.separator}>•</Text>
+                <Text style={styles.timestamp}>
+                  {formatTimeAgo(createdAt)}
+                </Text>
+              </>
+            )}
+          </View>
+
+          {/* ── Title ─────────────────────────────────────────────────────── */}
+          <Text style={styles.title} numberOfLines={2}>
+            {displayTitle}
           </Text>
-          {createdAt && (
-            <>
-              <Text style={styles.separator}>•</Text>
-              <Text style={styles.timestamp}>
-                {formatTimeAgo(createdAt)}
-              </Text>
-            </>
+
+          {/* ── Role Chips ─────────────────── */}
+          {roleChips.length > 0 && (
+            <MarqueeChips chips={roleChips} chipType="role" styles={styles} />
           )}
-        </View>
 
-        {/* ── Title ─────────────────────────────────────────────────────── */}
-        <Text style={styles.title} numberOfLines={2}>
-          {displayTitle}
-        </Text>
+          {/* ── Skill Chips ─────────────────── */}
+          {skillChips.length > 0 && (
+            <MarqueeChips chips={skillChips} chipType="skill" styles={styles} />
+          )}
 
-        {/* ── Role Chips ─────────────────── */}
-        {roleChips.length > 0 && (
-          <MarqueeChips chips={roleChips} chipType="role" styles={styles} />
-        )}
-
-        {/* ── Skill Chips ─────────────────── */}
-        {skillChips.length > 0 && (
-          <MarqueeChips chips={skillChips} chipType="skill" styles={styles} />
-        )}
-
-        {loading ? (
-          <View style={styles.inlineLoading}>
-            <SnooLoader size="small" color={COLORS.primary} />
-          </View>
-        ) : (
-          <>
-            {/* ── Details Row ───────────────────────────────────────────────── */}
-            <View style={styles.detailsRow}>
-              <View style={styles.detailItem}>
-                <Globe size={13} color="#5e8d9b" strokeWidth={2} />
-                <Text style={styles.detailText}>{workModeText}</Text>
-              </View>
-
-              <Text style={styles.detailSeparator}>•</Text>
-
-              <View style={styles.detailItem}>
-                <Clock size={13} color="#5e8d9b" strokeWidth={2} />
-                <Text style={styles.detailText}>{workTypeText}</Text>
-              </View>
-
-              <Text style={styles.detailSeparator}>•</Text>
-
-              <View style={styles.detailItem}>
-                <Coins size={13} color="#5e8d9b" strokeWidth={2} />
-                <Text style={styles.detailText}>{compensationText}</Text>
-              </View>
+          {/* ── Details Row ───────────────────────────────────────────────── */}
+          <View style={styles.detailsRow}>
+            <View style={styles.detailItem}>
+              <Globe size={13} color="#5e8d9b" strokeWidth={2} />
+              <Text style={styles.detailText}>{workModeText}</Text>
             </View>
 
-            {/* ── Footer Row ────────────────────────────────────────────────── */}
-            <View style={styles.footerRow}>
-              <View style={styles.footerLeft}>
-                <View style={styles.applicantStack}>
-                  {opp?.applicants && opp.applicants.length > 0 ? (
-                    <>
-                      {opp.applicants.slice(0, 3).map((applicant, index) => (
-                        <Image
-                           key={index}
-                           source={{ uri: applicant.photo_url }}
-                           style={[
-                             styles.applicantAvatar,
-                             { marginLeft: index > 0 ? -8 : 0 },
-                           ]}
-                           cachePolicy="memory-disk"
-                           contentFit="cover"
-                        />
-                      ))}
-                      {opp?.applicant_count > 3 && (
-                        <Text style={styles.applicantCount}>
-                          +{opp.applicant_count - 3}
-                        </Text>
-                      )}
-                    </>
-                  ) : opp?.applicant_count > 0 ? (
-                    <Text style={styles.applicantCountText}>
-                      {opp.applicant_count}
-                    </Text>
-                  ) : (
-                    <Text style={styles.applicantCountText}>Be first</Text>
-                  )}
-                </View>
+            <Text style={styles.detailSeparator}>•</Text>
 
-                {(opp.expires_at || opp.closed_at) && (
+            <View style={styles.detailItem}>
+              <Clock size={13} color="#5e8d9b" strokeWidth={2} />
+              <Text style={styles.detailText}>{workTypeText}</Text>
+            </View>
+
+            <Text style={styles.detailSeparator}>•</Text>
+
+            <View style={styles.detailItem}>
+              <Coins size={13} color="#5e8d9b" strokeWidth={2} />
+              <Text style={styles.detailText}>{compensationText}</Text>
+            </View>
+          </View>
+
+          {/* ── Footer Row ────────────────────────────────────────────────── */}
+          <View style={styles.footerRow}>
+            <View style={styles.footerLeft}>
+              <View style={styles.applicantStack}>
+                {opp?.applicants && opp.applicants.length > 0 ? (
                   <>
-                    <Text style={styles.footerSeparator}>•</Text>
-                    {isClosed ? (
-                      <View style={styles.endedBadge}>
-                        <Text style={styles.endedBadgeText}>Ended</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.activeBadge}>
-                        <CountdownTimer
-                          expiresAt={opp.expires_at}
-                          style={styles.activeBadgeText}
-                        />
-                      </View>
+                    {opp.applicants.slice(0, 3).map((applicant, index) => (
+                      <Image
+                         key={index}
+                         source={{ uri: applicant.photo_url }}
+                         style={[
+                           styles.applicantAvatar,
+                           { marginLeft: index > 0 ? -8 : 0 },
+                         ]}
+                         cachePolicy="memory-disk"
+                         contentFit="cover"
+                      />
+                    ))}
+                    {opp?.applicant_count > 3 && (
+                      <Text style={styles.applicantCount}>
+                        +{opp.applicant_count - 3}
+                      </Text>
                     )}
                   </>
+                ) : opp?.applicant_count > 0 ? (
+                  <Text style={styles.applicantCountText}>
+                    {opp.applicant_count}
+                  </Text>
+                ) : (
+                  <Text style={styles.applicantCountText}>Be first</Text>
                 )}
               </View>
 
-              {/* View Details Button */}
-              <View style={[styles.applyButton, isClosed && styles.applyButtonDisabled]}>
-                <LinearGradient
-                  colors={isClosed ? ["#9CA3AF", "#6B7280"] : ["#448AFF", "#2962FF"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.applyButtonGradient}
-                >
-                  <Text style={styles.applyButtonText}>
-                    {isClosed ? "Closed" : "View Details"}
-                  </Text>
-                  {!isClosed && (
-                    <ArrowRight
-                      size={12}
-                      color="#FFFFFF"
-                      style={{ marginLeft: 4 }}
-                      strokeWidth={2.5}
-                    />
+              {(opp.expires_at || opp.closed_at) && (
+                <>
+                  <Text style={styles.footerSeparator}>•</Text>
+                  {isClosed ? (
+                    <View style={styles.endedBadge}>
+                      <Text style={styles.endedBadgeText}>Ended</Text>
+                    </View>
+                  ) : (
+                    <View style={styles.activeBadge}>
+                      <CountdownTimer
+                        expiresAt={opp.expires_at}
+                        style={styles.activeBadgeText}
+                      />
+                    </View>
                   )}
-                </LinearGradient>
-              </View>
+                </>
+              )}
             </View>
-          </>
-        )}
-      </LinearGradient>
+
+            {/* View Details Button */}
+            <View style={[styles.applyButton, isClosed && styles.applyButtonDisabled]}>
+              <LinearGradient
+                colors={isClosed ? ["#9CA3AF", "#6B7280"] : ["#448AFF", "#2962FF"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.applyButtonGradient}
+              >
+                <Text style={styles.applyButtonText}>
+                  {isClosed ? "Closed" : "View Details"}
+                </Text>
+                {!isClosed && (
+                  <ArrowRight
+                    size={12}
+                    color="#FFFFFF"
+                    style={{ marginLeft: 4 }}
+                    strokeWidth={2.5}
+                  />
+                )}
+              </LinearGradient>
+            </View>
+          </View>
+        </LinearGradient>
+      )}
     </TouchableOpacity>
   );
 });
@@ -478,6 +493,15 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     width: "100%",
+  },
+  // Simple centered loading state — no skeleton content.
+  // Must not have a fixed height so the parent container's minHeight:240
+  // is the sole height constraint, matching the deleted state floor exactly.
+  simpleLoadingCard: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 24,
   },
   deletedCard: {
     backgroundColor: "#F9FAFB",

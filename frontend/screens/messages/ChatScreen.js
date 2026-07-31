@@ -265,24 +265,21 @@ const formatSeparatorLabel = (dateString) => {
 
 /**
  * buildMessageList: converts a raw messages array (oldest → newest) into a
- * mixed list for a non-inverted FlashList using startRenderingFromBottom.
+ * mixed list for FlashList using maintainVisibleContentPosition.
+ *
+ * Data is in normal chronological order (oldest first). FlashList v2's
+ * autoscrollToBottomThreshold keeps the view pinned to the bottom natively
+ * when new messages are appended, without any reactive scrollToEnd logic.
  *
  * Date separators are injected BEFORE the first message of a new day so they
- * appear ABOVE that day's messages — correct chat layout without inverted.
+ * appear ABOVE that day's messages in normal top-to-bottom rendering order.
  *
  * Input:  [oldest, …, newest]  (chronological, as stored in useChatPagination)
- * Output: [separator, oldest, …, newest]  (for startRenderingFromBottom)
+ * Output: [separator?, oldest, …, separator?, newest]
  *
  * ── PERF: wrapper object cache ──────────────────────────────────────────────
- * Every call creates a new { type, data } wrapper per message, giving each
- * item a new object reference even when the message itself hasn't changed.
- * This defeats MessageRow's React.memo: FlatList sees a "new" item and calls
- * renderItem + MessageRow for every visible row whenever *any* message
- * changes (e.g. a new message appended by socket).
- *
- * Fix: cache wrapper objects by message id.  On subsequent builds only the
- * truly new/changed messages get fresh wrappers — the rest return the same
- * object reference → MessageRow's memo bails out with zero render cost.
+ * Cache wrapper objects by message id so unchanged messages return the same
+ * object reference → MessageRow's React.memo bails out with zero render cost.
  */
 const _msgWrapperCache = new Map(); // module-level: lives as long as the module
 
@@ -376,13 +373,11 @@ const overrideItemLayout = (layout, item) => {
     msg.messageType === "ticket";
 
   if (isImageOrVideo) {
-    // BUBBLE_H (200) + time text (~24) + wrapper margins (~16) = 240
     layout.size = 240;
     return;
   }
 
   if (isCard) {
-    // minHeight: 240 on card containers — matches SharedXxxCard container style
     layout.size = 240;
     return;
   }
@@ -1322,11 +1317,11 @@ const SwipeableMessage = SwipeableMessageRow;
 const MessageRow = React.memo(
   ({
     item,
-    // index intentionally omitted — it changes for every row when any new
-    // message arrives (inverted list shifts all indices by +1), defeating
-    // React.memo for all visible rows. index is never used inside this
-    // component's body; showAvatar and showSenderName are pre-computed in
-    // renderItem and passed as explicit stable props.
+    // index intentionally omitted — it changes for every row when a new
+    // message is prepended (shifts all indices by +1), defeating React.memo
+    // for all visible rows. index is never used inside this component's body;
+    // showAvatar and showSenderName are pre-computed in renderItem and passed
+    // as explicit stable props.
     isMyMessage,
     showAvatar,
     showSenderName,
@@ -1913,13 +1908,14 @@ export default function ChatScreen({ route, navigation }) {
   // Read from the in-memory cache SYNCHRONOUSLY before first render so
   // useChatPagination starts with real messages — FlatList renders on frame 0
   // without waiting for any useEffect or InteractionManager to fire.
+  // Cache stores messages oldest-first, matching the array order contract.
   const initialMessagesRef = useRef(
     conversationId ? getCachedConversation(conversationId)?.messages || [] : [],
   );
   if (initialMessagesRef.current.length > 0) {
     const c = initialMessagesRef.current;
     console.log(
-      "[CHECK-3] cache seed order — first:",
+      "[CHECK-3] cache seed order (oldest-first) — first:",
       c[0]?.createdAt,
       "last:",
       c[c.length - 1]?.createdAt,
@@ -1939,6 +1935,7 @@ export default function ChatScreen({ route, navigation }) {
     updateMessageById,
     bootstrapPaginationState,
     newestAtRef,
+    prependedAnchorIdRef,
   } = useChatPagination(initialMessagesRef.current);
 
   const [messageText, setMessageText] = useState("");
@@ -1958,9 +1955,10 @@ export default function ChatScreen({ route, navigation }) {
       console.log(
         `[PERF-NAV] ChatScreen transitionEnd at: ${performance.now().toFixed(2)}ms, closing: ${e?.data?.closing}`,
       );
-      // Safety-net: once navigation animation completes, correct any residual drift.
-      // For warm opens: revealList() already handles this with its 400ms settle window.
-      // For cold opens: data may not have arrived yet — this is a no-op on an empty list.
+      // Safety-net: once navigation animation completes, correct any residual
+      // scroll drift (e.g. warm open with cached data).
+      // autoscrollToBottomThreshold handles ongoing pinning; this is a one-shot
+      // correction for the transition frame.
       if (!e?.data?.closing) {
         requestAnimationFrame(() => {
           flashListRef.current?.scrollToEnd({ animated: false });
@@ -2217,49 +2215,58 @@ export default function ChatScreen({ route, navigation }) {
   // to decide whether to auto-scroll.
   const isAtBottomRef = useRef(true);
 
-  // Detects cold-open (seed=0) vs warm-open (seed>0).
-  // prevFlatListLenRef starts at the seed length so the effect that
-  // triggers scrollToEnd on first data only fires for cold opens.
-  const prevFlatListLenRef = useRef(initialMessagesRef.current.length);
-  // Tracks current flatListData length so revealList() can call scrollToIndex
-  // without needing flatListData in its useCallback dependency array.
-  const flatListDataLengthRef = useRef(initialMessagesRef.current.length);
+  // One-shot guard for FlashList v2's first-paint gap in
+  // maintainVisibleContentPosition.autoscrollToBottomThreshold.
+  // The native prop corrects ongoing content changes correctly, but on the
+  // very first layout it can land one render tick late, causing a brief
+  // visible scroll jump. This ref ensures the corrective scrollToEnd fires
+  // exactly once per conversation open and never again.
+  const hasCorrectedInitialLayoutRef = useRef(false);
+  // Opacity mask: starts transparent so the user never sees the wrong-position
+  // first frame. Fades to 1 after the one-shot scrollToEnd correction lands.
+  // Reset to 0 on conversation change so every open goes through the same cycle.
+  const listRevealOpacity = useSharedValue(0);
+  useEffect(() => {
+    // Reset both guards whenever the conversation changes.
+    hasCorrectedInitialLayoutRef.current = false;
+    listRevealOpacity.value = 0;
+  }, [currentConversationId]);
 
-  const hasRevealedListRef = useRef(false);
-
-  // onContentSizeChange: silent post-reveal scroll correction.
-  // If a shared card (post_share / opportunity_share) resolves its loading
-  // state after revealList() has already fired, the content height changes
-  // and the list can end up slightly above the true bottom. Re-correct here —
-  // but ONLY when the user is already at the bottom (same guard used for
-  // incoming realtime messages).
-  const onContentSizeChange = useCallback(() => {
-    if (!hasRevealedListRef.current) return;
-    if (!isAtBottomRef.current) return;
-    flashListRef.current?.scrollToEnd({ animated: false });
-  }, []);
-
-  // revealList: called from FlashList's onLayout (warm open) and from the
-  // flatListData effect (cold open). Scrolls once to the newest message.
-  // onContentSizeChange handles any subsequent drift from late-resolving cards.
-  const revealList = useCallback(() => {
-    if (hasRevealedListRef.current) return;
-    hasRevealedListRef.current = true;
-    const len = flatListDataLengthRef.current;
-    if (len > 0) {
-      try {
-        flashListRef.current?.scrollToIndex({
-          index: len - 1,
-          animated: false,
-          viewPosition: 1,
-        });
-      } catch (_) {
-        flashListRef.current?.scrollToEnd({ animated: false });
-      }
-    } else {
+  // ── runInitialCorrectionAndReveal ──────────────────────────────────────────────
+  // One-shot correction+reveal per conversation open. Guards via
+  // hasCorrectedInitialLayoutRef so it runs exactly once regardless of
+  // whether layout fires before data (warm open) or data arrives after
+  // layout (cold open / network fetch).
+  //
+  // Sequence:
+  //   rAF 1 — scrollToEnd to the true bottom
+  //   80ms   — settle window so late-resolving cards (e.g. post_share
+  //            resolving to "unavailable" and shrinking) finish before reveal
+  //   scrollToEnd again — re-anchor after any post-mount height changes
+  //   withTiming(1, 150ms) — fade list in, correctly positioned
+  const runInitialCorrectionAndReveal = useCallback(() => {
+    if (hasCorrectedInitialLayoutRef.current) return; // already ran
+    if (messages.length === 0) return;                // no data yet
+    hasCorrectedInitialLayoutRef.current = true;
+    requestAnimationFrame(() => {
       flashListRef.current?.scrollToEnd({ animated: false });
-    }
-  }, []);
+      // Give late-resolving cards one bounded window to settle their heights
+      // before we commit to the final scroll position and reveal.
+      setTimeout(() => {
+        flashListRef.current?.scrollToEnd({ animated: false });
+        listRevealOpacity.value = withTiming(1, { duration: 150 });
+      }, 80);
+    });
+  }, [messages.length]);
+
+  // Data-arrival trigger: fires when messages arrive AFTER the layout has
+  // already occurred (the cold-open / cache-miss case). The layout fires
+  // first with flatListData.length===0 (guard skips), then data arrives and
+  // this effect retries. The hasCorrectedInitialLayoutRef guard prevents
+  // double-firing if the warm-open onLayout path already ran it first.
+  useEffect(() => {
+    runInitialCorrectionAndReveal();
+  }, [runInitialCorrectionAndReveal]);
 
   const groupParticipantsRef = useRef([]);
   const visibleItemIdsRef = useRef(new Set());
@@ -2321,26 +2328,42 @@ export default function ChatScreen({ route, navigation }) {
   }, []);
 
   // ── flatListData: memoised mixed separator + message list ──────────────────
-  // buildMessageList outputs oldest→newest (index 0 is oldest, last is newest).
+  // buildMessageList outputs oldest→newest (index 0 = oldest, last = newest).
+  // FlashList v2 autoscrollToBottomThreshold keeps the view pinned to the
+  // bottom natively without reactive scrollToEnd calls.
   const flatListData = useMemo(() => buildMessageList(messages), [messages]);
 
-  // Cold-open: list starts empty, data arrives async after the network call.
-  // When data first arrives (prev=0 → count>0), call revealList() which:
-  //   1. scrollToIndex(lastIndex, viewPosition:1) immediately (hidden under opacity 0)
-  //   2. waits 400ms for currentUser re-render + card API resolution to settle
-  //   3. scrollToIndex again + fade in at the correct position
-  // Warm-open: prevFlatListLenRef starts >0, so this effect never fires.
-  // revealList() on the warm path is triggered by the FlashList onLayout handler.
-  // flatListDataLengthRef is kept in sync here so revealList's scrollToNewest
-  // closure always has the current length without needing flatListData in deps.
+  // ── Pagination Anchor ───────────────────────────────────────────────────────
+  // When loadOlderMessages prepends a page of older messages (to the START of
+  // the oldest-first array), scrollToIndex re-anchors the viewport to the
+  // message that was at index 0 before the prepend, so the user stays where
+  // they were rather than jumping to the top of the newly prepended batch.
   useEffect(() => {
-    flatListDataLengthRef.current = flatListData.length;
-    const prev = prevFlatListLenRef.current;
-    prevFlatListLenRef.current = flatListData.length;
-    if (prev === 0 && flatListData.length > 0) {
-      revealList();
+    if (prependedAnchorIdRef?.current && flatListData.length > 0) {
+      const anchorId = prependedAnchorIdRef.current;
+      prependedAnchorIdRef.current = null; // consume anchor
+
+      const idx = flatListData.findIndex((item) => {
+        if (item.type === "separator" && item.id === `sep-${anchorId}`) return true;
+        if (item.type === "message" && String(item.data.id) === String(anchorId)) return true;
+        return false;
+      });
+
+      if (idx !== -1) {
+        requestAnimationFrame(() => {
+          try {
+            flashListRef.current?.scrollToIndex({
+              index: idx,
+              animated: false,
+              viewPosition: 0,
+            });
+          } catch (e) {
+            console.warn("[PaginationAnchor] scrollToIndex failed:", e);
+          }
+        });
+      }
     }
-  }, [flatListData, revealList]);
+  }, [flatListData]);
 
   // ── PERF: Dynamic Cost-Based FlatList Tuning ─────────────────────────────
   // Dynamically scales initialNumToRender, maxToRenderPerBatch, and windowSize
@@ -3199,6 +3222,8 @@ export default function ChatScreen({ route, navigation }) {
         createdAt: msg.createdAt,
       });
       // Auto-scroll to show the new message if user is at/near the bottom.
+      // autoscrollToBottomThreshold handles this natively, but keep the
+      // explicit fallback for socket-pushed messages during edge cases.
       if (isAtBottomRef.current) {
         setTimeout(() => {
           flashListRef.current?.scrollToEnd({ animated: true });
@@ -3377,7 +3402,7 @@ export default function ChatScreen({ route, navigation }) {
 
       EventBus.emit("new-message");
       setTimeout(() => {
-        flashListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        flashListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     } catch (err) {
       console.error("Error sending message:", err);
@@ -3826,6 +3851,12 @@ export default function ChatScreen({ route, navigation }) {
           (msg.senderType || "member") === (currentUser?.type || "member")
         : msg.senderId !== (recipient?.id || recipientId);
 
+      // In oldest-first order, index+1 is the NEXT (newer) message. But for
+      // showAvatar / showSenderName semantics we compare with the PREVIOUS
+      // (older) neighbour — that's index-1 in this array, which is what
+      // buildMessageList already pre-computed into msg._showAvatar and
+      // msg._showSenderName. The nextItem lookup here is for shouldShowAvatar's
+      // real-time fallback path (edge case when cached flags are stale).
       const nextItem = flatListData[index + 1];
       const nextMsg = nextItem?.type === "message" ? nextItem.data : null;
       const showAvatar = isMyMessage
@@ -4098,7 +4129,9 @@ export default function ChatScreen({ route, navigation }) {
                   <ActivityIndicator size="large" color={PRIMARY_COLOR} />
                 </View>
               )}
-              <View style={{ flex: 1 }}>
+              <Animated.View
+                style={[{ flex: 1 }, { opacity: listRevealOpacity }]}
+              >
                 <FlashList
                   ref={flashListRef}
                   data={flatListData}
@@ -4114,9 +4147,15 @@ export default function ChatScreen({ route, navigation }) {
                   ]}
                   drawDistance={4000}
                   maintainVisibleContentPosition={{
+                    autoscrollToBottomThreshold: 0.2,
                     startRenderingFromBottom: true,
                   }}
                   onStartReached={() => {
+                    // NOTE: Test empirically — with startRenderingFromBottom:true
+                    // FlashList v2 GitHub issue #1844 reports inconsistent trigger
+                    // direction. If onStartReached doesn't fire reliably when
+                    // scrolling up, switch to onEndReached and log which fires.
+                    console.log("[ChatScreen] onStartReached fired");
                     if (hasMore && !loadingOlder) {
                       loadOlderMessages(currentConversationId);
                     }
@@ -4129,12 +4168,10 @@ export default function ChatScreen({ route, navigation }) {
                     isAtBottomRef.current = contentH - listH - y < 100;
                   }}
                   scrollEventThrottle={16}
-                  onContentSizeChange={onContentSizeChange}
-                  onLayout={(e) => {
-                    const { height } = e.nativeEvent.layout;
-                    if (height > 0 && flatListData.length > 0) {
-                      revealList();
-                    }
+                  onLayout={() => {
+                    // Warm-open path: layout fires after data is already present.
+                    // runInitialCorrectionAndReveal checks the guard internally.
+                    runInitialCorrectionAndReveal();
                   }}
                   ListHeaderComponent={
                     loadingOlder ? (
@@ -4153,14 +4190,22 @@ export default function ChatScreen({ route, navigation }) {
                           minHeight: 200,
                         }}
                       >
-                        <EmptyChatState />
+                        <EmptyChatState
+                          onLayout={() => {
+                            // No scroll correction needed for an empty list —
+                            // reveal immediately so the empty state is visible.
+                            if (listRevealOpacity.value < 1) {
+                              listRevealOpacity.value = withTiming(1, { duration: 150 });
+                            }
+                          }}
+                        />
                       </View>
                     ) : null
                   }
                   viewabilityConfig={viewabilityConfigRef.current}
                   onViewableItemsChanged={onViewableItemsChangedRef.current}
                 />
-              </View>
+              </Animated.View>
             </Animated.View>
           </KeyboardAvoidingView>
 

@@ -5,6 +5,19 @@
  * Uses cursor-based pagination (?before=<ISO>&limit=N) so that
  * prepending older messages never shifts the visible viewport.
  *
+ * Array order contract:
+ *   messages  — oldest → newest  (index 0 = oldest, last index = newest)
+ *
+ * This matches FlashList v2's documented chat pattern:
+ *   maintainVisibleContentPosition={{
+ *     autoscrollToBottomThreshold: 0.2,
+ *     startRenderingFromBottom: true,
+ *   }}
+ * The list renders in normal chronological order; v2's native
+ * autoscrollToBottomThreshold keeps the view pinned to the bottom
+ * automatically when new messages are appended, eliminating the need
+ * for reactive scrollToEnd / onContentSizeChange correction logic.
+ *
  * API surface:
  *   messages           — current flat array of messages (oldest → newest)
  *   hasMore            — true while more older pages exist
@@ -39,6 +52,9 @@ export default function useChatPagination(initialMessages = []) {
   // The polling fallback uses this to request only messages ?after=<newestAt>
   // instead of re-fetching the full recent history every tick.
   const newestAtRef     = useRef(null);
+  // Track the ID of the oldest message BEFORE prepending older messages so
+  // ChatScreen can anchor scroll position after the prepend.
+  const prependedAnchorIdRef = useRef(null);
 
   // ── loadInitial ────────────────────────────────────────────────────────────
   // Fetches the most-recent messages. Called once per conversation open.
@@ -56,6 +72,7 @@ export default function useChatPagination(initialMessages = []) {
       const res = await getMessages(conversationId, { limit });
       if (convIdRef.current !== conversationId) return; // stale response
 
+      // Backend returns messages oldest-first — store directly, no reversal needed.
       const msgs = res.messages || [];
       setMessages(msgs);
       setHasMore(res.hasMore || false);
@@ -71,16 +88,23 @@ export default function useChatPagination(initialMessages = []) {
 
   // ── loadOlderMessages ──────────────────────────────────────────────────────
   // Fetches the next page of older messages and PREPENDS them.
-  // Called by FlashList's onEndReached (which fires when scrolling up in an
-  // inverted list).
+  // Called by FlashList's onStartReached (or onEndReached depending on which
+  // fires reliably with startRenderingFromBottom — see ChatScreen comment).
   const loadOlderMessages = useCallback(async (conversationId) => {
     if (!conversationId) return;
     if (isLoadingRef.current) return;   // already in flight
     if (!hasMore) return;               // nothing more to fetch
 
-    // Use cursorRef.current if present; otherwise fall back to oldest loaded message timestamp
+    // Use cursorRef.current if present; otherwise fall back to oldest loaded
+    // message timestamp (index 0 in the oldest-first array).
     const effectiveCursor = cursorRef.current || (messages.length > 0 ? messages[0].createdAt : null);
     if (!effectiveCursor) return;
+
+    // Record current oldest message ID as anchor before prepending,
+    // so ChatScreen can scroll back to it after the prepend.
+    if (messages.length > 0) {
+      prependedAnchorIdRef.current = messages[0].id;
+    }
 
     isLoadingRef.current = true;
     setLoadingOlder(true);
@@ -94,21 +118,23 @@ export default function useChatPagination(initialMessages = []) {
 
       const older = res.messages || [];
       if (older.length > 0) {
-        // PREPEND: older messages go before existing ones.
-        // FlashList's maintainVisibleContentPosition keeps the viewport stable.
+        // PREPEND: older messages go before existing ones (lower indices).
+        // Backend returns them oldest-first, which is exactly the order we need.
         setMessages(prev => {
           // Deduplicate by id (safety net for edge cases)
           const existingIds = new Set(prev.map(m => m.id));
           const fresh = older.filter(m => !existingIds.has(m.id));
-          // Older messages are already sorted ascending from backend;
-          // prepending them maintains overall ascending order.
+          // Prepending maintains overall oldest → newest order.
           return [...fresh, ...prev];
         });
-        // Advance cursor to the oldest of the newly fetched batch
+        // Advance cursor to the oldest of the newly fetched batch (older[0]).
         cursorRef.current = res.nextCursor || (older.length > 0 ? older[0].createdAt : null);
+      } else {
+        prependedAnchorIdRef.current = null; // nothing prepended, clear anchor
       }
       setHasMore(res.hasMore || false);
     } catch (err) {
+      prependedAnchorIdRef.current = null;
       console.error("[useChatPagination] loadOlderMessages error:", err);
     } finally {
       isLoadingRef.current = false;
@@ -119,13 +145,14 @@ export default function useChatPagination(initialMessages = []) {
   // ── addNewMessage ──────────────────────────────────────────────────────────
   // Inserts a new message (outgoing send or Supabase realtime INSERT).
   // • Deduplicates by id.
-  // • Sorts by createdAt after insertion so any out-of-order arrival
-  //   (clock skew, delayed realtime event) lands in the correct position.
+  // • Sorts ascending (oldest → newest) after insertion so any out-of-order
+  //   arrival (clock skew, delayed realtime event) lands in the correct position.
+  //   New messages land at the END of the array (highest index = newest).
   const addNewMessage = useCallback((msg) => {
     setMessages(prev => {
       if (prev.some(m => m.id === msg.id)) return prev; // deduplicate
       const next = [...prev, msg];
-      // Maintain strict oldest → newest order.
+      // Maintain strict oldest → newest order (ascending by createdAt).
       // In the common case (new message is already the newest) the sort is
       // effectively a no-op after the first comparison — O(n) best case.
       next.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
@@ -140,7 +167,7 @@ export default function useChatPagination(initialMessages = []) {
   // ── addNewMessages (batch) ─────────────────────────────────────────────────
   // Used by the polling fallback to merge a batch of fresh messages in ONE
   // state update (avoids N individual re-renders for N polled messages).
-  // Deduplicates by id and sorts the merged result.
+  // Deduplicates by id and sorts the merged result ascending (oldest → newest).
   const addNewMessages = useCallback((incoming) => {
     if (!incoming || incoming.length === 0) return;
     setMessages(prev => {
@@ -149,7 +176,7 @@ export default function useChatPagination(initialMessages = []) {
       if (fresh.length === 0) return prev; // nothing actually new — bail out
       const next = [...prev, ...fresh];
       next.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-      // Advance newestAt
+      // Advance newestAt — newest is now at last index
       const latestInBatch = fresh.reduce((latest, m) =>
         !latest || new Date(m.createdAt) > new Date(latest) ? m.createdAt : latest
       , null);
@@ -178,6 +205,7 @@ export default function useChatPagination(initialMessages = []) {
     convIdRef.current   = null;
     newestAtRef.current = null;
     isLoadingRef.current = false;
+    prependedAnchorIdRef.current = null;
   }, []);
 
   // ── bootstrapPaginationState ───────────────────────────────────────────────
@@ -213,5 +241,6 @@ export default function useChatPagination(initialMessages = []) {
     resetMessages,
     bootstrapPaginationState, // cache-HIT path only
     newestAtRef,
+    prependedAnchorIdRef,
   };
 }
