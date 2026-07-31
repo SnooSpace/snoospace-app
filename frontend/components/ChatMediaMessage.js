@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { Film, Image as ImageIcon, Play } from "lucide-react-native";
+import { getOptimizedImageUrl } from "../utils/imageUtils";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const BUBBLE_MAX_W = Math.min(SCREEN_W * 0.68, 260);
@@ -67,12 +68,15 @@ function DeletedMediaBubble({ isMyMessage, messageType }) {
 // ── Single image item ──────────────────────────────────────────────────────────
 function ImageItem({ item, isMyMessage, styleOverrides, mediaId, isUploading, uploadProgress, onOpenViewer }) {
   const [thumbError, setThumbError] = useState(false);
-  const mediaUrl = item?.url || null;
+  const rawUrl = item?.url || null;
+  // Downscale to the actual rendered bubble width — avoids loading full-res
+  // camera uploads (3000px+) into a 260dp cell.
+  const mediaUrl = getOptimizedImageUrl(rawUrl, { width: BUBBLE_MAX_W, quality: 'auto:good' });
 
   return (
     <TouchableOpacity
       activeOpacity={0.92}
-      onPress={() => { if (mediaUrl && !isUploading && onOpenViewer) onOpenViewer(mediaId); }}
+      onPress={() => { if (rawUrl && !isUploading && onOpenViewer) onOpenViewer(mediaId); }}
       style={[
         bubbleStyles.mediaBubble,
         isMyMessage ? bubbleStyles.myBubble : bubbleStyles.otherBubble,
@@ -89,6 +93,7 @@ function ImageItem({ item, isMyMessage, styleOverrides, mediaId, isUploading, up
           style={bubbleStyles.thumb}
           contentFit="cover"
           cachePolicy="memory-disk"
+          recyclingKey={String(mediaId)}
           onError={() => setThumbError(true)}
         />
       )}
@@ -109,6 +114,7 @@ function ImageItem({ item, isMyMessage, styleOverrides, mediaId, isUploading, up
 function VideoItem({ item, isMyMessage, styleOverrides, mediaId, onOpenViewer }) {
   const [thumbError, setThumbError] = useState(false);
   const mediaUrl     = item?.url || null;
+  // Video thumbnails are already downscaled by getCloudinaryVideoThumb (480px cap) — leave as-is.
   const thumbnailUrl = item?.thumbnail_url || getCloudinaryVideoThumb(mediaUrl) || null;
 
   return (
@@ -131,6 +137,7 @@ function VideoItem({ item, isMyMessage, styleOverrides, mediaId, onOpenViewer })
           style={bubbleStyles.thumb}
           contentFit="cover"
           cachePolicy="memory-disk"
+          recyclingKey={String(mediaId)}
           onError={() => setThumbError(true)}
         />
       )}

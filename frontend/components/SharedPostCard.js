@@ -16,6 +16,8 @@ import ChallengePostCard from "./posts/ChallengePostCard";
 import PromptPostCard from "./posts/PromptPostCard";
 import QnAPostCard from "./posts/QnAPostCard";
 import SnooLoader from "./ui/SnooLoader";
+import { getOptimizedImageUrl } from "../utils/imageUtils";
+import UnavailableCard from "./UnavailableCard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH * 0.65; // Reduced from 0.75 to 0.65
@@ -25,15 +27,28 @@ const CARD_WIDTH = SCREEN_WIDTH * 0.65; // Reduced from 0.75 to 0.65
 // over a shared post card doesn't trigger a second network request.
 const postCache = new Map();
 
+export const isPostUnavailable = (id) => {
+  if (!id) return true;
+  return postCache.get(id)?.unavailable === true;
+};
+
 /**
  * SharedPostCard - Instagram-style shared post preview for chat messages
  * Displays a compact preview card with post thumbnail, author info, and caption.
  * Supports multi-image carousel with dot indicator and stacked-image badge.
  */
 const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) => {
-  const [postData, setPostData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  // Extract metadata from message
+  const { postId, authorId, authorType, imageUrl, caption, authorUsername, author_username, authorName, author_name } = metadata || {};
+  const metaUsername = authorUsername || author_username;
+  const metaName = authorName || author_name;
+
+  const cached = postId ? postCache.get(postId) : null;
+  const isUnavailableCached = !postId || cached?.unavailable === true;
+
+  const [postData, setPostData] = useState(cached && !isUnavailableCached ? cached : null);
+  const [loading, setLoading] = useState(!cached && Boolean(postId));
+  const [error, setError] = useState(isUnavailableCached);
   const [activeIndex, setActiveIndex] = useState(0);
 
   const allImageUrls = postData?.image_urls ? postData.image_urls.flat() : [];
@@ -120,10 +135,6 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
     };
   });
 
-  // Extract metadata from message
-  const { postId, authorId, authorType, imageUrl, caption, authorUsername, author_username, authorName, author_name } = metadata || {};
-  const metaUsername = authorUsername || author_username;
-  const metaName = authorName || author_name;
 
   useEffect(() => {
     if (!postId) {
@@ -177,15 +188,12 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
     }
   }, [postData?.video_thumbnail]);
 
-  // Loading state
+  // Loading state (Option A: compact 44px footprint while checking to prevent collapse drift)
   if (loading) {
     return (
-      <View style={[styles.container, style]}>
-        <View style={styles.card}>
-          <View style={styles.loadingContainer}>
-            <SnooLoader size="small" color={COLORS.primary} />
-            <Text style={[styles.loadingText, { fontFamily: 'Manrope-Medium' }]}>Loading post...</Text>
-          </View>
+      <View style={[styles.container, styles.compactContainer, style]}>
+        <View style={styles.compactLoadingCard}>
+          <SnooLoader size="small" color={COLORS.primary} />
         </View>
       </View>
     );
@@ -193,28 +201,9 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
 
   // Error state (deleted post or failed to load)
   if (error || !postData) {
-    const hasMetaInfo = metaUsername || metaName || caption;
     return (
-      <View style={[styles.container, style]}>
-        <View style={[styles.card, styles.errorCard]}>
-          <Text style={styles.errorIcon}>📭</Text>
-          <Text style={styles.errorText}>
-            {hasMetaInfo ? "Post no longer available" : "Post unavailable"}
-          </Text>
-          {hasMetaInfo && (
-            <Text style={styles.errorSubtext} numberOfLines={2}>
-              {metaName || (metaUsername ? `@${metaUsername}` : "")}
-              {metaName && metaUsername ? ` (@${metaUsername})` : ""}
-              {(metaName || metaUsername) && caption ? "\n" : ""}
-              {caption ? caption.slice(0, 80) : ""}
-            </Text>
-          )}
-          {!hasMetaInfo && (
-            <Text style={styles.errorSubtext}>
-              This post may have been deleted
-            </Text>
-          )}
-        </View>
+      <View style={[styles.container, styles.compactContainer, style]}>
+        <UnavailableCard label="Post" id={postId} />
       </View>
     );
   }
@@ -398,9 +387,11 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
                     >
                       {allImageUrls.map((url, idx) => {
                         const itemIsVideo = checkIsVideo(url, idx);
-                        const itemThumbnail = itemIsVideo
+                        const rawThumb = itemIsVideo
                           ? generateCloudinaryThumbnail(url)
                           : url;
+                        // Downscale to card width — avoids fetching full-res originals
+                        const itemThumbnail = getOptimizedImageUrl(rawThumb, { width: CARD_WIDTH, quality: 'auto:good' });
                         return (
                           <View
                             key={idx}
@@ -426,6 +417,7 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
                                   ]}
                                   contentFit={isWideImage ? "contain" : "cover"}
                                   cachePolicy="memory-disk"
+                                  recyclingKey={`${postId}-${idx}`}
                                 />
                                 {itemIsVideo && (
                                   <View style={styles.videoIndicator}>
@@ -484,13 +476,14 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
                 ) : thumbnailUrl ? (
                   <>
                     <Image
-                      source={{ uri: thumbnailUrl }}
+                      source={{ uri: getOptimizedImageUrl(thumbnailUrl, { width: CARD_WIDTH, quality: 'auto:good' }) }}
                       style={[
                         styles.mediaImage,
                         isWideImage && { resizeMode: "contain" },
                       ]}
                       contentFit={isWideImage ? "contain" : "cover"}
                       cachePolicy="memory-disk"
+                      recyclingKey={`${postId}-0`}
                     />
                     {/* Video indicator overlay for videos with thumbnails */}
                     {isVideo && (
@@ -532,6 +525,7 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
               style={styles.authorAvatar}
               cachePolicy="memory-disk"
               contentFit="cover"
+              recyclingKey={String(postData.author_id || postId)}
             />
             <View style={styles.authorTextContainer}>
               <Text style={styles.authorName} numberOfLines={1}>
@@ -561,6 +555,20 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     marginVertical: 8,
     minHeight: 240,
+    justifyContent: "center",
+  },
+  compactContainer: {
+    minHeight: 0,
+    marginVertical: 4,
+  },
+  compactLoadingCard: {
+    height: 44,
+    width: "100%",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    alignItems: "center",
     justifyContent: "center",
   },
   card: {
@@ -697,29 +705,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 13,
     color: "#8E8E93",
-    fontFamily: "Manrope-Regular",
-  },
-  errorCard: {
-    padding: 40,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#F9F9F9",
-  },
-  errorIcon: {
-    fontSize: 40,
-    marginBottom: 12,
-  },
-  errorText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#000000",
-    marginBottom: 4,
-    fontFamily: "Manrope-SemiBold",
-  },
-  errorSubtext: {
-    fontSize: 13,
-    color: "#8E8E93",
-    textAlign: "center",
     fontFamily: "Manrope-Regular",
   },
 });

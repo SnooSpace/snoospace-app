@@ -23,6 +23,7 @@ import { getOpportunityDetail } from "../api/opportunities";
 import CountdownTimer from "./CountdownTimer";
 import { COLORS, FONTS } from "../constants/theme";
 import SnooLoader from "./ui/SnooLoader";
+import UnavailableCard from "./UnavailableCard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH * 0.72;
@@ -100,24 +101,20 @@ const MarqueeChips = React.memo(({ chips, chipType, styles }) => {
 });
 
 // ── Module-level opportunity cache ──────────────────────────────────────────
-// Keyed by opportunityId. Survives remount so scrolling back over an
-// opportunity share doesn't re-fetch from the API.
 const opportunityCache = new Map();
+
+export const isOpportunityUnavailable = (id) => {
+  if (!id) return true;
+  return opportunityCache.get(id)?.unavailable === true;
+};
 
 /**
  * SharedOpportunityCard — premium preview rendered in chat when
  * someone shares an opportunity (message_type === "opportunity_share").
  * Matches the layout and style of OpportunityFeedCard in a compact view.
- *
- * Metadata shape (from shareOpportunity backend):
- *   { opportunityId, title, opportunityTypes, creatorId, creatorType,
- *     creatorName, creatorUsername }
  */
 const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
   const navigation = useNavigation();
-  const [opp, setOpp] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [deleted, setDeleted] = useState(false);
 
   if (!metadata) return null;
 
@@ -130,6 +127,13 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
   } = metadata;
 
   const targetId = opportunityId || metadata.opportunity_id || metadata.id || metadata.opportunityId;
+
+  const cached = targetId ? opportunityCache.get(targetId) : null;
+  const isUnavailableCached = !targetId || cached?.unavailable === true;
+
+  const [opp, setOpp] = useState(cached && !isUnavailableCached ? cached : null);
+  const [loading, setLoading] = useState(!cached && Boolean(targetId));
+  const [deleted, setDeleted] = useState(isUnavailableCached);
 
   // Normalise opportunity_types — could be array or comma-string
   const types = useMemo(() => {
@@ -144,13 +148,21 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
     let isMounted = true;
 
     if (!targetId) {
+      setDeleted(true);
       setLoading(false);
       return;
     }
 
     // ── PERF: Return cached result immediately — no network round-trip.
     if (opportunityCache.has(targetId)) {
-      setOpp(opportunityCache.get(targetId));
+      const c = opportunityCache.get(targetId);
+      if (c?.unavailable) {
+        setDeleted(true);
+        setOpp(null);
+      } else {
+        setOpp(c);
+        setDeleted(false);
+      }
       setLoading(false);
       return;
     }
@@ -159,14 +171,17 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
       try {
         const response = await getOpportunityDetail(targetId);
         const data = response.opportunity || response;
-        if (isMounted && data) {
+        if (isMounted && data && (data.id || data.title)) {
           opportunityCache.set(targetId, data); // cache before setState
           setOpp(data);
+          setDeleted(false);
         } else if (isMounted) {
+          opportunityCache.set(targetId, { unavailable: true });
           setDeleted(true);
         }
       } catch (err) {
         console.warn("[SharedOpportunityCard] Opportunity unavailable (likely deleted):", err?.message);
+        opportunityCache.set(targetId, { unavailable: true });
         if (isMounted) setDeleted(true);
       } finally {
         if (isMounted) setLoading(false);
@@ -279,40 +294,16 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
 
   return (
     <TouchableOpacity
-      style={[styles.container, style]}
+      style={[styles.container, (loading || deleted) && styles.compactContainer, style]}
       onPress={loading || deleted ? undefined : handlePress}
       activeOpacity={loading || deleted ? 1 : 0.9}
     >
       {loading ? (
-        // Simple centered loader — no metadata skeleton.
-        // Natural height anchors to minHeight:240 on the container,
-        // matching the deleted state height → zero layout change on resolve.
-        <View style={styles.simpleLoadingCard}>
+        <View style={styles.compactLoadingCard}>
           <SnooLoader size="small" color={COLORS.primary} />
         </View>
       ) : deleted ? (
-        // Deleted state — simple centered error content, same height floor.
-        <View style={[styles.card, styles.deletedCard]}>
-          <Text style={styles.deletedIcon}>📭</Text>
-          <Text style={styles.deletedText}>Opportunity no longer available</Text>
-          {hasMetaInfo ? (
-            <Text style={styles.deletedSubtext} numberOfLines={2}>
-              {metaTitle || ""}
-              {metaTitle && metaCreatorName ? "\n" : ""}
-              {metaCreatorName
-                ? metaCreatorUsername
-                  ? `${metaCreatorName} (@${metaCreatorUsername})`
-                  : metaCreatorName
-                : metaCreatorUsername
-                ? `@${metaCreatorUsername}`
-                : ""}
-            </Text>
-          ) : (
-            <Text style={styles.deletedSubtext}>
-              This opportunity may have been deleted
-            </Text>
-          )}
-        </View>
+        <UnavailableCard label="Opportunity" id={targetId} />
       ) : (
         // Resolved valid opportunity — full card.
         // May grow taller than 240px — that's intentional and fine.
@@ -347,6 +338,7 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
               style={styles.authorAvatar}
               cachePolicy="memory-disk"
               contentFit="cover"
+              recyclingKey={`opp-auth-${String(targetId)}`}
             />
             <Text style={styles.authorUsername} numberOfLines={1}>
               {displayCreatorName}
@@ -414,6 +406,7 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
                          ]}
                          cachePolicy="memory-disk"
                          contentFit="cover"
+                         recyclingKey={`opp-app-${String(targetId)}-${index}`}
                       />
                     ))}
                     {opp?.applicant_count > 3 && (
@@ -486,6 +479,20 @@ const styles = StyleSheet.create({
     minHeight: 240,
     justifyContent: "center",
   },
+  compactContainer: {
+    minHeight: 0,
+    marginVertical: 4,
+  },
+  compactLoadingCard: {
+    height: 44,
+    width: "100%",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   card: {
     borderRadius: 16,
     padding: 16,
@@ -499,33 +506,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 24,
-  },
-  deletedCard: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 16,
-    padding: 28,
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  deletedIcon: {
-    fontSize: 32,
-    marginBottom: 10,
-  },
-  deletedText: {
-    fontSize: 14,
-    fontFamily: FONTS.semiBold,
-    color: "#374151",
-    marginBottom: 4,
-    textAlign: "center",
-  },
-  deletedSubtext: {
-    fontSize: 12,
-    fontFamily: FONTS.regular || FONTS.medium,
-    color: "#9CA3AF",
-    textAlign: "center",
   },
   headerRow: {
     flexDirection: "row",

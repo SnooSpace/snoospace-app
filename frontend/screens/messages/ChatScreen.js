@@ -142,10 +142,10 @@ import { NotificationConsumptionService } from "../../services/NotificationConsu
 import { COLORS } from "../../constants/theme";
 import KeyboardAwareToolbar from "../../components/KeyboardAwareToolbar";
 import TicketMessageCard from "../../components/TicketMessageCard";
-import SharedPostCard from "../../components/SharedPostCard";
-import SharedOpportunityCard from "../../components/SharedOpportunityCard";
-import SharedEventCard from "../../components/SharedEventCard";
-import SharedPlanCard from "../../components/SharedPlanCard";
+import SharedPostCard, { isPostUnavailable } from "../../components/SharedPostCard";
+import SharedOpportunityCard, { isOpportunityUnavailable } from "../../components/SharedOpportunityCard";
+import SharedEventCard, { isEventUnavailable } from "../../components/SharedEventCard";
+import SharedPlanCard, { isPlanUnavailable } from "../../components/SharedPlanCard";
 import SnooLoader from "../../components/ui/SnooLoader";
 import ProfilePostFeed from "../../components/ProfilePostFeed";
 import CommentsModal from "../../components/CommentsModal";
@@ -212,6 +212,7 @@ const GroupAvatar = ({ photoUrl, name, size = 30 }) => {
         }}
         contentFit="cover"
         cachePolicy="memory-disk"
+        recyclingKey={photoUrl}
       />
     );
   }
@@ -338,6 +339,26 @@ const buildMessageList = (messages) => {
 const keyExtractor = (item) =>
   item.type === "message" ? String(item.data.id) : item.id;
 
+const isCardUnavailable = (messageType, metadata) => {
+  if (!metadata) return false;
+  const cardId =
+    metadata.postId ||
+    metadata.opportunityId ||
+    metadata.eventId ||
+    metadata.planId ||
+    metadata.id ||
+    metadata.opportunity_id ||
+    metadata.event_id ||
+    metadata.plan_id;
+  if (!cardId) return false;
+
+  if (messageType === "post_share") return isPostUnavailable(cardId);
+  if (messageType === "opportunity_share") return isOpportunityUnavailable(cardId);
+  if (messageType === "event_share") return isEventUnavailable(cardId);
+  if (messageType === "plan_share") return isPlanUnavailable(cardId);
+  return false;
+};
+
 // ── overrideItemLayout ───────────────────────────────────────────────────────
 // Provides height estimates so startRenderingFromBottom computes a reasonable
 // initial scroll offset. Do NOT add a JS-side height cache here — custom caches
@@ -373,11 +394,17 @@ const overrideItemLayout = (layout, item) => {
     msg.messageType === "ticket";
 
   if (isImageOrVideo) {
-    layout.size = 240;
+    // BUBBLE_H (200) + marginBottom: 2 = 202dp actual measured height.
+    // The isCard branch below stays at 240 (confirmed correct in card-height audit).
+    layout.size = 202;
     return;
   }
 
   if (isCard) {
+    if (isCardUnavailable(msg.messageType, msg.metadata)) {
+      layout.size = 44;
+      return;
+    }
     layout.size = 240;
     return;
   }
@@ -1398,6 +1425,7 @@ const MessageRow = React.memo(
             style={styles.messageAvatar}
             contentFit="cover"
             cachePolicy="memory-disk"
+            recyclingKey={String(msg.senderId || recipientId)}
           />
         )
       ) : (
@@ -1935,7 +1963,8 @@ export default function ChatScreen({ route, navigation }) {
     updateMessageById,
     bootstrapPaginationState,
     newestAtRef,
-    prependedAnchorIdRef,
+    isLoadingRef,
+    resetMessages,
   } = useChatPagination(initialMessagesRef.current);
 
   const [messageText, setMessageText] = useState("");
@@ -1959,7 +1988,8 @@ export default function ChatScreen({ route, navigation }) {
       // scroll drift (e.g. warm open with cached data).
       // autoscrollToBottomThreshold handles ongoing pinning; this is a one-shot
       // correction for the transition frame.
-      if (!e?.data?.closing) {
+      // Guarded against active pagination so in-flight loadOlderMessages isn't yanked to bottom.
+      if (!e?.data?.closing && !isLoadingRef.current) {
         requestAnimationFrame(() => {
           flashListRef.current?.scrollToEnd({ animated: false });
         });
@@ -2222,48 +2252,54 @@ export default function ChatScreen({ route, navigation }) {
   // visible scroll jump. This ref ensures the corrective scrollToEnd fires
   // exactly once per conversation open and never again.
   const hasCorrectedInitialLayoutRef = useRef(false);
-  // Opacity mask: starts at 0 so the user never sees the wrong-position first
-  // frame from FlashList v2's first-paint gap. Reveals instantly (no fade)
-  // after the one-shot scrollToEnd correction has had 2 rAFs to land.
-  // Total hidden duration: ~2 frames (~33ms) — below perception threshold.
+  // Opacity mask: starts transparent so the user never sees the wrong-position
+  // first frame. Fades to 1 after the one-shot scrollToEnd correction lands.
+  // Reset to 0 on conversation change so every open goes through the same cycle.
   const listRevealOpacity = useSharedValue(0);
-  useEffect(() => {
-    // Reset both guards whenever the conversation changes.
-    hasCorrectedInitialLayoutRef.current = false;
-    listRevealOpacity.value = 0;
-  }, [currentConversationId]);
+  const isListSettledRef = useRef(false);
 
-  // ── runInitialCorrection ───────────────────────────────────────────────────────
+  useEffect(() => {
+    // Reset guards and pagination state whenever the conversation changes.
+    hasCorrectedInitialLayoutRef.current = false;
+    isListSettledRef.current = false;
+    listRevealOpacity.value = 0;
+    resetMessages();
+  }, [currentConversationId, resetMessages]);
+
+  // ── runInitialCorrectionAndReveal ──────────────────────────────────────────────
   // One-shot correction+reveal per conversation open. Guards via
-  // hasCorrectedInitialLayoutRef so it fires exactly once regardless of whether
-  // layout fires before data (warm open) or data arrives after layout (cold open).
+  // hasCorrectedInitialLayoutRef so it runs exactly once regardless of
+  // whether layout fires before data (warm open) or data arrives after
+  // layout (cold open / network fetch).
   //
   // Sequence:
-  //   rAF 1 — scrollToEnd (snap to true bottom)
-  //   rAF 2 — the native scroll has had one more frame to paint; reveal instantly
-  //
-  // No setTimeout settle window needed: card heights are now stable across all
-  // states (SharedOpportunityCard fix), so there’s nothing left to wait for.
-  const runInitialCorrection = useCallback(() => {
+  //   rAF 1  — scrollToEnd to the true bottom
+  //   60ms   — bounded native paint window for native ScrollView layout & scrollToEnd
+  //   rAF 2  — re-anchor & withTiming(1, 120ms) fade list in
+  const runInitialCorrectionAndReveal = useCallback(() => {
     if (hasCorrectedInitialLayoutRef.current) return; // already ran
-    if (messages.length === 0) return;                // wait for data
+    if (messages.length === 0) return;                // no data yet
     hasCorrectedInitialLayoutRef.current = true;
     requestAnimationFrame(() => {
       flashListRef.current?.scrollToEnd({ animated: false });
-      // One more frame so the corrected position has painted before reveal.
-      requestAnimationFrame(() => {
-        listRevealOpacity.value = 1; // instant — no fade animation
-      });
+      setTimeout(() => {
+        flashListRef.current?.scrollToEnd({ animated: false });
+        listRevealOpacity.value = withTiming(1, { duration: 120 }, () => {
+          isListSettledRef.current = true;
+        });
+        isListSettledRef.current = true;
+      }, 60);
     });
   }, [messages.length]);
 
-  // Data-arrival trigger: fires when messages arrive AFTER layout has already
-  // occurred (the cold-open / cache-miss case). The hasCorrectedInitialLayoutRef
-  // guard prevents double-firing if the warm-open onLayout path ran it first.
+  // Data-arrival trigger: fires when messages arrive AFTER the layout has
+  // already occurred (the cold-open / cache-miss case). The layout fires
+  // first with flatListData.length===0 (guard skips), then data arrives and
+  // this effect retries. The hasCorrectedInitialLayoutRef guard prevents
+  // double-firing if the warm-open onLayout path already ran it first.
   useEffect(() => {
-    runInitialCorrection();
-  }, [runInitialCorrection]);
-
+    runInitialCorrectionAndReveal();
+  }, [runInitialCorrectionAndReveal]);
 
   const groupParticipantsRef = useRef([]);
   const visibleItemIdsRef = useRef(new Set());
@@ -2330,37 +2366,6 @@ export default function ChatScreen({ route, navigation }) {
   // bottom natively without reactive scrollToEnd calls.
   const flatListData = useMemo(() => buildMessageList(messages), [messages]);
 
-  // ── Pagination Anchor ───────────────────────────────────────────────────────
-  // When loadOlderMessages prepends a page of older messages (to the START of
-  // the oldest-first array), scrollToIndex re-anchors the viewport to the
-  // message that was at index 0 before the prepend, so the user stays where
-  // they were rather than jumping to the top of the newly prepended batch.
-  useEffect(() => {
-    if (prependedAnchorIdRef?.current && flatListData.length > 0) {
-      const anchorId = prependedAnchorIdRef.current;
-      prependedAnchorIdRef.current = null; // consume anchor
-
-      const idx = flatListData.findIndex((item) => {
-        if (item.type === "separator" && item.id === `sep-${anchorId}`) return true;
-        if (item.type === "message" && String(item.data.id) === String(anchorId)) return true;
-        return false;
-      });
-
-      if (idx !== -1) {
-        requestAnimationFrame(() => {
-          try {
-            flashListRef.current?.scrollToIndex({
-              index: idx,
-              animated: false,
-              viewPosition: 0,
-            });
-          } catch (e) {
-            console.warn("[PaginationAnchor] scrollToIndex failed:", e);
-          }
-        });
-      }
-    }
-  }, [flatListData]);
 
   // ── PERF: Dynamic Cost-Based FlatList Tuning ─────────────────────────────
   // Dynamically scales initialNumToRender, maxToRenderPerBatch, and windowSize
@@ -2723,7 +2728,8 @@ export default function ChatScreen({ route, navigation }) {
             : Date.now();
           let freshMsgs = [];
           let freshCursor = null;
-          let freshHasMore = false; // set in each branch from the API response, not from React state
+          let hasOlderMessages = false;
+          let hasNewerMessages = false;
 
           if (cached && cached.messages.length > 0) {
             if (skipReconcile) {
@@ -2731,11 +2737,11 @@ export default function ChatScreen({ route, navigation }) {
               console.log(
                 `[ConvCache] Cache HIT (fresh, ${(cacheAgeMs / 1000).toFixed(1)}s old) — skipping reconcile`,
               );
-              freshHasMore = cached.hasMore ?? false;
+              hasOlderMessages = cached.hasMore ?? false;
               bootstrapPaginationState({
                 conversationId,
                 cursor: cached.cursor || null,
-                hasMore: freshHasMore,
+                hasMore: hasOlderMessages,
                 newestAt:
                   cached.messages.length > 0
                     ? cached.messages[cached.messages.length - 1].createdAt
@@ -2754,7 +2760,8 @@ export default function ChatScreen({ route, navigation }) {
               console.log(
                 `[ConvCache] Cache HIT (stale, ${(cacheAgeMs / 1000).toFixed(1)}s old) — delta reconcile after ${newestCachedAt}`,
               );
-              const reconcileParams = newestCachedAt
+              const isDeltaReconcile = Boolean(newestCachedAt);
+              const reconcileParams = isDeltaReconcile
                 ? { after: newestCachedAt } // delta: only newer messages
                 : { limit: 20 }; // no anchor: full page fallback
               const reconcileRes = await getMessages(
@@ -2763,14 +2770,22 @@ export default function ChatScreen({ route, navigation }) {
               );
               freshMsgs = reconcileRes?.messages || [];
               freshCursor = reconcileRes?.nextCursor || null;
-              // For delta reconcile, hasMore from server tells us if there are older messages.
-              // Fall back to cached.hasMore if the reconcile didn't return a hasMore field.
-              freshHasMore = reconcileRes?.hasMore ?? cached.hasMore ?? false;
+
+              if (isDeltaReconcile) {
+                // Delta reconcile response's hasMore describes whether there are NEWER messages.
+                hasNewerMessages = reconcileRes?.hasMore ?? false;
+                // Preserve cached.hasMore for OLDER-message pagination.
+                hasOlderMessages = cached.hasMore ?? false;
+              } else {
+                // Full fetch fallback describes older messages.
+                hasOlderMessages = reconcileRes?.hasMore ?? false;
+              }
+
               if (reconcileRes?.status) setGroupStatus(reconcileRes.status);
               bootstrapPaginationState({
                 conversationId,
                 cursor: freshCursor || cached.cursor || null,
-                hasMore: freshHasMore,
+                hasMore: hasOlderMessages,
                 newestAt:
                   freshMsgs.length > 0
                     ? freshMsgs[freshMsgs.length - 1].createdAt
@@ -2785,7 +2800,7 @@ export default function ChatScreen({ route, navigation }) {
             freshCursor = loadRes?.nextCursor || null;
             // Read hasMore from the API response object directly — NOT from the hasMore
             // React state variable, which hasn't settled yet when this async code runs.
-            freshHasMore = loadRes?.hasMore ?? false;
+            hasOlderMessages = loadRes?.hasMore ?? false;
           }
 
           const tEndLoad = global.performance
@@ -2808,7 +2823,7 @@ export default function ChatScreen({ route, navigation }) {
             setCachedConversation(conversationId, {
               messages: freshMsgs,
               cursor: freshCursor,
-              hasMore: freshHasMore,
+              hasMore: hasOlderMessages,
             });
           }
 
@@ -4061,6 +4076,7 @@ export default function ChatScreen({ route, navigation }) {
                           style={styles.headerAvatar}
                           contentFit="cover"
                           cachePolicy="memory-disk"
+                          recyclingKey={String(recipientId)}
                         />
                       )}
                       <View>
@@ -4121,42 +4137,39 @@ export default function ChatScreen({ route, navigation }) {
             keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
           >
             <Animated.View style={[{ flex: 1 }, containerAnimatedStyle]}>
-              {messagesLoading && (
-                <View style={styles.loadingOverlay} pointerEvents="none">
+              {messagesLoading ? (
+                <View style={styles.loadingOverlay}>
                   <ActivityIndicator size="large" color={PRIMARY_COLOR} />
                 </View>
-              )}
-              <Animated.View
-                style={[{ flex: 1 }, { opacity: listRevealOpacity }]}
-              >
-                <FlashList
-                  ref={flashListRef}
-                  data={flatListData}
-                  keyExtractor={keyExtractor}
-                  renderItem={renderItem}
-                  getItemType={(item) => item.type}
-                  overrideItemLayout={overrideItemLayout}
-                  estimatedItemSize={estimatedItemSize}
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={[
-                    styles.listContent,
-                    { paddingBottom: 12 + insets.bottom },
-                  ]}
-                  drawDistance={4000}
-                  maintainVisibleContentPosition={{
-                    autoscrollToBottomThreshold: 0.2,
-                    startRenderingFromBottom: true,
-                  }}
-                  onStartReached={() => {
-                    // NOTE: Test empirically — with startRenderingFromBottom:true
-                    // FlashList v2 GitHub issue #1844 reports inconsistent trigger
-                    // direction. If onStartReached doesn't fire reliably when
-                    // scrolling up, switch to onEndReached and log which fires.
-                    console.log("[ChatScreen] onStartReached fired");
-                    if (hasMore && !loadingOlder) {
-                      loadOlderMessages(currentConversationId);
-                    }
-                  }}
+              ) : (
+                <Animated.View
+                  style={[{ flex: 1 }, { opacity: listRevealOpacity }]}
+                >
+                  <FlashList
+                    ref={flashListRef}
+                    data={flatListData}
+                    keyExtractor={keyExtractor}
+                    renderItem={renderItem}
+                    getItemType={(item) => item.type}
+                    overrideItemLayout={overrideItemLayout}
+                    estimatedItemSize={estimatedItemSize}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={[
+                      styles.listContent,
+                      { paddingBottom: 12 + insets.bottom },
+                    ]}
+                    drawDistance={1000}
+                    maintainVisibleContentPosition={{
+                      autoscrollToBottomThreshold: 0.2,
+                      startRenderingFromBottom: true,
+                    }}
+                    onStartReached={() => {
+                      if (!isListSettledRef.current) return; // ignore spurious fires before initial anchor completes
+                      console.log("[ChatScreen] onStartReached fired");
+                      if (hasMore && !loadingOlder) {
+                        loadOlderMessages(currentConversationId);
+                      }
+                    }}
                   onStartReachedThreshold={0.4}
                   onScroll={(e) => {
                     const y = e.nativeEvent.contentOffset.y;
@@ -4167,8 +4180,8 @@ export default function ChatScreen({ route, navigation }) {
                   scrollEventThrottle={16}
                   onLayout={() => {
                     // Warm-open path: layout fires after data is already present.
-                    // runInitialCorrection checks the guard internally.
-                    runInitialCorrection();
+                    // runInitialCorrectionAndReveal checks the guard internally.
+                    runInitialCorrectionAndReveal();
                   }}
                   ListHeaderComponent={
                     loadingOlder ? (
@@ -4189,9 +4202,10 @@ export default function ChatScreen({ route, navigation }) {
                       >
                         <EmptyChatState
                           onLayout={() => {
-                            // Empty list — no scroll correction needed, reveal immediately.
+                            // No scroll correction needed for an empty list —
+                            // reveal immediately so the empty state is visible.
                             if (listRevealOpacity.value < 1) {
-                              listRevealOpacity.value = 1;
+                              listRevealOpacity.value = withTiming(1, { duration: 150 });
                             }
                           }}
                         />
@@ -4202,7 +4216,8 @@ export default function ChatScreen({ route, navigation }) {
                   onViewableItemsChanged={onViewableItemsChangedRef.current}
                 />
               </Animated.View>
-            </Animated.View>
+            )}
+          </Animated.View>
           </KeyboardAvoidingView>
 
           <KeyboardAwareToolbar enabled={isChatInputFocused}>

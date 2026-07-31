@@ -52,9 +52,6 @@ export default function useChatPagination(initialMessages = []) {
   // The polling fallback uses this to request only messages ?after=<newestAt>
   // instead of re-fetching the full recent history every tick.
   const newestAtRef     = useRef(null);
-  // Track the ID of the oldest message BEFORE prepending older messages so
-  // ChatScreen can anchor scroll position after the prepend.
-  const prependedAnchorIdRef = useRef(null);
 
   // ── loadInitial ────────────────────────────────────────────────────────────
   // Fetches the most-recent messages. Called once per conversation open.
@@ -100,12 +97,6 @@ export default function useChatPagination(initialMessages = []) {
     const effectiveCursor = cursorRef.current || (messages.length > 0 ? messages[0].createdAt : null);
     if (!effectiveCursor) return;
 
-    // Record current oldest message ID as anchor before prepending,
-    // so ChatScreen can scroll back to it after the prepend.
-    if (messages.length > 0) {
-      prependedAnchorIdRef.current = messages[0].id;
-    }
-
     isLoadingRef.current = true;
     setLoadingOlder(true);
 
@@ -129,12 +120,9 @@ export default function useChatPagination(initialMessages = []) {
         });
         // Advance cursor to the oldest of the newly fetched batch (older[0]).
         cursorRef.current = res.nextCursor || (older.length > 0 ? older[0].createdAt : null);
-      } else {
-        prependedAnchorIdRef.current = null; // nothing prepended, clear anchor
       }
       setHasMore(res.hasMore || false);
     } catch (err) {
-      prependedAnchorIdRef.current = null;
       console.error("[useChatPagination] loadOlderMessages error:", err);
     } finally {
       isLoadingRef.current = false;
@@ -205,7 +193,6 @@ export default function useChatPagination(initialMessages = []) {
     convIdRef.current   = null;
     newestAtRef.current = null;
     isLoadingRef.current = false;
-    prependedAnchorIdRef.current = null;
   }, []);
 
   // ── bootstrapPaginationState ───────────────────────────────────────────────
@@ -241,6 +228,6 @@ export default function useChatPagination(initialMessages = []) {
     resetMessages,
     bootstrapPaginationState, // cache-HIT path only
     newestAtRef,
-    prependedAnchorIdRef,
+    isLoadingRef,
   };
 }

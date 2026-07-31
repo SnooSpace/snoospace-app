@@ -12,6 +12,8 @@ import { Calendar, Clock, MapPin, Video, MoveRight } from "lucide-react-native";
 import { COLORS, FONTS, SHADOWS } from "../constants/theme";
 import { getEventDetails } from "../api/events";
 import SnooLoader from "./ui/SnooLoader";
+import { getOptimizedImageUrl } from "../utils/imageUtils";
+import UnavailableCard from "./UnavailableCard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH * 0.65; // Scaled down to match SharedPostCard and fit nicely in chat
@@ -83,9 +85,13 @@ const parseDisplayDate = (dateStr) => {
 };
 
 // ── Module-level event cache ───────────────────────────────────────────────
-// Keyed by eventId. Survives remount so scrolling back over an event share
-// doesn't re-fetch from the API.
+// ── Module-level event cache ────────────────────────────────────────────────
 const eventCache = new Map();
+
+export const isEventUnavailable = (id) => {
+  if (!id) return true;
+  return eventCache.get(id)?.unavailable === true;
+};
 
 /**
  * SharedEventCard — premium preview rendered in chat when
@@ -94,10 +100,6 @@ const eventCache = new Map();
  * Matches the layout and style of EventCard in a compact view.
  */
 const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
-  const [event, setEvent] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [deleted, setDeleted] = useState(false);
-
   if (!metadata) return null;
 
   const {
@@ -114,6 +116,13 @@ const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
 
   const targetId = eventId || metadata.event_id || metadata.id;
 
+  const cached = targetId ? eventCache.get(targetId) : null;
+  const isUnavailableCached = !targetId || cached?.unavailable === true;
+
+  const [event, setEvent] = useState(cached && !isUnavailableCached ? cached : null);
+  const [loading, setLoading] = useState(!cached && Boolean(targetId));
+  const [deleted, setDeleted] = useState(isUnavailableCached);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -125,7 +134,14 @@ const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
 
     // ── PERF: Return cached result immediately — no network round-trip.
     if (eventCache.has(targetId)) {
-      setEvent(eventCache.get(targetId));
+      const c = eventCache.get(targetId);
+      if (c?.unavailable) {
+        setDeleted(true);
+        setEvent(null);
+      } else {
+        setEvent(c);
+        setDeleted(false);
+      }
       setLoading(false);
       return;
     }
@@ -137,11 +153,14 @@ const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
         if (isMounted && data && (data.id || data.title)) {
           eventCache.set(targetId, data); // cache before setState
           setEvent(data);
+          setDeleted(false);
         } else if (isMounted) {
+          eventCache.set(targetId, { unavailable: true });
           setDeleted(true);
         }
       } catch (err) {
         console.warn("[SharedEventCard] Event unavailable (likely deleted):", err?.message);
+        eventCache.set(targetId, { unavailable: true });
         if (isMounted) setDeleted(true);
       } finally {
         if (isMounted) setLoading(false);
@@ -224,15 +243,11 @@ const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
     if (onPress && targetId) onPress(targetId);
   }, [onPress, targetId]);
 
-  // ── Loading state ──────────────────────────────────────────────────────────
+  // ── Loading state (Option A: compact 44px footprint while checking to prevent collapse drift) ──
   if (loading) {
     return (
-      <View style={[styles.container, style]}>
-        <View style={styles.eventLabel}>
-          <Calendar size={12} color={COLORS.primary} strokeWidth={2} />
-          <Text style={styles.eventLabelText}>Event</Text>
-        </View>
-        <View style={[styles.card, styles.loadingCard]}>
+      <View style={[styles.container, styles.compactContainer, style]}>
+        <View style={styles.compactLoadingCard}>
           <SnooLoader size="small" color={COLORS.primary} />
         </View>
       </View>
@@ -241,36 +256,9 @@ const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
 
   // ── Deleted / not-found state ──────────────────────────────────────────────
   if (deleted) {
-    const hasMetaInfo = metaTitle || metaCommunityName || metaCommunityUsername;
     return (
-      <View style={[styles.container, style]}>
-        <View style={styles.eventLabel}>
-          <Calendar size={12} color={COLORS.primary} strokeWidth={2} />
-          <Text style={styles.eventLabelText}>Event</Text>
-        </View>
-        <View style={styles.deletedCard}>
-          <Text style={styles.deletedIcon}>📭</Text>
-          <Text style={styles.deletedText}>Event no longer available</Text>
-          {hasMetaInfo ? (
-            <Text style={styles.deletedSubtext} numberOfLines={2}>
-              {metaTitle || ""}
-              {metaTitle && (metaCommunityName || metaCommunityUsername)
-                ? "\n"
-                : ""}
-              {metaCommunityName
-                ? metaCommunityUsername
-                  ? `${metaCommunityName} (@${metaCommunityUsername})`
-                  : metaCommunityName
-                : metaCommunityUsername
-                ? `@${metaCommunityUsername}`
-                : ""}
-            </Text>
-          ) : (
-            <Text style={styles.deletedSubtext}>
-              This event may have been deleted
-            </Text>
-          )}
-        </View>
+      <View style={[styles.container, styles.compactContainer, style]}>
+        <UnavailableCard label="Event" id={targetId} />
       </View>
     );
   }
@@ -293,10 +281,11 @@ const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
         <View style={styles.imageContainer}>
           {displayBannerUrl ? (
             <Image
-              source={{ uri: displayBannerUrl }}
+              source={{ uri: getOptimizedImageUrl(displayBannerUrl, { width: CARD_WIDTH, quality: 'auto:good' }) }}
               style={styles.bannerImage}
               contentFit="cover"
               cachePolicy="memory-disk"
+              recyclingKey={String(targetId)}
             />
           ) : (
             <LinearGradient
@@ -341,6 +330,7 @@ const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
               style={styles.communityAvatar}
               contentFit="cover"
               cachePolicy="memory-disk"
+              recyclingKey={`evt-comm-${String(targetId)}`}
             />
             <Text style={styles.communityName} numberOfLines={1}>
               {displayCommunity}
@@ -397,6 +387,20 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     marginVertical: 8,
     minHeight: 240,
+    justifyContent: "center",
+  },
+  compactContainer: {
+    minHeight: 0,
+    marginVertical: 4,
+  },
+  compactLoadingCard: {
+    height: 44,
+    width: "100%",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    alignItems: "center",
     justifyContent: "center",
   },
   eventLabel: {

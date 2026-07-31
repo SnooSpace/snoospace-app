@@ -13,6 +13,7 @@ import { COLORS, FONTS } from "../constants/theme";
 import { getPlanById } from "../api/plans";
 import { getAuthToken } from "../api/auth";
 import SnooLoader from "./ui/SnooLoader";
+import UnavailableCard from "./UnavailableCard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH * 0.65; // Matches SharedPostCard and SharedEventCard
@@ -52,13 +53,15 @@ const ACTIVITY_LABELS = {
   other: "Other Activity",
 };
 
+// ── Module-level plan cache ──────────────────────────────────────────────────
 const planCache = new Map();
 
-const SharedPlanCard = React.memo(({ metadata, onPress, style }) => {
-  const [plan, setPlan] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [deleted, setDeleted] = useState(false);
+export const isPlanUnavailable = (id) => {
+  if (!id) return true;
+  return planCache.get(id)?.unavailable === true;
+};
 
+const SharedPlanCard = React.memo(({ metadata, onPress, style }) => {
   if (!metadata) return null;
 
   const {
@@ -74,6 +77,13 @@ const SharedPlanCard = React.memo(({ metadata, onPress, style }) => {
 
   const targetId = planId || metadata.plan_id || metadata.id;
 
+  const cached = targetId ? planCache.get(targetId) : null;
+  const isUnavailableCached = !targetId || cached?.unavailable === true;
+
+  const [plan, setPlan] = useState(cached && !isUnavailableCached ? cached : null);
+  const [loading, setLoading] = useState(!cached && Boolean(targetId));
+  const [deleted, setDeleted] = useState(isUnavailableCached);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -84,7 +94,14 @@ const SharedPlanCard = React.memo(({ metadata, onPress, style }) => {
     }
 
     if (planCache.has(targetId)) {
-      setPlan(planCache.get(targetId));
+      const c = planCache.get(targetId);
+      if (c?.unavailable) {
+        setDeleted(true);
+        setPlan(null);
+      } else {
+        setPlan(c);
+        setDeleted(false);
+      }
       setLoading(false);
       return;
     }
@@ -97,11 +114,14 @@ const SharedPlanCard = React.memo(({ metadata, onPress, style }) => {
         if (isMounted && data && (data.id || data.title)) {
           planCache.set(targetId, data);
           setPlan(data);
+          setDeleted(false);
         } else if (isMounted) {
+          planCache.set(targetId, { unavailable: true });
           setDeleted(true);
         }
       } catch (err) {
         console.warn("[SharedPlanCard] Plan unavailable (likely deleted):", err?.message);
+        planCache.set(targetId, { unavailable: true });
         if (isMounted) setDeleted(true);
       } finally {
         if (isMounted) setLoading(false);
@@ -143,14 +163,11 @@ const SharedPlanCard = React.memo(({ metadata, onPress, style }) => {
     if (onPress && targetId) onPress(targetId);
   }, [onPress, targetId]);
 
+  // Loading state (Option A: compact 44px footprint while checking to prevent collapse drift)
   if (loading) {
     return (
-      <View style={[styles.container, style]}>
-        <View style={styles.planLabel}>
-          <Sparkles size={12} color={COLORS.primary || "#3565F2"} strokeWidth={2} />
-          <Text style={styles.planLabelText}>Open Plan</Text>
-        </View>
-        <View style={[styles.card, styles.loadingCard]}>
+      <View style={[styles.container, styles.compactContainer, style]}>
+        <View style={styles.compactLoadingCard}>
           <SnooLoader size="small" color={COLORS.primary || "#3565F2"} />
         </View>
       </View>
@@ -158,28 +175,9 @@ const SharedPlanCard = React.memo(({ metadata, onPress, style }) => {
   }
 
   if (deleted) {
-    const hasMetaInfo = metaTitle || metaHostName;
     return (
-      <View style={[styles.container, style]}>
-        <View style={styles.planLabel}>
-          <Sparkles size={12} color={COLORS.primary || "#3565F2"} strokeWidth={2} />
-          <Text style={styles.planLabelText}>Open Plan</Text>
-        </View>
-        <View style={styles.deletedCard}>
-          <Text style={styles.deletedIcon}>📭</Text>
-          <Text style={styles.deletedText}>Plan no longer available</Text>
-          {hasMetaInfo ? (
-            <Text style={styles.deletedSubtext} numberOfLines={2}>
-              {metaTitle || ""}
-              {metaTitle && metaHostName ? "\n" : ""}
-              {metaHostName ? `Hosted by ${metaHostName}` : ""}
-            </Text>
-          ) : (
-            <Text style={styles.deletedSubtext}>
-              This plan may have been cancelled or deleted
-            </Text>
-          )}
-        </View>
+      <View style={[styles.container, styles.compactContainer, style]}>
+        <UnavailableCard label="Plan" id={targetId} />
       </View>
     );
   }
@@ -219,6 +217,7 @@ const SharedPlanCard = React.memo(({ metadata, onPress, style }) => {
                 style={styles.hostAvatar}
                 contentFit="cover"
                 cachePolicy="memory-disk"
+                recyclingKey={`plan-host-${String(targetId)}`}
               />
               <Text style={styles.hostName} numberOfLines={1}>
                 {displayHostName}
@@ -274,6 +273,20 @@ const styles = StyleSheet.create({
     minHeight: 240,
     justifyContent: "center",
   },
+  compactContainer: {
+    minHeight: 0,
+    marginVertical: 4,
+  },
+  compactLoadingCard: {
+    height: 44,
+    width: "100%",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   planLabel: {
     flexDirection: "row",
     alignItems: "center",
@@ -303,33 +316,6 @@ const styles = StyleSheet.create({
     minHeight: 120,
     alignItems: "center",
     justifyContent: "center",
-  },
-  deletedCard: {
-    backgroundColor: "#F9FAFB",
-    borderRadius: 16,
-    padding: 24,
-    width: "100%",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  deletedIcon: {
-    fontSize: 28,
-    marginBottom: 8,
-  },
-  deletedText: {
-    fontSize: 13,
-    fontFamily: "Manrope-SemiBold",
-    color: "#374151",
-    marginBottom: 4,
-    textAlign: "center",
-  },
-  deletedSubtext: {
-    fontSize: 11,
-    fontFamily: "Manrope-Regular",
-    color: "#9CA3AF",
-    textAlign: "center",
   },
   hostRow: {
     flexDirection: "row",
