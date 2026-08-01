@@ -433,6 +433,47 @@ const getMessages = async (req, res) => {
     const hasMore = result.rows.length > limitNum;
     const rawRows = hasMore ? result.rows.slice(0, limitNum) : result.rows;
 
+    // ── Batch check shared card availability ─────────────────────────────────────
+    const postIds = [];
+    const eventIds = [];
+    const oppIds = [];
+    const planIds = [];
+
+    const isUUID = (str) => typeof str === "string" && /^[0-9a-fA-F-]{36}$/.test(str);
+
+    rawRows.forEach((msg) => {
+      if (msg.is_deleted || !msg.metadata) return;
+      const meta = msg.metadata;
+      if (msg.message_type === "post_share") {
+        const id = Number(meta.postId || meta.id);
+        if (!isNaN(id) && id > 0) postIds.push(id);
+      } else if (msg.message_type === "event_share") {
+        const id = Number(meta.eventId || meta.id || meta.event_id);
+        if (!isNaN(id) && id > 0) eventIds.push(id);
+      } else if (msg.message_type === "opportunity_share") {
+        const id = String(meta.opportunityId || meta.id || meta.opportunity_id || "");
+        if (isUUID(id)) oppIds.push(id);
+      } else if (msg.message_type === "plan_share") {
+        const id = Number(meta.planId || meta.id || meta.plan_id);
+        if (!isNaN(id) && id > 0) planIds.push(id);
+      }
+    });
+
+    const [existingPosts, existingEvents, existingOpps, existingPlans] = await Promise.all([
+      postIds.length > 0
+        ? pool.query(`SELECT id FROM posts WHERE id = ANY($1::int[])`, [postIds]).then(r => new Set(r.rows.map(row => String(row.id))))
+        : Promise.resolve(new Set()),
+      eventIds.length > 0
+        ? pool.query(`SELECT id FROM events WHERE id = ANY($1::int[])`, [eventIds]).then(r => new Set(r.rows.map(row => String(row.id))))
+        : Promise.resolve(new Set()),
+      oppIds.length > 0
+        ? pool.query(`SELECT id FROM opportunities WHERE id = ANY($1::uuid[])`, [oppIds]).then(r => new Set(r.rows.map(row => String(row.id))))
+        : Promise.resolve(new Set()),
+      planIds.length > 0
+        ? pool.query(`SELECT id FROM plans WHERE id = ANY($1::int[])`, [planIds]).then(r => new Set(r.rows.map(row => String(row.id))))
+        : Promise.resolve(new Set()),
+    ]);
+
     const messages = rawRows.reverse().map((msg) => {
       let replyPreview = null;
       if (msg.reply_to_message_id) {
@@ -477,7 +518,25 @@ const getMessages = async (req, res) => {
           }
           return msg.message_type || "text";
         })(),
-        metadata:          msg.is_deleted ? null : msg.metadata,
+        metadata:          (() => {
+          if (msg.is_deleted) return null;
+          if (!msg.metadata) return null;
+          const meta = typeof msg.metadata === "string" ? JSON.parse(msg.metadata) : { ...msg.metadata };
+          if (msg.message_type === "post_share") {
+            const id = String(meta.postId || meta.id || "");
+            if (id && !existingPosts.has(id)) meta.is_unavailable = true;
+          } else if (msg.message_type === "event_share") {
+            const id = String(meta.eventId || meta.id || meta.event_id || "");
+            if (id && !existingEvents.has(id)) meta.is_unavailable = true;
+          } else if (msg.message_type === "opportunity_share") {
+            const id = String(meta.opportunityId || meta.id || meta.opportunity_id || "");
+            if (id && !existingOpps.has(id)) meta.is_unavailable = true;
+          } else if (msg.message_type === "plan_share") {
+            const id = String(meta.planId || meta.id || meta.plan_id || "");
+            if (id && !existingPlans.has(id)) meta.is_unavailable = true;
+          }
+          return meta;
+        })(),
         isRead:            msg.is_read,
         isDeleted:         msg.is_deleted,
         deletedByType:     msg.deleted_by_type,

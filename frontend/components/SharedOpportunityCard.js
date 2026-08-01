@@ -100,12 +100,15 @@ const MarqueeChips = React.memo(({ chips, chipType, styles }) => {
   );
 });
 
+import { markCardUnavailable, isCardUnavailableSync } from "../utils/cardAvailabilityCache";
+
 // ── Module-level opportunity cache ──────────────────────────────────────────
 const opportunityCache = new Map();
 
 export const isOpportunityUnavailable = (id) => {
   if (!id) return true;
-  return opportunityCache.get(id)?.unavailable === true;
+  if (opportunityCache.get(id)?.unavailable === true) return true;
+  return isCardUnavailableSync("opportunity_share", { opportunityId: id });
 };
 
 /**
@@ -182,6 +185,7 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
       } catch (err) {
         console.warn("[SharedOpportunityCard] Opportunity unavailable (likely deleted):", err?.message);
         opportunityCache.set(targetId, { unavailable: true });
+        markCardUnavailable("opportunity_share", targetId);
         if (isMounted) setDeleted(true);
       } finally {
         if (isMounted) setLoading(false);

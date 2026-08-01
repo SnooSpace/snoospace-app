@@ -85,12 +85,14 @@ const parseDisplayDate = (dateStr) => {
 };
 
 // ── Module-level event cache ───────────────────────────────────────────────
-// ── Module-level event cache ────────────────────────────────────────────────
+import { markCardUnavailable, isCardUnavailableSync } from "../utils/cardAvailabilityCache";
+
 const eventCache = new Map();
 
 export const isEventUnavailable = (id) => {
   if (!id) return true;
-  return eventCache.get(id)?.unavailable === true;
+  if (eventCache.get(id)?.unavailable === true) return true;
+  return isCardUnavailableSync("event_share", { eventId: id });
 };
 
 /**
@@ -161,6 +163,7 @@ const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
       } catch (err) {
         console.warn("[SharedEventCard] Event unavailable (likely deleted):", err?.message);
         eventCache.set(targetId, { unavailable: true });
+        markCardUnavailable("event_share", targetId);
         if (isMounted) setDeleted(true);
       } finally {
         if (isMounted) setLoading(false);

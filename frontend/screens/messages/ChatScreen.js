@@ -159,6 +159,7 @@ import {
   appendMessageToCache,
   clearConversationCache,
 } from "../../services/conversationCache";
+import { isCardUnavailableSync } from "../../utils/cardAvailabilityCache";
 
 // ΓöÇΓöÇ Palette ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 const PRIMARY_COLOR = "#3565F2";
@@ -341,6 +342,8 @@ const keyExtractor = (item) =>
 
 const isCardUnavailable = (messageType, metadata) => {
   if (!metadata) return false;
+  if (isCardUnavailableSync(messageType, metadata)) return true;
+
   const cardId =
     metadata.postId ||
     metadata.opportunityId ||
@@ -413,9 +416,9 @@ const overrideItemLayout = (layout, item) => {
   if (msg._showSenderName) size += 18;
   if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 46;
   const len = msg.messageText ? msg.messageText.length : 0;
-  if (len > 200) size += 100;
-  else if (len > 120) size += 60;
-  else if (len > 60) size += 30;
+  if (len > 115) size += 40 + Math.ceil((len - 115) / 38) * 20;
+  else if (len > 75) size += 40;
+  else if (len > 35) size += 20;
   layout.size = size;
 };
 

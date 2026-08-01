@@ -53,12 +53,15 @@ const ACTIVITY_LABELS = {
   other: "Other Activity",
 };
 
+import { markCardUnavailable, isCardUnavailableSync } from "../utils/cardAvailabilityCache";
+
 // ── Module-level plan cache ──────────────────────────────────────────────────
 const planCache = new Map();
 
 export const isPlanUnavailable = (id) => {
   if (!id) return true;
-  return planCache.get(id)?.unavailable === true;
+  if (planCache.get(id)?.unavailable === true) return true;
+  return isCardUnavailableSync("plan_share", { planId: id });
 };
 
 const SharedPlanCard = React.memo(({ metadata, onPress, style }) => {
@@ -122,6 +125,7 @@ const SharedPlanCard = React.memo(({ metadata, onPress, style }) => {
       } catch (err) {
         console.warn("[SharedPlanCard] Plan unavailable (likely deleted):", err?.message);
         planCache.set(targetId, { unavailable: true });
+        markCardUnavailable("plan_share", targetId);
         if (isMounted) setDeleted(true);
       } finally {
         if (isMounted) setLoading(false);

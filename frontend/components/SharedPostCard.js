@@ -19,6 +19,8 @@ import SnooLoader from "./ui/SnooLoader";
 import { getOptimizedImageUrl } from "../utils/imageUtils";
 import UnavailableCard from "./UnavailableCard";
 
+import { markCardUnavailable, isCardUnavailableSync } from "../utils/cardAvailabilityCache";
+
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH * 0.65; // Reduced from 0.75 to 0.65
 
@@ -29,7 +31,8 @@ const postCache = new Map();
 
 export const isPostUnavailable = (id) => {
   if (!id) return true;
-  return postCache.get(id)?.unavailable === true;
+  if (postCache.get(id)?.unavailable === true) return true;
+  return isCardUnavailableSync("post_share", { postId: id });
 };
 
 /**
@@ -161,6 +164,8 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
         setError(false);
       } catch (err) {
         console.warn("[SharedPostCard] Post unavailable (likely deleted):", err?.message);
+        postCache.set(postId, { unavailable: true });
+        markCardUnavailable("post_share", postId);
         setError(true);
       } finally {
         setLoading(false);
