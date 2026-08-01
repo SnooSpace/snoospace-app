@@ -2257,7 +2257,7 @@ export default function ChatScreen({ route, navigation }) {
   const hasCorrectedInitialLayoutRef = useRef(false);
   // Opacity mask: starts transparent so the user never sees the wrong-position
   // first frame. Fades to 1 after the one-shot scrollToEnd correction lands.
-  // Reset to 0 on conversation change so every open goes through the same cycle.
+  // Opacity mask: starts transparent for 1 frame (16ms) while FlashList anchors to bottom, then reveals smoothly.
   const listRevealOpacity = useSharedValue(0);
   const isListSettledRef = useRef(false);
 
@@ -2270,36 +2270,22 @@ export default function ChatScreen({ route, navigation }) {
   }, [currentConversationId, resetMessages]);
 
   // ── runInitialCorrectionAndReveal ──────────────────────────────────────────────
-  // One-shot correction+reveal per conversation open. Guards via
-  // hasCorrectedInitialLayoutRef so it runs exactly once regardless of
-  // whether layout fires before data (warm open) or data arrives after
-  // layout (cold open / network fetch).
-  //
-  // Sequence:
-  //   rAF 1  — scrollToEnd to the true bottom
-  //   60ms   — bounded native paint window for native ScrollView layout & scrollToEnd
-  //   rAF 2  — re-anchor & withTiming(1, 120ms) fade list in
+  // 1-frame layout anchor: corrects position on Frame 1 (16ms) before revealing opacity.
   const runInitialCorrectionAndReveal = useCallback(() => {
     if (hasCorrectedInitialLayoutRef.current) return; // already ran
     if (messages.length === 0) return;                // no data yet
     hasCorrectedInitialLayoutRef.current = true;
     requestAnimationFrame(() => {
       flashListRef.current?.scrollToEnd({ animated: false });
-      setTimeout(() => {
-        flashListRef.current?.scrollToEnd({ animated: false });
-        listRevealOpacity.value = withTiming(1, { duration: 120 }, () => {
-          isListSettledRef.current = true;
-        });
+      listRevealOpacity.value = withTiming(1, { duration: 50 }, () => {
         isListSettledRef.current = true;
-      }, 60);
+      });
+      isListSettledRef.current = true;
     });
   }, [messages.length]);
 
   // Data-arrival trigger: fires when messages arrive AFTER the layout has
-  // already occurred (the cold-open / cache-miss case). The layout fires
-  // first with flatListData.length===0 (guard skips), then data arrives and
-  // this effect retries. The hasCorrectedInitialLayoutRef guard prevents
-  // double-firing if the warm-open onLayout path already ran it first.
+  // already occurred (the cold-open / cache-miss case).
   useEffect(() => {
     runInitialCorrectionAndReveal();
   }, [runInitialCorrectionAndReveal]);
@@ -4161,6 +4147,7 @@ export default function ChatScreen({ route, navigation }) {
                       styles.listContent,
                       { paddingBottom: 12 + insets.bottom },
                     ]}
+                    contentOffset={{ x: 0, y: 999999 }}
                     drawDistance={1000}
                     maintainVisibleContentPosition={{
                       autoscrollToBottomThreshold: 0.2,
@@ -4205,11 +4192,7 @@ export default function ChatScreen({ route, navigation }) {
                       >
                         <EmptyChatState
                           onLayout={() => {
-                            // No scroll correction needed for an empty list —
-                            // reveal immediately so the empty state is visible.
-                            if (listRevealOpacity.value < 1) {
-                              listRevealOpacity.value = withTiming(1, { duration: 150 });
-                            }
+                            listRevealOpacity.value = 1;
                           }}
                         />
                       </View>

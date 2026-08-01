@@ -470,7 +470,7 @@ const getMessages = async (req, res) => {
         ? pool.query(`SELECT id FROM opportunities WHERE id = ANY($1::uuid[])`, [oppIds]).then(r => new Set(r.rows.map(row => String(row.id))))
         : Promise.resolve(new Set()),
       planIds.length > 0
-        ? pool.query(`SELECT id FROM plans WHERE id = ANY($1::int[])`, [planIds]).then(r => new Set(r.rows.map(row => String(row.id))))
+        ? pool.query(`SELECT id FROM open_plans WHERE id = ANY($1::int[])`, [planIds]).then(r => new Set(r.rows.map(row => String(row.id))))
         : Promise.resolve(new Set()),
     ]);
 
