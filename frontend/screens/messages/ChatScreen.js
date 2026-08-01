@@ -141,6 +141,7 @@ import EventBus from "../../utils/EventBus";
 import { NotificationConsumptionService } from "../../services/NotificationConsumptionService";
 import { COLORS } from "../../constants/theme";
 import KeyboardAwareToolbar from "../../components/KeyboardAwareToolbar";
+import ChatComposer from "../../components/ChatComposer";
 import TicketMessageCard from "../../components/TicketMessageCard";
 import SharedPostCard, { isPostUnavailable } from "../../components/SharedPostCard";
 import SharedOpportunityCard, { isOpportunityUnavailable } from "../../components/SharedOpportunityCard";
@@ -438,168 +439,7 @@ const sepStyles = StyleSheet.create({
   },
 });
 
-// ── ReplyBar (above input) ──────────────────────────────────────────────────
-// Always stays mounted in the component tree so SVG icons (ImageIcon/Video/X)
-// and native views are pre-instantiated on screen open — eliminating the
-// JS thread frame-drop that used to happen on the very first swipe to reply.
-const ReplyBar = ({ reply, onClose, heightShared }) => {
-  const fallbackHeight = useSharedValue(0);
-  const height = heightShared || fallbackHeight;
-  const translateY = useSharedValue(20);
-  const opacity = useSharedValue(0);
-  const activeReplyRef = useRef(reply);
 
-  if (reply) {
-    activeReplyRef.current = reply;
-  }
-
-  const handleClose = useCallback(() => {
-    height.value = withTiming(
-      0,
-      { duration: 180, easing: Easing.bezier(0.25, 0.1, 0.25, 1) },
-      (finished) => {
-        if (finished && onClose) {
-          runOnJS(onClose)();
-        }
-      },
-    );
-    translateY.value = withTiming(20, {
-      duration: 180,
-      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-    });
-    opacity.value = withTiming(0, { duration: 140 });
-  }, [height, translateY, opacity, onClose]);
-
-  useEffect(() => {
-    if (reply) {
-      height.value = withTiming(52, {
-        duration: 200,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-      });
-      translateY.value = withTiming(0, {
-        duration: 200,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-      });
-      opacity.value = withTiming(1, { duration: 180 });
-    } else {
-      height.value = withTiming(0, {
-        duration: 180,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-      });
-      translateY.value = withTiming(20, {
-        duration: 180,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-      });
-      opacity.value = withTiming(0, { duration: 140 });
-    }
-  }, [reply, height, translateY, opacity]);
-
-  const animStyle = useAnimatedStyle(() => ({
-    height: height.value,
-    opacity: opacity.value,
-    overflow: "hidden",
-  }));
-
-  const innerAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  const activeReply = activeReplyRef.current;
-  const isPostShare = activeReply?.isPostShare;
-  const isMedia =
-    activeReply?.messageType === "image" ||
-    activeReply?.messageType === "video" ||
-    activeReply?.messageType === "multi_media";
-
-  let preview = "";
-  if (activeReply) {
-    if (activeReply.isDeleted) {
-      preview = "This message was unsent";
-    } else if (isPostShare) {
-      const authorLine = activeReply.postAuthorUsername
-        ? `@${activeReply.postAuthorUsername}`
-        : "Shared post";
-      const captionLine = activeReply.postCaption
-        ? ` ∙ ${activeReply.postCaption.slice(0, 40)}${activeReply.postCaption.length > 40 ? "…" : ""}`
-        : "";
-      preview = authorLine + captionLine;
-    } else {
-      preview = activeReply.messageText || "";
-      if (!preview && isMedia) {
-        preview =
-          activeReply.messageType === "video"
-            ? "Video"
-            : activeReply.messageType === "multi_media"
-              ? "Media"
-              : "Photo";
-      }
-      preview = preview.slice(0, 60) + (preview.length > 60 ? "…" : "");
-    }
-  }
-
-  return (
-    <Animated.View style={animStyle}>
-      <Animated.View style={[replyBarStyles.container, innerAnimStyle]}>
-        <View
-          style={[
-            replyBarStyles.postIcon,
-            !(isPostShare || isMedia) && { display: "none" },
-          ]}
-        >
-          {activeReply?.messageType === "video" ? (
-            <Video size={14} color="#3565F2" strokeWidth={2} />
-          ) : (
-            <ImageIcon size={14} color="#3565F2" strokeWidth={2} />
-          )}
-        </View>
-        <View style={replyBarStyles.body}>
-          <Text style={replyBarStyles.name}>
-            Replying to {activeReply?.senderName || "Message"}
-          </Text>
-          <Text style={replyBarStyles.preview} numberOfLines={1}>
-            {preview}
-          </Text>
-        </View>
-        <TouchableOpacity
-          onPress={handleClose}
-          style={replyBarStyles.close}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <X size={16} color={LIGHT_TEXT} strokeWidth={2.5} />
-        </TouchableOpacity>
-      </Animated.View>
-    </Animated.View>
-  );
-};
-const replyBarStyles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: CHAT_CANVAS_BG,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: INCOMING_BORDER,
-    overflow: "hidden",
-  },
-  postIcon: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: "rgba(53,101,242,0.10)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 10,
-  },
-  body: { flex: 1 },
-  name: {
-    fontFamily: "Manrope-SemiBold",
-    fontSize: 12,
-    color: LIGHT_TEXT,
-    marginBottom: 2,
-  },
-  preview: { fontFamily: "Manrope-Regular", fontSize: 12, color: LIGHT_TEXT },
-});
 
 // ── ReplyQuote ─────────────────────────────────────────────────────────────
 const ReplyQuote = ({ replyPreview, isMyMessage, onPress }) => {
@@ -1972,7 +1812,6 @@ export default function ChatScreen({ route, navigation }) {
     resetMessages,
   } = useChatPagination(initialMessagesRef.current, initialHasMoreRef.current);
 
-  const [messageText, setMessageText] = useState("");
   const [isChatInputFocused, setIsChatInputFocused] = useState(false);
   const isChatInputFocusedShared = useSharedValue(false);
   useEffect(() => {
@@ -2116,11 +1955,8 @@ export default function ChatScreen({ route, navigation }) {
     initialMessagingRestricted,
   );
   const [myGroupRole, setMyGroupRole] = useState(initialMyGroupRole);
-  const [mediaAttachments, setMediaAttachments] = useState([]); // [{ uri, type, duration, thumbnailUri, muteAudio }]
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadingMedia, setUploadingMedia] = useState(false);
-  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
-  const [videoPreviewing, setVideoPreviewing] = useState(null); // { uri, duration } when preview modal is open
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [inputHeight, setInputHeight] = useState(100);
@@ -2158,46 +1994,25 @@ export default function ChatScreen({ route, navigation }) {
     }
   }, [currentConversationId, messages]);
 
-  const handleTextChange = useCallback(
-    (text) => {
-      setMessageText(text);
-
+  const handleTypingToggle = useCallback(
+    (isTyping) => {
       const socket = getSocket();
       if (!socket || !currentConversationId || !currentUser) return;
-
-      if (!isTypingRef.current && text.length > 0) {
-        isTypingRef.current = true;
+      if (isTyping) {
         socket.emit("typing_start", {
           chatId: currentConversationId,
           userId: currentUser.id,
           userName: currentUser.name || "Someone",
         });
+      } else {
+        socket.emit("typing_stop", {
+          chatId: currentConversationId,
+          userId: currentUser.id,
+        });
       }
-
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-
-      typingTimeoutRef.current = setTimeout(() => {
-        if (isTypingRef.current) {
-          isTypingRef.current = false;
-          socket.emit("typing_stop", {
-            chatId: currentConversationId,
-            userId: currentUser.id,
-          });
-        }
-      }, 2000);
     },
     [currentConversationId, currentUser],
   );
-
-  useEffect(() => {
-    return () => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const renderTypingIndicator = () => {
     const typingList = Object.values(typingUsers).filter(Boolean);
@@ -2240,7 +2055,7 @@ export default function ChatScreen({ route, navigation }) {
 
   const flashListRef = useRef(null);
   const scrollOffsetRef = useRef(0);
-  const inputRef = useRef(null);
+  const composerRef = useRef(null);
   const subscriptionRef = useRef(null);
   const supabaseRef = useRef(null);
 
@@ -2435,26 +2250,122 @@ export default function ChatScreen({ route, navigation }) {
     return count > 0 ? Math.round(totalHeight / count) : 72;
   }, [flatListData]);
 
-  // ── WhatsApp/Instagram Deterministic Layout Pre-Calculation ────────────────
-  const getItemType = useCallback((item) => {
-    if (!item) return "unknown";
-    if (item.type === "date_separator") return "separator";
-    if (item.type === "system") return "system";
-    if (item.type === "message") {
-      const msg = item.data;
-      const mType = msg.messageType;
-      if (mType === "image" || mType === "video" || mType === "multi_media") return "media";
-      if (mType === "post_share") return "card_post";
-      if (mType === "opportunity_share") return "card_opportunity";
-      if (mType === "event_share") return "card_event";
-      if (mType === "plan_share") return "card_plan";
-      if (mType === "ticket") return "card_ticket";
-      if (msg.replyToId) return "text_reply";
-      if (msg.messageText && msg.messageText.length > 140) return "text_long";
-      return "text_standard";
+  // ── Phase 2: Granular FlashList Recycler Layout Types (_in vs _out) ──────────
+  const getItemType = useCallback(
+    (item) => {
+      if (!item) return "unknown";
+      if (item.type === "date_separator" || item.type === "separator") return "date_separator";
+      if (item.type === "system") return "system";
+      if (item.type === "message") {
+        const msg = item.data;
+        const isMyMsg = isGroup
+          ? String(msg.senderId) === String(currentUser?.id) &&
+            (msg.senderType || "member") === (currentUser?.type || "member")
+          : msg.senderId !== (recipient?.id || recipientId);
+        const dir = isMyMsg ? "_out" : "_in";
+
+        if (msg.isDeleted) return `deleted${dir}`;
+
+        const mType = msg.messageType;
+        if (mType === "ticket") return `ticket${dir}`;
+        if (mType === "event_share") return `event_share${dir}`;
+        if (mType === "plan_share") return `plan_share${dir}`;
+        if (mType === "opportunity_share") return `opportunity_share${dir}`;
+        if (mType === "post_share") return `post_share${dir}`;
+        if (mType === "video") return `video${dir}`;
+
+        if (mType === "image" || mType === "multi_media") {
+          const mediaList =
+            msg.media || (msg.mediaUrl ? [{ url: msg.mediaUrl, type: mType }] : []);
+          const count = mediaList.length;
+          if (count <= 1) return `image_single${dir}`;
+          if (count === 2) return `image_grid2${dir}`;
+          if (count === 3) return `image_grid3${dir}`;
+          return `image_grid4${dir}`;
+        }
+
+        if (msg.replyToId) return `text_reply${dir}`;
+        return `text${dir}`;
+      }
+      return "default";
+    },
+    [currentUser?.id, currentUser?.type, isGroup, recipient?.id, recipientId],
+  );
+
+  // ── Phase 2B: Deterministic overrideItemLayout for Fixed-Geometry Cards ──────
+  const overrideItemLayout = useCallback(
+    (layout, item) => {
+      const itemType = getItemType(item);
+      switch (itemType) {
+        case "system":
+          layout.size = 36;
+          break;
+        case "date_separator":
+          layout.size = 34;
+          break;
+        case "deleted_in":
+        case "deleted_out":
+          layout.size = 44;
+          break;
+        case "ticket_in":
+        case "ticket_out":
+          layout.size = 184;
+          break;
+        case "event_share_in":
+        case "event_share_out":
+        case "plan_share_in":
+        case "plan_share_out":
+          layout.size = 212;
+          break;
+        case "opportunity_share_in":
+        case "opportunity_share_out":
+          layout.size = 220;
+          break;
+        case "post_share_in":
+        case "post_share_out":
+          layout.size = 240;
+          break;
+        case "video_in":
+        case "video_out":
+        case "image_single_in":
+        case "image_single_out":
+        case "image_grid2_in":
+        case "image_grid2_out":
+          layout.size = 240;
+          break;
+        case "image_grid3_in":
+        case "image_grid3_out":
+        case "image_grid4_in":
+        case "image_grid4_out":
+          layout.size = 280;
+          break;
+        default:
+          // Dynamic text types (text_in, text_out, text_reply_in, text_reply_out)
+          // are left unconstrained for precise Yoga dynamic measurement.
+          break;
+      }
+    },
+    [getItemType],
+  );
+
+  // ── Development Recycler Diagnostics Logger ────────────────────────────────
+  const recyclerStatsRef = useRef({ mounts: 0, byType: {} });
+  useEffect(() => {
+    if (__DEV__ && flatListData.length > 0) {
+      const stats = recyclerStatsRef.current;
+      stats.mounts += 1;
+      const counts = {};
+      flatListData.forEach((item) => {
+        const t = getItemType(item);
+        counts[t] = (counts[t] || 0) + 1;
+      });
+      stats.byType = counts;
+      console.log(
+        `[PERF-RECYCLER] FlashList render #${stats.mounts} | Items: ${flatListData.length} | Types:`,
+        JSON.stringify(counts),
+      );
     }
-    return "default";
-  }, []);
+  }, [flatListData, getItemType]);
 
   const renderListHeader = useCallback(() => {
     if (!loadingOlder) return <View style={{ height: 8 }} />;
@@ -3336,19 +3247,16 @@ export default function ChatScreen({ route, navigation }) {
     loadInitial,
   ]);
 
-  const handleSend = async () => {
-    const hasText = messageText.trim().length > 0;
-    const hasMedia = mediaAttachments.length > 0;
+  const handleSendPayload = async ({ text, attachments }) => {
+    const hasText = text && text.length > 0;
+    const hasMedia = attachments && attachments.length > 0;
     if ((!hasText && !hasMedia) || sending || uploadingMedia) return;
 
-    const text = messageText.trim();
     const replyId = selectedReply?.id || null;
     const replyPreviewObj = selectedReply ? { ...selectedReply } : null;
-    const attachmentsSnap = [...mediaAttachments];
+    const attachmentsSnap = attachments ? [...attachments] : [];
 
-    setMessageText("");
     setSelectedReply(null);
-    setMediaAttachments([]);
     setSending(true);
 
     try {
@@ -3464,13 +3372,12 @@ export default function ChatScreen({ route, navigation }) {
       }
 
       EventBus.emit("new-message");
+      composerRef.current?.clear();
       setTimeout(() => {
         flashListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     } catch (err) {
       console.error("Error sending message:", err);
-      setMessageText(text);
-      setUploadingMedia(false);
       if (err?.status === 403 && err?.data?.error === "you_have_blocked") {
         showAlert({
           title: "You've blocked this user",
@@ -3499,95 +3406,7 @@ export default function ChatScreen({ route, navigation }) {
     }
   };
 
-  // ——— handleCustomPickerDone ————————————————————————————————————————————————————
-  // Called by CustomImagePicker when the user taps Done.
-  // Assets already filtered by picker (too-long videos are greyed out/unselectable).
-  const handleCustomPickerDone = useCallback(
-    async (assets) => {
-      setMediaPickerOpen(false);
-      if (!assets?.length) return;
 
-      // Filter out over-size items (safety net)
-      const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
-      const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
-
-      const valid = assets.filter((a) => {
-        const isVideo = a.mediaType === "video";
-        const max = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
-        return !(a.fileSize && a.fileSize > max);
-      });
-
-      if (valid.length < assets.length) {
-        showAlert({
-          title: "Some files skipped",
-          message:
-            "One or more files exceeded the size limit and were removed.",
-          primaryAction: { text: "OK", onPress: hideAlert },
-          icon: TriangleAlert,
-        });
-      }
-
-      if (!valid.length) return;
-
-      // If exactly one video is selected, show the send-preview modal first
-      if (valid.length === 1 && valid[0].mediaType === "video") {
-        setVideoPreviewing({
-          uri: valid[0].uri,
-          duration: valid[0].duration ?? null,
-        });
-        return;
-      }
-
-      // Otherwise (images only, or mixed batch) build attachments immediately.
-      // Generate local thumbnails for any videos in the batch.
-      const attachments = await Promise.all(
-        valid.map(async (a) => {
-          let thumbnailUri = null;
-          if (a.mediaType === "video") {
-            try {
-              const thumb = await getVideoThumbnailAsync(a.uri, { time: 0 });
-              thumbnailUri = thumb.uri;
-            } catch (_) {}
-          }
-          return {
-            uri: a.uri,
-            type: a.mediaType === "video" ? "video" : "image",
-            duration: a.duration ?? null,
-            thumbnailUri: thumbnailUri,
-            muteAudio: false,
-          };
-        }),
-      );
-
-      setMediaAttachments(attachments);
-    },
-    [showAlert, hideAlert],
-  );
-
-  // Called by VideoSendPreviewModal when the user confirms send
-  const handleVideoSendConfirm = useCallback(
-    async ({ muteAudio }) => {
-      if (!videoPreviewing) return;
-      let thumbnailUri = null;
-      try {
-        const thumb = await getVideoThumbnailAsync(videoPreviewing.uri, {
-          time: 0,
-        });
-        thumbnailUri = thumb.uri;
-      } catch (_) {}
-      setMediaAttachments([
-        {
-          uri: videoPreviewing.uri,
-          type: "video",
-          duration: videoPreviewing.duration,
-          thumbnailUri: thumbnailUri,
-          muteAudio: muteAudio,
-        },
-      ]);
-      setVideoPreviewing(null);
-    },
-    [videoPreviewing],
-  );
 
   // ——— handleUnsend ————————————————————————————————————————————————————————————————
   const handleUnsend = async (id) => {
@@ -4205,6 +4024,7 @@ export default function ChatScreen({ route, navigation }) {
                     keyExtractor={keyExtractor}
                     renderItem={renderItem}
                     getItemType={getItemType}
+                    overrideItemLayout={overrideItemLayout}
                     estimatedItemSize={estimatedItemSize}
                     ListHeaderComponent={renderListHeader}
                     drawDistance={1500}
@@ -4270,11 +4090,6 @@ export default function ChatScreen({ route, navigation }) {
           </KeyboardAvoidingView>
 
           <KeyboardAwareToolbar enabled={isChatInputFocused}>
-            <ReplyBar
-              reply={selectedReply}
-              onClose={() => setSelectedReply(null)}
-              heightShared={replyBarHeightShared}
-            />
             <View
               style={{ flexDirection: "column" }}
               onLayout={(e) => {
@@ -4286,7 +4101,7 @@ export default function ChatScreen({ route, navigation }) {
             >
               {renderTypingIndicator()}
 
-              {/* ΓöÇΓöÇ Locked bar: shown to non-admins when messaging is restricted ΓöÇΓöÇ */}
+              {/* Locked bar: shown to non-admins when messaging is restricted */}
               {isGroup && groupStatus === "CLOSED" ? (
                 <View style={styles.closedBar}>
                   <View style={styles.closedBarHeader}>
@@ -4324,129 +4139,19 @@ export default function ChatScreen({ route, navigation }) {
                   </View>
                 </View>
               ) : (
-                <>
-                  {/* ΓöÇΓöÇ Media preview strip ΓöÇΓöÇ */}
-                  {mediaAttachments.length > 0 && (
-                    <View style={styles.mediaPreviewStrip}>
-                      {/* Scrollable thumbnail row */}
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.mediaPreviewScroll}
-                        contentContainerStyle={styles.mediaPreviewScrollContent}
-                      >
-                        {mediaAttachments.map((att, idx) => (
-                          <View key={idx} style={styles.mediaThumbContainer}>
-                            <Image
-                              source={{ uri: att.thumbnailUri || att.uri }}
-                              style={styles.mediaPreviewThumb}
-                              contentFit="cover"
-                              cachePolicy="memory"
-                            />
-                            {att.type === "video" && (
-                              <View style={styles.mediaPreviewVideoIcon}>
-                                <Text style={{ fontSize: 9 }}>≡ƒÄÑ</Text>
-                              </View>
-                            )}
-                            {/* Per-item remove button */}
-                            <TouchableOpacity
-                              style={styles.mediaThumbRemove}
-                              onPress={() =>
-                                setMediaAttachments((prev) =>
-                                  prev.filter((_, i) => i !== idx),
-                                )
-                              }
-                              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                            >
-                              <X size={12} color="#FFFFFF" strokeWidth={3} />
-                            </TouchableOpacity>
-                          </View>
-                        ))}
-                      </ScrollView>
-
-                      {/* Caption input + close-all */}
-                      <View style={styles.mediaCaptionRow}>
-                        <TextInput
-                          style={styles.mediaCaption}
-                          placeholder={`Add a caption`}
-                          placeholderTextColor="#B0BEC5"
-                          value={messageText}
-                          onChangeText={handleTextChange}
-                          multiline
-                          maxLength={500}
-                        />
-                        <TouchableOpacity
-                          onPress={() => {
-                            setMediaAttachments([]);
-                            setMessageText("");
-                          }}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <X size={18} color="#8FA1B8" strokeWidth={2.5} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
-
-                  {/* ΓöÇΓöÇ Regular input row ΓöÇΓöÇ */}
-                  <View style={styles.inputContent}>
-                    {/* Attachment button ΓÇö opens CustomImagePicker directly */}
-                    <TouchableOpacity
-                      style={styles.attachBtn}
-                      onPress={() => setMediaPickerOpen(true)}
-                    >
-                      <ImagePlus size={22} color={ACCENT} strokeWidth={2} />
-                    </TouchableOpacity>
-
-                    {!mediaAttachments.length && (
-                      <View style={styles.inputWrapper}>
-                        <TextInput
-                          ref={inputRef}
-                          style={styles.input}
-                          placeholder="Message..."
-                          placeholderTextColor="#8FA1B8"
-                          selectionColor="#8FA1B8"
-                          cursorColor="#8FA1B8"
-                          underlineColorAndroid="transparent"
-                          value={messageText}
-                          onChangeText={handleTextChange}
-                          multiline
-                          maxLength={1000}
-                          onFocus={() => setIsChatInputFocused(true)}
-                          onBlur={() => setIsChatInputFocused(false)}
-                        />
-                      </View>
-                    )}
-                    {mediaAttachments.length > 0 && (
-                      <View style={{ flex: 1 }} />
-                    )}
-
-                    <Pressable
-                      style={({ pressed }) => [
-                        styles.sendButton,
-                        ((!messageText.trim() && !mediaAttachments.length) ||
-                          sending ||
-                          uploadingMedia) &&
-                          styles.sendButtonDisabled,
-                        pressed &&
-                          (messageText.trim() || mediaAttachments.length) &&
-                          !sending && { backgroundColor: SEND_BUTTON_PRESSED },
-                      ]}
-                      onPress={handleSend}
-                      disabled={
-                        (!messageText.trim() && !mediaAttachments.length) ||
-                        sending ||
-                        uploadingMedia
-                      }
-                    >
-                      {sending || uploadingMedia ? (
-                        <SnooLoader size="small" color="#FFFFFF" />
-                      ) : (
-                        <Send size={20} color="#FFFFFF" strokeWidth={2.6} />
-                      )}
-                    </Pressable>
-                  </View>
-                </>
+                <ChatComposer
+                  ref={composerRef}
+                  selectedReply={selectedReply}
+                  onCloseReply={() => setSelectedReply(null)}
+                  replyBarHeightShared={replyBarHeightShared}
+                  onSend={handleSendPayload}
+                  onTyping={handleTypingToggle}
+                  onFocusChange={setIsChatInputFocused}
+                  onShowAlert={showAlert}
+                  sending={sending}
+                  uploadingMedia={uploadingMedia}
+                  disabled={youHaveBlocked || isBlockedByOther}
+                />
               )}
             </View>
           </KeyboardAwareToolbar>
@@ -4478,7 +4183,7 @@ export default function ChatScreen({ route, navigation }) {
                   isDeleted: optionsTarget.isDeleted,
                 });
                 setOptionsTarget(null);
-                setTimeout(() => inputRef.current?.focus(), 100);
+                setTimeout(() => composerRef.current?.focus(), 100);
               }}
               onUnsend={() => {
                 handleUnsend(optionsTarget.id);
@@ -4561,26 +4266,7 @@ export default function ChatScreen({ route, navigation }) {
             />
           )}
 
-          {mediaPickerOpen && (
-            <CustomImagePicker
-              visible={mediaPickerOpen}
-              onClose={() => setMediaPickerOpen(false)}
-              onDone={handleCustomPickerDone}
-              selectionLimit={10}
-              allowVideos
-              videoMaxDuration={120}
-            />
-          )}
 
-          {!!videoPreviewing && (
-            <VideoSendPreviewModal
-              visible={!!videoPreviewing}
-              videoUri={videoPreviewing?.uri}
-              duration={videoPreviewing?.duration}
-              onClose={() => setVideoPreviewing(null)}
-              onSend={handleVideoSendConfirm}
-            />
-          )}
 
           {viewerVisible && (
             <MediaViewerTimeline
@@ -4597,7 +4283,7 @@ export default function ChatScreen({ route, navigation }) {
                   senderName: mediaItem.senderName,
                   isDeleted: false,
                 });
-                setTimeout(() => inputRef.current?.focus(), 100);
+                setTimeout(() => composerRef.current?.focus(), 100);
               }}
             />
           )}

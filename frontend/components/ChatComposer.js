@@ -1,0 +1,526 @@
+/**
+ * ChatComposer.js (Pure UI Component - Phase 1A & 1B Architecture)
+ *
+ * Responsibilities:
+ *   ✅ Ephemeral UI State: messageText, local mediaAttachments, mediaPickerOpen, videoPreviewing
+ *   ✅ Imperative Ref: exposes .focus(), .blur(), .clear() via forwardRef
+ *   ✅ React.memo Wrapped: bails out when parent ChatScreen re-renders
+ *
+ * Excluded (Owned by ChatScreen as Conversation Coordinator):
+ *   ❌ Socket emits (notifies via onTyping callback)
+ *   ❌ API network calls (notifies via onSend callback)
+ *   ❌ Conversation state (selectedReply, blocked, permissions passed as props)
+ */
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useImperativeHandle,
+  forwardRef,
+} from "react";
+import {
+  StyleSheet,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Pressable,
+  ScrollView,
+} from "react-native";
+import { Image } from "expo-image";
+import { ImagePlus, Send, X } from "lucide-react-native";
+import { getVideoThumbnailAsync } from "expo-video-thumbnails";
+
+import CustomImagePicker from "./CustomImagePicker";
+import VideoSendPreviewModal from "./VideoSendPreviewModal";
+import SnooLoader from "./ui/SnooLoader";
+import ReplyBar from "./ReplyBar";
+
+const PRIMARY_COLOR = "#3565F2";
+const ACCENT = PRIMARY_COLOR;
+const SEND_BUTTON_PRESSED = "#2E56D6";
+const LIGHT_TEXT = "#8FA1B8";
+const TYPING_STOP_DELAY = 2000;
+
+const ChatComposerInner = (
+  {
+    selectedReply,
+    onCloseReply,
+    replyBarHeightShared,
+    onSend,
+    onTyping,
+    onFocusChange,
+    onShowAlert,
+    sending = false,
+    uploadingMedia = false,
+    disabled = false,
+  },
+  ref,
+) => {
+  const [messageText, setMessageText] = useState("");
+  const [mediaAttachments, setMediaAttachments] = useState([]);
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [videoPreviewing, setVideoPreviewing] = useState(null);
+
+  const inputRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+  const isTypingRef = useRef(false);
+
+  // Unmount safety guard for async tasks (e.g. video thumbnail generation)
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // Keep a stable ref for onTyping to safely call inside unmount effect
+  const onTypingRef = useRef(onTyping);
+  useEffect(() => {
+    onTypingRef.current = onTyping;
+  }, [onTyping]);
+
+  // Imperative ref interface for parent
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      inputRef.current?.focus();
+    },
+    blur: () => {
+      inputRef.current?.blur();
+    },
+    clear: (options = {}) => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (isTypingRef.current) {
+        isTypingRef.current = false;
+        onTypingRef.current?.(false);
+      }
+      setMessageText("");
+      setMediaAttachments([]);
+      if (options.blur) {
+        inputRef.current?.blur();
+      }
+    },
+  }));
+
+  // Local text change handler -> notifies parent via onTyping callback
+  const handleTextChange = useCallback(
+    (text) => {
+      setMessageText(text);
+
+      if (onTyping) {
+        const trimmedLength = text.trim().length;
+        if (!isTypingRef.current && trimmedLength > 0) {
+          isTypingRef.current = true;
+          onTyping(true);
+        }
+
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+
+        typingTimeoutRef.current = setTimeout(() => {
+          if (isTypingRef.current) {
+            isTypingRef.current = false;
+            onTyping(false);
+          }
+        }, TYPING_STOP_DELAY);
+      }
+    },
+    [onTyping],
+  );
+
+  // Unmount cleanup: cancel timer and guarantee server receives typing_stop
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      if (isTypingRef.current) {
+        isTypingRef.current = false;
+        onTypingRef.current?.(false);
+      }
+    };
+  }, []);
+
+  // Image picker completion handler
+  const handleCustomPickerDone = useCallback(
+    async (assets) => {
+      setMediaPickerOpen(false);
+      if (!assets?.length) return;
+
+      const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+      const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
+
+      const valid = assets.filter((a) => {
+        const isVideo = a.mediaType === "video";
+        const max = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES;
+        return !(a.fileSize && a.fileSize > max);
+      });
+
+      if (valid.length < assets.length && onShowAlert) {
+        onShowAlert({
+          title: "Some files skipped",
+          message: "One or more files exceeded the size limit and were removed.",
+        });
+      }
+
+      if (!valid.length) return;
+
+      if (valid.length === 1 && valid[0].mediaType === "video") {
+        if (!mountedRef.current) return;
+        setVideoPreviewing({
+          uri: valid[0].uri,
+          duration: valid[0].duration ?? null,
+        });
+        return;
+      }
+
+      const attachments = await Promise.all(
+        valid.map(async (a, index) => {
+          let thumbnailUri = null;
+          if (a.mediaType === "video") {
+            try {
+              const thumb = await getVideoThumbnailAsync(a.uri, { time: 0 });
+              thumbnailUri = thumb.uri;
+            } catch (_) {}
+          }
+          return {
+            id: `att_${a.uri}_${a.mediaType}_${Date.now()}_${index}`,
+            uri: a.uri,
+            type: a.mediaType === "video" ? "video" : "image",
+            duration: a.duration ?? null,
+            thumbnailUri: thumbnailUri,
+            muteAudio: false,
+          };
+        }),
+      );
+
+      // Async unmount guard
+      if (!mountedRef.current) return;
+      setMediaAttachments(attachments);
+    },
+    [onShowAlert],
+  );
+
+  // Video preview confirm
+  const handleVideoSendConfirm = useCallback(
+    async ({ muteAudio }) => {
+      if (!videoPreviewing) return;
+      let thumbnailUri = null;
+      try {
+        const thumb = await getVideoThumbnailAsync(videoPreviewing.uri, {
+          time: 0,
+        });
+        thumbnailUri = thumb.uri;
+      } catch (_) {}
+
+      // Async unmount guard
+      if (!mountedRef.current) return;
+      setMediaAttachments([
+        {
+          id: `att_${videoPreviewing.uri}_video_${Date.now()}`,
+          uri: videoPreviewing.uri,
+          type: "video",
+          duration: videoPreviewing.duration,
+          thumbnailUri: thumbnailUri,
+          muteAudio: muteAudio,
+        },
+      ]);
+      setVideoPreviewing(null);
+    },
+    [videoPreviewing],
+  );
+
+  // Send action -> delegates payload to onSend callback
+  const handlePressSend = useCallback(() => {
+    const trimmedText = messageText.trim();
+    const hasText = trimmedText.length > 0;
+    const hasMedia = mediaAttachments.length > 0;
+    if ((!hasText && !hasMedia) || sending || uploadingMedia || disabled) return;
+
+    if (onSend) {
+      onSend({
+        text: trimmedText,
+        attachments: [...mediaAttachments],
+      });
+    }
+  }, [messageText, mediaAttachments, sending, uploadingMedia, disabled, onSend]);
+
+  const trimmedText = messageText.trim();
+  const canSend = useMemo(
+    () =>
+      (trimmedText.length > 0 || mediaAttachments.length > 0) &&
+      !sending &&
+      !uploadingMedia &&
+      !disabled,
+    [trimmedText, mediaAttachments.length, sending, uploadingMedia, disabled],
+  );
+
+  return (
+    <View style={styles.container}>
+      <ReplyBar
+        reply={selectedReply}
+        onClose={onCloseReply}
+        heightShared={replyBarHeightShared}
+      />
+
+      {/* Media preview strip */}
+      {mediaAttachments.length > 0 && (
+        <View style={styles.mediaPreviewStrip}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.mediaPreviewScroll}
+            contentContainerStyle={styles.mediaPreviewScrollContent}
+          >
+            {mediaAttachments.map((att) => (
+              <View key={att.id || att.uri} style={styles.mediaThumbContainer}>
+                <Image
+                  source={{ uri: att.thumbnailUri || att.uri }}
+                  style={styles.mediaPreviewThumb}
+                  contentFit="cover"
+                  cachePolicy="memory"
+                  recyclingKey={att.uri}
+                />
+                {att.type === "video" && (
+                  <View style={styles.mediaPreviewVideoIcon}>
+                    <Text style={{ fontSize: 9 }}>🎥</Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={styles.mediaThumbRemove}
+                  onPress={() =>
+                    setMediaAttachments((prev) =>
+                      prev.filter((item) => item.id !== att.id),
+                    )
+                  }
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <X size={12} color="#FFFFFF" strokeWidth={3} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+
+          <View style={styles.mediaCaptionRow}>
+            <TextInput
+              style={styles.mediaCaption}
+              placeholder="Add a caption"
+              placeholderTextColor="#B0BEC5"
+              value={messageText}
+              onChangeText={handleTextChange}
+              multiline
+              maxLength={500}
+            />
+            <TouchableOpacity
+              onPress={() => {
+                setMediaAttachments([]);
+                setMessageText("");
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <X size={18} color="#8FA1B8" strokeWidth={2.5} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Input row */}
+      <View style={styles.inputContent}>
+        <TouchableOpacity
+          style={styles.attachBtn}
+          onPress={() => setMediaPickerOpen(true)}
+          disabled={disabled}
+        >
+          <ImagePlus size={22} color={ACCENT} strokeWidth={2} />
+        </TouchableOpacity>
+
+        {!mediaAttachments.length && (
+          <View style={styles.inputWrapper}>
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              placeholder="Message..."
+              placeholderTextColor="#8FA1B8"
+              selectionColor="#8FA1B8"
+              cursorColor="#8FA1B8"
+              underlineColorAndroid="transparent"
+              value={messageText}
+              onChangeText={handleTextChange}
+              multiline
+              maxLength={1000}
+              onFocus={() => onFocusChange && onFocusChange(true)}
+              onBlur={() => onFocusChange && onFocusChange(false)}
+              editable={!disabled}
+            />
+          </View>
+        )}
+
+        {mediaAttachments.length > 0 && <View style={{ flex: 1 }} />}
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.sendButton,
+            !canSend && styles.sendButtonDisabled,
+            pressed && canSend && { backgroundColor: SEND_BUTTON_PRESSED },
+          ]}
+          onPress={handlePressSend}
+          disabled={!canSend}
+        >
+          {sending || uploadingMedia ? (
+            <SnooLoader size="small" color="#FFFFFF" />
+          ) : (
+            <Send size={20} color="#FFFFFF" strokeWidth={2.6} />
+          )}
+        </Pressable>
+      </View>
+
+      {/* Image picker modal */}
+      {mediaPickerOpen && (
+        <CustomImagePicker
+          visible={mediaPickerOpen}
+          onClose={() => setMediaPickerOpen(false)}
+          onDone={handleCustomPickerDone}
+          selectionLimit={10}
+          allowVideos
+          videoMaxDuration={120}
+        />
+      )}
+
+      {/* Video preview modal */}
+      {!!videoPreviewing && (
+        <VideoSendPreviewModal
+          visible={!!videoPreviewing}
+          videoUri={videoPreviewing?.uri}
+          duration={videoPreviewing?.duration}
+          onClose={() => setVideoPreviewing(null)}
+          onSend={handleVideoSendConfirm}
+        />
+      )}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: "column",
+    backgroundColor: "#FFFFFF",
+  },
+  inputContent: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  attachBtn: {
+    padding: 8,
+    marginRight: 4,
+  },
+  inputWrapper: {
+    flex: 1,
+    marginRight: 8,
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+    minHeight: 44,
+    justifyContent: "center",
+  },
+  input: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 10,
+    maxHeight: 100,
+    minHeight: 44,
+    fontFamily: "Manrope-Regular",
+    fontSize: 14.5,
+    color: "#1F3A5F",
+    backgroundColor: "transparent",
+    textAlignVertical: "center",
+    borderWidth: 0,
+  },
+  sendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: PRIMARY_COLOR,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sendButtonDisabled: {
+    backgroundColor: LIGHT_TEXT,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  mediaPreviewStrip: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 4,
+    borderTopWidth: 1,
+    borderTopColor: "#E6ECF5",
+    backgroundColor: "#F7F9FC",
+  },
+  mediaPreviewScroll: {
+    maxHeight: 70,
+    marginBottom: 8,
+  },
+  mediaPreviewScrollContent: {
+    alignItems: "center",
+    gap: 8,
+  },
+  mediaThumbContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 10,
+    overflow: "hidden",
+    position: "relative",
+  },
+  mediaPreviewThumb: {
+    width: "100%",
+    height: "100%",
+  },
+  mediaPreviewVideoIcon: {
+    position: "absolute",
+    bottom: 4,
+    left: 4,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: 8,
+    padding: 2,
+  },
+  mediaThumbRemove: {
+    position: "absolute",
+    top: 3,
+    right: 3,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "rgba(0,0,0,0.65)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mediaCaptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#E5E5EA",
+  },
+  mediaCaption: {
+    flex: 1,
+    fontFamily: "Manrope-Regular",
+    fontSize: 13.5,
+    color: "#1F3A5F",
+    maxHeight: 60,
+    paddingVertical: 4,
+  },
+});
+
+export default React.memo(forwardRef(ChatComposerInner));
