@@ -36,7 +36,7 @@
  * overhead.  There is no further win available from the "defer Reanimated"
  * direction without dropping the swipe-to-reply feature entirely.
  */
-import React, { useRef, useCallback, useMemo, Profiler } from "react";
+import React, { useEffect, useRef, useCallback, useMemo, Profiler } from "react";
 import { View, StyleSheet } from "react-native";
 import Animated, {
   useSharedValue, useAnimatedStyle, withTiming, withSpring,
@@ -99,7 +99,7 @@ function SwipeableMessageRowInner({
   const scale       = useSharedValue(1);
   const bgOpacity   = useSharedValue(0);
   const hasAnimated = useSharedValue(false);
-  const fired       = useRef(false);
+  const fired       = useSharedValue(false);
 
   const isHighlighted = useDerivedValue(
     () => highlightedIdSV.value === String(messageId),
@@ -179,8 +179,8 @@ function SwipeableMessageRowInner({
           : Math.min(Math.max(e.translationX, 0), REPLY_SWIPE_MAX);
         translateX.value  = raw;
         iconOpacity.value = Math.abs(raw) / REPLY_SWIPE_MAX;
-        if (Math.abs(raw) >= REPLY_HAPTIC_THRESHOLD && !fired.current) {
-          fired.current = true;
+        if (Math.abs(raw) >= REPLY_HAPTIC_THRESHOLD && !fired.value) {
+          fired.value = true;
           runOnJS(Haptics.impactAsync)(Haptics.ImpactFeedbackStyle.Light);
         }
       })
@@ -188,7 +188,7 @@ function SwipeableMessageRowInner({
         const didTrigger = Math.abs(e.translationX) >= REPLY_HAPTIC_THRESHOLD;
         translateX.value  = withTiming(0, { duration: 180, easing: Easing.out(Easing.quad) });
         iconOpacity.value = withTiming(0, { duration: 150 });
-        fired.current = false;
+        fired.value = false;
         if (didTrigger) runOnJS(callOnReply)();
       }),
   // isMine: stable for a given message (sender never changes).
@@ -197,6 +197,16 @@ function SwipeableMessageRowInner({
   // not the references themselves.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   [isMine, callOnReply]);
+
+  // Reset shared values on cell recycling
+  useEffect(() => {
+    translateX.value = 0;
+    iconOpacity.value = 0;
+    scale.value = 1;
+    bgOpacity.value = 0;
+    hasAnimated.value = false;
+    fired.value = false;
+  }, [messageId]);
 
   const composed = useMemo(() =>
     Gesture.Simultaneous(longPress, pan),
@@ -234,12 +244,10 @@ function SwipeableMessageRowInner({
 // ── Custom memo comparator ───────────────────────────────────────────────────
 // Deliberately EXCLUDES onReply and onLongPress — those are handled via refs
 // inside the component body so they never need to trigger a re-render.
-// Includes children so content updates (deletion, edits) still propagate.
 const arePropsEqual = (prev, next) =>
   prev.messageId       === next.messageId       &&
   prev.isMyMessage     === next.isMyMessage     &&
-  prev.highlightedIdSV === next.highlightedIdSV &&
-  prev.children        === next.children;
+  prev.highlightedIdSV === next.highlightedIdSV;
 
 const SwipeableMessageRow = React.memo(SwipeableMessageRowInner, arePropsEqual);
 

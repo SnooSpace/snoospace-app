@@ -559,6 +559,8 @@ const getMessages = async (req, res) => {
     // Return oldest message's createdAt as next cursor for the client
     const nextCursor = messages.length > 0 ? messages[0].createdAt : null;
 
+    console.log(`[BACKEND-PAGINATION] convId=${conversationId} before=${beforeCursor} after=${afterCursor} limit=${limitNum} count=${messages.length} hasMore=${hasMore} nextCursor=${nextCursor}`);
+
     res.json({ messages, hasMore, nextCursor, status: accessCheck.rows[0]?.status || "ACTIVE" });
   } catch (error) {
     console.error("Error getting messages:", error);

@@ -398,4 +398,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SharedPlanCard;
+export default React.memo(SharedPlanCard);

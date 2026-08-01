@@ -85,20 +85,30 @@ export function getCachedConversation(conversationId) {
  * Caps the stored message array at 30 most-recent messages to bound memory.
  * Evicts the LRU conversation if the cache is full.
  *
+ * cursor is always auto-derived from messages[0].createdAt (the oldest stored
+ * message after trimming) — callers must NOT pass a cursor. Deriving it here
+ * guarantees the cursor is always consistent with the actual stored messages
+ * regardless of query type or previous bad data.
+ *
  * @param {string|number} conversationId
- * @param {{ messages: Array, cursor: string|null }} param1
+ * @param {{ messages: Array, hasMore: boolean }} param1
  */
-export function setCachedConversation(conversationId, { messages, cursor, hasMore }) {
+export function setCachedConversation(conversationId, { messages, hasMore }) {
   const key = String(conversationId);
   evictIfNeeded();
 
-  // Keep only the 30 most-recent messages (they are stored oldest→newest)
-  const trimmed = Array.isArray(messages) ? messages.slice(-30) : [];
+  const wasTrimmed = Array.isArray(messages) && messages.length > 20;
+  const trimmed = Array.isArray(messages) ? messages.slice(-20) : [];
+  const oldestTime = trimmed.length > 0 ? trimmed[0].createdAt : null;
+
+  const finalHasMore = wasTrimmed ? true : (hasMore !== undefined ? hasMore : true);
+
+  console.log(`[WARM-CACHE-SET] convId=${key} totalCount=${messages?.length} sliceCount=${trimmed.length} oldest=${oldestTime} wasTrimmed=${wasTrimmed} finalHasMore=${finalHasMore}`);
 
   const entry = {
     messages: trimmed,
-    cursor: cursor || null,
-    hasMore: hasMore !== undefined ? hasMore : true,
+    cursor: oldestTime,
+    hasMore: finalHasMore,
     cachedAt: Date.now(),
   };
   conversationCache.delete(key); // ensure re-insert at MRU end
@@ -122,9 +132,12 @@ export function appendMessageToCache(conversationId, newMessage) {
   // Deduplicate by id (same guard as addNewMessage in useChatPagination)
   if (entry.messages.some((m) => m.id === newMessage.id)) return;
 
+  const newMessages = [...entry.messages, newMessage].slice(-30);
   const updated = {
-    messages: [...entry.messages, newMessage].slice(-30),
-    cursor: entry.cursor,
+    messages: newMessages,
+    // Recompute cursor: if trimming evicted the oldest message, the cursor
+    // must advance to the new oldest. Always derive from messages[0].
+    cursor: newMessages.length > 0 ? newMessages[0].createdAt : entry.cursor,
     hasMore: entry.hasMore !== undefined ? entry.hasMore : true,
     cachedAt: Date.now(), // extend TTL — conversation is still active
   };

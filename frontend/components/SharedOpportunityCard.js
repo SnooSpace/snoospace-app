@@ -716,4 +716,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SharedOpportunityCard;
+export default React.memo(SharedOpportunityCard);

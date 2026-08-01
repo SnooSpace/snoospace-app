@@ -714,4 +714,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SharedPostCard;
+export default React.memo(SharedPostCard);

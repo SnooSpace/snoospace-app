@@ -158,7 +158,7 @@ function VideoItem({ item, isMyMessage, styleOverrides, mediaId, onOpenViewer })
 }
 
 // ── Main export ────────────────────────────────────────────────────────────────
-export default function ChatMediaMessage({
+function ChatMediaMessage({
   message,
   isMyMessage,
   uploadProgress = null,
@@ -391,3 +391,5 @@ const bubbleStyles = StyleSheet.create({
     fontFamily: "Manrope-Regular", fontSize: 14, color: DELETED_COLOR, fontStyle: "italic",
   },
 });
+
+export default React.memo(ChatMediaMessage);

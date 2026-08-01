@@ -33,13 +33,21 @@
  */
 import { useState, useRef, useCallback } from "react";
 import { getMessages } from "../api/messages";
+import { setCachedConversation } from "../services/conversationCache";
 
 const OLDER_PAGE_SIZE = 20; // fixed page size for "load older" pagination
 
-export default function useChatPagination(initialMessages = []) {
+export default function useChatPagination(initialMessages = [], initialHasMore = true) {
   const [messages,     setMessages]     = useState(initialMessages);
-  const [hasMore,      setHasMore]      = useState(false);
+  const [hasMore,      setHasMoreState] = useState(initialHasMore);
   const [loadingOlder, setLoadingOlder] = useState(false);
+
+  const hasMoreRef = useRef(initialHasMore);
+  const setHasMore = useCallback((val) => {
+    const b = Boolean(val);
+    hasMoreRef.current = b;
+    setHasMoreState(b);
+  }, []);
 
   // Cursor = ISO timestamp of the oldest message we have fetched.
   // Each "load older" call passes this as ?before=<cursor>.
@@ -55,9 +63,6 @@ export default function useChatPagination(initialMessages = []) {
 
   // ── loadInitial ────────────────────────────────────────────────────────────
   // Fetches the most-recent messages. Called once per conversation open.
-  // limit: how many messages to fetch. Callers should pass a viewport-derived
-  // value (e.g. Math.ceil(screenHeight / avgItemHeight * 1.5)) so the first
-  // batch fills exactly one screen worth of content — no more, no less.
   const loadInitial = useCallback(async (conversationId, limit = OLDER_PAGE_SIZE) => {
     convIdRef.current  = conversationId;
     cursorRef.current  = null;
@@ -81,22 +86,35 @@ export default function useChatPagination(initialMessages = []) {
     } catch (err) {
       throw err;
     }
-  }, []);
+  }, [setHasMore]);
 
   // ── loadOlderMessages ──────────────────────────────────────────────────────
   // Fetches the next page of older messages and PREPENDS them.
-  // Called by FlashList's onStartReached (or onEndReached depending on which
-  // fires reliably with startRenderingFromBottom — see ChatScreen comment).
+  // Called by FlashList's onStartReached or onScroll trigger.
   const loadOlderMessages = useCallback(async (conversationId) => {
+    console.log(`[FRONTEND-PAGINATION] loadOlderMessages called — convId=${conversationId} convIdRef=${convIdRef.current} isLoading=${isLoadingRef.current} hasMoreRef=${hasMoreRef.current} cursorRef=${cursorRef.current} msgsCount=${messages.length}`);
+
     if (!conversationId) return;
-    if (isLoadingRef.current) return;   // already in flight
-    if (!hasMore) return;               // nothing more to fetch
+    // Auto-bind convIdRef if uninitialized (e.g. on warm open before bootstrap)
+    if (!convIdRef.current) convIdRef.current = conversationId;
+    if (isLoadingRef.current) {
+      console.log(`[FRONTEND-PAGINATION] BAILED: isLoadingRef is true`);
+      return;
+    }
+    if (!hasMoreRef.current) {
+      console.log(`[FRONTEND-PAGINATION] BAILED: hasMoreRef is false`);
+      return;
+    }
 
     // Use cursorRef.current if present; otherwise fall back to oldest loaded
     // message timestamp (index 0 in the oldest-first array).
     const effectiveCursor = cursorRef.current || (messages.length > 0 ? messages[0].createdAt : null);
-    if (!effectiveCursor) return;
+    if (!effectiveCursor) {
+      console.log(`[FRONTEND-PAGINATION] BAILED: effectiveCursor is null`);
+      return;
+    }
 
+    console.log(`[FRONTEND-PAGINATION] FETCHING older messages — before=${effectiveCursor}`);
     isLoadingRef.current = true;
     setLoadingOlder(true);
 
@@ -105,21 +123,35 @@ export default function useChatPagination(initialMessages = []) {
         before: effectiveCursor,
         limit: OLDER_PAGE_SIZE,
       });
-      if (convIdRef.current !== conversationId) return; // stale
+      if (convIdRef.current !== conversationId) {
+        console.log(`[FRONTEND-PAGINATION] BAILED: stale response convIdRef=${convIdRef.current} !== ${conversationId}`);
+        return;
+      }
 
       const older = res.messages || [];
+      console.log(`[FRONTEND-PAGINATION] RECEIVED ${older.length} older messages — res.hasMore=${res.hasMore} res.nextCursor=${res.nextCursor}`);
       if (older.length > 0) {
+        let updatedList = [];
         // PREPEND: older messages go before existing ones (lower indices).
         // Backend returns them oldest-first, which is exactly the order we need.
         setMessages(prev => {
           // Deduplicate by id (safety net for edge cases)
           const existingIds = new Set(prev.map(m => m.id));
           const fresh = older.filter(m => !existingIds.has(m.id));
-          // Prepending maintains overall oldest → newest order.
-          return [...fresh, ...prev];
+          updatedList = [...fresh, ...prev];
+          console.log(`[ARRAY-TRACE] Prepending ${fresh.length} msgs. prevLen=${prev.length} newTotal=${updatedList.length} firstId=${updatedList[0]?.id} lastId=${updatedList[updatedList.length - 1]?.id}`);
+          return updatedList;
         });
         // Advance cursor to the oldest of the newly fetched batch (older[0]).
         cursorRef.current = res.nextCursor || (older.length > 0 ? older[0].createdAt : null);
+        
+        // Persist newly paginated history to in-memory cache
+        setTimeout(() => {
+          setCachedConversation(conversationId, {
+            messages: updatedList,
+            hasMore: res.hasMore || false,
+          });
+        }, 0);
       }
       setHasMore(res.hasMore || false);
     } catch (err) {
@@ -128,7 +160,7 @@ export default function useChatPagination(initialMessages = []) {
       isLoadingRef.current = false;
       setLoadingOlder(false);
     }
-  }, [hasMore, messages]);
+  }, [messages, setHasMore]);
 
   // ── addNewMessage ──────────────────────────────────────────────────────────
   // Inserts a new message (outgoing send or Supabase realtime INSERT).
@@ -213,8 +245,9 @@ export default function useChatPagination(initialMessages = []) {
     convIdRef.current   = conversationId;
     cursorRef.current   = cursor || null;
     newestAtRef.current = newestAt || null;
-    setHasMore(serverHasMore || false);
-  }, []);
+    const finalHasMore = serverHasMore !== undefined ? Boolean(serverHasMore) : true;
+    setHasMore(finalHasMore);
+  }, [setHasMore]);
 
   return {
     messages,

@@ -1940,8 +1940,10 @@ export default function ChatScreen({ route, navigation }) {
   // useChatPagination starts with real messages — FlatList renders on frame 0
   // without waiting for any useEffect or InteractionManager to fire.
   // Cache stores messages oldest-first, matching the array order contract.
-  const initialMessagesRef = useRef(
-    conversationId ? getCachedConversation(conversationId)?.messages || [] : [],
+  const initialCacheEntry = conversationId ? getCachedConversation(conversationId) : null;
+  const initialMessagesRef = useRef(initialCacheEntry?.messages || []);
+  const initialHasMoreRef = useRef(
+    initialCacheEntry?.hasMore !== undefined ? initialCacheEntry.hasMore : true,
   );
   if (initialMessagesRef.current.length > 0) {
     const c = initialMessagesRef.current;
@@ -1968,7 +1970,7 @@ export default function ChatScreen({ route, navigation }) {
     newestAtRef,
     isLoadingRef,
     resetMessages,
-  } = useChatPagination(initialMessagesRef.current);
+  } = useChatPagination(initialMessagesRef.current, initialHasMoreRef.current);
 
   const [messageText, setMessageText] = useState("");
   const [isChatInputFocused, setIsChatInputFocused] = useState(false);
@@ -2260,14 +2262,22 @@ export default function ChatScreen({ route, navigation }) {
   // Opacity mask: starts transparent for 1 frame (16ms) while FlashList anchors to bottom, then reveals smoothly.
   const listRevealOpacity = useSharedValue(0);
   const isListSettledRef = useRef(false);
+  const isInitialMountedRef = useRef(false);
 
   useEffect(() => {
     // Reset guards and pagination state whenever the conversation changes.
     hasCorrectedInitialLayoutRef.current = false;
     isListSettledRef.current = false;
+    isInitialMountedRef.current = false;
     listRevealOpacity.value = 0;
-    resetMessages();
-  }, [currentConversationId, resetMessages]);
+
+    const timer = setTimeout(() => {
+      isInitialMountedRef.current = true;
+      isListSettledRef.current = true;
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [currentConversationId]);
 
   // ── runInitialCorrectionAndReveal ──────────────────────────────────────────────
   // 1-frame layout anchor: corrects position on Frame 1 (16ms) before revealing opacity.
@@ -2279,8 +2289,10 @@ export default function ChatScreen({ route, navigation }) {
       flashListRef.current?.scrollToEnd({ animated: false });
       listRevealOpacity.value = withTiming(1, { duration: 50 }, () => {
         isListSettledRef.current = true;
+        isInitialMountedRef.current = true;
       });
       isListSettledRef.current = true;
+      isInitialMountedRef.current = true;
     });
   }, [messages.length]);
 
@@ -2423,6 +2435,36 @@ export default function ChatScreen({ route, navigation }) {
     return count > 0 ? Math.round(totalHeight / count) : 72;
   }, [flatListData]);
 
+  // ── WhatsApp/Instagram Deterministic Layout Pre-Calculation ────────────────
+  const getItemType = useCallback((item) => {
+    if (!item) return "unknown";
+    if (item.type === "date_separator") return "separator";
+    if (item.type === "system") return "system";
+    if (item.type === "message") {
+      const msg = item.data;
+      const mType = msg.messageType;
+      if (mType === "image" || mType === "video" || mType === "multi_media") return "media";
+      if (mType === "post_share") return "card_post";
+      if (mType === "opportunity_share") return "card_opportunity";
+      if (mType === "event_share") return "card_event";
+      if (mType === "plan_share") return "card_plan";
+      if (mType === "ticket") return "card_ticket";
+      if (msg.replyToId) return "text_reply";
+      if (msg.messageText && msg.messageText.length > 140) return "text_long";
+      return "text_standard";
+    }
+    return "default";
+  }, []);
+
+  const renderListHeader = useCallback(() => {
+    if (!loadingOlder) return <View style={{ height: 8 }} />;
+    return (
+      <View style={{ paddingVertical: 14, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+      </View>
+    );
+  }, [loadingOlder]);
+
   // ── PERF: stored in a ref instead of useMemo so scrollToMessage can read the
   // latest index without depending on messageIndexMap as a closure variable.
   // If it closed over the useMemo value, scrollToMessage would rebuild every
@@ -2446,7 +2488,9 @@ export default function ChatScreen({ route, navigation }) {
       const isMyMessage = isGroup
         ? String(msg.senderId) === String(currentUser?.id) &&
           (msg.senderType || "member") === (currentUser?.type || "member")
-        : msg.senderId !== (recipient?.id || recipientId);
+        : currentUser?.id != null
+          ? String(msg.senderId) === String(currentUser?.id)
+          : String(msg.senderId) !== String(recipient?.id ?? recipientId);
       const senderName = isMyMessage
         ? "You"
         : msg.senderName || recipient?.name;
@@ -2729,7 +2773,12 @@ export default function ChatScreen({ route, navigation }) {
               hasOlderMessages = cached.hasMore ?? false;
               bootstrapPaginationState({
                 conversationId,
-                cursor: cached.cursor || null,
+                // Derive cursor from the actual oldest stored message, not
+                // from cached.cursor which might contain bad data from old
+                // code. messages[0] is always the oldest (oldest-first order).
+                cursor: cached.messages.length > 0
+                  ? cached.messages[0].createdAt
+                  : null,
                 hasMore: hasOlderMessages,
                 newestAt:
                   cached.messages.length > 0
@@ -2771,9 +2820,16 @@ export default function ChatScreen({ route, navigation }) {
               }
 
               if (reconcileRes?.status) setGroupStatus(reconcileRes.status);
+              // ⚠️ IMPORTANT: always derive cursor from the OLDEST cached message,
+              // NOT from freshCursor (which comes from an { after: } query and is
+              // a forward-looking cursor) and NOT from cached.cursor (which may
+              // contain bad data written by old code before this fix was deployed).
+              // messages[0] in the oldest-first array is always the backward boundary.
               bootstrapPaginationState({
                 conversationId,
-                cursor: freshCursor || cached.cursor || null,
+                cursor: cached.messages.length > 0
+                  ? cached.messages[0].createdAt
+                  : null,
                 hasMore: hasOlderMessages,
                 newestAt:
                   freshMsgs.length > 0
@@ -2804,14 +2860,21 @@ export default function ChatScreen({ route, navigation }) {
           if (freshMsgs.length > 0) {
             addNewMessages(freshMsgs);
           }
-          // Update cache with the authoritative server state
+          // Update cache with the authoritative server state.
+          // Stale reconcile: store the merged (old + delta) set. The cursor is
+          // auto-computed from messages[0].createdAt inside setCachedConversation,
+          // so it always matches the oldest stored message regardless of what
+          // freshCursor or cached.cursor contained.
+          // Initial load: freshMsgs is the full set, stored directly.
           if (freshMsgs.length > 0 || !cached) {
+            const messagesForCache = cached
+              ? [...(cached.messages || []), ...freshMsgs] // merge: old + delta
+              : freshMsgs;                                 // initial load: full set
             console.log(
-              `[ConvCache] WRITE conversationId=${conversationId} source=${cached ? "reconcile" : "initial"} count=${freshMsgs.length}`,
+              `[ConvCache] WRITE conversationId=${conversationId} source=${cached ? "reconcile" : "initial"} delta=${freshMsgs.length} total=${messagesForCache.length}`,
             );
             setCachedConversation(conversationId, {
-              messages: freshMsgs,
-              cursor: freshCursor,
+              messages: messagesForCache,
               hasMore: hasOlderMessages,
             });
           }
@@ -2931,7 +2994,6 @@ export default function ChatScreen({ route, navigation }) {
             );
             setCachedConversation(resolvedConvId, {
               messages: freshMsgs,
-              cursor: loadRes?.nextCursor || null,
               hasMore: loadRes?.hasMore ?? false,
             });
           }
@@ -3850,14 +3912,10 @@ export default function ChatScreen({ route, navigation }) {
       const isMyMessage = isGroup
         ? String(msg.senderId) === String(currentUser?.id) &&
           (msg.senderType || "member") === (currentUser?.type || "member")
-        : msg.senderId !== (recipient?.id || recipientId);
+        : currentUser?.id != null
+          ? String(msg.senderId) === String(currentUser?.id)
+          : String(msg.senderId) !== String(recipient?.id ?? recipientId);
 
-      // In oldest-first order, index+1 is the NEXT (newer) message. But for
-      // showAvatar / showSenderName semantics we compare with the PREVIOUS
-      // (older) neighbour — that's index-1 in this array, which is what
-      // buildMessageList already pre-computed into msg._showAvatar and
-      // msg._showSenderName. The nextItem lookup here is for shouldShowAvatar's
-      // real-time fallback path (edge case when cached flags are stale).
       const nextItem = flatListData[index + 1];
       const nextMsg = nextItem?.type === "message" ? nextItem.data : null;
       const showAvatar = isMyMessage
@@ -3871,6 +3929,13 @@ export default function ChatScreen({ route, navigation }) {
       const effectiveType = msg.isDeleted
         ? "deleted"
         : msg.messageType || "text";
+
+      const isEdgeItem = index <= 2 || index >= flatListData.length - 3;
+      if (isEdgeItem) {
+        console.log(
+          `[EDGE-DIAG] renderItem index=${index} total=${flatListData.length} msgId=${msg.id} type=${effectiveType} isMyMessage=${isMyMessage} showAvatar=${showAvatar} text="${(msg.messageText || '').slice(0, 20)}"`,
+        );
+      }
 
       return (
         <Profiler
@@ -4139,47 +4204,45 @@ export default function ChatScreen({ route, navigation }) {
                     data={flatListData}
                     keyExtractor={keyExtractor}
                     renderItem={renderItem}
-                    getItemType={(item) => item.type}
-                    overrideItemLayout={overrideItemLayout}
+                    getItemType={getItemType}
                     estimatedItemSize={estimatedItemSize}
+                    ListHeaderComponent={renderListHeader}
+                    drawDistance={1500}
+                    onBlankArea={(info) => console.log('[FLASH-BLANK] Blank area:', JSON.stringify(info))}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={[
                       styles.listContent,
                       { paddingBottom: 12 + insets.bottom },
                     ]}
                     contentOffset={{ x: 0, y: 999999 }}
-                    drawDistance={1000}
                     maintainVisibleContentPosition={{
                       autoscrollToBottomThreshold: 0.2,
                       startRenderingFromBottom: true,
                     }}
                     onStartReached={() => {
-                      if (!isListSettledRef.current) return; // ignore spurious fires before initial anchor completes
                       console.log("[ChatScreen] onStartReached fired");
-                      if (hasMore && !loadingOlder) {
+                      if (hasMore && !isLoadingRef.current) {
                         loadOlderMessages(currentConversationId);
                       }
                     }}
-                  onStartReachedThreshold={0.4}
-                  onScroll={(e) => {
-                    const y = e.nativeEvent.contentOffset.y;
-                    const contentH = e.nativeEvent.contentSize.height;
-                    const listH = e.nativeEvent.layoutMeasurement.height;
-                    isAtBottomRef.current = contentH - listH - y < 100;
-                  }}
+                    onStartReachedThreshold={0.5}
+                    onScroll={(e) => {
+                      const y = e.nativeEvent.contentOffset.y;
+                      const contentH = e.nativeEvent.contentSize.height;
+                      const listH = e.nativeEvent.layoutMeasurement.height;
+                      isAtBottomRef.current = contentH - listH - y < 100;
+
+                      if (y < 400 && hasMore && !isLoadingRef.current) {
+                        console.log(`[CHAT-SCROLL] Scroll-up trigger hit! y=${y.toFixed(1)} contentH=${contentH} listH=${listH} hasMore=${hasMore}`);
+                        loadOlderMessages(currentConversationId);
+                      }
+                    }}
                   scrollEventThrottle={16}
                   onLayout={() => {
                     // Warm-open path: layout fires after data is already present.
                     // runInitialCorrectionAndReveal checks the guard internally.
                     runInitialCorrectionAndReveal();
                   }}
-                  ListHeaderComponent={
-                    loadingOlder ? (
-                      <View style={styles.loadingOlderContainer}>
-                        <ActivityIndicator size="small" color={PRIMARY_COLOR} />
-                      </View>
-                    ) : null
-                  }
                   ListEmptyComponent={
                     !messagesLoading ? (
                       <View

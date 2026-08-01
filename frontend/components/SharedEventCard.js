@@ -581,4 +581,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SharedEventCard;
+export default React.memo(SharedEventCard);
