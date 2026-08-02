@@ -10,14 +10,37 @@
  *
  * IMAGE OPTIMIZATION:
  * Static thumbnails remain as-is (Cloudinary URLs are OS-level cached after first load).
+ *
+ * ── FIX (post-audit) ────────────────────────────────────────────────────────
+ * This component is rendered inside FlashList cells recycled by getItemType
+ * pools (e.g. image_single_in, image_grid2_out, etc.). Two things needed
+ * fixing for correct recycling behavior:
+ *
+ *   1. ImageItem/VideoItem used plain useState(false) for thumbError. Since
+ *      FlashList reuses the same component instance across different items
+ *      of the same recycling pool, a thumbnail load failure on message A
+ *      would leave thumbError=true carried over when the cell was recycled
+ *      for message B — showing a broken-image placeholder for a perfectly
+ *      valid image until something else forced a remount. Switched to
+ *      useRecyclingState keyed on [mediaId, url] so the error state resets
+ *      automatically whenever the cell is recycled to a different item.
+ *
+ *   2. renderContent() manually assembles multiple sibling media elements
+ *      for the 2/3/4-image grid layouts (not via .map(), but the same
+ *      "multiple keyed siblings" situation the docs warn about). Raw
+ *      key={mediaId} on VideoItem/ImageItem is replaced with
+ *      useMappingHelper's getMappingKey so recycling isn't defeated by
+ *      React treating each grid slot as an unrelated component identity
+ *      across recycles.
  */
-import React, { useState } from "react";
+import React from "react";
 import {
   View, Text, TouchableOpacity,
   StyleSheet, Dimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { Film, Image as ImageIcon, Play } from "lucide-react-native";
+import { useRecyclingState, useMappingHelper } from "@shopify/flash-list";
 import { getOptimizedImageUrl } from "../utils/imageUtils";
 
 const { width: SCREEN_W } = Dimensions.get("window");
@@ -67,8 +90,11 @@ function DeletedMediaBubble({ isMyMessage, messageType }) {
 
 // ── Single image item ──────────────────────────────────────────────────────────
 function ImageItem({ item, isMyMessage, styleOverrides, mediaId, isUploading, uploadProgress, onOpenViewer }) {
-  const [thumbError, setThumbError] = useState(false);
   const rawUrl = item?.url || null;
+  // FIX: useRecyclingState resets thumbError automatically whenever this
+  // cell gets recycled to a different mediaId/url, instead of carrying a
+  // stale error flag over from whatever item previously occupied this cell.
+  const [thumbError, setThumbError] = useRecyclingState(false, [mediaId, rawUrl]);
   // Downscale to the actual rendered bubble width — avoids loading full-res
   // camera uploads (3000px+) into a 260dp cell.
   const mediaUrl = getOptimizedImageUrl(rawUrl, { width: BUBBLE_MAX_W, quality: 'auto:good' });
@@ -112,10 +138,11 @@ function ImageItem({ item, isMyMessage, styleOverrides, mediaId, isUploading, up
 // Instagram-style: shows static thumbnail + play button.
 // Tap opens the fullscreen MediaViewerTimeline (same as images).
 function VideoItem({ item, isMyMessage, styleOverrides, mediaId, onOpenViewer }) {
-  const [thumbError, setThumbError] = useState(false);
   const mediaUrl     = item?.url || null;
   // Video thumbnails are already downscaled by getCloudinaryVideoThumb (480px cap) — leave as-is.
   const thumbnailUrl = item?.thumbnail_url || getCloudinaryVideoThumb(mediaUrl) || null;
+  // FIX: same recycling-safe reset as ImageItem above.
+  const [thumbError, setThumbError] = useRecyclingState(false, [mediaId, thumbnailUrl]);
 
   return (
     <TouchableOpacity
@@ -166,6 +193,10 @@ function ChatMediaMessage({
 }) {
   const { messageType, metadata, messageText, isDeleted } = message;
   const isUploading = uploadProgress !== null && uploadProgress < 1;
+  // FIX: getMappingKey provides recycling-safe keys for the manually
+  // assembled sibling grid items in renderContent() below (2/3/4-image
+  // layouts), instead of a raw key={mediaId} that defeats recycling.
+  const { getMappingKey } = useMappingHelper();
 
   if (isDeleted) {
     return <DeletedMediaBubble isMyMessage={isMyMessage} messageType={messageType} />;
@@ -174,11 +205,12 @@ function ChatMediaMessage({
   const renderMediaItem = (item, index = 0, styleOverrides = {}, isMulti = false) => {
     const isVideo  = item?.resource_type === "video" || item?.type === "video" || messageType === "video";
     const mediaId  = isMulti ? `${message.id}_${index}` : message.id;
+    const mappingKey = getMappingKey(mediaId, index);
 
     if (isVideo) {
       return (
         <VideoItem
-          key={mediaId}
+          key={mappingKey}
           item={item}
           isMyMessage={isMyMessage}
           styleOverrides={styleOverrides}
@@ -190,7 +222,7 @@ function ChatMediaMessage({
 
     return (
       <ImageItem
-        key={mediaId}
+        key={mappingKey}
         item={item}
         isMyMessage={isMyMessage}
         styleOverrides={styleOverrides}

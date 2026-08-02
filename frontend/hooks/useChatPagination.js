@@ -18,6 +18,15 @@
  * automatically when new messages are appended, eliminating the need
  * for reactive scrollToEnd / onContentSizeChange correction logic.
  *
+ * ── FIX (post-audit) ────────────────────────────────────────────────────────
+ * Older-message prepends used to be split into two chunks and committed via
+ * two separate setMessages calls one requestAnimationFrame apart. That forced
+ * FlashList's maintainVisibleContentPosition engine to recompute the scroll
+ * anchor twice in two consecutive frames against two different array states —
+ * the direct cause of messages visibly flicking out and snapping back during
+ * fast scroll-up. Every prepend path below now commits in a SINGLE setMessages
+ * call, so maintainVisibleContentPosition only has to anchor once per batch.
+ *
  * API surface:
  *   messages           — current flat array of messages (oldest → newest)
  *   hasMore            — true while more older pages exist
@@ -56,48 +65,46 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
   const isScrollingRef  = useRef(false);
   const pendingOlderRef = useRef(null);
 
+  // ── prependOlder ────────────────────────────────────────────────────────────
+  // Single, atomic commit path shared by loadOlderMessages and flushPendingOlder.
+  // Dedupes against the current array, prepends in ONE setMessages call, updates
+  // the cache, and advances cursorRef — all in one pass, so
+  // maintainVisibleContentPosition only recomputes its anchor once per batch.
+  const prependOlder = useCallback((conversationId, older, resHasMore, resNextCursor) => {
+    if (!older || older.length === 0) {
+      setHasMore(resHasMore || false);
+      return;
+    }
+
+    let updatedList = [];
+    setMessages(prev => {
+      const existingIds = new Set(prev.map(m => m.id));
+      const fresh = older.filter(m => !existingIds.has(m.id));
+      if (fresh.length === 0) {
+        updatedList = prev;
+        return prev;
+      }
+      updatedList = [...fresh, ...prev];
+      console.log(`[PAGINATION-PREPEND] Prepending ${fresh.length} msgs (single commit). prevLen=${prev.length} newTotal=${updatedList.length}`);
+      return updatedList;
+    });
+
+    cursorRef.current = resNextCursor || (older.length > 0 ? older[0].createdAt : null);
+    setHasMore(resHasMore || false);
+
+    setCachedConversation(conversationId, {
+      messages: updatedList,
+      hasMore: resHasMore || false,
+    });
+  }, [setHasMore]);
+
   const flushPendingOlder = useCallback(() => {
     if (!pendingOlderRef.current) return;
     const { older, resHasMore, resNextCursor, conversationId } = pendingOlderRef.current;
     pendingOlderRef.current = null;
 
-    if (older.length > 0) {
-      const mid = Math.ceil(older.length / 2);
-      const firstHalf = older.slice(0, mid);   // oldest-first order (chunk 1)
-      const secondHalf = older.slice(mid);     // newer part (chunk 2)
-
-      let updatedList = [];
-      // First commit: prepend secondHalf (newer chunk closer to visible items)
-      setMessages(prev => {
-        const existingIds = new Set(prev.map(m => m.id));
-        const fresh = secondHalf.filter(m => !existingIds.has(m.id));
-        updatedList = [...fresh, ...prev];
-        console.log(`[PAGINATION-CHUNK-1] Prepending chunk 2 (${fresh.length} msgs). prevLen=${prev.length} newTotal=${updatedList.length}`);
-        return updatedList;
-      });
-
-      // Second commit: one frame later, prepend firstHalf
-      requestAnimationFrame(() => {
-        setMessages(prev => {
-          const existingIds = new Set(prev.map(m => m.id));
-          const fresh = firstHalf.filter(m => !existingIds.has(m.id));
-          const next = [...fresh, ...prev];
-          updatedList = next;
-          console.log(`[PAGINATION-CHUNK-2] Prepending chunk 1 (${fresh.length} msgs). prevLen=${prev.length} newTotal=${updatedList.length}`);
-          setTimeout(() => {
-            setCachedConversation(conversationId, {
-              messages: updatedList,
-              hasMore: resHasMore || false,
-            });
-          }, 0);
-          return next;
-        });
-      });
-
-      cursorRef.current = resNextCursor || (older.length > 0 ? older[0].createdAt : null);
-    }
-    setHasMore(resHasMore || false);
-  }, [setHasMore]);
+    prependOlder(conversationId, older, resHasMore, resNextCursor);
+  }, [prependOlder]);
 
   // ── loadInitial ────────────────────────────────────────────────────────────
   // Fetches the most-recent messages. Called once per conversation open.
@@ -167,52 +174,24 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
 
       const older = res.messages || [];
       console.log(`[FRONTEND-PAGINATION] RECEIVED ${older.length} older messages — res.hasMore=${res.hasMore} res.nextCursor=${res.nextCursor}`);
-      if (older.length > 0) {
-        if (isScrollingRef.current) {
-          console.log(`[PAGINATION-DEFER] Active momentum scroll — deferring ${older.length} prepended msgs until momentum end`);
-          pendingOlderRef.current = {
-            older,
-            resHasMore: res.hasMore || false,
-            resNextCursor: res.nextCursor || older[0].createdAt,
-            conversationId,
-          };
-          cursorRef.current = res.nextCursor || older[0].createdAt;
-        } else {
-          const mid = Math.ceil(older.length / 2);
-          const firstHalf = older.slice(0, mid);
-          const secondHalf = older.slice(mid);
 
-          let updatedList = [];
-          setMessages(prev => {
-            const existingIds = new Set(prev.map(m => m.id));
-            const fresh = secondHalf.filter(m => !existingIds.has(m.id));
-            updatedList = [...fresh, ...prev];
-            console.log(`[PAGINATION-IMMEDIATE-CHUNK-1] Prepending chunk 2 (${fresh.length} msgs). prevLen=${prev.length} newTotal=${updatedList.length}`);
-            return updatedList;
-          });
-
-          requestAnimationFrame(() => {
-            setMessages(prev => {
-              const existingIds = new Set(prev.map(m => m.id));
-              const fresh = firstHalf.filter(m => !existingIds.has(m.id));
-              const next = [...fresh, ...prev];
-              updatedList = next;
-              console.log(`[PAGINATION-IMMEDIATE-CHUNK-2] Prepending chunk 1 (${fresh.length} msgs). prevLen=${prev.length} newTotal=${updatedList.length}`);
-              setTimeout(() => {
-                setCachedConversation(conversationId, {
-                  messages: updatedList,
-                  hasMore: res.hasMore || false,
-                });
-              }, 0);
-              return next;
-            });
-          });
-
-          cursorRef.current = res.nextCursor || (older.length > 0 ? older[0].createdAt : null);
-          setHasMore(res.hasMore || false);
-        }
+      if (older.length > 0 && isScrollingRef.current) {
+        // Active momentum scroll — defer the commit until momentum ends
+        // (flushPendingOlder), rather than fighting the in-progress scroll.
+        console.log(`[PAGINATION-DEFER] Active momentum scroll — deferring ${older.length} prepended msgs until momentum end`);
+        pendingOlderRef.current = {
+          older,
+          resHasMore: res.hasMore || false,
+          resNextCursor: res.nextCursor || older[0].createdAt,
+          conversationId,
+        };
+        // Advance cursor immediately so a second onStartReached during the
+        // same momentum scroll doesn't re-request the same page.
+        cursorRef.current = res.nextCursor || older[0].createdAt;
       } else {
-        setHasMore(res.hasMore || false);
+        // Not scrolling (or nothing came back) — commit immediately, in one
+        // atomic setMessages call.
+        prependOlder(conversationId, older, res.hasMore || false, res.nextCursor);
       }
     } catch (err) {
       console.error("[useChatPagination] loadOlderMessages error:", err);
@@ -220,7 +199,7 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
       isLoadingRef.current = false;
       setLoadingOlder(false);
     }
-  }, [messages, setHasMore]);
+  }, [messages, prependOlder]);
 
   // ── addNewMessage ──────────────────────────────────────────────────────────
   // Inserts a new message (outgoing send or Supabase realtime INSERT).
@@ -285,7 +264,8 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     convIdRef.current   = null;
     newestAtRef.current = null;
     isLoadingRef.current = false;
-  }, []);
+    pendingOlderRef.current = null;
+  }, [setHasMore]);
 
   // ── bootstrapPaginationState ───────────────────────────────────────────────
   // Called by ChatScreen when it hydrates messages from the in-memory cache

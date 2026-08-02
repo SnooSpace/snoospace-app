@@ -10,8 +10,6 @@ import React, {
 import { msgContentTimings } from "../../components/SwipeableMessageRow";
 
 global._virtDiag = {
-  overrideCount: 0,
-  overrideMs: 0,
   renderItemMs: 0,
   cellMounts: 0,
   cellUpdates: 0,
@@ -22,10 +20,8 @@ const onRenderProfiler = (id, phase, actualDuration) => {
   if (id === "ChatScreen") {
     const diag = global._virtDiag;
     console.log(
-      `[VIRTUALIZATION-METRICS] ChatScreen Commit | phase:${phase} | totalCommitMs:${actualDuration.toFixed(2)}ms | renderItemSumMs:${diag.renderItemMs.toFixed(2)}ms | overrideItemLayoutMs:${diag.overrideMs.toFixed(2)}ms (calls:${diag.overrideCount}) | cellMounts:${diag.cellMounts} | cellUpdates:${diag.cellUpdates} | imagesStarted:${diag.imagesStarted}`,
+      `[VIRTUALIZATION-METRICS] ChatScreen Commit | phase:${phase} | totalCommitMs:${actualDuration.toFixed(2)}ms | renderItemSumMs:${diag.renderItemMs.toFixed(2)}ms | cellMounts:${diag.cellMounts} | cellUpdates:${diag.cellUpdates} | imagesStarted:${diag.imagesStarted}`,
     );
-    diag.overrideCount = 0;
-    diag.overrideMs = 0;
     diag.renderItemMs = 0;
     diag.cellMounts = 0;
     diag.cellUpdates = 0;
@@ -1297,14 +1293,19 @@ const MessageRow = React.memo(
     navigationRef,
   }) => {
     const msg = item.data;
-    if (msg.messageType === "system") {
-      return (
-        <View style={styles.systemRow}>
-          <Text style={styles.systemText}>{msg.messageText}</Text>
-        </View>
-      );
-    }
 
+    // ── FIX (post-audit) ──────────────────────────────────────────────────
+    // These two hooks used to sit AFTER the "system" and "isDeleted" early
+    // returns below, guarded by eslint-disable-next-line react-hooks/rules-of-hooks.
+    // Since getItemType now gives system messages their own recycling pool
+    // (see the getItemType fix), this violation is no longer strictly
+    // reachable via recycling for that specific case — but it's still a
+    // real Rules of Hooks violation that any other future early return here
+    // would reintroduce. Hooks now unconditionally run first, before any
+    // conditional return, so MessageRow's hook count/order is identical on
+    // every render regardless of which message-type branch fires. No
+    // eslint-disable comments needed anymore.
+    //
     // ── PERF: Stable callbacks for SwipeableMessage ────────────────────────
     // Wrapped in useCallback keyed on primitive msg.id + isMyMessage boolean
     // — both stable for a given message instance.  onReply/onLongPress are
@@ -1312,18 +1313,22 @@ const MessageRow = React.memo(
     // too.  Combined with SwipeableMessageRow's custom React.memo comparator
     // (which excludes these props from equality), this ensures the wrapper
     // bails out on every ChatScreen re-render for rows that didn't change.
-    // eslint-disable-next-line react-hooks/rules-of-hooks
     const handleRowReply = useCallback(
       () => onReply(msg, isMyMessage),
-      // eslint-disable-next-line react-hooks/exhaustive-deps
       [msg.id, isMyMessage, onReply],
     );
-    // eslint-disable-next-line react-hooks/rules-of-hooks
     const handleRowLongPress = useCallback(
       () => onLongPress(msg),
-      // eslint-disable-next-line react-hooks/exhaustive-deps
       [msg.id, onLongPress],
     );
+
+    if (msg.messageType === "system") {
+      return (
+        <View style={styles.systemRow}>
+          <Text style={styles.systemText}>{msg.messageText}</Text>
+        </View>
+      );
+    }
 
     // Pre-compute avatar element once.
     // Show a Lucide User icon when: the user is blocked, or no photo URL is available.
@@ -1911,14 +1916,15 @@ export default function ChatScreen({ route, navigation }) {
       console.log(
         `[PERF-NAV] ChatScreen transitionEnd at: ${performance.now().toFixed(2)}ms, closing: ${e?.data?.closing}`,
       );
-      // Safety-net: once navigation animation completes, correct any residual
-      // scroll drift (e.g. warm open with cached data).
-      // autoscrollToBottomThreshold handles ongoing pinning; this is a one-shot
-      // correction for the transition frame.
-      // Guarded against active pagination so in-flight loadOlderMessages isn't yanked to bottom.
+      // FIX: route through the single guarded correction function instead of
+      // calling scrollToEnd() directly here. runInitialCorrectionAndReveal
+      // already no-ops via hasCorrectedInitialLayoutRef if it already ran —
+      // this removes the second, unguarded scroll write that was racing the
+      // native autoscrollToBottomThreshold anchor on cold/short-conversation
+      // opens (visible symptom: only timestamp painted, blank message area).
       if (!e?.data?.closing && !isLoadingRef.current) {
         requestAnimationFrame(() => {
-          flashListRef.current?.scrollToEnd({ animated: false });
+          runInitialCorrectionAndRevealRef.current?.();
         });
       }
     });
@@ -2137,6 +2143,10 @@ export default function ChatScreen({ route, navigation }) {
   const hideAlert = () => setAlertConfig((p) => ({ ...p, visible: false }));
 
   const flashListRef = useRef(null);
+  // Routes transitionEnd → runInitialCorrectionAndReveal without needing to
+  // declare the callback before the navigation listener effect. Kept current
+  // below, right after runInitialCorrectionAndReveal is defined.
+  const runInitialCorrectionAndRevealRef = useRef(null);
   const scrollOffsetRef = useRef(0);
   const composerRef = useRef(null);
   const subscriptionRef = useRef(null);
@@ -2193,6 +2203,10 @@ export default function ChatScreen({ route, navigation }) {
       isInitialMountedRef.current = true;
     });
   }, [messages.length]);
+  // Keep the ref in sync so the transitionEnd listener always calls the
+  // latest version (messages.length dep means a new callback after each
+  // data arrival).
+  runInitialCorrectionAndRevealRef.current = runInitialCorrectionAndReveal;
 
   // Data-arrival trigger: fires when messages arrive AFTER the layout has
   // already occurred (the cold-open / cache-miss case).
@@ -2326,6 +2340,17 @@ export default function ChatScreen({ route, navigation }) {
 
         if (msg.isDeleted) return `deleted${dir}`;
 
+        // ── FIX (post-audit) ────────────────────────────────────────────────
+        // System messages (msg.messageType === "system") previously had no
+        // branch here, so they fell through to `text${dir}` — the SAME
+        // recycling pool as ordinary text bubbles. That meant a single
+        // MessageRow instance could genuinely be recycled between a
+        // system-message render (early return, 0 hooks) and a text-message
+        // render (2 useCallback hooks below), corrupting hook state during
+        // fast scroll. Giving system its own type isolates it into its own
+        // recycling pool so this never happens.
+        if (msg.messageType === "system") return `system${dir}`;
+
         const mType = msg.messageType;
         if (mType === "ticket") return `ticket${dir}`;
         if (mType === "event_share") return `event_share${dir}`;
@@ -2361,79 +2386,7 @@ export default function ChatScreen({ route, navigation }) {
     imagesStarted: 0,
   });
 
-  const overrideItemLayout = useCallback(
-    (layout, item) => {
-      const tStart = global.performance ? global.performance.now() : Date.now();
-      const itemType = getItemType(item);
-      switch (itemType) {
-        case "system":
-          layout.size = 36;
-          break;
-        case "date_separator":
-          layout.size = 34;
-          break;
-        case "deleted_in":
-        case "deleted_out":
-          layout.size = 44;
-          break;
-        case "ticket_in":
-        case "ticket_out":
-          layout.size = 184;
-          break;
-        case "event_share_in":
-        case "event_share_out":
-        case "plan_share_in":
-        case "plan_share_out":
-          layout.size = 212;
-          break;
-        case "opportunity_share_in":
-        case "opportunity_share_out":
-          layout.size = 220;
-          break;
-        case "post_share_in":
-        case "post_share_out":
-          layout.size = 240;
-          break;
-        case "video_in":
-        case "video_out":
-        case "image_single_in":
-        case "image_single_out":
-        case "image_grid2_in":
-        case "image_grid2_out":
-          layout.size = 240;
-          break;
-        case "image_grid3_in":
-        case "image_grid3_out":
-        case "image_grid4_in":
-        case "image_grid4_out":
-          layout.size = 280;
-          break;
-        case "text_in":
-        case "text_out":
-        case "text_reply_in":
-        case "text_reply_out": {
-          const msg = item.data ?? item;
-          let size = 44;
-          if (msg._showSenderName) size += 18;
-          if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 46;
-          const len = msg.messageText ? msg.messageText.length : 0;
-          if (len > 115) size += 40 + Math.ceil((len - 115) / 38) * 20;
-          else if (len > 75) size += 40;
-          else if (len > 35) size += 20;
-          layout.size = size;
-          break;
-        }
-        default:
-          break;
-      }
-      const tEnd = global.performance ? global.performance.now() : Date.now();
-      if (global._virtDiag) {
-        global._virtDiag.overrideCount += 1;
-        global._virtDiag.overrideMs += tEnd - tStart;
-      }
-    },
-    [getItemType],
-  );
+
 
   // ── Development Recycler Diagnostics Logger ────────────────────────────────
   const recyclerStatsRef = useRef({ mounts: 0, byType: {} });
@@ -4100,11 +4053,8 @@ export default function ChatScreen({ route, navigation }) {
                     keyExtractor={keyExtractor}
                     renderItem={renderItem}
                     getItemType={getItemType}
-                    overrideItemLayout={overrideItemLayout}
-                    estimatedItemSize={ESTIMATED_ITEM_SIZE}
                     ListHeaderComponent={renderListHeader}
                     drawDistance={1500}
-                    onBlankArea={(info) => console.log('[FLASH-BLANK] Blank area:', JSON.stringify(info))}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={[
                       styles.listContent,
@@ -4146,12 +4096,14 @@ export default function ChatScreen({ route, navigation }) {
                           `[DIAG-VIRTUALIZATION] High-velocity fling: velY=${velY.toFixed(2)} y=${y.toFixed(1)} contentH=${contentH} listH=${listH}`,
                         );
                       }
-
-                      if (y < 400 && hasMore && !isLoadingRef.current) {
-                        console.log(`[CHAT-SCROLL] Scroll-up trigger hit! y=${y.toFixed(1)} contentH=${contentH} listH=${listH} hasMore=${hasMore}`);
-                        loadOlderMessages(currentConversationId);
-                      }
+                      // ── REMOVED: duplicate loadOlderMessages trigger (y < 400).
+                      // onStartReached below is the single source of truth for
+                      // top-edge pagination. Having two triggers racing each other
+                      // during fast scroll caused overlapping fetches and
+                      // maintainVisibleContentPosition anchor overshoot — the
+                      // direct cause of cells moving up/down during fast scroll-up.
                     }}
+                  onStartReachedThreshold={0.5}
                   scrollEventThrottle={16}
                   onLayout={() => {
                     // Warm-open path: layout fires after data is already present.
