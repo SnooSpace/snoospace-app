@@ -173,74 +173,102 @@ const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
     return () => { isMounted = false; };
   }, [targetId]);
 
-  // Resolve display values — prefer live data, fall back to metadata
-  const displayTitle = event?.title || metaTitle || "Untitled Event";
-  const displayCommunity =
-    event?.community_name ||
-    event?.organizer_name ||
-    metaCommunityName ||
-    metaCommunityUsername ||
-    "Community";
-  const displayBannerUrl = event?.banner_url || metaBannerUrl || null;
-  const displayDate =
-    event?.start_datetime || event?.event_date || metaEventDate || null;
-  const displayLocation =
-    event?.location_name || event?.venue_name || metaLocationName || null;
-  const displayEventType = event?.event_type || metaEventType || null;
-  const displayCommunityLogo =
-    event?.community_logo || event?.organizer_logo || metaCommunityLogo || null;
+  // Resolve and format display values in a single memoized block
+  const {
+    displayTitle,
+    displayCommunity,
+    displayBannerUrl,
+    displayLocation,
+    displayCommunityLogo,
+    formattedDate,
+    formattedTime,
+    isVirtual,
+    isFree,
+    displayPrice,
+    month,
+    day,
+  } = useMemo(() => {
+    const dTitle = event?.title || metaTitle || "Untitled Event";
+    const dCommunity =
+      event?.community_name ||
+      event?.organizer_name ||
+      metaCommunityName ||
+      metaCommunityUsername ||
+      "Community";
+    const dBannerUrl = event?.banner_url || metaBannerUrl || null;
+    const dDate =
+      event?.start_datetime || event?.event_date || metaEventDate || null;
+    const dLocation =
+      event?.location_name || event?.venue_name || metaLocationName || null;
+    const dEventType = event?.event_type || metaEventType || null;
+    const dCommunityLogo =
+      event?.community_logo || event?.organizer_logo || metaCommunityLogo || null;
 
-  const formattedDate = formatEventDate(displayDate);
-  const formattedTime = event?.formatted_time || formatEventTime(displayDate);
-  const isVirtual =
-    displayEventType === "virtual" || displayEventType === "hybrid";
+    const fDate = formatEventDate(dDate);
+    const fTime = event?.formatted_time || formatEventTime(dDate);
+    const virtual = dEventType === "virtual" || dEventType === "hybrid";
 
-  const getLowestPrice = () => {
-    if (!event) return 0;
-
-    let parsedTickets = [];
-    if (event.ticket_types) {
-      if (typeof event.ticket_types === "string") {
-        try {
-          parsedTickets = JSON.parse(event.ticket_types);
-        } catch (err) {
-          parsedTickets = [];
+    let lowestPrice = 0;
+    if (event) {
+      let parsedTickets = [];
+      if (event.ticket_types) {
+        if (typeof event.ticket_types === "string") {
+          try {
+            parsedTickets = JSON.parse(event.ticket_types);
+          } catch (_) {
+            parsedTickets = [];
+          }
+        } else if (Array.isArray(event.ticket_types)) {
+          parsedTickets = event.ticket_types;
         }
-      } else if (Array.isArray(event.ticket_types)) {
-        parsedTickets = event.ticket_types;
+      }
+
+      if (parsedTickets && parsedTickets.length > 0) {
+        const prices = parsedTickets
+          .map((t) => parseFloat(t.base_price) || 0)
+          .filter((p) => p > 0);
+        if (prices.length > 0) lowestPrice = Math.min(...prices);
+      } else if (event.ticket_price && parseFloat(event.ticket_price) > 0) {
+        lowestPrice = parseFloat(event.ticket_price);
+      } else if (event.min_price && parseFloat(event.min_price) > 0) {
+        lowestPrice = parseFloat(event.min_price);
+      } else if (event.base_price && parseFloat(event.base_price) > 0) {
+        lowestPrice = parseFloat(event.base_price);
       }
     }
 
-    if (parsedTickets && parsedTickets.length > 0) {
-      const prices = parsedTickets
-        .map((t) => parseFloat(t.base_price) || 0)
-        .filter((p) => p > 0);
-      if (prices.length > 0) return Math.min(...prices);
-    }
+    const free = lowestPrice <= 0;
+    const dPrice = free
+      ? "Free"
+      : `₹${lowestPrice.toLocaleString("en-IN")} onwards`;
 
-    if (event.ticket_price && parseFloat(event.ticket_price) > 0) {
-      return parseFloat(event.ticket_price);
-    }
-    if (event.min_price && parseFloat(event.min_price) > 0) {
-      return parseFloat(event.min_price);
-    }
-    if (event.base_price && parseFloat(event.base_price) > 0) {
-      return parseFloat(event.base_price);
-    }
+    const { month: m, day: d } = parseDisplayDate(fDate);
 
-    return 0;
-  };
-
-  const lowestPrice = useMemo(() => getLowestPrice(), [
-    event?.ticket_types,
-    event?.ticket_price,
-    event?.min_price,
-    event?.base_price,
+    return {
+      displayTitle: dTitle,
+      displayCommunity: dCommunity,
+      displayBannerUrl: dBannerUrl,
+      displayLocation: dLocation,
+      displayCommunityLogo: dCommunityLogo,
+      formattedDate: fDate,
+      formattedTime: fTime,
+      isVirtual: virtual,
+      isFree: free,
+      displayPrice: dPrice,
+      month: m,
+      day: d,
+    };
+  }, [
+    event,
+    metaTitle,
+    metaCommunityName,
+    metaCommunityUsername,
+    metaBannerUrl,
+    metaEventDate,
+    metaLocationName,
+    metaEventType,
+    metaCommunityLogo,
   ]);
-  const isFree = lowestPrice <= 0;
-  const displayPrice = isFree ? "Free" : `₹${lowestPrice.toLocaleString("en-IN")} onwards`;
-
-  const { month, day } = parseDisplayDate(formattedDate);
 
   const handlePress = useCallback(() => {
     if (onPress && targetId) onPress(targetId);

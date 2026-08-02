@@ -9,26 +9,54 @@ import React, {
 
 import { msgContentTimings } from "../../components/SwipeableMessageRow";
 
+global._virtDiag = {
+  overrideCount: 0,
+  overrideMs: 0,
+  renderItemMs: 0,
+  cellMounts: 0,
+  cellUpdates: 0,
+  imagesStarted: 0,
+};
+
 const onRenderProfiler = (id, phase, actualDuration) => {
-  console.log(
-    `[PERF-RENDER] ${id} - Phase: ${phase}, Duration: ${actualDuration.toFixed(2)}ms`,
-  );
+  if (id === "ChatScreen") {
+    const diag = global._virtDiag;
+    console.log(
+      `[VIRTUALIZATION-METRICS] ChatScreen Commit | phase:${phase} | totalCommitMs:${actualDuration.toFixed(2)}ms | renderItemSumMs:${diag.renderItemMs.toFixed(2)}ms | overrideItemLayoutMs:${diag.overrideMs.toFixed(2)}ms (calls:${diag.overrideCount}) | cellMounts:${diag.cellMounts} | cellUpdates:${diag.cellUpdates} | imagesStarted:${diag.imagesStarted}`,
+    );
+    diag.overrideCount = 0;
+    diag.overrideMs = 0;
+    diag.renderItemMs = 0;
+    diag.cellMounts = 0;
+    diag.cellUpdates = 0;
+    diag.imagesStarted = 0;
+  } else {
+    console.log(
+      `[PERF-RENDER] ${id} - Phase: ${phase}, Duration: ${actualDuration.toFixed(2)}ms`,
+    );
+  }
 };
 const onRenderMsgProfiler = (id, phase, actualDuration) => {
+  if (phase === "mount") {
+    global._virtDiag.cellMounts += 1;
+  } else if (phase === "update") {
+    global._virtDiag.cellUpdates += 1;
+  }
   const match = id.match(/ROW-type=(.*) id=(.*)/);
   if (match) {
     const type = match[1];
     const msgId = match[2];
     const contentMs = msgContentTimings.get(String(msgId));
+    const modeTag = global.__DIAG_GESTURE_MODE__ || "full";
     if (contentMs !== undefined) {
       const wrapperMs = Math.max(0, actualDuration - contentMs);
       console.log(
-        `[PERF-WRAP] type=${type} id=${msgId} phase:${phase} totalMs:${actualDuration.toFixed(2)} contentOnlyMs:${contentMs.toFixed(2)} wrapperSetupMs:${wrapperMs.toFixed(2)}`,
+        `[PERF-WRAP] type=${type} id=${msgId} phase:${phase} mode=${modeTag} totalMs:${actualDuration.toFixed(2)} contentOnlyMs:${contentMs.toFixed(2)} wrapperSetupMs:${wrapperMs.toFixed(2)}`,
       );
       msgContentTimings.delete(String(msgId));
     } else {
       console.log(
-        `[PERF-WRAP] type=${type} id=${msgId} phase:${phase} totalMs:${actualDuration.toFixed(2)} contentOnlyMs:${actualDuration.toFixed(2)} wrapperSetupMs:0.00 (skips wrapper)`,
+        `[PERF-WRAP] type=${type} id=${msgId} phase:${phase} mode=${modeTag} totalMs:${actualDuration.toFixed(2)} contentOnlyMs:${actualDuration.toFixed(2)} wrapperSetupMs:0.00 (skips wrapper)`,
       );
     }
   }
@@ -57,7 +85,8 @@ import {
 // (text bubbles ~60px, card rows 240px but uncommon enough not to skew this).
 // Clamped between 15 and 30 so we never fetch too few (leaves blank screen)
 // or too many (hurts cold-open latency).
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const MAX_BUBBLE_WIDTH = Math.round(SCREEN_WIDTH * 0.76);
 const INITIAL_MESSAGES_LIMIT = Math.min(30, Math.max(15, Math.ceil(SCREEN_HEIGHT / 80 * 1.5)));
 
 import { Image } from "expo-image";
@@ -93,6 +122,7 @@ import {
   Send,
   X,
   Reply,
+  Copy,
   TriangleAlert,
   Trash2,
   PartyPopper,
@@ -110,6 +140,7 @@ import {
   User,
   ShieldOff,
 } from "lucide-react-native";
+import * as Clipboard from "expo-clipboard";
 import CustomImagePicker from "../../components/CustomImagePicker";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
 import MediaViewerTimeline from "../../components/MediaViewerTimeline";
@@ -288,7 +319,11 @@ const _msgWrapperCache = new Map(); // module-level: lives as long as the module
 
 const buildMessageList = (messages) => {
   if (!messages || messages.length === 0) return [];
+  const tStart = global.performance ? global.performance.now() : Date.now();
   if (_msgWrapperCache.size > 1000) _msgWrapperCache.clear();
+
+  let createdWrappers = 0;
+  let reusedWrappers = 0;
 
   const result = [];
   for (let i = 0; i < messages.length; i++) {
@@ -321,7 +356,7 @@ const buildMessageList = (messages) => {
     if (isFirstOfDay) {
       result.push({
         type: "separator",
-        id: `sep-${msg.id}`,
+        id: `sep-${msg._dateString || msg.id}`,
         label: formatSeparatorLabel(msg.createdAt),
       });
     }
@@ -331,8 +366,18 @@ const buildMessageList = (messages) => {
     if (!wrapper || wrapper.data !== msg) {
       wrapper = { type: "message", data: msg };
       _msgWrapperCache.set(msg.id, wrapper);
+      createdWrappers++;
+    } else {
+      reusedWrappers++;
     }
     result.push(wrapper);
+  }
+
+  const tEnd = global.performance ? global.performance.now() : Date.now();
+  if (__DEV__) {
+    console.log(
+      `[DIAG-BUILD-LIST] msgs=${messages.length} resultItems=${result.length} duration=${(tEnd - tStart).toFixed(2)}ms createdWrappers=${createdWrappers} reusedWrappers=${reusedWrappers}`,
+    );
   }
   return result;
 };
@@ -424,11 +469,20 @@ const overrideItemLayout = (layout, item) => {
 };
 
 // ── TimestampSeparator ──────────────────────────────────────────────────────
-const TimestampSeparator = React.memo(({ label }) => (
-  <View style={sepStyles.row}>
-    <Text style={sepStyles.label}>{label}</Text>
-  </View>
-));
+const TimestampSeparator = React.memo(({ label }) => {
+  useEffect(() => {
+    if (__DEV__) console.log(`[SEP-LIFECYCLE] MOUNT date header: "${label}"`);
+    return () => {
+      if (__DEV__) console.log(`[SEP-LIFECYCLE] UNMOUNT date header: "${label}"`);
+    };
+  }, [label]);
+
+  return (
+    <View style={sepStyles.row}>
+      <Text style={sepStyles.label}>{label}</Text>
+    </View>
+  );
+});
 const sepStyles = StyleSheet.create({
   row: { alignItems: "center", marginVertical: 12 },
   label: {
@@ -558,7 +612,7 @@ const ReplyQuote = ({ replyPreview, isMyMessage, onPress }) => {
 const quoteStyles = StyleSheet.create({
   wrapper: {
     marginBottom: 2,
-    maxWidth: "100%",
+    maxWidth: MAX_BUBBLE_WIDTH,
   },
   replyLabel: {
     fontFamily: "Manrope-Medium",
@@ -640,38 +694,62 @@ const quoteStyles = StyleSheet.create({
 const MessageOptionsModal = ({
   visible,
   isMyMessage,
+  optionsTarget,
   onReply,
+  onCopy,
   onUnsend,
   onCancel,
 }) => {
   if (!visible) return null;
+  const isTextMessage =
+    !!optionsTarget?.messageText &&
+    !optionsTarget?.isDeleted &&
+    (!optionsTarget?.messageType || optionsTarget?.messageType === "text");
+
   return (
-    <View style={optionsStyles.overlay}>
+    <View
+      style={[
+        optionsStyles.overlay,
+        { alignItems: isMyMessage ? "flex-end" : "flex-start" },
+      ]}
+    >
       <Pressable style={StyleSheet.absoluteFill} onPress={onCancel} />
       <View style={optionsStyles.menu}>
         <TouchableOpacity style={optionsStyles.option} onPress={onReply}>
           <View
             style={[
               optionsStyles.iconBox,
-              { backgroundColor: "rgba(53, 101, 242, 0.15)" },
+              { backgroundColor: "rgba(53, 101, 242, 0.12)" },
             ]}
           >
-            <Reply size={20} color="#3565F2" strokeWidth={2.5} />
+            <Reply size={18} color="#3565F2" strokeWidth={2.5} />
           </View>
           <Text style={optionsStyles.optionText}>Reply</Text>
         </TouchableOpacity>
 
-        {isMyMessage && <View style={optionsStyles.divider} />}
+        {isTextMessage && (
+          <TouchableOpacity style={optionsStyles.option} onPress={onCopy}>
+            <View
+              style={[
+                optionsStyles.iconBox,
+                { backgroundColor: "rgba(53, 101, 242, 0.12)" },
+              ]}
+            >
+              <Copy size={18} color="#3565F2" strokeWidth={2.5} />
+            </View>
+            <Text style={optionsStyles.optionText}>Copy</Text>
+          </TouchableOpacity>
+        )}
 
         {isMyMessage && (
           <TouchableOpacity style={optionsStyles.option} onPress={onUnsend}>
             <View
               style={[
                 optionsStyles.iconBox,
-                { backgroundColor: "rgba(229, 57, 53, 0.15)" },
+                { backgroundColor: "rgba(229, 57, 53, 0.12)" },
               ]}
             >
-              <Trash2 size={20} color="#E53935" strokeWidth={2.5} />
+              <Trash2 size={18} color="#E53935" strokeWidth={2.5} />
             </View>
             <Text style={[optionsStyles.optionText, { color: "#E53935" }]}>
               Unsend
@@ -685,42 +763,39 @@ const MessageOptionsModal = ({
 const optionsStyles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.4)",
+    backgroundColor: "rgba(0,0,0,0.18)",
     justifyContent: "center",
-    alignItems: "center",
+    paddingHorizontal: 28,
     zIndex: 999,
   },
   menu: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    width: 240,
-    padding: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
+    backgroundColor: "#F5F7FA",
+    borderRadius: 20,
+    width: 160,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: "#E6ECF5",
   },
   option: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
   },
   iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },
   optionText: {
     fontFamily: "Manrope-SemiBold",
-    fontSize: 16,
+    fontSize: 15,
     color: "#1F3A5F",
-    marginLeft: 16,
+    marginLeft: 12,
   },
-  divider: { height: 1, backgroundColor: "#F3F4F6", marginHorizontal: 12 },
 });
 
 // ReportModal is removed in favor of CustomAlertModal logic in the main component
@@ -1201,7 +1276,8 @@ const MessageRow = React.memo(
     recipientId,
     isBlockedByOther,
     rsvpLoading,
-    highlightedIdSV,
+    isHighlighted,
+    onHighlightDone,
     onReply,
     onLongPress,
     onRSVP,
@@ -1361,7 +1437,8 @@ const MessageRow = React.memo(
           {avatarEl}
           <SwipeableMessage
             messageId={msg.id}
-            highlightedIdSV={highlightedIdSV}
+            isHighlighted={isHighlighted}
+            onHighlightDone={onHighlightDone}
             isMyMessage={isMyMessage}
             onReply={handleRowReply}
             onLongPress={handleRowLongPress}
@@ -1417,7 +1494,8 @@ const MessageRow = React.memo(
           {avatarEl}
           <SwipeableMessage
             messageId={msg.id}
-            highlightedIdSV={highlightedIdSV}
+            isHighlighted={isHighlighted}
+            onHighlightDone={onHighlightDone}
             isMyMessage={isMyMessage}
             onReply={handleRowReply}
             onLongPress={handleRowLongPress}
@@ -1459,7 +1537,8 @@ const MessageRow = React.memo(
           {avatarEl}
           <SwipeableMessage
             messageId={msg.id}
-            highlightedIdSV={highlightedIdSV}
+            isHighlighted={isHighlighted}
+            onHighlightDone={onHighlightDone}
             isMyMessage={isMyMessage}
             onReply={handleRowReply}
             onLongPress={handleRowLongPress}
@@ -1500,7 +1579,8 @@ const MessageRow = React.memo(
           {avatarEl}
           <SwipeableMessage
             messageId={msg.id}
-            highlightedIdSV={highlightedIdSV}
+            isHighlighted={isHighlighted}
+            onHighlightDone={onHighlightDone}
             isMyMessage={isMyMessage}
             onReply={handleRowReply}
             onLongPress={handleRowLongPress}
@@ -1538,7 +1618,8 @@ const MessageRow = React.memo(
           {avatarEl}
           <SwipeableMessage
             messageId={msg.id}
-            highlightedIdSV={highlightedIdSV}
+            isHighlighted={isHighlighted}
+            onHighlightDone={onHighlightDone}
             isMyMessage={isMyMessage}
             onReply={handleRowReply}
             onLongPress={handleRowLongPress}
@@ -1626,7 +1707,8 @@ const MessageRow = React.memo(
           )}
           <SwipeableMessage
             messageId={msg.id}
-            highlightedIdSV={highlightedIdSV}
+            isHighlighted={isHighlighted}
+            onHighlightDone={onHighlightDone}
             isMyMessage={isMyMessage}
             onReply={handleRowReply}
             onLongPress={handleRowLongPress}
@@ -1646,7 +1728,19 @@ const MessageRow = React.memo(
   // from ref at render time, not reactive state).
   (prev, next) => {
     const diffs = [];
-    if (prev.item?.data?.id !== next.item?.data?.id) diffs.push("item.data.id");
+    const prevId = prev.item?.data?.id;
+    const nextId = next.item?.data?.id;
+
+    if (String(prevId ?? "") !== String(nextId ?? "")) {
+      diffs.push(
+        `item.data.id(prev=${prevId}:${typeof prevId}, next=${nextId}:${typeof nextId})`,
+      );
+    }
+    if (prev.item !== next.item) {
+      diffs.push(
+        `itemWrapperRef(sameMsgData=${prev.item?.data === next.item?.data})`,
+      );
+    }
     if (prev.item?.data?.isDeleted !== next.item?.data?.isDeleted)
       diffs.push("item.data.isDeleted");
     if (prev.isMyMessage !== next.isMyMessage) diffs.push("isMyMessage");
@@ -1666,26 +1760,13 @@ const MessageRow = React.memo(
     if (prev.recipientId !== next.recipientId) diffs.push("recipientId");
     if (prev.isBlockedByOther !== next.isBlockedByOther)
       diffs.push("isBlockedByOther");
-    if (prev.highlightedIdSV !== next.highlightedIdSV)
-      diffs.push("highlightedIdSV");
-    if (prev.onReply !== next.onReply) diffs.push("onReply");
-    if (prev.onLongPress !== next.onLongPress) diffs.push("onLongPress");
-    if (prev.onRSVP !== next.onRSVP) diffs.push("onRSVP");
-    if (prev.onOpenViewer !== next.onOpenViewer) diffs.push("onOpenViewer");
-    if (prev.onPressPostShare !== next.onPressPostShare)
-      diffs.push("onPressPostShare");
-    if (prev.onPressUser !== next.onPressUser) diffs.push("onPressUser");
-    if (prev.onPressOpportunity !== next.onPressOpportunity)
-      diffs.push("onPressOpportunity");
-    if (prev.onPressEvent !== next.onPressEvent) diffs.push("onPressEvent");
-    if (prev.onPressPlan !== next.onPressPlan) diffs.push("onPressPlan");
-    if (prev.onPressReplyQuote !== next.onPressReplyQuote)
-      diffs.push("onPressReplyQuote");
+    if (prev.isHighlighted !== next.isHighlighted)
+      diffs.push("isHighlighted");
 
     if (diffs.length > 0) {
       console.log(
-        `[PERF-DIFF] MessageRow id=${next.item?.data?.id} changed props:`,
-        diffs,
+        `[PERF-DIFF] MessageRow id=${nextId} RE-RENDER REASON:`,
+        JSON.stringify(diffs),
       );
       return false;
     }
@@ -1809,6 +1890,8 @@ export default function ChatScreen({ route, navigation }) {
     bootstrapPaginationState,
     newestAtRef,
     isLoadingRef,
+    isScrollingRef,
+    flushPendingOlder,
     resetMessages,
   } = useChatPagination(initialMessagesRef.current, initialHasMoreRef.current);
 
@@ -2151,7 +2234,7 @@ export default function ChatScreen({ route, navigation }) {
   });
   const containerAnimatedStyle = useAnimatedStyle(() => {
     const style = {
-      marginBottom: inputHeight + replyBarHeightShared.value,
+      marginBottom: inputHeight,
     };
 
     if (Platform.OS === "android") {
@@ -2225,30 +2308,7 @@ export default function ChatScreen({ route, navigation }) {
     };
   }, [flatListData]);
 
-  const estimatedItemSize = useMemo(() => {
-    // Weighted average based on the actual mix of row types in view,
-    // rather than a flat guess that's wrong for ~30% of rows (media/cards).
-    const len = Math.min(flatListData.length, 20);
-    let totalHeight = 0;
-    let count = 0;
-    for (let i = 0; i < len; i++) {
-      const item = flatListData[i];
-      if (item.type !== "message") continue;
-      const msg = item.data;
-      const isMediaOrCard =
-        msg.messageType === "image" ||
-        msg.messageType === "video" ||
-        msg.messageType === "multi_media" ||
-        msg.messageType === "post_share" ||
-        msg.messageType === "opportunity_share" ||
-        msg.messageType === "event_share" ||
-        msg.messageType === "plan_share" ||
-        msg.messageType === "ticket";
-      totalHeight += isMediaOrCard ? 190 : 60;
-      count++;
-    }
-    return count > 0 ? Math.round(totalHeight / count) : 72;
-  }, [flatListData]);
+  const ESTIMATED_ITEM_SIZE = 72; // Static constant — prevents FlashList spatial index re-layout thrashing on array updates
 
   // ── Phase 2: Granular FlashList Recycler Layout Types (_in vs _out) ──────────
   const getItemType = useCallback(
@@ -2292,9 +2352,18 @@ export default function ChatScreen({ route, navigation }) {
     [currentUser?.id, currentUser?.type, isGroup, recipient?.id, recipientId],
   );
 
-  // ── Phase 2B: Deterministic overrideItemLayout for Fixed-Geometry Cards ──────
+  const virtDiagRef = useRef({
+    overrideCount: 0,
+    overrideMs: 0,
+    renderItemMs: 0,
+    cellMounts: 0,
+    cellUpdates: 0,
+    imagesStarted: 0,
+  });
+
   const overrideItemLayout = useCallback(
     (layout, item) => {
+      const tStart = global.performance ? global.performance.now() : Date.now();
       const itemType = getItemType(item);
       switch (itemType) {
         case "system":
@@ -2339,10 +2408,28 @@ export default function ChatScreen({ route, navigation }) {
         case "image_grid4_out":
           layout.size = 280;
           break;
-        default:
-          // Dynamic text types (text_in, text_out, text_reply_in, text_reply_out)
-          // are left unconstrained for precise Yoga dynamic measurement.
+        case "text_in":
+        case "text_out":
+        case "text_reply_in":
+        case "text_reply_out": {
+          const msg = item.data ?? item;
+          let size = 44;
+          if (msg._showSenderName) size += 18;
+          if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 46;
+          const len = msg.messageText ? msg.messageText.length : 0;
+          if (len > 115) size += 40 + Math.ceil((len - 115) / 38) * 20;
+          else if (len > 75) size += 40;
+          else if (len > 35) size += 20;
+          layout.size = size;
           break;
+        }
+        default:
+          break;
+      }
+      const tEnd = global.performance ? global.performance.now() : Date.now();
+      if (global._virtDiag) {
+        global._virtDiag.overrideCount += 1;
+        global._virtDiag.overrideMs += tEnd - tStart;
       }
     },
     [getItemType],
@@ -2474,13 +2561,9 @@ export default function ChatScreen({ route, navigation }) {
         animated: true,
         viewPosition: 0.5,
       });
-      highlightedIdSV.value = String(targetId);
-      setTimeout(() => {
-        highlightedIdSV.value = "";
-      }, 1600);
+      setHighlightedMessageId(String(targetId));
     },
-    // messageIndexMapRef is a ref — reads .current at call time, no dep needed.
-    [highlightedIdSV],
+    [],
   );
 
   const recipientRef = useRef(recipient);
@@ -2514,6 +2597,14 @@ export default function ChatScreen({ route, navigation }) {
   const handleLongPress = useCallback((msg) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setOptionsTarget(msg);
+  }, []);
+
+  const handleCopyMessage = useCallback(async (text) => {
+    if (text) {
+      await Clipboard.setStringAsync(text);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    setOptionsTarget(null);
   }, []);
 
   const handleRSVP = useCallback(
@@ -3697,99 +3788,87 @@ export default function ChatScreen({ route, navigation }) {
     return diff > 60000;
   }, []);
 
-  // highlightedIdSV lives on the UI thread — writing to it triggers
-  // animations in SwipeableMessage without any React re-renders.
-  const highlightedIdSV = useSharedValue("");
+  const [highlightedMessageId, setHighlightedMessageId] = useState(null);
+  const clearHighlight = useCallback(() => {
+    setHighlightedMessageId(null);
+  }, []);
 
   // ——— renderItem ———————————————————————————————————————————————————————————————————
   const renderItem = useCallback(
     ({ item, index }) => {
-      if (item.type === "message" && index < 3) {
-        console.log(
-          "[CHECK-6] renderItem index:",
-          index,
-          "createdAt:",
-          item.data.createdAt,
-        );
-      }
-
+      const tStart = global.performance ? global.performance.now() : Date.now();
+      let res = null;
       if (item.type === "separator") {
-        return <TimestampSeparator label={item.label} />;
+        res = <TimestampSeparator label={item.label} />;
+      } else {
+        const msg = item.data;
+        if (msg.messageType === "system") {
+          res = (
+            <View style={styles.systemRow}>
+              <Text style={styles.systemText}>{msg.messageText}</Text>
+            </View>
+          );
+        } else {
+          const isMyMessage = isGroup
+            ? String(msg.senderId) === String(currentUser?.id) &&
+              (msg.senderType || "member") === (currentUser?.type || "member")
+            : currentUser?.id != null
+              ? String(msg.senderId) === String(currentUser?.id)
+              : String(msg.senderId) !== String(recipient?.id ?? recipientId);
+
+          const nextItem = flatListData[index + 1];
+          const nextMsg = nextItem?.type === "message" ? nextItem.data : null;
+          const showAvatar = isMyMessage
+            ? false
+            : (msg._showAvatar ?? shouldShowAvatar(msg, nextMsg, isMyMessage));
+          const showSenderName =
+            isGroup &&
+            !isMyMessage &&
+            (!nextMsg || nextMsg.senderId !== msg.senderId);
+
+          const effectiveType = msg.isDeleted
+            ? "deleted"
+            : msg.messageType || "text";
+
+          res = (
+            <Profiler
+              id={`ROW-type=${effectiveType} id=${msg.id}`}
+              onRender={onRenderMsgProfiler}
+            >
+              <MessageRow
+                item={item}
+                isMyMessage={isMyMessage}
+                showAvatar={showAvatar}
+                showSenderName={showSenderName}
+                isGroup={isGroup}
+                currentUser={currentUser}
+                recipient={recipient}
+                recipientId={recipientId}
+                isBlockedByOther={isBlockedByOther}
+                rsvpLoading={rsvpLoadingRef.current[msg.id]}
+                isHighlighted={String(msg.id) === highlightedMessageId}
+                onHighlightDone={clearHighlight}
+                onReply={handleReply}
+                onLongPress={handleLongPress}
+                onRSVP={handleRSVP}
+                onOpenViewer={handleOpenViewer}
+                onPressPostShare={handlePressPostShare}
+                onPressUser={handlePressUser}
+                onPressOpportunity={handlePressOpportunity}
+                onPressEvent={handlePressEvent}
+                onPressPlan={handlePressPlan}
+                onPressReplyQuote={scrollToMessage}
+                navigationRef={navigationRef}
+              />
+            </Profiler>
+          );
+        }
       }
-
-      const msg = item.data;
-
-      // System messages don't need a wrapper with gestures.
-      if (msg.messageType === "system") {
-        return (
-          <View style={styles.systemRow}>
-            <Text style={styles.systemText}>{msg.messageText}</Text>
-          </View>
-        );
+      const tEnd = global.performance ? global.performance.now() : Date.now();
+      if (global._virtDiag) {
+        global._virtDiag.renderItemMs += tEnd - tStart;
       }
-
-      const isMyMessage = isGroup
-        ? String(msg.senderId) === String(currentUser?.id) &&
-          (msg.senderType || "member") === (currentUser?.type || "member")
-        : currentUser?.id != null
-          ? String(msg.senderId) === String(currentUser?.id)
-          : String(msg.senderId) !== String(recipient?.id ?? recipientId);
-
-      const nextItem = flatListData[index + 1];
-      const nextMsg = nextItem?.type === "message" ? nextItem.data : null;
-      const showAvatar = isMyMessage
-        ? false
-        : (msg._showAvatar ?? shouldShowAvatar(msg, nextMsg, isMyMessage));
-      const showSenderName =
-        isGroup &&
-        !isMyMessage &&
-        (!nextMsg || nextMsg.senderId !== msg.senderId);
-
-      const effectiveType = msg.isDeleted
-        ? "deleted"
-        : msg.messageType || "text";
-
-      const isEdgeItem = index <= 2 || index >= flatListData.length - 3;
-      if (isEdgeItem) {
-        console.log(
-          `[EDGE-DIAG] renderItem index=${index} total=${flatListData.length} msgId=${msg.id} type=${effectiveType} isMyMessage=${isMyMessage} showAvatar=${showAvatar} text="${(msg.messageText || '').slice(0, 20)}"`,
-        );
-      }
-
-      return (
-        <Profiler
-          id={`ROW-type=${effectiveType} id=${msg.id}`}
-          onRender={onRenderMsgProfiler}
-        >
-          <MessageRow
-            item={item}
-            isMyMessage={isMyMessage}
-            showAvatar={showAvatar}
-            showSenderName={showSenderName}
-            isGroup={isGroup}
-            currentUser={currentUser}
-            recipient={recipient}
-            recipientId={recipientId}
-            isBlockedByOther={isBlockedByOther}
-            rsvpLoading={rsvpLoadingRef.current[msg.id]}
-            highlightedIdSV={highlightedIdSV}
-            onReply={handleReply}
-            onLongPress={handleLongPress}
-            onRSVP={handleRSVP}
-            onOpenViewer={handleOpenViewer}
-            onPressPostShare={handlePressPostShare}
-            onPressUser={handlePressUser}
-            onPressOpportunity={handlePressOpportunity}
-            onPressEvent={handlePressEvent}
-            onPressPlan={handlePressPlan}
-            onPressReplyQuote={scrollToMessage}
-            // navigationRef: read .current at call time; stable across all renders.
-            // Keeping navigation OUT of renderItem's closure prevents rebuilds
-            // triggered by React Navigation context updates (e.g. notifications).
-            navigationRef={navigationRef}
-          />
-        </Profiler>
-      );
+      return res;
     },
     [
       isGroup,
@@ -3797,12 +3876,9 @@ export default function ChatScreen({ route, navigation }) {
       recipient,
       recipientId,
       isBlockedByOther,
-      // ── PERF: flatListData and rsvpLoading removed from deps.
-      //    flatListData rebuilds on every poll cycle; having it here caused renderItem
-      //    to be recreated every 3 seconds, forcing all visible rows to re-evaluate.
-      //    rsvpLoading is now read from rsvpLoadingRef.current (zero re-render cost).
       shouldShowAvatar,
-      highlightedIdSV,
+      highlightedMessageId,
+      clearHighlight,
       handleReply,
       handleLongPress,
       handleRSVP,
@@ -4025,7 +4101,7 @@ export default function ChatScreen({ route, navigation }) {
                     renderItem={renderItem}
                     getItemType={getItemType}
                     overrideItemLayout={overrideItemLayout}
-                    estimatedItemSize={estimatedItemSize}
+                    estimatedItemSize={ESTIMATED_ITEM_SIZE}
                     ListHeaderComponent={renderListHeader}
                     drawDistance={1500}
                     onBlankArea={(info) => console.log('[FLASH-BLANK] Blank area:', JSON.stringify(info))}
@@ -4039,18 +4115,37 @@ export default function ChatScreen({ route, navigation }) {
                       autoscrollToBottomThreshold: 0.2,
                       startRenderingFromBottom: true,
                     }}
+                    onMomentumScrollBegin={() => {
+                      if (isScrollingRef) isScrollingRef.current = true;
+                    }}
+                    onMomentumScrollEnd={() => {
+                      if (isScrollingRef) isScrollingRef.current = false;
+                      flushPendingOlder?.();
+                    }}
+                    onScrollEndDrag={(e) => {
+                      if (e.nativeEvent.velocity?.y === 0) {
+                        if (isScrollingRef) isScrollingRef.current = false;
+                        flushPendingOlder?.();
+                      }
+                    }}
                     onStartReached={() => {
                       console.log("[ChatScreen] onStartReached fired");
                       if (hasMore && !isLoadingRef.current) {
                         loadOlderMessages(currentConversationId);
                       }
                     }}
-                    onStartReachedThreshold={0.5}
                     onScroll={(e) => {
                       const y = e.nativeEvent.contentOffset.y;
                       const contentH = e.nativeEvent.contentSize.height;
                       const listH = e.nativeEvent.layoutMeasurement.height;
+                      const velY = e.nativeEvent.velocity?.y || 0;
                       isAtBottomRef.current = contentH - listH - y < 100;
+
+                      if (Math.abs(velY) > 2.5) {
+                        console.log(
+                          `[DIAG-VIRTUALIZATION] High-velocity fling: velY=${velY.toFixed(2)} y=${y.toFixed(1)} contentH=${contentH} listH=${listH}`,
+                        );
+                      }
 
                       if (y < 400 && hasMore && !isLoadingRef.current) {
                         console.log(`[CHAT-SCROLL] Scroll-up trigger hit! y=${y.toFixed(1)} contentH=${contentH} listH=${listH} hasMore=${hasMore}`);
@@ -4089,9 +4184,9 @@ export default function ChatScreen({ route, navigation }) {
           </Animated.View>
           </KeyboardAvoidingView>
 
-          <KeyboardAwareToolbar enabled={isChatInputFocused}>
+          <KeyboardAwareToolbar enabled={isChatInputFocused} style={{ backgroundColor: CHAT_CANVAS_BG }}>
             <View
-              style={{ flexDirection: "column" }}
+              style={{ flexDirection: "column", backgroundColor: CHAT_CANVAS_BG }}
               onLayout={(e) => {
                 const { height } = e.nativeEvent.layout;
                 if (height > 0) {
@@ -4159,6 +4254,7 @@ export default function ChatScreen({ route, navigation }) {
           {!!optionsTarget && (
             <MessageOptionsModal
               visible={!!optionsTarget}
+              optionsTarget={optionsTarget}
               isMyMessage={
                 isGroup
                   ? String(optionsTarget?.senderId) ===
@@ -4185,6 +4281,7 @@ export default function ChatScreen({ route, navigation }) {
                 setOptionsTarget(null);
                 setTimeout(() => composerRef.current?.focus(), 100);
               }}
+              onCopy={() => handleCopyMessage(optionsTarget?.messageText)}
               onUnsend={() => {
                 handleUnsend(optionsTarget.id);
                 setOptionsTarget(null);
@@ -4389,7 +4486,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   messageBubble: {
-    maxWidth: "100%",
+    maxWidth: MAX_BUBBLE_WIDTH,
     paddingHorizontal: 14,
     paddingTop: 8,
     paddingBottom: 6,

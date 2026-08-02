@@ -35,7 +35,7 @@ import { useState, useRef, useCallback } from "react";
 import { getMessages } from "../api/messages";
 import { setCachedConversation } from "../services/conversationCache";
 
-const OLDER_PAGE_SIZE = 20; // fixed page size for "load older" pagination
+const OLDER_PAGE_SIZE = 12; // fixed page size for "load older" pagination
 
 export default function useChatPagination(initialMessages = [], initialHasMore = true) {
   const [messages,     setMessages]     = useState(initialMessages);
@@ -49,17 +49,55 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     setHasMoreState(b);
   }, []);
 
-  // Cursor = ISO timestamp of the oldest message we have fetched.
-  // Each "load older" call passes this as ?before=<cursor>.
   const cursorRef       = useRef(null);
-  // Guard: prevent concurrent "load older" calls.
   const isLoadingRef    = useRef(false);
-  // The conversation currently loaded (used to ignore stale responses).
   const convIdRef       = useRef(null);
-  // Track the createdAt of the newest message we have.
-  // The polling fallback uses this to request only messages ?after=<newestAt>
-  // instead of re-fetching the full recent history every tick.
   const newestAtRef     = useRef(null);
+  const isScrollingRef  = useRef(false);
+  const pendingOlderRef = useRef(null);
+
+  const flushPendingOlder = useCallback(() => {
+    if (!pendingOlderRef.current) return;
+    const { older, resHasMore, resNextCursor, conversationId } = pendingOlderRef.current;
+    pendingOlderRef.current = null;
+
+    if (older.length > 0) {
+      const mid = Math.ceil(older.length / 2);
+      const firstHalf = older.slice(0, mid);   // oldest-first order (chunk 1)
+      const secondHalf = older.slice(mid);     // newer part (chunk 2)
+
+      let updatedList = [];
+      // First commit: prepend secondHalf (newer chunk closer to visible items)
+      setMessages(prev => {
+        const existingIds = new Set(prev.map(m => m.id));
+        const fresh = secondHalf.filter(m => !existingIds.has(m.id));
+        updatedList = [...fresh, ...prev];
+        console.log(`[PAGINATION-CHUNK-1] Prepending chunk 2 (${fresh.length} msgs). prevLen=${prev.length} newTotal=${updatedList.length}`);
+        return updatedList;
+      });
+
+      // Second commit: one frame later, prepend firstHalf
+      requestAnimationFrame(() => {
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const fresh = firstHalf.filter(m => !existingIds.has(m.id));
+          const next = [...fresh, ...prev];
+          updatedList = next;
+          console.log(`[PAGINATION-CHUNK-2] Prepending chunk 1 (${fresh.length} msgs). prevLen=${prev.length} newTotal=${updatedList.length}`);
+          setTimeout(() => {
+            setCachedConversation(conversationId, {
+              messages: updatedList,
+              hasMore: resHasMore || false,
+            });
+          }, 0);
+          return next;
+        });
+      });
+
+      cursorRef.current = resNextCursor || (older.length > 0 ? older[0].createdAt : null);
+    }
+    setHasMore(resHasMore || false);
+  }, [setHasMore]);
 
   // ── loadInitial ────────────────────────────────────────────────────────────
   // Fetches the most-recent messages. Called once per conversation open.
@@ -67,6 +105,7 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     convIdRef.current  = conversationId;
     cursorRef.current  = null;
     newestAtRef.current = null;
+    pendingOlderRef.current = null;
     setMessages([]);
     setHasMore(false);
 
@@ -106,8 +145,6 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
       return;
     }
 
-    // Use cursorRef.current if present; otherwise fall back to oldest loaded
-    // message timestamp (index 0 in the oldest-first array).
     const effectiveCursor = cursorRef.current || (messages.length > 0 ? messages[0].createdAt : null);
     if (!effectiveCursor) {
       console.log(`[FRONTEND-PAGINATION] BAILED: effectiveCursor is null`);
@@ -131,29 +168,52 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
       const older = res.messages || [];
       console.log(`[FRONTEND-PAGINATION] RECEIVED ${older.length} older messages — res.hasMore=${res.hasMore} res.nextCursor=${res.nextCursor}`);
       if (older.length > 0) {
-        let updatedList = [];
-        // PREPEND: older messages go before existing ones (lower indices).
-        // Backend returns them oldest-first, which is exactly the order we need.
-        setMessages(prev => {
-          // Deduplicate by id (safety net for edge cases)
-          const existingIds = new Set(prev.map(m => m.id));
-          const fresh = older.filter(m => !existingIds.has(m.id));
-          updatedList = [...fresh, ...prev];
-          console.log(`[ARRAY-TRACE] Prepending ${fresh.length} msgs. prevLen=${prev.length} newTotal=${updatedList.length} firstId=${updatedList[0]?.id} lastId=${updatedList[updatedList.length - 1]?.id}`);
-          return updatedList;
-        });
-        // Advance cursor to the oldest of the newly fetched batch (older[0]).
-        cursorRef.current = res.nextCursor || (older.length > 0 ? older[0].createdAt : null);
-        
-        // Persist newly paginated history to in-memory cache
-        setTimeout(() => {
-          setCachedConversation(conversationId, {
-            messages: updatedList,
-            hasMore: res.hasMore || false,
+        if (isScrollingRef.current) {
+          console.log(`[PAGINATION-DEFER] Active momentum scroll — deferring ${older.length} prepended msgs until momentum end`);
+          pendingOlderRef.current = {
+            older,
+            resHasMore: res.hasMore || false,
+            resNextCursor: res.nextCursor || older[0].createdAt,
+            conversationId,
+          };
+          cursorRef.current = res.nextCursor || older[0].createdAt;
+        } else {
+          const mid = Math.ceil(older.length / 2);
+          const firstHalf = older.slice(0, mid);
+          const secondHalf = older.slice(mid);
+
+          let updatedList = [];
+          setMessages(prev => {
+            const existingIds = new Set(prev.map(m => m.id));
+            const fresh = secondHalf.filter(m => !existingIds.has(m.id));
+            updatedList = [...fresh, ...prev];
+            console.log(`[PAGINATION-IMMEDIATE-CHUNK-1] Prepending chunk 2 (${fresh.length} msgs). prevLen=${prev.length} newTotal=${updatedList.length}`);
+            return updatedList;
           });
-        }, 0);
+
+          requestAnimationFrame(() => {
+            setMessages(prev => {
+              const existingIds = new Set(prev.map(m => m.id));
+              const fresh = firstHalf.filter(m => !existingIds.has(m.id));
+              const next = [...fresh, ...prev];
+              updatedList = next;
+              console.log(`[PAGINATION-IMMEDIATE-CHUNK-2] Prepending chunk 1 (${fresh.length} msgs). prevLen=${prev.length} newTotal=${updatedList.length}`);
+              setTimeout(() => {
+                setCachedConversation(conversationId, {
+                  messages: updatedList,
+                  hasMore: res.hasMore || false,
+                });
+              }, 0);
+              return next;
+            });
+          });
+
+          cursorRef.current = res.nextCursor || (older.length > 0 ? older[0].createdAt : null);
+          setHasMore(res.hasMore || false);
+        }
+      } else {
+        setHasMore(res.hasMore || false);
       }
-      setHasMore(res.hasMore || false);
     } catch (err) {
       console.error("[useChatPagination] loadOlderMessages error:", err);
     } finally {
@@ -262,5 +322,7 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     bootstrapPaginationState, // cache-HIT path only
     newestAtRef,
     isLoadingRef,
+    isScrollingRef,
+    flushPendingOlder,
   };
 }

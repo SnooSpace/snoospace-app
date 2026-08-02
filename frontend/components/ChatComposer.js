@@ -306,27 +306,6 @@ const ChatComposerInner = (
               </View>
             ))}
           </ScrollView>
-
-          <View style={styles.mediaCaptionRow}>
-            <TextInput
-              style={styles.mediaCaption}
-              placeholder="Add a caption"
-              placeholderTextColor="#B0BEC5"
-              value={messageText}
-              onChangeText={handleTextChange}
-              multiline
-              maxLength={500}
-            />
-            <TouchableOpacity
-              onPress={() => {
-                setMediaAttachments([]);
-                setMessageText("");
-              }}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <X size={18} color="#8FA1B8" strokeWidth={2.5} />
-            </TouchableOpacity>
-          </View>
         </View>
       )}
 
@@ -340,28 +319,24 @@ const ChatComposerInner = (
           <ImagePlus size={22} color={ACCENT} strokeWidth={2} />
         </TouchableOpacity>
 
-        {!mediaAttachments.length && (
-          <View style={styles.inputWrapper}>
-            <TextInput
-              ref={inputRef}
-              style={styles.input}
-              placeholder="Message..."
-              placeholderTextColor="#8FA1B8"
-              selectionColor="#8FA1B8"
-              cursorColor="#8FA1B8"
-              underlineColorAndroid="transparent"
-              value={messageText}
-              onChangeText={handleTextChange}
-              multiline
-              maxLength={1000}
-              onFocus={() => onFocusChange && onFocusChange(true)}
-              onBlur={() => onFocusChange && onFocusChange(false)}
-              editable={!disabled}
-            />
-          </View>
-        )}
-
-        {mediaAttachments.length > 0 && <View style={{ flex: 1 }} />}
+        <View style={styles.inputWrapper}>
+          <TextInput
+            ref={inputRef}
+            style={styles.input}
+            placeholder="Message..."
+            placeholderTextColor="#8FA1B8"
+            selectionColor="#8FA1B8"
+            cursorColor="#8FA1B8"
+            underlineColorAndroid="transparent"
+            value={messageText}
+            onChangeText={handleTextChange}
+            multiline
+            maxLength={1000}
+            onFocus={() => onFocusChange && onFocusChange(true)}
+            onBlur={() => onFocusChange && onFocusChange(false)}
+            editable={!disabled}
+          />
+        </View>
 
         <Pressable
           style={({ pressed }) => [
@@ -409,7 +384,7 @@ const ChatComposerInner = (
 const styles = StyleSheet.create({
   container: {
     flexDirection: "column",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F7F9FC",
   },
   inputContent: {
     flexDirection: "row",
@@ -460,14 +435,13 @@ const styles = StyleSheet.create({
   mediaPreviewStrip: {
     paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: 4,
+    paddingBottom: 8,
     borderTopWidth: 1,
     borderTopColor: "#E6ECF5",
     backgroundColor: "#F7F9FC",
   },
   mediaPreviewScroll: {
     maxHeight: 70,
-    marginBottom: 8,
   },
   mediaPreviewScrollContent: {
     alignItems: "center",
@@ -502,24 +476,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.65)",
     alignItems: "center",
     justifyContent: "center",
-  },
-  mediaCaptionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: "#E5E5EA",
-  },
-  mediaCaption: {
-    flex: 1,
-    fontFamily: "Manrope-Regular",
-    fontSize: 13.5,
-    color: "#1F3A5F",
-    maxHeight: 60,
-    paddingVertical: 4,
   },
 });
 

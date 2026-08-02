@@ -78,33 +78,6 @@ const KeyboardAwareToolbar = ({ children, style, onLayout, enabled = true }) => 
     };
   });
 
-  if (!enabled) {
-    return (
-      <View style={[styles.container, containerStyle]}>
-        <View
-          onLayout={onLayout}
-          style={{
-            paddingBottom: insets.bottom,
-            backgroundColor,
-            borderTopWidth,
-            borderTopColor,
-            borderTopLeftRadius,
-            borderTopRightRadius,
-            borderWidth,
-            borderColor,
-            shadowColor,
-            shadowOffset,
-            shadowOpacity,
-            shadowRadius,
-            elevation,
-          }}
-        >
-          {children}
-        </View>
-      </View>
-    );
-  }
-
   return (
     <KeyboardStickyView
       offset={{
