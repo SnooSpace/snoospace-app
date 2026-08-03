@@ -73,7 +73,7 @@ export default function ChatScreen({ route, navigation }) {
   }, [navigation]);
 
   const isAtBottomRef = useRef(true);
-  const canTriggerStartReachedRef = useRef(true);
+  const canTriggerStartReachedRef = useRef(false);
   const hasCorrectedInitialLayoutRef = useRef(false);
   const isListSettledRef = useRef(false);
   const isInitialMountedRef = useRef(false);
@@ -83,7 +83,7 @@ export default function ChatScreen({ route, navigation }) {
 
   const [currentConversationId, setCurrentConversationId] =
     useState(conversationId);
-  const [inputHeight, setInputHeight] = useState(100);
+  const [inputHeight, setInputHeight] = useState(70);
   const [isChatInputFocused, setIsChatInputFocused] = useState(false);
   const isChatInputFocusedShared = useSharedValue(false);
 
@@ -116,7 +116,6 @@ export default function ChatScreen({ route, navigation }) {
     }
     return style;
   });
-
   const { alertConfig, showAlert, hideAlert } = useChatAlerts();
 
   const recipientState = useChatRecipient({
@@ -148,52 +147,87 @@ export default function ChatScreen({ route, navigation }) {
     hideAlert,
   });
 
+  useEffect(() => {
+    console.log(`[TIMELINE-DIAG] t=${Date.now()}ms - ChatScreen mounted`);
+  }, []);
+
+  useEffect(() => {
+    console.log(
+      `[TIMELINE-DIAG] t=${Date.now()}ms - messages.length changed to ${messagesState.messages.length}`,
+    );
+  }, [messagesState.messages.length]);
+
   const initialCorrectionRafRef = useRef(null);
   const runInitialCorrectionAndRevealRef = useRef(null);
 
-  const runInitialCorrectionAndReveal = useCallback(() => {
-    if (hasCorrectedInitialLayoutRef.current) return;
-    if (messagesState.messages.length === 0) return;
-    hasCorrectedInitialLayoutRef.current = true;
-
-    if (initialCorrectionRafRef.current) {
-      cancelAnimationFrame(initialCorrectionRafRef.current);
-    }
-
-    initialCorrectionRafRef.current = requestAnimationFrame(() => {
-      initialCorrectionRafRef.current = null;
+  const runInitialCorrectionAndReveal = useCallback(
+    (contentHeight) => {
       console.log(
-        `[IMPERATIVE-SCROLL] runInitialCorrectionAndReveal called scrollToEnd at t=${Date.now()}`,
+        `[INITIAL-REVEAL] Entered: contentHeight=${contentHeight}px, msgs=${messagesState.messages.length}, hasCorrected=${hasCorrectedInitialLayoutRef.current}, isSettled=${isListSettledRef.current}`,
       );
-      flashListRef.current?.scrollToEnd({ animated: false });
-      listRevealOpacity.value = withTiming(1, { duration: 50 }, () => {
-        isListSettledRef.current = true;
-        isInitialMountedRef.current = true;
-      });
+
+      if (hasCorrectedInitialLayoutRef.current) {
+        console.log(`[INITIAL-REVEAL] SKIPPED: already hasCorrected=true`);
+        return;
+      }
+      if (isListSettledRef.current) {
+        console.log(`[INITIAL-REVEAL] SKIPPED: isListSettled=true`);
+        return;
+      }
+      if (messagesState.messages.length === 0) {
+        console.log(`[INITIAL-REVEAL] SKIPPED: messages.length is 0`);
+        return;
+      }
+
+      hasCorrectedInitialLayoutRef.current = true;
       isListSettledRef.current = true;
       isInitialMountedRef.current = true;
-    });
-  }, [messagesState.messages.length, listRevealOpacity]);
+
+      if (initialCorrectionRafRef.current) {
+        cancelAnimationFrame(initialCorrectionRafRef.current);
+      }
+
+      initialCorrectionRafRef.current = requestAnimationFrame(() => {
+        initialCorrectionRafRef.current = null;
+        console.log(
+          `[INITIAL-REVEAL] EXECUTING: scrollToEnd called at contentHeight=${contentHeight}px`,
+        );
+        flashListRef.current?.scrollToEnd({ animated: false });
+        console.log(
+          `[LIST-REVEAL-DIAG] t=${Date.now()}ms - Fading listRevealOpacity from ${listRevealOpacity.value} -> 1`,
+        );
+        listRevealOpacity.value = withTiming(1, { duration: 50 });
+      });
+    },
+    [messagesState.messages.length, listRevealOpacity],
+  );
 
   runInitialCorrectionAndRevealRef.current = runInitialCorrectionAndReveal;
 
   useEffect(() => {
-    runInitialCorrectionAndReveal();
-  }, [runInitialCorrectionAndReveal]);
+    console.log(
+      `[LIST-REVEAL-DIAG] t=${Date.now()}ms - useEffect check: msgs=${messagesState.messages.length}, opacity=${listRevealOpacity.value}, hasCorrected=${hasCorrectedInitialLayoutRef.current}`,
+    );
+    if (messagesState.messages.length > 0 && listRevealOpacity.value === 0) {
+      if (!hasCorrectedInitialLayoutRef.current) {
+        runInitialCorrectionAndReveal();
+      } else {
+        console.log(
+          `[LIST-REVEAL-DIAG] t=${Date.now()}ms - Fallback trigger setting opacity -> 1`,
+        );
+        listRevealOpacity.value = withTiming(1, { duration: 50 });
+      }
+    }
+  }, [messagesState.messages.length, runInitialCorrectionAndReveal, listRevealOpacity]);
 
   useEffect(() => {
     hasCorrectedInitialLayoutRef.current = false;
     isListSettledRef.current = false;
     isInitialMountedRef.current = false;
+    canTriggerStartReachedRef.current = false;
     listRevealOpacity.value = 0;
 
-    const timer = setTimeout(() => {
-      isInitialMountedRef.current = true;
-      isListSettledRef.current = true;
-    }, 150);
-
     return () => {
-      clearTimeout(timer);
       if (initialCorrectionRafRef.current) {
         cancelAnimationFrame(initialCorrectionRafRef.current);
       }
@@ -314,21 +348,7 @@ export default function ChatScreen({ route, navigation }) {
     );
   }, [messagesState.loadingOlder]);
 
-  /*
-  const shouldShowAvatar = useCallback((message, nextMessage, isMine) => {
-    if (isMine) return false;
-    if (!nextMessage) return true;
-    if (nextMessage.senderId !== message.senderId) return true;
 
-    const timeA =
-      message._time || (message._time = new Date(message.createdAt).getTime());
-    const timeB =
-      nextMessage._time ||
-      (nextMessage._time = new Date(nextMessage.createdAt).getTime());
-    const diff = Math.abs(timeB - timeA);
-    return diff > 60000;
-  }, []);
-  */
 
   const renderItem = useCallback(
     ({ item, index }) => {

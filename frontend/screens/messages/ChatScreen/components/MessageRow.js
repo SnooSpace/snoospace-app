@@ -212,6 +212,22 @@ const MessageRow = React.memo(
     navigationRef,
   }) => {
     const msg = item.data;
+    const renderCountRef = React.useRef(0);
+    renderCountRef.current += 1;
+    const prevHeightRef = React.useRef(null);
+
+    const handleRowLayout = React.useCallback(
+      (e) => {
+        const h = Math.round(e.nativeEvent.layout.height);
+        if (prevHeightRef.current !== h) {
+          console.log(
+            `[ROW-LAYOUT-CHANGE] t=${Date.now()}ms id=${msg?.id} type=${msg?.messageType} h: ${prevHeightRef.current}px -> ${h}px | _isFirstOfDay=${msg?._isFirstOfDay}, showAvatar=${showAvatar}, showSenderName=${showSenderName}, reply=${Boolean(msg?.replyPreview || msg?.replyToId)}, textLen=${msg?.messageText?.length || 0}, renderCount=${renderCountRef.current}`,
+          );
+          prevHeightRef.current = h;
+        }
+      },
+      [msg?.id, msg?.messageType, msg?._isFirstOfDay, msg?.replyPreview, msg?.replyToId, msg?.messageText, showAvatar, showSenderName],
+    );
 
     if (msg.messageType === "system") {
       return (
@@ -551,7 +567,7 @@ const MessageRow = React.memo(
     const dateLabel = msg._dateSeparatorLabel || (isFirstOfDay ? formatSeparatorLabel(msg.createdAt) : null);
 
     return (
-      <View>
+      <View onLayout={handleRowLayout}>
         {isFirstOfDay && dateLabel ? <TimestampSeparator label={dateLabel} /> : null}
         <View
           style={[

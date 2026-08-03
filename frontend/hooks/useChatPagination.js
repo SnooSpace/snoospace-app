@@ -93,13 +93,6 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     cursorRef.current = resNextCursor || (older.length > 0 ? older[0].createdAt : null);
     setHasMore(resHasMore || false);
 
-    console.log(
-      `[AUDIT] callback exists? ${Boolean(global.__PAGINATION_AUDIT_CALLBACK__)}`,
-    );
-    if (global.__PAGINATION_AUDIT_CALLBACK__) {
-      global.__PAGINATION_AUDIT_CALLBACK__(prependedCount);
-    }
-
     setCachedConversation(conversationId, {
       messages: updatedList,
       hasMore: resHasMore || false,
