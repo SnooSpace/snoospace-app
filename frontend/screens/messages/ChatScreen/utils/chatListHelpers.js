@@ -107,14 +107,14 @@ export const isCardUnavailable = (messageType, metadata) => {
 export const overrideItemLayout = (layout, item) => {
   if (!item || !item.data) return;
   const msg = item.data;
-  const separatorExtra = msg._isFirstOfDay ? 40 : 0;
+  const separatorExtra = msg._isFirstOfDay ? 36 : 0;
 
   if (msg.messageType === "system") {
-    layout.size = 32 + separatorExtra;
+    layout.size = 28 + separatorExtra;
     return;
   }
   if (msg.isDeleted) {
-    layout.size = 40 + separatorExtra;
+    layout.size = 36 + separatorExtra;
     return;
   }
 
@@ -131,26 +131,26 @@ export const overrideItemLayout = (layout, item) => {
     msg.messageType === "ticket";
 
   if (isImageOrVideo) {
-    layout.size = 202 + separatorExtra;
+    layout.size = 190 + separatorExtra;
     return;
   }
 
   if (isCard) {
     if (isCardUnavailable(msg.messageType, msg.metadata)) {
-      layout.size = 44 + separatorExtra;
+      layout.size = 40 + separatorExtra;
       return;
     }
-    layout.size = 240 + separatorExtra;
+    layout.size = 220 + separatorExtra;
     return;
   }
 
-  let size = 59;
-  if (msg._showSenderName) size += 18;
-  if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 63;
+  let size = 38;
+  if (msg._showSenderName) size += 16;
+  if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 46;
   const len = msg.messageText ? msg.messageText.length : 0;
-  if (len > 115) size += 40 + Math.ceil((len - 115) / 38) * 20;
-  else if (len > 75) size += 40;
-  else if (len > 35) size += 20;
+  if (len > 115) size += 36 + Math.ceil((len - 115) / 40) * 18;
+  else if (len > 75) size += 36;
+  else if (len > 35) size += 18;
   layout.size = size + separatorExtra;
 };
 

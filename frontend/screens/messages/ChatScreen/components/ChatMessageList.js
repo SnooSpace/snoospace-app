@@ -48,6 +48,7 @@ const ChatMessageList = React.memo(
       () => ({
         autoscrollToBottomThreshold: 0.2,
         minIndexForVisible: 1,
+        startRenderingFromBottom: true,
       }),
       [],
     );

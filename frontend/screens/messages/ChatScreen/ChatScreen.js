@@ -163,15 +163,11 @@ export default function ChatScreen({ route, navigation }) {
   const runInitialCorrectionAndReveal = useCallback(
     (contentHeight) => {
       console.log(
-        `[INITIAL-REVEAL] Entered: contentHeight=${contentHeight}px, msgs=${messagesState.messages.length}, hasCorrected=${hasCorrectedInitialLayoutRef.current}, isSettled=${isListSettledRef.current}`,
+        `[INITIAL-REVEAL] Entered: contentHeight=${contentHeight}px, msgs=${messagesState.messages.length}, isScrolling=${Boolean(messagesState.isScrollingRef.current)}`,
       );
 
-      if (hasCorrectedInitialLayoutRef.current) {
-        console.log(`[INITIAL-REVEAL] SKIPPED: already hasCorrected=true`);
-        return;
-      }
-      if (isListSettledRef.current) {
-        console.log(`[INITIAL-REVEAL] SKIPPED: isListSettled=true`);
+      if (messagesState.isScrollingRef.current) {
+        console.log(`[INITIAL-REVEAL] SKIPPED: user is actively scrolling`);
         return;
       }
       if (messagesState.messages.length === 0) {
@@ -180,8 +176,6 @@ export default function ChatScreen({ route, navigation }) {
       }
 
       hasCorrectedInitialLayoutRef.current = true;
-      isListSettledRef.current = true;
-      isInitialMountedRef.current = true;
 
       if (initialCorrectionRafRef.current) {
         cancelAnimationFrame(initialCorrectionRafRef.current);
@@ -190,16 +184,18 @@ export default function ChatScreen({ route, navigation }) {
       initialCorrectionRafRef.current = requestAnimationFrame(() => {
         initialCorrectionRafRef.current = null;
         console.log(
-          `[INITIAL-REVEAL] EXECUTING: scrollToEnd called at contentHeight=${contentHeight}px`,
+          `[INITIAL-REVEAL] EXECUTING: scrollToEnd called at contentHeight=${contentHeight ?? "settled"}px`,
         );
         flashListRef.current?.scrollToEnd({ animated: false });
-        console.log(
-          `[LIST-REVEAL-DIAG] t=${Date.now()}ms - Fading listRevealOpacity from ${listRevealOpacity.value} -> 1`,
-        );
-        listRevealOpacity.value = withTiming(1, { duration: 50 });
+        if (listRevealOpacity.value === 0) {
+          console.log(
+            `[LIST-REVEAL-DIAG] t=${Date.now()}ms - Fading listRevealOpacity from 0 -> 1`,
+          );
+          listRevealOpacity.value = withTiming(1, { duration: 50 });
+        }
       });
     },
-    [messagesState.messages.length, listRevealOpacity],
+    [messagesState.messages.length, messagesState.isScrollingRef, listRevealOpacity],
   );
 
   runInitialCorrectionAndRevealRef.current = runInitialCorrectionAndReveal;
