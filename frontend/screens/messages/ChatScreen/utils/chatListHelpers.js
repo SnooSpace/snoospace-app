@@ -62,17 +62,11 @@ export const buildMessageList = (messages, isGroup) => {
       older.senderId !== msg.senderId ||
       Math.abs((msg._time || 0) - (older._time || 0)) > 60000;
 
+    msg._isFirstOfDay = isFirstOfDay;
+    msg._dateSeparatorLabel = isFirstOfDay ? formatSeparatorLabel(msg.createdAt) : null;
     msg._showAvatar = isDifferentSenderOrTime;
     msg._showSenderName =
       isGroup && (!older || older.senderId !== msg.senderId);
-
-    if (isFirstOfDay) {
-      result.push({
-        type: "separator",
-        id: `sep-${msg._dateString || msg.id}`,
-        label: formatSeparatorLabel(msg.createdAt),
-      });
-    }
 
     let wrapper = _msgWrapperCache.get(msg.id);
     if (!wrapper || wrapper.data !== msg) {
@@ -85,8 +79,7 @@ export const buildMessageList = (messages, isGroup) => {
   return result;
 };
 
-export const keyExtractor = (item) =>
-  item.type === "message" ? String(item.data.id) : item.id;
+export const keyExtractor = (item) => String(item.data.id);
 
 export const isCardUnavailable = (messageType, metadata) => {
   if (!metadata) return false;
@@ -112,19 +105,16 @@ export const isCardUnavailable = (messageType, metadata) => {
 };
 
 export const overrideItemLayout = (layout, item) => {
-  if (!item) return;
-  if (item.type === "separator") {
-    layout.size = 36;
-    return;
-  }
+  if (!item || !item.data) return;
   const msg = item.data;
-  if (!msg) return;
+  const separatorExtra = msg._isFirstOfDay ? 36 : 0;
+
   if (msg.messageType === "system") {
-    layout.size = 32;
+    layout.size = 32 + separatorExtra;
     return;
   }
   if (msg.isDeleted) {
-    layout.size = 40;
+    layout.size = 40 + separatorExtra;
     return;
   }
 
@@ -141,16 +131,16 @@ export const overrideItemLayout = (layout, item) => {
     msg.messageType === "ticket";
 
   if (isImageOrVideo) {
-    layout.size = 202;
+    layout.size = 202 + separatorExtra;
     return;
   }
 
   if (isCard) {
     if (isCardUnavailable(msg.messageType, msg.metadata)) {
-      layout.size = 44;
+      layout.size = 44 + separatorExtra;
       return;
     }
-    layout.size = 240;
+    layout.size = 240 + separatorExtra;
     return;
   }
 
@@ -161,7 +151,7 @@ export const overrideItemLayout = (layout, item) => {
   if (len > 115) size += 40 + Math.ceil((len - 115) / 38) * 20;
   else if (len > 75) size += 40;
   else if (len > 35) size += 20;
-  layout.size = size;
+  layout.size = size + separatorExtra;
 };
 
 export const getItemTypeHelper = (item, { currentUser, isGroup, recipient, recipientId }) => {

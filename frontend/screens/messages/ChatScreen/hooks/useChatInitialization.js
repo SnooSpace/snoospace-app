@@ -3,7 +3,7 @@ import { Keyboard, InteractionManager } from "react-native";
 import { TriangleAlert } from "lucide-react-native";
 
 import { getActiveAccount } from "../../../../api/auth";
-import { getMessages, getConversations, resolveConversation, getGroupParticipants } from "../../../../api/messages";
+import { getMessages, resolveConversation, getGroupParticipants } from "../../../../api/messages";
 import { getPublicMemberProfile } from "../../../../api/members";
 import { getPublicCommunity } from "../../../../api/communities";
 import { getPostById } from "../../../../api/posts";

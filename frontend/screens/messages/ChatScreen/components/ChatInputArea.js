@@ -5,7 +5,7 @@ import ChatComposer from "../../../../components/ChatComposer";
 import TypingIndicator from "./TypingIndicator";
 import ClosedGroupBar from "./ClosedGroupBar";
 import LockedAnnouncementBar from "./LockedAnnouncementBar";
-import { mainStyles, CHAT_CANVAS_BG } from "../ChatScreen.styles";
+import { CHAT_CANVAS_BG } from "../ChatScreen.styles";
 
 const ChatInputArea = React.memo(
   ({

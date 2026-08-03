@@ -1,4 +1,4 @@
-import React, {
+import {
   useState,
   useEffect,
   useRef,
@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useKeyboardHandler,
 } from "react-native-keyboard-controller";
-import Animated, {
+import {
   useSharedValue,
   useAnimatedStyle,
   withTiming,

@@ -29,6 +29,7 @@ export default function useChatTyping({ currentConversationId, currentUser }) {
     if (!socket) return;
 
     const handleUserTyping = ({ userId, userName }) => {
+      if (currentUser?.id && String(userId) === String(currentUser.id)) return;
       setTypingUsers((prev) => ({ ...prev, [userId]: userName }));
     };
 

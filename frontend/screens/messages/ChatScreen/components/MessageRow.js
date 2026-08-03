@@ -1,5 +1,5 @@
-import React, { useCallback } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import React from "react";
+import { View, Text, TouchableOpacity } from "react-native";
 import { Image } from "expo-image";
 import { User, Video, Image as ImageIcon } from "lucide-react-native";
 
@@ -10,7 +10,7 @@ import SharedOpportunityCard from "../../../../components/SharedOpportunityCard"
 import SharedEventCard from "../../../../components/SharedEventCard";
 import SharedPlanCard from "../../../../components/SharedPlanCard";
 
-import { formatTime, avatarColorFor } from "../utils/chatListHelpers";
+import { formatTime, avatarColorFor, formatSeparatorLabel } from "../utils/chatListHelpers";
 import { mainStyles } from "../ChatScreen.styles";
 import { sepStyles, quoteStyles, MESSAGE_TEXT_COLOR } from "./MessageRow.styles";
 
@@ -212,15 +212,6 @@ const MessageRow = React.memo(
     navigationRef,
   }) => {
     const msg = item.data;
-
-    const handleRowReply = useCallback(
-      () => onReply(msg, isMyMessage),
-      [msg.id, isMyMessage, onReply],
-    );
-    const handleRowLongPress = useCallback(
-      () => onLongPress(msg),
-      [msg.id, onLongPress],
-    );
 
     if (msg.messageType === "system") {
       return (
@@ -556,23 +547,29 @@ const MessageRow = React.memo(
       </View>
     );
 
+    const isFirstOfDay = msg._isFirstOfDay;
+    const dateLabel = msg._dateSeparatorLabel || (isFirstOfDay ? formatSeparatorLabel(msg.createdAt) : null);
+
     return (
-      <View
-        style={[
-          mainStyles.messageContainer,
-          isMyMessage
-            ? mainStyles.myMessageContainer
-            : mainStyles.otherMessageContainer,
-        ]}
-      >
-        {avatarEl}
-        <View style={{ flex: 1 }}>
-          {showSenderName && (
-            <Text style={mainStyles.groupSenderName}>
-              {msg.senderName || "Unknown"}
-            </Text>
-          )}
-          <View collapsable={false}>{bubbleContent}</View>
+      <View>
+        {isFirstOfDay && dateLabel ? <TimestampSeparator label={dateLabel} /> : null}
+        <View
+          style={[
+            mainStyles.messageContainer,
+            isMyMessage
+              ? mainStyles.myMessageContainer
+              : mainStyles.otherMessageContainer,
+          ]}
+        >
+          {avatarEl}
+          <View style={{ flex: 1 }}>
+            {showSenderName && (
+              <Text style={mainStyles.groupSenderName}>
+                {msg.senderName || "Unknown"}
+              </Text>
+            )}
+            <View collapsable={false}>{bubbleContent}</View>
+          </View>
         </View>
       </View>
     );
@@ -594,6 +591,8 @@ const MessageRow = React.memo(
     }
     if (prev.item?.data?.isDeleted !== next.item?.data?.isDeleted)
       diffs.push("item.data.isDeleted");
+    if (prev.item?.data?._isFirstOfDay !== next.item?.data?._isFirstOfDay)
+      diffs.push("item.data._isFirstOfDay");
     if (prev.isMyMessage !== next.isMyMessage) diffs.push("isMyMessage");
     if (prev.showAvatar !== next.showAvatar) diffs.push("showAvatar");
     if (prev.showSenderName !== next.showSenderName)

@@ -91,6 +91,17 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     cursorRef.current = resNextCursor || (older.length > 0 ? older[0].createdAt : null);
     setHasMore(resHasMore || false);
 
+    if (global.__PAGINATION_AUDIT_BEFORE__) {
+      const auditBefore = global.__PAGINATION_AUDIT_BEFORE__;
+      delete global.__PAGINATION_AUDIT_BEFORE__;
+      const freshCount = older.length;
+      setTimeout(() => {
+        if (global.__PAGINATION_AUDIT_CALLBACK__) {
+          global.__PAGINATION_AUDIT_CALLBACK__(auditBefore, freshCount);
+        }
+      }, 50);
+    }
+
     setCachedConversation(conversationId, {
       messages: updatedList,
       hasMore: resHasMore || false,
