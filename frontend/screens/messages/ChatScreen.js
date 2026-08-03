@@ -313,7 +313,7 @@ const formatSeparatorLabel = (dateString) => {
  */
 const _msgWrapperCache = new Map(); // module-level: lives as long as the module
 
-const buildMessageList = (messages) => {
+const buildMessageList = (messages, isGroup) => {
   if (!messages || messages.length === 0) return [];
   const tStart = global.performance ? global.performance.now() : Date.now();
   if (_msgWrapperCache.size > 1000) _msgWrapperCache.clear();
@@ -346,7 +346,7 @@ const buildMessageList = (messages) => {
       Math.abs((msg._time || 0) - (older._time || 0)) > 60000;
 
     msg._showAvatar = isDifferentSenderOrTime;
-    msg._showSenderName = !older || older.senderId !== msg.senderId;
+    msg._showSenderName = isGroup && (!older || older.senderId !== msg.senderId);
 
     // Inject separator BEFORE the first message of each new day
     if (isFirstOfDay) {
@@ -454,13 +454,14 @@ const overrideItemLayout = (layout, item) => {
     return;
   }
 
-  let size = 44;
+  let size = 55;
   if (msg._showSenderName) size += 18;
-  if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 46;
+  if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 63;
   const len = msg.messageText ? msg.messageText.length : 0;
   if (len > 115) size += 40 + Math.ceil((len - 115) / 38) * 20;
   else if (len > 75) size += 40;
   else if (len > 35) size += 20;
+  console.log(`[DIAG-LAYOUT-ESTIMATE] id=${msg.id} textLen=${len} estimatedSize=${size}`);
   layout.size = size;
 };
 
@@ -1440,14 +1441,8 @@ const MessageRow = React.memo(
           ]}
         >
           {avatarEl}
-          <SwipeableMessage
-            messageId={msg.id}
-            isHighlighted={isHighlighted}
-            onHighlightDone={onHighlightDone}
-            isMyMessage={isMyMessage}
-            onReply={handleRowReply}
-            onLongPress={handleRowLongPress}
-          >
+          {/* [ISOLATION-TEST-DISABLED] SwipeableMessage bypass */}
+          <View collapsable={false}>
             <View collapsable={false}>
               {showSenderName && (
                 <Text style={styles.groupSenderName}>
@@ -1481,7 +1476,8 @@ const MessageRow = React.memo(
                 {formatTime(msg.createdAt)}
               </Text>
             </View>
-          </SwipeableMessage>
+          </View>
+          {/* [/ISOLATION-TEST-DISABLED] */}
         </View>
       );
     }
@@ -1497,14 +1493,8 @@ const MessageRow = React.memo(
           ]}
         >
           {avatarEl}
-          <SwipeableMessage
-            messageId={msg.id}
-            isHighlighted={isHighlighted}
-            onHighlightDone={onHighlightDone}
-            isMyMessage={isMyMessage}
-            onReply={handleRowReply}
-            onLongPress={handleRowLongPress}
-          >
+          {/* [ISOLATION-TEST-DISABLED] SwipeableMessage bypass */}
+          <View collapsable={false}>
             <View collapsable={false}>
               {showSenderName && (
                 <Text style={styles.groupSenderName}>
@@ -1524,7 +1514,8 @@ const MessageRow = React.memo(
                 onUserPress={onPressUser}
               />
             </View>
-          </SwipeableMessage>
+          </View>
+          {/* [/ISOLATION-TEST-DISABLED] */}
         </View>
       );
     }
@@ -1540,14 +1531,8 @@ const MessageRow = React.memo(
           ]}
         >
           {avatarEl}
-          <SwipeableMessage
-            messageId={msg.id}
-            isHighlighted={isHighlighted}
-            onHighlightDone={onHighlightDone}
-            isMyMessage={isMyMessage}
-            onReply={handleRowReply}
-            onLongPress={handleRowLongPress}
-          >
+          {/* [ISOLATION-TEST-DISABLED] SwipeableMessage bypass */}
+          <View collapsable={false}>
             <View collapsable={false}>
               {showSenderName && (
                 <Text style={styles.groupSenderName}>
@@ -1566,7 +1551,8 @@ const MessageRow = React.memo(
                 onPress={onPressOpportunity}
               />
             </View>
-          </SwipeableMessage>
+          </View>
+          {/* [/ISOLATION-TEST-DISABLED] */}
         </View>
       );
     }
@@ -1582,14 +1568,8 @@ const MessageRow = React.memo(
           ]}
         >
           {avatarEl}
-          <SwipeableMessage
-            messageId={msg.id}
-            isHighlighted={isHighlighted}
-            onHighlightDone={onHighlightDone}
-            isMyMessage={isMyMessage}
-            onReply={handleRowReply}
-            onLongPress={handleRowLongPress}
-          >
+          {/* [ISOLATION-TEST-DISABLED] SwipeableMessage bypass */}
+          <View collapsable={false}>
             <View collapsable={false}>
               {showSenderName && (
                 <Text style={styles.groupSenderName}>
@@ -1605,7 +1585,8 @@ const MessageRow = React.memo(
               ) : null}
               <SharedEventCard metadata={msg.metadata} onPress={onPressEvent} />
             </View>
-          </SwipeableMessage>
+          </View>
+          {/* [/ISOLATION-TEST-DISABLED] */}
         </View>
       );
     }
@@ -1621,14 +1602,8 @@ const MessageRow = React.memo(
           ]}
         >
           {avatarEl}
-          <SwipeableMessage
-            messageId={msg.id}
-            isHighlighted={isHighlighted}
-            onHighlightDone={onHighlightDone}
-            isMyMessage={isMyMessage}
-            onReply={handleRowReply}
-            onLongPress={handleRowLongPress}
-          >
+          {/* [ISOLATION-TEST-DISABLED] SwipeableMessage bypass */}
+          <View collapsable={false}>
             <View collapsable={false}>
               {showSenderName && (
                 <Text style={styles.groupSenderName}>
@@ -1644,7 +1619,8 @@ const MessageRow = React.memo(
               ) : null}
               <SharedPlanCard metadata={msg.metadata} onPress={onPressPlan} />
             </View>
-          </SwipeableMessage>
+          </View>
+          {/* [/ISOLATION-TEST-DISABLED] */}
         </View>
       );
     }
@@ -1696,6 +1672,9 @@ const MessageRow = React.memo(
 
     return (
       <View
+        onLayout={(e) => {
+          console.log(`[DIAG-LAYOUT-ACTUAL] id=${msg.id} actualHeight=${e.nativeEvent.layout.height.toFixed(1)}`);
+        }}
         style={[
           styles.messageContainer,
           isMyMessage
@@ -1710,16 +1689,11 @@ const MessageRow = React.memo(
               {msg.senderName || "Unknown"}
             </Text>
           )}
-          <SwipeableMessage
-            messageId={msg.id}
-            isHighlighted={isHighlighted}
-            onHighlightDone={onHighlightDone}
-            isMyMessage={isMyMessage}
-            onReply={handleRowReply}
-            onLongPress={handleRowLongPress}
-          >
+          {/* [ISOLATION-TEST-DISABLED] SwipeableMessage bypass */}
+          <View collapsable={false}>
             {bubbleContent}
-          </SwipeableMessage>
+          </View>
+          {/* [/ISOLATION-TEST-DISABLED] */}
         </View>
       </View>
     );
@@ -1769,10 +1743,12 @@ const MessageRow = React.memo(
       diffs.push("isHighlighted");
 
     if (diffs.length > 0) {
+      // [ISOLATION-TEST-DISABLED] PERF-DIFF re-render log
       console.log(
         `[PERF-DIFF] MessageRow id=${nextId} RE-RENDER REASON:`,
         JSON.stringify(diffs),
       );
+      // [/ISOLATION-TEST-DISABLED]
       return false;
     }
     return true;
@@ -2157,6 +2133,10 @@ export default function ChatScreen({ route, navigation }) {
   // Updated on every onScroll event; read by incoming-message handlers
   // to decide whether to auto-scroll.
   const isAtBottomRef = useRef(true);
+  // Gate: allows onStartReached to fire at most once per drag gesture.
+  // Armed on every onScrollBeginDrag, disarmed on first qualifying call.
+  // Prevents repeated fetches while scroll position stays near the top edge.
+  const canTriggerStartReachedRef = useRef(true);
 
   // One-shot guard for FlashList v2's first-paint gap in
   // maintainVisibleContentPosition.autoscrollToBottomThreshold.
@@ -2277,7 +2257,7 @@ export default function ChatScreen({ route, navigation }) {
   // buildMessageList outputs oldest→newest (index 0 = oldest, last = newest).
   // FlashList v2 autoscrollToBottomThreshold keeps the view pinned to the
   // bottom natively without reactive scrollToEnd calls.
-  const flatListData = useMemo(() => buildMessageList(messages), [messages]);
+  const flatListData = useMemo(() => buildMessageList(messages, isGroup), [messages, isGroup]);
 
 
   // ── PERF: Dynamic Cost-Based FlatList Tuning ─────────────────────────────
@@ -2407,11 +2387,15 @@ export default function ChatScreen({ route, navigation }) {
     }
   }, [flatListData, getItemType]);
 
+  // Fixed height always — only the spinner's visibility toggles.
+  // Letting this container change height (null vs paddingVertical) forces
+  // maintainVisibleContentPosition to recompute its anchor on every
+  // loadingOlder flip — exactly the jolt visible at the top boundary.
+  const HEADER_HEIGHT = 48;
   const renderListHeader = useCallback(() => {
-    if (!loadingOlder) return <View style={{ height: 8 }} />;
     return (
-      <View style={{ paddingVertical: 14, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator size="small" color={PRIMARY_COLOR} />
+      <View style={{ height: HEADER_HEIGHT, alignItems: "center", justifyContent: "center" }}>
+        {loadingOlder ? <ActivityIndicator size="small" color={PRIMARY_COLOR} /> : null}
       </View>
     );
   }, [loadingOlder]);
@@ -4053,17 +4037,22 @@ export default function ChatScreen({ route, navigation }) {
                     keyExtractor={keyExtractor}
                     renderItem={renderItem}
                     getItemType={getItemType}
+                    overrideItemLayout={overrideItemLayout}
                     ListHeaderComponent={renderListHeader}
-                    drawDistance={1500}
+                    drawDistance={250}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={[
                       styles.listContent,
                       { paddingBottom: 12 + insets.bottom },
                     ]}
-                    contentOffset={{ x: 0, y: 999999 }}
+
                     maintainVisibleContentPosition={{
                       autoscrollToBottomThreshold: 0.2,
                       startRenderingFromBottom: true,
+                    }}
+                    onScrollBeginDrag={() => {
+                      if (isScrollingRef) isScrollingRef.current = true;
+                      canTriggerStartReachedRef.current = true;
                     }}
                     onMomentumScrollBegin={() => {
                       if (isScrollingRef) isScrollingRef.current = true;
@@ -4080,7 +4069,8 @@ export default function ChatScreen({ route, navigation }) {
                     }}
                     onStartReached={() => {
                       console.log("[ChatScreen] onStartReached fired");
-                      if (hasMore && !isLoadingRef.current) {
+                      if (hasMore && !isLoadingRef.current && canTriggerStartReachedRef.current) {
+                        canTriggerStartReachedRef.current = false;
                         loadOlderMessages(currentConversationId);
                       }
                     }}
@@ -4089,7 +4079,7 @@ export default function ChatScreen({ route, navigation }) {
                       const contentH = e.nativeEvent.contentSize.height;
                       const listH = e.nativeEvent.layoutMeasurement.height;
                       const velY = e.nativeEvent.velocity?.y || 0;
-                      isAtBottomRef.current = contentH - listH - y < 100;
+                      console.log(`[DIAG-ANCHOR] y=${y.toFixed(1)} contentH=${contentH.toFixed(1)} listH=${listH.toFixed(1)}`);
 
                       if (Math.abs(velY) > 2.5) {
                         console.log(

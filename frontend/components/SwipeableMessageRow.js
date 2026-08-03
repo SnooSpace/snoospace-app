@@ -22,7 +22,7 @@
  *      the pulse finishes. Cost: 2 useSharedValue + 1 useAnimatedStyle,
  *      paid by at most one row in the entire list at any moment.
  */
-import React, { useEffect, useRef, useCallback, useMemo, Profiler } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useCallback, useMemo, Profiler } from "react";
 import { View, StyleSheet } from "react-native";
 import Animated, {
   useSharedValue,
@@ -183,7 +183,7 @@ function SwipeableMessageRowInner({
     [isMine, callOnReply],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     swipe.value = { x: 0, iconOpacity: 0, fired: false };
   }, [messageId]);
 

@@ -99,6 +99,7 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
   }, [setHasMore]);
 
   const flushPendingOlder = useCallback(() => {
+    console.log(`[DIAG-FLUSH-CHECK] flushPendingOlder called. pendingOlderRef.current=${pendingOlderRef.current ? 'SET' : 'null'}`);
     if (!pendingOlderRef.current) return;
     const { older, resHasMore, resNextCursor, conversationId } = pendingOlderRef.current;
     pendingOlderRef.current = null;
@@ -143,6 +144,7 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     if (!conversationId) return;
     // Auto-bind convIdRef if uninitialized (e.g. on warm open before bootstrap)
     if (!convIdRef.current) convIdRef.current = conversationId;
+
     if (isLoadingRef.current) {
       console.log(`[FRONTEND-PAGINATION] BAILED: isLoadingRef is true`);
       return;
@@ -176,18 +178,18 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
       console.log(`[FRONTEND-PAGINATION] RECEIVED ${older.length} older messages — res.hasMore=${res.hasMore} res.nextCursor=${res.nextCursor}`);
 
       if (older.length > 0 && isScrollingRef.current) {
-        // Active momentum scroll — defer the commit until momentum ends
-        // (flushPendingOlder), rather than fighting the in-progress scroll.
-        console.log(`[PAGINATION-DEFER] Active momentum scroll — deferring ${older.length} prepended msgs until momentum end`);
-        pendingOlderRef.current = {
-          older,
-          resHasMore: res.hasMore || false,
-          resNextCursor: res.nextCursor || older[0].createdAt,
-          conversationId,
-        };
-        // Advance cursor immediately so a second onStartReached during the
-        // same momentum scroll doesn't re-request the same page.
-        cursorRef.current = res.nextCursor || older[0].createdAt;
+        // [ISOLATION-TEST-DISABLED] defer-until-momentum-end bypass
+        console.log(`[DIAG-DEFER-BYPASS] Would have deferred ${older.length} msgs — committing immediately instead. isScrolling=${isScrollingRef.current}`);
+        prependOlder(conversationId, older, res.hasMore || false, res.nextCursor);
+        // Original defer logic commented out below:
+        // pendingOlderRef.current = {
+        //   older,
+        //   resHasMore: res.hasMore || false,
+        //   resNextCursor: res.nextCursor || older[0].createdAt,
+        //   conversationId,
+        // };
+        // cursorRef.current = res.nextCursor || older[0].createdAt;
+        // [/ISOLATION-TEST-DISABLED]
       } else {
         // Not scrolling (or nothing came back) — commit immediately, in one
         // atomic setMessages call.

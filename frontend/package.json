@@ -114,6 +114,8 @@
   },
   "private": true,
   "devDependencies": {
-    "babel-plugin-transform-remove-console": "^6.9.4"
+    "@types/react": "~19.2.10",
+    "babel-plugin-transform-remove-console": "^6.9.4",
+    "typescript": "~5.9.2"
   }
 }
