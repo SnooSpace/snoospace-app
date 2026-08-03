@@ -63,10 +63,9 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
   const convIdRef       = useRef(null);
   const newestAtRef     = useRef(null);
   const isScrollingRef  = useRef(false);
-  const pendingOlderRef = useRef(null);
 
   // ── prependOlder ────────────────────────────────────────────────────────────
-  // Single, atomic commit path shared by loadOlderMessages and flushPendingOlder.
+  // Single, atomic commit path for loadOlderMessages.
   // Dedupes against the current array, prepends in ONE setMessages call, updates
   // the cache, and advances cursorRef — all in one pass, so
   // maintainVisibleContentPosition only recomputes its anchor once per batch.
@@ -85,7 +84,7 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
         return prev;
       }
       updatedList = [...fresh, ...prev];
-      console.log(`[PAGINATION-PREPEND] Prepending ${fresh.length} msgs (single commit). prevLen=${prev.length} newTotal=${updatedList.length}`);
+      console.log(`[PAGINATION-PREPEND] Prepending ${fresh.length} msgs immediately (single commit). prevLen=${prev.length} newTotal=${updatedList.length}`);
       return updatedList;
     });
 
@@ -98,22 +97,12 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     });
   }, [setHasMore]);
 
-  const flushPendingOlder = useCallback(() => {
-    console.log(`[DIAG-FLUSH-CHECK] flushPendingOlder called. pendingOlderRef.current=${pendingOlderRef.current ? 'SET' : 'null'}`);
-    if (!pendingOlderRef.current) return;
-    const { older, resHasMore, resNextCursor, conversationId } = pendingOlderRef.current;
-    pendingOlderRef.current = null;
-
-    prependOlder(conversationId, older, resHasMore, resNextCursor);
-  }, [prependOlder]);
-
   // ── loadInitial ────────────────────────────────────────────────────────────
   // Fetches the most-recent messages. Called once per conversation open.
   const loadInitial = useCallback(async (conversationId, limit = OLDER_PAGE_SIZE) => {
     convIdRef.current  = conversationId;
     cursorRef.current  = null;
     newestAtRef.current = null;
-    pendingOlderRef.current = null;
     setMessages([]);
     setHasMore(false);
 
@@ -136,8 +125,8 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
   }, [setHasMore]);
 
   // ── loadOlderMessages ──────────────────────────────────────────────────────
-  // Fetches the next page of older messages and PREPENDS them.
-  // Called by FlashList's onStartReached or onScroll trigger.
+  // Fetches the next page of older messages and PREPENDS them IMMEDIATELY.
+  // Called by FlashList's onStartReached trigger.
   const loadOlderMessages = useCallback(async (conversationId) => {
     console.log(`[FRONTEND-PAGINATION] loadOlderMessages called — convId=${conversationId} convIdRef=${convIdRef.current} isLoading=${isLoadingRef.current} hasMoreRef=${hasMoreRef.current} cursorRef=${cursorRef.current} msgsCount=${messages.length}`);
 
@@ -177,23 +166,12 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
       const older = res.messages || [];
       console.log(`[FRONTEND-PAGINATION] RECEIVED ${older.length} older messages — res.hasMore=${res.hasMore} res.nextCursor=${res.nextCursor}`);
 
-      if (older.length > 0 && isScrollingRef.current) {
-        // [ISOLATION-TEST-DISABLED] defer-until-momentum-end bypass
-        console.log(`[DIAG-DEFER-BYPASS] Would have deferred ${older.length} msgs — committing immediately instead. isScrolling=${isScrollingRef.current}`);
-        prependOlder(conversationId, older, res.hasMore || false, res.nextCursor);
-        // Original defer logic commented out below:
-        // pendingOlderRef.current = {
-        //   older,
-        //   resHasMore: res.hasMore || false,
-        //   resNextCursor: res.nextCursor || older[0].createdAt,
-        //   conversationId,
-        // };
-        // cursorRef.current = res.nextCursor || older[0].createdAt;
-        // [/ISOLATION-TEST-DISABLED]
+      const nextCursor = res.nextCursor || (older.length > 0 ? older[0].createdAt : null);
+
+      if (older.length > 0) {
+        prependOlder(conversationId, older, res.hasMore || false, nextCursor);
       } else {
-        // Not scrolling (or nothing came back) — commit immediately, in one
-        // atomic setMessages call.
-        prependOlder(conversationId, older, res.hasMore || false, res.nextCursor);
+        setHasMore(res.hasMore || false);
       }
     } catch (err) {
       console.error("[useChatPagination] loadOlderMessages error:", err);
@@ -201,7 +179,7 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
       isLoadingRef.current = false;
       setLoadingOlder(false);
     }
-  }, [messages, prependOlder]);
+  }, [messages, prependOlder, setHasMore]);
 
   // ── addNewMessage ──────────────────────────────────────────────────────────
   // Inserts a new message (outgoing send or Supabase realtime INSERT).
@@ -266,7 +244,6 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     convIdRef.current   = null;
     newestAtRef.current = null;
     isLoadingRef.current = false;
-    pendingOlderRef.current = null;
   }, [setHasMore]);
 
   // ── bootstrapPaginationState ───────────────────────────────────────────────
@@ -305,6 +282,5 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     newestAtRef,
     isLoadingRef,
     isScrollingRef,
-    flushPendingOlder,
   };
 }
