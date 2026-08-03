@@ -148,12 +148,23 @@ export default function ChatScreen({ route, navigation }) {
     hideAlert,
   });
 
+  const initialCorrectionRafRef = useRef(null);
   const runInitialCorrectionAndRevealRef = useRef(null);
+
   const runInitialCorrectionAndReveal = useCallback(() => {
     if (hasCorrectedInitialLayoutRef.current) return;
     if (messagesState.messages.length === 0) return;
     hasCorrectedInitialLayoutRef.current = true;
-    requestAnimationFrame(() => {
+
+    if (initialCorrectionRafRef.current) {
+      cancelAnimationFrame(initialCorrectionRafRef.current);
+    }
+
+    initialCorrectionRafRef.current = requestAnimationFrame(() => {
+      initialCorrectionRafRef.current = null;
+      console.log(
+        `[IMPERATIVE-SCROLL] runInitialCorrectionAndReveal called scrollToEnd at t=${Date.now()}`,
+      );
       flashListRef.current?.scrollToEnd({ animated: false });
       listRevealOpacity.value = withTiming(1, { duration: 50 }, () => {
         isListSettledRef.current = true;
@@ -181,7 +192,12 @@ export default function ChatScreen({ route, navigation }) {
       isListSettledRef.current = true;
     }, 150);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (initialCorrectionRafRef.current) {
+        cancelAnimationFrame(initialCorrectionRafRef.current);
+      }
+    };
   }, [currentConversationId, listRevealOpacity]);
 
   const initState = useChatInitialization({
@@ -298,6 +314,7 @@ export default function ChatScreen({ route, navigation }) {
     );
   }, [messagesState.loadingOlder]);
 
+  /*
   const shouldShowAvatar = useCallback((message, nextMessage, isMine) => {
     if (isMine) return false;
     if (!nextMessage) return true;
@@ -311,6 +328,7 @@ export default function ChatScreen({ route, navigation }) {
     const diff = Math.abs(timeB - timeA);
     return diff > 60000;
   }, []);
+  */
 
   const renderItem = useCallback(
     ({ item, index }) => {
@@ -332,15 +350,8 @@ export default function ChatScreen({ route, navigation }) {
           ? String(msg.senderId) === String(initState.currentUser?.id)
           : String(msg.senderId) !== String(recipientState.recipient?.id ?? recipientId);
 
-      const nextItem = messagesState.flatListData[index + 1];
-      const nextMsg = nextItem?.type === "message" ? nextItem.data : null;
-      const showAvatar = isMyMessage
-        ? false
-        : (msg._showAvatar ?? shouldShowAvatar(msg, nextMsg, isMyMessage));
-      const showSenderName =
-        isGroup &&
-        !isMyMessage &&
-        (!nextMsg || nextMsg.senderId !== msg.senderId);
+      const showAvatar = isMyMessage ? false : Boolean(msg._showAvatar);
+      const showSenderName = isMyMessage ? false : Boolean(msg._showSenderName);
 
       return (
         <MessageRow
@@ -376,8 +387,6 @@ export default function ChatScreen({ route, navigation }) {
       recipientState.recipient,
       recipientState.isBlockedByOther,
       recipientId,
-      shouldShowAvatar,
-      messagesState.flatListData,
       messagesState.highlightedMessageId,
       messagesState.clearHighlight,
       messagesState.handleReply,

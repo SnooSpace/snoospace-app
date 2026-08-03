@@ -32,55 +32,105 @@ const ChatMessageList = React.memo(
     onViewableItemsChangedRef,
   }) => {
     const visibleItemsRef = React.useRef([]);
-    const auditPrependRef = React.useRef(null);
+    const frozenBeforeSnapshotRef = React.useRef(null);
 
     React.useEffect(() => {
-      global.__PAGINATION_AUDIT_CALLBACK__ = (auditBefore, prependedCount) => {
-        auditPrependRef.current = {
-          beforeId: auditBefore.beforeId,
-          beforeIndex: auditBefore.beforeIndex,
-          prependedCount,
+      console.log("[FLASHLIST-LIFECYCLE] ChatMessageList MOUNTED ✅");
+      return () => console.log("[FLASHLIST-LIFECYCLE] ChatMessageList UNMOUNTED 🔴");
+    }, []);
+
+    const prevRenderItemRef = React.useRef(renderItem);
+    React.useEffect(() => {
+      const isSame = prevRenderItemRef.current === renderItem;
+      console.log(
+        `[RENDERITEM-DIAG] Is renderItem identity stable (===)?: ${isSame ? "SAME ✅" : "CHANGED 🔴"}`,
+      );
+      prevRenderItemRef.current = renderItem;
+    }, [renderItem]);
+
+    React.useEffect(() => {
+      global.__PAGINATION_AUDIT_CALLBACK__ = (prependedCount) => {
+        console.log("[AUDIT] __PAGINATION_AUDIT_CALLBACK__ invoked.");
+        const before = frozenBeforeSnapshotRef.current;
+        console.log("[AUDIT] Captured frozen snapshot in callback closure:", before);
+
+        if (!before) {
+          console.log("[AUDIT] No frozen BEFORE snapshot found in ref!");
+          return;
+        }
+
+        const runAuditCheck = (label) => {
+          const currentViewable = visibleItemsRef.current || [];
+          const topItemAfter =
+            currentViewable.length > 0 ? currentViewable[0] : null;
+          const topIdAfter =
+            topItemAfter?.item?.data?.id || topItemAfter?.item?.id || "unknown";
+          const topIndexAfter = topItemAfter?.index ?? -1;
+          const topItemTypeAfter = topItemAfter?.item?.type || "unknown";
+
+          const targetMsgAfter = flatListData?.find(
+            (it) => String(it.data?.id) === String(before.beforeId),
+          )?.data;
+
+          const wasVisibleItemStillVisible = currentViewable.some(
+            (v) => String(v.item?.data?.id || v.item?.id) === String(before.beforeId),
+          );
+          const isAnchoredToNewItem =
+            topIndexAfter >= 0 && topIndexAfter < prependedCount;
+
+          const isSameMsgObject =
+            before.beforeMsgData && targetMsgAfter
+              ? before.beforeMsgData === targetMsgAfter
+              : false;
+
+          const afterOffset = scrollOffsetRef.current;
+          const afterHeight = contentHeightRef.current;
+          const expectedOffsetDelta = afterHeight - before.beforeHeight;
+          const actualOffsetDelta = afterOffset - before.beforeOffset;
+
+          console.log(`[PAGINATION-AUDIT-${label}] ========================================`);
+          console.log(`[PAGINATION-AUDIT-${label}] POST-PREPEND AUDIT (${label}):`);
+          console.log(`  BEFORE: topId=${before.beforeId}, index=${before.beforeIndex}, offset=${before.beforeOffset.toFixed(1)}px, contentHeight=${before.beforeHeight.toFixed(1)}px`);
+          console.log(`  AFTER:  topId=${topIdAfter} (type: ${topItemTypeAfter}), index=${topIndexAfter}, offset=${afterOffset.toFixed(1)}px, contentHeight=${afterHeight.toFixed(1)}px`);
+          console.log(`  EXPECTED offset delta (newH - oldH): ${expectedOffsetDelta.toFixed(1)}px`);
+          console.log(`  ACTUAL offset delta (newOffset - oldOffset): ${actualOffsetDelta.toFixed(1)}px`);
+          console.log(`  ANCHOR PRESERVED?: ${wasVisibleItemStillVisible ? "YES ✅" : "NO ❌"} (anchored to prepended item?: ${isAnchoredToNewItem})`);
+          console.log(`  ANCHOR OBJECT JS REF (===): ${isSameMsgObject}`);
+          console.log(`[PAGINATION-AUDIT-${label}] ========================================`);
         };
+
+        requestAnimationFrame(() => {
+          console.log("[AUDIT] RAF timer fired");
+          runAuditCheck("RAF");
+        });
+        setTimeout(() => {
+          console.log("[AUDIT] T50 timer fired");
+          runAuditCheck("T50");
+        }, 50);
+        setTimeout(() => {
+          console.log("[AUDIT] T150 timer fired");
+          runAuditCheck("T150");
+        }, 150);
+        setTimeout(() => {
+          console.log("[AUDIT] T300 timer fired");
+          runAuditCheck("T300");
+        }, 300);
       };
+
       return () => {
         delete global.__PAGINATION_AUDIT_CALLBACK__;
       };
-    }, []);
+    }, [flatListData]);
 
     const handleViewableItemsChanged = React.useCallback(
       (info) => {
         visibleItemsRef.current = info.viewableItems;
+        const firstVisible = info.viewableItems && info.viewableItems.length > 0 ? info.viewableItems[0] : null;
+        const firstId = firstVisible?.item?.data?.id || firstVisible?.item?.id || "none";
+        console.log(`[LIFECYCLE-TIMELINE] onViewableItemsChanged fired — count=${info.viewableItems.length}, topId=${firstId}, topIndex=${firstVisible?.index}`);
+
         if (onViewableItemsChangedRef && onViewableItemsChangedRef.current) {
           onViewableItemsChangedRef.current(info);
-        }
-        if (auditPrependRef.current) {
-          const audit = auditPrependRef.current;
-          auditPrependRef.current = null;
-          const topItemAfter =
-            info.viewableItems && info.viewableItems.length > 0
-              ? info.viewableItems[0]
-              : null;
-          const topIdAfter =
-            topItemAfter?.item?.data?.id || topItemAfter?.item?.id || "unknown";
-          const topIndexAfter = topItemAfter?.index ?? -1;
-
-          const topItemTypeAfter = topItemAfter?.item?.type || "unknown";
-          const wasVisibleItemStillVisible = info.viewableItems?.some(
-            (v) => (v.item?.data?.id || v.item?.id) === audit.beforeId,
-          );
-          const isAnchoredToNewItem =
-            topIndexAfter >= 0 && topIndexAfter < audit.prependedCount;
-
-          console.log(`[PAGINATION-AUDIT-RESULT] ========================================`);
-          console.log(`[PAGINATION-AUDIT-RESULT] 1. First visible item ID BEFORE prepend: ${audit.beforeId} (type: ${audit.beforeType})`);
-          console.log(`[PAGINATION-AUDIT-RESULT] 2. First visible item index BEFORE prepend: ${audit.beforeIndex}`);
-          console.log(`[PAGINATION-AUDIT-RESULT] 3. Number of prepended items: ${audit.prependedCount}`);
-          console.log(`[PAGINATION-AUDIT-RESULT] 4. First visible item ID AFTER prepend: ${topIdAfter} (type: ${topItemTypeAfter})`);
-          console.log(`[PAGINATION-AUDIT-RESULT] 5. First visible item index AFTER prepend: ${topIndexAfter}`);
-          console.log(`[PAGINATION-AUDIT-RESULT] 6. Previously visible message STILL visible?: ${wasVisibleItemStillVisible}`);
-          console.log(`[PAGINATION-AUDIT-RESULT] 7. FlashList anchored to item type: ${topItemTypeAfter} at index: ${topIndexAfter} (${topIdAfter})`);
-          console.log(`[PAGINATION-AUDIT-RESULT] 8. Anchored to NEWLY PREPENDED item (index < ${audit.prependedCount})?: ${isAnchoredToNewItem}`);
-          console.log(`[PAGINATION-AUDIT-RESULT] ========================================`);
         }
       },
       [onViewableItemsChangedRef],
@@ -92,6 +142,28 @@ const ChatMessageList = React.memo(
       }),
       [],
     );
+
+    /*
+    const maintainVisibleContentPositionConfig = React.useMemo(
+      () => ({
+        autoscrollToBottomThreshold: 0.2,
+        minIndexForVisible: 1,
+      }),
+      [],
+    );
+    */
+
+    const scrollOffsetRef = React.useRef(0);
+    const contentHeightRef = React.useRef(0);
+    const handleScroll = React.useCallback((e) => {
+      if (e?.nativeEvent?.contentOffset?.y !== undefined) {
+        scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+      }
+    }, []);
+
+    const handleContentSizeChange = React.useCallback((w, h) => {
+      contentHeightRef.current = h;
+    }, []);
 
     return (
       <KeyboardAvoidingView
@@ -109,13 +181,19 @@ const ChatMessageList = React.memo(
             <Animated.View
               style={[{ flex: 1 }, { opacity: listRevealOpacity }]}
             >
+              {console.log(
+                `[DATA-ORDER-CHECK] total=${flatListData?.length}, headIds=[${flatListData?.slice(0, 3).map((m) => m.data?.id).join(",")}] ... tailIds=[${flatListData?.slice(-3).map((m) => m.data?.id).join(",")}]`,
+              )}
+              {console.log(
+                `[COMPOSER-INSET-DIAG] paddingBottom=${12 + insets.bottom}px, insets.bottom=${insets.bottom}px`,
+              )}
               <FlashList
                 ref={flashListRef}
                 data={flatListData}
                 keyExtractor={keyExtractor}
                 renderItem={renderItem}
                 getItemType={getItemType}
-                overrideItemLayout={overrideItemLayout}
+                overrideItemLayout={undefined}
                 ListHeaderComponent={renderListHeader}
                 drawDistance={250}
                 showsVerticalScrollIndicator={false}
@@ -123,11 +201,7 @@ const ChatMessageList = React.memo(
                   mainStyles.listContent,
                   { paddingBottom: 12 + insets.bottom },
                 ]}
-                maintainVisibleContentPosition={{
-                  autoscrollToBottomThreshold: 0.2,
-                  minIndexForVisible: 1,
-                  startRenderingFromBottom: true,
-                }}
+                maintainVisibleContentPosition={undefined}
                 onScrollBeginDrag={() => {
                   if (isScrollingRef) isScrollingRef.current = true;
                   canTriggerStartReachedRef.current = true;
@@ -157,17 +231,25 @@ const ChatMessageList = React.memo(
                       topItemBefore?.item?.data?.id || topItemBefore?.item?.id || "unknown";
                     const beforeIndex = topItemBefore?.index ?? -1;
                     const beforeType = topItemBefore?.item?.type || "unknown";
+                    const beforeOffset = scrollOffsetRef.current;
+                    const beforeHeight = contentHeightRef.current;
 
-                    global.__PAGINATION_AUDIT_BEFORE__ = {
+                    const beforeMsgData = topItemBefore?.item?.data;
+                    const frozenBeforeSnapshot = Object.freeze({
                       beforeId,
                       beforeIndex,
                       beforeType,
-                    };
-                    console.log(`[PAGINATION-AUDIT-TRIGGER] StartReached triggered. Top visible item BEFORE: id=${beforeId}, index=${beforeIndex}`);
+                      beforeMsgData,
+                      beforeOffset,
+                      beforeHeight,
+                    });
+                    frozenBeforeSnapshotRef.current = frozenBeforeSnapshot;
+                    console.log(`[PAGINATION-AUDIT-TRIGGER] Frozen BEFORE Snapshot captured: topId=${beforeId}, index=${beforeIndex}, offset=${beforeOffset.toFixed(1)}px, contentHeight=${beforeHeight.toFixed(1)}px`);
                     loadOlderMessages(currentConversationId);
                   }
                 }}
-                onScroll={() => {}}
+                onScroll={handleScroll}
+                onContentSizeChange={handleContentSizeChange}
                 onStartReachedThreshold={0.5}
                 scrollEventThrottle={16}
                 onLayout={() => {

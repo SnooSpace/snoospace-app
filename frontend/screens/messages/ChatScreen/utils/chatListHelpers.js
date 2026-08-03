@@ -107,7 +107,7 @@ export const isCardUnavailable = (messageType, metadata) => {
 export const overrideItemLayout = (layout, item) => {
   if (!item || !item.data) return;
   const msg = item.data;
-  const separatorExtra = msg._isFirstOfDay ? 36 : 0;
+  const separatorExtra = msg._isFirstOfDay ? 40 : 0;
 
   if (msg.messageType === "system") {
     layout.size = 32 + separatorExtra;
@@ -144,7 +144,7 @@ export const overrideItemLayout = (layout, item) => {
     return;
   }
 
-  let size = 55;
+  let size = 59;
   if (msg._showSenderName) size += 18;
   if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 63;
   const len = msg.messageText ? msg.messageText.length : 0;

@@ -76,6 +76,7 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     }
 
     let updatedList = [];
+    let prependedCount = 0;
     setMessages(prev => {
       const existingIds = new Set(prev.map(m => m.id));
       const fresh = older.filter(m => !existingIds.has(m.id));
@@ -83,23 +84,20 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
         updatedList = prev;
         return prev;
       }
+      prependedCount = fresh.length;
       updatedList = [...fresh, ...prev];
-      console.log(`[PAGINATION-PREPEND] Prepending ${fresh.length} msgs immediately (single commit). prevLen=${prev.length} newTotal=${updatedList.length}`);
+      console.log(`[LIFECYCLE-TIMELINE] 1. Prepend setMessages executed — fresh=${fresh.length}, total=${updatedList.length}`);
       return updatedList;
     });
 
     cursorRef.current = resNextCursor || (older.length > 0 ? older[0].createdAt : null);
     setHasMore(resHasMore || false);
 
-    if (global.__PAGINATION_AUDIT_BEFORE__) {
-      const auditBefore = global.__PAGINATION_AUDIT_BEFORE__;
-      delete global.__PAGINATION_AUDIT_BEFORE__;
-      const freshCount = older.length;
-      setTimeout(() => {
-        if (global.__PAGINATION_AUDIT_CALLBACK__) {
-          global.__PAGINATION_AUDIT_CALLBACK__(auditBefore, freshCount);
-        }
-      }, 50);
+    console.log(
+      `[AUDIT] callback exists? ${Boolean(global.__PAGINATION_AUDIT_CALLBACK__)}`,
+    );
+    if (global.__PAGINATION_AUDIT_CALLBACK__) {
+      global.__PAGINATION_AUDIT_CALLBACK__(prependedCount);
     }
 
     setCachedConversation(conversationId, {
