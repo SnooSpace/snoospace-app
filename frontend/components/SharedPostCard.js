@@ -112,6 +112,7 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style, isMy
             velocity: e.velocityX,
           });
           currentIndexShared.value = target;
+          runOnJS(syncActiveIndex)(target);
         }),
     [allImageUrls.length, CARD_WIDTH],
   );

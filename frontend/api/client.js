@@ -163,26 +163,17 @@ async function tryRefreshAndRetry(
       activeAccount?.authToken &&
       activeAccount.authToken !== failedToken
     ) {
-      console.log(
-        "[tryRefreshAndRetry] ✨ Token already updated by another request. Retrying immediately.",
-      );
       return doRequest(activeAccount.authToken);
     }
 
     // 2. REFRESH LOCKING:
     // If a refresh is already in progress for this account, wait for it.
     if (accountId && refreshingPromises.has(accountId)) {
-      console.log(
-        `[tryRefreshAndRetry] ⏳ Waiting for parallel refresh for account: ${accountId}`,
-      );
       await refreshingPromises.get(accountId);
 
       // After waiting, get the newest token and retry
       const updatedAccount = await authModule.getActiveAccount();
       if (updatedAccount?.authToken) {
-        console.log(
-          "[tryRefreshAndRetry] ✨ Parallel refresh finished. Retrying with new token.",
-        );
         return doRequest(updatedAccount.authToken);
       }
       throw new Error("Unauthorized");
@@ -348,10 +339,6 @@ async function tryRefreshAndRetry(
           compositeId,
           newAccess,
           newRefresh,
-        );
-        console.log(
-          "[tryRefreshAndRetry] Tokens updated for account:",
-          compositeId,
         );
       } else {
         // Fallback to old behavior if no account context (legacy support)
