@@ -28,9 +28,10 @@ import {
   TouchableOpacity,
   Pressable,
   ScrollView,
+  Animated,
 } from "react-native";
 import { Image } from "expo-image";
-import { ImagePlus, Send, X } from "lucide-react-native";
+import { ImagePlus, Send, X, AlertCircle } from "lucide-react-native";
 import { getVideoThumbnailAsync } from "expo-video-thumbnails";
 
 import CustomImagePicker from "./CustomImagePicker";
@@ -64,6 +65,35 @@ const ChatComposerInner = (
   const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
   const [videoPreviewing, setVideoPreviewing] = useState(null);
 
+  const [toastVisible, setToastVisible] = useState(false);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTimerRef = useRef(null);
+
+  const triggerLimitToast = useCallback(() => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    setToastVisible(true);
+    toastOpacity.setValue(0);
+    Animated.timing(toastOpacity, {
+      toValue: 1,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
+
+    toastTimerRef.current = setTimeout(() => {
+      Animated.timing(toastOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) {
+          setToastVisible(false);
+        }
+      });
+    }, 2000);
+  }, [toastOpacity]);
+
   const inputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
@@ -74,6 +104,9 @@ const ChatComposerInner = (
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
     };
   }, []);
 
@@ -110,6 +143,9 @@ const ChatComposerInner = (
   // Local text change handler -> notifies parent via onTyping callback
   const handleTextChange = useCallback(
     (text) => {
+      if (text.length >= 1000) {
+        triggerLimitToast();
+      }
       setMessageText(text);
 
       if (onTyping) {
@@ -131,7 +167,7 @@ const ChatComposerInner = (
         }, TYPING_STOP_DELAY);
       }
     },
-    [onTyping],
+    [onTyping, triggerLimitToast],
   );
 
   // Unmount cleanup: cancel timer and guarantee server receives typing_stop
@@ -377,6 +413,16 @@ const ChatComposerInner = (
           onSend={handleVideoSendConfirm}
         />
       )}
+
+      {/* Red toast centered in chat view when message limit (1,000 chars) is reached */}
+      {toastVisible && (
+        <View style={styles.toastOverlay} pointerEvents="none">
+          <Animated.View style={[styles.toastBox, { opacity: toastOpacity }]}>
+            <AlertCircle size={16} color="#FFFFFF" strokeWidth={2.5} style={{ marginRight: 6 }} />
+            <Text style={styles.toastText}>Message limit reached (1,000 chars)</Text>
+          </Animated.View>
+        </View>
+      )}
     </View>
   );
 };
@@ -385,6 +431,35 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "column",
     backgroundColor: "#F7F9FC",
+  },
+  toastOverlay: {
+    position: "absolute",
+    bottom: 220,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 9999,
+  },
+  toastBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E53935",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    maxWidth: 280,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  toastText: {
+    fontFamily: "Manrope-SemiBold",
+    fontSize: 13,
+    color: "#FFFFFF",
+    textAlign: "center",
   },
   inputContent: {
     flexDirection: "row",
