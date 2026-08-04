@@ -22,6 +22,7 @@ const ChatMessageList = React.memo(
     isLoadingRef,
     isScrollingRef,
     canTriggerStartReachedRef,
+    isListSettledRef,
     currentConversationId,
     loadOlderMessages,
     runInitialCorrectionAndReveal,
@@ -66,13 +67,13 @@ const ChatMessageList = React.memo(
         const prevH = contentHeightRef.current;
         contentHeightRef.current = h;
         console.log(
-          `[CONTENT-SIZE-DIAG] t=${Date.now()}ms - h: ${prevH.toFixed(1)}px -> ${h.toFixed(1)}px (delta: ${(h - prevH).toFixed(1)}px), msgs=${flatListData?.length}, paginating=${Boolean(isLoadingRef?.current)}`,
+          `[CONTENT-SIZE-DIAG] t=${Date.now()}ms - h: ${prevH.toFixed(1)}px -> ${h.toFixed(1)}px (delta: ${(h - prevH).toFixed(1)}px), scrollY=${scrollOffsetRef.current.toFixed(1)}px, msgs=${flatListData?.length}, paginating=${Boolean(isLoadingRef?.current)}, isScrolling=${Boolean(isScrollingRef?.current)}`,
         );
         if (h > 0 && runInitialCorrectionAndReveal) {
-          runInitialCorrectionAndReveal(h);
+          runInitialCorrectionAndReveal(h, "contentSizeChange");
         }
       },
-      [flatListData?.length, isLoadingRef, runInitialCorrectionAndReveal],
+      [flatListData?.length, isLoadingRef, isScrollingRef, runInitialCorrectionAndReveal],
     );
 
     return (
@@ -108,10 +109,12 @@ const ChatMessageList = React.memo(
                 maintainVisibleContentPosition={maintainVisibleContentPositionConfig}
                 onScrollBeginDrag={() => {
                   if (isScrollingRef) isScrollingRef.current = true;
+                  if (isListSettledRef) isListSettledRef.current = true;
                   canTriggerStartReachedRef.current = true;
                 }}
                 onMomentumScrollBegin={() => {
                   if (isScrollingRef) isScrollingRef.current = true;
+                  if (isListSettledRef) isListSettledRef.current = true;
                 }}
                 onMomentumScrollEnd={() => {
                   if (isScrollingRef) isScrollingRef.current = false;
@@ -121,6 +124,10 @@ const ChatMessageList = React.memo(
                   if (isScrollingRef) isScrollingRef.current = false;
                 }}
                 onStartReached={() => {
+                  console.log(
+                    `[PAGINATION-DIAG] onStartReached fired — hasMore=${hasMore}, isLoading=${Boolean(isLoadingRef?.current)}, canTrigger=${canTriggerStartReachedRef.current}, scrollY=${scrollOffsetRef.current.toFixed(1)}px, contentH=${contentHeightRef.current.toFixed(1)}px`,
+                  );
+                  if (isListSettledRef) isListSettledRef.current = true;
                   if (
                     hasMore &&
                     !isLoadingRef.current &&
