@@ -216,6 +216,42 @@ const MessageRow = React.memo(
     renderCountRef.current += 1;
     const prevHeightRef = React.useRef(null);
 
+    React.useEffect(() => {
+      console.log(`[ROW-MOUNT] id=${msg?.id}`);
+      return () => {
+        console.log(`[ROW-UNMOUNT] id=${msg?.id}`);
+      };
+    }, [msg?.id]);
+
+    const prevPropsRef = React.useRef(null);
+    React.useEffect(() => {
+      if (prevPropsRef.current) {
+        const prev = prevPropsRef.current;
+        const changed = [];
+        if (prev.msgId !== msg?.id) changed.push("id");
+        if (prev.showAvatar !== showAvatar) changed.push("showAvatar");
+        if (prev.showSenderName !== showSenderName) changed.push("showSenderName");
+        if (prev.isFirstOfDay !== msg?._isFirstOfDay) changed.push("isFirstOfDay");
+        if (prev.text !== msg?.messageText) changed.push("text");
+        if (prev.recipient !== recipient) changed.push("recipient");
+        if (prev.currentUser !== currentUser) changed.push("currentUser");
+        if (changed.length > 0) {
+          console.log(
+            `[ROW-UPDATE-REASON] id=${msg?.id} renderCount=${renderCountRef.current} changed=[${changed.join(", ")}]`,
+          );
+        }
+      }
+      prevPropsRef.current = {
+        msgId: msg?.id,
+        showAvatar,
+        showSenderName,
+        isFirstOfDay: msg?._isFirstOfDay,
+        text: msg?.messageText,
+        recipient,
+        currentUser,
+      };
+    });
+
     const handleRowLayout = React.useCallback(
       (e) => {
         const h = Math.round(e.nativeEvent.layout.height);
@@ -591,46 +627,26 @@ const MessageRow = React.memo(
     );
   },
   (prev, next) => {
-    const diffs = [];
-    const prevId = prev.item?.data?.id;
-    const nextId = next.item?.data?.id;
+    const prevMsg = prev.item?.data;
+    const nextMsg = next.item?.data;
 
-    if (String(prevId ?? "") !== String(nextId ?? "")) {
-      diffs.push(
-        `item.data.id(prev=${prevId}:${typeof prevId}, next=${nextId}:${typeof nextId})`,
-      );
-    }
-    if (prev.item !== next.item) {
-      diffs.push(
-        `itemWrapperRef(sameMsgData=${prev.item?.data === next.item?.data})`,
-      );
-    }
-    if (prev.item?.data?.isDeleted !== next.item?.data?.isDeleted)
-      diffs.push("item.data.isDeleted");
-    if (prev.item?.data?._isFirstOfDay !== next.item?.data?._isFirstOfDay)
-      diffs.push("item.data._isFirstOfDay");
-    if (prev.isMyMessage !== next.isMyMessage) diffs.push("isMyMessage");
-    if (prev.showAvatar !== next.showAvatar) diffs.push("showAvatar");
-    if (prev.showSenderName !== next.showSenderName)
-      diffs.push("showSenderName");
-    if (prev.isGroup !== next.isGroup) diffs.push("isGroup");
-    if (prev.currentUser?.id !== next.currentUser?.id)
-      diffs.push("currentUser.id");
-    if (prev.currentUser?.avatarUri !== next.currentUser?.avatarUri)
-      diffs.push("currentUser.avatarUri");
-    if (prev.recipient?.id !== next.recipient?.id) diffs.push("recipient.id");
-    if (prev.recipient?.profilePhotoUrl !== next.recipient?.profilePhotoUrl)
-      diffs.push("recipient.profilePhotoUrl");
-    if (prev.recipient?.name !== next.recipient?.name)
-      diffs.push("recipient.name");
-    if (prev.recipientId !== next.recipientId) diffs.push("recipientId");
-    if (prev.isBlockedByOther !== next.isBlockedByOther)
-      diffs.push("isBlockedByOther");
-    if (prev.isHighlighted !== next.isHighlighted) diffs.push("isHighlighted");
+    if (!prevMsg || !nextMsg) return false;
+    if (prevMsg !== nextMsg && prevMsg.id !== nextMsg.id) return false;
+    if (prevMsg.messageText !== nextMsg.messageText) return false;
+    if (prevMsg.isDeleted !== nextMsg.isDeleted) return false;
+    if (prevMsg._isFirstOfDay !== nextMsg._isFirstOfDay) return false;
+    if (prevMsg._showAvatar !== nextMsg._showAvatar) return false;
+    if (prevMsg._showSenderName !== nextMsg._showSenderName) return false;
+    if (prev.isMyMessage !== next.isMyMessage) return false;
+    if (prev.showAvatar !== next.showAvatar) return false;
+    if (prev.showSenderName !== next.showSenderName) return false;
+    if (prev.isGroup !== next.isGroup) return false;
+    if (prev.currentUser?.id !== next.currentUser?.id) return false;
+    if (prev.recipient?.id !== next.recipient?.id) return false;
+    if (prev.isBlockedByOther !== next.isBlockedByOther) return false;
+    if (prev.isHighlighted !== next.isHighlighted) return false;
+    if (prev.rsvpLoading !== next.rsvpLoading) return false;
 
-    if (diffs.length > 0) {
-      return false;
-    }
     return true;
   },
 );

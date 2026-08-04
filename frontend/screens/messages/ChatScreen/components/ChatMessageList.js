@@ -57,8 +57,16 @@ const ChatMessageList = React.memo(
     const scrollOffsetRef = React.useRef(0);
     const contentHeightRef = React.useRef(0);
     const handleScroll = React.useCallback((e) => {
-      if (e?.nativeEvent?.contentOffset?.y !== undefined) {
-        scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+      if (e?.nativeEvent) {
+        const y = e.nativeEvent.contentOffset.y;
+        const cH = e.nativeEvent.contentSize.height;
+        const lH = e.nativeEvent.layoutMeasurement.height;
+        const maxOffset = cH - lH;
+        const distFromBottom = maxOffset - y;
+        scrollOffsetRef.current = y;
+        console.log(
+          `[SCROLL-GEOMETRY-DIAG] t=${Date.now()}ms scrollY=${y.toFixed(1)}px contentH=${cH.toFixed(1)}px layoutH=${lH.toFixed(1)}px maxOffset=${maxOffset.toFixed(1)}px distFromBottom=${distFromBottom.toFixed(1)}px`,
+        );
       }
     }, []);
 
@@ -136,6 +144,11 @@ const ChatMessageList = React.memo(
                     canTriggerStartReachedRef.current = false;
                     loadOlderMessages(currentConversationId);
                   }
+                }}
+                onBlankArea={(blankAreaEvent) => {
+                  console.log(
+                    `[BLANK-AREA-DIAG] t=${Date.now()}ms offsetStart=${blankAreaEvent.offsetStart} offsetEnd=${blankAreaEvent.offsetEnd} blankArea=${blankAreaEvent.blankArea}`,
+                  );
                 }}
                 onScroll={handleScroll}
                 onContentSizeChange={handleContentSizeChange}

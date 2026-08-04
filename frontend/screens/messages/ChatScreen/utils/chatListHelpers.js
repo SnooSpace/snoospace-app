@@ -61,12 +61,30 @@ export const buildMessageList = (messages, isGroup) => {
       !older ||
       older.senderId !== msg.senderId ||
       Math.abs((msg._time || 0) - (older._time || 0)) > 60000;
-
-    msg._isFirstOfDay = isFirstOfDay;
-    msg._dateSeparatorLabel = isFirstOfDay ? formatSeparatorLabel(msg.createdAt) : null;
-    msg._showAvatar = isDifferentSenderOrTime;
-    msg._showSenderName =
+    const showSenderName =
       isGroup && (!older || older.senderId !== msg.senderId);
+
+    const prevFirstOfDay = msg._isFirstOfDay;
+    const prevAvatar = msg._showAvatar;
+    const prevSender = msg._showSenderName;
+
+    const hasChanged =
+      prevFirstOfDay !== isFirstOfDay ||
+      prevAvatar !== isDifferentSenderOrTime ||
+      prevSender !== showSenderName;
+
+    if (hasChanged) {
+      if (prevFirstOfDay !== undefined) {
+        console.log(
+          `[GROUPING-DIFF] id=${msg.id} prevFirstOfDay=${prevFirstOfDay}->${isFirstOfDay} prevAvatar=${prevAvatar}->${isDifferentSenderOrTime} prevSender=${prevSender}->${showSenderName}`,
+        );
+      }
+      msg._isFirstOfDay = isFirstOfDay;
+      msg._dateSeparatorLabel = isFirstOfDay ? formatSeparatorLabel(msg.createdAt) : null;
+      msg._showAvatar = isDifferentSenderOrTime;
+      msg._showSenderName = showSenderName;
+      _msgWrapperCache.delete(msg.id);
+    }
 
     let wrapper = _msgWrapperCache.get(msg.id);
     if (!wrapper || wrapper.data !== msg) {
@@ -158,7 +176,6 @@ export const getItemTypeHelper = (item, { currentUser, isGroup, recipient, recip
   if (!item) return "unknown";
   if (item.type === "date_separator" || item.type === "separator")
     return "date_separator";
-  if (item.type === "system") return "system";
   if (item.type === "message") {
     const msg = item.data;
     const isMyMsg = isGroup
@@ -166,31 +183,31 @@ export const getItemTypeHelper = (item, { currentUser, isGroup, recipient, recip
         (msg.senderType || "member") === (currentUser?.type || "member")
       : msg.senderId !== (recipient?.id || recipientId);
     const dir = isMyMsg ? "_out" : "_in";
-
-    if (msg.isDeleted) return `deleted${dir}`;
-    if (msg.messageType === "system") return `system${dir}`;
+    const sep = msg._isFirstOfDay ? "_sep" : "";
+    if (msg.isDeleted) return `deleted${dir}${sep}`;
+    if (msg.messageType === "system") return `system${dir}${sep}`;
 
     const mType = msg.messageType;
-    if (mType === "ticket") return `ticket${dir}`;
-    if (mType === "event_share") return `event_share${dir}`;
-    if (mType === "plan_share") return `plan_share${dir}`;
-    if (mType === "opportunity_share") return `opportunity_share${dir}`;
-    if (mType === "post_share") return `post_share${dir}`;
-    if (mType === "video") return `video${dir}`;
+    if (mType === "ticket") return `ticket${dir}${sep}`;
+    if (mType === "event_share") return `event_share${dir}${sep}`;
+    if (mType === "plan_share") return `plan_share${dir}${sep}`;
+    if (mType === "opportunity_share") return `opportunity_share${dir}${sep}`;
+    if (mType === "post_share") return `post_share${dir}${sep}`;
+    if (mType === "video") return `video${dir}${sep}`;
 
     if (mType === "image" || mType === "multi_media") {
       const mediaList =
         msg.media ||
         (msg.mediaUrl ? [{ url: msg.mediaUrl, type: mType }] : []);
       const count = mediaList.length;
-      if (count <= 1) return `image_single${dir}`;
-      if (count === 2) return `image_grid2${dir}`;
-      if (count === 3) return `image_grid3${dir}`;
-      return `image_grid4${dir}`;
+      if (count <= 1) return `image_single${dir}${sep}`;
+      if (count === 2) return `image_grid2${dir}${sep}`;
+      if (count === 3) return `image_grid3${dir}${sep}`;
+      return `image_grid4${dir}${sep}`;
     }
 
-    if (msg.replyToId) return `text_reply${dir}`;
-    return `text${dir}`;
+    if (msg.replyToId) return `text_reply${dir}${sep}`;
+    return `text${dir}${sep}`;
   }
   return "default";
 };
