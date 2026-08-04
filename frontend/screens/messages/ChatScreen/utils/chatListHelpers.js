@@ -55,7 +55,10 @@ export const buildMessageList = (messages, isGroup) => {
       older._dateString = d.toDateString();
     }
 
-    const isFirstOfDay = !older || msg._dateString !== older._dateString;
+    let isFirstOfDay = !older || msg._dateString !== older._dateString;
+    if (msg._isFirstOfDay === true) {
+      isFirstOfDay = true;
+    }
     const isDifferentSenderOrTime =
       isFirstOfDay ||
       !older ||
