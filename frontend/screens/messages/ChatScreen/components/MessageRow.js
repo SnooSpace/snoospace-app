@@ -10,7 +10,7 @@ import SharedOpportunityCard from "../../../../components/SharedOpportunityCard"
 import SharedEventCard from "../../../../components/SharedEventCard";
 import SharedPlanCard from "../../../../components/SharedPlanCard";
 
-import { formatTime, avatarColorFor, formatSeparatorLabel, prependMetrics, computeEstimatedMessageHeight, getMessageCategory, virtualizationAuditTracker, contentHeightAuditTracker } from "../utils/chatListHelpers";
+import { formatTime, avatarColorFor, formatSeparatorLabel, prependMetrics, computeEstimatedMessageHeight, getMessageCategory } from "../utils/chatListHelpers";
 import { mainStyles } from "../ChatScreen.styles";
 import { sepStyles, quoteStyles, MESSAGE_TEXT_COLOR, MAX_BUBBLE_WIDTH } from "./MessageRow.styles";
 import { longMsgTracer } from "./ChatMessageList";
@@ -248,74 +248,16 @@ const MessageRow = React.memo(
     const renderCountRef = React.useRef(0);
     renderCountRef.current += 1;
 
-    React.useEffect(() => {
-      if (isLongMessage) {
-        const estH = computeEstimatedMessageHeight(msg);
-        virtualizationAuditTracker.logMount(msg, estH, longMsgTracer.scrollY);
-
-        const vTop = longMsgTracer.scrollY;
-        const vBottom = vTop + longMsgTracer.viewportHeight;
-        longMsgTracer.logEvent(
-          "STEP 1: Cell Mount",
-          `msgId=${msg?.id} textLen=${msg?.messageText?.length} viewport=[Y:${Math.round(vTop)}..${Math.round(vBottom)}]`,
-        );
-        return () => {
-          virtualizationAuditTracker.logUnmount(msg?.id);
-          longMsgTracer.logEvent("Cell Unmount", `msgId=${msg?.id}`);
-        };
-      }
-    }, [isLongMessage, msg?.id]);
-
-    if (isLongMessage) {
-      const renderMs = (performance.now() - renderStartMs).toFixed(2);
-      longMsgTracer.logEvent(
-        "STEP 2: React Render End",
-        `msgId=${msg?.id} renderCount=${renderCountRef.current} JS_renderDuration=${renderMs}ms`,
-      );
-    }
-
-    const firstHeightRef = React.useRef(null);
-
-    const logChildLayout = React.useCallback(
-      (childName) => (e) => {
-        const h = Math.round(e.nativeEvent.layout.height);
-        if (isLongMessage) {
-          longMsgTracer.logEvent(
-            `Child Layout: ${childName}`,
-            `msgId=${msg?.id} h=${h}px`,
-          );
-        }
-      },
-      [isLongMessage, msg?.id],
-    );
-
     const handleRowLayout = React.useCallback(
       (e) => {
-        const h = Math.round(e.nativeEvent.layout.height);
-        if (msg) {
-          contentHeightAuditTracker.logRowLayout(msg, h);
-        }
-        if (isLongMessage) {
-          virtualizationAuditTracker.logLayout(msg, h);
-          longMsgTracer.logEvent(
-            "STEP 4: Row onLayout",
-            `msgId=${msg?.id} measuredHeight=${h}px`,
-          );
-        }
-        if (firstHeightRef.current == null) {
-          firstHeightRef.current = h;
-        } else if (Math.abs(h - firstHeightRef.current) > 1) {
-          console.log(
-            `[POST-MOUNT-RESIZE-DETECTED] msgId=${msg?.id} type=${msg?.messageType} initialH: ${firstHeightRef.current}px -> newH: ${h}px (delta: ${h - firstHeightRef.current}px)`,
-          );
-        }
         if (prependMetrics.active && msg) {
+          const h = Math.round(e.nativeEvent.layout.height);
           const estH = computeEstimatedMessageHeight(msg);
           const cat = getMessageCategory(msg);
           prependMetrics.recordHeightDelta(cat, estH, h, msg);
         }
       },
-      [isLongMessage, msg],
+      [msg],
     );
 
     if (msg.messageType === "system") {
@@ -499,6 +441,7 @@ const MessageRow = React.memo(
               ) : null}
               <SharedPostCard
                 metadata={msg.metadata}
+                isMyMessage={isMyMessage}
                 onPress={onPressPostShare}
                 onUserPress={onPressUser}
               />
@@ -535,6 +478,7 @@ const MessageRow = React.memo(
               ) : null}
               <SharedOpportunityCard
                 metadata={msg.metadata}
+                isMyMessage={isMyMessage}
                 onPress={onPressOpportunity}
               />
             </View>
@@ -568,7 +512,11 @@ const MessageRow = React.memo(
                   onPress={() => onPressReplyQuote(msg.replyToMessageId)}
                 />
               ) : null}
-              <SharedEventCard metadata={msg.metadata} onPress={onPressEvent} />
+              <SharedEventCard
+                metadata={msg.metadata}
+                isMyMessage={isMyMessage}
+                onPress={onPressEvent}
+              />
             </View>
           </View>
         </View>
@@ -600,7 +548,11 @@ const MessageRow = React.memo(
                   onPress={() => onPressReplyQuote(msg.replyToMessageId)}
                 />
               ) : null}
-              <SharedPlanCard metadata={msg.metadata} onPress={onPressPlan} />
+              <SharedPlanCard
+                metadata={msg.metadata}
+                isMyMessage={isMyMessage}
+                onPress={onPressPlan}
+              />
             </View>
           </View>
         </View>
@@ -622,7 +574,7 @@ const MessageRow = React.memo(
         }}
       >
         {msg.replyToMessageId ? (
-          <View onLayout={logChildLayout("replyQuote")}>
+          <View>
             {msg.replyPreview ? (
               <ReplyQuote
                 msgId={msg.id}
@@ -636,7 +588,6 @@ const MessageRow = React.memo(
           </View>
         ) : null}
         <View
-          onLayout={logChildLayout("messageBubble")}
           style={[
             mainStyles.messageBubble,
             isMyMessage ? mainStyles.myMessageBubble : mainStyles.otherMessageBubble,
@@ -649,12 +600,6 @@ const MessageRow = React.memo(
           <Text
             onTextLayout={(e) => {
               if (msg) msg._lineCount = e.nativeEvent.lines?.length;
-              if (isLongMessage) {
-                longMsgTracer.logEvent(
-                  "STEP 3: Native Text Layout (onTextLayout)",
-                  `msgId=${msg?.id} linesCount=${e.nativeEvent.lines?.length}`,
-                );
-              }
             }}
             style={[
               mainStyles.messageText,
@@ -682,12 +627,9 @@ const MessageRow = React.memo(
     return (
       <View onLayout={handleRowLayout}>
         {isFirstOfDay && dateLabel ? (
-          <View onLayout={logChildLayout("timestampSeparator")}>
-            <TimestampSeparator label={dateLabel} />
-          </View>
+          <TimestampSeparator label={dateLabel} />
         ) : null}
         <View
-          onLayout={logChildLayout("messageContainer")}
           style={[
             mainStyles.messageContainer,
             isMyMessage
@@ -698,14 +640,11 @@ const MessageRow = React.memo(
           {avatarEl}
           <View style={{ flex: 1 }}>
             {showSenderName && (
-              <Text
-                onLayout={logChildLayout("groupSenderName")}
-                style={mainStyles.groupSenderName}
-              >
+              <Text style={mainStyles.groupSenderName}>
                 {msg.senderName || "Unknown"}
               </Text>
             )}
-            <View collapsable={false} onLayout={logChildLayout("bubbleWrapper")}>
+            <View collapsable={false}>
               {bubbleContent}
             </View>
           </View>

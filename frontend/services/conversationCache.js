@@ -103,8 +103,6 @@ export function setCachedConversation(conversationId, { messages, hasMore }) {
 
   const finalHasMore = wasTrimmed ? true : (hasMore !== undefined ? hasMore : true);
 
-  console.log(`[WARM-CACHE-SET] convId=${key} totalCount=${messages?.length} sliceCount=${trimmed.length} oldest=${oldestTime} wasTrimmed=${wasTrimmed} finalHasMore=${finalHasMore}`);
-
   const entry = {
     messages: trimmed,
     cursor: oldestTime,

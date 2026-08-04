@@ -101,7 +101,7 @@ export const isEventUnavailable = (id) => {
  *
  * Matches the layout and style of EventCard in a compact view.
  */
-const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
+const SharedEventCard = React.memo(({ metadata, onPress, style, isMyMessage = false }) => {
   if (!metadata) return null;
 
   const {
@@ -288,8 +288,8 @@ const SharedEventCard = React.memo(({ metadata, onPress, style }) => {
   // ── Deleted / not-found state ──────────────────────────────────────────────
   if (deleted) {
     return (
-      <View style={[styles.container, styles.compactContainer, style]}>
-        <UnavailableCard label="Event" id={targetId} />
+      <View style={[styles.container, styles.compactContainer, style, { alignSelf: isMyMessage ? "flex-end" : "flex-start" }]}>
+        <UnavailableCard label="Event" id={targetId} isMyMessage={isMyMessage} />
       </View>
     );
   }
@@ -423,6 +423,7 @@ const styles = StyleSheet.create({
   compactContainer: {
     minHeight: 0,
     marginVertical: 4,
+    width: "auto",
   },
   compactLoadingCard: {
     height: 44,

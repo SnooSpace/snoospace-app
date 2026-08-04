@@ -64,7 +64,7 @@ export const isPlanUnavailable = (id) => {
   return isCardUnavailableSync("plan_share", { planId: id });
 };
 
-const SharedPlanCard = React.memo(({ metadata, onPress, style }) => {
+const SharedPlanCard = React.memo(({ metadata, onPress, style, isMyMessage = false }) => {
   if (!metadata) return null;
 
   const {
@@ -180,8 +180,8 @@ const SharedPlanCard = React.memo(({ metadata, onPress, style }) => {
 
   if (deleted) {
     return (
-      <View style={[styles.container, styles.compactContainer, style]}>
-        <UnavailableCard label="Plan" id={targetId} />
+      <View style={[styles.container, styles.compactContainer, style, { alignSelf: isMyMessage ? "flex-end" : "flex-start" }]}>
+        <UnavailableCard label="Plan" id={targetId} isMyMessage={isMyMessage} />
       </View>
     );
   }
@@ -280,6 +280,7 @@ const styles = StyleSheet.create({
   compactContainer: {
     minHeight: 0,
     marginVertical: 4,
+    width: "auto",
   },
   compactLoadingCard: {
     height: 44,

@@ -56,12 +56,10 @@ export async function getUserProfile(email, forceRefresh = false) {
   const key = email.toLowerCase().trim();
 
   if (!forceRefresh && cachedProfileMap.has(key)) {
-    console.log(`[api/auth] Returning memory cached profile for: ${key}`);
     return cachedProfileMap.get(key);
   }
 
   if (inFlightProfileRequests.has(key)) {
-    console.log(`[api/auth] Joining in-flight profile request for: ${key}`);
     return inFlightProfileRequests.get(key);
   }
 
@@ -70,7 +68,6 @@ export async function getUserProfile(email, forceRefresh = false) {
       const token = await getAuthToken();
       if (!token) return null;
 
-      console.log(`[api/auth] Executing single deduplicated /auth/get-user-profile request for: ${key}`);
       const { apiPost } = require("./client");
       const res = await apiPost("/auth/get-user-profile", { email: key }, 15000, token);
       if (res) {

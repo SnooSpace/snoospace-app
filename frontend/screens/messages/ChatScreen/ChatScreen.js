@@ -148,37 +148,14 @@ export default function ChatScreen({ route, navigation }) {
     hideAlert,
   });
 
-  useEffect(() => {
-    console.log(`[TIMELINE-DIAG] t=${Date.now()}ms - ChatScreen mounted`);
-  }, []);
-
-  useEffect(() => {
-    console.log(
-      `[TIMELINE-DIAG] t=${Date.now()}ms - messages.length changed to ${messagesState.messages.length}`,
-    );
-  }, [messagesState.messages.length]);
-
   const initialCorrectionRafRef = useRef(null);
   const runInitialCorrectionAndRevealRef = useRef(null);
 
   const runInitialCorrectionAndReveal = useCallback(
     (contentHeight, reason = "contentSizeChange") => {
-      console.log(
-        `[INITIAL-REVEAL] t=${Date.now()}ms reason=${reason} contentHeight=${contentHeight}px msgs=${messagesState.messages.length} isScrolling=${Boolean(messagesState.isScrollingRef.current)} isLoadingOlder=${Boolean(messagesState.isLoadingRef.current)} canTriggerStart=${canTriggerStartReachedRef.current} hasCorrected=${hasCorrectedInitialLayoutRef.current} isSettled=${isListSettledRef.current}`,
-      );
-
-      if (isListSettledRef.current) {
-        console.log(`[INITIAL-REVEAL] SKIPPED: initial settlement complete (live list mode)`);
-        return;
-      }
-      if (messagesState.isScrollingRef.current) {
-        console.log(`[INITIAL-REVEAL] SKIPPED: user is actively scrolling`);
-        return;
-      }
-      if (messagesState.messages.length === 0) {
-        console.log(`[INITIAL-REVEAL] SKIPPED: messages.length is 0`);
-        return;
-      }
+      if (isListSettledRef.current) return;
+      if (messagesState.isScrollingRef.current) return;
+      if (messagesState.messages.length === 0) return;
 
       hasCorrectedInitialLayoutRef.current = true;
 
@@ -188,14 +165,8 @@ export default function ChatScreen({ route, navigation }) {
 
       initialCorrectionRafRef.current = requestAnimationFrame(() => {
         initialCorrectionRafRef.current = null;
-        console.log(
-          `[SCROLL-TO-END] t=${Date.now()}ms reason=${reason} contentHeight=${contentHeight ?? "settled"}px msgs=${messagesState.messages.length} isLoadingOlder=${Boolean(messagesState.isLoadingRef.current)} isScrolling=${Boolean(messagesState.isScrollingRef.current)}`,
-        );
         flashListRef.current?.scrollToEnd({ animated: false });
         if (listRevealOpacity.value === 0) {
-          console.log(
-            `[LIST-REVEAL-DIAG] t=${Date.now()}ms - Fading listRevealOpacity from 0 -> 1`,
-          );
           listRevealOpacity.value = withTiming(1, { duration: 50 });
         }
       });
@@ -206,16 +177,10 @@ export default function ChatScreen({ route, navigation }) {
   runInitialCorrectionAndRevealRef.current = runInitialCorrectionAndReveal;
 
   useEffect(() => {
-    console.log(
-      `[LIST-REVEAL-DIAG] t=${Date.now()}ms - useEffect check: msgs=${messagesState.messages.length}, opacity=${listRevealOpacity.value}, hasCorrected=${hasCorrectedInitialLayoutRef.current}`,
-    );
     if (messagesState.messages.length > 0 && listRevealOpacity.value === 0) {
       if (!hasCorrectedInitialLayoutRef.current) {
         runInitialCorrectionAndReveal();
       } else {
-        console.log(
-          `[LIST-REVEAL-DIAG] t=${Date.now()}ms - Fallback trigger setting opacity -> 1`,
-        );
         listRevealOpacity.value = withTiming(1, { duration: 50 });
       }
     }

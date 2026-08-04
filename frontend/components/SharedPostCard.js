@@ -40,7 +40,7 @@ export const isPostUnavailable = (id) => {
  * Displays a compact preview card with post thumbnail, author info, and caption.
  * Supports multi-image carousel with dot indicator and stacked-image badge.
  */
-const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) => {
+const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style, isMyMessage = false }) => {
   // Extract metadata from message
   const { postId, authorId, authorType, imageUrl, caption, authorUsername, author_username, authorName, author_name } = metadata || {};
   const metaUsername = authorUsername || author_username;
@@ -207,8 +207,8 @@ const SharedPostCard = React.memo(({ metadata, onPress, onUserPress, style }) =>
   // Error state (deleted post or failed to load)
   if (error || !postData) {
     return (
-      <View style={[styles.container, styles.compactContainer, style]}>
-        <UnavailableCard label="Post" id={postId} />
+      <View style={[styles.container, styles.compactContainer, style, { alignSelf: isMyMessage ? "flex-end" : "flex-start" }]}>
+        <UnavailableCard label="Post" id={postId} isMyMessage={isMyMessage} />
       </View>
     );
   }
@@ -565,6 +565,7 @@ const styles = StyleSheet.create({
   compactContainer: {
     minHeight: 0,
     marginVertical: 4,
+    width: "auto",
   },
   compactLoadingCard: {
     height: 44,

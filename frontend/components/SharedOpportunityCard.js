@@ -116,7 +116,7 @@ export const isOpportunityUnavailable = (id) => {
  * someone shares an opportunity (message_type === "opportunity_share").
  * Matches the layout and style of OpportunityFeedCard in a compact view.
  */
-const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
+const SharedOpportunityCard = React.memo(({ metadata, onPress, style, isMyMessage = false }) => {
   const navigation = useNavigation();
 
   if (!metadata) return null;
@@ -298,7 +298,7 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
 
   return (
     <TouchableOpacity
-      style={[styles.container, (loading || deleted) && styles.compactContainer, style]}
+      style={[styles.container, (loading || deleted) && styles.compactContainer, style, { alignSelf: isMyMessage ? "flex-end" : "flex-start" }]}
       onPress={loading || deleted ? undefined : handlePress}
       activeOpacity={loading || deleted ? 1 : 0.9}
     >
@@ -307,7 +307,7 @@ const SharedOpportunityCard = React.memo(({ metadata, onPress, style }) => {
           <SnooLoader size="small" color={COLORS.primary} />
         </View>
       ) : deleted ? (
-        <UnavailableCard label="Opportunity" id={targetId} />
+        <UnavailableCard label="Opportunity" id={targetId} isMyMessage={isMyMessage} />
       ) : (
         // Resolved valid opportunity — full card.
         // May grow taller than 240px — that's intentional and fine.
@@ -486,6 +486,7 @@ const styles = StyleSheet.create({
   compactContainer: {
     minHeight: 0,
     marginVertical: 4,
+    width: "auto",
   },
   compactLoadingCard: {
     height: 44,
