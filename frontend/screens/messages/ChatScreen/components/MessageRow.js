@@ -10,9 +10,10 @@ import SharedOpportunityCard from "../../../../components/SharedOpportunityCard"
 import SharedEventCard from "../../../../components/SharedEventCard";
 import SharedPlanCard from "../../../../components/SharedPlanCard";
 
-import { formatTime, avatarColorFor, formatSeparatorLabel, prependMetrics, computeEstimatedMessageHeight, getMessageCategory } from "../utils/chatListHelpers";
+import { formatTime, avatarColorFor, formatSeparatorLabel, prependMetrics, computeEstimatedMessageHeight, getMessageCategory, virtualizationAuditTracker, contentHeightAuditTracker } from "../utils/chatListHelpers";
 import { mainStyles } from "../ChatScreen.styles";
-import { sepStyles, quoteStyles, MESSAGE_TEXT_COLOR } from "./MessageRow.styles";
+import { sepStyles, quoteStyles, MESSAGE_TEXT_COLOR, MAX_BUBBLE_WIDTH } from "./MessageRow.styles";
+import { longMsgTracer } from "./ChatMessageList";
 
 export const GroupAvatar = ({ photoUrl, name, size = 30 }) => {
   const initials = (name || "?")
@@ -237,9 +238,40 @@ const MessageRow = React.memo(
     onPressReplyQuote,
     navigationRef,
   }) => {
+    const renderStartMs = performance.now();
     const msg = item.data;
     if (prependMetrics.active) {
       prependMetrics.messageRowRenders++;
+    }
+
+    const isLongMessage = Boolean(msg?.messageText && msg.messageText.length > 200);
+    const renderCountRef = React.useRef(0);
+    renderCountRef.current += 1;
+
+    React.useEffect(() => {
+      if (isLongMessage) {
+        const estH = computeEstimatedMessageHeight(msg);
+        virtualizationAuditTracker.logMount(msg, estH, longMsgTracer.scrollY);
+
+        const vTop = longMsgTracer.scrollY;
+        const vBottom = vTop + longMsgTracer.viewportHeight;
+        longMsgTracer.logEvent(
+          "STEP 1: Cell Mount",
+          `msgId=${msg?.id} textLen=${msg?.messageText?.length} viewport=[Y:${Math.round(vTop)}..${Math.round(vBottom)}]`,
+        );
+        return () => {
+          virtualizationAuditTracker.logUnmount(msg?.id);
+          longMsgTracer.logEvent("Cell Unmount", `msgId=${msg?.id}`);
+        };
+      }
+    }, [isLongMessage, msg?.id]);
+
+    if (isLongMessage) {
+      const renderMs = (performance.now() - renderStartMs).toFixed(2);
+      longMsgTracer.logEvent(
+        "STEP 2: React Render End",
+        `msgId=${msg?.id} renderCount=${renderCountRef.current} JS_renderDuration=${renderMs}ms`,
+      );
     }
 
     const firstHeightRef = React.useRef(null);
@@ -247,16 +279,29 @@ const MessageRow = React.memo(
     const logChildLayout = React.useCallback(
       (childName) => (e) => {
         const h = Math.round(e.nativeEvent.layout.height);
-        console.log(
-          `[CHILD-LAYOUT] msgId=${msg?.id} child=${childName} h=${h}px`,
-        );
+        if (isLongMessage) {
+          longMsgTracer.logEvent(
+            `Child Layout: ${childName}`,
+            `msgId=${msg?.id} h=${h}px`,
+          );
+        }
       },
-      [msg?.id],
+      [isLongMessage, msg?.id],
     );
 
     const handleRowLayout = React.useCallback(
       (e) => {
         const h = Math.round(e.nativeEvent.layout.height);
+        if (msg) {
+          contentHeightAuditTracker.logRowLayout(msg, h);
+        }
+        if (isLongMessage) {
+          virtualizationAuditTracker.logLayout(msg, h);
+          longMsgTracer.logEvent(
+            "STEP 4: Row onLayout",
+            `msgId=${msg?.id} measuredHeight=${h}px`,
+          );
+        }
         if (firstHeightRef.current == null) {
           firstHeightRef.current = h;
         } else if (Math.abs(h - firstHeightRef.current) > 1) {
@@ -264,18 +309,13 @@ const MessageRow = React.memo(
             `[POST-MOUNT-RESIZE-DETECTED] msgId=${msg?.id} type=${msg?.messageType} initialH: ${firstHeightRef.current}px -> newH: ${h}px (delta: ${h - firstHeightRef.current}px)`,
           );
         }
-        if (msg.replyToMessageId) {
-          console.log(
-            `[REPLY-LOOKUP] msgId=${msg?.id} replyTo=${msg.replyToMessageId} hasPreview=${Boolean(msg.replyPreview)} previewText="${msg.replyPreview?.messageText?.slice(0, 20) || ""}"`,
-          );
-        }
         if (prependMetrics.active && msg) {
           const estH = computeEstimatedMessageHeight(msg);
           const cat = getMessageCategory(msg);
-          prependMetrics.recordHeightDelta(cat, estH, h);
+          prependMetrics.recordHeightDelta(cat, estH, h, msg);
         }
       },
-      [msg],
+      [isLongMessage, msg],
     );
 
     if (msg.messageType === "system") {
@@ -608,13 +648,18 @@ const MessageRow = React.memo(
         >
           <Text
             onTextLayout={(e) => {
-              console.log(
-                `[TEXT-LAYOUT-TRACK] msgId=${msg?.id} linesCount=${e.nativeEvent.lines?.length} text="${msg?.messageText?.slice(0, 25)}..."`,
-              );
+              if (msg) msg._lineCount = e.nativeEvent.lines?.length;
+              if (isLongMessage) {
+                longMsgTracer.logEvent(
+                  "STEP 3: Native Text Layout (onTextLayout)",
+                  `msgId=${msg?.id} linesCount=${e.nativeEvent.lines?.length}`,
+                );
+              }
             }}
             style={[
               mainStyles.messageText,
               isMyMessage ? mainStyles.myMessageText : mainStyles.otherMessageText,
+              { maxWidth: MAX_BUBBLE_WIDTH - 28 },
             ]}
           >
             {msg.messageText}

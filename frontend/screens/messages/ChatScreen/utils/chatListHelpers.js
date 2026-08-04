@@ -34,6 +34,109 @@ export const getMessageCategory = (msg) => {
   return "TEXT";
 };
 
+export const contentHeightAuditTracker = {
+  knownHeights: new Map(),
+  lastReportedContentH: 0,
+
+  logRowLayout(msg, measuredH) {
+    if (!msg || !msg.id) return;
+    const id = msg.id;
+    const type = msg.messageType || "unknown";
+    const existing = this.knownHeights.get(id) || {
+      type,
+      height: 0,
+      prevHeight: 0,
+      delta: 0,
+      layoutCount: 0,
+    };
+
+    existing.prevHeight = existing.height;
+    existing.height = measuredH;
+    existing.delta = existing.prevHeight > 0 ? existing.height - existing.prevHeight : 0;
+    existing.layoutCount += 1;
+    this.knownHeights.set(id, existing);
+
+    if (existing.layoutCount > 1 && existing.delta !== 0) {
+      console.warn(
+        `⚠️ [ROW-HEIGHT-SHIFT] msgId=${id} | type=${type} | prevH=${existing.prevHeight}px -> newH=${measuredH}px | delta=${existing.delta > 0 ? "+" : ""}${existing.delta}px | layout#=${existing.layoutCount}`,
+      );
+    }
+  },
+
+  logContentSizeChange(newContentH) {
+    const prevH = this.lastReportedContentH;
+    const contentDelta = newContentH - prevH;
+    this.lastReportedContentH = newContentH;
+
+    if (prevH > 0 && Math.abs(contentDelta) > 10) {
+      let sumMeasured = 0;
+      const changedRows = [];
+      this.knownHeights.forEach((data, id) => {
+        sumMeasured += data.height;
+        if (data.delta !== 0 && data.layoutCount > 1) {
+          changedRows.push(`msgId=${id}(${data.type}: ${data.delta > 0 ? "+" : ""}${data.delta}px)`);
+        }
+      });
+
+      console.log(
+        `🔍 [CONTENT-SIZE-AUDIT] ContentH: ${prevH}px -> ${newContentH}px (delta: ${contentDelta > 0 ? "+" : ""}${contentDelta}px) | Sum Measured Rows: ${sumMeasured}px | Recently Changed Rows: ${changedRows.length > 0 ? changedRows.join(", ") : "NONE (FlashList Geometry Refinement)"}`,
+      );
+    }
+  },
+};
+
+export const virtualizationAuditTracker = {
+  activeMsgs: new Map(),
+
+  logMount(msg, estH, scrollY) {
+    if (!msg || !msg.id) return;
+    const isLong = Boolean(msg.messageText && msg.messageText.length > 200);
+    if (!isLong) return;
+
+    const id = msg.id;
+    const existing = this.activeMsgs.get(id) || {
+      mountCount: 0,
+      unmountCount: 0,
+      layoutCount: 0,
+      heights: [],
+      lastMountTime: performance.now(),
+    };
+    existing.mountCount += 1;
+    existing.lastMountTime = performance.now();
+    this.activeMsgs.set(id, existing);
+
+    console.log(
+      `[VIRTUALIZATION-AUDIT][MOUNT #${existing.mountCount}] msgId=${id} | len=${msg.messageText.length} | estH=${estH}px | scrollY=${Math.round(scrollY)}px`,
+    );
+  },
+
+  logUnmount(msgId) {
+    const existing = this.activeMsgs.get(msgId);
+    if (existing) {
+      existing.unmountCount += 1;
+      const lifetime = (performance.now() - existing.lastMountTime).toFixed(1);
+      console.log(
+        `[VIRTUALIZATION-AUDIT][UNMOUNT #${existing.unmountCount}] msgId=${msgId} | lifetime=${lifetime}ms`,
+      );
+    }
+  },
+
+  logLayout(msg, measuredH) {
+    const id = msg?.id;
+    const existing = this.activeMsgs.get(id);
+    if (existing) {
+      existing.layoutCount += 1;
+      existing.heights.push(measuredH);
+      const isReMeasured = existing.layoutCount > 1;
+      const initialH = existing.heights[0];
+      const delta = measuredH - initialH;
+      console.log(
+        `[VIRTUALIZATION-AUDIT][LAYOUT #${existing.layoutCount}] msgId=${id} | measuredH=${measuredH}px | firstH=${initialH}px | deltaFromFirst=${delta}px | reMeasured=${isReMeasured}`,
+      );
+    }
+  },
+};
+
 export const prependMetrics = {
   active: false,
   tApiResolved: 0,
@@ -78,11 +181,32 @@ export const prependMetrics = {
     this.dumpTimer = null;
   },
 
-  recordHeightDelta(category, estimatedH, measuredH) {
+  recordHeightDelta(category, estimatedH, measuredH, msg = null) {
     if (!this.active) return;
     const signedDiff = measuredH - estimatedH;
     const absDiff = Math.abs(signedDiff);
-    this.heightDeltas.push({ category, estimatedH, measuredH, signedDiff, absDiff });
+    const itemInfo = {
+      category,
+      estimatedH,
+      measuredH,
+      signedDiff,
+      absDiff,
+      msgId: msg?.id || "N/A",
+      messageType: msg?.messageType || category,
+      textLength: msg?.messageText ? msg.messageText.length : 0,
+      linesCount: msg?._lineCount ?? "N/A",
+      hasReply: Boolean(msg?.replyToMessageId || msg?.replyPreview),
+      hasMetadata: Boolean(msg?.metadata),
+      showSenderName: Boolean(msg?._showSenderName),
+      showAvatar: Boolean(msg?._showAvatar),
+    };
+    this.heightDeltas.push(itemInfo);
+
+    if (absDiff > 100) {
+      console.warn(
+        `🚨 [ESTIMATION OUTLIER] msgId=${itemInfo.msgId} | type=${itemInfo.messageType} | len=${itemInfo.textLength} | est=${estimatedH}px | measured=${measuredH}px | error=${signedDiff > 0 ? "+" : ""}${signedDiff}px | lines=${itemInfo.linesCount} | reply=${itemInfo.hasReply} | metadata=${itemInfo.hasMetadata}`,
+      );
+    }
   },
 
   recordContentHeightEvent(h) {
@@ -125,6 +249,8 @@ export const prependMetrics = {
     }
 
     let accuracyStats = "";
+    let outlierReport = "";
+
     if (this.heightDeltas.length > 0) {
       const absDiffs = this.heightDeltas.map((d) => d.absDiff);
       const signedDiffs = this.heightDeltas.map((d) => d.signedDiff);
@@ -141,9 +267,9 @@ export const prependMetrics = {
       const p95Signed = sortedSigned[Math.floor(sortedSigned.length * 0.95)];
 
       const byCat = {};
-      this.heightDeltas.forEach(({ category, signedDiff }) => {
-        if (!byCat[category]) byCat[category] = [];
-        byCat[category].push(signedDiff);
+      this.heightDeltas.forEach((d) => {
+        if (!byCat[d.category]) byCat[d.category] = [];
+        byCat[d.category].push(d.signedDiff);
       });
 
       const catLines = Object.keys(byCat)
@@ -155,6 +281,16 @@ export const prependMetrics = {
         })
         .join("\n");
 
+      const outliers = this.heightDeltas.filter((d) => d.absDiff > 100);
+      if (outliers.length > 0) {
+        outlierReport = `\n[ESTIMATION OUTLIERS (|Error| > 100px): ${outliers.length} rows]\n` +
+          outliers
+            .map((o) => `  • msgId=${o.msgId} | type=${o.messageType} | textLen=${o.textLength} | est=${o.estimatedH}px | measured=${o.measuredH}px | err=${o.signedDiff > 0 ? "+" : ""}${o.signedDiff}px | lines=${o.linesCount} | reply=${o.hasReply} | meta=${o.hasMetadata}`)
+            .join("\n");
+      } else {
+        outlierReport = `\n[ESTIMATION OUTLIERS (|Error| > 100px)]: NONE\n`;
+      }
+
       accuracyStats = `
 [HEIGHT ESTIMATION ACCURACY (Signed: Measured - Estimated)]
 • Measured Sample Size : ${sortedAbs.length} rows
@@ -164,7 +300,7 @@ export const prependMetrics = {
 • Signed 95th Percent  : ${p95Signed > 0 ? "+" : ""}${p95Signed} px
 
 [PER-CATEGORY SIGNED ERROR BREAKDOWN]
-${catLines}`;
+${catLines}${outlierReport}`;
     }
 
     console.log(`
@@ -367,10 +503,18 @@ export const computeEstimatedMessageHeight = (msg) => {
   let size = 38 + 25;
   if (msg._showSenderName) size += 16;
   if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 46;
-  const len = msg.messageText ? msg.messageText.length : 0;
-  if (len > 115) size += 36 + Math.ceil((len - 115) / 40) * 18;
-  else if (len > 75) size += 36;
-  else if (len > 35) size += 18;
+
+  const text = msg.messageText || "";
+  if (text.length > 0) {
+    const lines = text.split("\n");
+    let lineCount = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const lineLen = lines[i].length;
+      lineCount += Math.max(1, Math.ceil(lineLen / 26));
+    }
+    const LINE_HEIGHT = 21;
+    size += Math.max(0, lineCount - 1) * LINE_HEIGHT;
+  }
   return size + separatorExtra;
 };
 
@@ -417,8 +561,19 @@ export const getItemTypeHelper = (item, { currentUser, isGroup, recipient, recip
       return `image_grid4${dir}${sep}`;
     }
 
-    if (msg.replyToId) return `text_reply${dir}${sep}`;
-    return `text${dir}${sep}`;
+    const hasReply = Boolean(msg.replyToId || msg.replyToMessageId);
+    const replySuffix = hasReply ? "_reply" : "";
+
+    // Classify text messages into recycling pools by character length!
+    const textLen = msg.messageText ? msg.messageText.length : 0;
+    let sizeClass = "short";
+    if (textLen > 350) {
+      sizeClass = "long";
+    } else if (textLen > 100) {
+      sizeClass = "medium";
+    }
+
+    return `text_${sizeClass}${replySuffix}${dir}${sep}`;
   }
   return "default";
 };

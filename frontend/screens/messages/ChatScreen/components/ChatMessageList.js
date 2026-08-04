@@ -4,7 +4,16 @@ import { FlashList } from "@shopify/flash-list";
 import Animated from "react-native-reanimated";
 import EmptyChatState from "../../../../components/EmptyChatState";
 import { mainStyles, PRIMARY_COLOR } from "../ChatScreen.styles";
-import { keyExtractor, overrideItemLayout, prependMetrics } from "../utils/chatListHelpers";
+import { keyExtractor, overrideItemLayout, prependMetrics, contentHeightAuditTracker } from "../utils/chatListHelpers";
+
+export const longMsgTracer = {
+  scrollY: 0,
+  viewportHeight: 800,
+  logEvent(stage, details) {
+    const t = performance.now().toFixed(2);
+    console.log(`[PHASE2-TIMELINE][t=${t}ms][Y=${Math.round(this.scrollY)}] ${stage} | ${details}`);
+  },
+};
 
 const ChatMessageList = React.memo(
   ({
@@ -56,14 +65,37 @@ const ChatMessageList = React.memo(
 
     const scrollOffsetRef = React.useRef(0);
     const contentHeightRef = React.useRef(0);
+    const lastScrollTimeRef = React.useRef(Date.now());
     const handleScroll = React.useCallback((e) => {
       if (e?.nativeEvent) {
-        scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+        const y = e.nativeEvent.contentOffset.y;
+        scrollOffsetRef.current = y;
+        longMsgTracer.scrollY = y;
+        if (e.nativeEvent.layoutMeasurement?.height) {
+          longMsgTracer.viewportHeight = e.nativeEvent.layoutMeasurement.height;
+        }
+
+        const now = Date.now();
+        const delta = now - lastScrollTimeRef.current;
+        lastScrollTimeRef.current = now;
+        if (delta > 32) {
+          longMsgTracer.logEvent(
+            "STEP 6: Scroll Frame Lag",
+            `gap=${delta}ms | Y=${Math.round(y)}`,
+          );
+        }
       }
     }, []);
 
     const handleContentSizeChange = React.useCallback(
       (w, h) => {
+        contentHeightAuditTracker.logContentSizeChange(h);
+        if (contentHeightRef.current > 0 && Math.abs(h - contentHeightRef.current) > 20) {
+          longMsgTracer.logEvent(
+            "STEP 5: ContentSizeChange",
+            `h:${contentHeightRef.current}px -> ${h}px (delta: ${h - contentHeightRef.current}px)`,
+          );
+        }
         contentHeightRef.current = h;
         if (prependMetrics.active) {
           if (!prependMetrics.tFirstContentSizeChange) {
