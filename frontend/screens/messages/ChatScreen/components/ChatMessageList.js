@@ -4,7 +4,7 @@ import { FlashList } from "@shopify/flash-list";
 import Animated from "react-native-reanimated";
 import EmptyChatState from "../../../../components/EmptyChatState";
 import { mainStyles, PRIMARY_COLOR } from "../ChatScreen.styles";
-import { keyExtractor, overrideItemLayout } from "../utils/chatListHelpers";
+import { keyExtractor, overrideItemLayout, prependMetrics } from "../utils/chatListHelpers";
 
 const ChatMessageList = React.memo(
   ({
@@ -58,30 +58,24 @@ const ChatMessageList = React.memo(
     const contentHeightRef = React.useRef(0);
     const handleScroll = React.useCallback((e) => {
       if (e?.nativeEvent) {
-        const y = e.nativeEvent.contentOffset.y;
-        const cH = e.nativeEvent.contentSize.height;
-        const lH = e.nativeEvent.layoutMeasurement.height;
-        const maxOffset = cH - lH;
-        const distFromBottom = maxOffset - y;
-        scrollOffsetRef.current = y;
-        console.log(
-          `[SCROLL-GEOMETRY-DIAG] t=${Date.now()}ms scrollY=${y.toFixed(1)}px contentH=${cH.toFixed(1)}px layoutH=${lH.toFixed(1)}px maxOffset=${maxOffset.toFixed(1)}px distFromBottom=${distFromBottom.toFixed(1)}px`,
-        );
+        scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
       }
     }, []);
 
     const handleContentSizeChange = React.useCallback(
       (w, h) => {
-        const prevH = contentHeightRef.current;
         contentHeightRef.current = h;
-        console.log(
-          `[CONTENT-SIZE-DIAG] t=${Date.now()}ms - h: ${prevH.toFixed(1)}px -> ${h.toFixed(1)}px (delta: ${(h - prevH).toFixed(1)}px), scrollY=${scrollOffsetRef.current.toFixed(1)}px, msgs=${flatListData?.length}, paginating=${Boolean(isLoadingRef?.current)}, isScrolling=${Boolean(isScrollingRef?.current)}`,
-        );
+        if (prependMetrics.active) {
+          if (!prependMetrics.tFirstContentSizeChange) {
+            prependMetrics.tFirstContentSizeChange = performance.now();
+          }
+          prependMetrics.recordContentHeightEvent(h);
+        }
         if (h > 0 && runInitialCorrectionAndReveal) {
           runInitialCorrectionAndReveal(h, "contentSizeChange");
         }
       },
-      [flatListData?.length, isLoadingRef, isScrollingRef, runInitialCorrectionAndReveal],
+      [runInitialCorrectionAndReveal],
     );
 
     return (
@@ -107,8 +101,9 @@ const ChatMessageList = React.memo(
                 renderItem={renderItem}
                 getItemType={getItemType}
                 overrideItemLayout={overrideItemLayout}
+                estimatedItemSize={70}
                 ListHeaderComponent={renderListHeader}
-                drawDistance={250}
+                drawDistance={1200}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={[
                   mainStyles.listContent,
@@ -127,14 +122,13 @@ const ChatMessageList = React.memo(
                 onMomentumScrollEnd={() => {
                   if (isScrollingRef) isScrollingRef.current = false;
                   canTriggerStartReachedRef.current = true;
+                  if (prependMetrics.active) prependMetrics.scheduleDump();
                 }}
                 onScrollEndDrag={() => {
                   if (isScrollingRef) isScrollingRef.current = false;
+                  if (prependMetrics.active) prependMetrics.scheduleDump();
                 }}
                 onStartReached={() => {
-                  console.log(
-                    `[PAGINATION-DIAG] onStartReached fired — hasMore=${hasMore}, isLoading=${Boolean(isLoadingRef?.current)}, canTrigger=${canTriggerStartReachedRef.current}, scrollY=${scrollOffsetRef.current.toFixed(1)}px, contentH=${contentHeightRef.current.toFixed(1)}px`,
-                  );
                   if (isListSettledRef) isListSettledRef.current = true;
                   if (
                     hasMore &&
@@ -146,9 +140,15 @@ const ChatMessageList = React.memo(
                   }
                 }}
                 onBlankArea={(blankAreaEvent) => {
-                  console.log(
-                    `[BLANK-AREA-DIAG] t=${Date.now()}ms offsetStart=${blankAreaEvent.offsetStart} offsetEnd=${blankAreaEvent.offsetEnd} blankArea=${blankAreaEvent.blankArea}`,
-                  );
+                  if (blankAreaEvent.blankArea > 0 && prependMetrics.active) {
+                    if (!prependMetrics.tBlankStart) {
+                      prependMetrics.tBlankStart = performance.now();
+                    }
+                    prependMetrics.blankEventsCount++;
+                    prependMetrics.tBlankEnd = performance.now();
+                    prependMetrics.blankDurationMs =
+                      prependMetrics.tBlankEnd - prependMetrics.tBlankStart;
+                  }
                 }}
                 onScroll={handleScroll}
                 onContentSizeChange={handleContentSizeChange}

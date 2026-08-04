@@ -43,6 +43,7 @@
 import { useState, useRef, useCallback } from "react";
 import { getMessages } from "../api/messages";
 import { setCachedConversation } from "../services/conversationCache";
+import { prependMetrics } from "../screens/messages/ChatScreen/utils/chatListHelpers";
 
 const OLDER_PAGE_SIZE = 12; // fixed page size for "load older" pagination
 
@@ -77,6 +78,9 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
 
     let updatedList = [];
     let prependedCount = 0;
+
+    prependMetrics.tSetMessages = performance.now();
+
     setMessages(prev => {
       const existingIds = new Set(prev.map(m => m.id));
       const fresh = older.filter(m => !existingIds.has(m.id));
@@ -86,8 +90,14 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
       }
       prependedCount = fresh.length;
       updatedList = [...fresh, ...prev];
-      console.log(`[LIFECYCLE-TIMELINE] 1. Prepend setMessages executed — fresh=${fresh.length}, total=${updatedList.length}`);
+      prependMetrics.totalMessagesCount = updatedList.length;
       return updatedList;
+    });
+
+    queueMicrotask(() => {
+      if (prependMetrics.active && !prependMetrics.tFirstRaf) {
+        prependMetrics.tFirstRaf = performance.now();
+      }
     });
 
     cursorRef.current = resNextCursor || (older.length > 0 ? older[0].createdAt : null);
@@ -130,28 +140,15 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
   // Fetches the next page of older messages and PREPENDS them IMMEDIATELY.
   // Called by FlashList's onStartReached trigger.
   const loadOlderMessages = useCallback(async (conversationId) => {
-    console.log(`[FRONTEND-PAGINATION] loadOlderMessages called — convId=${conversationId} convIdRef=${convIdRef.current} isLoading=${isLoadingRef.current} hasMoreRef=${hasMoreRef.current} cursorRef=${cursorRef.current} msgsCount=${messages.length}`);
-
     if (!conversationId) return;
-    // Auto-bind convIdRef if uninitialized (e.g. on warm open before bootstrap)
     if (!convIdRef.current) convIdRef.current = conversationId;
 
-    if (isLoadingRef.current) {
-      console.log(`[FRONTEND-PAGINATION] BAILED: isLoadingRef is true`);
-      return;
-    }
-    if (!hasMoreRef.current) {
-      console.log(`[FRONTEND-PAGINATION] BAILED: hasMoreRef is false`);
-      return;
-    }
+    if (isLoadingRef.current) return;
+    if (!hasMoreRef.current) return;
 
     const effectiveCursor = cursorRef.current || (messages.length > 0 ? messages[0].createdAt : null);
-    if (!effectiveCursor) {
-      console.log(`[FRONTEND-PAGINATION] BAILED: effectiveCursor is null`);
-      return;
-    }
+    if (!effectiveCursor) return;
 
-    console.log(`[FRONTEND-PAGINATION] FETCHING older messages — before=${effectiveCursor}`);
     isLoadingRef.current = true;
     setLoadingOlder(true);
 
@@ -160,17 +157,17 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
         before: effectiveCursor,
         limit: OLDER_PAGE_SIZE,
       });
-      if (convIdRef.current !== conversationId) {
-        console.log(`[FRONTEND-PAGINATION] BAILED: stale response convIdRef=${convIdRef.current} !== ${conversationId}`);
-        return;
-      }
+      if (convIdRef.current !== conversationId) return;
 
       const older = res.messages || [];
-      console.log(`[FRONTEND-PAGINATION] RECEIVED ${older.length} older messages — res.hasMore=${res.hasMore} res.nextCursor=${res.nextCursor}`);
-
       const nextCursor = res.nextCursor || (older.length > 0 ? older[0].createdAt : null);
 
       if (older.length > 0) {
+        prependMetrics.reset();
+        prependMetrics.active = true;
+        prependMetrics.tApiResolved = performance.now();
+        prependMetrics.newMessagesCount = older.length;
+
         prependOlder(conversationId, older, res.hasMore || false, nextCursor);
       } else {
         setHasMore(res.hasMore || false);

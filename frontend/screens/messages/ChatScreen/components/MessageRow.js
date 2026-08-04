@@ -10,7 +10,7 @@ import SharedOpportunityCard from "../../../../components/SharedOpportunityCard"
 import SharedEventCard from "../../../../components/SharedEventCard";
 import SharedPlanCard from "../../../../components/SharedPlanCard";
 
-import { formatTime, avatarColorFor, formatSeparatorLabel } from "../utils/chatListHelpers";
+import { formatTime, avatarColorFor, formatSeparatorLabel, prependMetrics, computeEstimatedMessageHeight, getMessageCategory } from "../utils/chatListHelpers";
 import { mainStyles } from "../ChatScreen.styles";
 import { sepStyles, quoteStyles, MESSAGE_TEXT_COLOR } from "./MessageRow.styles";
 
@@ -71,7 +71,11 @@ export const TimestampSeparator = React.memo(({ label }) => {
   );
 });
 
-export const ReplyQuote = ({ replyPreview, isMyMessage, onPress }) => {
+export const ReplyQuote = ({ replyPreview, isMyMessage, onPress, msgId }) => {
+  React.useEffect(() => {
+    console.log(`[REPLYQUOTE-MOUNT] msgId=${msgId || "unknown"}`);
+  }, [msgId]);
+
   const isPostShare =
     replyPreview.isPostShare ||
     (!replyPreview.isDeleted && replyPreview.messageText === "Shared a post");
@@ -185,6 +189,28 @@ export const ReplyQuote = ({ replyPreview, isMyMessage, onPress }) => {
   );
 };
 
+export const ReplyQuoteSkeleton = ({ isMyMessage }) => {
+  return (
+    <View style={quoteStyles.wrapper}>
+      <Text
+        style={[
+          quoteStyles.replyLabel,
+          isMyMessage ? quoteStyles.myReplyLabel : quoteStyles.otherReplyLabel,
+        ]}
+      >
+        {isMyMessage ? "You replied" : "Replied"}
+      </Text>
+      <View
+        style={[
+          quoteStyles.container,
+          isMyMessage ? quoteStyles.myContainer : quoteStyles.otherContainer,
+          { height: 42, opacity: 0.35, backgroundColor: "#D0D9E8" },
+        ]}
+      />
+    </View>
+  );
+};
+
 const MessageRow = React.memo(
   ({
     item,
@@ -212,57 +238,44 @@ const MessageRow = React.memo(
     navigationRef,
   }) => {
     const msg = item.data;
-    const renderCountRef = React.useRef(0);
-    renderCountRef.current += 1;
-    const prevHeightRef = React.useRef(null);
+    if (prependMetrics.active) {
+      prependMetrics.messageRowRenders++;
+    }
 
-    React.useEffect(() => {
-      console.log(`[ROW-MOUNT] id=${msg?.id}`);
-      return () => {
-        console.log(`[ROW-UNMOUNT] id=${msg?.id}`);
-      };
-    }, [msg?.id]);
+    const firstHeightRef = React.useRef(null);
 
-    const prevPropsRef = React.useRef(null);
-    React.useEffect(() => {
-      if (prevPropsRef.current) {
-        const prev = prevPropsRef.current;
-        const changed = [];
-        if (prev.msgId !== msg?.id) changed.push("id");
-        if (prev.showAvatar !== showAvatar) changed.push("showAvatar");
-        if (prev.showSenderName !== showSenderName) changed.push("showSenderName");
-        if (prev.isFirstOfDay !== msg?._isFirstOfDay) changed.push("isFirstOfDay");
-        if (prev.text !== msg?.messageText) changed.push("text");
-        if (prev.recipient !== recipient) changed.push("recipient");
-        if (prev.currentUser !== currentUser) changed.push("currentUser");
-        if (changed.length > 0) {
-          console.log(
-            `[ROW-UPDATE-REASON] id=${msg?.id} renderCount=${renderCountRef.current} changed=[${changed.join(", ")}]`,
-          );
-        }
-      }
-      prevPropsRef.current = {
-        msgId: msg?.id,
-        showAvatar,
-        showSenderName,
-        isFirstOfDay: msg?._isFirstOfDay,
-        text: msg?.messageText,
-        recipient,
-        currentUser,
-      };
-    });
+    const logChildLayout = React.useCallback(
+      (childName) => (e) => {
+        const h = Math.round(e.nativeEvent.layout.height);
+        console.log(
+          `[CHILD-LAYOUT] msgId=${msg?.id} child=${childName} h=${h}px`,
+        );
+      },
+      [msg?.id],
+    );
 
     const handleRowLayout = React.useCallback(
       (e) => {
         const h = Math.round(e.nativeEvent.layout.height);
-        if (prevHeightRef.current !== h) {
+        if (firstHeightRef.current == null) {
+          firstHeightRef.current = h;
+        } else if (Math.abs(h - firstHeightRef.current) > 1) {
           console.log(
-            `[ROW-LAYOUT-CHANGE] t=${Date.now()}ms id=${msg?.id} type=${msg?.messageType} h: ${prevHeightRef.current}px -> ${h}px | _isFirstOfDay=${msg?._isFirstOfDay}, showAvatar=${showAvatar}, showSenderName=${showSenderName}, reply=${Boolean(msg?.replyPreview || msg?.replyToId)}, textLen=${msg?.messageText?.length || 0}, renderCount=${renderCountRef.current}`,
+            `[POST-MOUNT-RESIZE-DETECTED] msgId=${msg?.id} type=${msg?.messageType} initialH: ${firstHeightRef.current}px -> newH: ${h}px (delta: ${h - firstHeightRef.current}px)`,
           );
-          prevHeightRef.current = h;
+        }
+        if (msg.replyToMessageId) {
+          console.log(
+            `[REPLY-LOOKUP] msgId=${msg?.id} replyTo=${msg.replyToMessageId} hasPreview=${Boolean(msg.replyPreview)} previewText="${msg.replyPreview?.messageText?.slice(0, 20) || ""}"`,
+          );
+        }
+        if (prependMetrics.active && msg) {
+          const estH = computeEstimatedMessageHeight(msg);
+          const cat = getMessageCategory(msg);
+          prependMetrics.recordHeightDelta(cat, estH, h);
         }
       },
-      [msg?.id, msg?.messageType, msg?._isFirstOfDay, msg?.replyPreview, msg?.replyToId, msg?.messageText, showAvatar, showSenderName],
+      [msg],
     );
 
     if (msg.messageType === "system") {
@@ -554,6 +567,12 @@ const MessageRow = React.memo(
       );
     }
 
+    if (msg.replyToMessageId) {
+      console.log(
+        `[ROW-RENDER] msgId=${msg.id} replyId=${msg.replyToMessageId} hasPreview=${Boolean(msg.replyPreview)} renderReply=${Boolean(msg.replyToMessageId && msg.replyPreview)}`,
+      );
+    }
+
     const bubbleContent = (
       <View
         collapsable={false}
@@ -562,14 +581,22 @@ const MessageRow = React.memo(
           maxWidth: "100%",
         }}
       >
-        {msg.replyToMessageId && msg.replyPreview ? (
-          <ReplyQuote
-            replyPreview={msg.replyPreview}
-            isMyMessage={isMyMessage}
-            onPress={() => onPressReplyQuote(msg.replyToMessageId)}
-          />
+        {msg.replyToMessageId ? (
+          <View onLayout={logChildLayout("replyQuote")}>
+            {msg.replyPreview ? (
+              <ReplyQuote
+                msgId={msg.id}
+                replyPreview={msg.replyPreview}
+                isMyMessage={isMyMessage}
+                onPress={() => onPressReplyQuote(msg.replyToMessageId)}
+              />
+            ) : (
+              <ReplyQuoteSkeleton isMyMessage={isMyMessage} />
+            )}
+          </View>
         ) : null}
         <View
+          onLayout={logChildLayout("messageBubble")}
           style={[
             mainStyles.messageBubble,
             isMyMessage ? mainStyles.myMessageBubble : mainStyles.otherMessageBubble,
@@ -580,6 +607,11 @@ const MessageRow = React.memo(
           ]}
         >
           <Text
+            onTextLayout={(e) => {
+              console.log(
+                `[TEXT-LAYOUT-TRACK] msgId=${msg?.id} linesCount=${e.nativeEvent.lines?.length} text="${msg?.messageText?.slice(0, 25)}..."`,
+              );
+            }}
             style={[
               mainStyles.messageText,
               isMyMessage ? mainStyles.myMessageText : mainStyles.otherMessageText,
@@ -604,8 +636,13 @@ const MessageRow = React.memo(
 
     return (
       <View onLayout={handleRowLayout}>
-        {isFirstOfDay && dateLabel ? <TimestampSeparator label={dateLabel} /> : null}
+        {isFirstOfDay && dateLabel ? (
+          <View onLayout={logChildLayout("timestampSeparator")}>
+            <TimestampSeparator label={dateLabel} />
+          </View>
+        ) : null}
         <View
+          onLayout={logChildLayout("messageContainer")}
           style={[
             mainStyles.messageContainer,
             isMyMessage
@@ -616,11 +653,16 @@ const MessageRow = React.memo(
           {avatarEl}
           <View style={{ flex: 1 }}>
             {showSenderName && (
-              <Text style={mainStyles.groupSenderName}>
+              <Text
+                onLayout={logChildLayout("groupSenderName")}
+                style={mainStyles.groupSenderName}
+              >
                 {msg.senderName || "Unknown"}
               </Text>
             )}
-            <View collapsable={false}>{bubbleContent}</View>
+            <View collapsable={false} onLayout={logChildLayout("bubbleWrapper")}>
+              {bubbleContent}
+            </View>
           </View>
         </View>
       </View>

@@ -45,6 +45,7 @@ import ChatMessageList from "./components/ChatMessageList";
 import ChatInputArea from "./components/ChatInputArea";
 import ChatModals from "./components/ChatModals";
 import MessageRow, { TimestampSeparator } from "./components/MessageRow";
+import { prependMetrics } from "./utils/chatListHelpers";
 
 export default function ChatScreen({ route, navigation }) {
   const {
@@ -352,6 +353,9 @@ export default function ChatScreen({ route, navigation }) {
 
   const renderItem = useCallback(
     ({ item, index }) => {
+      if (prependMetrics.active) {
+        prependMetrics.renderItemCalls++;
+      }
       if (item.type === "separator") {
         return <TimestampSeparator label={item.label} />;
       }
