@@ -153,7 +153,7 @@ export default function ChatScreen({ route, navigation }) {
   const runInitialCorrectionAndRevealRef = useRef(null);
 
   const runInitialCorrectionAndReveal = useCallback(
-    (contentHeight, reason = "contentSizeChange") => {
+    (contentHeight, reason = "settledLayout") => {
       if (hasCorrectedInitialLayoutRef.current) return;
       if (isListSettledRef.current) return;
       if (messagesState.isScrollingRef.current) return;
@@ -177,16 +177,6 @@ export default function ChatScreen({ route, navigation }) {
   );
 
   runInitialCorrectionAndRevealRef.current = runInitialCorrectionAndReveal;
-
-  useEffect(() => {
-    if (messagesState.messages.length > 0 && listRevealOpacity.value === 0) {
-      if (!hasCorrectedInitialLayoutRef.current) {
-        runInitialCorrectionAndReveal();
-      } else {
-        listRevealOpacity.value = withTiming(1, { duration: 50 });
-      }
-    }
-  }, [messagesState.messages.length, runInitialCorrectionAndReveal, listRevealOpacity]);
 
   useEffect(() => {
     hasCorrectedInitialLayoutRef.current = false;

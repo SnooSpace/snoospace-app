@@ -74,11 +74,20 @@ const ChatMessageList = React.memo(
       }
     }, []);
 
+    const settlementTimerRef = React.useRef(null);
+
     const handleContentSizeChange = React.useCallback(
       (w, h) => {
         contentHeightRef.current = h;
+
         if (h > 0 && runInitialCorrectionAndReveal) {
-          runInitialCorrectionAndReveal(h, "contentSizeChange");
+          if (settlementTimerRef.current) {
+            clearTimeout(settlementTimerRef.current);
+          }
+          settlementTimerRef.current = setTimeout(() => {
+            settlementTimerRef.current = null;
+            runInitialCorrectionAndReveal(h, "settledLayout");
+          }, 40);
         }
       },
       [runInitialCorrectionAndReveal],
