@@ -610,7 +610,6 @@ const MessageRow = React.memo(
             style={[
               mainStyles.messageText,
               isMyMessage ? mainStyles.myMessageText : mainStyles.otherMessageText,
-              { maxWidth: MAX_BUBBLE_WIDTH - 28 },
             ]}
           >
             {msg.messageText}

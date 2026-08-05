@@ -2,7 +2,7 @@ import { StyleSheet, Dimensions } from "react-native";
 import { COLORS } from "../../../constants/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-export const MAX_BUBBLE_WIDTH = Math.round(SCREEN_WIDTH * 0.76);
+export const MAX_BUBBLE_WIDTH = Math.round(SCREEN_WIDTH * 0.70);
 
 export const PRIMARY_COLOR = "#3565F2";
 export const ACCENT = PRIMARY_COLOR;
