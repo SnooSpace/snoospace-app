@@ -4,7 +4,7 @@ import { FlashList } from "@shopify/flash-list";
 import Animated from "react-native-reanimated";
 import EmptyChatState from "../../../../components/EmptyChatState";
 import { mainStyles, PRIMARY_COLOR } from "../ChatScreen.styles";
-import { keyExtractor, overrideItemLayout, prependMetrics } from "../utils/chatListHelpers";
+import { keyExtractor, overrideItemLayout } from "../utils/chatListHelpers";
 
 export const longMsgTracer = {
   scrollY: 0,
@@ -76,12 +76,6 @@ const ChatMessageList = React.memo(
     const handleContentSizeChange = React.useCallback(
       (w, h) => {
         contentHeightRef.current = h;
-        if (prependMetrics.active) {
-          if (!prependMetrics.tFirstContentSizeChange) {
-            prependMetrics.tFirstContentSizeChange = performance.now();
-          }
-          prependMetrics.recordContentHeightEvent(h);
-        }
         if (h > 0 && runInitialCorrectionAndReveal) {
           runInitialCorrectionAndReveal(h, "contentSizeChange");
         }
@@ -114,7 +108,7 @@ const ChatMessageList = React.memo(
                 overrideItemLayout={overrideItemLayout}
                 estimatedItemSize={70}
                 ListHeaderComponent={renderListHeader}
-                drawDistance={1200}
+                drawDistance={1000}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={[
                   mainStyles.listContent,
@@ -133,11 +127,9 @@ const ChatMessageList = React.memo(
                 onMomentumScrollEnd={() => {
                   if (isScrollingRef) isScrollingRef.current = false;
                   canTriggerStartReachedRef.current = true;
-                  if (prependMetrics.active) prependMetrics.scheduleDump();
                 }}
                 onScrollEndDrag={() => {
                   if (isScrollingRef) isScrollingRef.current = false;
-                  if (prependMetrics.active) prependMetrics.scheduleDump();
                 }}
                 onStartReached={() => {
                   if (isListSettledRef) isListSettledRef.current = true;
@@ -150,17 +142,7 @@ const ChatMessageList = React.memo(
                     loadOlderMessages(currentConversationId);
                   }
                 }}
-                onBlankArea={(blankAreaEvent) => {
-                  if (blankAreaEvent.blankArea > 0 && prependMetrics.active) {
-                    if (!prependMetrics.tBlankStart) {
-                      prependMetrics.tBlankStart = performance.now();
-                    }
-                    prependMetrics.blankEventsCount++;
-                    prependMetrics.tBlankEnd = performance.now();
-                    prependMetrics.blankDurationMs =
-                      prependMetrics.tBlankEnd - prependMetrics.tBlankStart;
-                  }
-                }}
+
                 onScroll={handleScroll}
                 onContentSizeChange={handleContentSizeChange}
                 onStartReachedThreshold={0.5}

@@ -9,8 +9,9 @@ import SharedPostCard from "../../../../components/SharedPostCard";
 import SharedOpportunityCard from "../../../../components/SharedOpportunityCard";
 import SharedEventCard from "../../../../components/SharedEventCard";
 import SharedPlanCard from "../../../../components/SharedPlanCard";
+import MessageInteractionLayer from "./MessageInteractionLayer";
 
-import { formatTime, avatarColorFor, formatSeparatorLabel, prependMetrics, computeEstimatedMessageHeight, getMessageCategory } from "../utils/chatListHelpers";
+import { formatTime, avatarColorFor, formatSeparatorLabel, computeEstimatedMessageHeight, getMessageCategory } from "../utils/chatListHelpers";
 import { mainStyles } from "../ChatScreen.styles";
 import { sepStyles, quoteStyles, MESSAGE_TEXT_COLOR, MAX_BUBBLE_WIDTH } from "./MessageRow.styles";
 import { longMsgTracer } from "./ChatMessageList";
@@ -237,27 +238,37 @@ const MessageRow = React.memo(
     onPressPlan,
     onPressReplyQuote,
     navigationRef,
+    activeRowId,
+    activeRowIdShared,
+    setActiveRowId,
   }) => {
     const renderStartMs = performance.now();
     const msg = item.data;
-    if (prependMetrics.active) {
-      prependMetrics.messageRowRenders++;
-    }
-
     const isLongMessage = Boolean(msg?.messageText && msg.messageText.length > 200);
-    const renderCountRef = React.useRef(0);
-    renderCountRef.current += 1;
 
-    const handleRowLayout = React.useCallback(
-      (e) => {
-        if (prependMetrics.active && msg) {
-          const h = Math.round(e.nativeEvent.layout.height);
-          const estH = computeEstimatedMessageHeight(msg);
-          const cat = getMessageCategory(msg);
-          prependMetrics.recordHeightDelta(cat, estH, h, msg);
+    const handleSwipe = React.useCallback(
+      ({ payload }) => {
+        if (onReply && payload) {
+          onReply({
+            id: payload.id,
+            messageText: payload.messageText,
+            senderName: isMyMessage
+              ? "You"
+              : payload.senderName || recipient?.name,
+            isDeleted: payload.isDeleted,
+          });
         }
       },
-      [msg],
+      [onReply, isMyMessage, recipient],
+    );
+
+    const handleLongPress = React.useCallback(
+      ({ payload }) => {
+        if (onLongPress && payload) {
+          onLongPress(payload);
+        }
+      },
+      [onLongPress],
     );
 
     if (msg.messageType === "system") {
@@ -598,9 +609,6 @@ const MessageRow = React.memo(
           ]}
         >
           <Text
-            onTextLayout={(e) => {
-              if (msg) msg._lineCount = e.nativeEvent.lines?.length;
-            }}
             style={[
               mainStyles.messageText,
               isMyMessage ? mainStyles.myMessageText : mainStyles.otherMessageText,
@@ -624,8 +632,15 @@ const MessageRow = React.memo(
     const isFirstOfDay = msg._isFirstOfDay;
     const dateLabel = msg._dateSeparatorLabel || (isFirstOfDay ? formatSeparatorLabel(msg.createdAt) : null);
 
+    if (__DEV__) {
+      const dur = performance.now() - renderStartMs;
+      if (dur > 8) {
+        console.log(`[ROW-COST] id=${msg.id} type=${msg.messageType} ${dur.toFixed(1)}ms`);
+      }
+    }
+
     return (
-      <View onLayout={handleRowLayout}>
+      <View>
         {isFirstOfDay && dateLabel ? (
           <TimestampSeparator label={dateLabel} />
         ) : null}
@@ -645,7 +660,19 @@ const MessageRow = React.memo(
               </Text>
             )}
             <View collapsable={false}>
-              {bubbleContent}
+              <MessageInteractionLayer
+                itemKey={msg.id}
+                isMyMessage={isMyMessage}
+                gestureEnabled={!msg.isSystem && !msg.isDeleted}
+                onSwipe={handleSwipe}
+                onLongPress={handleLongPress}
+                payload={msg}
+                activeRowId={activeRowId}
+                activeRowIdShared={activeRowIdShared}
+                setActiveRowId={setActiveRowId}
+              >
+                {bubbleContent}
+              </MessageInteractionLayer>
             </View>
           </View>
         </View>

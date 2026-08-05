@@ -34,94 +34,7 @@ export const getMessageCategory = (msg) => {
   return "TEXT";
 };
 
-export const prependMetrics = {
-  active: false,
-  tApiResolved: 0,
-  tBuildStart: 0,
-  tBuildEnd: 0,
-  tSetMessages: 0,
-  tFirstRaf: 0,
-  tFirstContentSizeChange: 0,
-  tBlankStart: 0,
-  tBlankEnd: 0,
-  blankDurationMs: 0,
-  newMessagesCount: 0,
-  totalMessagesCount: 0,
-  renderItemCalls: 0,
-  messageRowRenders: 0,
-  overrideItemLayoutCalls: 0,
-  blankEventsCount: 0,
-  heightDeltas: [],
-  contentHeightEvents: [],
-  dumpTimer: null,
 
-  reset() {
-    this.active = false;
-    this.tApiResolved = 0;
-    this.tBuildStart = 0;
-    this.tBuildEnd = 0;
-    this.tSetMessages = 0;
-    this.tFirstRaf = 0;
-    this.tFirstContentSizeChange = 0;
-    this.tBlankStart = 0;
-    this.tBlankEnd = 0;
-    this.blankDurationMs = 0;
-    this.newMessagesCount = 0;
-    this.totalMessagesCount = 0;
-    this.renderItemCalls = 0;
-    this.messageRowRenders = 0;
-    this.overrideItemLayoutCalls = 0;
-    this.blankEventsCount = 0;
-    this.heightDeltas = [];
-    this.contentHeightEvents = [];
-    if (this.dumpTimer) clearTimeout(this.dumpTimer);
-    this.dumpTimer = null;
-  },
-
-  recordHeightDelta(category, estimatedH, measuredH, msg = null) {
-    if (!this.active) return;
-    const signedDiff = measuredH - estimatedH;
-    const absDiff = Math.abs(signedDiff);
-    const itemInfo = {
-      category,
-      estimatedH,
-      measuredH,
-      signedDiff,
-      absDiff,
-      msgId: msg?.id || "N/A",
-      messageType: msg?.messageType || category,
-      textLength: msg?.messageText ? msg.messageText.length : 0,
-      linesCount: msg?._lineCount ?? "N/A",
-      hasReply: Boolean(msg?.replyToMessageId || msg?.replyPreview),
-      hasMetadata: Boolean(msg?.metadata),
-      showSenderName: Boolean(msg?._showSenderName),
-      showAvatar: Boolean(msg?._showAvatar),
-    };
-    this.heightDeltas.push(itemInfo);
-
-    if (absDiff > 100) {
-      // Outlier tracking (silenced)
-    }
-  },
-
-  recordContentHeightEvent(h) {
-    if (!this.active) return;
-    const t = performance.now();
-    const relMs = this.tSetMessages ? (t - this.tSetMessages).toFixed(1) : 0;
-    this.contentHeightEvents.push({ h, relMs });
-  },
-
-  scheduleDump() {
-    if (this.dumpTimer) clearTimeout(this.dumpTimer);
-    this.dumpTimer = setTimeout(() => {
-      this.dumpSummary();
-    }, 1500);
-  },
-
-  dumpSummary() {
-    this.reset();
-  },
-};
 
 export const formatTime = (dateString) => {
   if (!dateString) return "";
@@ -150,9 +63,7 @@ export const buildMessageList = (messages, isGroup) => {
   if (!messages || messages.length === 0) return [];
   if (_msgWrapperCache.size > 1000) _msgWrapperCache.clear();
 
-  if (prependMetrics.active) {
-    prependMetrics.tBuildStart = performance.now();
-  }
+
 
   const messageLookup = new Map();
   for (let i = 0; i < messages.length; i++) {
@@ -230,9 +141,7 @@ export const buildMessageList = (messages, isGroup) => {
     result.push(wrapper);
   }
 
-  if (prependMetrics.active) {
-    prependMetrics.tBuildEnd = performance.now();
-  }
+
 
   return result;
 };
@@ -263,14 +172,14 @@ export const isCardUnavailable = (messageType, metadata) => {
 };
 
 export const computeEstimatedMessageHeight = (msg) => {
-  if (!msg) return 70;
+  if (!msg) return 80;
   const separatorExtra = msg._isFirstOfDay ? 36 : 0;
 
   if (msg.messageType === "system") {
-    return 28 + separatorExtra;
+    return 36 + separatorExtra;
   }
   if (msg.isDeleted) {
-    return 36 + separatorExtra;
+    return 44 + separatorExtra;
   }
 
   const isImageOrVideo =
@@ -286,19 +195,19 @@ export const computeEstimatedMessageHeight = (msg) => {
     msg.messageType === "ticket";
 
   if (isImageOrVideo) {
-    return 190 + separatorExtra;
+    return 260 + separatorExtra;
   }
 
   if (isCard) {
     if (isCardUnavailable(msg.messageType, msg.metadata)) {
-      return 40 + separatorExtra;
+      return 50 + separatorExtra;
     }
-    return 220 + separatorExtra;
+    return 380 + separatorExtra;
   }
 
-  let size = 38 + 25;
-  if (msg._showSenderName) size += 16;
-  if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 46;
+  let size = 44 + 25;
+  if (msg._showSenderName) size += 18;
+  if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 68;
 
   const text = msg.messageText || "";
   if (text.length > 0) {
@@ -306,20 +215,21 @@ export const computeEstimatedMessageHeight = (msg) => {
     let lineCount = 0;
     for (let i = 0; i < lines.length; i++) {
       const lineLen = lines[i].length;
-      lineCount += Math.max(1, Math.ceil(lineLen / 26));
+      lineCount += Math.max(1, Math.ceil(lineLen / 22));
     }
-    const LINE_HEIGHT = 21;
+    const LINE_HEIGHT = 22;
     size += Math.max(0, lineCount - 1) * LINE_HEIGHT;
   }
   return size + separatorExtra;
 };
 
 export const overrideItemLayout = (layout, item) => {
-  if (prependMetrics.active) {
-    prependMetrics.overrideItemLayoutCalls++;
+  if (!item) return;
+  if (item.type === "date_separator" || item.type === "separator") {
+    layout.size = 28;
+    return;
   }
-
-  if (!item || !item.data) return;
+  if (!item.data) return;
   layout.size = computeEstimatedMessageHeight(item.data);
 };
 
@@ -357,19 +267,10 @@ export const getItemTypeHelper = (item, { currentUser, isGroup, recipient, recip
       return `image_grid4${dir}${sep}`;
     }
 
-    const hasReply = Boolean(msg.replyToId || msg.replyToMessageId);
-    const replySuffix = hasReply ? "_reply" : "";
-
-    // Classify text messages into recycling pools by character length!
-    const textLen = msg.messageText ? msg.messageText.length : 0;
-    let sizeClass = "short";
-    if (textLen > 350) {
-      sizeClass = "long";
-    } else if (textLen > 100) {
-      sizeClass = "medium";
-    }
-
-    return `text_${sizeClass}${replySuffix}${dir}${sep}`;
+    // Collapse all text messages into unified pools (text_in / text_out / text_in_sep / text_out_sep)
+    // Height is already computed per-item by overrideItemLayout, so dropping sizeClass and replySuffix
+    // maximizes native cell reuse and eliminates unmount/remount churn during flings!
+    return `text${dir}${sep}`;
   }
   return "default";
 };

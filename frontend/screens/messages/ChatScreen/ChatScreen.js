@@ -45,7 +45,6 @@ import ChatMessageList from "./components/ChatMessageList";
 import ChatInputArea from "./components/ChatInputArea";
 import ChatModals from "./components/ChatModals";
 import MessageRow, { TimestampSeparator } from "./components/MessageRow";
-import { prependMetrics } from "./utils/chatListHelpers";
 
 export default function ChatScreen({ route, navigation }) {
   const {
@@ -81,6 +80,8 @@ export default function ChatScreen({ route, navigation }) {
 
   const listRevealOpacity = useSharedValue(0);
   const replyBarHeightShared = useSharedValue(0);
+  const [activeRowId, setActiveRowId] = useState(null);
+  const activeRowIdShared = useSharedValue(null);
 
   const [currentConversationId, setCurrentConversationId] =
     useState(conversationId);
@@ -318,8 +319,8 @@ export default function ChatScreen({ route, navigation }) {
 
   const renderItem = useCallback(
     ({ item, index }) => {
-      if (prependMetrics.active) {
-        prependMetrics.renderItemCalls++;
+      if (__DEV__) {
+        console.log(`[RECYCLE] idx=${index} id=${item.data?.id || item.label || "sep"} t=${performance.now().toFixed(1)}`);
       }
       if (item.type === "separator") {
         return <TimestampSeparator label={item.label} />;
@@ -367,6 +368,9 @@ export default function ChatScreen({ route, navigation }) {
           onPressPlan={messagesState.handlePressPlan}
           onPressReplyQuote={messagesState.scrollToMessage}
           navigationRef={navigationRef}
+          activeRowId={activeRowId}
+          activeRowIdShared={activeRowIdShared}
+          setActiveRowId={setActiveRowId}
         />
       );
     },
@@ -389,6 +393,9 @@ export default function ChatScreen({ route, navigation }) {
       messagesState.handlePressPlan,
       messagesState.scrollToMessage,
       messagesState.rsvpLoadingRef,
+      activeRowId,
+      activeRowIdShared,
+      setActiveRowId,
     ],
   );
 

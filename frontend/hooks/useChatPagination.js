@@ -43,7 +43,6 @@
 import { useState, useRef, useCallback } from "react";
 import { getMessages } from "../api/messages";
 import { setCachedConversation } from "../services/conversationCache";
-import { prependMetrics } from "../screens/messages/ChatScreen/utils/chatListHelpers";
 
 const OLDER_PAGE_SIZE = 12; // fixed page size for "load older" pagination
 
@@ -79,8 +78,6 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     let updatedList = [];
     let prependedCount = 0;
 
-    prependMetrics.tSetMessages = performance.now();
-
     setMessages(prev => {
       const existingIds = new Set(prev.map(m => m.id));
       const fresh = older.filter(m => !existingIds.has(m.id));
@@ -90,14 +87,7 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
       }
       prependedCount = fresh.length;
       updatedList = [...fresh, ...prev];
-      prependMetrics.totalMessagesCount = updatedList.length;
       return updatedList;
-    });
-
-    queueMicrotask(() => {
-      if (prependMetrics.active && !prependMetrics.tFirstRaf) {
-        prependMetrics.tFirstRaf = performance.now();
-      }
     });
 
     cursorRef.current = resNextCursor || (older.length > 0 ? older[0].createdAt : null);
@@ -151,23 +141,23 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
 
     isLoadingRef.current = true;
     setLoadingOlder(true);
+    const fetchStart = performance.now();
 
     try {
       const res = await getMessages(conversationId, {
         before: effectiveCursor,
         limit: OLDER_PAGE_SIZE,
       });
+      const fetchDur = (performance.now() - fetchStart).toFixed(0);
+      if (__DEV__) {
+        console.log(`[FETCH-OLDER] cursor=${effectiveCursor} took=${fetchDur}ms count=${res.messages?.length || 0} hasMore=${res.hasMore}`);
+      }
       if (convIdRef.current !== conversationId) return;
 
       const older = res.messages || [];
       const nextCursor = res.nextCursor || (older.length > 0 ? older[0].createdAt : null);
 
       if (older.length > 0) {
-        prependMetrics.reset();
-        prependMetrics.active = true;
-        prependMetrics.tApiResolved = performance.now();
-        prependMetrics.newMessagesCount = older.length;
-
         prependOlder(conversationId, older, res.hasMore || false, nextCursor);
       } else {
         setHasMore(res.hasMore || false);
