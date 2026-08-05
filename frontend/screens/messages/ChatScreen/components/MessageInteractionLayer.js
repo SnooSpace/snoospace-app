@@ -166,6 +166,14 @@ const MessageInteractionLayer = ({
                 activeRowIdShared.value = null;
               runOnJS(releaseActive)(itemKey);
             });
+          } else if (interactionState.value === INTERACTION_STATE.IDLE) {
+            translateX.value = 0;
+            scale.value = 1;
+            replyProgress.value = 0;
+            if (activeRowIdShared && activeRowIdShared.value === itemKey) {
+              activeRowIdShared.value = null;
+              runOnJS(releaseActive)(itemKey);
+            }
           }
         }),
     [handleSwipeEndJS, activeRowIdShared, itemKey, claimActive, releaseActive],

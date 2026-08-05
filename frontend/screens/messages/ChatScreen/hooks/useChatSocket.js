@@ -77,7 +77,6 @@ export default function useChatSocket({
 
       if (isAtBottomRef.current) {
         setTimeout(() => {
-          console.log(`[IMPERATIVE-SCROLL] useChatSocket called scrollToEnd`);
           flashListRef.current?.scrollToEnd({ animated: true });
         }, 80);
       }

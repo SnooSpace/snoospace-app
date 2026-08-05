@@ -53,7 +53,7 @@ const ChatMessageList = React.memo(
 
     const maintainVisibleContentPositionConfig = React.useMemo(
       () => ({
-        autoscrollToBottomThreshold: 0.2,
+        autoscrollToBottomThreshold: 0,
         minIndexForVisible: 1,
         startRenderingFromBottom: true,
       }),
@@ -62,6 +62,7 @@ const ChatMessageList = React.memo(
 
     const scrollOffsetRef = React.useRef(0);
     const contentHeightRef = React.useRef(0);
+
     const handleScroll = React.useCallback((e) => {
       if (e?.nativeEvent) {
         const y = e.nativeEvent.contentOffset.y;
@@ -114,7 +115,6 @@ const ChatMessageList = React.memo(
                   mainStyles.listContent,
                   { paddingBottom: 12 + insets.bottom },
                 ]}
-                maintainVisibleContentPosition={maintainVisibleContentPositionConfig}
                 onScrollBeginDrag={() => {
                   if (isScrollingRef) isScrollingRef.current = true;
                   if (isListSettledRef) isListSettledRef.current = true;

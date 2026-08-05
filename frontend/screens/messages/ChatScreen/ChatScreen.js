@@ -154,6 +154,7 @@ export default function ChatScreen({ route, navigation }) {
 
   const runInitialCorrectionAndReveal = useCallback(
     (contentHeight, reason = "contentSizeChange") => {
+      if (hasCorrectedInitialLayoutRef.current) return;
       if (isListSettledRef.current) return;
       if (messagesState.isScrollingRef.current) return;
       if (messagesState.messages.length === 0) return;
@@ -392,9 +393,6 @@ export default function ChatScreen({ route, navigation }) {
       messagesState.handlePressEvent,
       messagesState.handlePressPlan,
       messagesState.scrollToMessage,
-      messagesState.rsvpLoadingRef,
-      activeRowId,
-      activeRowIdShared,
       setActiveRowId,
     ],
   );
