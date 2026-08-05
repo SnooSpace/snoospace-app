@@ -13,7 +13,6 @@ import MessageInteractionLayer from "./MessageInteractionLayer";
 import { formatTime, avatarColorFor, formatSeparatorLabel, computeEstimatedMessageHeight, getMessageCategory } from "../utils/chatListHelpers";
 import { mainStyles } from "../ChatScreen.styles";
 import { sepStyles, quoteStyles, MESSAGE_TEXT_COLOR, MAX_BUBBLE_WIDTH } from "./MessageRow.styles";
-import { longMsgTracer } from "./ChatMessageList";
 
 export const GroupAvatar = ({ photoUrl, name, size = 30 }) => {
   const initials = (name || "?")
@@ -630,13 +629,6 @@ const MessageRow = React.memo(
 
     const isFirstOfDay = msg._isFirstOfDay;
     const dateLabel = msg._dateSeparatorLabel || (isFirstOfDay ? formatSeparatorLabel(msg.createdAt) : null);
-
-    if (__DEV__) {
-      const dur = performance.now() - renderStartMs;
-      if (dur > 8) {
-        console.log(`[ROW-COST] id=${msg.id} type=${msg.messageType} ${dur.toFixed(1)}ms`);
-      }
-    }
 
     return (
       <View>

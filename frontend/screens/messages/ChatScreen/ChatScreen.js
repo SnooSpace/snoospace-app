@@ -155,6 +155,7 @@ export default function ChatScreen({ route, navigation }) {
   const runInitialCorrectionAndReveal = useCallback(
     (contentHeight, reason = "contentSizeChange") => {
       if (hasCorrectedInitialLayoutRef.current) return;
+      if (!contentHeight || contentHeight <= 0) return;
       if (isListSettledRef.current) return;
       if (messagesState.isScrollingRef.current) return;
       if (messagesState.messages.length === 0) return;
@@ -168,9 +169,13 @@ export default function ChatScreen({ route, navigation }) {
       initialCorrectionRafRef.current = requestAnimationFrame(() => {
         initialCorrectionRafRef.current = null;
         flashListRef.current?.scrollToEnd({ animated: false });
-        if (listRevealOpacity.value === 0) {
-          listRevealOpacity.value = withTiming(1, { duration: 50 });
-        }
+
+        setTimeout(() => {
+          flashListRef.current?.scrollToEnd({ animated: false });
+          if (listRevealOpacity.value === 0) {
+            listRevealOpacity.value = withTiming(1, { duration: 50 });
+          }
+        }, 120);
       });
     },
     [messagesState.messages.length, messagesState.isScrollingRef, messagesState.isLoadingRef, listRevealOpacity],
@@ -180,13 +185,11 @@ export default function ChatScreen({ route, navigation }) {
 
   useEffect(() => {
     if (messagesState.messages.length > 0 && listRevealOpacity.value === 0) {
-      if (!hasCorrectedInitialLayoutRef.current) {
-        runInitialCorrectionAndReveal();
-      } else {
+      if (hasCorrectedInitialLayoutRef.current) {
         listRevealOpacity.value = withTiming(1, { duration: 50 });
       }
     }
-  }, [messagesState.messages.length, runInitialCorrectionAndReveal, listRevealOpacity]);
+  }, [messagesState.messages.length, listRevealOpacity]);
 
   useEffect(() => {
     hasCorrectedInitialLayoutRef.current = false;

@@ -215,10 +215,15 @@ export const computeEstimatedMessageHeight = (msg) => {
     let lineCount = 0;
     for (let i = 0; i < lines.length; i++) {
       const lineLen = lines[i].length;
-      lineCount += Math.max(1, Math.ceil(lineLen / 22));
+      lineCount += Math.max(1, Math.ceil(lineLen / 26));
     }
-    const LINE_HEIGHT = 22;
+    const LINE_HEIGHT = 22.5;
     size += Math.max(0, lineCount - 1) * LINE_HEIGHT;
+
+    if (text.length > 250) {
+      const paragraphBreaks = (text.match(/\n\n/g) || []).length;
+      size += paragraphBreaks * 12 + Math.min(80, Math.floor(text.length / 150) * 12);
+    }
   }
   return size + separatorExtra;
 };

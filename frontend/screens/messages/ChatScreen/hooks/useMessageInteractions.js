@@ -40,7 +40,6 @@ export default function useMessageInteractions({
       const idx = messageIndexMapRef.current[targetId];
       if (idx == null) return;
 
-      console.log(`[IMPERATIVE-SCROLL] scrollToMessage called scrollToIndex for targetId=${targetId}, idx=${idx}`);
       flashListRef.current?.scrollToIndex({
         index: idx,
         animated: true,

@@ -6,11 +6,7 @@ import EmptyChatState from "../../../../components/EmptyChatState";
 import { mainStyles, PRIMARY_COLOR } from "../ChatScreen.styles";
 import { keyExtractor, overrideItemLayout } from "../utils/chatListHelpers";
 
-export const longMsgTracer = {
-  scrollY: 0,
-  viewportHeight: 800,
-  logEvent() {},
-};
+
 
 const ChatMessageList = React.memo(
   ({
@@ -65,12 +61,7 @@ const ChatMessageList = React.memo(
 
     const handleScroll = React.useCallback((e) => {
       if (e?.nativeEvent) {
-        const y = e.nativeEvent.contentOffset.y;
-        scrollOffsetRef.current = y;
-        longMsgTracer.scrollY = y;
-        if (e.nativeEvent.layoutMeasurement?.height) {
-          longMsgTracer.viewportHeight = e.nativeEvent.layoutMeasurement.height;
-        }
+        scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
       }
     }, []);
 
@@ -108,6 +99,11 @@ const ChatMessageList = React.memo(
                 getItemType={getItemType}
                 overrideItemLayout={overrideItemLayout}
                 estimatedItemSize={70}
+                initialScrollIndex={
+                  flatListData && flatListData.length > 0
+                    ? flatListData.length - 1
+                    : undefined
+                }
                 ListHeaderComponent={renderListHeader}
                 drawDistance={1000}
                 showsVerticalScrollIndicator={false}
