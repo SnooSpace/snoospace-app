@@ -9,6 +9,7 @@ import SharedPostCard from "../../../../components/SharedPostCard";
 import SharedOpportunityCard from "../../../../components/SharedOpportunityCard";
 import SharedEventCard from "../../../../components/SharedEventCard";
 import SharedPlanCard from "../../../../components/SharedPlanCard";
+import MessageInteractionLayer from "./MessageInteractionLayer";
 import { formatTime, avatarColorFor, formatSeparatorLabel, computeEstimatedMessageHeight, getMessageCategory } from "../utils/chatListHelpers";
 import { mainStyles } from "../ChatScreen.styles";
 import { sepStyles, quoteStyles, MESSAGE_TEXT_COLOR, MAX_BUBBLE_WIDTH } from "./MessageRow.styles";
