@@ -71,18 +71,12 @@ export default function useChatInitialization({
 
   useEffect(() => {
     const unsubStart = navigation.addListener("transitionStart", () => {});
-    const unsubEnd = navigation.addListener("transitionEnd", (e) => {
-      if (!e?.data?.closing && !isLoadingRef.current) {
-        requestAnimationFrame(() => {
-          runInitialCorrectionAndRevealRef.current?.();
-        });
-      }
-    });
+    const unsubEnd = navigation.addListener("transitionEnd", () => {});
     return () => {
       unsubStart();
       unsubEnd();
     };
-  }, [navigation, isLoadingRef, runInitialCorrectionAndRevealRef]);
+  }, [navigation]);
 
   useEffect(() => {
     const unsubscribeBlur = navigation.addListener("blur", () => {
