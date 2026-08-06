@@ -45,6 +45,15 @@ import ChatMessageList from "./components/ChatMessageList";
 import ChatInputArea from "./components/ChatInputArea";
 import ChatModals from "./components/ChatModals";
 import MessageRow, { TimestampSeparator } from "./components/MessageRow";
+import {
+  resetStartupTelemetry,
+  logStageBeforeRAF,
+  logStageAfterRAF,
+  logStageBeforeTimeout,
+  logStageAfterTimeout,
+  logOpacityReveal,
+  logProgrammaticScroll,
+} from "./utils/startupTelemetry";
 
 export default function ChatScreen({ route, navigation }) {
   const {
@@ -148,46 +157,81 @@ export default function ChatScreen({ route, navigation }) {
     hideAlert,
   });
 
+  const listRevealOpacity = useSharedValue(0);
   const initialCorrectionRafRef = useRef(null);
   const runInitialCorrectionAndRevealRef = useRef(null);
+  const lastSeenContentHeightRef = useRef(0);
+  const layoutStabilizationTimeoutRef = useRef(null);
+
+  const performFinalPositionAndReveal = useCallback(
+    (getScrollOffset, getContentHeight) => {
+      if (hasCorrectedInitialLayoutRef.current) return;
+      hasCorrectedInitialLayoutRef.current = true;
+
+      if (layoutStabilizationTimeoutRef.current) {
+        clearTimeout(layoutStabilizationTimeoutRef.current);
+        layoutStabilizationTimeoutRef.current = null;
+      }
+      if (initialCorrectionRafRef.current) {
+        cancelAnimationFrame(initialCorrectionRafRef.current);
+        initialCorrectionRafRef.current = null;
+      }
+
+      const liveHeight = typeof getContentHeight === "function" ? getContentHeight() : lastSeenContentHeightRef.current;
+      const currentOffset = typeof getScrollOffset === "function" ? getScrollOffset() : undefined;
+      logStageBeforeTimeout(currentOffset, liveHeight);
+      logProgrammaticScroll("scrollToEnd", { animated: false, stage: "StabilizedReveal" }, liveHeight);
+      flashListRef.current?.scrollToEnd({ animated: false });
+
+      if (listRevealOpacity.value === 0) {
+        logOpacityReveal();
+        listRevealOpacity.value = withTiming(1, { duration: 50 });
+      }
+    },
+    [listRevealOpacity],
+  );
 
   const runInitialCorrectionAndReveal = useCallback(
-    (contentHeight, reason = "contentSizeChange") => {
+    (contentHeight, reason = "contentSizeChange", getScrollOffset, getContentHeight) => {
       if (hasCorrectedInitialLayoutRef.current) return;
       if (!contentHeight || contentHeight <= 0) return;
       if (isListSettledRef.current) return;
       if (messagesState.isScrollingRef.current) return;
       if (!messagesState.flatListDataRef?.current || messagesState.flatListDataRef.current.length === 0) return;
 
-      hasCorrectedInitialLayoutRef.current = true;
+      const prevHeight = lastSeenContentHeightRef.current;
+      lastSeenContentHeightRef.current = contentHeight;
 
-      if (initialCorrectionRafRef.current) {
-        cancelAnimationFrame(initialCorrectionRafRef.current);
+      if (prevHeight > 0 && (contentHeight < prevHeight || Math.abs(contentHeight - prevHeight) < 15)) {
+        performFinalPositionAndReveal(getScrollOffset, getContentHeight);
+        return;
       }
 
-      initialCorrectionRafRef.current = requestAnimationFrame(() => {
-        initialCorrectionRafRef.current = null;
-        flashListRef.current?.scrollToEnd({ animated: false });
-
-        setTimeout(() => {
-          flashListRef.current?.scrollToEnd({ animated: false });
-        }, 120);
-      });
+      if (!layoutStabilizationTimeoutRef.current) {
+        layoutStabilizationTimeoutRef.current = setTimeout(() => {
+          performFinalPositionAndReveal(getScrollOffset, getContentHeight);
+        }, 80);
+      }
     },
-    [],
+    [performFinalPositionAndReveal],
   );
 
   runInitialCorrectionAndRevealRef.current = runInitialCorrectionAndReveal;
 
   useEffect(() => {
+    resetStartupTelemetry(currentConversationId);
     hasCorrectedInitialLayoutRef.current = false;
     isListSettledRef.current = false;
     isInitialMountedRef.current = false;
     canTriggerStartReachedRef.current = false;
+    lastSeenContentHeightRef.current = 0;
 
     return () => {
       if (initialCorrectionRafRef.current) {
         cancelAnimationFrame(initialCorrectionRafRef.current);
+      }
+      if (layoutStabilizationTimeoutRef.current) {
+        clearTimeout(layoutStabilizationTimeoutRef.current);
       }
     };
   }, [currentConversationId]);
@@ -427,6 +471,7 @@ export default function ChatScreen({ route, navigation }) {
           getItemType={messagesState.getItemType}
           loadingOlder={messagesState.loadingOlder}
           messagesLoading={initState.messagesLoading}
+          listRevealOpacity={listRevealOpacity}
           isChatInputFocused={isChatInputFocused}
           containerAnimatedStyle={containerAnimatedStyle}
           insets={insets}

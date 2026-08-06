@@ -11,6 +11,7 @@ import {
 import {
   isPlanUnavailable,
 } from "../../../../components/SharedPlanCard";
+import { logOverrideItemLayout } from "./startupTelemetry";
 
 export const getMessageCategory = (msg) => {
   if (!msg) return "UNKNOWN";
@@ -229,13 +230,14 @@ export const computeEstimatedMessageHeight = (msg) => {
   return size + separatorExtra;
 };
 
-export const overrideItemLayout = (layout, item) => {
+export const overrideItemLayout = (layout, item, index, maxSpan, totalCount) => {
   if (!item) return;
   if (item.type === "date_separator" || item.type === "separator") {
     layout.size = 28;
   } else if (item.data) {
     layout.size = computeEstimatedMessageHeight(item.data);
   }
+  logOverrideItemLayout(index, layout.size, totalCount);
 };
 
 export const getItemTypeHelper = (item, { currentUser, isGroup, recipient, recipientId }) => {

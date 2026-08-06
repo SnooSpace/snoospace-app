@@ -4,12 +4,21 @@ import {
   ActivityIndicator,
   Platform,
   KeyboardAvoidingView,
+  FlatList,
 } from "react-native";
 import { FlashList } from "@shopify/flash-list";
-import Animated from "react-native-reanimated";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import EmptyChatState from "../../../../components/EmptyChatState";
 import { mainStyles, PRIMARY_COLOR } from "../ChatScreen.styles";
 import { keyExtractor, overrideItemLayout } from "../utils/chatListHelpers";
+import {
+  logInitialPosition,
+  logContentSizeChange,
+  logViewableItems,
+  logStartupScrollEvent,
+} from "../utils/startupTelemetry";
+
+export const USE_FLATLIST_ISOLATION_TEST = false;
 
 const ChatListHeader = React.memo(({ loadingOlder }) => (
   <View style={{ height: 48, alignItems: "center", justifyContent: "center" }}>
@@ -27,6 +36,7 @@ const ChatMessageList = React.memo((props) => {
     getItemType,
     loadingOlder,
     messagesLoading,
+    listRevealOpacity,
     isChatInputFocused,
     containerAnimatedStyle,
     insets,
@@ -42,13 +52,25 @@ const ChatMessageList = React.memo((props) => {
     onViewableItemsChangedRef,
   } = props;
 
+  const listRevealStyle = useAnimatedStyle(() => ({
+    opacity: listRevealOpacity ? listRevealOpacity.value : 1,
+  }));
+
+  React.useEffect(() => {
+    if (flatListData && flatListData.length > 0) {
+      const initIdx = flatListData.length - 1;
+      logInitialPosition(flatListData, undefined, initIdx, 1000);
+    }
+  }, [flatListData, currentConversationId]);
+
   const handleViewableItemsChanged = React.useCallback(
     (info) => {
+      logViewableItems(info?.viewableItems, flatListData ? flatListData.length : 0);
       if (onViewableItemsChangedRef && onViewableItemsChangedRef.current) {
         onViewableItemsChangedRef.current(info);
       }
     },
-    [onViewableItemsChangedRef],
+    [onViewableItemsChangedRef, flatListData],
   );
 
   const viewabilityConfig = React.useMemo(
@@ -63,18 +85,26 @@ const ChatMessageList = React.memo((props) => {
 
   const handleScroll = React.useCallback((e) => {
     if (e?.nativeEvent) {
-      scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+      const y = e.nativeEvent.contentOffset.y;
+      scrollOffsetRef.current = y;
+      logStartupScrollEvent(y, contentHeightRef.current);
     }
   }, []);
 
   const handleContentSizeChange = React.useCallback(
     (w, h) => {
       contentHeightRef.current = h;
+      logContentSizeChange(w, h, flatListData);
       if (h > 0 && runInitialCorrectionAndReveal) {
-        runInitialCorrectionAndReveal(h, "contentSizeChange");
+        runInitialCorrectionAndReveal(
+          h,
+          "contentSizeChange",
+          () => scrollOffsetRef.current,
+          () => contentHeightRef.current,
+        );
       }
     },
-    [runInitialCorrectionAndReveal],
+    [runInitialCorrectionAndReveal, flatListData],
   );
 
   const flashListContentStyle = React.useMemo(
@@ -90,6 +120,11 @@ const ChatMessageList = React.memo((props) => {
     [],
   );
 
+  const initialScrollIndexValue =
+    flatListData && flatListData.length > 0
+      ? flatListData.length - 1
+      : undefined;
+
   return (
     <KeyboardAvoidingView
       enabled={isChatInputFocused}
@@ -103,21 +138,19 @@ const ChatMessageList = React.memo((props) => {
             <ActivityIndicator size="large" color={PRIMARY_COLOR} />
           </View>
         ) : (
-          <Animated.View style={{ flex: 1 }}>
+          <Animated.View style={[{ flex: 1 }, listRevealStyle]}>
             <FlashList
               ref={flashListRef}
               data={flatListData}
               keyExtractor={keyExtractor}
               renderItem={renderItem}
               getItemType={getItemType}
-              overrideItemLayout={overrideItemLayout}
+              overrideItemLayout={(layout, item, index, maxSpan) =>
+                overrideItemLayout(layout, item, index, maxSpan, flatListData ? flatListData.length : 0)
+              }
               estimatedItemSize={70}
               maintainVisibleContentPosition={maintainVisibleContentPositionConfig}
-              initialScrollIndex={
-                flatListData && flatListData.length > 0
-                  ? flatListData.length - 1
-                  : undefined
-              }
+              initialScrollIndex={initialScrollIndexValue}
               ListHeaderComponent={<ChatListHeader loadingOlder={loadingOlder} />}
               extraData={loadingOlder}
               drawDistance={1000}
@@ -152,6 +185,10 @@ const ChatMessageList = React.memo((props) => {
               }}
               onScroll={handleScroll}
               onContentSizeChange={handleContentSizeChange}
+              onLayout={(e) => {
+                const { width, height } = e.nativeEvent.layout;
+                logInitialPosition(flatListData, height, initialScrollIndexValue, 1000);
+              }}
               onStartReachedThreshold={0.5}
               scrollEventThrottle={16}
               ListEmptyComponent={
@@ -161,7 +198,7 @@ const ChatMessageList = React.memo((props) => {
                       flex: 1,
                       justifyContent: "center",
                       alignItems: "center",
-                      minHeight: 200,
+                      paddingTop: 100,
                     }}
                   >
                     <EmptyChatState />
