@@ -3,6 +3,7 @@ import { UserX, TriangleAlert } from "lucide-react-native";
 import { sendMessage } from "../../../../api/messages";
 import { uploadChatMedia } from "../../../../api/upload";
 import EventBus from "../../../../utils/EventBus";
+import { appendMessageToCache } from "../../../../services/conversationCache";
 
 export default function useChatUploads({
   currentConversationId,
@@ -59,6 +60,7 @@ export default function useChatUploads({
         if (!currentConversationId)
           setCurrentConversationId(msg.conversationId);
         addNewMessage(msg);
+        appendMessageToCache(msg.conversationId, msg);
         EventBus.emit("conversation-updated", {
           conversationId: msg.conversationId,
           lastMessage: msg.messageText,
@@ -129,6 +131,7 @@ export default function useChatUploads({
         if (!currentConversationId && resolvedConvId)
           setCurrentConversationId(resolvedConvId);
         addNewMessage(msg);
+        appendMessageToCache(resolvedConvId, msg);
 
         const previewLabel = isMulti
           ? `${uploadedItems.length} ≡ƒô╖ Media`
