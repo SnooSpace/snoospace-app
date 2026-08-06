@@ -27,9 +27,13 @@ const MessageInteractionLayer = ({
   const hasTriggeredHaptic = useSharedValue(false);
   const interactionState = useSharedValue(INTERACTION_STATE.IDLE);
   const gestureEnabledShared = useSharedValue(gestureEnabled);
+  const isMyMessageShared = useSharedValue(isMyMessage);
   useEffect(() => {
     gestureEnabledShared.value = gestureEnabled;
   }, [gestureEnabled]);
+  useEffect(() => {
+    isMyMessageShared.value = isMyMessage;
+  }, [isMyMessage]);
 
   const stateRef = useRef({ onSwipe, onLongPress, payload, itemKey });
   useEffect(() => {
@@ -102,32 +106,35 @@ const MessageInteractionLayer = ({
           )
             return;
           const rawX = e.translationX;
-          if (rawX <= 0) {
+          const isMy = isMyMessageShared.value;
+          const swipeDist = isMy ? -rawX : rawX;
+          if (swipeDist <= 0) {
             translateX.value = 0;
             replyProgress.value = 0;
             return;
           }
-          let clampedX = rawX;
-          if (rawX > GESTURE_CONSTANTS.SWIPE_REPLY_THRESHOLD) {
-            const excess = rawX - GESTURE_CONSTANTS.SWIPE_REPLY_THRESHOLD;
-            clampedX = GESTURE_CONSTANTS.SWIPE_REPLY_THRESHOLD + excess * 0.3;
+          let clampedDist = swipeDist;
+          if (swipeDist > GESTURE_CONSTANTS.SWIPE_REPLY_THRESHOLD) {
+            const excess = swipeDist - GESTURE_CONSTANTS.SWIPE_REPLY_THRESHOLD;
+            clampedDist = GESTURE_CONSTANTS.SWIPE_REPLY_THRESHOLD + excess * 0.3;
           }
-          translateX.value = Math.min(
-            clampedX,
+          const maxDist = Math.min(
+            clampedDist,
             GESTURE_CONSTANTS.MAX_SWIPE_TRANSLATION,
           );
+          translateX.value = isMy ? -maxDist : maxDist;
           replyProgress.value = Math.min(
-            translateX.value / GESTURE_CONSTANTS.SWIPE_REPLY_THRESHOLD,
+            maxDist / GESTURE_CONSTANTS.SWIPE_REPLY_THRESHOLD,
             1,
           );
           if (
-            translateX.value >= GESTURE_CONSTANTS.SWIPE_REPLY_THRESHOLD &&
+            maxDist >= GESTURE_CONSTANTS.SWIPE_REPLY_THRESHOLD &&
             !hasTriggeredHaptic.value
           ) {
             hasTriggeredHaptic.value = true;
             runOnJS(triggerReplyHaptic)();
           } else if (
-            translateX.value < GESTURE_CONSTANTS.SWIPE_REPLY_THRESHOLD &&
+            maxDist < GESTURE_CONSTANTS.SWIPE_REPLY_THRESHOLD &&
             hasTriggeredHaptic.value
           ) {
             hasTriggeredHaptic.value = false;
@@ -140,8 +147,10 @@ const MessageInteractionLayer = ({
             interactionState.value !== INTERACTION_STATE.PANNING
           )
             return;
+          const isMy = isMyMessageShared.value;
+          const currentDist = isMy ? -translateX.value : translateX.value;
           const isTriggered =
-            translateX.value >= GESTURE_CONSTANTS.SWIPE_REPLY_THRESHOLD;
+            currentDist >= GESTURE_CONSTANTS.SWIPE_REPLY_THRESHOLD;
           interactionState.value = INTERACTION_STATE.ANIMATING_BACK;
           runOnJS(handleSwipeEndJS)(isTriggered);
           translateX.value = withSpring(0, SPRING_CONFIG, () => {
@@ -217,11 +226,9 @@ const MessageInteractionLayer = ({
     [panGesture, longPressGesture],
   );
 
-  const isActive = activeRowId === itemKey;
-
   return (
     <GestureDetector gesture={combinedGesture}>
-      {isActive ? (
+      <View collapsable={false}>
         <AnimatedGestureCell
           translateX={translateX}
           scale={scale}
@@ -231,9 +238,7 @@ const MessageInteractionLayer = ({
         >
           {children}
         </AnimatedGestureCell>
-      ) : (
-        <View style={{ width: "100%" }}>{children}</View>
-      )}
+      </View>
     </GestureDetector>
   );
 };

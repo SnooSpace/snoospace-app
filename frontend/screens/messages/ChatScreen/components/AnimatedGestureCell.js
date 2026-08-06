@@ -15,11 +15,21 @@ const AnimatedGestureCell = ({
   gestureEnabled,
   children,
 }) => {
-  const animatedBubbleStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }, { scale: scale.value }],
-  }));
+
+
+  const animatedBubbleStyle = useAnimatedStyle(() => {
+    if (translateX.value === 0 && scale.value === 1) {
+      return {};
+    }
+    return {
+      transform: [{ translateX: translateX.value }, { scale: scale.value }],
+    };
+  });
 
   const animatedIconStyle = useAnimatedStyle(() => {
+    if (replyProgress.value === 0) {
+      return { opacity: 0 };
+    }
     const opacity = interpolate(
       replyProgress.value,
       [0, 0.4, 1],
@@ -32,10 +42,11 @@ const AnimatedGestureCell = ({
       [0.6, 1],
       Extrapolation.CLAMP,
     );
+    const startX = isMyMessage ? 10 : -10;
     const iconTranslateX = interpolate(
       replyProgress.value,
       [0, 1],
-      [-10, 0],
+      [startX, 0],
       Extrapolation.CLAMP,
     );
     return {
@@ -77,8 +88,8 @@ const styles = StyleSheet.create({
     zIndex: 0,
     width: 40,
   },
-  replyIconLeft: { left: -36 },
-  replyIconRight: { left: -36 },
+  replyIconLeft: { left: 8 },
+  replyIconRight: { right: 8 },
   replyIconCircle: {
     width: 32,
     height: 32,

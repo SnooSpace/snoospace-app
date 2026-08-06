@@ -78,7 +78,6 @@ export default function ChatScreen({ route, navigation }) {
   const isListSettledRef = useRef(false);
   const isInitialMountedRef = useRef(false);
 
-  const listRevealOpacity = useSharedValue(0);
   const replyBarHeightShared = useSharedValue(0);
   const [activeRowId, setActiveRowId] = useState(null);
   const activeRowIdShared = useSharedValue(null);
@@ -158,7 +157,7 @@ export default function ChatScreen({ route, navigation }) {
       if (!contentHeight || contentHeight <= 0) return;
       if (isListSettledRef.current) return;
       if (messagesState.isScrollingRef.current) return;
-      if (messagesState.messages.length === 0) return;
+      if (!messagesState.flatListDataRef?.current || messagesState.flatListDataRef.current.length === 0) return;
 
       hasCorrectedInitialLayoutRef.current = true;
 
@@ -172,38 +171,26 @@ export default function ChatScreen({ route, navigation }) {
 
         setTimeout(() => {
           flashListRef.current?.scrollToEnd({ animated: false });
-          if (listRevealOpacity.value === 0) {
-            listRevealOpacity.value = withTiming(1, { duration: 50 });
-          }
         }, 120);
       });
     },
-    [messagesState.messages.length, messagesState.isScrollingRef, messagesState.isLoadingRef, listRevealOpacity],
+    [],
   );
 
   runInitialCorrectionAndRevealRef.current = runInitialCorrectionAndReveal;
-
-  useEffect(() => {
-    if (messagesState.messages.length > 0 && listRevealOpacity.value === 0) {
-      if (hasCorrectedInitialLayoutRef.current) {
-        listRevealOpacity.value = withTiming(1, { duration: 50 });
-      }
-    }
-  }, [messagesState.messages.length, listRevealOpacity]);
 
   useEffect(() => {
     hasCorrectedInitialLayoutRef.current = false;
     isListSettledRef.current = false;
     isInitialMountedRef.current = false;
     canTriggerStartReachedRef.current = false;
-    listRevealOpacity.value = 0;
 
     return () => {
       if (initialCorrectionRafRef.current) {
         cancelAnimationFrame(initialCorrectionRafRef.current);
       }
     };
-  }, [currentConversationId, listRevealOpacity]);
+  }, [currentConversationId]);
 
   const initState = useChatInitialization({
     conversationId,
@@ -303,29 +290,12 @@ export default function ChatScreen({ route, navigation }) {
     visibleItemIdsRef.current = ids;
   });
 
-  const renderListHeader = useCallback(() => {
-    return (
-      <View
-        style={{
-          height: 48,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        {messagesState.loadingOlder ? (
-          <ActivityIndicator size="small" color={PRIMARY_COLOR} />
-        ) : null}
-      </View>
-    );
-  }, [messagesState.loadingOlder]);
+
 
 
 
   const renderItem = useCallback(
     ({ item, index }) => {
-      if (__DEV__) {
-        console.log(`[RECYCLE] idx=${index} id=${item.data?.id || item.label || "sep"} t=${performance.now().toFixed(1)}`);
-      }
       if (item.type === "separator") {
         return <TimestampSeparator label={item.label} />;
       }
@@ -455,9 +425,8 @@ export default function ChatScreen({ route, navigation }) {
           flatListData={messagesState.flatListData}
           renderItem={renderItem}
           getItemType={messagesState.getItemType}
-          renderListHeader={renderListHeader}
+          loadingOlder={messagesState.loadingOlder}
           messagesLoading={initState.messagesLoading}
-          listRevealOpacity={listRevealOpacity}
           isChatInputFocused={isChatInputFocused}
           containerAnimatedStyle={containerAnimatedStyle}
           insets={insets}

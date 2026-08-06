@@ -72,9 +72,6 @@ export const TimestampSeparator = React.memo(({ label }) => {
 });
 
 export const ReplyQuote = ({ replyPreview, isMyMessage, onPress, msgId }) => {
-  React.useEffect(() => {
-    console.log(`[REPLYQUOTE-MOUNT] msgId=${msgId || "unknown"}`);
-  }, [msgId]);
 
   const isPostShare =
     replyPreview.isPostShare ||
@@ -211,8 +208,8 @@ export const ReplyQuoteSkeleton = ({ isMyMessage }) => {
   );
 };
 
-const MessageRow = React.memo(
-  ({
+const MessageRow = React.memo((props) => {
+  const {
     item,
     isMyMessage,
     showAvatar,
@@ -239,7 +236,7 @@ const MessageRow = React.memo(
     activeRowId,
     activeRowIdShared,
     setActiveRowId,
-  }) => {
+  } = props;
     const renderStartMs = performance.now();
     const msg = item.data;
     const isLongMessage = Boolean(msg?.messageText && msg.messageText.length > 200);

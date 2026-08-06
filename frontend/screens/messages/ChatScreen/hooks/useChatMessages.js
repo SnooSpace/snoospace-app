@@ -69,9 +69,15 @@ export default function useChatMessages({
       });
   }, [currentUser?.id, currentUser?.type, isGroup, recipient?.id, recipientId]);
 
+  const flatListDataRef = useRef(flatListData);
+  useEffect(() => {
+    flatListDataRef.current = flatListData;
+  }, [flatListData]);
+
   return {
     ...pagination,
     flatListData,
+    flatListDataRef,
     getItemType,
     ...replyState,
     ...interactions,

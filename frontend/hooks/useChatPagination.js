@@ -78,6 +78,7 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     let updatedList = [];
     let prependedCount = 0;
 
+    const t0 = performance.now();
     setMessages(prev => {
       const existingIds = new Set(prev.map(m => m.id));
       const fresh = older.filter(m => !existingIds.has(m.id));
@@ -85,7 +86,6 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
         updatedList = prev;
         return prev;
       }
-      prependedCount = fresh.length;
       updatedList = [...fresh, ...prev];
       return updatedList;
     });
@@ -136,7 +136,7 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     if (isLoadingRef.current) return;
     if (!hasMoreRef.current) return;
 
-    const effectiveCursor = cursorRef.current || (messages.length > 0 ? messages[0].createdAt : null);
+    const effectiveCursor = cursorRef.current;
     if (!effectiveCursor) return;
 
     isLoadingRef.current = true;
@@ -168,7 +168,7 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
       isLoadingRef.current = false;
       setLoadingOlder(false);
     }
-  }, [messages, prependOlder, setHasMore]);
+  }, [prependOlder, setHasMore]);
 
   // ── addNewMessage ──────────────────────────────────────────────────────────
   // Inserts a new message (outgoing send or Supabase realtime INSERT).

@@ -77,6 +77,7 @@ export const buildMessageList = (messages, isGroup) => {
     const msg = messages[i];
     const older = messages[i - 1];
 
+    const prevHasReplyPreview = Boolean(msg.replyPreview);
     const replyId = msg.replyToMessageId || msg.replyToId;
     if (replyId && !msg.replyPreview) {
       const refMsg = messageLookup.get(String(replyId));
@@ -207,7 +208,7 @@ export const computeEstimatedMessageHeight = (msg) => {
 
   let size = 44 + 25;
   if (msg._showSenderName) size += 18;
-  if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 68;
+  if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 54;
 
   const text = msg.messageText || "";
   if (text.length > 0) {
@@ -232,10 +233,9 @@ export const overrideItemLayout = (layout, item) => {
   if (!item) return;
   if (item.type === "date_separator" || item.type === "separator") {
     layout.size = 28;
-    return;
+  } else if (item.data) {
+    layout.size = computeEstimatedMessageHeight(item.data);
   }
-  if (!item.data) return;
-  layout.size = computeEstimatedMessageHeight(item.data);
 };
 
 export const getItemTypeHelper = (item, { currentUser, isGroup, recipient, recipientId }) => {
@@ -249,33 +249,29 @@ export const getItemTypeHelper = (item, { currentUser, isGroup, recipient, recip
         (msg.senderType || "member") === (currentUser?.type || "member")
       : msg.senderId !== (recipient?.id || recipientId);
     const dir = isMyMsg ? "_out" : "_in";
-    const sep = msg._isFirstOfDay ? "_sep" : "";
-    if (msg.isDeleted) return `deleted${dir}${sep}`;
-    if (msg.messageType === "system") return `system${dir}${sep}`;
+    if (msg.isDeleted) return `deleted${dir}`;
+    if (msg.messageType === "system") return `system${dir}`;
 
     const mType = msg.messageType;
-    if (mType === "ticket") return `ticket${dir}${sep}`;
-    if (mType === "event_share") return `event_share${dir}${sep}`;
-    if (mType === "plan_share") return `plan_share${dir}${sep}`;
-    if (mType === "opportunity_share") return `opportunity_share${dir}${sep}`;
-    if (mType === "post_share") return `post_share${dir}${sep}`;
-    if (mType === "video") return `video${dir}${sep}`;
+    if (mType === "ticket") return `ticket${dir}`;
+    if (mType === "event_share") return `event_share${dir}`;
+    if (mType === "plan_share") return `plan_share${dir}`;
+    if (mType === "opportunity_share") return `opportunity_share${dir}`;
+    if (mType === "post_share") return `post_share${dir}`;
+    if (mType === "video") return `video${dir}`;
 
     if (mType === "image" || mType === "multi_media") {
       const mediaList =
         msg.media ||
         (msg.mediaUrl ? [{ url: msg.mediaUrl, type: mType }] : []);
       const count = mediaList.length;
-      if (count <= 1) return `image_single${dir}${sep}`;
-      if (count === 2) return `image_grid2${dir}${sep}`;
-      if (count === 3) return `image_grid3${dir}${sep}`;
-      return `image_grid4${dir}${sep}`;
+      if (count <= 1) return `image_single${dir}`;
+      if (count === 2) return `image_grid2${dir}`;
+      if (count === 3) return `image_grid3${dir}`;
+      return `image_grid4${dir}`;
     }
 
-    // Collapse all text messages into unified pools (text_in / text_out / text_in_sep / text_out_sep)
-    // Height is already computed per-item by overrideItemLayout, so dropping sizeClass and replySuffix
-    // maximizes native cell reuse and eliminates unmount/remount churn during flings!
-    return `text${dir}${sep}`;
+    return `text${dir}`;
   }
   return "default";
 };
