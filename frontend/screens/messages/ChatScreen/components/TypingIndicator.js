@@ -84,9 +84,14 @@ const TypingIndicator = React.memo(({ typingUsers }) => {
       </View>
     );
   } else {
+    const othersCount = typingList.length - 1;
     return (
       <View style={typingStyles.container}>
-        <Text style={typingStyles.text}>Several people are typing</Text>
+        <Text style={typingStyles.text}>
+          <Text style={typingStyles.boldText}>{typingList[0]}</Text> and{" "}
+          <Text style={typingStyles.boldText}>{othersCount} others</Text> are
+          typing
+        </Text>
         <TypingDots />
       </View>
     );
