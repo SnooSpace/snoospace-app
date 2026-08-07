@@ -1,16 +1,9 @@
 import { isCardUnavailableSync } from "../../../../utils/cardAvailabilityCache";
-import {
-  isPostUnavailable,
-} from "../../../../components/SharedPostCard";
-import {
-  isOpportunityUnavailable,
-} from "../../../../components/SharedOpportunityCard";
-import {
-  isEventUnavailable,
-} from "../../../../components/SharedEventCard";
-import {
-  isPlanUnavailable,
-} from "../../../../components/SharedPlanCard";
+import { isPostUnavailable } from "../../../../components/SharedPostCard";
+import { isOpportunityUnavailable } from "../../../../components/SharedOpportunityCard";
+import { isEventUnavailable } from "../../../../components/SharedEventCard";
+import { isPlanUnavailable } from "../../../../components/SharedPlanCard";
+import { MAX_BUBBLE_WIDTH } from "../ChatScreen.styles";
 import { logOverrideItemLayout } from "./startupTelemetry";
 
 export const getMessageCategory = (msg) => {
@@ -34,8 +27,6 @@ export const getMessageCategory = (msg) => {
   if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) return "REPLY";
   return "TEXT";
 };
-
-
 
 export const formatTime = (dateString) => {
   if (!dateString) return "";
@@ -63,8 +54,6 @@ export const _msgWrapperCache = new Map();
 export const buildMessageList = (messages, isGroup) => {
   if (!messages || messages.length === 0) return [];
   if (_msgWrapperCache.size > 1000) _msgWrapperCache.clear();
-
-
 
   const messageLookup = new Map();
   for (let i = 0; i < messages.length; i++) {
@@ -129,7 +118,9 @@ export const buildMessageList = (messages, isGroup) => {
 
     if (hasChanged) {
       msg._isFirstOfDay = isFirstOfDay;
-      msg._dateSeparatorLabel = isFirstOfDay ? formatSeparatorLabel(msg.createdAt) : null;
+      msg._dateSeparatorLabel = isFirstOfDay
+        ? formatSeparatorLabel(msg.createdAt)
+        : null;
       msg._showAvatar = isDifferentSenderOrTime;
       msg._showSenderName = showSenderName;
       _msgWrapperCache.delete(msg.id);
@@ -142,8 +133,6 @@ export const buildMessageList = (messages, isGroup) => {
     }
     result.push(wrapper);
   }
-
-
 
   return result;
 };
@@ -207,9 +196,20 @@ export const computeEstimatedMessageHeight = (msg) => {
     return 380 + separatorExtra;
   }
 
+  const printableWidth = Math.max(150, MAX_BUBBLE_WIDTH - 28);
+  const CHARS_PER_LINE = Math.max(15, Math.floor(printableWidth / 8.7));
+  const LINE_HEIGHT = 21;
+
   let size = 44 + 25;
   if (msg._showSenderName) size += 18;
-  if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) size += 54;
+  if (msg.replyToMessageId || msg.replyToId || msg.replyPreview) {
+    let replySize = 54;
+    const replyText = msg.replyPreview?.messageText || "";
+    if (replyText.length > 50) {
+      replySize += Math.ceil((replyText.length - 50) / 30) * 18;
+    }
+    size += replySize;
+  }
 
   const text = msg.messageText || "";
   if (text.length > 0) {
@@ -217,20 +217,26 @@ export const computeEstimatedMessageHeight = (msg) => {
     let lineCount = 0;
     for (let i = 0; i < lines.length; i++) {
       const lineLen = lines[i].length;
-      lineCount += Math.max(1, Math.ceil(lineLen / 26));
+      lineCount += Math.max(1, Math.ceil(lineLen / CHARS_PER_LINE));
     }
-    const LINE_HEIGHT = 22.5;
     size += Math.max(0, lineCount - 1) * LINE_HEIGHT;
 
-    if (text.length > 250) {
+    if (text.length > 200) {
       const paragraphBreaks = (text.match(/\n\n/g) || []).length;
-      size += paragraphBreaks * 12 + Math.min(80, Math.floor(text.length / 150) * 12);
+      size +=
+        paragraphBreaks * 12 + Math.min(80, Math.floor(text.length / 150) * 12);
     }
   }
   return size + separatorExtra;
 };
 
-export const overrideItemLayout = (layout, item, index, maxSpan, totalCount) => {
+export const overrideItemLayout = (
+  layout,
+  item,
+  index,
+  maxSpan,
+  totalCount,
+) => {
   if (!item) return;
   if (item.type === "date_separator" || item.type === "separator") {
     layout.size = 28;
@@ -240,7 +246,10 @@ export const overrideItemLayout = (layout, item, index, maxSpan, totalCount) => 
   logOverrideItemLayout(index, layout.size, totalCount);
 };
 
-export const getItemTypeHelper = (item, { currentUser, isGroup, recipient, recipientId }) => {
+export const getItemTypeHelper = (
+  item,
+  { currentUser, isGroup, recipient, recipientId },
+) => {
   if (!item) return "unknown";
   if (item.type === "date_separator" || item.type === "separator")
     return "date_separator";
@@ -264,8 +273,7 @@ export const getItemTypeHelper = (item, { currentUser, isGroup, recipient, recip
 
     if (mType === "image" || mType === "multi_media") {
       const mediaList =
-        msg.media ||
-        (msg.mediaUrl ? [{ url: msg.mediaUrl, type: mType }] : []);
+        msg.media || (msg.mediaUrl ? [{ url: msg.mediaUrl, type: mType }] : []);
       const count = mediaList.length;
       if (count <= 1) return `image_single${dir}`;
       if (count === 2) return `image_grid2${dir}`;

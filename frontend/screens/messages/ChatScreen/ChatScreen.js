@@ -1,9 +1,4 @@
-import {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-} from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Platform,
@@ -15,9 +10,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  useKeyboardHandler,
-} from "react-native-keyboard-controller";
+import { useKeyboardHandler } from "react-native-keyboard-controller";
 import {
   useSharedValue,
   useAnimatedStyle,
@@ -53,6 +46,17 @@ import {
   logStageAfterTimeout,
   logOpacityReveal,
   logProgrammaticScroll,
+  logLayoutConvergence,
+  logPerformFinalPositionInvoked,
+  getMonotonicNow,
+  logTimerCreated,
+  logTimerFired,
+  logTimerCleared,
+  logContentSizeTimerInspection,
+  getCurrentLayoutVersion,
+  logStateInvalidated,
+  logInvalidationLimitReached,
+  getStoredViewportHeight,
 } from "./utils/startupTelemetry";
 
 export default function ChatScreen({ route, navigation }) {
@@ -162,26 +166,100 @@ export default function ChatScreen({ route, navigation }) {
   const runInitialCorrectionAndRevealRef = useRef(null);
   const lastSeenContentHeightRef = useRef(0);
   const layoutStabilizationTimeoutRef = useRef(null);
+  const hardMaxFallbackTimeoutRef = useRef(null);
+  const lastContentSizeTimeRef = useRef(0);
+  const hardTimerMetaRef = useRef(null);
+  const debounceTimerMetaRef = useRef(null);
+
+  const lastCorrectedLayoutVersionRef = useRef(0);
+  const lastCorrectedContentHeightRef = useRef(0);
+  const invalidationPassCountRef = useRef(0);
 
   const performFinalPositionAndReveal = useCallback(
-    (getScrollOffset, getContentHeight) => {
-      if (hasCorrectedInitialLayoutRef.current) return;
+    (getScrollOffset, getContentHeight, reason = "ConvergenceDebounce") => {
       hasCorrectedInitialLayoutRef.current = true;
+      lastCorrectedLayoutVersionRef.current = getCurrentLayoutVersion();
+
+      const liveHeight =
+        typeof getContentHeight === "function"
+          ? getContentHeight()
+          : lastSeenContentHeightRef.current;
+      lastCorrectedContentHeightRef.current = liveHeight;
+      const currentOffset =
+        typeof getScrollOffset === "function" ? getScrollOffset() : undefined;
 
       if (layoutStabilizationTimeoutRef.current) {
         clearTimeout(layoutStabilizationTimeoutRef.current);
         layoutStabilizationTimeoutRef.current = null;
+        logTimerCleared(
+          debounceTimerMetaRef.current,
+          `RevealTriggeredBy(${reason})`,
+          liveHeight,
+        );
+        debounceTimerMetaRef.current = null;
+      }
+      if (hardMaxFallbackTimeoutRef.current) {
+        clearTimeout(hardMaxFallbackTimeoutRef.current);
+        hardMaxFallbackTimeoutRef.current = null;
+        logTimerCleared(
+          hardTimerMetaRef.current,
+          `RevealTriggeredBy(${reason})`,
+          liveHeight,
+        );
+        hardTimerMetaRef.current = null;
       }
       if (initialCorrectionRafRef.current) {
         cancelAnimationFrame(initialCorrectionRafRef.current);
         initialCorrectionRafRef.current = null;
       }
 
-      const liveHeight = typeof getContentHeight === "function" ? getContentHeight() : lastSeenContentHeightRef.current;
-      const currentOffset = typeof getScrollOffset === "function" ? getScrollOffset() : undefined;
+      const now = getMonotonicNow();
+      const quietMs =
+        lastContentSizeTimeRef.current > 0
+          ? now - lastContentSizeTimeRef.current
+          : 0;
+
+      logLayoutConvergence(reason, quietMs, liveHeight);
+      logPerformFinalPositionInvoked(reason, currentOffset, liveHeight);
+
       logStageBeforeTimeout(currentOffset, liveHeight);
-      logProgrammaticScroll("scrollToEnd", { animated: false, stage: "StabilizedReveal" }, liveHeight);
-      flashListRef.current?.scrollToEnd({ animated: false });
+
+      const viewportH = getStoredViewportHeight() || 0;
+      const gapNumber =
+        viewportH > 0 && currentOffset !== undefined && currentOffset !== null
+          ? liveHeight - (viewportH + currentOffset)
+          : Infinity;
+
+      if (gapNumber <= 25) {
+        console.log(
+          `[CONVERGENCE_SKIPPED_SCROLL] t=+${(getMonotonicNow() - (lastContentSizeTimeRef.current || getMonotonicNow())).toFixed(1)}ms reason=${reason} bottomGap=${gapNumber.toFixed(1)}px <= 25px -> Native position already at bottom. Skipping scroll command.`,
+        );
+      } else {
+        const targetOffset =
+          viewportH > 0 ? Math.max(0, liveHeight - viewportH) : undefined;
+        if (targetOffset !== undefined) {
+          logProgrammaticScroll(
+            "scrollToOffset",
+            {
+              offset: targetOffset,
+              animated: false,
+              stage: "TargetedRevealCorrection",
+            },
+            liveHeight,
+          );
+          flashListRef.current?.scrollToOffset({
+            offset: targetOffset,
+            animated: false,
+          });
+        } else {
+          logProgrammaticScroll(
+            "scrollToEnd",
+            { animated: false, stage: "StabilizedRevealFallback" },
+            liveHeight,
+          );
+          flashListRef.current?.scrollToEnd({ animated: false });
+        }
+      }
 
       if (listRevealOpacity.value === 0) {
         logOpacityReveal();
@@ -192,26 +270,111 @@ export default function ChatScreen({ route, navigation }) {
   );
 
   const runInitialCorrectionAndReveal = useCallback(
-    (contentHeight, reason = "contentSizeChange", getScrollOffset, getContentHeight) => {
-      if (hasCorrectedInitialLayoutRef.current) return;
+    (
+      contentHeight,
+      reason = "contentSizeChange",
+      getScrollOffset,
+      getContentHeight,
+    ) => {
       if (!contentHeight || contentHeight <= 0) return;
       if (isListSettledRef.current) return;
       if (messagesState.isScrollingRef.current) return;
-      if (!messagesState.flatListDataRef?.current || messagesState.flatListDataRef.current.length === 0) return;
+      if (
+        !messagesState.flatListDataRef?.current ||
+        messagesState.flatListDataRef.current.length === 0
+      )
+        return;
 
-      const prevHeight = lastSeenContentHeightRef.current;
+      const currentVersion = getCurrentLayoutVersion();
+      const correctedVersion = lastCorrectedLayoutVersionRef.current;
+      const correctedHeight = lastCorrectedContentHeightRef.current;
+      const heightDelta = contentHeight - correctedHeight;
+
+      if (hasCorrectedInitialLayoutRef.current) {
+        if (currentVersion > correctedVersion && heightDelta > 20) {
+          if (invalidationPassCountRef.current < 5) {
+            invalidationPassCountRef.current += 1;
+            hasCorrectedInitialLayoutRef.current = false;
+            logStateInvalidated(
+              correctedVersion,
+              currentVersion,
+              correctedHeight,
+              contentHeight,
+              heightDelta,
+              invalidationPassCountRef.current,
+            );
+          } else {
+            logInvalidationLimitReached(
+              invalidationPassCountRef.current,
+              currentVersion,
+              contentHeight,
+              heightDelta,
+            );
+            return;
+          }
+        } else {
+          return;
+        }
+      }
+
+      const now = getMonotonicNow();
+      lastContentSizeTimeRef.current = now;
       lastSeenContentHeightRef.current = contentHeight;
 
-      if (prevHeight > 0 && (contentHeight < prevHeight || Math.abs(contentHeight - prevHeight) < 15)) {
-        performFinalPositionAndReveal(getScrollOffset, getContentHeight);
-        return;
+      // Hard maximum fallback timeout (1200ms safety cap for diagnostic test)
+      if (!hardMaxFallbackTimeoutRef.current) {
+        const meta = logTimerCreated("HARD_FALLBACK", 1200, contentHeight);
+        hardTimerMetaRef.current = meta;
+        hardMaxFallbackTimeoutRef.current = setTimeout(() => {
+          logTimerFired(
+            meta,
+            contentHeight,
+            getMonotonicNow() - lastContentSizeTimeRef.current,
+          );
+          hardMaxFallbackTimeoutRef.current = null;
+          hardTimerMetaRef.current = null;
+          performFinalPositionAndReveal(
+            getScrollOffset,
+            getContentHeight,
+            `HardMaxFallback(1200ms,gen=${meta.genId})`,
+          );
+        }, 1200);
       }
 
-      if (!layoutStabilizationTimeoutRef.current) {
-        layoutStabilizationTimeoutRef.current = setTimeout(() => {
-          performFinalPositionAndReveal(getScrollOffset, getContentHeight);
-        }, 80);
+      // Reset debounced stabilization timer (requires 90ms quiet window)
+      if (layoutStabilizationTimeoutRef.current) {
+        logTimerCleared(
+          debounceTimerMetaRef.current,
+          "DebounceResetOnContentSizeChange",
+          contentHeight,
+        );
+        clearTimeout(layoutStabilizationTimeoutRef.current);
+        layoutStabilizationTimeoutRef.current = null;
+        debounceTimerMetaRef.current = null;
       }
+
+      const debMeta = logTimerCreated("DEBOUNCE", 90, contentHeight);
+      debounceTimerMetaRef.current = debMeta;
+      layoutStabilizationTimeoutRef.current = setTimeout(() => {
+        logTimerFired(
+          debMeta,
+          contentHeight,
+          getMonotonicNow() - lastContentSizeTimeRef.current,
+        );
+        layoutStabilizationTimeoutRef.current = null;
+        debounceTimerMetaRef.current = null;
+        performFinalPositionAndReveal(
+          getScrollOffset,
+          getContentHeight,
+          `QuietDebounce(90ms,gen=${debMeta.genId})`,
+        );
+      }, 90);
+
+      logContentSizeTimerInspection(
+        contentHeight,
+        hardTimerMetaRef.current,
+        debounceTimerMetaRef.current,
+      );
     },
     [performFinalPositionAndReveal],
   );
@@ -225,13 +388,39 @@ export default function ChatScreen({ route, navigation }) {
     isInitialMountedRef.current = false;
     canTriggerStartReachedRef.current = false;
     lastSeenContentHeightRef.current = 0;
+    lastContentSizeTimeRef.current = 0;
+    lastCorrectedLayoutVersionRef.current = 0;
+    lastCorrectedContentHeightRef.current = 0;
+    invalidationPassCountRef.current = 0;
+
+    if (layoutStabilizationTimeoutRef.current) {
+      logTimerCleared(debounceTimerMetaRef.current, "EffectReset", 0);
+      clearTimeout(layoutStabilizationTimeoutRef.current);
+      layoutStabilizationTimeoutRef.current = null;
+      debounceTimerMetaRef.current = null;
+    }
+    if (hardMaxFallbackTimeoutRef.current) {
+      logTimerCleared(hardTimerMetaRef.current, "EffectReset", 0);
+      clearTimeout(hardMaxFallbackTimeoutRef.current);
+      hardMaxFallbackTimeoutRef.current = null;
+      hardTimerMetaRef.current = null;
+    }
 
     return () => {
       if (initialCorrectionRafRef.current) {
         cancelAnimationFrame(initialCorrectionRafRef.current);
       }
       if (layoutStabilizationTimeoutRef.current) {
+        logTimerCleared(debounceTimerMetaRef.current, "UnmountCleanup", 0);
         clearTimeout(layoutStabilizationTimeoutRef.current);
+        layoutStabilizationTimeoutRef.current = null;
+        debounceTimerMetaRef.current = null;
+      }
+      if (hardMaxFallbackTimeoutRef.current) {
+        logTimerCleared(hardTimerMetaRef.current, "UnmountCleanup", 0);
+        clearTimeout(hardMaxFallbackTimeoutRef.current);
+        hardMaxFallbackTimeoutRef.current = null;
+        hardTimerMetaRef.current = null;
       }
     };
   }, [currentConversationId]);
@@ -326,17 +515,15 @@ export default function ChatScreen({ route, navigation }) {
   const visibleItemIdsRef = useRef(new Set());
   const viewabilityConfigRef = useRef({ itemVisiblePercentThreshold: 10 });
   const onViewableItemsChangedRef = useRef(({ viewableItems }) => {
-    const messageItems = viewableItems.filter((v) => v.item?.type === "message");
+    const messageItems = viewableItems.filter(
+      (v) => v.item?.type === "message",
+    );
     if (messageItems.length > 0) {
       topVisibleMsgIdRef.current = messageItems[0].item.data.id;
     }
     const ids = new Set(messageItems.map((v) => v.item?.data?.id));
     visibleItemIdsRef.current = ids;
   });
-
-
-
-
 
   const renderItem = useCallback(
     ({ item, index }) => {
@@ -353,10 +540,12 @@ export default function ChatScreen({ route, navigation }) {
       }
       const isMyMessage = isGroup
         ? String(msg.senderId) === String(initState.currentUser?.id) &&
-          (msg.senderType || "member") === (initState.currentUser?.type || "member")
+          (msg.senderType || "member") ===
+            (initState.currentUser?.type || "member")
         : initState.currentUser?.id != null
           ? String(msg.senderId) === String(initState.currentUser?.id)
-          : String(msg.senderId) !== String(recipientState.recipient?.id ?? recipientId);
+          : String(msg.senderId) !==
+            String(recipientState.recipient?.id ?? recipientId);
 
       const showAvatar = isMyMessage ? false : Boolean(msg._showAvatar);
       const showSenderName = isMyMessage ? false : Boolean(msg._showSenderName);
@@ -520,7 +709,9 @@ export default function ChatScreen({ route, navigation }) {
           onUnsend={moderationState.handleUnsend}
           onCancelOptions={() => messagesState.setOptionsTarget(null)}
           chatActionsVisible={moderationState.chatActionsVisible}
-          onCloseChatActions={() => moderationState.setChatActionsVisible(false)}
+          onCloseChatActions={() =>
+            moderationState.setChatActionsVisible(false)
+          }
           onDeleteChat={moderationState.handleDeleteChat}
           onReport={moderationState.handleStartReport}
           onMute={moderationState.handleMuteChat}
@@ -532,7 +723,9 @@ export default function ChatScreen({ route, navigation }) {
           }}
           youHaveBlocked={recipientState.youHaveBlocked}
           reportSheetVisible={moderationState.reportSheetVisible}
-          onCloseReportSheet={() => moderationState.setReportSheetVisible(false)}
+          onCloseReportSheet={() =>
+            moderationState.setReportSheetVisible(false)
+          }
           onSelectReportReason={moderationState.handleReportReason}
           sharedPostModalVisible={messagesState.sharedPostModalVisible}
           selectedSharedPost={messagesState.selectedSharedPost}

@@ -16,6 +16,7 @@ import {
   logContentSizeChange,
   logViewableItems,
   logStartupScrollEvent,
+  logPostScrollFetchOlder,
 } from "../utils/startupTelemetry";
 
 export const USE_FLATLIST_ISOLATION_TEST = false;
@@ -179,6 +180,7 @@ const ChatMessageList = React.memo((props) => {
                   !isLoadingRef.current &&
                   canTriggerStartReachedRef.current
                 ) {
+                  logPostScrollFetchOlder("onStartReached");
                   canTriggerStartReachedRef.current = false;
                   loadOlderMessages(currentConversationId);
                 }
