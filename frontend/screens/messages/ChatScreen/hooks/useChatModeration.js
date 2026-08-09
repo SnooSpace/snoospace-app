@@ -11,8 +11,7 @@ import {
 import { blockUser, unblockUser } from "../../../../api/plans";
 import EventBus from "../../../../utils/EventBus";
 import { updateMessageInCache } from "../../../../services/conversationCache";
-
-const INITIAL_MESSAGES_LIMIT = 30;
+import { INITIAL_MESSAGES_LIMIT } from "../chatConfig";
 
 export default function useChatModeration({
   currentConversationId,

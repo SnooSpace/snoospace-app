@@ -6,6 +6,9 @@
 
 import { computeEstimatedMessageHeight } from "./chatListHelpers";
 
+const TELEMETRY_LOGGING_ENABLED = false;
+const log = TELEMETRY_LOGGING_ENABLED ? console.log : () => {};
+
 let mountTimestamp = 0;
 let currentConvId = null;
 let layoutVersion = 0;
@@ -38,6 +41,10 @@ export function getMonotonicNow() {
     : Date.now();
 }
 
+export function getMountTimestamp() {
+  return mountTimestamp;
+}
+
 export function resetStartupTelemetry(conversationId) {
   mountTimestamp = getMonotonicNow();
   currentConvId = conversationId;
@@ -66,7 +73,7 @@ export function resetStartupTelemetry(conversationId) {
   lastKnownOffsetY = null;
   lastKnownLastMessageVisible = false;
 
-  console.log(`[STARTUP-TELEMETRY] Init conversationId=${conversationId} at t=0ms (monotonic)`);
+  log(`[STARTUP-TELEMETRY] Init conversationId=${conversationId} at t=0ms (monotonic)`);
 }
 
 function getElapsedMs() {
@@ -117,7 +124,7 @@ export function logOverrideItemLayout(index, size, totalItems, item) {
   // re-render before all N items called overrideItemLayout) and the next pass
   // starts from index 0 again.
   if (index === 0 && (overrideIndexMap.size > 0 || overrideItemMetaMap.size > 0)) {
-    console.log(
+    log(
       `[OVERRIDE-CELL][STALE_CLEAR] Flushing ${overrideIndexMap.size} stale index entries` +
       ` and ${overrideItemMetaMap.size} stale meta entries before new pass (layoutV=${layoutVersion})`
     );
@@ -159,7 +166,7 @@ export function logOverrideItemLayout(index, size, totalItems, item) {
     overrideItemMetaMap.forEach((meta, idx) => {
       const isTallest = idx === maxIndex;
       if (meta.size > 150 || isTallest) {
-        console.log(
+        log(
           `[OVERRIDE-CELL][Pass#${passNum}] layoutV=${layoutVersion}` +
           ` idx=${idx}/${totalItems - 1}` +
           ` msgId=${meta.msgId}` +
@@ -171,7 +178,7 @@ export function logOverrideItemLayout(index, size, totalItems, item) {
       }
     });
 
-    console.log(
+    log(
       `[STARTUP-TELEMETRY][overrideItemLayout Pass #${passNum}] t=+${getElapsedMs()}ms` +
       ` layoutVersion=${layoutVersion}` +
       ` uniqueIndices=${overrideIndexMap.size}/${totalItems}` +
@@ -249,7 +256,7 @@ export function logInitialPosition(flatListData, viewportHeight, initialScrollIn
   const comp = summarizeComposition(flatListData);
   const sumEstH = computeSumEstimatedHeight(flatListData);
 
-  console.log(
+  log(
     `[STARTUP-TELEMETRY][Stage 1: Initial Native Position] t=+${getElapsedMs()}ms layoutVersion=${layoutVersion} msgCount=${count} initialScrollIndex=${initialScrollIndexProp !== undefined ? initialScrollIndexProp : "undefined"} viewportH=${storedViewportHeight || "unknown"} sumEstimatedH=${sumEstH}px composition=${JSON.stringify(comp)} flashListConfig={"drawDistance":${drawDistanceProp ?? 250},"estimatedItemSize":70,"hasHeader":true,"maintainVisibleContentPosition":true}`
   );
 }
@@ -269,7 +276,7 @@ export function logContentSizeChange(width, height, flatListData) {
   const sumEstH = computeSumEstimatedHeight(flatListData);
   const estDiff = sumEstH > 0 ? height - sumEstH : 0;
 
-  console.log(
+  log(
     `[STARTUP-TELEMETRY][Stage 2: ContentSizeChange #${layoutVersion}] t=+${getElapsedMs()}ms dt=+${timeSinceLast}ms layoutVersion=${layoutVersion} w=${width} h=${height} delta=${delta >= 0 ? "+" : ""}${delta}px estDiff=${estDiff >= 0 ? "+" : ""}${estDiff}px viewportH=${storedViewportHeight || "unknown"} isFirst=${isFirst}`
   );
   previousContentHeight = height;
@@ -278,7 +285,7 @@ export function logContentSizeChange(width, height, flatListData) {
 }
 
 export function logLayoutConvergence(reason, quietMs, finalHeight) {
-  console.log(
+  log(
     `[STARTUP-TELEMETRY][Stage 2.5: CONVERGENCE ACHIEVED] t=+${getElapsedMs()}ms reason=${reason} quietFor=${quietMs != null ? quietMs.toFixed(1) + "ms" : "N/A"} layoutVersion=${layoutVersion} finalContentH=${finalHeight}px`
   );
 }
@@ -300,7 +307,7 @@ export function logTimerCreated(timerType, durationMs, contentHeight) {
     intendedExpirationElapsed,
   };
 
-  console.log(
+  log(
     `[TIMER-LIFECYCLE][CREATED] genId=${genId} type=${timerType} duration=${durationMs}ms createdT=+${createdElapsed}ms intendedExpirationT=+${intendedExpirationElapsed}ms contentH=${contentHeight || previousContentHeight}px`
   );
 
@@ -314,7 +321,7 @@ export function logTimerFired(timerMeta, contentHeight, quietForMs) {
   const latenessMs = (now - timerMeta.intendedExpirationTime).toFixed(1);
   const quietStr = typeof quietForMs === "number" ? `${quietForMs.toFixed(1)}ms` : "N/A";
 
-  console.log(
+  log(
     `[TIMER-LIFECYCLE][FIRED] genId=${timerMeta.genId} type=${timerMeta.timerType} createdT=+${timerMeta.createdElapsed}ms intendedExpirationT=+${timerMeta.intendedExpirationElapsed}ms actualFiredT=+${actualFiredElapsed}ms lateness=${latenessMs >= 0 ? "+" : ""}${latenessMs}ms quietFor=${quietStr} contentH=${contentHeight || previousContentHeight}px`
   );
 }
@@ -325,7 +332,7 @@ export function logTimerCleared(timerMeta, clearReason, contentHeight) {
   const clearedElapsed = (now - mountTimestamp).toFixed(1);
   const remainingMs = (timerMeta.intendedExpirationTime - now).toFixed(1);
 
-  console.log(
+  log(
     `[TIMER-LIFECYCLE][CLEARED] genId=${timerMeta.genId} type=${timerMeta.timerType} createdT=+${timerMeta.createdElapsed}ms intendedExpirationT=+${timerMeta.intendedExpirationElapsed}ms clearedT=+${clearedElapsed}ms remainingMs=${remainingMs}ms reason=${clearReason} contentH=${contentHeight || previousContentHeight}px`
   );
 }
@@ -336,19 +343,19 @@ export function logContentSizeTimerInspection(height, activeHardTimerMeta, activ
   const hardRem = activeHardTimerMeta ? (activeHardTimerMeta.intendedExpirationTime - now).toFixed(1) : "none";
   const debRem = activeDebounceTimerMeta ? (activeDebounceTimerMeta.intendedExpirationTime - now).toFixed(1) : "none";
 
-  console.log(
+  log(
     `[TIMER-LIFECYCLE][CONTENT_SIZE_INSPECT] t=+${elapsed}ms layoutVersion=${layoutVersion} contentH=${height}px remainingHardMs=${hardRem} (gen=${activeHardTimerMeta?.genId || "none"}) remainingDebounceMs=${debRem} (gen=${activeDebounceTimerMeta?.genId || "none"})`
   );
 }
 
 export function logStateInvalidated(prevVersion, newVersion, oldHeight, newHeight, delta, passNumber) {
-  console.log(
+  log(
     `[STATE-MACHINE][INVALIDATED] t=+${getElapsedMs()}ms prevVersion=${prevVersion} newVersion=${newVersion} oldH=${oldHeight}px newH=${newHeight}px delta=${delta >= 0 ? "+" : ""}${delta.toFixed(1)}px pass=${passNumber}/10`
   );
 }
 
 export function logInvalidationLimitReached(passNumber, currentVersion, currentHeight, delta) {
-  console.log(
+  log(
     `[STATE-MACHINE][INVALIDATION_LIMIT_REACHED] t=+${getElapsedMs()}ms pass=${passNumber}/10 currentVersion=${currentVersion} currentH=${currentHeight}px delta=${delta >= 0 ? "+" : ""}${delta.toFixed(1)}px bottomGap<=25 - safe to stop`
   );
 }
@@ -365,7 +372,7 @@ export function logPassCapHit(passNumber, currentHeight, viewportH, currentOffse
       : null;
   const gapStr = gapNumber !== null ? `${gapNumber.toFixed(1)}px` : "unknown";
   const converged = gapNumber !== null ? gapNumber <= 25 : false;
-  console.log(
+  log(
     `[STATE-MACHINE][PASS_CAP_HIT] t=+${getElapsedMs()}ms` +
     ` finalPass=${passNumber}/10` +
     ` layoutVersion=${layoutVersion}` +
@@ -393,7 +400,7 @@ export function logPostSettlementContentSizeChange(
   // timerCreated is always true now — the isListSettledRef gate no longer
   // returns early; it falls through to create DEBOUNCE + HARD_FALLBACK.
   const timerCreated = true;
-  console.log(
+  log(
     `[STATE-MACHINE][POST_SETTLEMENT_CSC] t=+${getElapsedMs()}ms` +
     ` listSettled=true` +
     ` layoutVersion=${layoutVersion}` +
@@ -435,10 +442,10 @@ export function logPerformFinalPositionInvoked(reason, offsetY, contentHeight, i
     ? (liveH - storedViewportHeight)
     : undefined;
 
-  console.log(
+  log(
     `[POST-SCROLL-TRACE][INVOKED] t=+${getElapsedMs()}ms reason=${reason} layoutVersion=${layoutVersion} contentH=${liveH}px viewportH=${storedViewportHeight}px offsetY=${lastKnownOffsetY !== null ? lastKnownOffsetY.toFixed(1) : "unknown"} bottomGap=${gap} lastMessageVisible=${lastKnownLastMessageVisible}`
   );
-  console.log(
+  log(
     `[GEOMETRY-TRACE][SCROLL_TO_END_REQUESTED] t=+${getElapsedMs()}ms reason=${reason} layoutVersion=${layoutVersion} liveH=${liveH}px targetMaxOffset=${targetMaxOffset !== undefined ? targetMaxOffset.toFixed(1) : "unknown"}px currentOffsetY=${lastKnownOffsetY !== null ? lastKnownOffsetY.toFixed(1) : "unknown"}px staleContentSize1=${contentSize1Height}px staleMaxOffset1=${staleMax1 !== undefined ? staleMax1.toFixed(1) : "unknown"}px`
   );
 
@@ -450,7 +457,7 @@ export function logPostScrollFetchOlder(details = "") {
     postScrollFetchOccurred = true;
     const now = global.performance ? global.performance.now() : Date.now();
     const elapsed = (now - postScrollRequestedTimestamp).toFixed(1);
-    console.log(
+    log(
       `[POST-SCROLL-TRACE][FETCH-OLDER OCCURRED] t=+${getElapsedMs()}ms layoutVersion=${layoutVersion} elapsedSinceScrollReq=${elapsed}ms details=${details}`
     );
   }
@@ -469,7 +476,7 @@ export function checkPostScrollConvergence(offsetY, contentHeight, isLastMessage
   if (contentSize1Height > 0 && lastKnownOffsetY !== null && storedViewportHeight > 0) {
     const staleMax1 = contentSize1Height - storedViewportHeight;
     if (Math.abs(lastKnownOffsetY - staleMax1) < 15 || Math.abs(lastKnownOffsetY - contentSize1Height) < 15) {
-      console.log(
+      log(
         `[GEOMETRY-TRACE][STALLED AT STALE BOUNDARY] t=+${getElapsedMs()}ms offsetY=${lastKnownOffsetY.toFixed(1)}px matches staleContentSize1=${contentSize1Height}px (staleMaxOffset1=${staleMax1.toFixed(1)}px) targetMaxOffset=${(liveH - storedViewportHeight).toFixed(1)}px distanceToTarget=${(liveH - storedViewportHeight - lastKnownOffsetY).toFixed(1)}px triggerSource=${triggerSource}`
       );
     }
@@ -479,7 +486,7 @@ export function checkPostScrollConvergence(offsetY, contentHeight, isLastMessage
     if (liveH !== postScrollRequestedHeight && postScrollRequestedHeight > 0) {
       if (!postScrollContentHeightChanged) {
         postScrollContentHeightChanged = true;
-        console.log(
+        log(
           `[POST-SCROLL-TRACE][CONTENT-HEIGHT CHANGED] t=+${getElapsedMs()}ms reqH=${postScrollRequestedHeight}px currentH=${liveH}px delta=${(liveH - postScrollRequestedHeight).toFixed(1)}px triggerSource=${triggerSource}`
         );
       }
@@ -496,7 +503,7 @@ export function checkPostScrollConvergence(offsetY, contentHeight, isLastMessage
       const now = global.performance ? global.performance.now() : Date.now();
       const timeToConvergence = (now - postScrollRequestedTimestamp).toFixed(1);
 
-      console.log(
+      log(
         `[POST-SCROLL-TRACE][VERIFIED BOTTOM CONVERGENCE ACHIEVED] t=+${getElapsedMs()}ms triggerSource=${triggerSource} timeSinceScrollReq=${timeToConvergence}ms requestedReason=${postScrollRequestedReason} reqH=${postScrollRequestedHeight}px finalH=${liveH}px contentHeightChanged=${postScrollContentHeightChanged} fetchOccurred=${postScrollFetchOccurred} offsetY=${lastKnownOffsetY.toFixed(1)} bottomGap=${gapNumber.toFixed(1)}px lastMessageVisible=${lastKnownLastMessageVisible}`
       );
     }
@@ -510,7 +517,7 @@ export function logStartupScrollEvent(offsetY, currentContentHeight) {
   lastLoggedOffsetY = offsetY;
   const liveContentH = currentContentHeight || previousContentHeight;
   const gap = computeBottomGap(liveContentH, storedViewportHeight, offsetY);
-  console.log(
+  log(
     `[STARTUP-TELEMETRY][onScroll Event] t=+${getElapsedMs()}ms layoutVersion=${layoutVersion} offsetY=${offsetY.toFixed(1)} contentH=${liveContentH} viewportH=${storedViewportHeight} bottomGap=${gap}`
   );
 
@@ -526,7 +533,7 @@ export function logProgrammaticScroll(methodName, params, currentContentHeight) 
     .slice(2, 5)
     .map((s) => s.trim())
     .join(" -> ");
-  console.log(
+  log(
     `[STARTUP-TELEMETRY][PROGRAMMATIC SCROLL CALL] t=+${getElapsedMs()}ms layoutVersion=${layoutVersion} method=${methodName} params=${JSON.stringify(params)} contentH=${liveH} stack=[${stackLines}]`
   );
 }
@@ -534,7 +541,7 @@ export function logProgrammaticScroll(methodName, params, currentContentHeight) 
 export function logStageBeforeRAF(contentHeight, scrollOffset) {
   const liveH = contentHeight || previousContentHeight;
   const gap = computeBottomGap(liveH, storedViewportHeight, scrollOffset);
-  console.log(
+  log(
     `[STARTUP-TELEMETRY][Stage 3: rAF scrollToEnd BEFORE] t=+${getElapsedMs()}ms layoutVersion=${layoutVersion} offset=${scrollOffset !== undefined ? scrollOffset.toFixed(1) : "unknown"} contentH=${liveH} viewportH=${storedViewportHeight} bottomGap=${gap}`
   );
 }
@@ -542,7 +549,7 @@ export function logStageBeforeRAF(contentHeight, scrollOffset) {
 export function logStageAfterRAF(scrollOffset, contentHeight) {
   const liveH = contentHeight || previousContentHeight;
   const gap = computeBottomGap(liveH, storedViewportHeight, scrollOffset);
-  console.log(
+  log(
     `[STARTUP-TELEMETRY][Stage 3: rAF scrollToEnd AFTER] t=+${getElapsedMs()}ms layoutVersion=${layoutVersion} offset=${scrollOffset !== undefined ? scrollOffset.toFixed(1) : "unknown"} contentH=${liveH} bottomGap=${gap}`
   );
 }
@@ -550,7 +557,7 @@ export function logStageAfterRAF(scrollOffset, contentHeight) {
 export function logStageBeforeTimeout(scrollOffset, contentHeight) {
   const liveH = contentHeight || previousContentHeight;
   const gap = computeBottomGap(liveH, storedViewportHeight, scrollOffset);
-  console.log(
+  log(
     `[STARTUP-TELEMETRY][Stage 4: setTimeout(120) scrollToEnd BEFORE] t=+${getElapsedMs()}ms layoutVersion=${layoutVersion} offset=${scrollOffset !== undefined ? scrollOffset.toFixed(1) : "unknown"} contentH=${liveH} bottomGap=${gap}`
   );
 }
@@ -558,13 +565,13 @@ export function logStageBeforeTimeout(scrollOffset, contentHeight) {
 export function logStageAfterTimeout(scrollOffset, contentHeight) {
   const liveH = contentHeight || previousContentHeight;
   const gap = computeBottomGap(liveH, storedViewportHeight, scrollOffset);
-  console.log(
+  log(
     `[STARTUP-TELEMETRY][Stage 4: setTimeout(120) scrollToEnd AFTER] t=+${getElapsedMs()}ms layoutVersion=${layoutVersion} offset=${scrollOffset !== undefined ? scrollOffset.toFixed(1) : "unknown"} contentH=${liveH} bottomGap=${gap}`
   );
 }
 
 export function logOpacityReveal() {
-  console.log(
+  log(
     `[STARTUP-TELEMETRY][Stage 5: Reveal Opacity Animated] t=+${getElapsedMs()}ms layoutVersion=${layoutVersion} opacity 0 -> 1`
   );
 }
@@ -578,7 +585,7 @@ export function logViewableItems(viewableItems, flatListDataLength) {
   const expectedLast = flatListDataLength > 0 ? flatListDataLength - 1 : 0;
   const lastVisible = indices.includes(expectedLast);
 
-  console.log(
+  log(
     `[STARTUP-TELEMETRY][Viewability Update] t=+${getElapsedMs()}ms layoutVersion=${layoutVersion} visibleRange=[${minIdx}..${maxIdx}] count=${indices.length} expectedLastIdx=${expectedLast} lastMessageVisible=${lastVisible}`
   );
 

@@ -10,8 +10,9 @@ import { getPostById } from "../../../../api/posts";
 import EventBus from "../../../../utils/EventBus";
 import { NotificationConsumptionService } from "../../../../services/NotificationConsumptionService";
 import { getCachedConversation, setCachedConversation } from "../../../../services/conversationCache";
+import { INITIAL_MESSAGES_LIMIT, CHAT_TEST_LOGGING } from "../chatConfig";
 
-const INITIAL_MESSAGES_LIMIT = 30;
+const chatLog = CHAT_TEST_LOGGING ? console.log : () => {};
 
 export default function useChatInitialization({
   conversationId,
@@ -100,6 +101,11 @@ export default function useChatInitialization({
         const cacheAgeMs = cached ? Date.now() - cached.cachedAt : Infinity;
         const skipReconcile = cached && cacheAgeMs < RECONCILE_SKIP_WINDOW_MS;
         if (cached && cached.messages.length > 0) {
+          chatLog(
+            `[CHAT-PERF][WARM-START] convId=${conversationId}` +
+            ` cacheCount=${cached.messages.length} cacheAgeMs=${Math.round(cacheAgeMs)}` +
+            ` skipReconcile=${skipReconcile} hasMore=${cached.hasMore}`,
+          );
           addNewMessages(cached.messages);
           setMessagesLoading(false);
         } else {

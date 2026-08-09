@@ -3,8 +3,7 @@ import { getSocket } from "../../../../services/socketService";
 import { markMessageRead } from "../../../../api/messages";
 import { appendMessageToCache } from "../../../../services/conversationCache";
 import { NotificationConsumptionService } from "../../../../services/NotificationConsumptionService";
-
-const INITIAL_MESSAGES_LIMIT = 30;
+import { INITIAL_MESSAGES_LIMIT } from "../chatConfig";
 
 export default function useChatSocket({
   currentConversationId,
@@ -77,13 +76,8 @@ export default function useChatSocket({
       });
 
       if (isAtBottomRef.current) {
-        // Fix B: signal ChatMessageList to scroll after the next real layout
-        // pass, so the new (potentially tall) cell's height is already known.
         if (pendingScrollToBottomRef) {
           pendingScrollToBottomRef.current = true;
-          console.log(
-            `[SCROLL_FLAG] pendingScrollToBottom SET by receiver at t=${performance.now().toFixed(1)}ms msgId=${msg.id}`,
-          );
         }
       }
 

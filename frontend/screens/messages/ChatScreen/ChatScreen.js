@@ -49,6 +49,7 @@ import {
   logLayoutConvergence,
   logPerformFinalPositionInvoked,
   getMonotonicNow,
+  getMountTimestamp,
   logTimerCreated,
   logTimerFired,
   logTimerCleared,
@@ -60,6 +61,14 @@ import {
   logPostSettlementContentSizeChange,
   getStoredViewportHeight,
 } from "./utils/startupTelemetry";
+import {
+  REVEAL_DEBOUNCE_MS,
+  REVEAL_HARD_FALLBACK_MS,
+  REVEAL_FADE_DURATION_MS,
+  CHAT_TEST_LOGGING,
+} from "./chatConfig";
+
+const chatLog = CHAT_TEST_LOGGING ? console.log : () => {};
 
 export default function ChatScreen({ route, navigation }) {
   const {
@@ -237,7 +246,13 @@ export default function ChatScreen({ route, navigation }) {
       // ── Opacity reveal (cosmetic only — fires regardless of gap) ──────────
       if (listRevealOpacity.value === 0) {
         logOpacityReveal();
-        listRevealOpacity.value = withTiming(1, { duration: 50 });
+        const revealMs = (getMonotonicNow() - getMountTimestamp()).toFixed(1);
+        chatLog(
+          `[CHAT-PERF][REVEAL] convId=${currentConversationId}` +
+          ` timeToRevealMs=${revealMs} reason=${reason}` +
+          ` debounceCfg=${REVEAL_DEBOUNCE_MS}ms hardFallbackCfg=${REVEAL_HARD_FALLBACK_MS}ms`,
+        );
+        listRevealOpacity.value = withTiming(1, { duration: REVEAL_FADE_DURATION_MS });
       }
 
       if (isAtBottom) {
@@ -245,11 +260,6 @@ export default function ChatScreen({ route, navigation }) {
         hasCorrectedInitialLayoutRef.current = true;
         lastCorrectedLayoutVersionRef.current = getCurrentLayoutVersion();
         lastCorrectedContentHeightRef.current = liveHeight;
-        console.log(
-          `[CONVERGENCE_SKIPPED_SCROLL] t=+${(getMonotonicNow() - (lastContentSizeTimeRef.current || getMonotonicNow())).toFixed(1)}ms` +
-          ` reason=${reason} bottomGap=${gapNumber.toFixed(1)}px <= 25px` +
-          ` -> Native position already at bottom. Skipping scroll command.`,
-        );
       } else {
         // Not at bottom yet — issue the correction scroll.
         const targetOffset =
@@ -273,11 +283,6 @@ export default function ChatScreen({ route, navigation }) {
         // Re-invalidate so the next ContentSizeChange can trigger another
         // correction pass. Do NOT mark hasCorrectedInitialLayoutRef=true here
         // because we haven't confirmed bottomGap <= 25 yet.
-        console.log(
-          `[CONVERGENCE_REARM] t=+${(getMonotonicNow() - (lastContentSizeTimeRef.current || getMonotonicNow())).toFixed(1)}ms` +
-          ` reason=${reason} bottomGap=${gapNumber.toFixed(1)}px > 25px` +
-          ` -> Scroll issued, re-arming for next ContentSizeChange confirmation.`,
-        );
         hasCorrectedInitialLayoutRef.current = false;
         // Record the height we corrected to so delta-gating in the next pass
         // compares against this baseline, not a stale one.
@@ -325,13 +330,6 @@ export default function ChatScreen({ route, navigation }) {
         const atBottom = isAtBottomRef.current;
         const explicitSignal = pendingScrollToBottomRef?.current ?? false;
         if (!atBottom && !explicitSignal) {
-          console.log(
-            `[CORRECTION_SKIPPED] reason=NotAtBottomAndNoExplicitSignal` +
-            ` isAtBottom=${atBottom}` +
-            ` pendingScroll=${explicitSignal}` +
-            ` contentH=${contentHeight}` +
-            ` — deferring to maintainVisibleContentPosition`,
-          );
           return;
         }
         // fall through — at bottom or explicit signal, create timers
@@ -387,12 +385,6 @@ export default function ChatScreen({ route, navigation }) {
             // NOT at bottom even at cap — fire one last hard-fallback timer
             // instead of returning cold. This is the safety net for genuinely
             // unstable content that still hasn't converged.
-            console.log(
-              `[STATE-MACHINE][CAP_EXCEEDED_NOT_CONVERGED]` +
-              ` pass=${invalidationPassCountRef.current}/10` +
-              ` bottomGap=${gapAtCap.toFixed(1)}px > 25px` +
-              ` -> Firing emergency hard-fallback scroll.`,
-            );
             flashListRef.current?.scrollToOffset({
               offset: Math.max(0, contentHeight - viewportH),
               animated: false,
@@ -410,7 +402,7 @@ export default function ChatScreen({ route, navigation }) {
 
       // Hard maximum fallback timeout
       if (!hardMaxFallbackTimeoutRef.current) {
-        const meta = logTimerCreated("HARD_FALLBACK", 1200, contentHeight);
+        const meta = logTimerCreated("HARD_FALLBACK", REVEAL_HARD_FALLBACK_MS, contentHeight);
         hardTimerMetaRef.current = meta;
         hardMaxFallbackTimeoutRef.current = setTimeout(() => {
           logTimerFired(
@@ -425,7 +417,7 @@ export default function ChatScreen({ route, navigation }) {
             getContentHeight,
             `HardMaxFallback(1200ms,gen=${meta.genId})`,
           );
-        }, 1200);
+        }, REVEAL_HARD_FALLBACK_MS);
       }
 
       // Debounce timer — requires 90ms quiet window
@@ -440,7 +432,7 @@ export default function ChatScreen({ route, navigation }) {
         debounceTimerMetaRef.current = null;
       }
 
-      const debMeta = logTimerCreated("DEBOUNCE", 90, contentHeight);
+      const debMeta = logTimerCreated("DEBOUNCE", REVEAL_DEBOUNCE_MS, contentHeight);
       debounceTimerMetaRef.current = debMeta;
       layoutStabilizationTimeoutRef.current = setTimeout(() => {
         logTimerFired(
@@ -453,9 +445,9 @@ export default function ChatScreen({ route, navigation }) {
         performFinalPositionAndReveal(
           getScrollOffset,
           getContentHeight,
-          `QuietDebounce(90ms,gen=${debMeta.genId})`,
+          `QuietDebounce(${REVEAL_DEBOUNCE_MS}ms,gen=${debMeta.genId})`,
         );
-      }, 90);
+      }, REVEAL_DEBOUNCE_MS);
 
       logContentSizeTimerInspection(
         contentHeight,

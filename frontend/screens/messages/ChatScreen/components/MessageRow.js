@@ -578,12 +578,6 @@ const MessageRow = React.memo((props) => {
       );
     }
 
-    if (msg.replyToMessageId) {
-      console.log(
-        `[ROW-RENDER] msgId=${msg.id} replyId=${msg.replyToMessageId} hasPreview=${Boolean(msg.replyPreview)} renderReply=${Boolean(msg.replyToMessageId && msg.replyPreview)}`,
-      );
-    }
-
     const bubbleContent = (
       <View
         collapsable={false}

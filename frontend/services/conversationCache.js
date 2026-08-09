@@ -20,6 +20,9 @@
  */
 
 import authEventEmitter from "../utils/authEventEmitter";
+import { WARM_CACHE_MAX_MESSAGES, CHAT_TEST_LOGGING } from "../screens/messages/ChatScreen/chatConfig";
+
+const chatLog = CHAT_TEST_LOGGING ? console.log : () => {};
 
 const MAX_CACHED_CONVERSATIONS = 10;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes — generous for a warm session
@@ -97,9 +100,17 @@ export function setCachedConversation(conversationId, { messages, hasMore }) {
   const key = String(conversationId);
   evictIfNeeded();
 
-  const wasTrimmed = Array.isArray(messages) && messages.length > 20;
-  const trimmed = Array.isArray(messages) ? messages.slice(-20) : [];
+  const wasTrimmed = Array.isArray(messages) && messages.length > WARM_CACHE_MAX_MESSAGES;
+  const trimmed = Array.isArray(messages) ? messages.slice(-WARM_CACHE_MAX_MESSAGES) : [];
   const oldestTime = trimmed.length > 0 ? trimmed[0].createdAt : null;
+
+  if (wasTrimmed) {
+    chatLog(
+      `[CHAT-PERF][CACHE-TRIM] convId=${conversationId}` +
+      ` original=${messages.length} trimmedTo=${trimmed.length}` +
+      ` limit=${WARM_CACHE_MAX_MESSAGES}`,
+    );
+  }
 
   const finalHasMore = wasTrimmed ? true : (hasMore !== undefined ? hasMore : true);
 

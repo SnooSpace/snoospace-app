@@ -89,6 +89,7 @@ import SnooLoader from "../ui/SnooLoader";
 import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
 import HapticsService from "../../services/HapticsService";
+import ViewInsightsSheet from "../ui/ViewInsightsSheet";
 import {
   getExtensionBadgeText,
   getTimeRemaining,
@@ -512,19 +513,61 @@ const ChallengePostCard = React.memo(({
   const [viewCount, setViewCount] = useRecyclingState(post.public_view_count || post.view_count || 0, [post.id]);
   const dwellTimerRef = useRef(null);
 
+  // ── View Insights sheet ────────────────────────────────────────────────────
+  const [viewStatsVisible, setViewStatsVisible] = React.useState(false);
+  const [viewStats, setViewStats] = React.useState(null);
+  const [viewStatsLoading, setViewStatsLoading] = React.useState(false);
+  const viewSheetAnim = React.useRef(new Animated.Value(0)).current;
+
+  const handleViewPress = React.useCallback(async () => {
+    HapticsService.triggerView();
+    setViewStatsVisible(true);
+    Animated.spring(viewSheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
+    setViewStatsLoading(true);
+    try {
+      await viewQueueService.flushQueue();
+      const token = await getAuthToken();
+      const data = await apiGet(`/posts/${post.id}/view-stats`, 8000, token);
+      setViewStats(data);
+    } catch (e) {
+      setViewStats({ unique_views: post.public_view_count || post.view_count || 0, total_views: post.view_count || 0 });
+    } finally {
+      setViewStatsLoading(false);
+    }
+  }, [post.id, post.public_view_count, post.view_count, viewSheetAnim]);
+
+  const handleCloseViewStats = React.useCallback(() => {
+    HapticsService.triggerClose();
+    Animated.timing(viewSheetAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => {
+      setViewStatsVisible(false);
+      setViewStats(null);
+    });
+  }, [viewSheetAnim]);
+
   useEffect(() => {
     const DWELL_THRESHOLD = 2500;
     const alreadyViewed = viewQueueService.hasViewed(post.id);
+    let qualified = false;
+
     if (!alreadyViewed) {
       dwellTimerRef.current = setTimeout(() => {
+        qualified = true;
         viewQueueService.addQualifiedView(post.id, { postType: "challenge", trigger: "dwell" });
       }, DWELL_THRESHOLD);
     } else {
       dwellTimerRef.current = setTimeout(() => {
+        qualified = true;
         viewQueueService.addRepeatView(post.id, "revisit");
       }, DWELL_THRESHOLD);
     }
-    return () => { if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current); };
+    return () => {
+      if (dwellTimerRef.current) {
+        clearTimeout(dwellTimerRef.current);
+        if (!alreadyViewed && !qualified) {
+          viewQueueService.recordUnseenImpression(post.id);
+        }
+      }
+    };
   }, [post.id]);
 
   useEffect(() => {
@@ -1567,7 +1610,7 @@ const ChallengePostCard = React.memo(({
           </TouchableOpacity>
 
           {/* Views */}
-          <TouchableOpacity style={styles.engagementButton} onPress={() => HapticsService.triggerView()}>
+          <TouchableOpacity style={styles.engagementButton} onPress={handleViewPress}>
             <ChartNoAxesCombined size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
             <Text style={styles.engagementCount}>
               {formatCount(viewCount)}
@@ -1687,6 +1730,13 @@ const ChallengePostCard = React.memo(({
           iconColor={alertConfig.iconColor}
         />
       )}
+      <ViewInsightsSheet
+        visible={viewStatsVisible}
+        onClose={handleCloseViewStats}
+        stats={viewStats}
+        loading={viewStatsLoading}
+        sheetAnim={viewSheetAnim}
+      />
     </>
   );
 });

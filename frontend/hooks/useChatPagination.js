@@ -43,8 +43,9 @@
 import { useState, useRef, useCallback } from "react";
 import { getMessages } from "../api/messages";
 import { setCachedConversation } from "../services/conversationCache";
+import { OLDER_PAGE_SIZE, CHAT_TEST_LOGGING } from "../screens/messages/ChatScreen/chatConfig";
 
-const OLDER_PAGE_SIZE = 12; // fixed page size for "load older" pagination
+const chatLog = CHAT_TEST_LOGGING ? console.log : () => {};
 
 export default function useChatPagination(initialMessages = [], initialHasMore = true) {
   const [messages,     setMessages]     = useState(initialMessages);
@@ -108,12 +109,19 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
     setMessages([]);
     setHasMore(false);
 
+    const fetchStart = performance.now();
     try {
       const res = await getMessages(conversationId, { limit });
       if (convIdRef.current !== conversationId) return; // stale response
 
       // Backend returns messages oldest-first — store directly, no reversal needed.
       const msgs = res.messages || [];
+      const fetchDur = (performance.now() - fetchStart).toFixed(0);
+      chatLog(
+        `[CHAT-PERF][COLD-START] convId=${conversationId}` +
+        ` requestedLimit=${limit} received=${msgs.length}` +
+        ` hasMore=${res.hasMore} fetchMs=${fetchDur}ms`,
+      );
       setMessages(msgs);
       setHasMore(res.hasMore || false);
       // Cursor = createdAt of the oldest (first) message in the array
@@ -149,9 +157,11 @@ export default function useChatPagination(initialMessages = [], initialHasMore =
         limit: OLDER_PAGE_SIZE,
       });
       const fetchDur = (performance.now() - fetchStart).toFixed(0);
-      if (__DEV__) {
-        console.log(`[FETCH-OLDER] cursor=${effectiveCursor} took=${fetchDur}ms count=${res.messages?.length || 0} hasMore=${res.hasMore}`);
-      }
+      chatLog(
+        `[CHAT-PERF][PAGINATION] convId=${conversationId}` +
+        ` batchSize=${OLDER_PAGE_SIZE} received=${res.messages?.length || 0}` +
+        ` hasMore=${res.hasMore} fetchMs=${fetchDur}ms`,
+      );
       if (convIdRef.current !== conversationId) return;
 
       const older = res.messages || [];

@@ -1170,6 +1170,11 @@ router.patch(
   authMiddleware,
   ViewsController.updateDwellTime,
 );
+router.post(
+  "/posts/views/unseen",
+  authMiddleware,
+  ViewsController.submitUnseenImpression,
+);
 
 // Share routes
 router.post("/posts/:postId/share", authMiddleware, ShareController.sharePost);

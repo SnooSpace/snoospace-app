@@ -164,6 +164,17 @@ const unfollow = async (req, res) => {
         .json({ error: "Following ID and type are required" });
     }
 
+    // Log unfollow event (additive lifecycle tracking)
+    try {
+      await pool.query(
+        "INSERT INTO unfollow_events (follower_id, follower_type, target_id, target_type) VALUES ($1, $2, $3, $4)",
+        [followerId, followerType, followingId, followingType]
+      );
+      console.log(`[UNFOLLOW] Logged unfollow event: follower ${followerId} (${followerType}) -> target ${followingId} (${followingType})`);
+    } catch (logErr) {
+      console.error("[followController] Failed to log unfollow event:", logErr);
+    }
+
     // Remove follow
     const result = await pool.query(
       "DELETE FROM follows WHERE follower_id = $1 AND follower_type = $2 AND following_id = $3 AND following_type = $4",

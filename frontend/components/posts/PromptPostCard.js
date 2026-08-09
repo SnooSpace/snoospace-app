@@ -392,8 +392,11 @@ const PromptPostCard = React.memo(({
   useEffect(() => {
     const DWELL_THRESHOLD = 2500;
     const alreadyViewed = viewQueueService.hasViewed(post.id);
+    let qualified = false;
+
     if (!alreadyViewed) {
       dwellTimerRef.current = setTimeout(() => {
+        qualified = true;
         viewQueueService.addQualifiedView(post.id, {
           postType: "prompt",
           trigger: "dwell",
@@ -401,11 +404,17 @@ const PromptPostCard = React.memo(({
       }, DWELL_THRESHOLD);
     } else {
       dwellTimerRef.current = setTimeout(() => {
+        qualified = true;
         viewQueueService.addRepeatView(post.id, "revisit");
       }, DWELL_THRESHOLD);
     }
     return () => {
-      if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
+      if (dwellTimerRef.current) {
+        clearTimeout(dwellTimerRef.current);
+        if (!alreadyViewed && !qualified) {
+          viewQueueService.recordUnseenImpression(post.id);
+        }
+      }
     };
   }, [post.id]);
 

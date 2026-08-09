@@ -157,9 +157,6 @@ export default function useChatUploads({
       // maintainVisibleContentPosition gets first shot; this is the fallback.
       if (pendingScrollToBottomRef) {
         pendingScrollToBottomRef.current = true;
-        console.log(
-          `[SCROLL_FLAG] pendingScrollToBottom SET by sender at t=${performance.now().toFixed(1)}ms`,
-        );
       }
     } catch (err) {
       console.error("Error sending message:", err);

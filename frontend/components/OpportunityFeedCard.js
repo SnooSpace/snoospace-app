@@ -58,6 +58,7 @@ import {
 } from "lucide-react-native";
 import { apiPost, apiDelete } from "../api/client";
 import { closeOpportunity } from "../api/opportunities";
+import { viewQueueService } from "../services/ViewQueueService";
 import CountdownTimer from "./CountdownTimer";
 import CommentsModal from "./CommentsModal";
 import EventBus from "../utils/EventBus";
@@ -498,7 +499,12 @@ const OpportunityFeedCard = React.memo(({
       }
     }, DWELL_THRESHOLD);
     return () => {
-      if (dwellTimerRef.current) clearTimeout(dwellTimerRef.current);
+      if (dwellTimerRef.current) {
+        clearTimeout(dwellTimerRef.current);
+        if (!hasTrackedView.current) {
+          viewQueueService.recordUnseenImpression(opportunity.id);
+        }
+      }
     };
   }, [opportunity.id]);
 

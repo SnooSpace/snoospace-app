@@ -70,6 +70,7 @@ import PremiumHeader, { getPremiumHeaderTotalHeight } from "./PremiumHeader";
 import { COLORS } from "../constants/theme";
 import EmptyFeedState from "./EmptyFeedState";
 import SnooLoader from "./ui/SnooLoader";
+import { viewQueueService } from "../services/ViewQueueService";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image as ExpoImage } from "expo-image";
 import { getOptimizedImageUrl } from "../utils/imageUtils";
@@ -1742,7 +1743,27 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     minimumViewTime: 100, // Small delay to prevent flickering during fast scrolls
   }).current;
 
+  // Tracks which feed item IDs are currently in the viewport. When an item
+  // leaves visibility before its dwell timer qualifies, we fire recordUnseenImpression.
+  const currentlyVisibleIdsRef = useRef(new Set());
+
   const onViewableItemsChanged = useCallback(({ viewableItems }) => {
+    const incomingIds = new Set(
+      viewableItems
+        .filter((v) => v.isViewable && v.item?.id != null)
+        .map((v) => String(v.item.id))
+    );
+
+    // Posts that were visible before but are no longer — they left the viewport.
+    currentlyVisibleIdsRef.current.forEach((id) => {
+      if (!incomingIds.has(id)) {
+        // Only fire if not already qualified / viewed this session.
+        viewQueueService.recordUnseenImpression(id);
+      }
+    });
+
+    currentlyVisibleIdsRef.current = incomingIds;
+
     if (viewableItems && viewableItems.length > 0) {
       // Find all video posts that are viewable (passing the 60% coverage threshold)
       const videoItems = viewableItems.filter(

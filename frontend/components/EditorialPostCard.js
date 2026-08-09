@@ -546,12 +546,14 @@ const DefaultEditorialPostCard = ({
     if (isVideo || !isInViewport) return;
 
     const dwellThreshold = 2500; // 2.5s for all post types (image, text)
+    let imageQualified = false;
 
     const alreadyViewed = viewQueueService.hasViewed(post.id);
     if (!alreadyViewed) {
       // ── Fresh view path: qualify and count as unique viewer ──────────────
       imageDwellStartRef.current = Date.now();
       imageDwellTimerRef.current = setTimeout(() => {
+        imageQualified = true;
         if (!imageViewCounted && !viewQueueService.hasViewed(post.id)) {
           setImageViewCounted(true);
           viewQueueService.addQualifiedView(post.id, {
@@ -565,6 +567,7 @@ const DefaultEditorialPostCard = ({
       // ── Repeat view path: user is revisiting a post they already counted ──
       // addRepeatView contributes to total_views (impressions) only, not unique.
       imageDwellTimerRef.current = setTimeout(() => {
+        imageQualified = true;
         viewQueueService.addRepeatView(post.id, "revisit");
       }, dwellThreshold);
     }
@@ -572,6 +575,9 @@ const DefaultEditorialPostCard = ({
     return () => {
       if (imageDwellTimerRef.current) {
         clearTimeout(imageDwellTimerRef.current);
+        if (!alreadyViewed && !imageQualified && !imageViewCounted) {
+          viewQueueService.recordUnseenImpression(post.id);
+        }
       }
     };
   }, [post.id, isVideo, isImage, imageViewCounted, isInViewport]);
@@ -630,6 +636,12 @@ const DefaultEditorialPostCard = ({
           }
         }, 2500);
       } else {
+        if (playbackStartTimeRef.current) {
+          const elapsed = Date.now() - playbackStartTimeRef.current;
+          if (elapsed < 2500 && !videoViewCounted && !viewQueueService.hasViewed(post.id)) {
+            viewQueueService.recordUnseenImpression(post.id);
+          }
+        }
         playbackStartTimeRef.current = null;
       }
     },

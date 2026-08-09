@@ -111,8 +111,17 @@ async function unfollowCreator(req, res) {
     const followerId = req.user?.id;
     const creatorId = req.params.creatorId;
 
-    if (!followerId) {
-      return res.status(401).json({ error: "Authentication required" });
+    const followerType = req.user?.type || "member";
+
+    // Log unfollow event (additive lifecycle tracking)
+    try {
+      await pool.query(
+        `INSERT INTO unfollow_events (follower_id, follower_type, target_id, target_type) VALUES ($1, $2, $3, 'member')`,
+        [followerId, followerType, creatorId]
+      );
+      console.log(`[UNFOLLOW] Logged creator unfollow event: follower ${followerId} (${followerType}) -> creator ${creatorId}`);
+    } catch (logErr) {
+      console.error("[CreatorFollowController] Failed to log unfollow event:", logErr);
     }
 
     // Permanent delete — unfollow is a real removal, not dormancy

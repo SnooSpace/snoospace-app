@@ -337,10 +337,69 @@ async function updateDwellTime(req, res) {
   }
 }
 
+/**
+ * POST /posts/views/unseen
+ *
+ * Records an unseen impression (scrolled past without qualifying).
+ * Deduplicated per session via last_session_id in post_impression_state.
+ */
+async function submitUnseenImpression(req, res) {
+  try {
+    const userId = req.user.id;
+    const userType = req.user.type;
+    const { postId, postIds, sessionId } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: "sessionId is required" });
+    }
+
+    let idsToProcess = [];
+    if (postId !== undefined && postId !== null) {
+      idsToProcess.push(postId);
+    } else if (Array.isArray(postIds)) {
+      idsToProcess = postIds;
+    } else if (Array.isArray(req.body.views)) {
+      idsToProcess = req.body.views.map((v) => (typeof v === "object" ? v.postId : v));
+    }
+
+    const validIds = idsToProcess
+      .map((id) => parseInt(id, 10))
+      .filter((id) => !isNaN(id));
+
+    if (validIds.length === 0) {
+      return res.status(400).json({ error: "No valid post IDs provided" });
+    }
+
+    for (const id of validIds) {
+      await pool.query(
+        `INSERT INTO post_impression_state (user_id, user_type, post_id, unseen_count, last_session_id)
+         VALUES ($1, $2, $3, 1, $4)
+         ON CONFLICT (user_id, user_type, post_id)
+         DO UPDATE SET
+           unseen_count = CASE
+             WHEN post_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+             THEN post_impression_state.unseen_count + 1
+             ELSE post_impression_state.unseen_count
+           END,
+           last_session_id = EXCLUDED.last_session_id
+         WHERE post_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id`,
+        [userId, userType, id, sessionId]
+      );
+      console.log(`[UNSEEN] Backend upserted unseen impression: post ${id} for user ${userId} (session: ${sessionId})`);
+    }
+
+    return res.json({ success: true, processed: validIds.length });
+  } catch (e) {
+    console.error("[ViewsController] submitUnseenImpression error:", e);
+    return res.status(500).json({ error: "Failed to record unseen impression" });
+  }
+}
+
 module.exports = {
   submitViewsBatch,
   getPostViewAnalytics,
   getViewedPosts,
   getPostViewStats,
   updateDwellTime,
+  submitUnseenImpression,
 };

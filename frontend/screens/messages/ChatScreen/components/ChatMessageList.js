@@ -110,100 +110,28 @@ const ChatMessageList = React.memo((props) => {
       contentHeightRef.current = h;
       logContentSizeChange(w, h, flatListData);
 
-      // ── Diagnostic: last-cell estimated vs actual ────────────────────────
-      const lastItem = flatListData?.[flatListData.length - 1];
-      if (lastItem?.data) {
-        const estimated = computeEstimatedMessageHeight(lastItem.data);
-        const textLen = lastItem.data.messageText?.length ?? 0;
-        const listSettled = isListSettledRef?.current ?? false;
-        console.log(
-          `[CELL_SIZE_DIAG] t=${now.toFixed(1)}ms` +
-          ` actualContentH=${h.toFixed(0)}` +
-          ` lastMsgId=${lastItem.data.id}` +
-          ` textLen=${textLen}` +
-          ` estimatedCellH=${estimated}` +
-          ` pendingScroll=${pendingScrollToBottomRef?.current ?? false}` +
-          ` listSettled=${listSettled}`,
-        );
-      }
-      // ── [SRFB_TEST] startRenderingFromBottom positioning probe ───────────
-      // Reports gap on every ContentSizeChange so we can see on the very first
-      // pass whether startRenderingFromBottom positioned us at the true bottom,
-      // or whether the DEBOUNCE/HARD_FALLBACK fallback still needs to fire.
-      {
-        const viewportH = getStoredViewportHeight() || 0;
-        const gap = viewportH > 0
-          ? h - (viewportH + scrollOffsetRef.current)
-          : null;
-        console.log(
-          `[SRFB_TEST] t=${now.toFixed(1)}ms` +
-          ` contentH=${h.toFixed(0)}` +
-          ` viewportH=${viewportH}` +
-          ` scrollOffset=${scrollOffsetRef.current.toFixed(0)}` +
-          ` bottomGap=${gap !== null ? gap.toFixed(1) + "px" : "unknown"}` +
-          ` startRenderingFromBottom=true` +
-          ` listSettled=${isListSettledRef?.current ?? false}`,
-        );
-      }
-      // ────────────────────────────────────────────────────────────
-
       // ── Layout-driven scroll fallback (System A) ──────────────────────
-      // CRITICAL GUARD: only consume the flag after the list has settled
-      // (i.e. isListSettledRef=true, meaning the user has scrolled at least
-      // once). Before settlement, the DEBOUNCE/HARD_FALLBACK convergence
-      // machine (System B in ChatScreen) owns positioning. Consuming here
-      // during the 3-pass oscillation window would fight System B's
-      // animated:false scrollToOffset with an animated:true scrollToEnd.
       if (pendingScrollToBottomRef?.current) {
         if (isListSettledRef?.current === true) {
           pendingScrollToBottomRef.current = false;
-          const flagClearTime = now;
           requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-              // Re-read LIVE values at execution time — the closure snapshot
-              // from flagClearTime is up to ~34ms stale. System B may have
-              // already scrolled to bottom during those two frames.
               const liveContentH = contentHeightRef.current;
               const liveOffset = scrollOffsetRef.current;
               const liveViewportH = getStoredViewportHeight() || 0;
               const liveBottomGap = liveViewportH > 0
                 ? liveContentH - (liveViewportH + liveOffset)
                 : Infinity;
-              const scrollTime = performance.now();
 
               if (liveBottomGap <= 25) {
-                // System B already converged — firing scrollToEnd here would
-                // cause the visible backward-crawl. Skip entirely.
-                console.log(
-                  `[SCROLL_FALLBACK] SKIPPED — already converged` +
-                  ` +${(scrollTime - flagClearTime).toFixed(1)}ms after onContentSizeChange` +
-                  ` liveBottomGap=${liveBottomGap.toFixed(1)}px <= 25px` +
-                  ` System B likely already handled this.`,
-                );
                 return;
               }
 
-              // Gap still open — System B hasn't fired yet or missed.
-              // This is a genuine corrective scroll, not a race-condition duplicate.
-              console.log(
-                `[SCROLL_FALLBACK] CONSUMED — liveBottomGap=${liveBottomGap.toFixed(1)}px > 25px` +
-                ` +${(scrollTime - flagClearTime).toFixed(1)}ms after onContentSizeChange` +
-                ` liveContentH=${liveContentH.toFixed(0)}` +
-                ` liveOffset=${liveOffset.toFixed(0)}` +
-                ` System B has not converged, firing corrective scroll.`,
-              );
               flashListRef.current?.scrollToEnd({ animated: true });
             });
           });
         } else {
-          // List not settled yet — System B owns this. Discard silently and
-          // log so we can confirm in testing that System B handled it.
           pendingScrollToBottomRef.current = false;
-          console.log(
-            `[SCROLL_FALLBACK] DISCARDED (listSettled=false)` +
-            ` contentH=${h.toFixed(0)}` +
-            ` — System B (convergence machine) owns scroll during initial load`,
-          );
         }
       }
       // ────────────────────────────────────────────────────────────

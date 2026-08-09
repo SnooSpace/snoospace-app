@@ -12,6 +12,7 @@
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
+import * as Crypto from "expo-crypto";
 import { apiPost, apiPatch } from "../api/client";
 import EventBus from "../utils/EventBus";
 
@@ -24,8 +25,17 @@ class ViewQueueService {
   constructor() {
     this.pendingQueue = [];
     this.viewedPostsCache = new Set(); // Advisory local cache
+    this.unseenInSessionSet = new Set(); // In-memory session deduplication for unseen impressions
+    this.sessionId = Crypto.randomUUID(); // In-memory cold start session ID (UUID v4)
     this.batchTimer = null;
     this.isInitialized = false;
+  }
+
+  /**
+   * Get current in-memory session ID
+   */
+  getSessionId() {
+    return this.sessionId;
   }
 
   /**
@@ -33,6 +43,7 @@ class ViewQueueService {
    */
   async init() {
     if (this.isInitialized) return;
+    console.log(`[SESSION] New session started: ${this.sessionId}`);
 
     try {
       // Load pending queue from storage (for offline support)
@@ -189,7 +200,7 @@ class ViewQueueService {
 
       const response = await apiPost(
         "/posts/views/batch",
-        { views: batch },
+        { views: batch, sessionId: this.sessionId },
         15000,
         token,
       );
@@ -256,6 +267,7 @@ class ViewQueueService {
     await this.flushQueue();
     // Clear the in-memory cache
     this.viewedPostsCache = new Set();
+    this.unseenInSessionSet = new Set();
     this.pendingQueue = [];
     // Clear the persisted cache
     try {
@@ -287,6 +299,42 @@ class ViewQueueService {
     } catch (e) {
       // Fire-and-forget — don't block on failures
       console.warn('[ViewQueueService] updateDwellTime failed:', e?.message);
+    }
+  }
+
+  /**
+   * Record an unseen impression event (scrolled past without qualifying).
+   * Write-only tracking for Phase 1 lifecycle system.
+   */
+  async recordUnseenImpression(postId) {
+    if (!postId) return;
+    const postIdStr = String(postId);
+
+    // Skip synthetic IDs (e.g. sub_8)
+    const numericPostId = parseInt(postId, 10);
+    if (isNaN(numericPostId) || String(numericPostId) !== postIdStr) return;
+
+    // Check in-memory session deduplication
+    if (this.unseenInSessionSet.has(postIdStr)) return;
+    // Skip if already qualified / viewed
+    if (this.hasViewed(postId)) return;
+
+    this.unseenInSessionSet.add(postIdStr);
+    console.log(`[UNSEEN] Recorded unseen impression for post ${postId} (session: ${this.sessionId})`);
+
+    try {
+      const { getAuthToken } = await import("../api/auth");
+      const token = await getAuthToken();
+      if (!token) return;
+
+      await apiPost(
+        "/posts/views/unseen",
+        { postId: numericPostId, sessionId: this.sessionId },
+        10000,
+        token,
+      );
+    } catch (e) {
+      console.warn("[ViewQueueService] Failed to record unseen impression:", e?.message);
     }
   }
 }

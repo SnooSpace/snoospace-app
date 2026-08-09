@@ -40,10 +40,13 @@ export function useQualifiedView({ postId, postType = "text", onQualify }) {
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
+      if (!qualifiedRef.current && !viewQueueService.hasViewed(postId)) {
+        viewQueueService.recordUnseenImpression(postId);
+      }
     }
     accumulatedTimeRef.current = 0;
     startTimeRef.current = null;
-  }, []);
+  }, [postId]);
 
   // Pause timer (app background) - preserves accumulated time
   const pauseTimer = useCallback(() => {
