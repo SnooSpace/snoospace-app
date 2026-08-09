@@ -704,7 +704,24 @@ export default function ConversationsListScreen({ navigation }) {
         return updated.sort((a, b) => new Date(b.lastMessageAt || 0) - new Date(a.lastMessageAt || 0));
       });
     });
-    return () => unsub?.();
+
+    // Patches only lastMessage (no sort change) — used by unsend so the
+    // conversation row shows "Message unsent" without jumping position in the list.
+    const unsubLastMsg = EventBus.on("conversation-last-message-updated", (payload) => {
+      if (!payload?.conversationId) return;
+      setConversations((prev) => {
+        const idx = prev.findIndex((c) => c.id === payload.conversationId);
+        if (idx === -1) return prev; // conversation not loaded yet — no-op
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], lastMessage: payload.lastMessage };
+        return updated;
+      });
+    });
+
+    return () => {
+      unsub?.();
+      unsubLastMsg?.();
+    };
   }, []);
 
   // ── Socket: listen for new_message events from the server ────────────────────
@@ -722,25 +739,46 @@ export default function ConversationsListScreen({ navigation }) {
       }, 300);
     };
 
+    // Lightweight inbox preview patch for unsend — no full reload needed.
+    // Backend emits this to each participant's personal user_${id} room.
+    const handleMessageUnsent = ({ conversationId, lastMessage: newPreview } = {}) => {
+      if (!conversationId) return;
+      setConversations((prev) => {
+        const idx = prev.findIndex((c) => c.id === conversationId || String(c.id) === String(conversationId));
+        if (idx === -1) return prev;
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], lastMessage: newPreview ?? 'Message unsent' };
+        return updated;
+      });
+    };
+
     const socket = getSocket();
     if (socket) {
       socket.on('new_message', handleNewMessage);
+      socket.on('message_unsent', handleMessageUnsent);
     }
 
     // Also re-subscribe when the socket reconnects (e.g. after network drop)
     const reconnectHandler = () => {
       const s = getSocket();
-      if (s) s.on('new_message', handleNewMessage);
+      if (s) {
+        s.on('new_message', handleNewMessage);
+        s.on('message_unsent', handleMessageUnsent);
+      }
     };
     const reconnectSub = EventBus.on('socket:reconnected', reconnectHandler);
 
     return () => {
       if (refreshDebounce.current) clearTimeout(refreshDebounce.current);
       const s = getSocket();
-      if (s) s.off('new_message', handleNewMessage);
+      if (s) {
+        s.off('new_message', handleNewMessage);
+        s.off('message_unsent', handleMessageUnsent);
+      }
       reconnectSub?.();
     };
   }, [loadData]);
+
 
   // ── Search ────────────────────────────────────────────────────────────────────
   useEffect(() => {

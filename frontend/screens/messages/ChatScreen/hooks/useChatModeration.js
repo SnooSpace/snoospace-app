@@ -10,6 +10,7 @@ import {
 } from "../../../../api/messages";
 import { blockUser, unblockUser } from "../../../../api/plans";
 import EventBus from "../../../../utils/EventBus";
+import { updateMessageInCache } from "../../../../services/conversationCache";
 
 const INITIAL_MESSAGES_LIMIT = 30;
 
@@ -36,11 +37,28 @@ export default function useChatModeration({
 
   const handleUnsend = useCallback(
     async (id) => {
+      // Optimistic update: mark deleted in React state immediately
       updateMessageById(id, {
         isDeleted: true,
         deletedByType: "sender",
         messageText: null,
       });
+
+      // Keep the in-memory conversation cache in sync so a cache-hit reopen
+      // doesn't repaint the original message text before the reconcile fetch.
+      updateMessageInCache(currentConversationId, id, {
+        isDeleted: true,
+        deletedByType: "sender",
+        messageText: null,
+      });
+
+      // Notify ConversationsListScreen so its preview row updates immediately
+      // without waiting for the next useFocusEffect reload.
+      EventBus.emit("conversation-last-message-updated", {
+        conversationId: currentConversationId,
+        lastMessage: "Message unsent",
+      });
+
       try {
         await unsendMessage(id);
       } catch (err) {
@@ -51,14 +69,23 @@ export default function useChatModeration({
           primaryAction: { text: "OK", onPress: hideAlert },
           icon: TriangleAlert,
         });
+        // Rollback React state
         updateMessageById(id, {
           isDeleted: false,
           deletedByType: null,
           messageText: undefined,
         });
+        // Rollback cache — revert to original shape without the patch.
+        // We can't know the original messageText here, so clearing the cache
+        // entry is safer than leaving it with a wrong isDeleted:false + null text.
+        // The next loadInitial / reconcile fetch will repopulate it correctly.
+        updateMessageInCache(currentConversationId, id, {
+          isDeleted: false,
+          deletedByType: null,
+        });
       }
     },
-    [updateMessageById, showAlert, hideAlert],
+    [currentConversationId, updateMessageById, showAlert, hideAlert],
   );
 
   const handleDeleteChat = useCallback(() => {

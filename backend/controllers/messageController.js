@@ -83,6 +83,10 @@ const getConversations = async (req, res) => {
          WHERE msg.conversation_id = c.id
            AND (msg.is_hidden = false OR (msg.sender_id = $1 AND msg.sender_type = $2))
          ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_type,
+        (SELECT msg.is_deleted FROM messages msg
+         WHERE msg.conversation_id = c.id
+           AND (msg.is_hidden = false OR (msg.sender_id = $1 AND msg.sender_type = $2))
+         ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_is_deleted,
         (SELECT msg.sender_id FROM messages msg
          WHERE msg.conversation_id = c.id
            AND (msg.is_hidden = false OR (msg.sender_id = $1 AND msg.sender_type = $2))
@@ -170,6 +174,9 @@ const getConversations = async (req, res) => {
         (SELECT msg.message_type FROM messages msg
          WHERE msg.conversation_id = c.id
          ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_type,
+        (SELECT msg.is_deleted FROM messages msg
+         WHERE msg.conversation_id = c.id
+         ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_is_deleted,
         (SELECT msg.sender_id FROM messages msg
          WHERE msg.conversation_id = c.id
          ORDER BY msg.created_at DESC LIMIT 1)       AS last_message_sender_id,
@@ -260,7 +267,9 @@ const getConversations = async (req, res) => {
         },
         lastMessage:    shouldHideLastMessage
           ? null
-          : formatLastMessage(conv.last_message_text, conv.last_message_type, iAmLastSender),
+          : (conv.last_message_is_deleted === true || conv.last_message_is_deleted === 't')
+            ? "Message unsent"
+            : formatLastMessage(conv.last_message_text, conv.last_message_type, iAmLastSender),
         lastMessageAt:  conv.last_message_at,
         unreadCount:    parseInt(conv.unread_count) || 0,
         isMuted:        conv.is_muted === true || conv.is_muted === 't',
@@ -2036,16 +2045,48 @@ const unsendMessage = async (req, res) => {
       [messageId],
     );
 
-    // Notify active chat screen viewers of the unsent message
+    // ── Real-time notifications for unsend ───────────────────────────────────
+    // Channel 1: message_updated → active chat_${convId} viewers (ChatScreen)
+    // Channel 2: message_unsent  → each participant's personal user_${id} room
+    //            so their ConversationsListScreen updates the preview immediately.
+    //            Same pattern as sendMessage's new_message personal-room emit.
+    //            No extra DB query for DMs (we already have participant IDs).
+    //            One lightweight query for group chats to fetch participant list.
     try {
       const io = req.app.locals.io;
       if (io && convId) {
+        // 1. Notify anyone currently viewing the chat
         io.to(`chat_${convId}`).emit('message_updated', {
           id: messageId,
           isDeleted: true,
           deletedByType: 'sender',
           messageText: null
         });
+
+        // 2. Notify all participants' personal inbox rooms
+        const convInfo = await pool.query(
+          `SELECT is_group, participant1_id, participant1_type, participant2_id, participant2_type
+           FROM conversations WHERE id = $1`,
+          [convId]
+        );
+        const conv = convInfo.rows[0];
+        if (conv) {
+          const inboxPayload = { conversationId: convId, messageId, lastMessage: 'Message unsent' };
+          if (!conv.is_group) {
+            // DM: notify both participants (sender sees their own inbox too if open elsewhere)
+            io.to(`user_${conv.participant1_id}`).emit('message_unsent', inboxPayload);
+            io.to(`user_${conv.participant2_id}`).emit('message_unsent', inboxPayload);
+          } else {
+            // Group: notify every participant
+            const participants = await pool.query(
+              `SELECT participant_id FROM conversation_participants WHERE conversation_id = $1`,
+              [convId]
+            );
+            for (const row of participants.rows) {
+              io.to(`user_${row.participant_id}`).emit('message_unsent', inboxPayload);
+            }
+          }
+        }
       }
     } catch (socketErr) {
       console.error('[MessageController] Socket emit for unsend failed:', socketErr.message);

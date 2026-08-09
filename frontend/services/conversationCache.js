@@ -151,3 +151,33 @@ export function appendMessageToCache(conversationId, newMessage) {
 export function clearConversationCache(conversationId) {
   conversationCache.delete(String(conversationId));
 }
+
+/**
+ * Point-patches a single message inside a cached conversation entry.
+ * Mirrors what updateMessageById does to React state — keeps the cache in sync
+ * so that a cache-hit reopen doesn't paint stale (pre-patch) message data
+ * before the background reconcile fetch arrives.
+ *
+ * No-ops if no entry exists for this conversation or if the message is not found.
+ * Advances cachedAt so the TTL window stays fresh.
+ *
+ * @param {string|number} conversationId
+ * @param {string|number} messageId
+ * @param {Object} patch  — same patch object as updateMessageById (e.g. { isDeleted: true, messageText: null })
+ */
+export function updateMessageInCache(conversationId, messageId, patch) {
+  const key = String(conversationId);
+  const entry = conversationCache.get(key);
+  if (!entry) return; // nothing cached — no-op
+
+  const updatedMessages = entry.messages.map((m) =>
+    String(m.id) === String(messageId) ? { ...m, ...patch } : m,
+  );
+
+  const updated = {
+    ...entry,
+    messages: updatedMessages,
+    cachedAt: Date.now(), // keep TTL fresh
+  };
+  touchEntry(key, updated);
+}
