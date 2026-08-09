@@ -2,11 +2,18 @@
  * ViewInsightsSheet
  *
  * A reusable animated bottom-sheet modal that shows Unique viewers and
- * Total impressions for any post. Wire it to any card's view-count button.
+ * Total impressions for any post/event/opportunity/plan card.
  *
- * Usage:
- *   const { visible, open, close, stats, loading, sheetAnim } = useViewInsights(post);
- *   <ViewInsightsSheet visible={visible} onClose={close} stats={stats} loading={loading} sheetAnim={sheetAnim} />
+ * Props:
+ *   visible          — boolean, whether to show the sheet
+ *   onClose          — called when dismissed
+ *   stats            — { unique_views, total_views } from server fetch (may be null while loading)
+ *   loading          — boolean, true while server fetch is in-flight
+ *   sheetAnim        — Animated.Value(0→1) for slide-up animation
+ *   liveUniqueViews  — number, the card's live local viewCount state.
+ *                      This overrides stats.unique_views so the number
+ *                      updates in real-time as views come in, with zero
+ *                      extra server requests.
  */
 import React from "react";
 import {
@@ -31,11 +38,26 @@ const formatCount = (n) => {
   return String(n);
 };
 
-const ViewInsightsSheet = ({ visible, onClose, stats, loading, sheetAnim }) => {
+const ViewInsightsSheet = ({ visible, onClose, stats, loading, sheetAnim, liveUniqueViews }) => {
   const translateY = sheetAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [300, 0],
   });
+
+  // Use the live local viewCount if provided — it's already kept up-to-date
+  // by the in-card view tracking logic with no extra server requests needed.
+  // Fall back to the server-fetched stats if liveUniqueViews is not passed.
+  const uniqueViewsToShow =
+    liveUniqueViews != null
+      ? liveUniqueViews
+      : (stats?.unique_views ?? 0);
+
+  // Total impressions always come from the server fetch (includes repeat views).
+  // If not yet fetched, show the same local value as a reasonable baseline.
+  const totalViewsToShow =
+    stats?.total_views != null
+      ? stats.total_views
+      : (liveUniqueViews ?? 0);
 
   return (
     <Modal
@@ -78,7 +100,7 @@ const ViewInsightsSheet = ({ visible, onClose, stats, loading, sheetAnim }) => {
                   </View>
                   <View style={viewStyles.statTextCol}>
                     <Text style={viewStyles.statValue}>
-                      {formatCount(stats?.unique_views ?? 0)}
+                      {formatCount(uniqueViewsToShow)}
                     </Text>
                     <Text style={viewStyles.statLabel}>Unique viewers</Text>
                   </View>
@@ -95,7 +117,7 @@ const ViewInsightsSheet = ({ visible, onClose, stats, loading, sheetAnim }) => {
                   </View>
                   <View style={viewStyles.statTextCol}>
                     <Text style={viewStyles.statValue}>
-                      {formatCount(stats?.total_views ?? 0)}
+                      {formatCount(totalViewsToShow)}
                     </Text>
                     <Text style={viewStyles.statLabel}>Total impressions</Text>
                   </View>
@@ -103,8 +125,8 @@ const ViewInsightsSheet = ({ visible, onClose, stats, loading, sheetAnim }) => {
 
                 <View style={viewStyles.explainerBox}>
                   <Text style={viewStyles.explainerText}>
-                    Unique viewers are people who saw this post for the first
-                    time. Total impressions include everyone who revisited.
+                    Unique viewers are people who saw this for the first time.
+                    Total impressions include everyone who revisited.
                   </Text>
                 </View>
               </>

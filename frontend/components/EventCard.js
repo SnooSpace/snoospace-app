@@ -1465,6 +1465,7 @@ function EventCard({
       stats={viewStats}
       loading={viewStatsLoading}
       sheetAnim={viewSheetAnim}
+      liveUniqueViews={viewCount}
     />
     </>
   );

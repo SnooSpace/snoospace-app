@@ -793,9 +793,10 @@ const OpenPlanCard = ({
       <ViewInsightsSheet
         visible={viewStatsVisible}
         onClose={handleCloseViewStats}
-        stats={{ unique_views: viewCount, total_views: viewCount }}
+        stats={null}
         loading={false}
         sheetAnim={viewSheetAnim}
+        liveUniqueViews={viewCount}
       />
 
       {/* Host action menu — plain Modal to avoid overflow:hidden clipping */}

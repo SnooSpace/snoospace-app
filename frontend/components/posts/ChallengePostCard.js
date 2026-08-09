@@ -1736,6 +1736,7 @@ const ChallengePostCard = React.memo(({
         stats={viewStats}
         loading={viewStatsLoading}
         sheetAnim={viewSheetAnim}
+        liveUniqueViews={viewCount}
       />
     </>
   );

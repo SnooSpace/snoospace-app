@@ -1353,6 +1353,7 @@ const QnAPostCard = React.memo(({
         stats={viewStats}
         loading={viewStatsLoading}
         sheetAnim={viewSheetAnim}
+        liveUniqueViews={viewCount}
       />
     </>
   );
