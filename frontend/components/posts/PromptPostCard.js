@@ -3,23 +3,22 @@
  * Displays a prompt post with submission functionality
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
+  Pressable,
+  Animated,
+  Dimensions,
   TextInput,
-  Modal,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
-  Dimensions,
-  Pressable,
-  TouchableWithoutFeedback,
-  Animated,
 } from "react-native";
-import { Pressable as GHPressable } from "react-native-gesture-handler";
+import { Pressable as GHPressable, GestureDetector, Gesture } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 import { Image } from "expo-image"; // ── PERF: memory-disk cache for author avatar
 import { GradientHeart } from "../ui/GradientHeart";
 import SwipeableModal from "../modals/SwipeableModal";
@@ -608,43 +607,36 @@ const PromptPostCard = React.memo(({
     };
   }, []);
 
-  const handleDoubleTap = (event) => {
-    if (isSharedPreview) {
-      if (onPress) onPress();
-      return;
-    }
-    const now = Date.now();
-    const DOUBLE_TAP_DELAY = 300;
-
-    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-      if (tapTimeoutRef.current) {
-        clearTimeout(tapTimeoutRef.current);
-        tapTimeoutRef.current = null;
-      }
-      const { pageX, pageY } = event.nativeEvent;
-      cardRef.current?.measure((x, y, width, height, cardPageX, cardPageY) => {
-        const relativeX = pageX - cardPageX;
-        const relativeY = pageY - cardPageY;
-        triggerHeartAnimation(relativeX, relativeY);
-      });
-      if (!isLiked) {
-        HapticsService.triggerLike();
-        toggleLike();
-      } else {
-        HapticsService.triggerImpactLight();
-      }
-      lastTapRef.current = 0;
+  // Double-tap to like — uses RNGH Gesture.Tap so it does NOT interfere
+  // with child touchables (unlike the old TouchableWithoutFeedback approach).
+  const onDoubleTap = useCallback((pageX, pageY) => {
+    cardRef.current?.measure((x, y, width, height, cardPageX, cardPageY) => {
+      triggerHeartAnimation(pageX - cardPageX, pageY - cardPageY);
+    });
+    if (!isLiked) {
+      HapticsService.triggerLike();
+      toggleLike();
     } else {
-      lastTapRef.current = now;
-      if (tapTimeoutRef.current) {
-        clearTimeout(tapTimeoutRef.current);
-      }
-      tapTimeoutRef.current = setTimeout(() => {
-        navigation.navigate("PromptSubmissions", { post });
-        tapTimeoutRef.current = null;
-      }, DOUBLE_TAP_DELAY);
+      HapticsService.triggerImpactLight();
     }
-  };
+  }, [isLiked, toggleLike]);
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .maxDelay(250)
+    .onStart((e) => {
+      runOnJS(onDoubleTap)(e.absoluteX, e.absoluteY);
+    });
+
+  // Single-tap on card body navigates to PromptSubmissions screen
+  const singleTapGesture = Gesture.Tap()
+    .numberOfTaps(1)
+    .onStart(() => {
+      if (!isSharedPreview) runOnJS(() => navigation.navigate("PromptSubmissions", { post }))();
+      else if (onPress) runOnJS(onPress)();
+    });
+
+  const cardBodyGesture = Gesture.Exclusive(doubleTapGesture, singleTapGesture);
 
   const handleUserPress = () => {
     if (onUserPress) {
@@ -820,8 +812,10 @@ const PromptPostCard = React.memo(({
 
   return (
     <>
-      <TouchableWithoutFeedback onPress={handleDoubleTap}>
-        <View ref={cardRef} style={styles.container}>
+      <View ref={cardRef} style={styles.container}>
+        {/* GestureDetector wraps card body only — engagement row stays outside */}
+        <GestureDetector gesture={cardBodyGesture}>
+          <View>
       {/* ── PROMO: unified author+promo header ───────────────────────── */}
       {isPromoPost && (
         <View style={styles.promoAuthorRow}>
@@ -1139,8 +1133,10 @@ const PromptPostCard = React.memo(({
       {isPromoPost && (
         <PlanPreviewCard typeData={typeData} onPress={promoNavHandler} />
       )}
+          </View>
+        </GestureDetector>
 
-      {/* Engagement Row */}
+      {/* Engagement Row — sits OUTSIDE GestureDetector so buttons are always fast */}
       {!hideEngagement && (
         <Pressable
           onPress={(e) => {
@@ -1149,7 +1145,7 @@ const PromptPostCard = React.memo(({
           style={styles.engagementRow}
         >
           {/* Like */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={toggleLike}
           >
@@ -1161,10 +1157,10 @@ const PromptPostCard = React.memo(({
             <Text style={[styles.engagementCount, isLiked && styles.likedCount]}>
               {formatCount(likeCount)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Comment */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={handleCommentPress}
           >
@@ -1172,27 +1168,27 @@ const PromptPostCard = React.memo(({
             <Text style={styles.engagementCount}>
               {formatCount(post.comment_count || 0)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Views */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={handleViewPress}
           >
             <ChartNoAxesCombined size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
             <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Share */}
-          <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>
+          <GHPressable style={styles.engagementButton} onPress={handleShare}>
             <Send size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
             <Text style={styles.engagementCount}>
               {formatCount(post.share_count || 0)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Bookmark */}
-          <TouchableOpacity style={styles.engagementButton} onPress={handleSave}>
+          <GHPressable style={styles.engagementButton} onPress={handleSave}>
             <Bookmark
               size={EDITORIAL_SPACING.iconSize}
               color={COLORS.editorial.textSecondary}
@@ -1201,7 +1197,7 @@ const PromptPostCard = React.memo(({
             {saveCount > 0 && (
               <Text style={styles.engagementCount}>{formatCount(saveCount)}</Text>
             )}
-          </TouchableOpacity>
+          </GHPressable>
         </Pressable>
       )}
 
@@ -1233,7 +1229,6 @@ const PromptPostCard = React.memo(({
         />
       )}
       </View>
-    </TouchableWithoutFeedback>
 
       {/* Submit Modal */}
       <SwipeableModal

@@ -3,7 +3,7 @@
  * Displays a Q&A post with question submission, upvoting, and top answer preview
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -16,10 +16,10 @@ import {
   Switch,
   Pressable,
   Dimensions,
-  TouchableWithoutFeedback,
   Animated,
 } from "react-native";
-import { Pressable as GHPressable } from "react-native-gesture-handler";
+import { Pressable as GHPressable, GestureDetector, Gesture } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 import { Image } from "expo-image";
 import { GradientHeart } from "../ui/GradientHeart";
 import { LinearGradient } from "expo-linear-gradient";
@@ -682,43 +682,36 @@ const QnAPostCard = React.memo(({
     };
   }, []);
 
-  const handleDoubleTap = (event) => {
-    if (isSharedPreview) {
-      if (onPress) onPress();
-      return;
-    }
-    const now = Date.now();
-    const DOUBLE_TAP_DELAY = 300;
-
-    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-      if (tapTimeoutRef.current) {
-        clearTimeout(tapTimeoutRef.current);
-        tapTimeoutRef.current = null;
-      }
-      const { pageX, pageY } = event.nativeEvent;
-      cardRef.current?.measure((x, y, width, height, cardPageX, cardPageY) => {
-        const relativeX = pageX - cardPageX;
-        const relativeY = pageY - cardPageY;
-        triggerHeartAnimation(relativeX, relativeY);
-      });
-      if (!isLiked) {
-        HapticsService.triggerLike();
-        toggleLike();
-      } else {
-        HapticsService.triggerImpactLight();
-      }
-      lastTapRef.current = 0;
+  // Double-tap to like — uses RNGH Gesture.Tap so it does NOT interfere
+  // with child touchables (unlike the old TouchableWithoutFeedback approach).
+  const onDoubleTap = useCallback((pageX, pageY) => {
+    cardRef.current?.measure((x, y, width, height, cardPageX, cardPageY) => {
+      triggerHeartAnimation(pageX - cardPageX, pageY - cardPageY);
+    });
+    if (!isLiked) {
+      HapticsService.triggerLike();
+      toggleLike();
     } else {
-      lastTapRef.current = now;
-      if (tapTimeoutRef.current) {
-        clearTimeout(tapTimeoutRef.current);
-      }
-      tapTimeoutRef.current = setTimeout(() => {
-        navigation.navigate("QnAQuestions", { post });
-        tapTimeoutRef.current = null;
-      }, DOUBLE_TAP_DELAY);
+      HapticsService.triggerImpactLight();
     }
-  };
+  }, [isLiked, toggleLike]);
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .maxDelay(250)
+    .onStart((e) => {
+      runOnJS(onDoubleTap)(e.absoluteX, e.absoluteY);
+    });
+
+  // Single-tap on card body navigates to QnA questions screen
+  const singleTapGesture = Gesture.Tap()
+    .numberOfTaps(1)
+    .onStart(() => {
+      if (!isSharedPreview) runOnJS(() => navigation.navigate("QnAQuestions", { post }))();
+      else if (onPress) runOnJS(onPress)();
+    });
+
+  const cardBodyGesture = Gesture.Exclusive(doubleTapGesture, singleTapGesture);
 
   const handleUserPress = () => {
     if (onUserPress) {
@@ -843,8 +836,10 @@ const QnAPostCard = React.memo(({
 
   return (
     <>
-      <TouchableWithoutFeedback onPress={handleDoubleTap}>
       <View ref={cardRef} style={styles.container}>
+        {/* Gesture detector wraps card body only — keeps engagement row fully interactive */}
+        <GestureDetector gesture={cardBodyGesture}>
+          <View>
         {/* ── PROMO LAYOUT: unified single card ─────────────────────────── */}
         {isPromoPost && (
           <View style={styles.promoAuthorRow}>
@@ -1221,17 +1216,17 @@ const QnAPostCard = React.memo(({
         {isPromoPost && (
           <PlanPreviewCard typeData={typeData} onPress={promoNavHandler} />
         )}
+          </View>
+        </GestureDetector>
 
-        {/* Engagement Row */}
+        {/* Engagement Row — sits OUTSIDE GestureDetector so buttons are always fast */}
         {!hideEngagement && (
           <Pressable
-            onPress={(e) => {
-              e.stopPropagation();
-            }}
+            onPress={(e) => { e.stopPropagation(); }}
             style={styles.engagementRow}
           >
             {/* Like */}
-            <TouchableOpacity
+            <GHPressable
               style={styles.engagementButton}
               onPress={toggleLike}
             >
@@ -1245,10 +1240,10 @@ const QnAPostCard = React.memo(({
               >
                 {formatCount(likeCount)}
               </Text>
-            </TouchableOpacity>
+            </GHPressable>
 
             {/* Comment */}
-            <TouchableOpacity
+            <GHPressable
               style={styles.engagementButton}
               onPress={handleCommentPress}
             >
@@ -1256,19 +1251,19 @@ const QnAPostCard = React.memo(({
               <Text style={styles.engagementCount}>
                 {formatCount(post.comment_count || 0)}
               </Text>
-            </TouchableOpacity>
+            </GHPressable>
 
             {/* Views */}
-            <TouchableOpacity
+            <GHPressable
               style={styles.engagementButton}
               onPress={handleViewPress}
             >
               <ChartNoAxesCombined size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
               <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
-            </TouchableOpacity>
+            </GHPressable>
 
             {/* Share */}
-            <TouchableOpacity
+            <GHPressable
               style={styles.engagementButton}
               onPress={handleShare}
             >
@@ -1276,10 +1271,10 @@ const QnAPostCard = React.memo(({
               <Text style={styles.engagementCount}>
                 {formatCount(post.share_count || 0)}
               </Text>
-            </TouchableOpacity>
+            </GHPressable>
 
             {/* Bookmark */}
-            <TouchableOpacity
+            <GHPressable
               style={styles.engagementButton}
               onPress={handleSave}
             >
@@ -1293,7 +1288,7 @@ const QnAPostCard = React.memo(({
                   {formatCount(saveCount)}
                 </Text>
               )}
-            </TouchableOpacity>
+            </GHPressable>
           </Pressable>
         )}
 
@@ -1325,7 +1320,6 @@ const QnAPostCard = React.memo(({
         />
       )}
       </View>
-    </TouchableWithoutFeedback>
       {showEditModal && (
         <QnAEditModal
           visible={showEditModal}
