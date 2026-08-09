@@ -243,7 +243,8 @@ export const overrideItemLayout = (
   } else if (item.data) {
     layout.size = computeEstimatedMessageHeight(item.data);
   }
-  logOverrideItemLayout(index, layout.size, totalCount);
+  // Pass item so logOverrideItemLayout can capture msgId/messageType per cell.
+  logOverrideItemLayout(index, layout.size, totalCount, item);
 };
 
 export const getItemTypeHelper = (

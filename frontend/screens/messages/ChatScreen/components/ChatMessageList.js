@@ -10,13 +10,14 @@ import { FlashList } from "@shopify/flash-list";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import EmptyChatState from "../../../../components/EmptyChatState";
 import { mainStyles, PRIMARY_COLOR } from "../ChatScreen.styles";
-import { keyExtractor, overrideItemLayout } from "../utils/chatListHelpers";
+import { keyExtractor, overrideItemLayout, computeEstimatedMessageHeight } from "../utils/chatListHelpers";
 import {
   logInitialPosition,
   logContentSizeChange,
   logViewableItems,
   logStartupScrollEvent,
   logPostScrollFetchOlder,
+  getStoredViewportHeight,
 } from "../utils/startupTelemetry";
 
 export const USE_FLATLIST_ISOLATION_TEST = false;
@@ -46,11 +47,13 @@ const ChatMessageList = React.memo((props) => {
     isScrollingRef,
     canTriggerStartReachedRef,
     isListSettledRef,
+    isAtBottomRef,
     currentConversationId,
     loadOlderMessages,
     runInitialCorrectionAndReveal,
     viewabilityConfigRef,
     onViewableItemsChangedRef,
+    pendingScrollToBottomRef,
   } = props;
 
   const listRevealStyle = useAnimatedStyle(() => ({
@@ -89,13 +92,100 @@ const ChatMessageList = React.memo((props) => {
       const y = e.nativeEvent.contentOffset.y;
       scrollOffsetRef.current = y;
       logStartupScrollEvent(y, contentHeightRef.current);
+
+      // Keep isAtBottomRef in sync with real scroll position so the
+      // convergence system and useChatSocket both get an accurate signal.
+      // Uses the same gap arithmetic as performFinalPositionAndReveal.
+      if (isAtBottomRef) {
+        const viewportH = getStoredViewportHeight() || 0;
+        const gap = viewportH > 0 ? contentHeightRef.current - (viewportH + y) : Infinity;
+        isAtBottomRef.current = gap <= 25;
+      }
     }
-  }, []);
+  }, [isAtBottomRef]);
 
   const handleContentSizeChange = React.useCallback(
     (w, h) => {
+      const now = performance.now();
       contentHeightRef.current = h;
       logContentSizeChange(w, h, flatListData);
+
+      // ── Diagnostic: last-cell estimated vs actual ────────────────────────
+      const lastItem = flatListData?.[flatListData.length - 1];
+      if (lastItem?.data) {
+        const estimated = computeEstimatedMessageHeight(lastItem.data);
+        const textLen = lastItem.data.messageText?.length ?? 0;
+        const listSettled = isListSettledRef?.current ?? false;
+        console.log(
+          `[CELL_SIZE_DIAG] t=${now.toFixed(1)}ms` +
+          ` actualContentH=${h.toFixed(0)}` +
+          ` lastMsgId=${lastItem.data.id}` +
+          ` textLen=${textLen}` +
+          ` estimatedCellH=${estimated}` +
+          ` pendingScroll=${pendingScrollToBottomRef?.current ?? false}` +
+          ` listSettled=${listSettled}`,
+        );
+      }
+      // ── [SRFB_TEST] startRenderingFromBottom positioning probe ───────────
+      // Reports gap on every ContentSizeChange so we can see on the very first
+      // pass whether startRenderingFromBottom positioned us at the true bottom,
+      // or whether the DEBOUNCE/HARD_FALLBACK fallback still needs to fire.
+      {
+        const viewportH = getStoredViewportHeight() || 0;
+        const gap = viewportH > 0
+          ? h - (viewportH + scrollOffsetRef.current)
+          : null;
+        console.log(
+          `[SRFB_TEST] t=${now.toFixed(1)}ms` +
+          ` contentH=${h.toFixed(0)}` +
+          ` viewportH=${viewportH}` +
+          ` scrollOffset=${scrollOffsetRef.current.toFixed(0)}` +
+          ` bottomGap=${gap !== null ? gap.toFixed(1) + "px" : "unknown"}` +
+          ` startRenderingFromBottom=true` +
+          ` listSettled=${isListSettledRef?.current ?? false}`,
+        );
+      }
+      // ────────────────────────────────────────────────────────────
+
+      // ── Layout-driven scroll fallback (System A) ──────────────────────
+      // CRITICAL GUARD: only consume the flag after the list has settled
+      // (i.e. isListSettledRef=true, meaning the user has scrolled at least
+      // once). Before settlement, the DEBOUNCE/HARD_FALLBACK convergence
+      // machine (System B in ChatScreen) owns positioning. Consuming here
+      // during the 3-pass oscillation window would fight System B's
+      // animated:false scrollToOffset with an animated:true scrollToEnd.
+      if (pendingScrollToBottomRef?.current) {
+        if (isListSettledRef?.current === true) {
+          pendingScrollToBottomRef.current = false;
+          const flagClearTime = now;
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              const scrollTime = performance.now();
+              const gap = h - scrollOffsetRef.current;
+              console.log(
+                `[SCROLL_FALLBACK] CONSUMED` +
+                ` +${(scrollTime - flagClearTime).toFixed(1)}ms after onContentSizeChange` +
+                ` contentH=${h.toFixed(0)}` +
+                ` scrollOffset=${scrollOffsetRef.current.toFixed(0)}` +
+                ` bottomGap=${gap.toFixed(0)}px` +
+                ` listSettled=true`,
+              );
+              flashListRef.current?.scrollToEnd({ animated: true });
+            });
+          });
+        } else {
+          // List not settled yet — System B owns this. Discard silently and
+          // log so we can confirm in testing that System B handled it.
+          pendingScrollToBottomRef.current = false;
+          console.log(
+            `[SCROLL_FALLBACK] DISCARDED (listSettled=false)` +
+            ` contentH=${h.toFixed(0)}` +
+            ` — System B (convergence machine) owns scroll during initial load`,
+          );
+        }
+      }
+      // ────────────────────────────────────────────────────────────
+
       if (h > 0 && runInitialCorrectionAndReveal) {
         runInitialCorrectionAndReveal(
           h,
@@ -105,7 +195,7 @@ const ChatMessageList = React.memo((props) => {
         );
       }
     },
-    [runInitialCorrectionAndReveal, flatListData],
+    [runInitialCorrectionAndReveal, flatListData, pendingScrollToBottomRef, flashListRef, isListSettledRef],
   );
 
   const flashListContentStyle = React.useMemo(
@@ -115,7 +205,8 @@ const ChatMessageList = React.memo((props) => {
 
   const maintainVisibleContentPositionConfig = React.useMemo(
     () => ({
-      autoscrollToBottomThreshold: 0,
+      autoscrollToBottomThreshold: 0.2,
+      startRenderingFromBottom: true,
       minIndexForVisible: 1,
     }),
     [],
@@ -141,6 +232,7 @@ const ChatMessageList = React.memo((props) => {
         ) : (
           <Animated.View style={[{ flex: 1 }, listRevealStyle]}>
             <FlashList
+              key={currentConversationId ?? "default"}
               ref={flashListRef}
               data={flatListData}
               keyExtractor={keyExtractor}

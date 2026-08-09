@@ -56,6 +56,8 @@ import {
   getCurrentLayoutVersion,
   logStateInvalidated,
   logInvalidationLimitReached,
+  logPassCapHit,
+  logPostSettlementContentSizeChange,
   getStoredViewportHeight,
 } from "./utils/startupTelemetry";
 
@@ -90,6 +92,10 @@ export default function ChatScreen({ route, navigation }) {
   const hasCorrectedInitialLayoutRef = useRef(false);
   const isListSettledRef = useRef(false);
   const isInitialMountedRef = useRef(false);
+  // Signals ChatMessageList to scroll-to-bottom after the next real layout
+  // pass (onContentSizeChange). Set by useChatUploads (send) and
+  // useChatSocket (receive). Consumed — and cleared — in ChatMessageList.
+  const pendingScrollToBottomRef = useRef(false);
 
   const replyBarHeightShared = useSharedValue(0);
   const [activeRowId, setActiveRowId] = useState(null);
@@ -177,17 +183,15 @@ export default function ChatScreen({ route, navigation }) {
 
   const performFinalPositionAndReveal = useCallback(
     (getScrollOffset, getContentHeight, reason = "ConvergenceDebounce") => {
-      hasCorrectedInitialLayoutRef.current = true;
-      lastCorrectedLayoutVersionRef.current = getCurrentLayoutVersion();
-
       const liveHeight =
         typeof getContentHeight === "function"
           ? getContentHeight()
           : lastSeenContentHeightRef.current;
-      lastCorrectedContentHeightRef.current = liveHeight;
       const currentOffset =
         typeof getScrollOffset === "function" ? getScrollOffset() : undefined;
 
+      // Cancel any pending sibling timers — they either triggered this call
+      // or are about to be superseded.
       if (layoutStabilizationTimeoutRef.current) {
         clearTimeout(layoutStabilizationTimeoutRef.current);
         layoutStabilizationTimeoutRef.current = null;
@@ -219,38 +223,44 @@ export default function ChatScreen({ route, navigation }) {
           ? now - lastContentSizeTimeRef.current
           : 0;
 
-      logLayoutConvergence(reason, quietMs, liveHeight);
-      logPerformFinalPositionInvoked(reason, currentOffset, liveHeight);
-
-      logStageBeforeTimeout(currentOffset, liveHeight);
-
       const viewportH = getStoredViewportHeight() || 0;
       const gapNumber =
         viewportH > 0 && currentOffset !== undefined && currentOffset !== null
           ? liveHeight - (viewportH + currentOffset)
           : Infinity;
+      const isAtBottom = gapNumber <= 25;
 
-      if (gapNumber <= 25) {
+      logLayoutConvergence(reason, quietMs, liveHeight);
+      logPerformFinalPositionInvoked(reason, currentOffset, liveHeight);
+      logStageBeforeTimeout(currentOffset, liveHeight);
+
+      // ── Opacity reveal (cosmetic only — fires regardless of gap) ──────────
+      if (listRevealOpacity.value === 0) {
+        logOpacityReveal();
+        listRevealOpacity.value = withTiming(1, { duration: 50 });
+      }
+
+      if (isAtBottom) {
+        // Already at true bottom. Mark corrected and done.
+        hasCorrectedInitialLayoutRef.current = true;
+        lastCorrectedLayoutVersionRef.current = getCurrentLayoutVersion();
+        lastCorrectedContentHeightRef.current = liveHeight;
         console.log(
-          `[CONVERGENCE_SKIPPED_SCROLL] t=+${(getMonotonicNow() - (lastContentSizeTimeRef.current || getMonotonicNow())).toFixed(1)}ms reason=${reason} bottomGap=${gapNumber.toFixed(1)}px <= 25px -> Native position already at bottom. Skipping scroll command.`,
+          `[CONVERGENCE_SKIPPED_SCROLL] t=+${(getMonotonicNow() - (lastContentSizeTimeRef.current || getMonotonicNow())).toFixed(1)}ms` +
+          ` reason=${reason} bottomGap=${gapNumber.toFixed(1)}px <= 25px` +
+          ` -> Native position already at bottom. Skipping scroll command.`,
         );
       } else {
+        // Not at bottom yet — issue the correction scroll.
         const targetOffset =
           viewportH > 0 ? Math.max(0, liveHeight - viewportH) : undefined;
         if (targetOffset !== undefined) {
           logProgrammaticScroll(
             "scrollToOffset",
-            {
-              offset: targetOffset,
-              animated: false,
-              stage: "TargetedRevealCorrection",
-            },
+            { offset: targetOffset, animated: false, stage: "TargetedRevealCorrection" },
             liveHeight,
           );
-          flashListRef.current?.scrollToOffset({
-            offset: targetOffset,
-            animated: false,
-          });
+          flashListRef.current?.scrollToOffset({ offset: targetOffset, animated: false });
         } else {
           logProgrammaticScroll(
             "scrollToEnd",
@@ -259,13 +269,23 @@ export default function ChatScreen({ route, navigation }) {
           );
           flashListRef.current?.scrollToEnd({ animated: false });
         }
-      }
 
-      if (listRevealOpacity.value === 0) {
-        logOpacityReveal();
-        listRevealOpacity.value = withTiming(1, { duration: 50 });
+        // Re-invalidate so the next ContentSizeChange can trigger another
+        // correction pass. Do NOT mark hasCorrectedInitialLayoutRef=true here
+        // because we haven't confirmed bottomGap <= 25 yet.
+        console.log(
+          `[CONVERGENCE_REARM] t=+${(getMonotonicNow() - (lastContentSizeTimeRef.current || getMonotonicNow())).toFixed(1)}ms` +
+          ` reason=${reason} bottomGap=${gapNumber.toFixed(1)}px > 25px` +
+          ` -> Scroll issued, re-arming for next ContentSizeChange confirmation.`,
+        );
+        hasCorrectedInitialLayoutRef.current = false;
+        // Record the height we corrected to so delta-gating in the next pass
+        // compares against this baseline, not a stale one.
+        lastCorrectedLayoutVersionRef.current = getCurrentLayoutVersion();
+        lastCorrectedContentHeightRef.current = liveHeight;
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [listRevealOpacity],
   );
 
@@ -277,7 +297,6 @@ export default function ChatScreen({ route, navigation }) {
       getContentHeight,
     ) => {
       if (!contentHeight || contentHeight <= 0) return;
-      if (isListSettledRef.current) return;
       if (messagesState.isScrollingRef.current) return;
       if (
         !messagesState.flatListDataRef?.current ||
@@ -285,14 +304,50 @@ export default function ChatScreen({ route, navigation }) {
       )
         return;
 
+      // POST-SETTLEMENT: log for observability but do NOT return.
+      // isListSettledRef now only controls cosmetic state (opacity revealed,
+      // pagination enabled). Scroll corrections must remain eligible even
+      // after the first user scroll — a late layout pass can still move
+      // content height significantly and must be corrected.
+      //
+      // GATE: after settlement, only issue a correction if the user is already
+      // near the bottom OR an explicit send/receive signal was set. If neither
+      // is true the content height change is most likely from pagination
+      // prepending older messages — let maintainVisibleContentPosition handle
+      // that natively; we must NOT snap the user back to the bottom.
+      if (isListSettledRef.current) {
+        logPostSettlementContentSizeChange(
+          lastSeenContentHeightRef.current,
+          contentHeight,
+          hardTimerMetaRef.current,
+          debounceTimerMetaRef.current,
+        );
+        const atBottom = isAtBottomRef.current;
+        const explicitSignal = pendingScrollToBottomRef?.current ?? false;
+        if (!atBottom && !explicitSignal) {
+          console.log(
+            `[CORRECTION_SKIPPED] reason=NotAtBottomAndNoExplicitSignal` +
+            ` isAtBottom=${atBottom}` +
+            ` pendingScroll=${explicitSignal}` +
+            ` contentH=${contentHeight}` +
+            ` — deferring to maintainVisibleContentPosition`,
+          );
+          return;
+        }
+        // fall through — at bottom or explicit signal, create timers
+      }
+
       const currentVersion = getCurrentLayoutVersion();
       const correctedVersion = lastCorrectedLayoutVersionRef.current;
       const correctedHeight = lastCorrectedContentHeightRef.current;
       const heightDelta = contentHeight - correctedHeight;
 
       if (hasCorrectedInitialLayoutRef.current) {
+        // hasCorrectedInitialLayoutRef is only true when performFinalPosition
+        // confirmed bottomGap <= 25 (the new contract). If we're here, content
+        // grew again — allow re-entry if layout version advanced and delta > 20.
         if (currentVersion > correctedVersion && heightDelta > 20) {
-          if (invalidationPassCountRef.current < 5) {
+          if (invalidationPassCountRef.current < 10) {
             invalidationPassCountRef.current += 1;
             hasCorrectedInitialLayoutRef.current = false;
             logStateInvalidated(
@@ -303,13 +358,45 @@ export default function ChatScreen({ route, navigation }) {
               heightDelta,
               invalidationPassCountRef.current,
             );
+            // fall through to timer creation
           } else {
-            logInvalidationLimitReached(
+            // Hard cap (10) exceeded. Check if we're actually at bottom.
+            const viewportH = getStoredViewportHeight() || 0;
+            const currentOffset =
+              typeof getScrollOffset === "function" ? getScrollOffset() : null;
+            logPassCapHit(
               invalidationPassCountRef.current,
-              currentVersion,
               contentHeight,
-              heightDelta,
+              viewportH,
+              currentOffset,
             );
+            const gapAtCap =
+              viewportH > 0 && currentOffset !== null
+                ? contentHeight - (viewportH + currentOffset)
+                : Infinity;
+            if (gapAtCap <= 25) {
+              // Already at true bottom — safe hard stop.
+              logInvalidationLimitReached(
+                invalidationPassCountRef.current,
+                currentVersion,
+                contentHeight,
+                heightDelta,
+              );
+              return;
+            }
+            // NOT at bottom even at cap — fire one last hard-fallback timer
+            // instead of returning cold. This is the safety net for genuinely
+            // unstable content that still hasn't converged.
+            console.log(
+              `[STATE-MACHINE][CAP_EXCEEDED_NOT_CONVERGED]` +
+              ` pass=${invalidationPassCountRef.current}/10` +
+              ` bottomGap=${gapAtCap.toFixed(1)}px > 25px` +
+              ` -> Firing emergency hard-fallback scroll.`,
+            );
+            flashListRef.current?.scrollToOffset({
+              offset: Math.max(0, contentHeight - viewportH),
+              animated: false,
+            });
             return;
           }
         } else {
@@ -321,7 +408,7 @@ export default function ChatScreen({ route, navigation }) {
       lastContentSizeTimeRef.current = now;
       lastSeenContentHeightRef.current = contentHeight;
 
-      // Hard maximum fallback timeout (1200ms safety cap for diagnostic test)
+      // Hard maximum fallback timeout
       if (!hardMaxFallbackTimeoutRef.current) {
         const meta = logTimerCreated("HARD_FALLBACK", 1200, contentHeight);
         hardTimerMetaRef.current = meta;
@@ -341,7 +428,7 @@ export default function ChatScreen({ route, navigation }) {
         }, 1200);
       }
 
-      // Reset debounced stabilization timer (requires 90ms quiet window)
+      // Debounce timer — requires 90ms quiet window
       if (layoutStabilizationTimeoutRef.current) {
         logTimerCleared(
           debounceTimerMetaRef.current,
@@ -470,6 +557,7 @@ export default function ChatScreen({ route, navigation }) {
     loadInitial: messagesState.loadInitial,
     isAtBottomRef,
     flashListRef,
+    pendingScrollToBottomRef,
   });
 
   const typingState = useChatTyping({
@@ -509,6 +597,7 @@ export default function ChatScreen({ route, navigation }) {
     showAlert,
     hideAlert,
     handleUnblockUser: moderationState.handleUnblockUser,
+    pendingScrollToBottomRef,
   });
 
   const topVisibleMsgIdRef = useRef(null);
@@ -669,11 +758,13 @@ export default function ChatScreen({ route, navigation }) {
           isScrollingRef={messagesState.isScrollingRef}
           canTriggerStartReachedRef={canTriggerStartReachedRef}
           isListSettledRef={isListSettledRef}
+          isAtBottomRef={isAtBottomRef}
           currentConversationId={currentConversationId}
           loadOlderMessages={messagesState.loadOlderMessages}
           runInitialCorrectionAndReveal={runInitialCorrectionAndReveal}
           viewabilityConfigRef={viewabilityConfigRef}
           onViewableItemsChangedRef={onViewableItemsChangedRef}
+          pendingScrollToBottomRef={pendingScrollToBottomRef}
         />
 
         <ChatInputArea

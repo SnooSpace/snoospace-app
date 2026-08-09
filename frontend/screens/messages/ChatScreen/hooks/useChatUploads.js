@@ -21,6 +21,7 @@ export default function useChatUploads({
   showAlert,
   hideAlert,
   handleUnblockUser,
+  pendingScrollToBottomRef,
 }) {
   const [sending, setSending] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
@@ -151,9 +152,15 @@ export default function useChatUploads({
 
       EventBus.emit("new-message");
       composerRef.current?.clear();
-      setTimeout(() => {
-        flashListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      // Fix A: signal ChatMessageList to scroll after the next real layout
+      // pass (onContentSizeChange), not on a guessed fixed timeout.
+      // maintainVisibleContentPosition gets first shot; this is the fallback.
+      if (pendingScrollToBottomRef) {
+        pendingScrollToBottomRef.current = true;
+        console.log(
+          `[SCROLL_FLAG] pendingScrollToBottom SET by sender at t=${performance.now().toFixed(1)}ms`,
+        );
+      }
     } catch (err) {
       console.error("Error sending message:", err);
       if (err?.status === 403 && err?.data?.error === "you_have_blocked") {

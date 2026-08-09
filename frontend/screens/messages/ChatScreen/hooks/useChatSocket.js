@@ -15,6 +15,7 @@ export default function useChatSocket({
   loadInitial,
   isAtBottomRef,
   flashListRef,
+  pendingScrollToBottomRef,
 }) {
   useEffect(() => {
     if (!currentConversationId) return;
@@ -76,9 +77,14 @@ export default function useChatSocket({
       });
 
       if (isAtBottomRef.current) {
-        setTimeout(() => {
-          flashListRef.current?.scrollToEnd({ animated: true });
-        }, 80);
+        // Fix B: signal ChatMessageList to scroll after the next real layout
+        // pass, so the new (potentially tall) cell's height is already known.
+        if (pendingScrollToBottomRef) {
+          pendingScrollToBottomRef.current = true;
+          console.log(
+            `[SCROLL_FLAG] pendingScrollToBottom SET by receiver at t=${performance.now().toFixed(1)}ms msgId=${msg.id}`,
+          );
+        }
       }
 
       markMessageRead(msg.id).catch(() => {});

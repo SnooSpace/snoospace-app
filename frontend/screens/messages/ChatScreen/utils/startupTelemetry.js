@@ -46,7 +46,10 @@ export function resetStartupTelemetry(conversationId) {
   initialPositionLogged = false;
   storedViewportHeight = 0;
   lastLoggedOffsetY = null;
+  // Re-create both maps so any stale index/metadata from the previous
+  // conversation's layout passes cannot bleed into the new one.
   overrideIndexMap = new Map();
+  overrideItemMetaMap = new Map();
   overridePassCount = 0;
   lastContentSizeTimestamp = 0;
   timerGenerationCounter = 0;
@@ -102,25 +105,83 @@ export function computeBottomGap(contentHeight, viewportHeight, scrollOffset) {
   return `${gap >= 0 ? "+" : ""}${gap.toFixed(1)}px`;
 }
 
-export function logOverrideItemLayout(index, size, totalItems) {
+// Stores full item metadata per pass for per-cell logging.
+let overrideItemMetaMap = new Map(); // index → { size, msgId, messageType }
+
+export function logOverrideItemLayout(index, size, totalItems, item) {
   if (index === undefined || index === null) return;
+
+  // Safety guard: if we're starting a brand-new pass (index 0) but the maps
+  // still hold entries from an interrupted previous pass, clear them first.
+  // This handles the edge case where a pass was cut short mid-way (e.g. rapid
+  // re-render before all N items called overrideItemLayout) and the next pass
+  // starts from index 0 again.
+  if (index === 0 && (overrideIndexMap.size > 0 || overrideItemMetaMap.size > 0)) {
+    console.log(
+      `[OVERRIDE-CELL][STALE_CLEAR] Flushing ${overrideIndexMap.size} stale index entries` +
+      ` and ${overrideItemMetaMap.size} stale meta entries before new pass (layoutV=${layoutVersion})`
+    );
+    overrideIndexMap.clear();
+    overrideItemMetaMap.clear();
+  }
+
   overrideIndexMap.set(index, size || 0);
+
+  // Capture per-cell metadata when the item reference is provided.
+  if (item) {
+    const msg = item.data;
+    overrideItemMetaMap.set(index, {
+      size: size || 0,
+      msgId: msg?.id ?? "sep",
+      messageType: msg
+        ? (msg.isDeleted ? "deleted" : (msg.messageType || "text"))
+        : (item.type === "separator" ? "date_sep" : "unknown"),
+      textLen: msg?.messageText?.length ?? 0,
+    });
+  }
 
   if (totalItems && (index === totalItems - 1 || overrideIndexMap.size === totalItems)) {
     overridePassCount += 1;
+    const passNum = overridePassCount;
     let sum = 0;
     let min = Infinity;
     let max = -Infinity;
-    overrideIndexMap.forEach((sz) => {
+    let maxIndex = -1;
+    overrideIndexMap.forEach((sz, idx) => {
       sum += sz;
       if (sz < min) min = sz;
-      if (sz > max) max = sz;
+      if (sz > max) { max = sz; maxIndex = idx; }
+    });
+
+    // Per-cell detail log — one line per item, tagged with pass number.
+    // Only log items whose size is "interesting" (> 150px or the max cell)
+    // to avoid flooding; always log the tallest cell unconditionally.
+    overrideItemMetaMap.forEach((meta, idx) => {
+      const isTallest = idx === maxIndex;
+      if (meta.size > 150 || isTallest) {
+        console.log(
+          `[OVERRIDE-CELL][Pass#${passNum}] layoutV=${layoutVersion}` +
+          ` idx=${idx}/${totalItems - 1}` +
+          ` msgId=${meta.msgId}` +
+          ` type=${meta.messageType}` +
+          ` textLen=${meta.textLen}` +
+          ` estimatedH=${meta.size}px` +
+          `${isTallest ? " ← TALLEST" : ""}`
+        );
+      }
     });
 
     console.log(
-      `[STARTUP-TELEMETRY][overrideItemLayout Pass #${overridePassCount}] t=+${getElapsedMs()}ms layoutVersion=${layoutVersion} uniqueIndices=${overrideIndexMap.size}/${totalItems} sumAssignedSize=${sum.toFixed(1)}px minSize=${min}px maxSize=${max}px avgSize=${(sum / (overrideIndexMap.size || 1)).toFixed(1)}px`
+      `[STARTUP-TELEMETRY][overrideItemLayout Pass #${passNum}] t=+${getElapsedMs()}ms` +
+      ` layoutVersion=${layoutVersion}` +
+      ` uniqueIndices=${overrideIndexMap.size}/${totalItems}` +
+      ` sumAssignedSize=${sum.toFixed(1)}px` +
+      ` minSize=${min}px maxSize=${max}px` +
+      ` avgSize=${(sum / (overrideIndexMap.size || 1)).toFixed(1)}px` +
+      ` tallestIdx=${maxIndex}`
     );
     overrideIndexMap.clear();
+    overrideItemMetaMap.clear();
   }
 }
 
@@ -282,13 +343,69 @@ export function logContentSizeTimerInspection(height, activeHardTimerMeta, activ
 
 export function logStateInvalidated(prevVersion, newVersion, oldHeight, newHeight, delta, passNumber) {
   console.log(
-    `[STATE-MACHINE][INVALIDATED] t=+${getElapsedMs()}ms prevVersion=${prevVersion} newVersion=${newVersion} oldH=${oldHeight}px newH=${newHeight}px delta=${delta >= 0 ? "+" : ""}${delta.toFixed(1)}px pass=${passNumber}/5`
+    `[STATE-MACHINE][INVALIDATED] t=+${getElapsedMs()}ms prevVersion=${prevVersion} newVersion=${newVersion} oldH=${oldHeight}px newH=${newHeight}px delta=${delta >= 0 ? "+" : ""}${delta.toFixed(1)}px pass=${passNumber}/10`
   );
 }
 
 export function logInvalidationLimitReached(passNumber, currentVersion, currentHeight, delta) {
   console.log(
-    `[STATE-MACHINE][INVALIDATION_LIMIT_REACHED] t=+${getElapsedMs()}ms pass=${passNumber}/5 currentVersion=${currentVersion} currentH=${currentHeight}px delta=${delta >= 0 ? "+" : ""}${delta.toFixed(1)}px - stopping automatic invalidation`
+    `[STATE-MACHINE][INVALIDATION_LIMIT_REACHED] t=+${getElapsedMs()}ms pass=${passNumber}/10 currentVersion=${currentVersion} currentH=${currentHeight}px delta=${delta >= 0 ? "+" : ""}${delta.toFixed(1)}px bottomGap<=25 - safe to stop`
+  );
+}
+
+/**
+ * Fires when the 10-pass invalidation cap is reached. Reports bottomGap so
+ * we can determine if the cap was hit while already converged (benign) or
+ * while still stuck short (problem).
+ */
+export function logPassCapHit(passNumber, currentHeight, viewportH, currentOffsetY) {
+  const gapNumber =
+    viewportH > 0 && currentOffsetY !== null && currentOffsetY !== undefined
+      ? currentHeight - (viewportH + currentOffsetY)
+      : null;
+  const gapStr = gapNumber !== null ? `${gapNumber.toFixed(1)}px` : "unknown";
+  const converged = gapNumber !== null ? gapNumber <= 25 : false;
+  console.log(
+    `[STATE-MACHINE][PASS_CAP_HIT] t=+${getElapsedMs()}ms` +
+    ` finalPass=${passNumber}/10` +
+    ` layoutVersion=${layoutVersion}` +
+    ` contentH=${currentHeight}px` +
+    ` viewportH=${viewportH}px` +
+    ` offsetY=${currentOffsetY !== null && currentOffsetY !== undefined ? currentOffsetY.toFixed(1) : "unknown"}` +
+    ` bottomGap=${gapStr}` +
+    ` converged=${converged}` +
+    (converged ? " ✓ already at bottom" : " ✗ STUCK SHORT — corrections exhausted")
+  );
+}
+
+/**
+ * Fires when onContentSizeChange arrives after isListSettledRef=true.
+ * Under the new state machine this is purely observational — the function
+ * now falls through and ALWAYS creates timers (timerCreated=true).
+ */
+export function logPostSettlementContentSizeChange(
+  oldHeight,
+  newHeight,
+  activeHardTimerMeta,
+  activeDebounceTimerMeta,
+) {
+  const delta = newHeight - oldHeight;
+  // timerCreated is always true now — the isListSettledRef gate no longer
+  // returns early; it falls through to create DEBOUNCE + HARD_FALLBACK.
+  const timerCreated = true;
+  console.log(
+    `[STATE-MACHINE][POST_SETTLEMENT_CSC] t=+${getElapsedMs()}ms` +
+    ` listSettled=true` +
+    ` layoutVersion=${layoutVersion}` +
+    ` oldH=${oldHeight}px` +
+    ` newH=${newHeight}px` +
+    ` delta=${delta >= 0 ? "+" : ""}${delta.toFixed(1)}px` +
+    ` timerCreated=${timerCreated}` +
+    ` existingHardTimer=${activeHardTimerMeta?.genId ?? "none"}` +
+    ` existingDebounceTimer=${activeDebounceTimerMeta?.genId ?? "none"}` +
+    (Math.abs(delta) > 20
+      ? " ← layout change after settlement, correction timer armed"
+      : "")
   );
 }
 
