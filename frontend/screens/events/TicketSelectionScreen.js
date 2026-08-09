@@ -37,7 +37,7 @@ import { COLORS } from "../../constants/theme";
 import { getActiveAccount, getAuthToken } from "../../api/auth";
 import { calculateEffectivePrice } from "../../utils/pricingUtils";
 import { apiGet } from "../../api/client";
-import DynamicStatusBar from "../../components/DynamicStatusBar";
+import DynamicStatusBar from "../../components/navigation/DynamicStatusBar";
 
 // Premium Theme Colors
 const BACKGROUND_COLOR = "#F8F9FA";

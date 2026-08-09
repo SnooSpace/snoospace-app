@@ -33,10 +33,10 @@ import {
   MediaTypeOptions,
 } from "expo-image-picker";
 import { uploadImage } from "../../../api/cloudinary";
-import PostCard from "../../../components/PostCard";
+import PostCard from "../../../components/posts/PostCard";
 import { mockData } from "../../../data/mockData";
 import SnooLoader from "../../../components/ui/SnooLoader";
-import EmptyPostsState from "../../../components/EmptyPostsState";
+import EmptyPostsState from "../../../components/skeletons/EmptyPostsState";
 
 const PRIMARY_COLOR = "#6A0DAD";
 const TEXT_COLOR = "#1D1D1F";

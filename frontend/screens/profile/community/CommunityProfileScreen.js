@@ -73,7 +73,7 @@ import {
   clearAllAccounts,
   getAllAccounts,
 } from "../../../api/auth";
-import EventCard from "../../../components/EventCard";
+import EventCard from "../../../components/cards/EventCard";
 import { deleteAccount as apiDeleteAccount } from "../../../api/account";
 import { getActiveAccount } from "../../../api/auth";
 import {
@@ -107,24 +107,24 @@ import {
   MediaTypeOptions,
 } from "expo-image-picker";
 import { uploadImage } from "../../../api/cloudinary";
-import { useCrop } from "../../../components/MediaCrop";
-import PostCard from "../../../components/PostCard";
-import ProfilePostFeed from "../../../components/ProfilePostFeed";
-import EditorialPostCard from "../../../components/EditorialPostCard";
-import OpportunityFeedCard from "../../../components/OpportunityFeedCard";
-import VideoPlayer from "../../../components/VideoPlayer";
-import CommentsModal from "../../../components/CommentsModal";
+import { useCrop } from "../../../components/media";
+import PostCard from "../../../components/posts/PostCard";
+import ProfilePostFeed from "../../../components/profile/ProfilePostFeed";
+import EditorialPostCard from "../../../components/cards/EditorialPostCard";
+import OpportunityFeedCard from "../../../components/cards/OpportunityFeedCard";
+import VideoPlayer from "../../../components/media/VideoPlayer";
+import CommentsModal from "../../../components/modals/CommentsModal";
 // SettingsModal deprecated — replaced by SettingsScreen
 import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModal";
 import ActionSheet from "../../../components/modals/ActionSheet";
 import AddAccountModal from "../../../components/modals/AddAccountModal";
 import LogoutModal from "../../../components/modals/LogoutModal";
 import EventBus from "../../../utils/EventBus";
-import MentionTextRenderer from "../../../components/MentionTextRenderer";
+import MentionTextRenderer from "../../../components/editors/MentionTextRenderer";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
-import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
-import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
-import DynamicStatusBar from "../../../components/DynamicStatusBar";
+import SkeletonProfileHeader from "../../../components/skeletons/SkeletonProfileHeader";
+import SkeletonPostGrid from "../../../components/skeletons/SkeletonPostGrid";
+import DynamicStatusBar from "../../../components/navigation/DynamicStatusBar";
 import {
   COLORS,
   SPACING,
@@ -132,25 +132,25 @@ import {
   SHADOWS,
   FONTS,
 } from "../../../constants/theme";
-import GradientButton from "../../../components/GradientButton";
-import ThemeChip from "../../../components/ThemeChip";
+import GradientButton from "../../../components/ui/GradientButton";
+import ThemeChip from "../../../components/ui/ThemeChip";
 import HapticsService from "../../../services/HapticsService";
 import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling";
 import { useProfileCache } from "../../../context/ProfileCacheContext";
 import SnooLoader from "../../../components/ui/SnooLoader";
-import GradientSafeArea from "../../../components/GradientSafeArea";
-import CollegeChip from "../../../components/CollegeChip";
+import GradientSafeArea from "../../../components/ui/GradientSafeArea";
+import CollegeChip from "../../../components/ui/CollegeChip";
 import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
-import EmptyPostsState from "../../../components/EmptyPostsState";
-import EmptyCommunityState from "../../../components/EmptyCommunityState";
-import EmptyEventsState from "../../../components/EmptyEventsState";
+import EmptyPostsState from "../../../components/skeletons/EmptyPostsState";
+import EmptyCommunityState from "../../../components/skeletons/EmptyCommunityState";
+import EmptyEventsState from "../../../components/skeletons/EmptyEventsState";
 import CreateEventModal from "../../../components/modals/CreateEventModal";
 import ActionModal from "../../../components/modals/ActionModal";
 import { useToast } from "../../../context/ToastContext";
 import CommunityVoiceBox, {
   VoicePostCard,
-} from "../../../components/CommunityVoiceBox";
-import InstagramRow from "../../../components/InstagramRow";
+} from "../../../components/feed/CommunityVoiceBox";
+import InstagramRow from "../../../components/ui/InstagramRow";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const BANNER_HEIGHT = screenHeight * 0.28; // 28% of screen height

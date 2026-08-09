@@ -23,7 +23,7 @@ import {
 import { apiPatch } from '../../../api/client';
 import { getAuthToken } from '../../../api/auth';
 import EventBus from '../../../utils/EventBus';
-import DynamicStatusBar from '../../../components/DynamicStatusBar';
+import DynamicStatusBar from '../../../components/navigation/DynamicStatusBar';
 import RemoveInstagramModal from '../../../components/modals/RemoveInstagramModal';
 
 /**

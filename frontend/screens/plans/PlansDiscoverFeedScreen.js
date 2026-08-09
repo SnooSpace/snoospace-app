@@ -15,11 +15,11 @@ import OpenPlanCard from '../../components/plans/OpenPlanCard';
 import HostPlanBottomSheet from './HostPlanBottomSheet';
 import RequestBottomSheet from './RequestBottomSheet';
 import SnooLoader from '../../components/ui/SnooLoader';
-import CommentsModal from '../../components/CommentsModal';
-import ShareModal from '../../components/ShareModal';
+import CommentsModal from '../../components/modals/CommentsModal';
+import ShareModal from '../../components/modals/ShareModal';
 import { Image } from 'expo-image';
 import PlanCropImage from './PlanCropImage';
-import ContentActionsSheet from '../../components/ContentActionsSheet';
+import ContentActionsSheet from '../../components/modals/ContentActionsSheet';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const ACTIVITY_COLORS = {

@@ -48,7 +48,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 const RESEND_COOLDOWN = 60;

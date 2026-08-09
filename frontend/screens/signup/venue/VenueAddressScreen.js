@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import { ArrowLeft, MapPin, Building2 } from "lucide-react-native";
-import ProgressBar from "../../../components/Progressbar";
+import ProgressBar from "../../../components/ui/Progressbar";
 
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";

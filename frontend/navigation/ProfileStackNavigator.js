@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MemberProfileScreen from "../screens/profile/member/MemberProfileScreen";
 
 import EditProfileScreen from "../screens/profile/member/EditProfileScreen";
-import CreatePostScreen from "../components/CreatePostScreen";
+import CreatePostScreen from "../screens/posts/CreatePostScreen";
 
 import OpportunityView from "../screens/home/member/OpportunityViewScreen";
 // [VIDEO INSIGHTS - DEFERRED] import VideoInsightsScreen from "../screens/insights/VideoInsightsScreen";

@@ -15,7 +15,7 @@ import {
   unfollowCommunity,
   getFollowStatusForCommunity,
 } from "../../api/communities";
-import FollowerList from "../../components/FollowerList";
+import FollowerList from "../../components/profile/FollowerList";
 import { ensureFollowStatus } from "../../utils/followerListUtils";
 import EventBus from "../../utils/EventBus";
 

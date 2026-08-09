@@ -45,9 +45,9 @@ import { getActiveAccount } from "../../api/auth";
 import { getGradientForName, getInitials } from "../../utils/AvatarGenerator";
 import { COLORS, BORDER_RADIUS, FONTS } from "../../constants/theme";
 import { Explore } from "../../components/discover";
-import SuggestedCommunityCard from "../../components/SuggestedCommunityCard";
+import SuggestedCommunityCard from "../../components/cards/SuggestedCommunityCard";
 import SnooLoader from "../../components/ui/SnooLoader";
-import CollegeChip from "../../components/CollegeChip";
+import CollegeChip from "../../components/ui/CollegeChip";
 
 // Helper to create rgba from hex
 const hexToRgba = (hex, alpha) => {

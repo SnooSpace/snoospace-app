@@ -10,7 +10,7 @@ import {
   StatusBar,
   ScrollView,
 } from "react-native";
-import ProgressBar from "../../../components/Progressbar";
+import ProgressBar from "../../../components/ui/Progressbar";
 import { Ionicons } from "@expo/vector-icons"; // Used for the back arrow
 
 import { LinearGradient } from "expo-linear-gradient";

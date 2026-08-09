@@ -1,7 +1,7 @@
 import React from "react";
 import { View } from "react-native";
-import KeyboardAwareToolbar from "../../../../components/KeyboardAwareToolbar";
-import ChatComposer from "../../../../components/ChatComposer";
+import KeyboardAwareToolbar from "../../../../components/navigation/KeyboardAwareToolbar";
+import ChatComposer from "../../../../components/chat/ChatComposer";
 import TypingIndicator from "./TypingIndicator";
 import ClosedGroupBar from "./ClosedGroupBar";
 import LockedAnnouncementBar from "./LockedAnnouncementBar";

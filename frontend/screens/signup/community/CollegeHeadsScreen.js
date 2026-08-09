@@ -39,7 +39,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 import {
   updateCommunitySignupDraft,
   deleteCommunitySignupDraft,
@@ -47,7 +47,7 @@ import {
 } from "../../../utils/signupDraftManager";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
 import SnooLoader from "../../../components/ui/SnooLoader";
-import { useCrop } from "../../../components/MediaCrop";
+import { useCrop } from "../../../components/media";
 import { uploadImage } from "../../../api/cloudinary";
 
 const AVATAR_SIZE = 64;

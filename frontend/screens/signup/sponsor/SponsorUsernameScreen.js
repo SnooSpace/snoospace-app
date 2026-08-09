@@ -18,7 +18,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import { Ionicons } from "@expo/vector-icons";
-import ProgressBar from "../../../components/Progressbar";
+import ProgressBar from "../../../components/ui/Progressbar";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 const SponsorUsernameScreen = ({ navigation, route }) => {

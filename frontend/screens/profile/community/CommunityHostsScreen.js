@@ -27,7 +27,7 @@ import {
   ChevronRight,
   ArrowLeft,
 } from "lucide-react-native";
-import { useCrop } from "../../../components/MediaCrop";
+import { useCrop } from "../../../components/media";
 import { LinearGradient } from "expo-linear-gradient";
 import { uploadImage } from "../../../api/cloudinary";
 import { apiGet } from "../../../api/client";

@@ -28,7 +28,7 @@ import PollVotersModal from "../modals/PollVotersModal";
 import CustomAlertModal from "../ui/CustomAlertModal";
 import { postService } from "../../services/postService";
 import EventBus from "../../utils/EventBus";
-import FollowButton from "../FollowButton";
+import FollowButton from "../ui/FollowButton";
 import {
   followMember,
   unfollowMember,
@@ -64,12 +64,12 @@ import {
   UserMinus,
   Clock,
 } from "lucide-react-native";
-import CountdownTimer from "../CountdownTimer";
+import CountdownTimer from "../ui/CountdownTimer";
 import { getExtensionBadgeText } from "../../utils/cardTiming";
 import SnooLoader from "../ui/SnooLoader";
 import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
-import ContentActionsSheet from "../ContentActionsSheet";
+import ContentActionsSheet from "../modals/ContentActionsSheet";
 import PromoSourceBanner, { PromoTopRow, PlanPreviewCard } from "./PromoSourceBanner";
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
 import { useRecyclingState } from "@shopify/flash-list";

@@ -11,7 +11,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import ProgressBar from "../../../components/Progressbar";
+import ProgressBar from "../../../components/ui/Progressbar";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 const RESEND_COOLDOWN = 60; // 60 seconds

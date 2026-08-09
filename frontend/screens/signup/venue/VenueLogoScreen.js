@@ -12,8 +12,8 @@ import {
   Alert,
 } from "react-native";
 import { ArrowLeft, Camera } from "lucide-react-native";
-import { useCrop } from "../../../components/MediaCrop";
-import ProgressBar from "../../../components/Progressbar";
+import { useCrop } from "../../../components/media";
+import ProgressBar from "../../../components/ui/Progressbar";
 
 // --- Design Constants ---
 import { LinearGradient } from "expo-linear-gradient";

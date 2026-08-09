@@ -6,12 +6,12 @@ import { Camera, Info, X, Video, Trophy, TriangleAlert } from "lucide-react-nati
 import { Ionicons } from "@expo/vector-icons";
 import SuccessCard from "../../../components/feedback/SuccessCard";
 import HapticsService from "../../../services/HapticsService";
-import KeyboardAwareToolbar from "../../../components/KeyboardAwareToolbar";
+import KeyboardAwareToolbar from "../../../components/navigation/KeyboardAwareToolbar";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
 
-import ImageUploader from "../../../components/ImageUploader";
-import MentionInput from "../../../components/MentionInput";
-import EntityTagSelector from "../../../components/EntityTagSelector";
+import ImageUploader from "../../../components/media/ImageUploader";
+import MentionInput from "../../../components/editors/MentionInput";
+import EntityTagSelector from "../../../components/editors/EntityTagSelector";
 import PostTypeSelector from "../../../components/posts/PostTypeSelector";
 import PollCreateForm from "../../../components/posts/PollCreateForm";
 import PromptCreateForm from "../../../components/posts/PromptCreateForm";
@@ -23,7 +23,7 @@ import { uploadMultipleMedia } from "../../../api/cloudinary";
 import { getCommunityProfile } from "../../../api/communities";
 import EventBus from "../../../utils/EventBus";
 import { COLORS, FONTS } from "../../../constants/theme";
-import GradientButton from "../../../components/GradientButton";
+import GradientButton from "../../../components/ui/GradientButton";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 // Enable LayoutAnimation for Android

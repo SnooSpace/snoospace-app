@@ -17,7 +17,7 @@ import SearchStackNavigator from "./SearchStackNavigator";
 import ProfileStackNavigator from "./ProfileStackNavigator";
 import DiscoverStackNavigator from "./DiscoverStackNavigator";
 import EventsStackNavigator from "./EventsStackNavigator";
-import ProfileTabIcon from "../components/ProfileTabIcon";
+import ProfileTabIcon from "../components/navigation/ProfileTabIcon";
 import { getActiveAccount, getAllAccounts, switchAccount } from "../api/auth";
 import { createSwipeablePagerNavigator } from "./SwipeablePagerNavigator";
 import { impactAsync, ImpactFeedbackStyle } from "expo-haptics";

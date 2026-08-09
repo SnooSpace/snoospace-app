@@ -1,8 +1,8 @@
 import { isCardUnavailableSync } from "../../../../utils/cardAvailabilityCache";
-import { isPostUnavailable } from "../../../../components/SharedPostCard";
-import { isOpportunityUnavailable } from "../../../../components/SharedOpportunityCard";
-import { isEventUnavailable } from "../../../../components/SharedEventCard";
-import { isPlanUnavailable } from "../../../../components/SharedPlanCard";
+import { isPostUnavailable } from "../../../../components/cards/SharedPostCard";
+import { isOpportunityUnavailable } from "../../../../components/cards/SharedOpportunityCard";
+import { isEventUnavailable } from "../../../../components/cards/SharedEventCard";
+import { isPlanUnavailable } from "../../../../components/cards/SharedPlanCard";
 import { MAX_BUBBLE_WIDTH } from "../ChatScreen.styles";
 import { logOverrideItemLayout } from "./startupTelemetry";
 

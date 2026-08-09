@@ -80,19 +80,19 @@ import {
   MediaTypeOptions,
 } from "expo-image-picker";
 import { uploadImage } from "../../../api/cloudinary";
-import PostCard from "../../../components/PostCard"; // Assuming PostCard exists for a full post view
-import ProfilePostFeed from "../../../components/ProfilePostFeed";
-import VideoPlayer from "../../../components/VideoPlayer";
-import CommentsModal from "../../../components/CommentsModal";
-import EventCard from "../../../components/EventCard";
+import PostCard from "../../../components/posts/PostCard"; // Assuming PostCard exists for a full post view
+import ProfilePostFeed from "../../../components/profile/ProfilePostFeed";
+import VideoPlayer from "../../../components/media/VideoPlayer";
+import CommentsModal from "../../../components/modals/CommentsModal";
+import EventCard from "../../../components/cards/EventCard";
 import SettingsModal from "../../../components/modals/SettingsModal";
 import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModal";
 import AddAccountModal from "../../../components/modals/AddAccountModal";
 import LogoutModal from "../../../components/modals/LogoutModal";
 import EventBus from "../../../utils/EventBus";
-import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
-import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
-import CollegeChip from "../../../components/CollegeChip";
+import SkeletonProfileHeader from "../../../components/skeletons/SkeletonProfileHeader";
+import SkeletonPostGrid from "../../../components/skeletons/SkeletonPostGrid";
+import CollegeChip from "../../../components/ui/CollegeChip";
 import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
 import {
   COLORS,
@@ -102,28 +102,28 @@ import {
   EDITORIAL_SPACING,
   FONTS,
 } from "../../../constants/theme";
-import GradientButton from "../../../components/GradientButton";
-import ThemeChip from "../../../components/ThemeChip";
+import GradientButton from "../../../components/ui/GradientButton";
+import ThemeChip from "../../../components/ui/ThemeChip";
 import HapticsService from "../../../services/HapticsService";
 import { useProfileCountsPolling } from "../../../hooks/useProfileCountsPolling";
 import { useProfileCache } from "../../../context/ProfileCacheContext";
 // import { useAuthState } from "../../../contexts/AuthStateContext"; // Unused
-import UnexpectedLogoutBanner from "../../../components/UnexpectedLogoutBanner";
+import UnexpectedLogoutBanner from "../../../components/ui/UnexpectedLogoutBanner";
 import SnooLoader from "../../../components/ui/SnooLoader";
-import EmptyPostsState from "../../../components/EmptyPostsState";
-import EmptyEventsState from "../../../components/EmptyEventsState";
+import EmptyPostsState from "../../../components/skeletons/EmptyPostsState";
+import EmptyEventsState from "../../../components/skeletons/EmptyEventsState";
 import { useToast } from "../../../context/ToastContext";
 import ActionModal from "../../../components/modals/ActionModal";
 import OpenPlanCard from "../../../components/plans/OpenPlanCard";
 import RequestBottomSheet from "../../plans/RequestBottomSheet";
-import ShareModal from "../../../components/ShareModal";
-import InstagramRow from "../../../components/InstagramRow";
-import EditorialPostCard from "../../../components/EditorialPostCard";
-import OpportunityFeedCard from "../../../components/OpportunityFeedCard";
+import ShareModal from "../../../components/modals/ShareModal";
+import InstagramRow from "../../../components/ui/InstagramRow";
+import EditorialPostCard from "../../../components/cards/EditorialPostCard";
+import OpportunityFeedCard from "../../../components/cards/OpportunityFeedCard";
 import CommunityVoiceBox, {
   VoicePostCard,
-} from "../../../components/CommunityVoiceBox";
-import EmptyCommunityState from "../../../components/EmptyCommunityState";
+} from "../../../components/feed/CommunityVoiceBox";
+import EmptyCommunityState from "../../../components/skeletons/EmptyCommunityState";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 

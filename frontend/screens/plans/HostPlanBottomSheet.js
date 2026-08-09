@@ -41,12 +41,12 @@ import { createPlan, uploadPlanBanner } from "../../api/plans";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import PlanCropImage from "./PlanCropImage";
-import { useCrop } from "../../components/MediaCrop";
+import { useCrop } from "../../components/media";
 import CustomDatePicker from "../../components/ui/CustomDatePicker";
 import CustomTimePicker from "../../components/ui/CustomTimePicker";
 import VenueSearchSheet from "../../components/location/VenueSearchSheet";
 import MapLocationPicker from "../../components/location/MapLocationPicker";
-import { getActiveProvider } from "../../services/location/index";
+import { getActiveProvider } from "../../components/media/index";
 import { useToast } from "../../context/ToastContext";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");

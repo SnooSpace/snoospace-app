@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
-import EmptyChatState from "../../../../components/EmptyChatState";
+import EmptyChatState from "../../../../components/chat/EmptyChatState";
 import { mainStyles, PRIMARY_COLOR } from "../ChatScreen.styles";
 import { keyExtractor, overrideItemLayout, computeEstimatedMessageHeight } from "../utils/chatListHelpers";
 import {

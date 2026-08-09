@@ -12,7 +12,7 @@ import RequestBottomSheet from './RequestBottomSheet';
 import EditPlanBottomSheet from './EditPlanBottomSheet';
 import PlanCropImage from './PlanCropImage';
 import EventBus from '../../utils/EventBus';
-import ContentActionsSheet from '../../components/ContentActionsSheet';
+import ContentActionsSheet from '../../components/modals/ContentActionsSheet';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const ACTIVITY_COLORS = {

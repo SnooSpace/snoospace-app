@@ -34,7 +34,7 @@ import { updatePlan, uploadPlanBanner, cancelPlan } from '../../api/plans';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import PlanCropImage from './PlanCropImage';
-import { useCrop } from '../../components/MediaCrop';
+import { useCrop } from '../../components/media';
 import CustomDatePicker from '../../components/ui/CustomDatePicker';
 import CustomTimePicker from '../../components/ui/CustomTimePicker';
 

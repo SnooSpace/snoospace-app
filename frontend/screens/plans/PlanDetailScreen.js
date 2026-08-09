@@ -19,13 +19,13 @@ import {
   getPlanById, recordView, likePlan, unlikePlan, cancelPlan,
 } from '../../api/plans';
 import RequestBottomSheet from './RequestBottomSheet';
-import CommentsModal from '../../components/CommentsModal';
+import CommentsModal from '../../components/modals/CommentsModal';
 import EditPlanBottomSheet from './EditPlanBottomSheet';
 import PlanCropImage from './PlanCropImage';
 import SnooLoader from '../../components/ui/SnooLoader';
-import ReportSheet from '../../components/ReportSheet';
+import ReportSheet from '../../components/modals/ReportSheet';
 import SwipeableModal from '../../components/modals/SwipeableModal';
-import ShareModal from '../../components/ShareModal';
+import ShareModal from '../../components/modals/ShareModal';
 import CustomConfirmDialog from '../../components/ui/CustomConfirmDialog';
 
 const CARD_PADDING = 16;

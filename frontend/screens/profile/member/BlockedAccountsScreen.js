@@ -15,7 +15,7 @@ import { apiGet, apiDelete } from '../../../api/client';
 import { getAuthToken } from '../../../api/auth';
 import HapticsService from '../../../services/HapticsService';
 import SnooLoader from '../../../components/ui/SnooLoader';
-import DynamicStatusBar from '../../../components/DynamicStatusBar';
+import DynamicStatusBar from '../../../components/navigation/DynamicStatusBar';
 import { COLORS, FONTS, SHADOWS, BORDER_RADIUS } from '../../../constants/theme';
 
 export default function BlockedAccountsScreen({ navigation }) {

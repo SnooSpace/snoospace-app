@@ -13,7 +13,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { X } from "lucide-react-native";
 import { FONTS } from "../../constants/theme";
-import LogoDark from "../../components/SnooSpaceLogoDark";
+import LogoDark from "../../components/navigation/SnooSpaceLogoDark";
 
 const { width, height } = Dimensions.get("window");
 

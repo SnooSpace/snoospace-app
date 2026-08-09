@@ -36,7 +36,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 import {
   updateCommunitySignupDraft,
   deleteCommunitySignupDraft,

@@ -31,7 +31,7 @@ import {
   Inbox,
 } from "lucide-react-native";
 
-import ProfileTabIcon from "../components/ProfileTabIcon";
+import ProfileTabIcon from "../components/navigation/ProfileTabIcon";
 import { Gesture, GestureDetector, Pressable } from "react-native-gesture-handler";
 import EventBus from "../utils/EventBus";
 import { getAllAccounts, getActiveAccount, switchAccount } from "../api/auth";

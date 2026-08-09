@@ -107,15 +107,15 @@ const STEP_TITLES = {
 };
 
 // Import our components
-import ImageCarouselUpload from "../ImageCarouselUpload";
-import EventGalleryUpload from "../EventGalleryUpload";
-import RichTextEditor from "../RichTextEditor";
-import HighlightsEditor from "../HighlightsEditor";
-import FeaturedAccountsEditor from "../FeaturedAccountsEditor";
-import ThingsToKnowEditor from "../ThingsToKnowEditor";
+import ImageCarouselUpload from "../media/ImageCarouselUpload";
+import EventGalleryUpload from "../media/EventGalleryUpload";
+import RichTextEditor from "../editors/RichTextEditor";
+import HighlightsEditor from "../profile/HighlightsEditor";
+import FeaturedAccountsEditor from "../profile/FeaturedAccountsEditor";
+import ThingsToKnowEditor from "../profile/ThingsToKnowEditor";
 import TicketTypesEditor from "../editors/TicketTypesEditor";
 import PromoEditor from "../editors/PromoEditor";
-import CategorySelector from "../CategorySelector";
+import CategorySelector from "../editors/CategorySelector";
 import SnooLoader from "../ui/SnooLoader";
 
 export default function EditEventModal({

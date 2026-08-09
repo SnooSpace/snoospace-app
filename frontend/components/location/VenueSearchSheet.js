@@ -55,7 +55,7 @@ import {
 } from 'lucide-react-native';
 
 import { COLORS, FONTS, BORDER_RADIUS, SHADOWS } from '../../constants/theme';
-import { getActiveProvider, PROVIDER_NAME } from '../../services/location/index';
+import { getActiveProvider, PROVIDER_NAME } from '../media/index';
 import { useLocationSearch } from '../../services/location/useLocationSearch';
 import {
   getRecents,

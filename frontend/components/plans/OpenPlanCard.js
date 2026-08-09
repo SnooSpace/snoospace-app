@@ -33,8 +33,8 @@ import {
 } from 'lucide-react-native';
 import { COLORS, FONTS, SHADOWS } from '../../constants/theme';
 import { useNavigation } from '@react-navigation/native';
-import CommentsModal from '../CommentsModal';
-import ContentActionsSheet from '../ContentActionsSheet';
+import CommentsModal from '../modals/CommentsModal';
+import ContentActionsSheet from '../modals/ContentActionsSheet';
 import HapticsService from '../../services/HapticsService';
 import { recordView, togglePlanInterest, cancelPlan } from '../../api/plans';
 import { getAuthToken } from '../../api/auth';

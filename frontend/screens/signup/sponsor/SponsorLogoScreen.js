@@ -12,8 +12,8 @@ import {
   Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons"; // Used for icons
-import { useCrop } from "../../../components/MediaCrop";
-import ProgressBar from "../../../components/Progressbar";
+import { useCrop } from "../../../components/media";
+import ProgressBar from "../../../components/ui/Progressbar";
 
 import { LinearGradient } from "expo-linear-gradient";
 import {

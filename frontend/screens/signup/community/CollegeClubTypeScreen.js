@@ -16,7 +16,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/background/wave.webp";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 import { updateCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
 
 const CLUB_TYPES = [

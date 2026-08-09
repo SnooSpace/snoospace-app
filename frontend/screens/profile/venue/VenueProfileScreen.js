@@ -35,7 +35,7 @@ import { CommonActions } from "@react-navigation/native";
 import { clearAuthSession, getAuthToken } from "../../../api/auth";
 import { deleteAccount as apiDeleteAccount } from "../../../api/account";
 import { apiGet, apiPost } from "../../../api/client";
-import PostCard from "../../../components/PostCard";
+import PostCard from "../../../components/posts/PostCard";
 import { mockData } from "../../../data/mockData";
 import {
   launchImageLibraryAsync,
@@ -44,7 +44,7 @@ import {
 } from "expo-image-picker";
 import { uploadImage } from "../../../api/cloudinary";
 import SnooLoader from "../../../components/ui/SnooLoader";
-import EmptyPostsState from "../../../components/EmptyPostsState";
+import EmptyPostsState from "../../../components/skeletons/EmptyPostsState";
 
 const PRIMARY_COLOR = "#6A0DAD";
 const TEXT_COLOR = "#1D1D1F";

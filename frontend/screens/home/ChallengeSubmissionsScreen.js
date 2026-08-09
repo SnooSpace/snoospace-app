@@ -41,12 +41,12 @@ import {
 import { apiGet, apiPost, apiDelete, apiPatch, sharePost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
-import FullscreenVideoModal from "../../components/FullscreenVideoModal";
+import FullscreenVideoModal from "../../components/modals/FullscreenVideoModal";
 import CustomAlertModal from "../../components/ui/CustomAlertModal";
-import RemovalRequestsModal from "../../components/RemovalRequestsModal";
-import EditorialPostCard from "../../components/EditorialPostCard";
-import ShareModal from "../../components/ShareModal";
-import SubmissionCommentsModal from "../../components/SubmissionCommentsModal";
+import RemovalRequestsModal from "../../components/modals/RemovalRequestsModal";
+import EditorialPostCard from "../../components/cards/EditorialPostCard";
+import ShareModal from "../../components/modals/ShareModal";
+import SubmissionCommentsModal from "../../components/modals/SubmissionCommentsModal";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getActiveAccount } from "../../utils/accountManager";

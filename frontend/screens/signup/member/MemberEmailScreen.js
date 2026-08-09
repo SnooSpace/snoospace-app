@@ -14,7 +14,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 import { apiPost } from "../../../api/client";
 import { setPendingOtp } from "../../../api/auth";
 import SnooLoader from "../../../components/ui/SnooLoader";

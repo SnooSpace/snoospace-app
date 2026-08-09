@@ -6,7 +6,7 @@ import {
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { useCrop } from "../../components/MediaCrop";
+import { useCrop } from "../../components/media";
 import { ArrowLeft, Edit2, Check, X, UserMinus, Shield, ShieldOff, ShieldCheck, UserPlus,
   MoreHorizontal, Camera, LogOut, TriangleAlert, Info, LockKeyhole, Megaphone, Users, Crown, Trash2,
 } from "lucide-react-native";

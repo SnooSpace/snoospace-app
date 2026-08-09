@@ -49,10 +49,10 @@ import {
 import { createPaymentOrder, verifyPayment } from "../../api/payments";
 import RazorpayCheckout from "@codearcade/expo-razorpay";
 import EventBus from "../../utils/EventBus";
-import CelebrationModal from "../../components/CelebrationModal";
+import CelebrationModal from "../../components/modals/CelebrationModal";
 import SnooLoader from "../../components/ui/SnooLoader";
 import { useToast } from "../../context/ToastContext";
-import DynamicStatusBar from "../../components/DynamicStatusBar";
+import DynamicStatusBar from "../../components/navigation/DynamicStatusBar";
 import { getActiveAccount } from "../../api/auth";
 
 // Premium Theme Colors

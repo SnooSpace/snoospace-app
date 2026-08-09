@@ -15,7 +15,7 @@ import CommunityBottomTabNavigator from "./CommunityBottomTabNavigator";
 import SponsorBottomTabNavigator from "./SponsorBottomTabNavigator";
 import VenueBottomTabNavigator from "./VenueBottomTabNavigator";
 import CommunityEventsListScreen from "../screens/home/community/CommunityEventsListScreen";
-import CreatePostScreen from "../components/CreatePostScreen";
+import CreatePostScreen from "../screens/posts/CreatePostScreen";
 import CommunityCreatePostScreen from "../screens/home/community/CommunityCreatePostScreen";
 import CreateOpportunityScreen from "../screens/home/community/CreateOpportunityScreen";
 import CelebrationScreen from "../screens/signup/CelebrationScreen";
@@ -39,7 +39,7 @@ import MemberPublicProfileScreen from "../screens/profile/member/MemberPublicPro
 import CommunityPublicProfileScreen from "../screens/profile/community/CommunityPublicProfileScreen";
 import ChatScreen from "../screens/messages/ChatScreen";
 import GroupInfoScreen from "../screens/messages/GroupInfoScreen";
-import { CropScreen, BatchCropScreen } from "../components/MediaCrop";
+import { CropScreen, BatchCropScreen } from "../components/media";
 import SavedPostsScreen from "../screens/SavedPostsScreen";
 import DeleteAccountScreen from "../screens/profile/DeleteAccountScreen";
 import DeleteConfirmationScreen from "../screens/profile/DeleteConfirmationScreen";

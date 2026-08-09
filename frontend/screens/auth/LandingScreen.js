@@ -27,7 +27,7 @@ import {
   Sparkle,
   TrendingUp,
 } from "lucide-react-native";
-import GlassBackButton from "../../components/GlassBackButton";
+import GlassBackButton from "../../components/navigation/GlassBackButton";
 import { SvgXml } from "react-native-svg";
 import Animated, {
   useSharedValue,
@@ -39,7 +39,7 @@ import Animated, {
 import { useFocusEffect } from "@react-navigation/native";
 import { COLORS, BORDER_RADIUS, SHADOWS, FONTS } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
-import DynamicStatusBar from "../../components/DynamicStatusBar";
+import DynamicStatusBar from "../../components/navigation/DynamicStatusBar";
 import DraftRecoveryModal from "../../components/modals/DraftRecoveryModal";
 import {
   getSignupDraft,

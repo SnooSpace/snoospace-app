@@ -22,7 +22,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import wave from "../../../assets/background/wave.webp";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../../constants/theme";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 import { apiGet, apiPost } from "../../../api/client";
 import { updateCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
 import SnooLoader from "../../../components/ui/SnooLoader";

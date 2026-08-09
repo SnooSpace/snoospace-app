@@ -7,7 +7,7 @@
  * the correct provider. Default is 'mappls' (India-optimised).
  *
  * Usage:
- *   import { getActiveProvider, PROVIDER_NAME } from './services/location';
+ *   import { getActiveProvider, PROVIDER_NAME } from '../../utils/location';
  *   const provider = getActiveProvider();
  *   const results = await provider.searchPlaces(query, { lat, lng });
  */

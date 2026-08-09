@@ -32,7 +32,7 @@ import {
   NotificationsProvider,
   useNotifications,
 } from "./context/NotificationsContext";
-import NotificationBanner from "./components/NotificationBanner";
+import NotificationBanner from "./components/ui/NotificationBanner";
 import { useTokenRefresh } from "./hooks/useTokenRefresh";
 import { AuthStateProvider } from "./contexts/AuthStateContext";
 import { ProfileCacheProvider } from "./context/ProfileCacheContext";
@@ -50,7 +50,7 @@ import { useAppResume } from "./hooks/useAppResume";
 import { ToastProvider } from "./context/ToastContext";
 import AccountSwitchOverlay from "./components/ui/AccountSwitchOverlay";
 import { EventVerificationProvider } from "./context/EventVerificationContext";
-import EventVerificationOverlay from "./components/EventVerificationOverlay";
+import EventVerificationOverlay from "./components/modals/EventVerificationOverlay";
 
 // NOTE: Notifications.setNotificationHandler is configured at module level
 // in services/pushNotificationService.js. No duplicate call needed here.

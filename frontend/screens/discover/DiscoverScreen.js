@@ -9,7 +9,7 @@ import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import SnooLoader from "../../components/ui/SnooLoader";
 import OpenPlansSection from "../plans/OpenPlansSection";
-import EventCard from "../../components/EventCard";
+import EventCard from "../../components/cards/EventCard";
 import EventBus from "../../utils/EventBus";
 import {
   COLORS,

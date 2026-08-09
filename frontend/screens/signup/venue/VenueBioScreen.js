@@ -10,7 +10,7 @@ import {
   ScrollView,
   Platform,
   StatusBar} from 'react-native';
-import ProgressBar from "../../../components/Progressbar";
+import ProgressBar from "../../../components/ui/Progressbar";
 import { ArrowLeft } from "lucide-react-native"; 
 
 import { LinearGradient } from "expo-linear-gradient";

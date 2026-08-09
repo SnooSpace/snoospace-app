@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { getActiveProvider } from './index';
+import { getActiveProvider } from '../../components/media/index';
 
 /**
  * @param {{ debounceMs?: number }} options

@@ -27,7 +27,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import { triggerTransitionHaptic } from "../../../hooks/useCelebrationHaptics";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 import {
   updateCommunitySignupDraft,
   deleteCommunitySignupDraft,

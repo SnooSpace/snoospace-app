@@ -3,10 +3,10 @@ import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 // Import Venue screens
-import HomeFeedScreen from '../components/HomeFeedScreen';
+import HomeFeedScreen from '../screens/home/HomeFeedScreen';
 import VenueBrowseScreen from '../screens/home/venue/VenueBrowseScreen';
 import VenueBookingsScreen from '../screens/home/venue/VenueBookingsScreen';
-import CreatePostScreen from '../components/CreatePostScreen';
+import CreatePostScreen from '../screens/posts/CreatePostScreen';
 import VenueProfileScreen from '../screens/profile/venue/VenueProfileScreen';
 
 const PRIMARY_COLOR = '#6A0DAD';

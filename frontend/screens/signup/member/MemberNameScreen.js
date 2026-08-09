@@ -31,7 +31,7 @@ import {
 } from "../../../utils/signupDraftManager";
 import { triggerTransitionHaptic } from "../../../hooks/useCelebrationHaptics";
 import CancelSignupModal from "../../../components/modals/CancelSignupModal";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 
 // --- Design Constants ---
 // Removed local constants in favor of theme constants

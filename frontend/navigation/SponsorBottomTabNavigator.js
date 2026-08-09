@@ -3,10 +3,10 @@ import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 // Import Sponsor screens
-import HomeFeedScreen from '../components/HomeFeedScreen';
+import HomeFeedScreen from '../screens/home/HomeFeedScreen';
 import CreatorDiscoveryScreen from '../screens/home/sponsor/CreatorDiscoveryScreen';
 import SponsorOffersScreen from '../screens/home/sponsor/SponsorOffersScreen';
-import CreatePostScreen from '../components/CreatePostScreen';
+import CreatePostScreen from '../screens/posts/CreatePostScreen';
 import SponsorProfileScreen from '../screens/profile/sponsor/SponsorProfileScreen';
 
 import { COLORS } from '../constants/theme';

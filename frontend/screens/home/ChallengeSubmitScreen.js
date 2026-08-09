@@ -51,7 +51,7 @@ import { uploadMultipleImages } from "../../api/cloudinary";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../constants/theme";
 import SnooLoader from "../../components/ui/SnooLoader";
 import HapticsService from "../../services/HapticsService";
-import CustomImagePicker from "../../components/CustomImagePicker";
+import CustomImagePicker from "../../components/media/CustomImagePicker";
 import { useToast } from "../../context/ToastContext";
 
 const ChallengeSubmitScreen = ({ route, navigation }) => {

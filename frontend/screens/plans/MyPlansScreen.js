@@ -11,8 +11,8 @@ import SnooLoader from '../../components/ui/SnooLoader';
 import HostPlanBottomSheet from './HostPlanBottomSheet';
 import OpenPlanCard from '../../components/plans/OpenPlanCard';
 import RequestBottomSheet from './RequestBottomSheet';
-import CommentsModal from '../../components/CommentsModal';
-import ShareModal from '../../components/ShareModal';
+import CommentsModal from '../../components/modals/CommentsModal';
+import ShareModal from '../../components/modals/ShareModal';
 
 // Matches OpenPlanCard PILL_COLORS — all 16 activity types
 const ACTIVITY_COLORS = {

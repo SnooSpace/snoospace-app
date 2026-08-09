@@ -30,7 +30,7 @@ import { BlurView } from "expo-blur";
 import wave from "../../../assets/background/wave.webp";
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 import {
   updateCommunitySignupDraft,
   deleteCommunitySignupDraft,

@@ -13,7 +13,7 @@ import {
   followCommunity,
   unfollowCommunity,
 } from "../../api/communities";
-import FollowerList from "../../components/FollowerList";
+import FollowerList from "../../components/profile/FollowerList";
 import EventBus from "../../utils/EventBus";
 
 // Color mapping by user type

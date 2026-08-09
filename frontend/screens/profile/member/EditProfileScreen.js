@@ -45,7 +45,7 @@ import {
   AtSign,
 } from "lucide-react-native";
 import { useUsernameCheck } from "../../../hooks/useUsernameCheck";
-import SpotifyConnectorWidget from "../../../components/SpotifyConnectorWidget";
+import SpotifyConnectorWidget from "../../../components/ui/SpotifyConnectorWidget";
 
 import { getAuthToken } from "../../../api/auth";
 import {
@@ -55,11 +55,11 @@ import {
   fetchPronouns,
 } from "../../../api/members";
 import HapticsService from "../../../services/HapticsService";
-import { useCrop } from "../../../components/MediaCrop";
+import { useCrop } from "../../../components/media";
 import { uploadImage } from "../../../api/cloudinary";
-import ChipSelector from "../../../components/ChipSelector";
-import EmailChangeModal from "../../../components/EmailChangeModal";
-import UnsavedChangesModal from "../../../components/UnsavedChangesModal";
+import ChipSelector from "../../../components/editors/ChipSelector";
+import EmailChangeModal from "../../../components/modals/EmailChangeModal";
+import UnsavedChangesModal from "../../../components/modals/UnsavedChangesModal";
 import CollegePickerModal from "../../../components/modals/CollegePickerModal";
 import DegreePickerModal from "../../../components/modals/DegreePickerModal";
 

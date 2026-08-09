@@ -33,7 +33,7 @@ import {
   HelpCircle,
 } from "lucide-react-native";
 import { COLORS, FONTS } from "../../constants/theme";
-import GradientButton from "../GradientButton";
+import GradientButton from "../ui/GradientButton";
 import HapticsService from "../../services/HapticsService";
 import { promoteEvent, promotePlan, getPromoteQuota } from "../../api/posts";
 import { formatQuotaResetLabel } from "../../utils/promoteUtils";

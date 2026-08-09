@@ -13,7 +13,7 @@ import {
   SHADOWS,
 } from "../../../constants/theme";
 import { useToast } from "../../../context/ToastContext";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import loginBg from "../../../assets/background/ZigzagColor.webp";
 import { LinearGradient } from "expo-linear-gradient";

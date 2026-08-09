@@ -36,7 +36,7 @@ import { getAuthToken } from "../../../api/auth";
 import HapticsService from "../../../services/HapticsService";
 import EventBus from "../../../utils/EventBus";
 import SnooLoader from "../../../components/ui/SnooLoader";
-import DynamicStatusBar from "../../../components/DynamicStatusBar";
+import DynamicStatusBar from "../../../components/navigation/DynamicStatusBar";
 import { getSponsorTypeStyle } from "./EditCommunityProfileConstants";
 
 if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {

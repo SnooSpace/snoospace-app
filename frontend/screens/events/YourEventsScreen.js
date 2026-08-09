@@ -6,7 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { apiGet } from "../../api/client";
 import { getAuthToken, getActiveAccount } from "../../api/auth";
 import { getInterestedEvents, toggleEventInterest, confirmAttendance } from "../../api/events";
-import AttendanceConfirmationModal from "../../components/AttendanceConfirmationModal";
+import AttendanceConfirmationModal from "../../components/modals/AttendanceConfirmationModal";
 import { getHostedPlans, getAttendingPlans, getInterestedPlans, togglePlanInterest, likePlan, unlikePlan } from "../../api/plans";
 import HapticsService from "../../services/HapticsService";
 import EventBus from "../../utils/EventBus";
@@ -21,10 +21,10 @@ import {
 import { getGradientForName } from "../../utils/AvatarGenerator";
 import { useLocationName } from "../../utils/locationNameCache";
 import SnooLoader from "../../components/ui/SnooLoader";
-import EventCard from "../../components/EventCard";
-import CommentsModal from "../../components/CommentsModal";
+import EventCard from "../../components/cards/EventCard";
+import CommentsModal from "../../components/modals/CommentsModal";
 import OpenPlanCard from "../../components/plans/OpenPlanCard";
-import ShareModal from "../../components/ShareModal";
+import ShareModal from "../../components/modals/ShareModal";
 
 const PRIMARY_COLOR = COLORS.primary;
 const TEXT_COLOR = COLORS.textPrimary;

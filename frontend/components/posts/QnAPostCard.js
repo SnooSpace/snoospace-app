@@ -61,7 +61,7 @@ import { postService } from "../../services/postService";
 import CustomAlertModal from "../ui/CustomAlertModal";
 import QnAEditModal from "./QnAEditModal";
 import EventBus from "../../utils/EventBus";
-import FollowButton from "../FollowButton";
+import FollowButton from "../ui/FollowButton";
 import {
   followMember,
   unfollowMember,
@@ -76,12 +76,12 @@ import {
   getCommunityCircleStatus,
   removeMemberFromCommunityCircle,
 } from "../../api/members";
-import CountdownTimer from "../CountdownTimer";
+import CountdownTimer from "../ui/CountdownTimer";
 import SnooLoader from "../ui/SnooLoader";
 import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
 import HapticsService from "../../services/HapticsService";
-import ContentActionsSheet from "../ContentActionsSheet";
+import ContentActionsSheet from "../modals/ContentActionsSheet";
 import PromoSourceBanner, { PromoTopRow, PlanPreviewCard } from "./PromoSourceBanner";
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
 import { useRecyclingState } from "@shopify/flash-list";

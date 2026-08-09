@@ -46,12 +46,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getAuthToken, getAuthEmail, getActiveAccount } from "../../../api/auth";
 import { blockUser, unblockUser, likePlan, unlikePlan } from "../../../api/plans";
 import { apiGet, apiPost, apiDelete } from "../../../api/client";
-import CommentsModal from "../../../components/CommentsModal";
-import EventCard from "../../../components/EventCard";
+import CommentsModal from "../../../components/modals/CommentsModal";
+import EventCard from "../../../components/cards/EventCard";
 import LikeStateManager from "../../../utils/LikeStateManager";
 
-import ThemeChip from "../../../components/ThemeChip";
-import GradientButton from "../../../components/GradientButton";
+import ThemeChip from "../../../components/ui/ThemeChip";
+import GradientButton from "../../../components/ui/GradientButton";
 import HapticsService from "../../../services/HapticsService";
 import {
   COLORS,
@@ -70,20 +70,20 @@ const TEXT_COLOR = COLORS.textPrimary;
 const LIGHT_TEXT_COLOR = COLORS.textSecondary;
 const PRIMARY_COLOR = COLORS.primary;
 
-import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
-import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
-import EditorialPostCard from "../../../components/EditorialPostCard";
-import ProfilePostFeed from "../../../components/ProfilePostFeed";
+import SkeletonProfileHeader from "../../../components/skeletons/SkeletonProfileHeader";
+import SkeletonPostGrid from "../../../components/skeletons/SkeletonPostGrid";
+import EditorialPostCard from "../../../components/cards/EditorialPostCard";
+import ProfilePostFeed from "../../../components/profile/ProfilePostFeed";
 import SnooLoader from "../../../components/ui/SnooLoader";
-import EmptyPostsState from "../../../components/EmptyPostsState";
-import EmptyEventsState from "../../../components/EmptyEventsState";
-import CollegeChip from "../../../components/CollegeChip";
+import EmptyPostsState from "../../../components/skeletons/EmptyPostsState";
+import EmptyEventsState from "../../../components/skeletons/EmptyEventsState";
+import CollegeChip from "../../../components/ui/CollegeChip";
 import OpenPlanCard from "../../../components/plans/OpenPlanCard";
 import RequestBottomSheet from "../../plans/RequestBottomSheet";
-import ShareModal from "../../../components/ShareModal";
-import CommunityVoiceBox, { VoicePostCard } from "../../../components/CommunityVoiceBox";
-import EmptyCommunityState from "../../../components/EmptyCommunityState";
-import OpportunityFeedCard from "../../../components/OpportunityFeedCard";
+import ShareModal from "../../../components/modals/ShareModal";
+import CommunityVoiceBox, { VoicePostCard } from "../../../components/feed/CommunityVoiceBox";
+import EmptyCommunityState from "../../../components/skeletons/EmptyCommunityState";
+import OpportunityFeedCard from "../../../components/cards/OpportunityFeedCard";
 
 const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPress }) => {
   const scale = useSharedValue(1);
@@ -207,7 +207,7 @@ const MemberPublicPostGridCell = React.memo(({ item, index, itemSize, gap, onPre
   );
 });
 import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
-import InstagramRow from "../../../components/InstagramRow";
+import InstagramRow from "../../../components/ui/InstagramRow";
 
 const normalizePosts = (postsArray) => {
   if (!Array.isArray(postsArray)) return [];

@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from '@expo/vector-icons'; // Used for the back arrow
-import ProgressBar from '../../../components/Progressbar';
+import ProgressBar from '../../../components/ui/Progressbar';
 
 // --- Design Constants ---
 import { LinearGradient } from "expo-linear-gradient";

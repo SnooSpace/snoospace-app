@@ -154,9 +154,9 @@ import HapticsService from "../../services/HapticsService";
 import EventBus from "../../utils/EventBus";
 import { NotificationConsumptionService } from "../../services/NotificationConsumptionService";
 import { Alert, ToastAndroid, Platform } from "react-native";
-import AttendanceConfirmationModal from "../../components/AttendanceConfirmationModal";
+import AttendanceConfirmationModal from "../../components/modals/AttendanceConfirmationModal";
 import SnooLoader from "../../components/ui/SnooLoader";
-import DynamicStatusBar from "../../components/DynamicStatusBar";
+import DynamicStatusBar from "../../components/navigation/DynamicStatusBar";
 import {
   getEventState,
   shouldShowViewAttendees,

@@ -16,7 +16,7 @@ import { apiPost } from '../../../api/client';
 // --- Design Constants ---
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
-import ProgressBar from '../../../components/Progressbar';
+import ProgressBar from '../../../components/ui/Progressbar';
 
 const PhoneInputView = ({ phoneNumber, setPhoneNumber, inputStyles, hideTitle = false }) => {
   const [isFocused, setIsFocused] = useState(false);

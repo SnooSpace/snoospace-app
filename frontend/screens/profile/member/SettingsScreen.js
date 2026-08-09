@@ -52,7 +52,7 @@ import {
 import HapticsService from "../../../services/HapticsService";
 import EventBus from "../../../utils/EventBus";
 import Constants from "expo-constants";
-import DynamicStatusBar from "../../../components/DynamicStatusBar";
+import DynamicStatusBar from "../../../components/navigation/DynamicStatusBar";
 import AccountSwitcherModal from "../../../components/modals/AccountSwitcherModal";
 import AddAccountModal from "../../../components/modals/AddAccountModal";
 import { getActiveAccount, getAuthToken } from "../../../api/auth";

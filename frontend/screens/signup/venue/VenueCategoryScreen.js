@@ -13,7 +13,7 @@ import {
   Platform,
   StatusBar} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import ProgressBar from '../../../components/Progressbar';
+import ProgressBar from '../../../components/ui/Progressbar';
 
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";

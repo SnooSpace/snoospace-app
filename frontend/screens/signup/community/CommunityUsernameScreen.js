@@ -29,7 +29,7 @@ const { width } = Dimensions.get("window");
 
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS, SPACING, BORDER_RADIUS, SHADOWS } from "../../../constants/theme";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 import SnooLoader from "../../../components/ui/SnooLoader";
 import { useUsernameCheck } from "../../../hooks/useUsernameCheck";
 

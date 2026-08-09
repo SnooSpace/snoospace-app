@@ -25,15 +25,15 @@ import { Pressable as GHPressable, GestureHandlerRootView } from "react-native-g
 import { getSavedPosts } from "../api/client";
 import { getAuthToken, getActiveAccount } from "../api/auth";
 import EventBus from "../utils/EventBus";
-import ProfilePostFeed from "../components/ProfilePostFeed";
+import ProfilePostFeed from "../components/profile/ProfilePostFeed";
 import SnooLoader from "../components/ui/SnooLoader";
 import PollPostCard from "../components/posts/PollPostCard";
 import PromptPostCard from "../components/posts/PromptPostCard";
 import QnAPostCard from "../components/posts/QnAPostCard";
 import ChallengePostCard from "../components/posts/ChallengePostCard";
-import OpportunityFeedCard from "../components/OpportunityFeedCard";
-import { VoicePostCard } from "../components/CommunityVoiceBox";
-import CommentsModal from "../components/CommentsModal";
+import OpportunityFeedCard from "../components/cards/OpportunityFeedCard";
+import { VoicePostCard } from "../components/feed/CommunityVoiceBox";
+import CommentsModal from "../components/modals/CommentsModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 

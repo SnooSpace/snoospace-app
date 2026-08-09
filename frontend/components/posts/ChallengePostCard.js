@@ -60,7 +60,7 @@ import { postService } from "../../services/postService";
 import CustomAlertModal from "../ui/CustomAlertModal";
 import ChallengeEditModal from "./ChallengeEditModal";
 import EventBus from "../../utils/EventBus";
-import FollowButton from "../FollowButton";
+import FollowButton from "../ui/FollowButton";
 import {
   followMember,
   unfollowMember,
@@ -84,7 +84,7 @@ import {
   EDITORIAL_TYPOGRAPHY,
   EDITORIAL_SPACING,
 } from "../../constants/theme";
-import CountdownTimer from "../CountdownTimer";
+import CountdownTimer from "../ui/CountdownTimer";
 import SnooLoader from "../ui/SnooLoader";
 import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
@@ -94,7 +94,7 @@ import {
   getExtensionBadgeText,
   getTimeRemaining,
 } from "../../utils/cardTiming";
-import ContentActionsSheet from "../ContentActionsSheet";
+import ContentActionsSheet from "../modals/ContentActionsSheet";
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
 import { useRecyclingState } from "@shopify/flash-list";
 import { useDebouncedLikeToggle } from "../../hooks/useDebouncedLikeToggle";

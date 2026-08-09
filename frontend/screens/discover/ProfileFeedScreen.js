@@ -22,14 +22,14 @@ import { apiGet } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import { getEventDetails } from "../../api/events";
 import { COLORS, SPACING, SHADOWS, FONTS } from "../../constants/theme";
-import DiscoverFilterSheet from "../../components/DiscoverFilterSheet";
+import DiscoverFilterSheet from "../../components/modals/DiscoverFilterSheet";
 import HapticsService from "../../services/HapticsService";
-import ThemeChip from "../../components/ThemeChip";
+import ThemeChip from "../../components/ui/ThemeChip";
 import SnooLoader from "../../components/ui/SnooLoader";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Svg, { Path, Circle, Rect, G, Defs, LinearGradient as SvgLinearGradient, Stop } from "react-native-svg";
 import { SpotifyArtistsCard } from "../../components/profile/SpotifyArtistsCard";
-import ContentActionsSheet from "../../components/ContentActionsSheet";
+import ContentActionsSheet from "../../components/modals/ContentActionsSheet";
 import SwipeableModal from "../../components/modals/SwipeableModal";
 
 const { width } = Dimensions.get("window");

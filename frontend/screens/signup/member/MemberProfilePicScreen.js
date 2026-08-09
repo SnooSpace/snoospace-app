@@ -4,7 +4,7 @@ import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring, wit
 
 import { BlurView } from "expo-blur";
 import { ImageBackground } from "react-native";
-import { useCrop } from "../../../components/MediaCrop";
+import { useCrop } from "../../../components/media";
 import { ArrowDownToLine, Camera } from "lucide-react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
@@ -14,7 +14,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 const CIRCLE_SIZE = 180;
 
 import { uploadImage } from "../../../api/cloudinary";

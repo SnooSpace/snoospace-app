@@ -1,7 +1,7 @@
 import React from "react";
 import { Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import HomeFeedScreen from "../components/HomeFeedScreen";
+import HomeFeedScreen from "../screens/home/HomeFeedScreen";
 import NotificationsScreen from "../screens/notifications/NotificationsScreen";
 import ConversationsListScreen from "../screens/messages/ConversationsListScreen";
 import ChatScreen from "../screens/messages/ChatScreen";

@@ -13,7 +13,7 @@ import {
   Star,
   ArrowLeft,
 } from "lucide-react-native";
-import { useCrop } from "../MediaCrop";
+import { useCrop } from "../media";
 import { LinearGradient } from "expo-linear-gradient";
 import { uploadImage } from "../../api/cloudinary";
 import { apiGet } from "../../api/client";

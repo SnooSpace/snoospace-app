@@ -15,7 +15,7 @@ import {
   FONTS,
 } from "../../constants/theme";
 import HapticsService from "../../services/HapticsService";
-import ImageUploader from "../../components/ImageUploader";
+import ImageUploader from "../../components/media/ImageUploader";
 import {
   Lock,
   Plus,
@@ -47,7 +47,7 @@ import { INTEREST_CATEGORIES, getInterestStyle } from "../profile/member/EditPro
 import { useLocationSearch } from "../../services/location/useLocationSearch";
 import SnooLoader from "../../components/ui/SnooLoader";
 import { useToast } from "../../context/ToastContext";
-import SpotifyConnectorWidget from "../../components/SpotifyConnectorWidget";
+import SpotifyConnectorWidget from "../../components/ui/SpotifyConnectorWidget";
 
 // Enable LayoutAnimation for Android
 if (

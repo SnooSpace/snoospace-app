@@ -69,16 +69,16 @@ import MapLocationPicker from "../location/MapLocationPicker";
 import MiniMapPreview from "../location/MiniMapPreview";
 
 // Import our components
-import StepIndicator from "../StepIndicator";
-import ImageCarouselUpload from "../ImageCarouselUpload";
-import EventGalleryUpload from "../EventGalleryUpload";
-import RichTextEditor from "../RichTextEditor";
-import HighlightsEditor from "../HighlightsEditor";
-import FeaturedAccountsEditor from "../FeaturedAccountsEditor";
-import ThingsToKnowEditor from "../ThingsToKnowEditor";
+import StepIndicator from "../ui/StepIndicator";
+import ImageCarouselUpload from "../media/ImageCarouselUpload";
+import EventGalleryUpload from "../media/EventGalleryUpload";
+import RichTextEditor from "../editors/RichTextEditor";
+import HighlightsEditor from "../profile/HighlightsEditor";
+import FeaturedAccountsEditor from "../profile/FeaturedAccountsEditor";
+import ThingsToKnowEditor from "../profile/ThingsToKnowEditor";
 import TicketTypesEditor from "../editors/TicketTypesEditor";
 import PromoEditor from "../editors/PromoEditor";
-import CategorySelector from "../CategorySelector";
+import CategorySelector from "../editors/CategorySelector";
 import SuccessCard from "../feedback/SuccessCard";
 
 // Draft storage utilities

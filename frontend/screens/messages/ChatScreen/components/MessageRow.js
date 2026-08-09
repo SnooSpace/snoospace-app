@@ -3,12 +3,12 @@ import { View, Text, TouchableOpacity } from "react-native";
 import { Image } from "expo-image";
 import { User, Video, Image as ImageIcon } from "lucide-react-native";
 
-import ChatMediaMessage from "../../../../components/ChatMediaMessage";
-import TicketMessageCard from "../../../../components/TicketMessageCard";
-import SharedPostCard from "../../../../components/SharedPostCard";
-import SharedOpportunityCard from "../../../../components/SharedOpportunityCard";
-import SharedEventCard from "../../../../components/SharedEventCard";
-import SharedPlanCard from "../../../../components/SharedPlanCard";
+import ChatMediaMessage from "../../../../components/chat/ChatMediaMessage";
+import TicketMessageCard from "../../../../components/cards/TicketMessageCard";
+import SharedPostCard from "../../../../components/cards/SharedPostCard";
+import SharedOpportunityCard from "../../../../components/cards/SharedOpportunityCard";
+import SharedEventCard from "../../../../components/cards/SharedEventCard";
+import SharedPlanCard from "../../../../components/cards/SharedPlanCard";
 import MessageInteractionLayer from "./MessageInteractionLayer";
 import { formatTime, avatarColorFor, formatSeparatorLabel, computeEstimatedMessageHeight, getMessageCategory } from "../utils/chatListHelpers";
 import { mainStyles } from "../ChatScreen.styles";

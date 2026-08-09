@@ -55,13 +55,13 @@ import {
   CircleCheck,
 } from "lucide-react-native";
 import CustomAlertModal from "../../../components/ui/CustomAlertModal";
-import DynamicStatusBar from "../../../components/DynamicStatusBar";
-import GradientSafeArea from "../../../components/GradientSafeArea";
-import CollegeChip from "../../../components/CollegeChip";
+import DynamicStatusBar from "../../../components/navigation/DynamicStatusBar";
+import GradientSafeArea from "../../../components/ui/GradientSafeArea";
+import CollegeChip from "../../../components/ui/CollegeChip";
 import CollegeHubSheet from "../../../components/modals/CollegeHubSheet";
-import EventCard from "../../../components/EventCard";
+import EventCard from "../../../components/cards/EventCard";
 import HapticsService from "../../../services/HapticsService";
-import InstagramRow from "../../../components/InstagramRow";
+import InstagramRow from "../../../components/ui/InstagramRow";
 
 import {
   getPublicCommunity,
@@ -84,7 +84,7 @@ import {
 } from "react-native-safe-area-context";
 import EventBus from "../../../utils/EventBus";
 import { NotificationConsumptionService } from "../../../services/NotificationConsumptionService";
-import CommentsModal from "../../../components/CommentsModal";
+import CommentsModal from "../../../components/modals/CommentsModal";
 import { getAuthToken, getAuthEmail, getActiveAccount } from "../../../api/auth";
 import { apiPost, apiDelete, apiGet } from "../../../api/client";
 import LikeStateManager from "../../../utils/LikeStateManager";
@@ -101,17 +101,17 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import GradientButton from "../../../components/GradientButton";
-import ThemeChip from "../../../components/ThemeChip";
-import SkeletonProfileHeader from "../../../components/SkeletonProfileHeader";
-import SkeletonPostGrid from "../../../components/SkeletonPostGrid";
-import EditorialPostCard from "../../../components/EditorialPostCard";
-import OpportunityFeedCard from "../../../components/OpportunityFeedCard";
-import ProfilePostFeed from "../../../components/ProfilePostFeed";
-import EmptyPostsState from "../../../components/EmptyPostsState";
-import EmptyCommunityState from "../../../components/EmptyCommunityState";
-import EmptyEventsState from "../../../components/EmptyEventsState";
-import CommunityVoiceBox, { VoicePostCard } from "../../../components/CommunityVoiceBox";
+import GradientButton from "../../../components/ui/GradientButton";
+import ThemeChip from "../../../components/ui/ThemeChip";
+import SkeletonProfileHeader from "../../../components/skeletons/SkeletonProfileHeader";
+import SkeletonPostGrid from "../../../components/skeletons/SkeletonPostGrid";
+import EditorialPostCard from "../../../components/cards/EditorialPostCard";
+import OpportunityFeedCard from "../../../components/cards/OpportunityFeedCard";
+import ProfilePostFeed from "../../../components/profile/ProfilePostFeed";
+import EmptyPostsState from "../../../components/skeletons/EmptyPostsState";
+import EmptyCommunityState from "../../../components/skeletons/EmptyCommunityState";
+import EmptyEventsState from "../../../components/skeletons/EmptyEventsState";
+import CommunityVoiceBox, { VoicePostCard } from "../../../components/feed/CommunityVoiceBox";
 import SnooLoader from "../../../components/ui/SnooLoader";
 
 // Normalize Theme Constants

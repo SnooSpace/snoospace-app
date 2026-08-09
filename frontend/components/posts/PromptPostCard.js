@@ -67,7 +67,7 @@ import { postService } from "../../services/postService";
 import CustomAlertModal from "../ui/CustomAlertModal";
 import PromptEditModal from "./PromptEditModal";
 import EventBus from "../../utils/EventBus";
-import FollowButton from "../FollowButton";
+import FollowButton from "../ui/FollowButton";
 import {
   followMember,
   unfollowMember,
@@ -86,8 +86,8 @@ import SnooLoader from "../ui/SnooLoader";
 import HapticsService from "../../services/HapticsService";
 import { viewQueueService } from "../../services/ViewQueueService";
 import { useToast } from "../../context/ToastContext";
-import CustomImagePicker from "../CustomImagePicker";
-import ContentActionsSheet from "../ContentActionsSheet";
+import CustomImagePicker from "../media/CustomImagePicker";
+import ContentActionsSheet from "../modals/ContentActionsSheet";
 import PromoSourceBanner, { PromoTopRow, PlanPreviewCard } from "./PromoSourceBanner";
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
 import { useRecyclingState } from "@shopify/flash-list";

@@ -21,7 +21,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 import { updateCommunitySignupDraft, getCommunityDraftData } from "../../../utils/signupDraftManager";
 import { triggerTransitionHaptic } from "../../../hooks/useCelebrationHaptics";
 import { COMMUNITY_TYPE_LABELS } from "../../../constants/communityTypeLabels";

@@ -36,11 +36,11 @@ import {
   verifyEmailChange,
   getCommunityProfile,
 } from "../../../api/communities";
-import { useCrop } from "../../../components/MediaCrop";
+import { useCrop } from "../../../components/media";
 import { uploadImage } from "../../../api/cloudinary";
 import { apiGet } from "../../../api/client";
-import EmailChangeModal from "../../../components/EmailChangeModal";
-import LocationPicker from "../../../components/LocationPicker/LocationPicker";
+import EmailChangeModal from "../../../components/modals/EmailChangeModal";
+import LocationPicker from "../../../components/location/LocationPicker";
 import ActionSheet from "../../../components/modals/ActionSheet";
 import {
   COMMUNITY_CATEGORIES_HIERARCHY,

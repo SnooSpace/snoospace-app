@@ -26,14 +26,14 @@ import Animated, {
   withRepeat,
   Easing,
 } from "react-native-reanimated";
-import { useCrop } from "../../../components/MediaCrop";
+import { useCrop } from "../../../components/media";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   COLORS,
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 
 const CIRCLE_SIZE = 180;
 

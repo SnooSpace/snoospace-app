@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { StyleSheet, Text, View, TouchableOpacity, SafeAreaView, Platform, StatusBar, ScrollView } from "react-native";
 import { ArrowLeft } from "lucide-react-native";
-import ProgressBar from "../../../components/Progressbar";
+import ProgressBar from "../../../components/ui/Progressbar";
 
 import { LinearGradient } from "expo-linear-gradient";
 import {

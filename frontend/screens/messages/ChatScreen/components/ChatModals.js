@@ -5,9 +5,9 @@ import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { Reply, Copy, Trash2, Bell, BellOff, Flag, ShieldOff, UserX, ArrowLeft } from "lucide-react-native";
 
 import SwipeableModal from "../../../../components/modals/SwipeableModal";
-import ProfilePostFeed from "../../../../components/ProfilePostFeed";
-import CommentsModal from "../../../../components/CommentsModal";
-import MediaViewerTimeline from "../../../../components/MediaViewerTimeline";
+import ProfilePostFeed from "../../../../components/profile/ProfilePostFeed";
+import CommentsModal from "../../../../components/modals/CommentsModal";
+import MediaViewerTimeline from "../../../../components/media/MediaViewerTimeline";
 import CustomAlertModal from "../../../../components/ui/CustomAlertModal";
 
 import { optionsStyles } from "./MessageOptionsModal.styles";

@@ -21,7 +21,7 @@ import {
   BORDER_RADIUS,
   SHADOWS,
 } from "../../../constants/theme";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 import HapticsService from "../../../services/HapticsService";
 import { fetchPronouns } from "../../../api/members";
 import {

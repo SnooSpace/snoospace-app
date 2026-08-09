@@ -32,7 +32,7 @@ import {
   COMMUNITY_CATEGORIES_HIERARCHY,
   getCategoryStyle,
 } from "../../profile/community/EditCommunityProfileConstants";
-import SignupHeader from "../../../components/SignupHeader";
+import SignupHeader from "../../../components/navigation/SignupHeader";
 import {
   updateCommunitySignupDraft,
   deleteCommunitySignupDraft,
