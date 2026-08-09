@@ -11,7 +11,7 @@ import { Image } from "expo-image";
 import { GradientHeart } from "../ui/GradientHeart";
 import { LinearGradient } from "expo-linear-gradient";
 import HapticsService from "../../services/HapticsService";
-import { apiPost, apiDelete, savePost, unsavePost } from "../../api/client";
+import { apiPost, apiDelete, apiGet, savePost, unsavePost } from "../../api/client";
 import { getAuthToken } from "../../api/auth";
 import {
   COLORS,
@@ -74,6 +74,7 @@ import PromoSourceBanner, { PromoTopRow, PlanPreviewCard } from "./PromoSourceBa
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
 import { useRecyclingState } from "@shopify/flash-list";
 import { useDebouncedLikeToggle } from "../../hooks/useDebouncedLikeToggle";
+import ViewInsightsSheet from "../ui/ViewInsightsSheet";
 
 const PollPostCard = React.memo(({
   post,
@@ -375,6 +376,37 @@ const PollPostCard = React.memo(({
   // ── View Tracking ──────────────────────────────────────────────────────────
   const [viewCount, setViewCount] = useRecyclingState(post.public_view_count || post.view_count || 0, [post.id]);
   const dwellTimerRef = useRef(null);
+
+  // ── View Insights sheet ────────────────────────────────────────────────────
+  const [viewStatsVisible, setViewStatsVisible] = React.useState(false);
+  const [viewStats, setViewStats] = React.useState(null);
+  const [viewStatsLoading, setViewStatsLoading] = React.useState(false);
+  const viewSheetAnim = React.useRef(new Animated.Value(0)).current;
+
+  const handleViewPress = React.useCallback(async () => {
+    HapticsService.triggerView();
+    setViewStatsVisible(true);
+    Animated.spring(viewSheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
+    setViewStatsLoading(true);
+    try {
+      await viewQueueService.flushQueue();
+      const token = await getAuthToken();
+      const data = await apiGet(`/posts/${post.id}/view-stats`, 8000, token);
+      setViewStats(data);
+    } catch (e) {
+      setViewStats({ unique_views: post.public_view_count || post.view_count || 0, total_views: post.view_count || 0 });
+    } finally {
+      setViewStatsLoading(false);
+    }
+  }, [post.id, post.public_view_count, post.view_count, viewSheetAnim]);
+
+  const handleCloseViewStats = React.useCallback(() => {
+    HapticsService.triggerClose();
+    Animated.timing(viewSheetAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => {
+      setViewStatsVisible(false);
+      setViewStats(null);
+    });
+  }, [viewSheetAnim]);
 
   useEffect(() => {
     const DWELL_THRESHOLD = 2500;
@@ -1144,7 +1176,7 @@ const PollPostCard = React.memo(({
             </TouchableOpacity>
 
             {/* Views */}
-            <TouchableOpacity style={styles.engagementButton} onPress={() => HapticsService.triggerView()}>
+            <TouchableOpacity style={styles.engagementButton} onPress={handleViewPress}>
               <ChartNoAxesCombined size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
               <Text style={styles.engagementCount}>
                 {formatCount(viewCount)}
@@ -1233,6 +1265,13 @@ const PollPostCard = React.memo(({
           iconColor={alertConfig.iconColor}
         />
       )}
+      <ViewInsightsSheet
+        visible={viewStatsVisible}
+        onClose={handleCloseViewStats}
+        stats={viewStats}
+        loading={viewStatsLoading}
+        sheetAnim={viewSheetAnim}
+      />
     </>
   );
 });

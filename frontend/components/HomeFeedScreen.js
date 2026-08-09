@@ -559,13 +559,9 @@ export default function HomeFeedScreen({ navigation, role = "member" }) {
     }
   }, []);
 
-  // Ref callback: store the ref and re-arm isInitialLoadRef so
-  // onListContentSizeChange fires once for the new FlashList instance.
+  // Ref callback: store the ref for programmatic scroll operations (e.g. logo tap to top)
   const listRefCallback = useCallback((ref) => {
     flatListRef.current = ref;
-    if (ref) {
-      isInitialLoadRef.current = true;
-    }
   }, []);
 
   // Reanimated shared value for premium scroll-reactive header

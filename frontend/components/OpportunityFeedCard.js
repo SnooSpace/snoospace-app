@@ -56,7 +56,7 @@ import {
   CircleX,
   Info,
 } from "lucide-react-native";
-import { apiPost, apiDelete } from "../api/client";
+import { apiPost, apiDelete, apiGet } from "../api/client";
 import { closeOpportunity } from "../api/opportunities";
 import { viewQueueService } from "../services/ViewQueueService";
 import CountdownTimer from "./CountdownTimer";
@@ -69,6 +69,7 @@ import FollowButton from "./FollowButton";
 import { getOptimizedImageUrl } from "../utils/imageUtils";
 import { useRecyclingState } from "@shopify/flash-list";
 import { useDebouncedLikeToggle } from "../hooks/useDebouncedLikeToggle";
+import ViewInsightsSheet from "./ui/ViewInsightsSheet";
 import {
   followMember,
   unfollowMember,
@@ -452,10 +453,40 @@ const OpportunityFeedCard = React.memo(({
   const tokenRef = useRef(authToken);
 
 
-  // ── View Tracking (opportunity-specific endpoint) ─────────────────────────
+  // ── View Tracking (opportunity-specific endpoint) ──────────────────────────
   const [viewCount, setViewCount] = useRecyclingState(
     opportunity.view_count || opportunity.public_view_count || 0,
   [opportunity.id]);
+
+  // ── View Insights sheet ─────────────────────────────────────────────────
+  const [viewStatsVisible, setViewStatsVisible] = useRecyclingState(false, [opportunity.id]);
+  const [viewStats, setViewStats] = useRecyclingState(null, [opportunity.id]);
+  const [viewStatsLoading, setViewStatsLoading] = useRecyclingState(false, [opportunity.id]);
+  const viewSheetAnim = useRef(new RNAnimated.Value(0)).current;
+
+  const handleViewPress = useCallback(async () => {
+    HapticsService.triggerView();
+    setViewStatsVisible(true);
+    RNAnimated.spring(viewSheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
+    setViewStatsLoading(true);
+    try {
+      const token = tokenRef.current || authToken;
+      const data = await apiGet(`/opportunities/${opportunity.id}/view-stats`, 8000, token);
+      setViewStats(data);
+    } catch {
+      setViewStats({ unique_views: opportunity.view_count || 0, total_views: opportunity.view_count || 0 });
+    } finally {
+      setViewStatsLoading(false);
+    }
+  }, [opportunity.id, opportunity.view_count, authToken, viewSheetAnim]);
+
+  const handleCloseViewStats = useCallback(() => {
+    HapticsService.triggerClose();
+    RNAnimated.timing(viewSheetAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => {
+      setViewStatsVisible(false);
+      setViewStats(null);
+    });
+  }, [viewSheetAnim]);
 
   // ── Like state (shared debounced hook) ───────────────────────────────────
   const { isLiked, likeCount, toggle: toggleLike, reset: resetLike } =
@@ -1028,7 +1059,7 @@ const OpportunityFeedCard = React.memo(({
           </TouchableOpacity>
 
           {/* Views */}
-          <TouchableOpacity style={styles.engagementButton} onPress={() => { HapticsService.triggerView(); }}>
+          <TouchableOpacity style={styles.engagementButton} onPress={handleViewPress}>
             <ChartNoAxesCombined size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
           </TouchableOpacity>
@@ -1170,6 +1201,13 @@ const OpportunityFeedCard = React.memo(({
         iconColor={alertConfig.iconColor}
       />
     )}
+    <ViewInsightsSheet
+      visible={viewStatsVisible}
+      onClose={handleCloseViewStats}
+      stats={viewStats}
+      loading={viewStatsLoading}
+      sheetAnim={viewSheetAnim}
+    />
     </>
   );
 });

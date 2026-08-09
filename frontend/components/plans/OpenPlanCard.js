@@ -41,6 +41,7 @@ import { getAuthToken } from '../../api/auth';
 import SwipeableModal from '../modals/SwipeableModal';
 import { getPlanPromoteState } from '../../utils/promoteUtils';
 import CustomConfirmDialog from '../ui/CustomConfirmDialog';
+import ViewInsightsSheet from '../ui/ViewInsightsSheet';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 32;  // 16px padding each side
@@ -257,6 +258,23 @@ const OpenPlanCard = ({
   const [deletingCard,  setDeletingCard]  = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [deleteConfirmMessage, setDeleteConfirmMessage] = useState('');
+
+  // ── View Insights sheet (plans have no backend stats endpoint — show local count) ──
+  const [viewStatsVisible, setViewStatsVisible] = useState(false);
+  const viewSheetAnim = useRef(new Animated.Value(0)).current;
+
+  const handleViewPress = useCallback(() => {
+    HapticsService.triggerView();
+    setViewStatsVisible(true);
+    Animated.spring(viewSheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
+  }, [viewSheetAnim]);
+
+  const handleCloseViewStats = useCallback(() => {
+    HapticsService.triggerClose();
+    Animated.timing(viewSheetAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => {
+      setViewStatsVisible(false);
+    });
+  }, [viewSheetAnim]);
 
   // cardW state removed for performance optimization
 
@@ -669,7 +687,7 @@ const OpenPlanCard = ({
           {/* Views */}
           <TouchableOpacity
             style={[styles.engBtn, compact && { minWidth: 28, minHeight: 28 }]}
-            onPress={() => HapticsService.triggerView()}
+            onPress={handleViewPress}
           >
             <ChartNoAxesCombined size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engCount}>{fmt(viewCount)}</Text>
@@ -770,6 +788,14 @@ const OpenPlanCard = ({
         onCommentCountChange={(n) => setCommentCount(n)}
         onClose={() => setCommentsVisible(false)}
         navigation={navigation}
+      />
+
+      <ViewInsightsSheet
+        visible={viewStatsVisible}
+        onClose={handleCloseViewStats}
+        stats={{ unique_views: viewCount, total_views: viewCount }}
+        loading={false}
+        sheetAnim={viewSheetAnim}
       />
 
       {/* Host action menu — plain Modal to avoid overflow:hidden clipping */}

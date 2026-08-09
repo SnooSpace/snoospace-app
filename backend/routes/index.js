@@ -1165,6 +1165,16 @@ router.get(
   authMiddleware,
   ViewsController.getPostViewStats,
 );
+router.get(
+  "/events/:eventId/view-stats",
+  authMiddleware,
+  ViewsController.getEventViewStats,
+);
+router.get(
+  "/opportunities/:opportunityId/view-stats",
+  authMiddleware,
+  ViewsController.getOpportunityViewStats,
+);
 router.patch(
   "/posts/views/:postId/dwell",
   authMiddleware,

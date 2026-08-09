@@ -301,6 +301,54 @@ async function getPostViewStats(req, res) {
 }
 
 /**
+ * GET /events/:eventId/view-stats
+ *
+ * Returns view_count from the events table.
+ * Events do not have the unique_view_events tracking that posts have,
+ * so view_count is used as both unique_views and total_views.
+ */
+async function getEventViewStats(req, res) {
+  try {
+    const { eventId } = req.params;
+    const result = await pool.query(
+      `SELECT COALESCE(view_count, 0) AS view_count FROM events WHERE id = $1`,
+      [eventId],
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+    const count = parseInt(result.rows[0].view_count || 0);
+    return res.json({ event_id: parseInt(eventId), unique_views: count, total_views: count });
+  } catch (e) {
+    console.error("[ViewsController] getEventViewStats error:", e);
+    return res.status(500).json({ error: "Failed to get event view stats" });
+  }
+}
+
+/**
+ * GET /opportunities/:opportunityId/view-stats
+ *
+ * Returns view_count from the opportunities table.
+ */
+async function getOpportunityViewStats(req, res) {
+  try {
+    const { opportunityId } = req.params;
+    const result = await pool.query(
+      `SELECT COALESCE(view_count, 0) AS view_count FROM opportunities WHERE id = $1`,
+      [opportunityId],
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Opportunity not found" });
+    }
+    const count = parseInt(result.rows[0].view_count || 0);
+    return res.json({ opportunity_id: parseInt(opportunityId), unique_views: count, total_views: count });
+  } catch (e) {
+    console.error("[ViewsController] getOpportunityViewStats error:", e);
+    return res.status(500).json({ error: "Failed to get opportunity view stats" });
+  }
+}
+
+/**
  * PATCH /posts/views/:postId/dwell
  *
  * Updates the dwell_time_ms for an existing unique_view_event.
@@ -400,6 +448,8 @@ module.exports = {
   getPostViewAnalytics,
   getViewedPosts,
   getPostViewStats,
+  getEventViewStats,
+  getOpportunityViewStats,
   updateDwellTime,
   submitUnseenImpression,
 };

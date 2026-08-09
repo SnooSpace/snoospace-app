@@ -55,6 +55,8 @@ import EventBus from "../utils/EventBus";
 import CommentsModal from "./CommentsModal";
 import ContentActionsSheet from "./ContentActionsSheet";
 import { getOptimizedImageUrl } from "../utils/imageUtils";
+import { apiGet } from "../api/client";
+import ViewInsightsSheet from "./ui/ViewInsightsSheet";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 40; // 20px padding on each side
@@ -264,6 +266,35 @@ function EventCard({
   const [viewCount, setViewCount] = useRecyclingState(event?.view_count ?? 0, [event.id]);
   const [shareCount, setShareCount] = useRecyclingState(event?.share_count ?? 0, [event.id]);
   const [commentsVisible, setCommentsVisible] = useRecyclingState(false, [event.id]);
+
+  // ── View Insights sheet ─────────────────────────────────────────────────
+  const [viewStatsVisible, setViewStatsVisible] = useState(false);
+  const [viewStats, setViewStats] = useState(null);
+  const [viewStatsLoading, setViewStatsLoading] = useState(false);
+  const viewSheetAnim = useRef(new Animated.Value(0)).current;
+
+  const handleViewPress = async () => {
+    HapticsService.triggerView();
+    setViewStatsVisible(true);
+    Animated.spring(viewSheetAnim, { toValue: 1, useNativeDriver: true, tension: 65, friction: 11 }).start();
+    setViewStatsLoading(true);
+    try {
+      const data = await apiGet(`/events/${event.id}/view-stats`, 8000, authToken);
+      setViewStats(data);
+    } catch {
+      setViewStats({ unique_views: event.view_count || 0, total_views: event.view_count || 0 });
+    } finally {
+      setViewStatsLoading(false);
+    }
+  };
+
+  const handleCloseViewStats = () => {
+    HapticsService.triggerClose();
+    Animated.timing(viewSheetAnim, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => {
+      setViewStatsVisible(false);
+      setViewStats(null);
+    });
+  };
   // Ref to track if we're the source of an EventBus event (prevent self-listening)
   const isEmittingRef = useRef(false);
   const viewTrackedRef = useRef(false);
@@ -677,7 +708,8 @@ function EventCard({
   }, [event?.attendance_status, event?.attendance_confirmed_at]);
 
   return (
-    <View style={[styles.container, compact && styles.containerCompact, style]}>
+    <>
+      <View style={[styles.container, compact && styles.containerCompact, style]}>
       {/* Event Label */}
       <View style={[styles.eventLabel, compact && styles.eventLabelCompact]}>
         <Calendar
@@ -1373,7 +1405,7 @@ function EventCard({
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.engagementBtn}
-                onPress={() => HapticsService.triggerView()}
+                onPress={handleViewPress}
               >
                 <ChartNoAxesCombined
                   size={22}
@@ -1427,6 +1459,14 @@ function EventCard({
         </View>
       </TouchableOpacity>
     </View>
+    <ViewInsightsSheet
+      visible={viewStatsVisible}
+      onClose={handleCloseViewStats}
+      stats={viewStats}
+      loading={viewStatsLoading}
+      sheetAnim={viewSheetAnim}
+    />
+    </>
   );
 }
 
