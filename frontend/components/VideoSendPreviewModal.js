@@ -57,7 +57,7 @@ export default function VideoSendPreviewModal({ visible, videoUri, duration, onC
 
   return (
     <Modal visible={visible} transparent={false} animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <StatusBar barStyle="light-content" backgroundColor="#1C1C1E" />
       <View style={styles.container}>
 
         {/* ── Video ── */}
@@ -128,7 +128,7 @@ export default function VideoSendPreviewModal({ visible, videoUri, duration, onC
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#000",
+    backgroundColor: "#1C1C1E",
     justifyContent: "center",
   },
   video: {

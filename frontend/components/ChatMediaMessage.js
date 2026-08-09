@@ -176,10 +176,7 @@ function VideoItem({ item, isMyMessage, styleOverrides, mediaId, onOpenViewer })
         </View>
       </View>
 
-      {/* Small film icon badge in corner to indicate video type */}
-      <View style={bubbleStyles.videoTypeIndicator} pointerEvents="none">
-        <Film size={12} color="#FFFFFF" strokeWidth={2} />
-      </View>
+
     </TouchableOpacity>
   );
 }
@@ -373,14 +370,7 @@ const bubbleStyles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     paddingLeft: 2,
   },
-  // Small film icon badge in corner to indicate video type
-  videoTypeIndicator: {
-    position: "absolute",
-    bottom: 8, left: 8,
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    alignItems: "center", justifyContent: "center",
-  },
+
   moreOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.5)",

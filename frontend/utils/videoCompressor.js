@@ -25,7 +25,7 @@ export async function compressVideo(uri, onProgress) {
       uri,
       {
         compressionMethod: 'auto',   // hardware encoder when available
-        maxSize: 1080,               // cap at 1080p width
+        maxSize: 720,                // cap at 720p width
         // 'medium' ≈ CRF 28 — balanced quality/size for social video
         quality: 'medium',
       },

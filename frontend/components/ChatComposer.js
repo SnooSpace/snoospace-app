@@ -29,6 +29,7 @@ import {
   Pressable,
   ScrollView,
   Animated,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { ImagePlus, Send, X, AlertCircle } from "lucide-react-native";
@@ -36,7 +37,6 @@ import { getVideoThumbnailAsync } from "expo-video-thumbnails";
 
 import CustomImagePicker from "./CustomImagePicker";
 import VideoSendPreviewModal from "./VideoSendPreviewModal";
-import SnooLoader from "./ui/SnooLoader";
 import ReplyBar from "./ReplyBar";
 
 const PRIMARY_COLOR = "#3565F2";
@@ -377,14 +377,14 @@ const ChatComposerInner = (
         <Pressable
           style={({ pressed }) => [
             styles.sendButton,
-            !canSend && styles.sendButtonDisabled,
+            !canSend && !sending && !uploadingMedia && styles.sendButtonDisabled,
             pressed && canSend && { backgroundColor: SEND_BUTTON_PRESSED },
           ]}
           onPress={handlePressSend}
           disabled={!canSend}
         >
           {sending || uploadingMedia ? (
-            <SnooLoader size="small" color="#FFFFFF" />
+            <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
             <Send size={20} color="#FFFFFF" strokeWidth={2.6} />
           )}

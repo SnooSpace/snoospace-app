@@ -388,32 +388,45 @@ const MessageRow = React.memo((props) => {
                   {msg.senderName || "Unknown"}
                 </Text>
               )}
-              {msg.replyToMessageId && msg.replyPreview ? (
-                <ReplyQuote
-                  replyPreview={msg.replyPreview}
-                  isMyMessage={isMyMessage}
-                  onPress={() => onPressReplyQuote(msg.replyToMessageId)}
-                />
-              ) : null}
-              <ChatMediaMessage
-                message={msg}
+              <MessageInteractionLayer
+                itemKey={msg.id}
                 isMyMessage={isMyMessage}
-                uploadProgress={null}
-                onOpenViewer={onOpenViewer}
-              />
-              <Text
-                style={[
-                  mainStyles.messageTime,
-                  isMyMessage ? mainStyles.myMessageTime : mainStyles.otherMessageTime,
-                  {
-                    marginRight: isMyMessage ? 4 : 0,
-                    marginLeft: isMyMessage ? 0 : 4,
-                    marginTop: 2,
-                  },
-                ]}
+                onSwipe={handleSwipe}
+                onLongPress={handleLongPress}
+                payload={msg}
+                activeRowId={activeRowId}
+                activeRowIdShared={activeRowIdShared}
+                setActiveRowId={setActiveRowId}
               >
-                {formatTime(msg.createdAt)}
-              </Text>
+                <View collapsable={false}>
+                  {msg.replyToMessageId && msg.replyPreview ? (
+                    <ReplyQuote
+                      replyPreview={msg.replyPreview}
+                      isMyMessage={isMyMessage}
+                      onPress={() => onPressReplyQuote(msg.replyToMessageId)}
+                    />
+                  ) : null}
+                  <ChatMediaMessage
+                    message={msg}
+                    isMyMessage={isMyMessage}
+                    uploadProgress={null}
+                    onOpenViewer={onOpenViewer}
+                  />
+                  <Text
+                    style={[
+                      mainStyles.messageTime,
+                      isMyMessage ? mainStyles.myMessageTime : mainStyles.otherMessageTime,
+                      {
+                        marginRight: isMyMessage ? 4 : 0,
+                        marginLeft: isMyMessage ? 0 : 4,
+                        marginTop: 2,
+                      },
+                    ]}
+                  >
+                    {formatTime(msg.createdAt)}
+                  </Text>
+                </View>
+              </MessageInteractionLayer>
             </View>
           </View>
         </View>
