@@ -6195,6 +6195,13 @@ async function recordEventView(req, res) {
       created_at TIMESTAMP DEFAULT NOW(),
       UNIQUE (event_id, viewer_id, viewer_type)
     )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS event_repeat_view_events (
+      id SERIAL PRIMARY KEY,
+      event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL,
+      user_type TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
     const insertRes = await pool.query(
       "INSERT INTO event_views (event_id, viewer_id, viewer_type) VALUES ($1, $2, $3) ON CONFLICT (event_id, viewer_id, viewer_type) DO NOTHING",
       [eventId, userId, userType]
@@ -6206,6 +6213,10 @@ async function recordEventView(req, res) {
       const updated = await pool.query("UPDATE events SET view_count = COALESCE(view_count,0) + 1 WHERE id = $1 RETURNING view_count", [eventId]);
       view_count = updated.rows[0]?.view_count ?? 0;
     } else {
+      await pool.query(
+        "INSERT INTO event_repeat_view_events (event_id, user_id, user_type) VALUES ($1, $2, $3)",
+        [eventId, userId, userType]
+      ).catch(e => console.error("[recordEventView] repeat log error:", e.message));
       const ev = await pool.query("SELECT COALESCE(view_count,0) AS view_count FROM events WHERE id = $1", [eventId]);
       view_count = ev.rows[0]?.view_count ?? 0;
     }

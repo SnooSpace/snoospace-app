@@ -3,10 +3,11 @@
  * Displays a poll post with voting functionality
  */
 
-import React, { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, Dimensions, TouchableWithoutFeedback, Animated, Switch } from "react-native";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable, Dimensions, Animated, Switch } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { Pressable as GHPressable } from "react-native-gesture-handler";
+import { Pressable as GHPressable, GestureDetector, Gesture } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 import { Image } from "expo-image";
 import { GradientHeart } from "../ui/GradientHeart";
 import { LinearGradient } from "expo-linear-gradient";
@@ -660,40 +661,34 @@ const PollPostCard = React.memo(({
     };
   }, []);
 
-  const handleDoubleTap = (event) => {
-    if (isSharedPreview) {
-      if (onPress) onPress();
-      return;
-    }
-    const now = Date.now();
-    const DOUBLE_TAP_DELAY = 300;
-
-    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-      if (tapTimeoutRef.current) {
-        clearTimeout(tapTimeoutRef.current);
-        tapTimeoutRef.current = null;
-      }
-      const { pageX, pageY } = event.nativeEvent;
-      cardRef.current?.measure((x, y, width, height, cardPageX, cardPageY) => {
-        const relativeX = pageX - cardPageX;
-        const relativeY = pageY - cardPageY;
-        triggerHeartAnimation(relativeX, relativeY);
-      });
-      if (!isLiked) {
-        HapticsService.triggerLike();
-        toggleLike();
-      } else {
-        HapticsService.triggerImpactLight();
-      }
-      lastTapRef.current = 0;
+  // Double-tap to like — uses RNGH Gesture.Tap so it does NOT interfere
+  // with child touchables (unlike the old TouchableWithoutFeedback approach).
+  const onDoubleTap = useCallback((pageX, pageY) => {
+    cardRef.current?.measure((x, y, width, height, cardPageX, cardPageY) => {
+      triggerHeartAnimation(pageX - cardPageX, pageY - cardPageY);
+    });
+    if (!isLiked) {
+      HapticsService.triggerLike();
+      toggleLike();
     } else {
-      lastTapRef.current = now;
-      if (tapTimeoutRef.current) {
-        clearTimeout(tapTimeoutRef.current);
-        tapTimeoutRef.current = null;
-      }
+      HapticsService.triggerImpactLight();
     }
-  };
+  }, [isLiked, toggleLike]);
+
+  const doubleTapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .maxDelay(250)
+    .onStart((e) => {
+      runOnJS(onDoubleTap)(e.absoluteX, e.absoluteY);
+    });
+
+  const singleTapGesture = Gesture.Tap()
+    .numberOfTaps(1)
+    .onStart(() => {
+      if (isSharedPreview && onPress) runOnJS(onPress)();
+    });
+
+  const cardBodyGesture = Gesture.Exclusive(doubleTapGesture, singleTapGesture);
 
   const handleUserPress = () => {
     if (isAnon) return;
@@ -803,8 +798,10 @@ const PollPostCard = React.memo(({
   // Return array or fragment to include modal
   return (
     <>
-      <TouchableWithoutFeedback onPress={handleDoubleTap}>
-        <View ref={cardRef} style={styles.container}>
+      <View ref={cardRef} style={styles.container}>
+        {/* GestureDetector wraps card body only — keeps engagement row fully interactive */}
+        <GestureDetector gesture={cardBodyGesture}>
+          <View>
         {/* â”€â”€ PROMO: unified author+promo header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
         {isPromoPost && (
           <View style={styles.promoAuthorRow}>
@@ -1138,8 +1135,10 @@ const PollPostCard = React.memo(({
         {isPromoPost && (
           <PlanPreviewCard typeData={typeData} onPress={promoNavHandler} />
         )}
+          </View>
+        </GestureDetector>
 
-        {/* Like / Comment / View / Share / Bookmark */}
+        {/* Engagement Row — sits OUTSIDE GestureDetector so buttons are always fast */}
         {!hideEngagement && (
           <Pressable
             onPress={(e) => {
@@ -1148,7 +1147,7 @@ const PollPostCard = React.memo(({
             style={styles.engagementRow}
           >
             {/* Like */}
-            <TouchableOpacity
+            <GHPressable
               style={styles.engagementButton}
               onPress={toggleLike}
             >
@@ -1162,10 +1161,10 @@ const PollPostCard = React.memo(({
               >
                 {formatCount(likeCount)}
               </Text>
-            </TouchableOpacity>
+            </GHPressable>
 
             {/* Comment */}
-            <TouchableOpacity
+            <GHPressable
               style={styles.engagementButton}
               onPress={handleCommentPress}
             >
@@ -1173,18 +1172,18 @@ const PollPostCard = React.memo(({
               <Text style={styles.engagementCount}>
                 {formatCount(post.comment_count || 0)}
               </Text>
-            </TouchableOpacity>
+            </GHPressable>
 
             {/* Views */}
-            <TouchableOpacity style={styles.engagementButton} onPress={handleViewPress}>
+            <GHPressable style={styles.engagementButton} onPress={handleViewPress}>
               <ChartNoAxesCombined size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
               <Text style={styles.engagementCount}>
                 {formatCount(viewCount)}
               </Text>
-            </TouchableOpacity>
+            </GHPressable>
 
             {/* Share */}
-            <TouchableOpacity
+            <GHPressable
               style={styles.engagementButton}
               onPress={handleShare}
             >
@@ -1192,10 +1191,10 @@ const PollPostCard = React.memo(({
               <Text style={styles.engagementCount}>
                 {formatCount(post.share_count || 0)}
               </Text>
-            </TouchableOpacity>
+            </GHPressable>
 
             {/* Bookmark */}
-            <TouchableOpacity
+            <GHPressable
               style={styles.engagementButton}
               onPress={handleSave}
             >
@@ -1209,7 +1208,7 @@ const PollPostCard = React.memo(({
                   {formatCount(saveCount)}
                 </Text>
               )}
-            </TouchableOpacity>
+            </GHPressable>
           </Pressable>
         )}
 
@@ -1241,7 +1240,6 @@ const PollPostCard = React.memo(({
         />
       )}
       </View>
-    </TouchableWithoutFeedback>
     {showEditModal && renderModal()}
 
       {/* Poll Voters Modal */}

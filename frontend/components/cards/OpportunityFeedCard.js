@@ -1035,7 +1035,7 @@ const OpportunityFeedCard = React.memo(({
           style={styles.engagementRow}
         >
           {/* Like */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={toggleLike}
           >
@@ -1048,32 +1048,32 @@ const OpportunityFeedCard = React.memo(({
             <Text style={[styles.engagementCount, isLiked && styles.likedCount]}>
               {formatCount(likeCount)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Comment */}
-          <TouchableOpacity style={styles.engagementButton} onPress={handleComment}>
+          <GHPressable style={styles.engagementButton} onPress={handleComment}>
             <MessageCircle size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engagementCount}>
               {formatCount(commentCount)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Views */}
-          <TouchableOpacity style={styles.engagementButton} onPress={handleViewPress}>
+          <GHPressable style={styles.engagementButton} onPress={handleViewPress}>
             <ChartNoAxesCombined size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engagementCount}>{formatCount(viewCount)}</Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Share */}
-          <TouchableOpacity style={styles.engagementButton} onPress={handleShare}>
+          <GHPressable style={styles.engagementButton} onPress={handleShare}>
             <Send size={20} color="#5e8d9b" strokeWidth={2} />
             <Text style={styles.engagementCount}>
               {formatCount(opportunity.share_count || 0)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Bookmark */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={handleSave}
             disabled={isSaving}
@@ -1087,7 +1087,7 @@ const OpportunityFeedCard = React.memo(({
             <Text style={styles.engagementCount}>
               {formatCount(saveCount)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
         </Pressable>
 
       {/* ── 3-dot Menu Modal ──────────────────────────────────────────────── */}

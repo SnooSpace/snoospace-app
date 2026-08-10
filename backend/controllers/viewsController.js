@@ -303,22 +303,31 @@ async function getPostViewStats(req, res) {
 /**
  * GET /events/:eventId/view-stats
  *
- * Returns view_count from the events table.
- * Events do not have the unique_view_events tracking that posts have,
- * so view_count is used as both unique_views and total_views.
+ * Returns unique viewer count (from events.view_count) and total impression count
+ * (unique_views + COUNT(event_repeat_view_events)).
  */
 async function getEventViewStats(req, res) {
   try {
     const { eventId } = req.params;
     const result = await pool.query(
-      `SELECT COALESCE(view_count, 0) AS view_count FROM events WHERE id = $1`,
+      `SELECT
+         COALESCE(e.view_count, 0) AS unique_views,
+         COALESCE(e.view_count, 0) + COUNT(r.id) AS total_views
+       FROM events e
+       LEFT JOIN event_repeat_view_events r ON r.event_id = e.id
+       WHERE e.id = $1
+       GROUP BY e.view_count`,
       [eventId],
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Event not found" });
     }
-    const count = parseInt(result.rows[0].view_count || 0);
-    return res.json({ event_id: parseInt(eventId), unique_views: count, total_views: count });
+    const row = result.rows[0];
+    return res.json({
+      event_id: parseInt(eventId),
+      unique_views: parseInt(row.unique_views || 0),
+      total_views: parseInt(row.total_views || 0),
+    });
   } catch (e) {
     console.error("[ViewsController] getEventViewStats error:", e);
     return res.status(500).json({ error: "Failed to get event view stats" });
@@ -328,20 +337,31 @@ async function getEventViewStats(req, res) {
 /**
  * GET /opportunities/:opportunityId/view-stats
  *
- * Returns view_count from the opportunities table.
+ * Returns unique viewer count (from opportunities.view_count) and total impression count
+ * (unique_views + COUNT(opportunity_repeat_view_events)).
  */
 async function getOpportunityViewStats(req, res) {
   try {
     const { opportunityId } = req.params;
     const result = await pool.query(
-      `SELECT COALESCE(view_count, 0) AS view_count FROM opportunities WHERE id = $1`,
+      `SELECT
+         COALESCE(o.view_count, 0) AS unique_views,
+         COALESCE(o.view_count, 0) + COUNT(r.id) AS total_views
+       FROM opportunities o
+       LEFT JOIN opportunity_repeat_view_events r ON r.opportunity_id = o.id
+       WHERE o.id = $1
+       GROUP BY o.view_count`,
       [opportunityId],
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: "Opportunity not found" });
     }
-    const count = parseInt(result.rows[0].view_count || 0);
-    return res.json({ opportunity_id: parseInt(opportunityId), unique_views: count, total_views: count });
+    const row = result.rows[0];
+    return res.json({
+      opportunity_id: opportunityId,
+      unique_views: parseInt(row.unique_views || 0),
+      total_views: parseInt(row.total_views || 0),
+    });
   } catch (e) {
     console.error("[ViewsController] getOpportunityViewStats error:", e);
     return res.status(500).json({ error: "Failed to get opportunity view stats" });

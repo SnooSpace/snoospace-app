@@ -1997,11 +1997,29 @@ const viewOpportunity = async (req, res) => {
       created_at TIMESTAMP DEFAULT NOW(),
       UNIQUE(opportunity_id, viewer_id, viewer_type)
     )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS opportunity_repeat_view_events (
+      id SERIAL PRIMARY KEY,
+      opportunity_id UUID NOT NULL REFERENCES opportunities(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL,
+      user_type TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
 
     const existing = await pool.query(
       `SELECT id FROM opportunity_views WHERE opportunity_id = $1 AND viewer_id = $2 AND viewer_type = $3`,
       [id, userId, userType]
     );
+
+    const logRepeatView = async () => {
+      try {
+        await pool.query(
+          `INSERT INTO opportunity_repeat_view_events (opportunity_id, user_id, user_type) VALUES ($1, $2, $3)`,
+          [id, userId, userType]
+        );
+      } catch (e) {
+        console.error('[viewOpportunity] repeat log error:', e.message);
+      }
+    };
 
     let isNew = false;
     if (existing.rows.length === 0) {
@@ -2017,7 +2035,10 @@ const viewOpportunity = async (req, res) => {
         isNew = true;
       } catch (dupErr) {
         if (dupErr.code !== '23505') throw dupErr; // ignore unique constraint
+        await logRepeatView();
       }
+    } else {
+      await logRepeatView();
     }
 
     const row = await pool.query(`SELECT view_count FROM opportunities WHERE id = $1`, [id]);

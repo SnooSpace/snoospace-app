@@ -3,7 +3,7 @@
  * Displays a Challenge post with joining, progress, and submission preview
  */
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -13,9 +13,9 @@ import {
   Modal,
   Pressable,
   Dimensions,
-  TouchableWithoutFeedback,
 } from "react-native";
-import { Pressable as GHPressable } from "react-native-gesture-handler";
+import { Pressable as GHPressable, GestureDetector, Gesture } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 import { Image } from "expo-image"; // ── PERF: memory-disk cache + off-thread decode
 import { GradientHeart } from "../ui/GradientHeart";
 import { LinearGradient } from "expo-linear-gradient";
@@ -1062,16 +1062,26 @@ const ChallengePostCard = React.memo(({
               {previewSubmission.content}
             </Text>
           )}
-
         </View>
       </TouchableOpacity>
     );
   };
 
+  const singleTapGesture = Gesture.Tap()
+    .numberOfTaps(1)
+    .onStart(() => {
+      if (!isSharedPreview) runOnJS(() => navigation.navigate("ChallengeSubmissions", { post }))();
+      else if (onPress) runOnJS(onPress)();
+    });
+
+  const cardBodyGesture = singleTapGesture;
+
   return (
     <>
-    <TouchableWithoutFeedback onPress={handleDoubleTap}>
       <View ref={cardRef} style={styles.container}>
+        {/* GestureDetector wraps card body only — keeps engagement row fully interactive */}
+        <GestureDetector gesture={cardBodyGesture}>
+          <View>
         {/* Header Row: Badge & Trophy Icon */}
         <View style={styles.headerRow}>
           <View style={styles.badgesRow}>
@@ -1572,8 +1582,10 @@ const ChallengePostCard = React.memo(({
             </View>
           </TouchableOpacity>
         )}
+          </View>
+        </GestureDetector>
 
-        {/* Engagement Row */}
+        {/* Engagement Row — sits OUTSIDE GestureDetector so buttons are always fast */}
         {!hideEngagement && (
           <Pressable
           onPress={(e) => {
@@ -1582,7 +1594,7 @@ const ChallengePostCard = React.memo(({
           style={styles.engagementRow}
         >
           {/* Like */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={toggleLike}
           >
@@ -1596,10 +1608,10 @@ const ChallengePostCard = React.memo(({
             >
               {formatCount(likeCount)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Comment */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={handleCommentPress}
           >
@@ -1607,18 +1619,18 @@ const ChallengePostCard = React.memo(({
             <Text style={styles.engagementCount}>
               {formatCount(post.comment_count || 0)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Views */}
-          <TouchableOpacity style={styles.engagementButton} onPress={handleViewPress}>
+          <GHPressable style={styles.engagementButton} onPress={handleViewPress}>
             <ChartNoAxesCombined size={EDITORIAL_SPACING.iconSize} color={COLORS.editorial.textSecondary} />
             <Text style={styles.engagementCount}>
               {formatCount(viewCount)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Share */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={handleShare}
           >
@@ -1626,10 +1638,10 @@ const ChallengePostCard = React.memo(({
             <Text style={styles.engagementCount}>
               {formatCount(post.share_count || 0)}
             </Text>
-          </TouchableOpacity>
+          </GHPressable>
 
           {/* Bookmark */}
-          <TouchableOpacity
+          <GHPressable
             style={styles.engagementButton}
             onPress={handleSave}
           >
@@ -1643,7 +1655,7 @@ const ChallengePostCard = React.memo(({
                 {formatCount(saveCount)}
               </Text>
             )}
-          </TouchableOpacity>
+          </GHPressable>
         </Pressable>
         )}
 
@@ -1708,7 +1720,6 @@ const ChallengePostCard = React.memo(({
         />
       )}
       </View>
-    </TouchableWithoutFeedback>
       {showEditModal && (
         <ChallengeEditModal
           visible={showEditModal}
