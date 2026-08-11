@@ -228,6 +228,26 @@ const init = (dbPool) => {
     }
   });
 
+  // ── Hourly: expire stale collab requests ────────────────────────────────
+  // Flips any collab_requests row where status = 'pending' and expires_at
+  // is in the past. Runs at minute 30 (offset from attendance jobs at :00).
+  cron.schedule("30 * * * *", async () => {
+    if (!pool) return;
+    try {
+      const result = await pool.query(`
+        UPDATE collab_requests
+        SET status = 'expired'
+        WHERE status = 'pending'
+          AND expires_at < NOW()
+      `);
+      if (result.rowCount > 0) {
+        console.log(`[Scheduler] Expired ${result.rowCount} stale collab request(s)`);
+      }
+    } catch (err) {
+      console.error("[Scheduler] collab_requests expiry error:", err.message);
+    }
+  });
+
   console.log("[Scheduler] Scheduler service initialized");
 };
 

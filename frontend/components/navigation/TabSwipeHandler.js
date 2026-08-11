@@ -12,9 +12,11 @@ export default function TabSwipeHandler({
   children,
   currentTab,
   tabs = DEFAULT_TABS,
+  topOffset = 0,
 }) {
   const navigation = useNavigation();
   const [swipeEnabled, setSwipeEnabled] = useState(true);
+  const startYRef = React.useRef(0);
 
   useEffect(() => {
     const unsubDisable = EventBus.on("disable-tab-swipe", () => {
@@ -48,17 +50,21 @@ export default function TabSwipeHandler({
 
   const pan = Gesture.Pan()
     .enabled(swipeEnabled)
-    .hitSlop({ left: 40 })
-    // Require a significant horizontal movement (40px) before activating.
-    // This allows child ScrollViews and FlatLists (like Carousels) to consume the gesture first.
-    // Require a very clear, deliberate horizontal movement (e.g., 100px) before activating.
-    // This allows child ScrollViews and FlatLists (like Carousels and the main Feed) to scroll easily.
+    .hitSlop(topOffset > 0 ? { top: -topOffset } : { left: 40 })
+    // Require a significant horizontal movement before activating.
     .activeOffsetX([-100, 100])
     // If the user scrolls vertically even slightly (15px), cancel this horizontal swipe gesture
-    // This prevents diagonal scrolling from accidentally triggering a tab switch.
     .failOffsetY([-15, 15])
     .runOnJS(true)
+    .onBegin((event) => {
+      startYRef.current = event.y;
+    })
     .onEnd((event) => {
+      // If gesture started in excluded top area, do not trigger tab navigation
+      if (topOffset > 0 && startYRef.current < topOffset) {
+        return;
+      }
+
       // Once ended, check if the velocity or translation was enough to trigger a tab switch
       const { translationX, velocityX } = event;
 

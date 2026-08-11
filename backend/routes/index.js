@@ -2069,4 +2069,62 @@ router.use('/users', blocksRouter);
 router.use('/verifications', verificationsRouter);
 router.use('/spotify', spotifyRouter);
 
+// ============================================
+// COLLAB REQUESTS
+// Community ↔ Creator (member) structured pitch system.
+// A chat thread is ONLY created on acceptance.
+// ============================================
+const CollabRequestController = require('../controllers/collabRequestController');
+
+// IMPORTANT: static sub-paths (/received, /sent) must come BEFORE the /:id wildcard.
+router.get(
+  '/collab-requests/received',
+  authMiddleware,
+  CollabRequestController.getReceivedRequests,
+);
+router.get(
+  '/collab-requests/sent',
+  authMiddleware,
+  CollabRequestController.getSentRequests,
+);
+router.post(
+  '/collab-requests',
+  authMiddleware,
+  CollabRequestController.createRequest,
+);
+router.get(
+  '/collab-requests/:id',
+  authMiddleware,
+  CollabRequestController.getRequestById,
+);
+router.post(
+  '/collab-requests/:id/accept',
+  authMiddleware,
+  CollabRequestController.acceptRequest,
+);
+router.post(
+  '/collab-requests/:id/decline',
+  authMiddleware,
+  CollabRequestController.declineRequest,
+);
+router.post(
+  '/collab-requests/:id/withdraw',
+  authMiddleware,
+  CollabRequestController.withdrawRequest,
+);
+router.post(
+  '/collab-requests/:id/rate',
+  authMiddleware,
+  CollabRequestController.rateRequest,
+);
+
+// Generic reputation endpoint — works for community and member types.
+// Example: GET /collab-entities/community/42/reputation
+router.get(
+  '/collab-entities/:type/:id/reputation',
+  authMiddleware,
+  CollabRequestController.getReputation,
+);
+
 module.exports = router;
+

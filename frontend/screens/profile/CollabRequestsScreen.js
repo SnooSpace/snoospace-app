@@ -1,51 +1,58 @@
 /**
- * CommunityRequestsScreen.js
+ * CollabRequestsScreen.js
  *
- * Bottom-tab "Collabs" screen for the community role.
- * Received tab  — incoming collab pitches; Accept / Decline with reason picker.
- * Sent tab      — outgoing pitches; Withdraw with confirmation.
+ * Received and Sent tabs for the Collab Requests feature.
+ * Matches the tab + FlatList + pull-to-refresh pattern from CircleRequestsScreen.
  *
- * All data from the real backend via /collab-requests/received|sent.
- * No mock data.
+ * Navigation:
+ *   - From any profile screen: navigation.navigate('CollabRequests')
+ *   - On accept success: offers to navigate to 'Chat' screen with the created thread
+ *   - Counterpart avatar press: navigates to MemberPublicProfile or CommunityPublicProfile
  */
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, ScrollView,
   RefreshControl, ActivityIndicator,
 } from 'react-native';
+import { Pressable as GHPressable, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  Pressable as GHPressable,
-  GestureHandlerRootView,
-  ScrollView as GHScrollView,
-} from 'react-native-gesture-handler';
-import { Handshake, TriangleAlert } from 'lucide-react-native';
-import Reanimated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
-import TabSwipeHandler from '../../../components/navigation/TabSwipeHandler';
-import EventBus from '../../../utils/EventBus';
-import { COLORS, FONTS } from '../../../constants/theme';
+import { ArrowLeft, Handshake, TriangleAlert } from 'lucide-react-native';
+import Reanimated, {
+  useSharedValue, useAnimatedStyle, withTiming,
+} from 'react-native-reanimated';
+import { COLORS, FONTS } from '../../constants/theme';
 import {
   getReceivedCollabRequests,
   getSentCollabRequests,
   acceptCollabRequest,
   declineCollabRequest,
   withdrawCollabRequest,
-} from '../../../api/collabRequests';
-import CollabRequestCard, { CollabRequestCardSkeleton } from '../../../components/cards/CollabRequestCard';
-import HapticsService from '../../../services/HapticsService';
-import CustomAlertModal from '../../../components/ui/CustomAlertModal';
-
-const DASHBOARD_BG = '#F9F9F9';
+} from '../../api/collabRequests';
+import CollabRequestCard, { CollabRequestCardSkeleton } from '../../components/cards/CollabRequestCard';
+import HapticsService from '../../services/HapticsService';
+import CustomAlertModal from '../../components/ui/CustomAlertModal';
 
 // ─── Status filter chips ──────────────────────────────────────────────────────
 
 const STATUS_FILTERS = [
-  { value: 'pending',   label: 'Pending' },
-  { value: 'accepted',  label: 'Accepted' },
-  { value: 'declined',  label: 'Declined' },
-  { value: 'withdrawn', label: 'Withdrawn' },
-  { value: 'expired',   label: 'Expired' },
+  { value: undefined,    label: 'Pending' },
+  { value: 'accepted',   label: 'Accepted' },
+  { value: 'declined',   label: 'Declined' },
+  { value: 'withdrawn',  label: 'Withdrawn' },
+  { value: 'expired',    label: 'Expired' },
 ];
+
+// pending is default, but we send status=pending explicitly only when we want non-pending
+// (API default returns all; we filter client-side for cleaner chips)
+// Actually we pass the status param directly; pending is the label for "no status filter"
+// but backend filters by exact status, so 'pending' tab sends status=pending.
+const STATUS_FILTER_VALUES = {
+  'Pending':   'pending',
+  'Accepted':  'accepted',
+  'Declined':  'declined',
+  'Withdrawn': 'withdrawn',
+  'Expired':   'expired',
+};
 
 function FilterChips({ selected, onChange }) {
   return (
@@ -55,7 +62,7 @@ function FilterChips({ selected, onChange }) {
       onTouchEnd={() => EventBus.emit('enable-tab-swipe')}
       onTouchCancel={() => EventBus.emit('enable-tab-swipe')}
     >
-      <GHScrollView
+      <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterScrollContent}
@@ -66,12 +73,12 @@ function FilterChips({ selected, onChange }) {
         onMomentumScrollEnd={() => EventBus.emit('enable-tab-swipe')}
       >
         {STATUS_FILTERS.map(({ value, label }) => {
-          const isActive = selected === value;
+          const isActive = selected === (value ?? 'pending');
           return (
             <GHPressable
-              key={value}
+              key={label}
               style={[styles.filterChip, isActive && styles.filterChipActive]}
-              onPress={() => onChange(value)}
+              onPress={() => onChange(value ?? 'pending')}
               activeOpacity={0.75}
             >
               <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
@@ -80,7 +87,7 @@ function FilterChips({ selected, onChange }) {
             </GHPressable>
           );
         })}
-      </GHScrollView>
+      </ScrollView>
     </View>
   );
 }
@@ -96,16 +103,15 @@ function EmptyState({ tab, status }) {
   const subtitle = isReceived && isPending
     ? 'When someone sends you a collab pitch, it will appear here'
     : !isReceived && isPending
-    ? 'Pitch a Creator or another Community to start collaborating'
+    ? 'Send a collab pitch to a Community or Creator to get started'
     : null;
-
   return (
-    <View style={styles.emptyContainer}>
+    <View style={styles.emptyState}>
       <View style={styles.emptyIconBox}>
         <Handshake size={30} color={COLORS.textSecondary} strokeWidth={1.5} />
       </View>
       <Text style={styles.emptyTitle}>{title}</Text>
-      {subtitle ? <Text style={styles.emptyText}>{subtitle}</Text> : null}
+      {subtitle ? <Text style={styles.emptySubtitle}>{subtitle}</Text> : null}
     </View>
   );
 }
@@ -114,25 +120,27 @@ function EmptyState({ tab, status }) {
 
 const PAGE_LIMIT = 20;
 
-export default function CommunityRequestsScreen({ navigation }) {
-  const [activeTab, setActiveTab]       = useState('received');
+export default function CollabRequestsScreen({ navigation }) {
+  const [activeTab, setActiveTab]     = useState('received');
   const [statusFilter, setStatusFilter] = useState('pending');
 
-  const [receivedItems, setReceivedItems]   = useState([]);
-  const [sentItems, setSentItems]           = useState([]);
-  const [receivedPage, setReceivedPage]     = useState(1);
-  const [sentPage, setSentPage]             = useState(1);
-  const [receivedTotal, setReceivedTotal]   = useState(0);
-  const [sentTotal, setSentTotal]           = useState(0);
-  const [receivedLoading, setReceivedLoading]           = useState(true);
-  const [sentLoading, setSentLoading]                   = useState(true);
-  const [receivedLoadingMore, setReceivedLoadingMore]   = useState(false);
-  const [sentLoadingMore, setSentLoadingMore]           = useState(false);
-  const [refreshing, setRefreshing]         = useState(false);
-  const [actionLoading, setActionLoading]   = useState({});
-  const [alertConfig, setAlertConfig]       = useState({ visible: false });
+  // Per-tab state
+  const [receivedItems, setReceivedItems] = useState([]);
+  const [sentItems, setSentItems]         = useState([]);
+  const [receivedPage, setReceivedPage]   = useState(1);
+  const [sentPage, setSentPage]           = useState(1);
+  const [receivedTotal, setReceivedTotal] = useState(0);
+  const [sentTotal, setSentTotal]         = useState(0);
+  const [receivedLoading, setReceivedLoading] = useState(true);
+  const [sentLoading, setSentLoading]         = useState(true);
+  const [receivedLoadingMore, setReceivedLoadingMore] = useState(false);
+  const [sentLoadingMore, setSentLoadingMore]         = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // ── Animated tab underline (matches CircleRequestsScreen pattern) ──────────
+  const [actionLoading, setActionLoading] = useState({});
+  const [alertConfig, setAlertConfig]     = useState({ visible: false });
+
+  // ── Animated tab indicator (mirror of CircleRequestsScreen) ──────────────
   const tabUnderlineX     = useSharedValue(0);
   const tabUnderlineScale = useSharedValue(0);
   const tabWidths         = useRef({}).current;
@@ -162,11 +170,11 @@ export default function CommunityRequestsScreen({ navigation }) {
     }
   };
 
-  // ── Alert helpers ──────────────────────────────────────────────────────────
+  // ── Alert helpers ─────────────────────────────────────────────────────────
   const showAlert = useCallback((cfg) => setAlertConfig({ ...cfg, visible: true }), []);
   const hideAlert = useCallback(() => setAlertConfig((p) => ({ ...p, visible: false })), []);
 
-  // ── Fetch helpers ──────────────────────────────────────────────────────────
+  // ── Load helpers ──────────────────────────────────────────────────────────
 
   const loadReceived = useCallback(async ({ page = 1, status = statusFilter, append = false } = {}) => {
     if (page === 1) setReceivedLoading(true);
@@ -178,7 +186,7 @@ export default function CommunityRequestsScreen({ navigation }) {
       setReceivedPage(page);
       setReceivedTotal(data?.pagination?.total || 0);
     } catch (err) {
-      console.warn('[CommunityRequests] loadReceived:', err?.message);
+      console.warn('[CollabRequestsScreen] loadReceived error:', err?.message);
     } finally {
       setReceivedLoading(false);
       setReceivedLoadingMore(false);
@@ -195,7 +203,7 @@ export default function CommunityRequestsScreen({ navigation }) {
       setSentPage(page);
       setSentTotal(data?.pagination?.total || 0);
     } catch (err) {
-      console.warn('[CommunityRequests] loadSent:', err?.message);
+      console.warn('[CollabRequestsScreen] loadSent error:', err?.message);
     } finally {
       setSentLoading(false);
       setSentLoadingMore(false);
@@ -204,11 +212,11 @@ export default function CommunityRequestsScreen({ navigation }) {
 
   // Initial load
   useEffect(() => {
-    loadReceived({ status: 'pending' });
-    loadSent({ status: 'pending' });
+    loadReceived({ status: statusFilter });
+    loadSent({ status: statusFilter });
   }, []);
 
-  // Re-fetch when status filter changes
+  // Re-fetch when status filter changes (reset to page 1)
   const prevFilter = useRef(statusFilter);
   useEffect(() => {
     if (prevFilter.current === statusFilter) return;
@@ -216,6 +224,13 @@ export default function CommunityRequestsScreen({ navigation }) {
     if (activeTab === 'received') loadReceived({ page: 1, status: statusFilter });
     else loadSent({ page: 1, status: statusFilter });
   }, [statusFilter, activeTab]);
+
+  // Re-fetch the inactive tab when switching to it (if not yet loaded for this filter)
+  const handleTabSwitch = useCallback((tab) => {
+    setActiveTab(tab);
+    if (tab === 'received' && receivedLoading) loadReceived({ status: statusFilter });
+    if (tab === 'sent'     && sentLoading)     loadSent({ status: statusFilter });
+  }, [receivedLoading, sentLoading, statusFilter]);
 
   // Pull-to-refresh
   const handleRefresh = useCallback(async () => {
@@ -225,37 +240,31 @@ export default function CommunityRequestsScreen({ navigation }) {
     setRefreshing(false);
   }, [activeTab, statusFilter]);
 
-  // Pagination
+  // Pagination / infinite scroll
   const handleEndReached = useCallback(() => {
     if (activeTab === 'received') {
-      if (receivedLoadingMore || receivedItems.length >= receivedTotal) return;
+      if (receivedLoadingMore) return;
+      if (receivedItems.length >= receivedTotal) return;
       loadReceived({ page: receivedPage + 1, status: statusFilter, append: true });
     } else {
-      if (sentLoadingMore || sentItems.length >= sentTotal) return;
+      if (sentLoadingMore) return;
+      if (sentItems.length >= sentTotal) return;
       loadSent({ page: sentPage + 1, status: statusFilter, append: true });
     }
-  }, [activeTab, receivedLoadingMore, sentLoadingMore, receivedItems, sentItems,
-      receivedTotal, sentTotal, receivedPage, sentPage, statusFilter]);
+  }, [activeTab, receivedLoadingMore, sentLoadingMore, receivedItems, sentItems, receivedTotal, sentTotal, receivedPage, sentPage, statusFilter]);
 
-  // Tab switch — fetch inactive tab on first visit
-  const handleTabSwitch = useCallback((tab) => {
-    setActiveTab(tab);
-    if (tab === 'received' && receivedLoading) loadReceived({ status: statusFilter });
-    if (tab === 'sent'     && sentLoading)     loadSent({ status: statusFilter });
-  }, [receivedLoading, sentLoading, statusFilter]);
-
-  // ── Actions ────────────────────────────────────────────────────────────────
+  // ── Actions ───────────────────────────────────────────────────────────────
 
   const handleAccept = useCallback(async (item) => {
     HapticsService.triggerImpactMedium();
     setActionLoading((p) => ({ ...p, [item.id]: true }));
     try {
       const result = await acceptCollabRequest(item.id);
+      // Optimistic: update status in place
       setReceivedItems((prev) => prev.map((r) =>
-        r.id === item.id
-          ? { ...r, status: 'accepted', linked_chat_thread_id: result?.chat_thread_id }
-          : r,
+        r.id === item.id ? { ...r, status: 'accepted', linked_chat_thread_id: result?.chat_thread_id } : r,
       ));
+      // Offer to open the chat
       if (result?.chat_thread_id) {
         showAlert({
           title: 'Request Accepted 🎉',
@@ -308,7 +317,7 @@ export default function CommunityRequestsScreen({ navigation }) {
     HapticsService.triggerImpactLight();
     showAlert({
       title: 'Withdraw Request?',
-      message: `Cancel your pending collab request to ${item.counterpart?.display_name || 'this entity'}?`,
+      message: `This will cancel your pending collab request to ${item.counterpart?.display_name || 'this entity'}. You can send a new one later.`,
       icon: TriangleAlert, iconColor: '#D97706',
       secondaryAction: { text: 'Keep', onPress: hideAlert },
       primaryAction: {
@@ -350,7 +359,7 @@ export default function CommunityRequestsScreen({ navigation }) {
     }
   }, [navigation]);
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render helpers ────────────────────────────────────────────────────────
 
   const renderItem = useCallback(({ item }) => (
     <CollabRequestCard
@@ -367,148 +376,126 @@ export default function CommunityRequestsScreen({ navigation }) {
 
   const keyExtractor = useCallback((item) => String(item.id), []);
 
-  const isLoading     = activeTab === 'received' ? receivedLoading : sentLoading;
+  const isLoading = activeTab === 'received' ? receivedLoading : sentLoading;
   const isLoadingMore = activeTab === 'received' ? receivedLoadingMore : sentLoadingMore;
-  const data          = activeTab === 'received' ? receivedItems : sentItems;
-  const pendingCount  = receivedItems.filter((r) => r.status === 'pending').length;
+  const data = activeTab === 'received' ? receivedItems : sentItems;
+  const pendingCount = receivedItems.filter((r) => r.status === 'pending').length;
+
+  const ListFooter = isLoadingMore
+    ? () => <ActivityIndicator style={{ padding: 20 }} color={COLORS.primary} />
+    : null;
 
   return (
-    <TabSwipeHandler currentTab="Requests" tabs={['Home', 'Search', 'Dashboard', 'Requests', 'Profile']} topOffset={240}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaView style={styles.safeAreaContainer} edges={['top']}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.container} edges={['top']}>
 
-          {/* ── Top Header Section (White all the way up through status bar) ── */}
-          <View style={styles.whiteHeaderSection}>
-            {/* Header Title */}
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>Collabs</Text>
-            </View>
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <GHPressable onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={8}>
+            <ArrowLeft size={24} color={COLORS.textPrimary} strokeWidth={2} />
+          </GHPressable>
+          <Text style={styles.headerTitle}>Collab Requests</Text>
+          <View style={{ width: 40 }} />
+        </View>
 
-            {/* Tabs */}
-            <View style={styles.tabsContainer}>
-              {['received', 'sent'].map((tab) => (
-                <GHPressable
-                  key={tab}
-                  style={styles.tab}
-                  onPress={() => handleTabSwitch(tab)}
-                  onLayout={(e) => handleTabLayout(tab, e)}
-                  activeOpacity={0.75}
-                >
-                  <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-                    {tab === 'received'
-                      ? `Received${pendingCount > 0 ? ` (${pendingCount})` : ''}`
-                      : 'Sent'}
-                  </Text>
-                </GHPressable>
-              ))}
-              <Reanimated.View style={[styles.activeTabIndicator, animatedUnderlineStyle]} />
-            </View>
+        {/* ── Tabs ── */}
+        <View style={styles.tabRow}>
+          {['received', 'sent'].map((tab) => (
+            <GHPressable
+              key={tab}
+              style={styles.tab}
+              onPress={() => handleTabSwitch(tab)}
+              onLayout={(e) => handleTabLayout(tab, e)}
+              activeOpacity={0.75}
+            >
+              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+                {tab === 'received'
+                  ? `Received${pendingCount > 0 ? ` (${pendingCount})` : ''}`
+                  : 'Sent'}
+              </Text>
+            </GHPressable>
+          ))}
+          <Reanimated.View style={[styles.activeTabIndicator, animatedUnderlineStyle]} />
+        </View>
+
+        {/* ── Status filter chips ── */}
+        <FilterChips selected={statusFilter} onChange={setStatusFilter} />
+
+        {/* ── Content ── */}
+        {isLoading ? (
+          <View style={{ paddingTop: 12 }}>
+            {[1, 2, 3].map((k) => <CollabRequestCardSkeleton key={k} />)}
           </View>
-
-          {/* ── Screen Body (Dashboard Background #F9F9F9) ── */}
-          <View style={styles.bodyContainer}>
-            {/* Horizontal Scrollable Status Filter Chips */}
-            <FilterChips selected={statusFilter} onChange={setStatusFilter} />
-
-            {/* Content on #F9F9F9 Background */}
-            {isLoading ? (
-              <View style={{ paddingTop: 12 }}>
-                {[1, 2, 3].map((k) => <CollabRequestCardSkeleton key={k} />)}
-              </View>
-            ) : (
-              <FlatList
-                data={data}
-                renderItem={renderItem}
-                keyExtractor={keyExtractor}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.listContainer}
-                onEndReached={handleEndReached}
-                onEndReachedThreshold={0.3}
-                ListFooterComponent={isLoadingMore
-                  ? () => <ActivityIndicator style={{ padding: 20 }} color={COLORS.primary} />
-                  : null}
-                ListEmptyComponent={
-                  <EmptyState tab={activeTab} status={statusFilter} />
-                }
-                refreshControl={
-                  <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={handleRefresh}
-                    tintColor={COLORS.primary}
-                    colors={[COLORS.primary]}
-                  />
-                }
+        ) : (
+          <FlatList
+            data={data}
+            renderItem={renderItem}
+            keyExtractor={keyExtractor}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            onEndReached={handleEndReached}
+            onEndReachedThreshold={0.3}
+            ListFooterComponent={ListFooter}
+            ListEmptyComponent={
+              <EmptyState tab={activeTab} status={statusFilter} />
+            }
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={COLORS.primary}
+                colors={[COLORS.primary]}
               />
-            )}
-          </View>
-
-          <CustomAlertModal
-            visible={alertConfig.visible}
-            title={alertConfig.title}
-            message={alertConfig.message}
-            icon={alertConfig.icon}
-            iconColor={alertConfig.iconColor}
-            primaryAction={alertConfig.primaryAction}
-            secondaryAction={alertConfig.secondaryAction}
-            onClose={hideAlert}
+            }
           />
-        </SafeAreaView>
-      </GestureHandlerRootView>
-    </TabSwipeHandler>
+        )}
+
+        <CustomAlertModal
+          visible={alertConfig.visible}
+          title={alertConfig.title}
+          message={alertConfig.message}
+          icon={alertConfig.icon}
+          iconColor={alertConfig.iconColor}
+          primaryAction={alertConfig.primaryAction}
+          secondaryAction={alertConfig.secondaryAction}
+          onClose={hideAlert}
+        />
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeAreaContainer: {
-    flex: 1,
-    backgroundColor: '#FFFFFF', // Covers status bar area in white seamlessly
-  },
+  container: { flex: 1, backgroundColor: COLORS.screenBackground },
 
-  // White Header Top Section
-  whiteHeaderSection: {
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
-  },
+  // Header
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    marginBottom: 8,
-    backgroundColor: '#FFFFFF',
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.05)',
   },
-  headerTitle: {
-    fontFamily: FONTS.black, // PlusJakartaSans-ExtraBold — matching Dashboard title
-    fontSize: 34,
-    color: COLORS.textPrimary,
-    letterSpacing: -1,
-  },
+  backBtn: { width: 40, alignItems: 'flex-start' },
+  headerTitle: { fontFamily: FONTS.primary, fontSize: 18, color: COLORS.textPrimary },
 
   // Tabs
-  tabsContainer: {
+  tabRow: {
     flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.07)',
     position: 'relative',
-    backgroundColor: '#FFFFFF',
   },
   tab: { flex: 1, paddingVertical: 13, alignItems: 'center' },
   tabText: { fontFamily: FONTS.medium, fontSize: 14, color: COLORS.textSecondary },
-  activeTabText: { color: COLORS.primary, fontFamily: FONTS.semiBold },
+  tabTextActive: { color: COLORS.primary, fontFamily: FONTS.semiBold },
   activeTabIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    height: 2,
-    backgroundColor: COLORS.primary,
-    borderRadius: 1,
+    position: 'absolute', bottom: 0, height: 2,
+    backgroundColor: COLORS.primary, borderRadius: 1,
   },
 
-  // Body container on dashboard background color
-  bodyContainer: {
-    flex: 1,
-    backgroundColor: DASHBOARD_BG,
-  },
-
-  // Filter chips (Scrollable, on #F9F9F9 background, no separator line below)
+  // Status filter chips
   filterWrapper: {
-    backgroundColor: DASHBOARD_BG,
+    backgroundColor: COLORS.screenBackground,
   },
   filterScrollContent: {
     paddingHorizontal: 16,
@@ -540,41 +527,24 @@ const styles = StyleSheet.create({
   },
 
   // List
-  listContainer: {
-    paddingTop: 8,
-    paddingBottom: 100,
-    flexGrow: 1,
-  },
+  listContent: { paddingTop: 12, paddingBottom: 40, flexGrow: 1 },
 
   // Empty
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 40,
-    paddingVertical: 60,
+  emptyState: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingTop: 60, paddingHorizontal: 32,
   },
   emptyIconBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 64, height: 64, borderRadius: 32,
     backgroundColor: 'rgba(41,98,255,0.07)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
   },
   emptyTitle: {
-    fontFamily: FONTS.semiBold,
-    fontSize: 16,
-    color: '#1D1D1F',
-    textAlign: 'center',
-    marginBottom: 6,
+    fontFamily: FONTS.semiBold, fontSize: 15,
+    color: COLORS.textPrimary, textAlign: 'center', marginBottom: 6,
   },
-  emptyText: {
-    fontFamily: FONTS.regular,
-    fontSize: 13,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 19,
+  emptySubtitle: {
+    fontFamily: FONTS.regular, fontSize: 13,
+    color: COLORS.textSecondary, textAlign: 'center', lineHeight: 19,
   },
 });

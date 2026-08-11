@@ -65,6 +65,7 @@ import CircleListScreen from "../screens/profile/member/CircleListScreen";
 import CircleRequestsScreen from "../screens/profile/member/CircleRequestsScreen";
 import CreatorFollowersScreen from "../screens/profile/member/CreatorFollowersScreen";
 import CommunityFollowersScreen from "../screens/profile/community/CommunityFollowersScreen";
+import CollabRequestsScreen from "../screens/profile/CollabRequestsScreen";
 
 import PlansDiscoverFeedScreen from "../screens/plans/PlansDiscoverFeedScreen";
 import PlanDetailScreen from "../screens/plans/PlanDetailScreen";
@@ -337,6 +338,7 @@ export default function AppNavigator({ initialRouteName }) {
       <Stack.Screen name="BlockedAccounts" component={BlockedAccountsScreen} />
       <Stack.Screen name="CreatorMonetization" component={CommunityMonetizationScreen} />
       <Stack.Screen name="CommunityMonetization" component={CommunityMonetizationScreen} />
+      <Stack.Screen name="CollabRequests" component={CollabRequestsScreen} />
     </Stack.Navigator>
   );
 }
