@@ -1451,6 +1451,13 @@ const discoverEvents = async (req, res) => {
             OR e.access_type IS NULL 
             OR (e.access_type = 'invite_only' AND e.invite_public_visibility = true)
           )
+          -- Phase 2b: exclude events retired by two-strike unseen rule (30-day cooldown)
+          AND NOT EXISTS (
+            SELECT 1 FROM event_impression_state eis
+            WHERE eis.user_id = $1 AND eis.user_type = $2 AND eis.event_id = e.id
+              AND eis.retired_at IS NOT NULL
+              AND eis.retired_at > NOW() - INTERVAL '30 days'
+          )
         ORDER BY score DESC, e.start_datetime ASC
         LIMIT $3 OFFSET $4
       )
@@ -5912,6 +5919,14 @@ async function likeEvent(req, res) {
     }
     await pool.query("INSERT INTO event_likes (event_id, liker_id, liker_type) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING", [eventId, userId, userType]);
     const updated = await pool.query("UPDATE events SET like_count = COALESCE(like_count,0) + 1 WHERE id = $1 RETURNING like_count", [eventId]);
+
+    // Reset unseen impression state on like (fire-and-forget)
+    pool.query(
+      `UPDATE event_impression_state SET unseen_count = 0, retired_at = NULL
+       WHERE user_id = $1 AND user_type = $2 AND event_id = $3`,
+      [userId, userType, parseInt(eventId, 10)]
+    ).catch(e => console.error("[likeEvent] impression reset error:", e.message));
+
     return res.json({ success: true, is_liked: true, like_count: updated.rows[0]?.like_count ?? 0 });
   } catch (err) {
     console.error("[likeEvent]", err.message);
@@ -6220,12 +6235,24 @@ async function recordEventView(req, res) {
       const ev = await pool.query("SELECT COALESCE(view_count,0) AS view_count FROM events WHERE id = $1", [eventId]);
       view_count = ev.rows[0]?.view_count ?? 0;
     }
+
+    // Reset unseen impression state on EVERY qualified dwell — unconditional,
+    // runs whether this is a first-ever view or a repeat, so strike count is always
+    // cleared when the user actually dwells on the event card.
+    pool.query(
+      `UPDATE event_impression_state
+       SET unseen_count = 0, retired_at = NULL
+       WHERE user_id = $1 AND user_type = $2 AND event_id = $3`,
+      [userId, userType, parseInt(eventId, 10)]
+    ).catch(e => console.error("[recordEventView] impression reset error:", e.message));
+
     return res.json({ success: true, is_new, view_count });
   } catch (err) {
     console.error("[recordEventView]", err.message);
     return res.json({ success: true, is_new: false, view_count: 0 });
   }
 }
+
 
 /** POST /events/:eventId/share */
 async function shareEvent(req, res) {

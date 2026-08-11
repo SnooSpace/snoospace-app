@@ -305,6 +305,7 @@ class ViewQueueService {
   /**
    * Record an unseen impression event (scrolled past without qualifying).
    * Write-only tracking for Phase 1 lifecycle system.
+   * DO NOT MODIFY — Posts path is unchanged.
    */
   async recordUnseenImpression(postId) {
     if (!postId) return;
@@ -335,6 +336,68 @@ class ViewQueueService {
       );
     } catch (e) {
       console.warn("[ViewQueueService] Failed to record unseen impression:", e?.message);
+    }
+  }
+
+  /**
+   * Record an unseen impression for an Event (integer event_id).
+   * Phase 2b — routes to POST /events/views/unseen.
+   * Uses a separate session Set to avoid key collisions with Posts.
+   */
+  async recordEventUnseen(eventId) {
+    if (!eventId) return;
+    const numericEventId = parseInt(eventId, 10);
+    if (isNaN(numericEventId)) return;
+    const key = String(numericEventId);
+
+    if (!this.eventUnseenInSessionSet) this.eventUnseenInSessionSet = new Set();
+    if (this.eventUnseenInSessionSet.has(key)) return;
+    this.eventUnseenInSessionSet.add(key);
+
+    console.log(`[UNSEEN-EVENT] Recording unseen for event ${numericEventId} (session: ${this.sessionId})`);
+
+    try {
+      const { getAuthToken } = await import("../api/auth");
+      const token = await getAuthToken();
+      if (!token) return;
+      await apiPost(
+        "/events/views/unseen",
+        { eventId: numericEventId, sessionId: this.sessionId },
+        10000,
+        token,
+      );
+    } catch (e) {
+      console.warn("[ViewQueueService] Failed to record unseen event impression:", e?.message);
+    }
+  }
+
+  /**
+   * Record an unseen impression for an Opportunity (UUID opportunity_id).
+   * Phase 2b — routes to POST /opportunities/views/unseen.
+   * UUID is passed as-is — no parseInt guard. Uses a separate session Set.
+   */
+  async recordOpportunityUnseen(opportunityId) {
+    if (!opportunityId) return;
+    const key = String(opportunityId);
+
+    if (!this.opportunityUnseenInSessionSet) this.opportunityUnseenInSessionSet = new Set();
+    if (this.opportunityUnseenInSessionSet.has(key)) return;
+    this.opportunityUnseenInSessionSet.add(key);
+
+    console.log(`[UNSEEN-OPP] Recording unseen for opportunity ${opportunityId} (session: ${this.sessionId})`);
+
+    try {
+      const { getAuthToken } = await import("../api/auth");
+      const token = await getAuthToken();
+      if (!token) return;
+      await apiPost(
+        "/opportunities/views/unseen",
+        { opportunityId, sessionId: this.sessionId },
+        10000,
+        token,
+      );
+    } catch (e) {
+      console.warn("[ViewQueueService] Failed to record unseen opportunity impression:", e?.message);
     }
   }
 }

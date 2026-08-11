@@ -1186,6 +1186,18 @@ router.post(
   ViewsController.submitUnseenImpression,
 );
 
+// Phase 2b: unseen impression tracking for Events and Opportunities
+router.post(
+  "/events/views/unseen",
+  authMiddleware,
+  ViewsController.submitUnseenEventImpression,
+);
+router.post(
+  "/opportunities/views/unseen",
+  authMiddleware,
+  ViewsController.submitUnseenOpportunityImpression,
+);
+
 // Share routes
 router.post("/posts/:postId/share", authMiddleware, ShareController.sharePost);
 router.get(

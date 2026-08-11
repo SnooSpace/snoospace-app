@@ -1403,6 +1403,17 @@ const getFollowedOpportunities = async (req, res) => {
         AND o.creator_type = 'community'
         AND f.follower_id = $1
         AND f.follower_type = $2
+        -- Hard deadline override: expires_at and closed_at filter
+        -- (o.status='active' is not reliably updated on expiry — adding explicit guard)
+        AND (o.expires_at IS NULL OR o.expires_at > NOW())
+        AND o.closed_at IS NULL
+        -- Phase 2b: exclude opportunities retired by two-strike unseen rule (30-day cooldown)
+        AND NOT EXISTS (
+          SELECT 1 FROM opportunity_impression_state ois
+          WHERE ois.user_id = $1 AND ois.user_type = $2 AND ois.opportunity_id = o.id
+            AND ois.retired_at IS NOT NULL
+            AND ois.retired_at > NOW() - INTERVAL '30 days'
+        )
       ORDER BY o.created_at DESC
       LIMIT $3
     `;
@@ -1838,6 +1849,13 @@ const likeOpportunity = async (req, res) => {
     }
 
     res.json({ success: true, like_count: updated.rows[0]?.like_count || 0 });
+
+    // Reset unseen impression state on like (fire-and-forget, after response sent)
+    pool.query(
+      `UPDATE opportunity_impression_state SET unseen_count = 0, retired_at = NULL
+       WHERE user_id = $1 AND user_type = $2 AND opportunity_id = $3`,
+      [userId, userType, id]
+    ).catch(e => console.error("[likeOpportunity] impression reset error:", e.message));
   } catch (e) {
     console.error('Error liking opportunity:', e);
     res.status(500).json({ error: 'Internal server error' });
@@ -2042,6 +2060,16 @@ const viewOpportunity = async (req, res) => {
     }
 
     const row = await pool.query(`SELECT view_count FROM opportunities WHERE id = $1`, [id]);
+
+    // Reset unseen impression state on EVERY qualified dwell — unconditional,
+    // runs whether this is a first-ever view or a repeat.
+    pool.query(
+      `UPDATE opportunity_impression_state
+       SET unseen_count = 0, retired_at = NULL
+       WHERE user_id = $1 AND user_type = $2 AND opportunity_id = $3`,
+      [userId, userType, id]
+    ).catch(e => console.error("[viewOpportunity] impression reset error:", e.message));
+
     res.json({ success: true, is_new: isNew, view_count: row.rows[0]?.view_count || 0 });
   } catch (e) {
     console.error('Error recording opportunity view:', e);

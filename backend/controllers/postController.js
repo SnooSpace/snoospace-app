@@ -760,6 +760,19 @@ const getFeed = async (req, res) => {
             AND op.scheduled_at < NOW() - INTERVAL '3 hours'
         )
       )
+      -- 3. Exclude posts the viewer has retired (two-strike unseen rule)
+      --    Own posts are always shown. Retired posts reappear after 30 days.
+      AND NOT (
+        (p.author_id != $1 OR p.author_type != $2)
+        AND EXISTS (
+          SELECT 1 FROM post_impression_state pis
+          WHERE pis.user_id = $1
+            AND pis.user_type = $2
+            AND pis.post_id = p.id
+            AND pis.retired_at IS NOT NULL
+            AND pis.retired_at > NOW() - INTERVAL '30 days'
+        )
+      )
       ${cursorCondition}
       ORDER BY p.created_at DESC
       LIMIT $3
@@ -1594,6 +1607,15 @@ const likePost = async (req, res) => {
         })
       ).catch(() => {});
     }
+
+    // Like counts as engagement — reset unseen impression state (clears strikes + retirement)
+    // Fire-and-forget: do not let this block or fail the like response
+    pool.query(
+      `UPDATE post_impression_state
+       SET unseen_count = 0, retired_at = NULL
+       WHERE user_id = $1 AND user_type = $2 AND post_id = $3`,
+      [userId, userType, postId],
+    ).catch((e) => console.error("[likePost] post_impression_state reset failed:", e));
 
     res.json({ success: true, message: "Post liked" });
   } catch (error) {

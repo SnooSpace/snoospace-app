@@ -533,7 +533,9 @@ const OpportunityFeedCard = React.memo(({
       if (dwellTimerRef.current) {
         clearTimeout(dwellTimerRef.current);
         if (!hasTrackedView.current) {
-          viewQueueService.recordUnseenImpression(opportunity.id);
+          // Phase 2b: use recordOpportunityUnseen (UUID-safe) instead of
+          // recordUnseenImpression which silently discards non-integer IDs.
+          viewQueueService.recordOpportunityUnseen(opportunity.id);
         }
       }
     };

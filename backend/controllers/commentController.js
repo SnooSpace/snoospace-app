@@ -72,6 +72,15 @@ const createComment = async (req, res) => {
       [postId]
     );
 
+    // Comment counts as engagement — reset unseen impression state (clears strikes + retirement)
+    // Fire-and-forget: do not let this block or fail the comment response
+    pool.query(
+      `UPDATE post_impression_state
+       SET unseen_count = 0, retired_at = NULL
+       WHERE user_id = $1 AND user_type = $2 AND post_id = $3`,
+      [userId, userType, postId]
+    ).catch((e) => console.error("[createComment] post_impression_state reset failed:", e));
+
     // Create notification for post author (skip if user comments on their own post)
     try {
       // Fetch actor info once and reuse for all notifications
@@ -330,6 +339,15 @@ const replyToComment = async (req, res) => {
       "UPDATE posts SET comment_count = comment_count + 1 WHERE id = $1",
       [postId]
     );
+
+    // Comment counts as engagement — reset unseen impression state (clears strikes + retirement)
+    // Fire-and-forget: do not let this block or fail the comment response
+    pool.query(
+      `UPDATE post_impression_state
+       SET unseen_count = 0, retired_at = NULL
+       WHERE user_id = $1 AND user_type = $2 AND post_id = $3`,
+      [userId, userType, postId]
+    ).catch((e) => console.error("[replyToComment] post_impression_state reset failed:", e));
 
     // Create notification for post author (skip if user comments on their own post)
     try {

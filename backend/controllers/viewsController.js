@@ -89,7 +89,7 @@ async function submitViewsBatch(req, res) {
             ],
           );
 
-          // Increment public view count
+          // Increment public view count (first-time qualification only)
           await client.query(
             `UPDATE posts SET public_view_count = COALESCE(public_view_count, 0) + 1 WHERE id = $1`,
             [postId],
@@ -110,6 +110,25 @@ async function submitViewsBatch(req, res) {
             );
             // Continue processing other views
           }
+        }
+
+        // Reset unseen impression state on EVERY qualified dwell (≥2s), whether this
+        // is the user's first-ever qualification or a repeat dwell on an already-qualified
+        // post. This must run outside the savepoint block so a 23505 duplicate error
+        // on unique_view_events does NOT prevent the strike count from being cleared.
+        try {
+          await client.query(
+            `UPDATE post_impression_state
+             SET unseen_count = 0, retired_at = NULL
+             WHERE user_id = $1 AND user_type = $2 AND post_id = $3`,
+            [userId, userType, postId],
+          );
+        } catch (resetErr) {
+          // Non-fatal — log but do not abort the outer transaction
+          console.error(
+            `[ViewsController] post_impression_state reset failed for post ${postId}:`,
+            resetErr,
+          );
         }
       } else if (type === "repeat") {
         // Log repeat/engaged view.
@@ -446,20 +465,126 @@ async function submitUnseenImpression(req, res) {
          DO UPDATE SET
            unseen_count = CASE
              WHEN post_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
-             THEN post_impression_state.unseen_count + 1
+             THEN LEAST(post_impression_state.unseen_count + 1, 2)
              ELSE post_impression_state.unseen_count
            END,
-           last_session_id = EXCLUDED.last_session_id
+           last_session_id = EXCLUDED.last_session_id,
+           retired_at = CASE
+             WHEN post_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+               AND post_impression_state.unseen_count + 1 >= 2
+             THEN COALESCE(post_impression_state.retired_at, NOW())
+             ELSE post_impression_state.retired_at
+           END
          WHERE post_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id`,
         [userId, userType, id, sessionId]
       );
-      console.log(`[UNSEEN] Backend upserted unseen impression: post ${id} for user ${userId} (session: ${sessionId})`);
+      console.log(`[UNSEEN] Backend upserted unseen impression: post ${id} for user ${userId} (session: ${sessionId}) — strike ${2} triggers retirement if unseen_count was already 1`);
     }
 
     return res.json({ success: true, processed: validIds.length });
   } catch (e) {
     console.error("[ViewsController] submitUnseenImpression error:", e);
     return res.status(500).json({ error: "Failed to record unseen impression" });
+  }
+}
+
+/**
+ * POST /events/views/unseen
+ *
+ * Records an unseen impression for an Event (scrolled past without qualifying).
+ * Mirrors submitUnseenImpression exactly but targets event_impression_state
+ * with an INTEGER event_id (no UUID handling needed — events.id is INTEGER).
+ */
+async function submitUnseenEventImpression(req, res) {
+  try {
+    const userId = req.user.id;
+    const userType = req.user.type;
+    const { eventId, sessionId } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: "sessionId is required" });
+    }
+
+    const numericEventId = parseInt(eventId, 10);
+    if (!eventId || isNaN(numericEventId)) {
+      return res.status(400).json({ error: "Valid eventId is required" });
+    }
+
+    await pool.query(
+      `INSERT INTO event_impression_state (user_id, user_type, event_id, unseen_count, last_session_id)
+       VALUES ($1, $2, $3, 1, $4)
+       ON CONFLICT (user_id, user_type, event_id)
+       DO UPDATE SET
+         unseen_count = CASE
+           WHEN event_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+           THEN LEAST(event_impression_state.unseen_count + 1, 2)
+           ELSE event_impression_state.unseen_count
+         END,
+         last_session_id = EXCLUDED.last_session_id,
+         retired_at = CASE
+           WHEN event_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+             AND event_impression_state.unseen_count + 1 >= 2
+           THEN COALESCE(event_impression_state.retired_at, NOW())
+           ELSE event_impression_state.retired_at
+         END
+       WHERE event_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id`,
+      [userId, userType, numericEventId, sessionId]
+    );
+
+    console.log(`[UNSEEN-EVENT] Upserted unseen impression: event ${numericEventId} for user ${userId} (session: ${sessionId})`);
+    return res.json({ success: true });
+  } catch (e) {
+    console.error("[ViewsController] submitUnseenEventImpression error:", e);
+    return res.status(500).json({ error: "Failed to record unseen event impression" });
+  }
+}
+
+/**
+ * POST /opportunities/views/unseen
+ *
+ * Records an unseen impression for an Opportunity (scrolled past without qualifying).
+ * Mirrors submitUnseenImpression exactly but targets opportunity_impression_state
+ * with a UUID opportunity_id — no parseInt guard applied here.
+ */
+async function submitUnseenOpportunityImpression(req, res) {
+  try {
+    const userId = req.user.id;
+    const userType = req.user.type;
+    const { opportunityId, sessionId } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: "sessionId is required" });
+    }
+    if (!opportunityId) {
+      return res.status(400).json({ error: "opportunityId is required" });
+    }
+
+    await pool.query(
+      `INSERT INTO opportunity_impression_state (user_id, user_type, opportunity_id, unseen_count, last_session_id)
+       VALUES ($1, $2, $3, 1, $4)
+       ON CONFLICT (user_id, user_type, opportunity_id)
+       DO UPDATE SET
+         unseen_count = CASE
+           WHEN opportunity_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+           THEN LEAST(opportunity_impression_state.unseen_count + 1, 2)
+           ELSE opportunity_impression_state.unseen_count
+         END,
+         last_session_id = EXCLUDED.last_session_id,
+         retired_at = CASE
+           WHEN opportunity_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id
+             AND opportunity_impression_state.unseen_count + 1 >= 2
+           THEN COALESCE(opportunity_impression_state.retired_at, NOW())
+           ELSE opportunity_impression_state.retired_at
+         END
+       WHERE opportunity_impression_state.last_session_id IS DISTINCT FROM EXCLUDED.last_session_id`,
+      [userId, userType, opportunityId, sessionId]
+    );
+
+    console.log(`[UNSEEN-OPP] Upserted unseen impression: opportunity ${opportunityId} for user ${userId} (session: ${sessionId})`);
+    return res.json({ success: true });
+  } catch (e) {
+    console.error("[ViewsController] submitUnseenOpportunityImpression error:", e);
+    return res.status(500).json({ error: "Failed to record unseen opportunity impression" });
   }
 }
 
@@ -472,4 +597,6 @@ module.exports = {
   getOpportunityViewStats,
   updateDwellTime,
   submitUnseenImpression,
+  submitUnseenEventImpression,
+  submitUnseenOpportunityImpression,
 };

@@ -57,6 +57,7 @@ import ContentActionsSheet from "../modals/ContentActionsSheet";
 import { getOptimizedImageUrl } from "../../utils/imageUtils";
 import { apiGet } from "../../api/client";
 import ViewInsightsSheet from "../ui/ViewInsightsSheet";
+import { viewQueueService } from "../../services/ViewQueueService";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 40; // 20px padding on each side
@@ -432,7 +433,13 @@ function EventCard({
         );
       }
     }, 2500);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      // If the timer was cancelled before qualifying, record an unseen impression
+      if (!viewTrackedRef.current) {
+        viewQueueService.recordEventUnseen(event.id);
+      }
+    };
   }, [event?.id]);
 
   // Listen for interest updates from other components (e.g., EventDetailsScreen)
